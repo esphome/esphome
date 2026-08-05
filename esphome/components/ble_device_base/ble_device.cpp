@@ -271,25 +271,37 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
 // ---------------------------------------------------------------------------
 
 optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
+  bool prefix_rejected = false;
+  uint8_t rejected_sub_type = 0;
+  uint8_t rejected_len = 0;
   for (const auto &it : this->manufacturer_datas_) {
-    bool prefix_rejected = false;
-    auto res = ESPBLEiBeacon::from_manufacturer_data(it, &prefix_rejected);
-    if (prefix_rejected) {
-      // These frames were accepted before the prefix check, so their
-      // disappearance must be observable at the default log level; throttled
-      // rather than counted so a chatty non-iBeacon Apple advertiser cannot
-      // flood the log or permanently exhaust the diagnostic.
-      static uint32_t last_log = 0;
-      const uint32_t now = millis();
-      if (last_log == 0 || now - last_log > 60000) {
-        last_log = now;
-        char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-        ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
-                 this->address_str_to(addr_buf), it.data[0], it.data[1]);
-      }
-    }
+    bool rejected = false;
+    auto res = ESPBLEiBeacon::from_manufacturer_data(it, &rejected);
     if (res.has_value())
       return res;
+    if (rejected && !prefix_rejected) {
+      prefix_rejected = true;
+      rejected_sub_type = it.data[0];
+      rejected_len = it.data[1];
+    }
+  }
+  if (prefix_rejected) {
+    // Only when no beacon was found at all: these frames were accepted before
+    // the prefix check, so their disappearance must be observable at the
+    // default log level. Throttled so a chatty non-iBeacon Apple advertiser
+    // cannot flood the log; a different address bypasses the shared window
+    // once so that advertiser cannot mask the device that actually regressed.
+    static uint32_t last_log = 0;
+    static uint64_t last_addr = 0;
+    const uint32_t now = millis();
+    const uint64_t addr = this->address_uint64();
+    if (last_log == 0 || now - last_log > 60000 || addr != last_addr) {
+      last_log = now;
+      last_addr = addr;
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
+               this->address_str_to(addr_buf), rejected_sub_type, rejected_len);
+    }
   }
   return {};
 }
