@@ -1,14 +1,21 @@
 import esphome.codegen as cg
-from esphome.components.display_menu_base import CONF_LABEL
 import esphome.config_validation as cv
 from esphome.const import CONF_COLOR, CONF_HEIGHT, CONF_ITEMS, CONF_WIDTH
 
 from .. import add_lv_use
-from ..defines import CONF_COLOR_PICKER, CONF_KNOB, CONF_MAIN, literal
+from ..defines import (
+    CONF_COLOR_PICKER,
+    CONF_EXT_CLICK_AREA,
+    CONF_KNOB,
+    CONF_MAIN,
+    CONF_STYLES,
+    literal,
+)
 from ..lv_validation import lv_color, size
 from ..lvcode import lv_add
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType
+from .label import CONF_LABEL
 from .lv_bar import CONF_BAR
 from .slider import CONF_SLIDER, slider_spec
 
@@ -120,10 +127,13 @@ class ColorPickerType(WidgetType):
             for name in _sliders(w.config or {})
         ]
 
-    def obj_targets(self, w):
-        # Its own object is a plain container that nothing is ever pressed on, so anything
-        # to do with touch, such as `ext_click_area`, belongs on the sliders.
-        return self._sliders_of(w)
+    def obj_targets(self, w, prop):
+        # Nothing is ever pressed on its own object, so the touch margin belongs on the
+        # sliders. Everything else, scrolling in particular, is a matter for the container
+        # holding them and so stays where it is.
+        if prop == CONF_EXT_CLICK_AREA:
+            return self._sliders_of(w)
+        return [w]
 
     def part_targets(self, w, part):
         # The widget is made of sliders, so `items` and `knob` are the main and knob parts of
@@ -135,11 +145,14 @@ class ColorPickerType(WidgetType):
         return [(slider, target_part) for slider in self._sliders_of(w)]
 
     async def to_code(self, w, config: dict):
-        if color := config.get(CONF_COLOR):
+        # A hex colour validates to a plain int, so black must not be mistaken for absent.
+        if (color := config.get(CONF_COLOR)) is not None:
             lv_add(w.var.set_color(await lv_color.process(color)))
-        # Each knob is normally tinted with the colour its own slider shows, which would
-        # overwrite a background colour configured for it, so that turns the tinting off.
-        if CONF_BG_COLOR in config.get(CONF_KNOB, {}):
+        # Each knob is normally tinted with the colour its own slider shows. That is applied
+        # as a local style, which outranks any style the knob has been given, so a background
+        # colour configured for the knob would never show; tinting gives way to it instead.
+        knob = config.get(CONF_KNOB, {})
+        if CONF_BG_COLOR in knob or knob.get(CONF_STYLES):
             lv_add(w.var.set_tint_knobs(False))
         # The widget is square, so the height simply follows the configured width.
         # SIZE_CONTENT works too: the widget reports a size based on its text font.

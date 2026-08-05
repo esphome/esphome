@@ -7,9 +7,17 @@ import re
 import pytest
 
 from esphome.components.lvgl.schemas import container_schema
+from esphome.components.lvgl.widgets import _build_update_schema
 from esphome.components.lvgl.widgets.color_picker import color_picker_spec
 from esphome.config_validation import Invalid
 from esphome.const import CONF_WIDTH
+
+
+@pytest.fixture()
+def update_schema():
+    """The schema behind `lvgl.color_picker.update`."""
+    return _build_update_schema(color_picker_spec)
+
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -55,9 +63,13 @@ class TestColorPickerValidation:
 
         assert str(arg_type) == "Color"
 
-    def test_update_schema_has_no_width(self):
-        """Width belongs to creation only; the update action must not require it."""
-        assert "width" not in str(color_picker_spec.modify_schema.schema)
+    def test_update_action_sets_the_colour(self, update_schema):
+        """The colour is the one thing an update action is for."""
+        assert update_schema({"id": "picker", "color": 0xFF8800}) is not None
+
+    def test_update_action_does_not_require_width(self, update_schema):
+        """Width is only needed when the widget is created, unlike in the widget schema."""
+        assert CONF_WIDTH not in update_schema({"id": "picker", "color": 0xFF8800})
 
     def test_slider_parts_are_declared(self):
         """`items` and `knob` stand for the sliders the widget is built from."""
@@ -123,9 +135,10 @@ class TestColorPickerSliderChoice:
         with pytest.raises(Invalid, match="Unknown value 'cyan'"):
             schema({"width": 100, "sliders": ["cyan"]})
 
-    def test_sliders_cannot_be_updated(self):
+    def test_sliders_cannot_be_updated(self, update_schema):
         """The layout is built from them, so they cannot change after creation."""
-        assert "sliders" not in str(color_picker_spec.modify_schema.schema)
+        with pytest.raises(Invalid, match="sliders"):
+            update_schema({"id": "picker", "sliders": "rgb"})
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +179,10 @@ class TestColorPickerCodeGeneration:
 
     def test_color_is_omitted_when_not_configured(self, main_cpp):
         assert "picker_content->set_color(" not in main_cpp
+
+    def test_black_is_applied(self, main_cpp):
+        """A hex colour validates to a plain int, and black must not read as absent."""
+        assert "picker_black->set_color(lv_color_make(0, 0, 0))" in main_cpp
 
     def test_trigger_uses_color_type(self, main_cpp):
         """The on_value trigger is declared with the Color the widget reports."""
@@ -260,13 +277,22 @@ class TestColorPickerSliderStyles:
 
         assert set(own) == {"width", "height"}
 
+    @pytest.mark.parametrize(
+        "var",
+        [
+            # The background is set on the knob directly...
+            "picker_styled",
+            # ...or through a named style, which the tint would still outrank.
+            "picker_knob_style",
+        ],
+    )
     def test_knob_tinting_is_disabled_by_a_knob_background(
-        self, generate_main, component_config_path
+        self, generate_main, component_config_path, var
     ):
         """The tint is a local style, so it would overwrite the configured colour."""
         main_cpp = generate_main(component_config_path("color_picker.yaml"))
 
-        assert "picker_styled->set_tint_knobs(false)" in main_cpp
+        assert f"{var}->set_tint_knobs(false)" in main_cpp
 
     @pytest.mark.parametrize(
         "var", ["picker_content", "picker_fixed", "picker_colour_id"]
@@ -307,6 +333,15 @@ class TestColorPickerObjectProperties:
         assert any("'ext_click_area'" in w and "'knob'" in w for w in get_warnings()), (
             get_warnings()
         )
+
+    def test_scrollbar_mode_stays_on_the_widget_itself(self, main_cpp):
+        """Only the touch margin moves: a slider never scrolls, but the container can."""
+        assert "lv_obj_set_scrollbar_mode(picker_rgb->obj, LV_SCROLLBAR_MODE_OFF)" in (
+            main_cpp
+        )
+
+    def test_scrollbar_mode_does_not_reach_the_sliders(self, main_cpp):
+        assert "lv_obj_set_scrollbar_mode(picker_rgb->get_slider(" not in main_cpp
 
 
 class TestColorPickerSliderConstruction:

@@ -233,12 +233,13 @@ class WidgetType:
         """
         return []
 
-    def obj_targets(self, w: "Widget") -> list["Widget"]:
+    def obj_targets(self, w: "Widget", prop: str) -> list["Widget"]:
         """
-        Get the widgets an object property, as opposed to a style, applies to. A widget built
-        out of other widgets can point these at the ones that are actually pressed, since its
-        own object may not react to touch at all.
+        Get the widgets one object property, as opposed to a style, applies to. A widget
+        built out of other widgets can point a property at the ones it really concerns, such
+        as sending a touch margin to the parts that are actually pressed.
         :param w: The widget being configured
+        :param prop: The property name, one of OBJ_PROPERTIES
         :return:
         """
         return [w]
@@ -736,8 +737,8 @@ async def set_obj_properties(w: Widget, config):
         state = getattr(LV_STATE, key.upper())
         w.set_state(state, value)
 
-    for target in w.type.obj_targets(w):
-        for property in OBJ_PROPERTIES:
+    for property in OBJ_PROPERTIES:
+        for target in w.type.obj_targets(w, property):
             await target.set_property(property, config, lv_name="obj")
 
 

@@ -1598,6 +1598,8 @@ lvgl:
             sliders: [hue, saturation]
             # Widens the area each slider can be pressed on, so the knobs are easier to move
             ext_click_area: 10
+            # Applies to the widget as a whole, unlike the setting above
+            scrollbar_mode: "OFF"
             knob:
               bg_color: 0xFFFFFF
 
