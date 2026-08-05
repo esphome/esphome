@@ -173,14 +173,9 @@ def get_download_types(storage_json):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # The most recent releases have not been uploaded to platformio so grabbing them directly from
-    # the GitHub release is one path forward for now.
+    # The framework-arduinopico package is no longer published to the PlatformIO
+    # registry, so install the framework straight from the GitHub release
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
-
-    # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
-    # a PIO earlephilhower/framework-arduinopico value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-    # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
 def _parse_platform_version(value):
@@ -198,7 +193,6 @@ def _parse_platform_version(value):
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
