@@ -144,6 +144,9 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
 #ifdef USE_OTA_PARTITIONS
+  // A partition-table update carries an MD5 (checked by IDF), not a Secure Boot
+  // signature, and only re-points boot at an already-installed app -- so it is
+  // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }

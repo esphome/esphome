@@ -1215,11 +1215,13 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
     return hashlib.sha256(blob).digest()
 
 
-def _validate_trusted_key(value: str) -> str:
+def _validate_trusted_key(value: Any) -> str:
     """Normalize a trusted key to its 64-hex-char signature-block digest.
 
     Accepts either the digest directly (so CI can inject it without shipping a
-    key file) or a PEM key file whose digest is computed here.
+    key file) or a PEM key file whose digest is computed here. Typed ``Any``
+    because YAML hands validators the parsed value -- e.g. an unquoted ``0x...``
+    digest arrives as an int, which the guard below rejects with advice to quote.
     """
     # An unquoted 0x... or all-digit digest is parsed by YAML as an int before it
     # reaches here, so it never looks like a string digest -- reject it clearly
@@ -2694,7 +2696,22 @@ async def to_code(config):
         # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
         external_rsa = scheme == "rsa3072" and CONF_SIGNING_KEY not in signed_ota
         verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
+        # verification_keys is only accepted for external RSA (enforced in
+        # _validate_signed_ota_keys); re-assert it here so a future validation
+        # change can't silently drop the declared trust anchor and downgrade to
+        # IDF's single-block check.
+        if verification_keys and not external_rsa:
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' requires external RSA signing "
+                f"('{CONF_SIGNING_SCHEME}: rsa3072' with no '{CONF_SIGNING_KEY}')."
+            )
         multi_key = external_rsa and verification_keys
+        # Turning IDF's on-update check off is global -- it also drops the
+        # signature check from esp_ota_set_boot_partition() on the partition-table
+        # path and safe_mode's recovery rollback. Both deliberately select an
+        # already-installed image (or an MD5-checked partition table), not a
+        # freshly-downloaded one, so ESPHome's verifier only needs to cover the
+        # app and bootloader OTA paths, where a new image is actually written.
         add_idf_sdkconfig_option(
             "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not multi_key
         )
