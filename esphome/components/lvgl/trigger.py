@@ -59,7 +59,10 @@ async def generate_triggers():
     all_triggers = (
         LV_EVENT_TRIGGERS + LV_DISPLAY_EVENT_TRIGGERS + LV_SCREEN_EVENT_TRIGGERS
     )
-    for w in get_widget_map().values():
+    # Snapshot: building a trigger below can recurse into widget creation (e.g. a
+    # buttonmatrix's or tabview's to_code registers its own child widgets), which
+    # would otherwise mutate this dict mid-iteration.
+    for w in list(get_widget_map().values()):
         config = w.config
         if isinstance(w.type, LvScrActType):
             w = get_screen_active(w.var)

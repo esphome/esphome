@@ -4,6 +4,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
     CONF_ID,
     CONF_INDEX,
     CONF_ON_UPDATE,
@@ -41,6 +42,9 @@ from ..schemas import WIDGET_TYPES, any_widget_schema, container_schema_value
 from ..trigger import add_trigger
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
 from . import Widget, WidgetType, get_widgets, set_obj_properties
+from .buttonmatrix import CONF_BUTTONMATRIX
+from .label import CONF_LABEL
+from .tabview import CONF_TABVIEW
 
 CONF_LIST = "list"
 CONF_WIDGET = "widget"
@@ -129,7 +133,7 @@ class ListType(WidgetType):
         )
 
     def get_uses(self):
-        return (TYPE_FLEX,)
+        return TYPE_FLEX, CONF_LABEL, CONF_BUTTON
 
     async def to_code(self, w: Widget, config: dict):
         # `to_code` is also invoked (with the update schema's config, which has no
@@ -185,6 +189,26 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
+_DYNAMIC_WIDGET_UNSUPPORTED = (CONF_BUTTONMATRIX, CONF_TABVIEW)
+
+
+def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
+    # buttonmatrix/tabview register their own child widgets (matrix buttons, tabs)
+    # into the global widget map from inside their to_code - safe for a widget built
+    # once at boot, but lvgl.list.add re-enters this on every call, so those children
+    # would keep piling into that map and generate_triggers() (the only place that
+    # would wire their own on_click etc.) has already run by boot, long before any
+    # runtime call - their triggers would silently never fire.
+    if w_type_name in _DYNAMIC_WIDGET_UNSUPPORTED:
+        raise cv.Invalid(
+            f"'{w_type_name}' cannot be used with lvgl.list.add - it manages its own "
+            "child widgets in a way that isn't compatible with widgets created at runtime"
+        )
+    for child in w_conf.get(CONF_WIDGETS, ()):
+        [(child_type, child_conf)] = child.items()
+        _check_dynamic_widget_supported(child_type, child_conf)
+
+
 @schema_extractor("schema")
 def list_add_schema(value):
     # A plain cv.Schema can't express "id, an optional index, plus exactly one arbitrary
@@ -219,7 +243,24 @@ def list_add_schema(value):
             "lvgl.list.add takes exactly one widget definition, e.g. 'label:' or 'button:', alongside 'id' and optional 'index'"
         )
     result[CONF_WIDGET] = any_widget_schema()(value)
+    [(w_type_name, w_conf)] = result[CONF_WIDGET][0].items()
+    _check_dynamic_widget_supported(w_type_name, w_conf)
     return result
+
+
+def _register_lv_uses(w_type_name: str, w_conf: dict) -> None:
+    # Registers this widget (and any nested children) with add_lv_use() before this
+    # coroutine's first await below, which can block until the target list is defined
+    # elsewhere - for an action outside the lvgl: block, that wait can outlast lvgl's own
+    # to_code, which flushes the LV_USE_* defines just once, near the end of its run. Any
+    # add_lv_use() call made after that point - such as the one _build_dynamic_widget()
+    # normally makes on every call - is too late for its result to reach the compile.
+    widget_type = WIDGET_TYPES[w_type_name]
+    add_lv_use(w_type_name)
+    add_lv_use(*widget_type.get_uses())
+    for child in w_conf.get(CONF_WIDGETS, ()):
+        [(child_type, child_conf)] = child.items()
+        _register_lv_uses(child_type, child_conf)
 
 
 @automation.register_action(
@@ -229,10 +270,11 @@ def list_add_schema(value):
     synchronous=True,
 )
 async def list_add_to_code(config, action_id, template_arg, args):
+    [(w_type_name, w_conf)] = config[CONF_WIDGET][0].items()
+    _register_lv_uses(w_type_name, w_conf)
     widgets = await get_widgets(config)
 
     async def do_add(w: Widget):
-        [(w_type_name, w_conf)] = config[CONF_WIDGET][0].items()
         index = None
         if (idx := config.get(CONF_INDEX)) is not None:
             index = await lv_int.process(idx)
@@ -369,15 +411,19 @@ async def list_remove_to_code(config, action_id, template_arg, args):
 
     async def do_remove(w: Widget):
         index = await lv_int.process(config[CONF_INDEX])
+        # A templatable index is materialised into a local once here, rather than used
+        # directly below - a lambda's full body gets re-emitted (and re-run) at every
+        # point its expression is used, and index is needed at two call sites.
         # lv_obj_del recursively destroys the whole subtree under the removed entry,
         # so a hierarchy added via lvgl.list.add is always cleaned up in full.
         with (
+            LocalVariable("list_index", cg.int_, index, modifier="") as idx,
             LocalVariable(
-                "list_child", lv_obj_t, lv_expr.obj_get_child(w.obj, index)
+                "list_child", lv_obj_t, lv_expr.obj_get_child(w.obj, idx)
             ) as child,
             LvConditional(child),
         ):
-            _fire_on_remove(config[CONF_ID], index)
+            _fire_on_remove(config[CONF_ID], idx)
             lv.obj_del(child)
 
     return await action_to_code(

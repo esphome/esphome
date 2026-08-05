@@ -205,11 +205,17 @@ def test_on_add_fires_once_per_entry_via_shared_trigger(main_cpp: str) -> None:
 def test_remove_guards_against_missing_child_and_fires_before_delete(
     main_cpp: str,
 ) -> None:
+    """The index is materialised into a local once (list_index_VAR_) and reused for
+    both the child lookup and the on_remove trigger, so a templatable index isn't
+    evaluated twice.
+    """
     assert (
-        "lv_obj_t *list_child_VAR_ = lv_obj_get_child(test_list, 0);\n"
-        "        if (list_child_VAR_) {\n"
-        "            triggerint_id_2->trigger(0);\n"
-        "            lv_obj_del(list_child_VAR_);"
+        "int list_index_VAR_ = 0;\n"
+        "        {\n"
+        "            lv_obj_t *list_child_VAR_ = lv_obj_get_child(test_list, list_index_VAR_);\n"
+        "            if (list_child_VAR_) {\n"
+        "                triggerint_id_2->trigger(list_index_VAR_);\n"
+        "                lv_obj_del(list_child_VAR_);"
     ) in main_cpp
 
 
