@@ -1,0 +1,9 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+espnow:
+  id: espnow_component
+  auto_add_peer: true
+  peers:
+    - 11:22:33:44:55:66
