@@ -1193,6 +1193,15 @@ def _sbv2_rsa_key_digest(path: Path) -> bytes:
         if b"PUBLIC KEY" in data:
             public_key = load_pem_public_key(data)
         else:
+            # verification_keys only needs the public half; warn so the private
+            # key doesn't end up committed alongside the config.
+            _LOGGER.warning(
+                "'%s' is a private key, but '%s' needs only the public key. Use a "
+                "public-key PEM or the 64-hex digest (espsecure "
+                "digest-sbv2-public-key) so the private key stays out of your config.",
+                path,
+                CONF_VERIFICATION_KEYS,
+            )
             public_key = load_pem_private_key(data, password=None).public_key()
     except (ValueError, TypeError, UnsupportedAlgorithm) as err:
         raise cv.Invalid(f"Could not load key '{path}': {err}") from err
