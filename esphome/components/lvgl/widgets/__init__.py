@@ -488,7 +488,7 @@ async def _resolve_widget_ref(ref) -> Widget:
     """
     Resolve one entry of an update action's (already-validated) `id:` list: either a
     plain declared id (the usual case, handled via `get_widget_`), or a widget-child-ref
-    -- `{parent:, path:}`, see `schemas.py::_widget_child_ref_schema` -- built by walking
+    -- `{parent:, path:}` (validated in `schemas.py::_update_id_item_schema`) -- built by walking
     `lv_obj_get_child()` from the (always-resolvable, since it's a declared id itself)
     parent widget, no new registry or ordering concerns needed.
     """
