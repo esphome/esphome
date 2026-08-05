@@ -10,12 +10,12 @@ namespace esphome::modbus_controller {
 
 using value_to_data_t = std::function<float>(float);
 
-class ModbusNumber final : public number::Number, public Component, public SensorItem {
+class ModbusNumber final : public number::Number, public Component, public SensorItem, public ModbusControllerDevice {
  public:
   ModbusNumber(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                SensorValueType value_type, int register_count, uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
-    this->set_address(start_address);
+    this->SensorItem::set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = value_type;
@@ -27,7 +27,7 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   void dump_config() override;
   void parse_and_publish(std::span<const uint8_t> data) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void set_parent(ModbusController *parent) { this->parent_ = parent; }
+  void set_parent(ModbusController *parent) { this->set_controller_(parent); }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
   using transform_func_t = optional<float> (*)(ModbusNumber *, float, std::span<const uint8_t>);
@@ -40,11 +40,8 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   void control(float value) override;
   optional<transform_func_t> transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
-  ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
-  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
-  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller

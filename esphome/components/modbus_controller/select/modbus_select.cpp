@@ -46,24 +46,40 @@ void ModbusSelect::control(size_t index) {
   const char *option = this->option_at(index);
   ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, option);
 
+  // The select is its own hub device, so it writes with this->write_*() directly and the write_lambda's
+  // `item` pointer IS this command.
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
   ModbusWriteRegisters data;
 
   if (this->write_transform_func_.has_value()) {
-    // Transform func requires string parameter for backward compatibility
+    // The lambda may drive the write itself via item->write_*(), override the mapping value (return a value),
+    // or (deprecated) fill `data` with the register words to write. Transform func requires string parameter
+    // for backward compatibility.
     auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
     if (val.has_value()) {
       mapval = val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
-    } else {
+    } else if (!this->dispatched() && data.empty()) {
       ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");
       return;
     }
   }
 
-  if (data.empty()) {
-    modbus::helpers::number_to_payload(data, *mapval, this->sensor_value_type);
+  if (this->dispatched()) {
+    // The lambda already sent a frame via item->write_*(); nothing more to do but publish.
+    if (this->optimistic_)
+      this->publish_state(index);
+    return;
+  }
+
+  if (!data.empty()) {
+    // Deprecated buffer path (frozen): the lambda supplied the register words to write.
+    this->warn_write_buffer_deprecated_(this->get_name().c_str());
   } else {
-    ESP_LOGV(TAG, "Using payload from write lambda");
+    modbus::helpers::number_to_payload(data, *mapval, this->sensor_value_type);
   }
 
   if (data.empty()) {
@@ -82,11 +98,10 @@ void ModbusSelect::control(size_t index) {
   }
 
   const uint16_t write_address = this->write_address();
-  this->write_command_.emplace(this->parent_->create_command());
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    this->write_command_->write_single_register(write_address, data[0]);
+    this->write_single_register(write_address, data[0]);
   } else {
-    this->write_command_->write_multiple_registers(write_address, data);
+    this->write_multiple_registers(write_address, data);
   }
 
   if (this->optimistic_)

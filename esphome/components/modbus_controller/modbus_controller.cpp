@@ -8,90 +8,141 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
+void SensorItem::warn_write_buffer_deprecated_(const char *entity_name) {
+  if (this->write_buffer_deprecated_warned_)
+    return;
+  this->write_buffer_deprecated_warned_ = true;
+  ESP_LOGW(TAG,
+           "%s: filling the write_lambda buffer parameter is deprecated; call a write helper / send_pdu() on the "
+           "entity (item) instead. The buffer parameter is removed in 2027.2.0",
+           entity_name);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// ModbusControllerDevice: the controller-facing behaviour shared by range commands and writer entities.
+// The default callbacks below are what a writer entity uses (online tracking, retry, the on_command_sent
+// trigger); ModbusCommandItem overrides on_response/error/not_sent/no_response to add dispatch/unqueue.
+
+void ModbusControllerDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
+  if (frame.empty())
+    return;
+  this->dispatched_ = true;
+  this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+}
+
+void ModbusControllerDevice::set_controller_(ModbusController *controller) {
+  this->controller_ = controller;
+  this->set_parent(controller->hub());
+  this->set_address(controller->device_address());
+}
+
+void ModbusControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr)
+    this->controller_->set_online(true, fc_of_(request_pdu), addr_of_(request_pdu));
+}
+
+bool ModbusControllerDevice::note_no_response_(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ == nullptr)
+    return false;
+  this->controller_->increment_non_response_count();
+  if (this->controller_->can_send())
+    return true;  // the hub re-queues the frame it is holding; on_sent fires again on the retry
+  this->controller_->set_online(false, fc_of_(request_pdu), addr_of_(request_pdu));
+  return false;
+}
+
+void ModbusControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  this->notify_online_(request_pdu);
+}
+
+void ModbusControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  ESP_LOGE(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of_(request_pdu),
+           addr_of_(request_pdu), static_cast<uint8_t>(exception_code));
+  this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
+}
+
+// Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
+// reflects when the frame actually went out, not when it was queued. Decoded from the request PDU.
+void ModbusControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr)
+    this->controller_->command_sent(fc_of_(request_pdu), addr_of_(request_pdu));
+}
+
+bool ModbusControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
+  return this->note_no_response_(request_pdu);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// ModbusCommandItem: a range/custom-PDU polling command (or a deprecated factory command).
+
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      RegisterRange &&range)
-    : modbus::ModbusClientDevice(parent, address),
+    : ModbusControllerDevice(controller, parent, address),
       sensors(std::move(range.sensors)),
       skip_updates(range.skip_updates),
       register_type_(range.register_type),
       start_address_(range.start_address),
       register_count_(range.register_count),
-      function_code_(modbus::helpers::modbus_register_read_function(range.register_type)),
-      controller_(&controller) {}
+      function_code_(modbus::helpers::modbus_register_read_function(range.register_type)) {}
 
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      SensorItem *sensor)
-    : modbus::ModbusClientDevice(parent, address),
+    : ModbusControllerDevice(controller, parent, address),
       skip_updates(sensor->skip_updates),
       start_address_(sensor->start_address),
       register_count_(sensor->register_count),
-      custom_pdu_(&sensor->custom_pdu),
-      controller_(&controller) {
+      custom_pdu_(&sensor->custom_pdu) {
   this->sensors.insert(sensor);
 }
 
-// The base deletes copy/move; command items re-provide construction. The moved-from device must not
-// unregister the hub slot we just took over, so its parent_ is cleared. The copy constructor exists
-// only for callers that pass an lvalue to queue_command() (in-tree callers move); remove it when
-// queue_command() is removed.
+// The base deletes copy/move; command items re-provide construction for value storage. The moved-from
+// device must not unregister the hub slot we just took over, so its parent_ is cleared. The copy
+// constructor exists only for the queue_command() compatibility path (it copies its const-ref
+// argument); remove it when queue_command() is removed.
 ModbusCommandItem::ModbusCommandItem(const ModbusCommandItem &other)
-    : modbus::ModbusClientDevice(other.parent_, other.address_),
+    : ModbusControllerDevice(other.parent_, other.address_, other.controller_),
       sensors(other.sensors),
       skip_updates(other.skip_updates),
-      on_data_func(other.on_data_func),
       register_type_(other.register_type_),
       start_address_(other.start_address_),
       register_count_(other.register_count_),
       function_code_(other.function_code_),
       custom_pdu_(other.custom_pdu_),
-      payload_is_raw_frame_(other.payload_is_raw_frame_),
-      controller_(other.controller_) {
+      payload_is_raw_frame_(other.payload_is_raw_frame_) {
   // SmallInlineBuffer is move-only, so deep-copy the bytes explicitly.
   memcpy(this->payload.init(other.payload.size()), other.payload.data(), other.payload.size());
 }
 
 ModbusCommandItem::ModbusCommandItem(ModbusCommandItem &&other) noexcept
-    : modbus::ModbusClientDevice(other.parent_, other.address_),
+    : ModbusControllerDevice(other.parent_, other.address_, other.controller_),
       sensors(std::move(other.sensors)),
       skip_updates(other.skip_updates),
-      on_data_func(std::move(other.on_data_func)),
       payload(std::move(other.payload)),
       register_type_(other.register_type_),
       start_address_(other.start_address_),
       register_count_(other.register_count_),
       function_code_(other.function_code_),
       custom_pdu_(other.custom_pdu_),
-      payload_is_raw_frame_(other.payload_is_raw_frame_),
-      controller_(other.controller_) {
+      payload_is_raw_frame_(other.payload_is_raw_frame_) {
   other.parent_ = nullptr;
 }
 
-// A valid response: the device is online. Dispatch the payload to the handler or the range's sensors.
+// A valid read response: dispatch the payload to the range's sensors. (notify_online_ via the base.)
 void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  if (this->controller_ != nullptr)
-    this->controller_->set_online(true, static_cast<int>(this->function_code_), this->start_address_);
+  this->notify_online_(request_pdu);
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (this->on_data_func) {
-    this->on_data_func(this->register_type_, this->start_address_, data);
-  } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
-    // write acknowledgement - nothing to publish
-  } else {
+  if (!modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
     for (auto *sensor : this->sensors)
       sensor->parse_and_publish(data);
-  }
+  }  // else: write acknowledgement - nothing to publish
   if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);
 }
 
-// An exception response is still a legitimate reply, so the device is considered online.
 void ModbusCommandItem::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
-  const uint8_t function_code = request_pdu.empty() ? 0 : request_pdu[0];
-  ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", function_code, this->start_address_,
-           static_cast<uint8_t>(exception_code));
-  if (this->controller_ != nullptr) {
-    this->controller_->set_online(true, function_code, this->start_address_);
+  ModbusControllerDevice::on_error(request_pdu, exception_code);  // log + notify_online_
+  if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);
-  }
 }
 
 // Not being sent says nothing about online/offline status; just drop it from the pending list.
@@ -105,23 +156,11 @@ void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
     this->controller_->unqueue_command(this);
 }
 
-// Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent
-// trigger reflects when the frame actually went out, not when it was queued.
-void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
-    this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
-}
-
 bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ == nullptr)
-    return false;
-  this->controller_->increment_non_response_count();
-  if (this->controller_->can_send()) {
-    // Have the hub re-queue the frame it is holding; on_sent fires again when it goes back out.
+  if (this->note_no_response_(request_pdu))
     return true;
-  }
-  this->controller_->set_online(false, static_cast<int>(this->function_code_), this->start_address_);
-  this->controller_->unqueue_command(this);
+  if (this->controller_ != nullptr)
+    this->controller_->unqueue_command(this);
   return false;
 }
 
@@ -347,69 +386,6 @@ void ModbusController::dump_config() {
 #endif
 }
 
-// Write helpers: set metadata (for logs and the wire-time on_command_sent), then the base helper builds and
-// queues the PDU routed back to this item. Transitional: removed once reporting decodes from request_pdu.
-void ModbusCommandItem::write_single_register(uint16_t start_address, uint16_t value) {
-  this->set_command_(FunctionCode::WRITE_SINGLE_REGISTER, EntityType::HOLDING, start_address, 1);
-  modbus::ModbusClientDevice::write_single_register(start_address, value);
-}
-
-void ModbusCommandItem::write_single_coil(uint16_t address, bool value) {
-  this->set_command_(FunctionCode::WRITE_SINGLE_COIL, EntityType::COIL, address, 1);
-  modbus::ModbusClientDevice::write_single_coil(address, value);
-}
-
-void ModbusCommandItem::write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
-  this->set_command_(FunctionCode::WRITE_MULTIPLE_REGISTERS, EntityType::HOLDING, start_address, values.size());
-  modbus::ModbusClientDevice::write_multiple_registers(start_address, values);
-}
-
-void ModbusCommandItem::write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
-  this->set_command_(FunctionCode::WRITE_MULTIPLE_COILS, EntityType::COIL, start_address, values.size());
-  modbus::ModbusClientDevice::write_multiple_coils(start_address, values);
-}
-
-void ModbusCommandItem::send_pdu(std::span<const uint8_t> pdu) {
-  // Best-effort decode of the PDU header so handlers and logs get the same metadata as a standard command.
-  if (pdu.size() >= 3) {
-    auto function_code = static_cast<FunctionCode>(pdu[0]);
-    this->set_command_(function_code, modbus::helpers::entity_type_from_function_code(pdu[0]),
-                       modbus::helpers::get_data<uint16_t>(pdu.data(), 1), 0);
-  } else if (!pdu.empty()) {
-    this->function_code_ = static_cast<FunctionCode>(pdu[0]);
-    this->register_type_ = modbus::helpers::entity_type_from_function_code(pdu[0]);
-  }
-  modbus::ModbusClientDevice::send_pdu(pdu);
-}
-
-void ModbusCommandItem::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
-  if (frame.empty())
-    return;
-  this->set_metadata_from_frame_(frame);
-  this->parent_->send_pdu(frame[0], frame.subspan(1), this);
-}
-
-// Best-effort decode of the raw frame header so handlers and logs get standard-command metadata.
-void ModbusCommandItem::set_metadata_from_frame_(std::span<const uint8_t> frame) {
-  if (frame.size() >= 4) {
-    this->set_command_(static_cast<FunctionCode>(frame[1]), modbus::helpers::entity_type_from_function_code(frame[1]),
-                       modbus::helpers::get_data<uint16_t>(frame.data(), 2), 0);
-  } else if (frame.size() >= 2) {
-    this->function_code_ = static_cast<FunctionCode>(frame[1]);
-    this->register_type_ = modbus::helpers::entity_type_from_function_code(frame[1]);
-  }
-}
-
-ModbusCommandItem ModbusCommandItem::create_read_command(
-    ModbusController *controller, EntityType register_type, uint16_t start_address, uint16_t register_count,
-    std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler) {
-  ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
-  cmd.set_command_(modbus::helpers::modbus_register_read_function(register_type), register_type, start_address,
-                   register_count);
-  cmd.on_data_func = std::move(handler);
-  return cmd;
-}
-
 ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusController *controller, uint16_t start_address,
                                                                    uint16_t register_count,
                                                                    const std::vector<uint16_t> &values) {
@@ -464,30 +440,31 @@ ModbusCommandItem ModbusCommandItem::custom_command_impl(ModbusController *contr
   ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
   memcpy(cmd.payload.init(values.size()), values.data(), values.size());
   cmd.payload_is_raw_frame_ = true;
-  cmd.set_metadata_from_frame_(values);
+  // Best-effort decode of the raw frame's header (address + PDU) so logs get the same metadata as a
+  // standard command.
+  if (values.size() >= 4) {
+    cmd.set_command_(static_cast<FunctionCode>(values[1]), modbus::helpers::entity_type_from_function_code(values[1]),
+                     modbus::helpers::get_data<uint16_t>(values.data(), 2), 0);
+  } else if (values.size() >= 2) {
+    cmd.function_code_ = static_cast<FunctionCode>(values[1]);
+    cmd.register_type_ = modbus::helpers::entity_type_from_function_code(values[1]);
+  }
   return cmd;
 }
 
-ModbusCommandItem ModbusCommandItem::create_custom_command(
-    ModbusController *controller, const std::vector<uint8_t> &values,
-    std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler) {
-  ModbusCommandItem cmd = custom_command_impl(controller, values);
-  // An empty handler leaves on_data_func unset; the response is then a no-op (factory customs have no sensors).
-  cmd.on_data_func = std::move(handler);
-  return cmd;
+ModbusCommandItem ModbusCommandItem::create_custom_command(ModbusController *controller,
+                                                           const std::vector<uint8_t> &values) {
+  return custom_command_impl(controller, values);
 }
 
-ModbusCommandItem ModbusCommandItem::create_custom_command(
-    ModbusController *controller, const std::vector<uint16_t> &values,
-    std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler) {
+ModbusCommandItem ModbusCommandItem::create_custom_command(ModbusController *controller,
+                                                           const std::vector<uint16_t> &values) {
   StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
   for (auto v : values) {
     bytes.push_back((v >> 8) & 0xFF);
     bytes.push_back(v & 0xFF);
   }
-  ModbusCommandItem cmd = custom_command_impl(controller, std::span<const uint8_t>(bytes.data(), bytes.size()));
-  cmd.on_data_func = std::move(handler);
-  return cmd;
+  return custom_command_impl(controller, std::span<const uint8_t>(bytes.data(), bytes.size()));
 }
 
 bool ModbusCommandItem::send(modbus::CommandOptions options) {

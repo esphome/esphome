@@ -28,18 +28,23 @@ void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
 }
 
 void ModbusNumber::control(float value) {
+  // The number is its own hub device, so it writes with this->write_*() directly and the write_lambda's
+  // `item` pointer IS this command.
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
   ModbusWriteRegisters data;
   float write_value = value;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
-    // data is passed by reference
-    // the lambda can fill the empty vector directly
-    // in that case the return value is ignored
+    // The lambda may drive the write itself via item->write_*(), override the value (return a value), or
+    // (deprecated) fill `data` with the register words to write. `data` is passed by reference.
     auto val = (*this->write_transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       write_value = val.value();
-    } else {
+    } else if (!this->dispatched() && data.empty()) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
@@ -47,35 +52,37 @@ void ModbusNumber::control(float value) {
     write_value = this->multiply_by_ * write_value;
   }
 
+  if (this->dispatched()) {
+    // The lambda already sent a frame via item->write_*(); nothing more to do but publish.
+    this->publish_state(value);
+    return;
+  }
+
   if (!data.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_uint16_size(MODBUS_NUMBER_MAX_LOG_REGISTERS)];
-#endif
-    ESP_LOGV(TAG, "Modbus Number write raw: %s",
-             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    // The lambda filled a legacy raw frame as words (address + function code + data); pack big-endian and
-    // send; the hub adds the CRC.
+    // Deprecated buffer path (frozen): the lambda filled a legacy raw frame as words (device address +
+    // function code + data); pack them big-endian and send. The hub adds the CRC.
+    this->warn_write_buffer_deprecated_(this->get_name().c_str());
     StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
     for (auto v : data) {
       bytes.push_back((v >> 8) & 0xFF);
       bytes.push_back(v & 0xFF);
     }
-    this->write_command_.emplace(this->parent_->create_command());
-    this->write_command_->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
+    this->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
+    this->publish_state(value);
+    return;
+  }
+
+  modbus::helpers::float_to_payload(data, write_value, this->sensor_value_type);
+
+  ESP_LOGD(TAG,
+           "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
+           this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
+
+  if (this->register_count == 1 && !this->use_write_multiple_) {
+    // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
+    this->write_single_register(this->write_address(), data[0]);
   } else {
-    modbus::helpers::float_to_payload(data, write_value, this->sensor_value_type);
-
-    ESP_LOGD(TAG,
-             "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-             this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
-
-    // Create and send the write command
-    this->write_command_.emplace(this->parent_->create_command());
-    if (this->register_count == 1 && !this->use_write_multiple_) {
-      this->write_command_->write_single_register(this->write_address(), data[0]);
-    } else {
-      this->write_command_->write_multiple_registers(this->write_address(), data);
-    }
+    this->write_multiple_registers(this->write_address(), data);
   }
   this->publish_state(value);
 }

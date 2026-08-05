@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import ButtonInfo, NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
 from .state_utils import SensorTracker, find_entity
@@ -609,3 +609,85 @@ async def test_uart_mock_modbus_fairness(
             f"controllers did not get a fair share of the bus: "
             f"controller 1 issued {count_1}, controller 2 issued {count_2}"
         )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a write_lambda that drives the write through the entity itself (item is the command).
+
+    `cross_switch` is a coil-type switch whose write_lambda ignores its own type and calls
+    item->write_single_register(0x30, ...) - a register write issued from a coil entity. The lambda
+    returns an empty optional, so the write path detects the lambda already dispatched a frame and does
+    not fall back to the default coil write. Success is reg_30 reading back the value the lambda wrote,
+    which proves both the new item->write_* path and cross-type flexibility.
+    """
+
+    tracker = SensorTracker(["reg_30"])
+    initial = tracker.expect("reg_30", 0)
+    wrote_30 = tracker.expect("reg_30", 1234)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_30", timeout=4.0)
+
+        switch = find_entity(entities, "cross_switch", SwitchInfo)
+        assert switch is not None, "cross_switch not found"
+        client.switch_command(switch.key, True)
+
+        # The coil switch's lambda wrote register 0x30 via item->write_single_register(); reg_30 must
+        # read back 1234. If the entity-as-command dispatch were broken, no register write would go out
+        # and this would time out.
+        await tracker.await_change(wrote_30, "reg_30", timeout=4.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_deprecated_write_buffer(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test the deprecated write_lambda buffer path still works, and warns once per entity.
+
+    buf_number's write_lambda fills the old `payload` buffer (register words) instead of calling
+    item->write_*. Two writes must both land (the frozen buffer behavior), and the one-time deprecation
+    warning must fire exactly once per entity regardless of how many writes happen.
+    """
+
+    warn_count = 0
+
+    def line_callback(line: str) -> None:
+        nonlocal warn_count
+        if "write_lambda buffer parameter is deprecated" in line:
+            warn_count += 1
+
+    tracker = SensorTracker(["written_value"])
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        number = find_entity(entities, "buf_number", NumberInfo)
+        assert number is not None, "buf_number not found"
+
+        # First write via the deprecated buffer path.
+        client.number_command(number.key, 111)
+        await tracker.await_change(
+            tracker.expect("written_value", 111), "written_value", timeout=4.0
+        )
+        # Second write: lands too, but must not warn again (warn-once per entity).
+        client.number_command(number.key, 222)
+        await tracker.await_change(
+            tracker.expect("written_value", 222), "written_value", timeout=4.0
+        )
+
+    assert warn_count == 1, (
+        f"deprecation warning should fire exactly once per entity, got {warn_count}"
+    )

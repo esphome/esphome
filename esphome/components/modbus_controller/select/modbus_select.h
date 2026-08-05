@@ -9,13 +9,13 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusSelect final : public Component, public select::Select, public SensorItem {
+class ModbusSelect final : public Component, public select::Select, public SensorItem, public ModbusControllerDevice {
  public:
   ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint16_t skip_updates,
                bool force_new_range, std::vector<int64_t> mapping) {
     this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
-    this->set_address(start_address);
+    this->SensorItem::set_address(start_address);
     this->set_offset_from_start_address(0);  // not configurable
     this->bitmask = 0xFFFFFFFF;              // not configurable
     this->register_count = register_count;
@@ -29,7 +29,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
   using write_transform_func_t = optional<int64_t> (*)(ModbusSelect *const, const std::string &, int64_t,
                                                        ModbusWriteRegisters &);
 
-  void set_parent(ModbusController *const parent) { this->parent_ = parent; }
+  void set_parent(ModbusController *const parent) { this->set_controller_(parent); }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_template(transform_func_t f) { this->transform_func_ = f; }
@@ -41,13 +41,10 @@ class ModbusSelect final : public Component, public select::Select, public Senso
 
  protected:
   std::vector<int64_t> mapping_{};
-  ModbusController *parent_{nullptr};
   bool use_write_multiple_{false};
   bool optimistic_{false};
   optional<transform_func_t> transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
-  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
-  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller

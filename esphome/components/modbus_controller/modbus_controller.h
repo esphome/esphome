@@ -196,6 +196,13 @@ class SensorItem {
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_pdu{};
   bool force_new_range{false};
+
+ protected:
+  /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
+  /// command - call a write helper / send_pdu() on `item` instead). The buffer parameter is removed in 2027.2.0.
+  void warn_write_buffer_deprecated_(const char *entity_name);
+  /// Set once warn_write_buffer_deprecated_() has fired, so the deprecation warning is logged only once per entity.
+  bool write_buffer_deprecated_warned_{false};
 };
 
 // ModbusController::create_polling_commands_ tries to optimize register range
@@ -241,13 +248,84 @@ struct RegisterRange {
   SensorSet sensors;      // all sensors of this range
 };
 
-/// A single modbus command. Each command is its own ModbusClientDevice: the hub routes the response
-/// straight back to the command's own callbacks, so the controller no longer FIFO-matches responses.
-class ModbusCommandItem : public modbus::ModbusClientDevice {
+/// A hub device owned by a ModbusController. Centralises everything that talks back to the controller -
+/// firing the on_command_sent trigger, online/offline tracking and retry counting - so both the range
+/// polling commands (ModbusCommandItem) and the writer entities (which also inherit this) behave
+/// identically. The write helpers record that a frame was dispatched, so a write lambda can tell "I sent
+/// it myself" from "use the default write". The callback bodies live in the .cpp because ModbusController
+/// is incomplete here; they are the DEFAULT for a writer entity (online-track on a response, retry on a
+/// timeout, fire the trigger on send). ModbusCommandItem overrides them to add dispatch + unqueue.
+class ModbusControllerDevice : public modbus::ModbusClientDevice {
+ public:
+  ModbusControllerDevice() = default;
+  ModbusControllerDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address)
+      : modbus::ModbusClientDevice(parent, address), controller_(&controller) {}
+
+  /// Whether a frame was queued to the hub since the last clear_dispatched_() (set by the write helpers).
+  bool dispatched() const { return this->dispatched_; }
+
+  // Write helpers: shadow the ModbusClientDevice ones to record the dispatch (so a write lambda's use of
+  // them is detectable), then delegate to the base which builds the PDU and queues it. The device address
+  // and CRC are added by the hub; on_command_sent fires from on_sent() with the request PDU.
+  bool write_single_register(uint16_t address, uint16_t value) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_single_register(address, value);
+  }
+  bool write_single_coil(uint16_t address, bool value) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_single_coil(address, value);
+  }
+  bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_multiple_registers(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_multiple_coils(address, values);
+  }
+  /// Send a custom PDU (function code + data; the hub adds the device address and CRC).
+  bool send_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::send_pdu(pdu, options);
+  }
+  /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
+  /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
+  void send_raw_frame_deprecated(std::span<const uint8_t> frame);
+
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
+  void on_sent(std::span<const uint8_t> request_pdu) override;
+  bool on_no_response(std::span<const uint8_t> request_pdu) override;
+
+ protected:
+  /// Ctor used by the value-type copy/move paths (ModbusCommandItem stored in containers).
+  ModbusControllerDevice(modbus::ModbusClientHub *parent, uint8_t address, ModbusController *controller)
+      : modbus::ModbusClientDevice(parent, address), controller_(controller) {}
+  /// Bind this device to a controller: stores it and sets the hub + device address from it.
+  void set_controller_(ModbusController *controller);
+  void clear_dispatched_() { this->dispatched_ = false; }
+  /// Mark the device online after a response; function code + address are decoded from request_pdu.
+  void notify_online_(std::span<const uint8_t> request_pdu);
+  /// Count a timeout; returns true if the hub should retry, false (and marks offline) when exhausted.
+  bool note_no_response_(std::span<const uint8_t> request_pdu);
+  /// Function code / register address decoded from a request PDU ([fc, addr_hi, addr_lo, ...]).
+  static int fc_of_(std::span<const uint8_t> pdu) { return pdu.empty() ? 0 : (pdu[0] & modbus::FUNCTION_CODE_MASK); }
+  static int addr_of_(std::span<const uint8_t> pdu) {
+    return pdu.size() >= 3 ? modbus::helpers::get_data<uint16_t>(pdu.data(), 1) : 0;
+  }
+
+  ModbusController *controller_{nullptr};
+  bool dispatched_{false};
+};
+
+/// A single modbus command owned by a controller: a range read (polling), a custom-PDU poll, or a
+/// command built by the deprecated create_* factories. It dispatches a read response to its sensors and
+/// removes itself from the controller's one-shot list (via unqueue_command) once it completes.
+class ModbusCommandItem : public ModbusControllerDevice {
  public:
   /// Empty command with no controller connection (kept for source compatibility with value-type usage).
   ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address)
-      : modbus::ModbusClientDevice(parent, address), controller_(&controller) {}
+      : ModbusControllerDevice(controller, parent, address) {}
   /// Read/custom polling command from a range; the PDU is rebuilt from these fields (or borrows the sensor's
   /// custom_pdu) at send time.
   ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
@@ -273,34 +351,16 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   // safe point (update()/queue_command()), never from inside the command's own callback.
   bool pending_removal{false};
 
-  /// called when a modbus response was parsed without errors
+  // Override the ModbusControllerDevice defaults to add read-response dispatch to this command's sensors
+  // and removal from the controller's one-shot list once the command completes.
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
-  /// called when a modbus error (exception) response was received
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
-  /// called when the command could not be sent
   void on_not_sent(std::span<const uint8_t> request_pdu) override;
-  /// called when the command's frame is actually written to the wire; fires the on_command_sent trigger
-  void on_sent(std::span<const uint8_t> request_pdu) override;
-  /// called on timeout; returns true to have the hub re-queue the frame for a retry
   bool on_no_response(std::span<const uint8_t> request_pdu) override;
 
   uint16_t register_address() const { return this->start_address_; }
   uint16_t register_count() const { return this->register_count_; }
   EntityType register_type() const { return this->register_type_; }
-
-  /// Write helpers: set the metadata and queue the PDU routed back to this item. Own the item; it must
-  /// outlive the transaction. Transitional shadows: they exist only so the reporting callbacks have
-  /// metadata, and go away once reporting decodes from request_pdu (writer-entity rework).
-  void write_single_register(uint16_t start_address, uint16_t value);
-  void write_single_coil(uint16_t address, bool value);
-  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values);
-  void write_multiple_coils(uint16_t start_address, std::span<const bool> values);
-  /// Send a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
-  /// handle the response.
-  void send_pdu(std::span<const uint8_t> pdu);
-  /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
-  /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
-  void send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   /// Options pass straight through to the hub; the polling path sets continuous from the controller's
@@ -308,28 +368,12 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   bool send(modbus::CommandOptions options = {});
 
   /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / send_pdu())
-  /** Create modbus read command
-   *  Function code 02-04
+  /** Create modbus write multiple registers command
+   *  Function 16 (10hex) Write Multiple Registers
    * @param controller the controller whose hub and address the command uses
-   * @param function_code modbus function code for the read command
-   * @param start_address modbus address of the first register to read
-   * @param register_count number of registers to read
-   * @param handler function called when the response is received
-   * @return ModbusCommandItem with the prepared command
-   */
-  ESPDEPRECATED("Use the modbus_client.send action for ad-hoc reads, or subclass modbus::ModbusClientDevice, "
-                "instead. Removed in 2027.2.0",
-                "2026.8.0")
-  static ModbusCommandItem create_read_command(
-      ModbusController *controller, EntityType register_type, uint16_t start_address, uint16_t register_count,
-      std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler);
-  /** Create modbus read command
-   *  Function code 02-04
-   * @param controller the controller whose hub and address the command uses
-   * @param function_code modbus function code for the read command
-   * @param start_address modbus address of the first register to read
-   * @param register_count number of registers to read
-   * @param handler function called when the response is received
+   * @param start_address modbus address of the first register to write
+   * @param register_count number of registers to write
+   * @param values register values to write
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_registers() on the item instead. "
@@ -374,42 +418,31 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                        const std::vector<bool> &values);
-  /** Create custom modbus command
+  /** Create custom modbus command (fire and forget - the response is not routed anywhere)
    * @param controller the controller whose hub and address the command uses
-   * @param values byte vector of data to be sent to the device. The complete payload must be provided with the
-   * exception of the crc codes
-   * @param handler function called when the response is received. Default is just logging a response
+   * @param values byte vector of a legacy raw frame (device address + function code + data; the CRC is added)
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.send action, or subclass modbus::ModbusClientDevice, instead. "
                 "Removed in 2027.2.0",
                 "2026.8.0")
-  static ModbusCommandItem create_custom_command(
-      ModbusController *controller, const std::vector<uint8_t> &values,
-      std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler =
-          nullptr);
+  static ModbusCommandItem create_custom_command(ModbusController *controller, const std::vector<uint8_t> &values);
 
-  /** Create custom modbus command
+  /** Create custom modbus command from words, packed big-endian (fire and forget - the response is not routed
+   * anywhere)
    * @param controller the controller whose hub and address the command uses
-   * @param values word vector of data to be sent to the device. The complete payload must be provided with the
-   * exception of the crc codes
-   * @param handler function called when the response is received. Default is just logging a response
+   * @param values word vector of a legacy raw frame (device address + function code + data; the CRC is added)
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.send action, or subclass modbus::ModbusClientDevice, instead. "
                 "Removed in 2027.2.0",
                 "2026.8.0")
-  static ModbusCommandItem create_custom_command(
-      ModbusController *controller, const std::vector<uint16_t> &values,
-      std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler =
-          nullptr);
+  static ModbusCommandItem create_custom_command(ModbusController *controller, const std::vector<uint16_t> &values);
 
  protected:
   /// Shared non-warning impl for the deprecated overloads; `values` is a legacy raw frame (address +
   /// function code + data) sent to its own address byte.
   static ModbusCommandItem custom_command_impl(ModbusController *controller, std::span<const uint8_t> values);
-  /// Decode a raw frame's header (address + PDU) into this command's metadata for logging/dispatch.
-  void set_metadata_from_frame_(std::span<const uint8_t> frame);
   void set_command_(FunctionCode function_code, EntityType register_type, uint16_t start_address,
                     uint16_t register_count) {
     this->function_code_ = function_code;
@@ -426,7 +459,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// True when `payload` holds a legacy raw frame rather than a PDU; set by custom_command_impl(). Remove before
   /// 2027.2.0.
   bool payload_is_raw_frame_{false};
-  ModbusController *controller_{nullptr};
 };
 
 /** Modbus controller class.

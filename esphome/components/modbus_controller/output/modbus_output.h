@@ -8,22 +8,25 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem {
+class ModbusFloatOutput final : public output::FloatOutput,
+                                public Component,
+                                public SensorItem,
+                                public ModbusControllerDevice {
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
-    this->set_address(start_address);
+    this->SensorItem::set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
     this->skip_updates = 0;
-    this->set_address(this->start_address + offset);
+    this->SensorItem::set_address(this->start_address + offset);
     this->set_offset_from_start_address(0);
   }
   void dump_config() override;
 
-  void set_parent(ModbusController *parent) { this->parent_ = parent; }
+  void set_parent(ModbusController *parent) { this->set_controller_(parent); }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
@@ -36,28 +39,28 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
   void write_state(float value) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_{nullptr};
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
-  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
-  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
-class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem {
+class ModbusBinaryOutput final : public output::BinaryOutput,
+                                 public Component,
+                                 public SensorItem,
+                                 public ModbusControllerDevice {
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = modbus::EntityType::COIL;
-    this->set_address(start_address);
+    this->SensorItem::set_address(start_address);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = 0;
     this->register_count = 1;
-    this->set_address(this->start_address + offset);
+    this->SensorItem::set_address(this->start_address + offset);
     this->set_offset_from_start_address(0);
   }
   void dump_config() override;
 
-  void set_parent(ModbusController *parent) { this->parent_ = parent; }
+  void set_parent(ModbusController *parent) { this->set_controller_(parent); }
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
 
@@ -69,10 +72,7 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
   void write_state(bool state) override;
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
-  ModbusController *parent_{nullptr};
   bool use_write_multiple_{false};
-  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
-  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller
