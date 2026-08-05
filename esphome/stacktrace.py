@@ -27,9 +27,13 @@ _LOGGER = logging.getLogger(__name__)
 # with many PC/BT lines fails once instead of retrying a failing
 # addr2line per line, short enough that a transient cause (a concurrent
 # compile rewriting the build tree, a momentary toolchain lock) does not
-# blank out decoding for the rest of a multi-hour session. A permanent
-# cause re-fails and re-warns at most once per cooldown.
+# blank out decoding for the rest of a multi-hour session. Each retry
+# re-runs the failing toolchain subprocess, which hitches the stream,
+# so identical re-failures double the cooldown up to the ceiling; a fix
+# is still picked up within minutes while a permanently broken
+# environment ends up retrying a few times an hour, not once a minute.
 _REARM_COOLDOWN_S = 60.0
+_REARM_COOLDOWN_MAX_S = 900.0
 
 
 class LogLineProcessor:
@@ -73,6 +77,7 @@ class LogLineProcessor:
         self._decode_enabled = self._platform_handler is not None
         self._disabled_at: float | None = None
         self._last_failure: str | None = None
+        self._cooldown = _REARM_COOLDOWN_S
         self.backtrace_state = False
 
     def process_line(self, raw_line: str) -> None:
@@ -84,7 +89,7 @@ class LogLineProcessor:
         """Give decoding another try once the failure cooldown has passed."""
         if self._disabled_at is None:  # no analyzer; nothing to retry
             return False
-        if time.monotonic() - self._disabled_at < _REARM_COOLDOWN_S:
+        if time.monotonic() - self._disabled_at < self._cooldown:
             return False
         self._decode_enabled = True
         self._disabled_at = None
@@ -96,8 +101,10 @@ class LogLineProcessor:
                 self._config, raw_line, self.backtrace_state
             )
             # A success ends the failure episode; a later failure with
-            # the same message is a new episode and warns in full again.
+            # the same message is a new episode, warns in full again and
+            # starts back at the short cooldown.
             self._last_failure = None
+            self._cooldown = _REARM_COOLDOWN_S
         except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             self._decode_enabled = False
             self._disabled_at = time.monotonic()
@@ -106,16 +113,19 @@ class LogLineProcessor:
             failure = f"{type(exc).__name__}: {exc}"
             if failure == self._last_failure:
                 # A permanent cause re-fails on every re-arm; one full
-                # warning is enough. Repeats go to debug so an hours-long
-                # crash loop does not bury the dump in reminders, while a
-                # changed failure still warns.
+                # warning is enough. Repeats go to debug and back off so
+                # an hours-long crash loop neither buries the dump in
+                # reminders nor hitches the stream once a minute.
+                self._cooldown = min(self._cooldown * 2, _REARM_COOLDOWN_MAX_S)
                 _LOGGER.debug("Stack-trace decoding still failing: %s", failure)
                 return
             self._last_failure = failure
+            self._cooldown = _REARM_COOLDOWN_S
             if isinstance(exc, (EsphomeError, OSError)):
-                # _run_idedata raises EsphomeError with no message, and a
-                # missing build tree surfaces as an OSError; both are the
-                # user's environment, so give the remediation hint.
+                # The environment branch: idedata and build tree failures
+                # get the remediation hint. The fallback string is
+                # defensive; the in-tree raise sites all carry a message
+                # now, but a bare EsphomeError must not render as parens.
                 _LOGGER.warning(
                     "Crash trace decoding unavailable: %s. "
                     "Run 'esphome compile' for this device to enable PC decoding.",

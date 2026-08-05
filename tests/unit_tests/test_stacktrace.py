@@ -92,6 +92,28 @@ def test_identical_refailure_downgrades_to_debug(caplog) -> None:
     assert len([m for m in _warnings(caplog) if "esphome compile" in m]) == 1
 
 
+def test_backoff_doubles_after_identical_refailure() -> None:
+    """Identical re-failures back off exponentially.
+
+    Every retry re-runs the failing toolchain subprocess, so a
+    permanently broken environment must retry less and less often
+    instead of hitching the stream once a minute for the session.
+    """
+    handler = Mock(side_effect=EsphomeError("no idedata"))
+    with _clock(0.0, 61.0, 61.0, 100.0, 200.0, 200.0):
+        _run(
+            handler,
+            lines=(
+                "PC: 0x4010496e",  # fails; cooldown 60
+                "BT0: 0x4010496e",  # t=61: re-arms, fails again; cooldown 120
+                "BT1: 0x401049aa",  # t=100: 39s into the 120s cooldown, skipped
+                "BT2: 0x401049aa",  # t=200: 139s elapsed, re-arms, fails
+            ),
+        )
+
+    assert handler.call_count == 3
+
+
 def test_new_episode_after_success_warns_in_full(caplog) -> None:
     """A success ends the failure episode.
 
@@ -155,8 +177,10 @@ def test_decoder_swallows_os_error_with_remediation_hint(caplog) -> None:
 
 
 def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
-    """_run_idedata raises EsphomeError with no message; the warning
-    must show a useful explanation rather than empty parens.
+    """A message-less EsphomeError must show a useful explanation.
+
+    Defensive: the in-tree idedata raise sites all carry a message now,
+    but a bare EsphomeError from elsewhere must not render as parens.
     """
     _run(Mock(side_effect=EsphomeError()))
 
