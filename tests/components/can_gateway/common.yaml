@@ -1,0 +1,149 @@
+esphome:
+  on_boot:
+    then:
+      # Static data -> flash-resident array, no RAM copy.
+      - can_gateway.inject:
+          port: port_a
+          can_id: 0x100
+          data: [0x01, 0x02, 0x03]
+      # Templated data -> generated function pointer path.
+      - can_gateway.inject:
+          port: port_a
+          can_id: 0x18DAF110
+          use_extended_id: true
+          data: !lambda 'return {(uint8_t) (millis() & 0xFF), 0x02};'
+      # Staged runtime patch update (S7): value + declared ID replacement.
+      - can_gateway.set_patch:
+          id: charge_limit
+          can_id: 0x581
+          data:
+            - index: 2
+              value: !lambda "return (uint8_t) 0x42;"
+      # Cyclic (timed) send: update the staged payload, then start/stop.
+      - can_gateway.set_cyclic_data:
+          id: heartbeat
+          data: !lambda "return {(uint8_t) (millis() & 0xFF), 0x00};"
+      - can_gateway.start_cyclic: heartbeat
+      - can_gateway.stop_cyclic: keepalive
+
+can_gateway:
+  id: gw
+  interrupt_priority: 2
+  ports:
+    # Reference board wiring: TWAI0 TX GPIO2 / RX GPIO3,
+    # TWAI1 TX GPIO10 / RX GPIO11.
+    - id: port_a
+      rx_pin: GPIO3
+      tx_pin: GPIO2
+      bit_rate: 125kbps
+      tx_queue_depth: 8
+      on_bus_off:
+        then:
+          - lambda: 'ESP_LOGW("test", "port A bus-off");'
+      on_recovered:
+        then:
+          - lambda: 'ESP_LOGI("test", "port A recovered");'
+    - id: port_b
+      rx_pin: GPIO11
+      tx_pin: GPIO10
+      bit_rate: 125kbps
+  # Bench-safe pattern (both controllers may share one wire): default drop,
+  # disjoint input/output ID sets, so nothing can storm.
+  routes:
+    - id: route_ab
+      from: port_a
+      to: port_b
+      default_action: drop
+      filters:
+        - can_id: 0x100
+          modify:
+            can_id: 0x200
+        - id: charge_limit
+          can_id: 0x355
+          modify:
+            can_id: 0x581
+            data:
+              - index: 2
+                value: 0x64
+        - can_id: 0x700
+          can_id_mask: 0x780
+          action: drop
+        - can_id: 0x18DAF110
+          use_extended_id: true
+          modify:
+            data:
+              - index: 0
+                value: 0x00
+                mask: 0x80
+    - id: route_ba
+      from: port_b
+      to: port_a
+      default_action: drop
+      filters:
+        - can_id: 0x3E8
+  # Timed (cyclic) sends: staged payload, transmitted every interval (Tier 1).
+  cyclic_sends:
+    - id: heartbeat
+      port: port_a
+      can_id: 0x700
+      interval: 100ms
+      data: [0x01, 0x00]
+    - id: keepalive
+      port: port_b
+      can_id: 0x18FF0102
+      use_extended_id: true
+      interval: 500ms
+      enabled: false
+  # Bus statistics for the log (usage %, errors, per-ID timings).
+  statistics:
+    log_interval: 30s
+    id_timings: true
+    id_timings_max: 16
+
+sensor:
+  - platform: can_gateway
+    route_id: route_ab
+    update_interval: 30s
+    forwarded:
+      name: "AB forwarded"
+    filtered:
+      name: "AB filtered"
+    tx_full:
+      name: "AB shed overload"
+    bus_off:
+      name: "AB shed bus dead"
+    disabled:
+      name: "AB shed gateway off"
+  - platform: can_gateway
+    port_id: port_a
+    injected:
+      name: "A injected"
+    tx_fail:
+      name: "A TX failures"
+    bus_err:
+      name: "A bus errors"
+    recoveries:
+      name: "A recoveries"
+    tec:
+      name: "A TX error counter"
+    rec:
+      name: "A RX error counter"
+    bus_load:
+      name: "A bus load"
+
+binary_sensor:
+  - platform: can_gateway
+    port_id: port_a
+    bus_off:
+      name: "Bus A bus-off"
+
+text_sensor:
+  - platform: can_gateway
+    port_id: port_a
+    throttle: 1s
+    last_frame:
+      name: "Port A last frame"
+
+switch:
+  - platform: can_gateway
+    name: "Gateway enable"
