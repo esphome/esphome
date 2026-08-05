@@ -192,11 +192,6 @@ APIConnection::~APIConnection() {
     zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
   }
 #endif
-#ifdef USE_ZIGBEE_PROXY
-  if (zigbee_proxy::global_zigbee_proxy != nullptr && zigbee_proxy::global_zigbee_proxy->get_api_connection() == this) {
-    zigbee_proxy::global_zigbee_proxy->unsubscribe_api_connection(this);
-  }
-#endif
 #ifdef USE_SERIAL_PROXY
   for (auto *proxy : App.get_serial_proxies()) {
     if (proxy->get_api_connection() == this) {
@@ -1386,10 +1381,6 @@ void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
 #endif
 
 #ifdef USE_ZIGBEE_PROXY
-void APIConnection::on_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) {
-  zigbee_proxy::global_zigbee_proxy->zigbee_proxy_frame(this, msg);
-}
-
 void APIConnection::on_zigbee_proxy_request(const ZigbeeProxyRequest &msg) {
   zigbee_proxy::global_zigbee_proxy->zigbee_proxy_request(this, msg);
 }
@@ -1631,6 +1622,15 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       break;
   }
+}
+
+void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->set_mode(this, msg.mode);
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }

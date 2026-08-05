@@ -1,34 +1,26 @@
 import esphome.codegen as cg
-from esphome.components import uart, usb_uart
+from esphome.components import serial_proxy
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BUFFER_SIZE,
-    CONF_ID,
-    CONF_POWER_SAVE_MODE,
-    CONF_UART_ID,
-    CONF_WIFI,
-)
+from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
-DEPENDENCIES = ["api", "uart"]
+DEPENDENCIES = ["api", "serial_proxy"]
 
 CONF_INITIAL_TIMEOUT = "initial_timeout"
 CONF_MIN_TIMEOUT = "min_timeout"
 CONF_MAX_TIMEOUT = "max_timeout"
+CONF_SERIAL_PROXY_ID = "serial_proxy_id"
 
-# Default ACK timeout values calibrated for hardware UART (460800 baud, ~2-5 ms round-trip)
-_DEFAULT_HW_INITIAL_TIMEOUT = 1600
-_DEFAULT_HW_MIN_TIMEOUT = 400
-_DEFAULT_HW_MAX_TIMEOUT = 3200
-
-# Optimized ACK timeout values for USB CDC ACM paths (~3-5 ms round-trip with RX callback)
-_DEFAULT_USB_INITIAL_TIMEOUT = 30
-_DEFAULT_USB_MIN_TIMEOUT = 15
-_DEFAULT_USB_MAX_TIMEOUT = 200
+# Default ACK timeout values for the boot-time metadata harvest
+_DEFAULT_INITIAL_TIMEOUT = 1600
+_DEFAULT_MIN_TIMEOUT = 400
+_DEFAULT_MAX_TIMEOUT = 3200
 
 zigbee_proxy_ns = cg.esphome_ns.namespace("zigbee_proxy")
-ZigbeeProxy = zigbee_proxy_ns.class_("ZigbeeProxy", cg.Component, uart.UARTDevice)
+ZigbeeProxy = zigbee_proxy_ns.class_(
+    "ZigbeeProxy", cg.Component, serial_proxy.SerialProxyTap
+)
 
 
 def final_validate(config):
@@ -46,18 +38,23 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ZigbeeProxy),
+            cv.Required(CONF_SERIAL_PROXY_ID): cv.use_id(serial_proxy.SerialProxy),
             cv.Optional(CONF_BUFFER_SIZE): cv.SplitDefault(
                 cv.int_range(min=256, max=2048),
                 esp8266=512,
                 default=1024,
             ),
-            cv.Optional(CONF_INITIAL_TIMEOUT): cv.int_range(min=10, max=10000),
-            cv.Optional(CONF_MIN_TIMEOUT): cv.int_range(min=10, max=5000),
-            cv.Optional(CONF_MAX_TIMEOUT): cv.int_range(min=50, max=10000),
+            cv.Optional(
+                CONF_INITIAL_TIMEOUT, default=_DEFAULT_INITIAL_TIMEOUT
+            ): cv.int_range(min=10, max=10000),
+            cv.Optional(CONF_MIN_TIMEOUT, default=_DEFAULT_MIN_TIMEOUT): cv.int_range(
+                min=10, max=5000
+            ),
+            cv.Optional(CONF_MAX_TIMEOUT, default=_DEFAULT_MAX_TIMEOUT): cv.int_range(
+                min=50, max=10000
+            ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA),
+    ).extend(cv.COMPONENT_SCHEMA),
 )
 
 FINAL_VALIDATE_SCHEMA = final_validate
@@ -66,39 +63,18 @@ FINAL_VALIDATE_SCHEMA = final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+
+    sp = await cg.get_variable(config[CONF_SERIAL_PROXY_ID])
+    cg.add(var.set_serial_proxy(sp))
 
     cg.add_define("USE_ZIGBEE_PROXY")
+    # Compiles the tap interface into serial_proxy; without it the port is a plain byte pipe
+    cg.add_define("USE_SERIAL_PROXY_TAP")
 
     # Set buffer size via define for compile-time allocation
     if CONF_BUFFER_SIZE in config:
         cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", config[CONF_BUFFER_SIZE])
 
-    # A uart_id pointing at a USB UART channel is detected automatically: the
-    # component then registers an RX callback for zero-wakeup-cycle data delivery
-    # and selects USB-optimized ACK timeout defaults. Explicit timeout keys always
-    # win. USB CDC ACM with the RX callback has ~3-5 ms round-trip latency;
-    # hardware UART is similar (~2-5 ms). Different defaults are kept so that
-    # future non-callback USB paths still get conservative starting values.
-    is_usb = usb_uart.is_usb_uart_channel(config[CONF_UART_ID])
-    if is_usb:
-        cg.add_define("USE_ZIGBEE_PROXY_USB_UART")
-        usb_ch = await cg.get_variable(config[CONF_UART_ID])
-        cg.add(var.set_usb_uart_channel(usb_ch))
-
-    initial_timeout = config.get(
-        CONF_INITIAL_TIMEOUT,
-        _DEFAULT_USB_INITIAL_TIMEOUT if is_usb else _DEFAULT_HW_INITIAL_TIMEOUT,
-    )
-    min_timeout = config.get(
-        CONF_MIN_TIMEOUT,
-        _DEFAULT_USB_MIN_TIMEOUT if is_usb else _DEFAULT_HW_MIN_TIMEOUT,
-    )
-    max_timeout = config.get(
-        CONF_MAX_TIMEOUT,
-        _DEFAULT_USB_MAX_TIMEOUT if is_usb else _DEFAULT_HW_MAX_TIMEOUT,
-    )
-
-    cg.add(var.set_initial_timeout(initial_timeout))
-    cg.add(var.set_min_timeout(min_timeout))
-    cg.add(var.set_max_timeout(max_timeout))
+    cg.add(var.set_initial_timeout(config[CONF_INITIAL_TIMEOUT]))
+    cg.add(var.set_min_timeout(config[CONF_MIN_TIMEOUT]))
+    cg.add(var.set_max_timeout(config[CONF_MAX_TIMEOUT]))

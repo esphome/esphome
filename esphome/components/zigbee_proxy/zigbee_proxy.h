@@ -5,23 +5,13 @@
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
+#include "esphome/components/serial_proxy/serial_proxy.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/uart/uart.h"
 #include "ash_protocol.h"
 #include "ash_detector.h"
 
 #include <array>
-
-// Forward-declare USBUartChannel so the set_usb_uart_channel() setter can be declared
-// without pulling usb_uart.h into every translation unit that includes this header.
-// USE_ZIGBEE_PROXY_USB_UART is defined by the Python to_code() only when uart_id
-// resolves to a USB UART channel, ensuring the header is actually in the build path.
-#ifdef USE_ZIGBEE_PROXY_USB_UART
-namespace esphome::usb_uart {
-class USBUartChannel;
-}
-#endif
 
 namespace esphome::zigbee_proxy {
 
@@ -44,6 +34,11 @@ struct NetworkInfo {
 
 enum ZigbeeProxyFeature : uint32_t {
   FEATURE_ZIGBEE_PROXY_ENABLED = 1 << 0,
+  // Set only when the harvest actually read a network off the radio. Without it a client
+  // cannot tell "a Zigbee radio with no network formed" from "not a Zigbee radio at all"
+  // -- both otherwise present as ENABLED with an all-zero payload, and the second happens
+  // whenever the NCP has been reflashed to Thread or is simply not responding.
+  FEATURE_ZIGBEE_NETWORK_INFO_VALID = 1 << 1,
 };
 
 // Boot-time initialization state machine
@@ -62,7 +57,12 @@ enum class BootState : uint8_t {
   FAILED,             // Boot sequence failed
 };
 
-class ZigbeeProxy : public uart::UARTDevice, public Component {
+// Watches a `serial_proxy` port carrying an EZSP NCP and reports what it learns about the
+// Zigbee network. It never carries client traffic: the serial proxy owns the port and the
+// bytes, and this component only observes them, plus two exceptions where it writes to the
+// port itself -- the boot-time metadata harvest, which runs before any client connects, and
+// the ASH acknowledgements a client asks it to send on its behalf.
+class ZigbeeProxy : public serial_proxy::SerialProxyTap, public Component {
  public:
   ZigbeeProxy();
 
@@ -72,16 +72,40 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
   bool can_proceed() override;
 
+  void set_serial_proxy(serial_proxy::SerialProxy *parent) { this->parent_ = parent; }
+
+  // SerialProxyTap
+  void on_device_rx(const uint8_t *data, size_t len) override;
+  void on_client_tx(const uint8_t *data, size_t len) override;
+  bool tap_needs_port() const override {
+    if (this->boot_sequence_active_) {
+      return true;
+    }
+    // A pending re-harvest waits for the port to go idle. Starting one under a subscriber
+    // would inject our own ASH frames into whatever it is doing -- most likely the very
+    // firmware upload that invalidated the metadata.
+    return this->reharvest_pending_ && this->parent_->get_api_connection() == nullptr;
+  }
+
+  /// The port stopped handling our protocol, so whatever we know about the radio may no
+  /// longer be true -- a client asking for raw bytes is usually about to reflash it.
+  void on_protocol_disabled() override;
+
+  /// The radio was unplugged or a new one appeared; metadata describes neither.
+  void on_device_presence_changed_(bool connected);
+
   // API integration
   void api_connection_authenticated(api::APIConnection *conn);
   void zigbee_proxy_request(api::APIConnection *api_connection, const api::ZigbeeProxyRequest &msg);
-  void zigbee_proxy_frame(api::APIConnection *api_connection, const api::ZigbeeProxyFrame &msg);
-  api::APIConnection *get_api_connection() { return this->api_connection_; }
-  // Drop the subscription of a disconnecting client (called from APIConnection teardown)
-  void unsubscribe_api_connection(api::APIConnection *conn);
 
   // Feature flags
-  uint32_t get_feature_flags() const { return ZigbeeProxyFeature::FEATURE_ZIGBEE_PROXY_ENABLED; }
+  uint32_t get_feature_flags() const {
+    uint32_t flags = ZigbeeProxyFeature::FEATURE_ZIGBEE_PROXY_ENABLED;
+    if (this->network_info_.valid) {
+      flags |= ZigbeeProxyFeature::FEATURE_ZIGBEE_NETWORK_INFO_VALID;
+    }
+    return flags;
+  }
 
   // Network information accessors
   const NetworkInfo &get_network_info() const { return this->network_info_; }
@@ -93,25 +117,10 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   void set_min_timeout(uint32_t timeout_ms) { this->timeout_config_.min_timeout_ms = timeout_ms; }
   void set_max_timeout(uint32_t timeout_ms) { this->timeout_config_.max_timeout_ms = timeout_ms; }
 
-#ifdef USE_ZIGBEE_PROXY_USB_UART
-  /// Called from generated code when uart_id resolves to a USB UART channel.
-  /// Registers an RX callback on the channel so incoming bytes are processed
-  /// immediately in the same USBUartComponent::loop() iteration they arrive,
-  /// without waiting for the next ZigbeeProxy::loop() call.
-  void set_usb_uart_channel(usb_uart::USBUartChannel *channel);
-#endif
-
  protected:
   // ASH Protocol State Machine
   void reset_ash_protocol_();
-  // Resets the NCP link without running the metadata harvest, leaving the client to
-  // negotiate its own session. The resulting RSTACK is relayed rather than consumed.
-  void reset_ncp_link_();
-  // `own_reset` marks a reset we originate ourselves (harvest, retry, final RST) so its
-  // RSTACK is consumed here instead of being relayed to a client that never asked for
-  // one -- bellows treats an unsolicited RSTACK as fatal and cancels every pending
-  // command. Pass false when relaying a client's own RST.
-  void send_rst_frame_(bool own_reset = true);
+  void send_rst_frame_();
   void handle_rstack_frame_(const uint8_t *data, size_t length);
   void handle_error_frame_(const uint8_t *data, size_t length);
   // Applies a frame's ackNum to the pending TX frame. Returns true if it
@@ -168,89 +177,36 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   // Bootloader detection (fed consecutive raw byte pairs while not CONNECTED)
   void check_bootloader_mode_(uint8_t prev_byte, uint8_t byte);
 
-  // True when this component should be driving the shared UART: nobody else holds a
-  // claim on it, and we have either a subscriber to serve or a boot harvest to finish.
-  bool should_own_uart_() const {
-    return !this->parent_->is_claimed_by_other(const_cast<ZigbeeProxy *>(this)) &&
-           (this->boot_sequence_active_ || this->api_connection_ != nullptr);
-  }
-
-  // UART processing
-  // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most
-  // backends), so an idle loop tick skips the out-of-line drain entirely. When bytes are
-  // pending the slow path drains with do/while so available() is checked once per byte.
-  ESPHOME_ALWAYS_INLINE void process_uart_() {
-    // Checked here rather than only in loop(): on a USB UART the RX callback calls this
-    // directly from the USB component's loop, so a guard in loop() alone would still let
-    // us consume bytes belonging to whichever device holds the claim.
-    if (!this->owns_uart_ && !this->boot_sequence_active_) {
-      return;
-    }
-    if (!this->available()) {
-      return;
-    }
-    this->process_uart_slow_();
-  }
-  // Precondition: caller must guarantee available() > 0 (see inline process_uart_ above)
-  void process_uart_slow_();
-
-  // Client-side (left) ASH session
-  void client_parse_byte_(uint8_t byte);
-  void client_parse_control_byte_(uint8_t control);
-  bool client_validate_frame_crc_();
-  void client_send_ack_frame_(uint8_t ack_num);
-  void client_send_nak_frame_(uint8_t ack_num);
-  void client_send_rstack_frame_(uint8_t reset_code);
-  void client_send_data_frame_(const uint8_t *data, size_t length);
-  void client_send_error_frame_(uint8_t error_code);
-  void client_send_raw_frame_(const uint8_t *frame, size_t length);
-  // Transparent relay. NCP bytes are forwarded to the client verbatim and in bulk; the
-  // detector only observes them, so it never gates or delays forwarding.
-  void relay_ncp_byte_(uint8_t byte);
-  void relay_flush_();
   // Reads network metadata out of a proxied getNetworkParameters response. Read-only, so a
   // misparse costs a missed update rather than corrupting anything.
   void sniff_network_info_(const uint8_t *frame, size_t length);
   // Invalidates network metadata when the stack reports it has left the network.
   void sniff_stack_status_(const uint8_t *frame, size_t length);
 
-  // Pre-allocated message - always ready to send
-  api::ZigbeeProxyFrame outgoing_proto_msg_;
-
-  // NCP-side (right) ASH buffers
+  // NCP-side ASH buffers
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> rx_buffer_;
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> tx_buffer_;
   std::array<uint8_t, MAX_ASH_FRAME_SIZE> tx_pending_buffer_;  // For retransmission
 
-  // Client-side (left) ASH buffers
-
-  // Client -> NCP queue: EZSP payloads accepted while the ASH TX window is occupied
   // Network information
   NetworkInfo network_info_;
 
   // Timeout configuration
   TimeoutConfig timeout_config_;
 
-  // Pointers (aligned together)
-  api::APIConnection *api_connection_{nullptr};  // Current subscribed client
+  // The port this component observes. Owns the UART and the bytes; every write we make
+  // goes through it.
+  serial_proxy::SerialProxy *parent_{nullptr};
 
-  // NCP-side (right) 32-bit values
-  uint32_t setup_time_{0};             // Time when last RST frame was sent
-  uint32_t boot_start_time_{0};        // Time when the boot sequence began (for overall timeout)
-  uint32_t ack_timer_start_{0};        // Time when ACK timer started
-  uint32_t last_rtt_ms_{0};            // Last measured round-trip time
-  uint32_t last_recovery_attempt_{0};  // Time of last automatic reset attempt from FAILED
+  uint32_t setup_time_{0};       // Time when last RST frame was sent
+  uint32_t boot_start_time_{0};  // Time when the boot sequence began (for overall timeout)
+  uint32_t ack_timer_start_{0};  // Time when ACK timer started
+  uint32_t last_rtt_ms_{0};      // Last measured round-trip time
 
-  // Client-side (left) 32-bit values
-
-  // NCP-side (right) 16-bit values
   uint16_t rx_buffer_index_{0};    // Index for populating rx_buffer_
   uint16_t tx_pending_length_{0};  // Length of pending TX frame for retransmission
   uint16_t calculated_crc_{0};     // CRC calculated during frame reception
 
-  // Client-side (left) 16-bit values
-
-  // NCP-side (right) 8-bit values
   uint8_t tx_sequence_{0};           // TX sequence number (0-7)
   uint8_t rx_sequence_{0};           // RX sequence number (0-7)
   uint8_t tx_retry_count_{0};        // Number of retransmission attempts
@@ -258,15 +214,10 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   uint8_t last_ack_sent_{0};         // Last ACK number sent
   uint8_t last_rx_byte_{0};          // Previous raw RX byte (bootloader detection)
 
-  // Client-side (left) 8-bit values
-
-  // NCP-side enums and booleans
   AshState ash_state_{AshState::DISCONNECTED};
   ParsingState parsing_state_{ParsingState::WAIT_FLAG_START};
   BootloaderState bootloader_state_{BootloaderState::NORMAL};
   BootState boot_state_{BootState::IDLE};
-
-  // Client-side enums and booleans
 
   uint8_t ezsp_version_{0};            // NCP's EZSP protocol version
   uint8_t ezsp_sequence_{0};           // EZSP frame sequence number
@@ -276,28 +227,20 @@ class ZigbeeProxy : public uart::UARTDevice, public Component {
   // with frame ID 0x0058. Tracks whether that second handshake has happened.
   bool ezsp_version_confirmed_{false};
 
-  bool tx_buffer_pending_{false};        // True if waiting for ACK from NCP
-  bool escape_next_byte_{false};         // True if next NCP byte should be unescaped
-  bool network_info_ready_{false};       // True when network info retrieved
-  bool owns_uart_{false};                // True while this component drives the UART
-  uint32_t configured_baud_rate_{0};     // Line rate to restore after another device
+  bool tx_buffer_pending_{false};  // True if waiting for ACK from NCP
+  bool escape_next_byte_{false};   // True if next NCP byte should be unescaped
 
   bool boot_sequence_active_{false};  // True during boot-time init
+  // Set when the metadata was discarded and a fresh harvest is owed once the port frees up
+  bool reharvest_pending_{false};
+  // Last observed device presence, for spotting a hot-plug
+  bool was_connected_{false};
+  // Earliest millis() at which a pending re-harvest may start
+  uint32_t reharvest_after_{0};
 
   // Decides when acknowledging on the client's behalf is safe. Armed only by the ASH
   // session handshake, so a bootloader or Thread NCP never triggers it.
   AshDetector detector_;
-
-  // Bytes staged for the client. Forwarding in bulk once per UART drain avoids an API
-  // message per byte; the size only bounds latency, not correctness.
-  static constexpr size_t RELAY_BUFFER_SIZE = 256;
-  uint8_t relay_buffer_[RELAY_BUFFER_SIZE];
-  size_t relay_length_{0};
-
-  // RSTACKs still owed to us for resets we sent ourselves. A retry can put two RSTs on
-  // the wire when the first RSTACK was only slow rather than lost, so the NCP answers
-  // with more RSTACKs than we asked for; the surplus must not reach a client.
-  uint8_t own_rst_outstanding_{0};
 };
 
 extern ZigbeeProxy *global_zigbee_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

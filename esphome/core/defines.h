@@ -166,6 +166,7 @@
 #define USE_SENSOR
 #define USE_SENSOR_FILTER
 #define USE_SERIAL_PROXY
+#define USE_SERIAL_PROXY_TAP
 #define USE_SETUP_PRIORITY_OVERRIDE
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
@@ -182,7 +183,6 @@
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_ZIGBEE_PROXY
-#define USE_ZIGBEE_PROXY_USB_UART
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr

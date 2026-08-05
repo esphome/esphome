@@ -3,3 +3,6 @@ substitutions:
   rx_pin: GPIO1
 
 <<: !include common.yaml
+
+zigbee_proxy:
+  serial_proxy_id: zigbee_serial

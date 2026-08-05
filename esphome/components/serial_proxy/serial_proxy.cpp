@@ -30,19 +30,40 @@ void SerialProxy::setup() {
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
 #endif
+#ifdef USE_SERIAL_PROXY_TAP
+  // A tap sets itself up before this runs (its setup priority is higher), so it may
+  // already be waiting on the port -- a boot-time handshake with the device, say. Leaving
+  // the loop enabled is what lets that finish; without it the tap would stall until a
+  // client happened to subscribe.
+  if (this->tap_ != nullptr && this->tap_->tap_needs_port()) {
+    return;
+  }
+#endif
   // No subscriber at startup; disable loop until a client subscribes
   this->disable_loop();
+}
+
+void SerialProxy::reset_mode_() {
+  // The mode belongs to a session, not to the port. Carrying a departed client's choice
+  // over to the next one would inject protocol bytes into a stream that never asked for
+  // them -- a firmware upload, or any client built before this request existed and so
+  // unable to turn it off. Guessing RAW is the safe direction: a client that wanted
+  // protocol handling and did not ask for it merely sends its own acknowledgements.
+  if (this->mode_ == api::enums::SERIAL_PROXY_MODE_RAW) {
+    return;
+  }
+  ESP_LOGD(TAG, "Session ended, returning serial proxy [%" PRIu32 "] to RAW mode", this->instance_index_);
+  this->mode_ = api::enums::SERIAL_PROXY_MODE_RAW;
 }
 
 void SerialProxy::loop() {
 #ifdef USE_API
   // Detect subscriber disconnect
-  if (this->api_connection_ != nullptr &&
-      (this->api_connection_->is_marked_for_removal() || !this->api_connection_->is_connection_setup() ||
-       !api_is_connected())) {
+  if (this->api_connection_ != nullptr && (this->api_connection_->is_marked_for_removal() ||
+                                           !this->api_connection_->is_connection_setup() || !api_is_connected())) {
     ESP_LOGW(TAG, "Subscriber disconnected");
     this->api_connection_ = nullptr;
-    this->parent_->release(this);
+    this->reset_mode_();
   }
 
   // With no subscriber there is normally nothing to do, but a tap may still need the port
@@ -80,7 +101,7 @@ void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
 #ifdef USE_SERIAL_PROXY_TAP
   // Before forwarding, so a tap that answers the device (an acknowledgement, say) is not
   // waiting on the network round trip to a subscriber that may not even exist.
-  if (this->tap_ != nullptr) {
+  if (this->tap_observing_()) {
     this->tap_->on_device_rx(buffer, to_read);
   }
 #endif
@@ -94,6 +115,24 @@ void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
 #endif
 
 #ifdef USE_SERIAL_PROXY_TAP
+
+bool SerialProxy::tap_observing_() const {
+  if (this->tap_ == nullptr) {
+    return false;
+  }
+  // A tap that needs the port is mid-protocol-work of its own -- the boot-time handshake
+  // with the device, which runs before any client has connected and so before anyone could
+  // have chosen a mode. Withholding bytes from it there would strand it, so it is served
+  // regardless of mode.
+  if (this->tap_->tap_needs_port()) {
+    return true;
+  }
+  // Otherwise the mode decides. RAW must be inert: a client that flips to RAW before
+  // flashing firmware is entitled to a byte pipe with nothing injecting protocol bytes
+  // into it, and "the tap turned out not to recognise the stream" is not good enough.
+  return this->mode_ == api::enums::SERIAL_PROXY_MODE_EZSP_ASH;
+}
+
 void SerialProxy::tap_pump() {
 #ifdef USE_API
   const size_t available = this->available();
@@ -109,12 +148,14 @@ void SerialProxy::dump_config() {
                 "Serial Proxy [%" PRIu32 "]:\n"
                 "  Name: %s\n"
                 "  Port Type: %s\n"
+                "  Mode: %s\n"
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
                 this->instance_index_, this->name_ != nullptr ? this->name_ : "",
                 this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? "RS485"
                 : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? "RS232"
                                                                                : "TTL",
+                this->mode_ == api::enums::SERIAL_PROXY_MODE_EZSP_ASH ? "EZSP_ASH" : "RAW",
                 this->rts_pin_ != nullptr ? "configured" : "not configured",
                 this->dtr_pin_ != nullptr ? "configured" : "not configured");
 }
@@ -188,6 +229,29 @@ void SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrat
   }
 }
 
+void SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {
+#ifdef USE_API
+  if (this->port_claimed_by_other_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring mode request from client without port access [%" PRIu32 "]", this->instance_index_);
+    return;
+  }
+#endif
+  ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
+           mode == api::enums::SERIAL_PROXY_MODE_EZSP_ASH ? "EZSP_ASH" : "RAW");
+  const bool leaving_protocol_mode =
+      this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
+  this->mode_ = mode;
+
+#ifdef USE_SERIAL_PROXY_TAP
+  // Only for an explicit client request, not for reset_mode_() at the end of a session:
+  // an ordinary disconnect says nothing about the device, whereas a client deliberately
+  // asking for raw bytes usually precedes changing what the device is.
+  if (leaving_protocol_mode && this->tap_ != nullptr) {
+    this->tap_->on_protocol_disabled();
+  }
+#endif
+}
+
 void SerialProxy::write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {
 #ifdef USE_API
   // Bytes from a client other than the live subscriber would interleave with the
@@ -203,7 +267,7 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 
 #ifdef USE_SERIAL_PROXY_TAP
   // After the write, so the tap observes the same ordering the device does
-  if (this->tap_ != nullptr) {
+  if (this->tap_observing_()) {
     this->tap_->on_client_tx(data, len);
   }
 #endif
@@ -264,10 +328,6 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
-      // Take the UART unconditionally. Another device may be bound to it (a protocol
-      // proxy over the same radio, say); raw serial access is the more explicit, more
-      // destructive operation -- typically a firmware update -- so it wins.
-      this->parent_->claim(this);
       this->enable_loop();
       ESP_LOGV(TAG, "API connection subscribed to serial proxy [%" PRIu32 "]", this->instance_index_);
       break;
@@ -277,7 +337,7 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         return;
       }
       this->api_connection_ = nullptr;
-      this->parent_->release(this);
+      this->reset_mode_();
       this->disable_loop();
       ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%" PRIu32 "]", this->instance_index_);
       break;

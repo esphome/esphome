@@ -3,8 +3,6 @@
 #ifdef USE_ZIGBEE_PROXY
 
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include "esphome/core/util.h"
 #include "esphome/components/api/api_server.h"
 #include "ezsp_commands.h"
 
@@ -12,19 +10,18 @@
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 
-#ifdef USE_ZIGBEE_PROXY_USB_UART
-#include "esphome/components/usb_uart/usb_uart.h"
-#endif
-
 namespace esphome::zigbee_proxy {
 
 static const char *const TAG = "zigbee_proxy";
 
-static constexpr uint32_t BOOT_SEQUENCE_TIMEOUT_MS = 10000;    // Overall boot-harvest timeout
-static constexpr uint32_t RECOVERY_RETRY_INTERVAL_MS = 30000;  // Retry interval for a failed NCP link
-static constexpr uint32_t CLIENT_TX_RETRY_TIMEOUT_MS = 5000;   // Give up on a backpressured client frame
-static constexpr size_t NETWORK_INFO_PAYLOAD_SIZE = 19;        // ieee(8) + extended_pan(8) + pan_id(2) + channel(1)
-static constexpr size_t ZIGBEE_MAX_LOG_BYTES = 168;            // Cap verbose hex dumps (168 * 3 = 504 byte buffer)
+// A freshly attached USB device answers its enumeration before its CDC endpoints will
+// actually carry bytes, so an RST sent the instant it appears is written into a void and
+// is only recovered by the 3 s RSTACK retry. zwave_proxy defers its own first query for
+// the same reason.
+static constexpr uint32_t DEVICE_SETTLE_MS = 500;
+static constexpr uint32_t BOOT_SEQUENCE_TIMEOUT_MS = 10000;  // Overall boot-harvest timeout
+static constexpr size_t NETWORK_INFO_PAYLOAD_SIZE = 19;      // ieee(8) + extended_pan(8) + pan_id(2) + channel(1)
+static constexpr size_t ZIGBEE_MAX_LOG_BYTES = 168;          // Cap verbose hex dumps (168 * 3 = 504 byte buffer)
 
 ZigbeeProxy *global_zigbee_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -32,10 +29,12 @@ ZigbeeProxy::ZigbeeProxy() { global_zigbee_proxy = this; }
 
 void ZigbeeProxy::setup() {
   this->setup_time_ = millis();
-  // Remember the configured line rate. Another device sharing this UART may change it
-  // (a flasher stepping through baud rates to reach a bootloader, say) and has no way
-  // to know what to restore, so we put it back ourselves when we take the bus again.
-  this->configured_baud_rate_ = this->parent_->get_baud_rate();
+
+  // The port reads and forwards on its own; we only observe what passes and inject the
+  // occasional acknowledgement. The harvest below runs before any client connects, so the
+  // port has to keep reading with nobody subscribed -- hence the explicit request.
+  this->parent_->set_tap(this);
+  this->parent_->tap_request_port();
 
   // Initialize state
   this->ash_state_ = AshState::DISCONNECTED;
@@ -48,73 +47,94 @@ void ZigbeeProxy::setup() {
 }
 
 void ZigbeeProxy::loop() {
-  // Own the UART only while harvesting network info or serving a subscriber. Idling on
-  // the bus otherwise would fight whichever device holds it -- a serial proxy carrying a
-  // firmware update, say -- and the autonomous recovery below would inject ASH resets
-  // into the middle of someone else's transfer.
-  if (!this->should_own_uart_()) {
-    if (this->owns_uart_) {
-      this->owns_uart_ = false;
-      if (this->api_connection_ != nullptr) {
-        ESP_LOGW(TAG, "UART claimed by another device, dropping subscriber");
-        this->unsubscribe_api_connection(this->api_connection_);
-      }
-      ESP_LOGD(TAG, "Released UART");
-      this->boot_sequence_active_ = false;
-      // The NCP may be reflashed while we are away, so nothing about the link can be
-      // assumed on return.
-      this->ash_state_ = AshState::FAILED;
-    }
+  // Watch for the radio being unplugged and plugged back in. The whole point of the
+  // metadata is that a stick moved from another host is recognised here, and that move is
+  // a hot-plug: harvesting only at boot would miss it entirely and leave the device
+  // advertising nothing for a radio that is sitting right there.
+  const bool connected = this->parent_->is_device_connected();
+  if (connected != this->was_connected_) {
+    this->was_connected_ = connected;
+    this->on_device_presence_changed_(connected);
+  }
+
+  // A re-harvest owed from on_protocol_disabled(), now that the port is idle again
+  if (this->reharvest_pending_ && !this->boot_sequence_active_ && this->parent_->get_api_connection() == nullptr) {
+    ESP_LOGI(TAG, "Port idle again, re-reading network info");
+    this->reharvest_pending_ = false;
+    this->parent_->tap_request_port();
+    this->reset_ash_protocol_();
     return;
   }
 
-  if (!this->owns_uart_) {
-    ESP_LOGI(TAG, "Acquired UART, resetting NCP link");
-    this->owns_uart_ = true;
-    if (this->parent_->get_baud_rate() != this->configured_baud_rate_) {
-      ESP_LOGI(TAG, "Restoring baud rate %" PRIu32 " (was %" PRIu32 ")", this->configured_baud_rate_,
-               this->parent_->get_baud_rate());
-      this->parent_->set_baud_rate(this->configured_baud_rate_);
-      this->parent_->load_settings(false);
-    }
-    // A subscriber drives its own session: it opens with an RST and negotiates its own
-    // EZSP version. Harvesting here would put a second RST on the wire alongside the
-    // client's and renegotiate the NCP underneath it, so only harvest when there is
-    // something left to learn.
-    if (this->api_connection_ != nullptr && this->network_info_.valid) {
-      this->reset_ncp_link_();
-    } else {
-      this->reset_ash_protocol_();
-    }
+  // Bytes arrive through on_device_rx(), so the only work left on an idle tick is the
+  // presence check above -- an atomic load and a compare. The loop deliberately stays
+  // enabled for it: disabling it would mean a stick plugged in later is never noticed.
+  if (!this->boot_sequence_active_) {
+    return;
   }
-
-  // Process incoming UART data
-  this->process_uart_();
 
   // Check for ACK timeout and handle retransmission
   if (this->tx_buffer_pending_ && this->check_ack_timeout_()) {
     this->handle_retransmission_();
   }
 
-  if (this->boot_sequence_active_) {
-    this->check_boot_timeouts_();
-  } else if (this->api_connection_ == nullptr && this->ash_state_ == AshState::CONNECTING &&
-             millis() - this->setup_time_ > ASH_RESET_TIMEOUT) {
-    ESP_LOGE(TAG, "RSTACK timeout, NCP not responding");
-    this->ash_state_ = AshState::FAILED;
-  }
+  this->check_boot_timeouts_();
+}
 
-  // Guard against a subscriber that disconnected without unsubscribing
-  if (this->api_connection_ != nullptr && (!this->api_connection_->is_connection_setup() || !api_is_connected())) {
-    ESP_LOGW(TAG, "Subscriber disconnected");
-    this->unsubscribe_api_connection(this->api_connection_);
-  }
+void ZigbeeProxy::on_device_rx(const uint8_t *data, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    const uint8_t byte = data[i];
+    ESP_LOGV(TAG, "RX: 0x%02X", byte);
 
-  // No autonomous recovery while a client is subscribed. A subscriber owns the link: it
-  // opens with its own RST and resets whenever it decides it needs to. Resetting on its
-  // behalf relays an RSTACK it never asked for, which bellows treats as fatal -- and if it
-  // happens to be driving a bootloader over this interface, injecting ASH into the
-  // transfer is worse still. A broken link is the client's to notice and repair.
+    if (this->ash_state_ != AshState::CONNECTED) {
+      this->check_bootloader_mode_(this->last_rx_byte_, byte);
+      this->last_rx_byte_ = byte;
+    } else if (this->bootloader_state_ != BootloaderState::NORMAL) {
+      // Normal traffic while connected clears any stale bootloader detection
+      ESP_LOGV(TAG, "NCP returned to normal operation");
+      this->bootloader_state_ = BootloaderState::NORMAL;
+    }
+
+    if (this->boot_sequence_active_) {
+      // Harvest: this component is the ASH endpoint and consumes the frames itself
+      this->parse_byte_(byte);
+      continue;
+    }
+
+    // Observation only: the detector never gates forwarding, so it adds no latency and a
+    // frame it cannot parse still reaches the client, which judges it for itself.
+    this->detector_.from_ncp(byte);
+
+    // Outside the harvest the detector is the only thing watching the link, so its
+    // progress is what tells us the NCP is alive -- and hence that any earlier bootloader
+    // detection is stale.
+    if (this->detector_.state() != AshDetectState::IDLE) {
+      this->ash_state_ = AshState::CONNECTED;
+    }
+
+    uint8_t ack_num;
+    if (this->detector_.take_pending_ack(ack_num)) {
+      // The client suppresses its own ACKs, so this is the only acknowledgement the NCP
+      // will see. Only ever sent for a frame that passed CRC and arrived in sequence.
+      this->send_ack_frame_(ack_num);
+      const uint8_t *ezsp = this->detector_.last_ezsp_frame();
+      const size_t ezsp_length = this->detector_.last_ezsp_frame_length();
+      this->sniff_network_info_(ezsp, ezsp_length);
+      this->sniff_stack_status_(ezsp, ezsp_length);
+    }
+  }
+}
+
+void ZigbeeProxy::on_client_tx(const uint8_t *data, size_t len) {
+  // Scanning this direction only matters while waiting for the version command that
+  // completes the handshake. Outside that window it is skipped entirely -- which is what
+  // makes a firmware upload, all of which flows this way, essentially free.
+  if (!this->detector_.needs_host_scan()) {
+    return;
+  }
+  for (size_t i = 0; i < len; i++) {
+    this->detector_.from_host(data[i]);
+  }
 }
 
 void ZigbeeProxy::check_boot_timeouts_() {
@@ -179,7 +199,7 @@ bool ZigbeeProxy::can_proceed() {
   }
 
   // loop() is not called while setup is blocked, so run the boot machinery here
-  this->process_uart_();
+  this->parent_->tap_pump();
   if (this->tx_buffer_pending_ && this->check_ack_timeout_()) {
     this->handle_retransmission_();
   }
@@ -197,38 +217,6 @@ void ZigbeeProxy::api_connection_authenticated(api::APIConnection *conn) {
 
 void ZigbeeProxy::zigbee_proxy_request(api::APIConnection *api_connection, const api::ZigbeeProxyRequest &msg) {
   switch (msg.type) {
-    case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE:
-      if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
-        // A living subscriber keeps exclusive access. Its connection may be dead without
-        // loop() having noticed yet (e.g. the client crashed and reconnected quickly);
-        // in that case let the new client take over instead of locking it out for the
-        // full API keepalive timeout.
-        if (this->api_connection_->is_connection_setup()) {
-          ESP_LOGW(TAG, "Another client is already subscribed");
-          return;
-        }
-        ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
-      }
-      ESP_LOGD(TAG, "Client subscribed");
-      this->api_connection_ = api_connection;
-      // A subscriber owns the link from here on, so abandon any harvest in flight rather
-      // than interleaving our own EZSP commands with the client's session. Metadata for
-      // this session comes from watching the client's own traffic instead.
-      if (this->boot_sequence_active_) {
-        ESP_LOGD(TAG, "Abandoning boot harvest, client owns the link");
-        this->boot_sequence_active_ = false;
-        this->boot_state_ = BootState::IDLE;
-      }
-      this->detector_.reset();
-      break;
-
-    case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
-      if (this->api_connection_ == api_connection) {
-        ESP_LOGD(TAG, "Client unsubscribed");
-        this->unsubscribe_api_connection(api_connection);
-      }
-      break;
-
     case api::enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO:
       this->send_network_info_changed_msg_(api_connection);
       break;
@@ -236,36 +224,6 @@ void ZigbeeProxy::zigbee_proxy_request(api::APIConnection *api_connection, const
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", static_cast<int>(msg.type));
       break;
-  }
-}
-
-void ZigbeeProxy::unsubscribe_api_connection(api::APIConnection *conn) {
-  if (this->api_connection_ != conn) {
-    return;
-  }
-  this->api_connection_ = nullptr;
-  // Anything already buffered belongs to the departed session
-  this->relay_length_ = 0;
-  this->detector_.reset();
-}
-
-void ZigbeeProxy::zigbee_proxy_frame(api::APIConnection *api_connection, const api::ZigbeeProxyFrame &msg) {
-  if (this->api_connection_ != api_connection) {
-    ESP_LOGW(TAG, "Frame received from non-subscribed client");
-    return;
-  }
-
-  // Transparent relay: the client's ASH bytes reach the NCP untouched, so the two share
-  // one sequence space and nothing here can desynchronize it.
-  this->write_array(msg.data, msg.data_len);
-
-  // Scanning this direction only matters while waiting for the version command that
-  // completes the handshake. Outside that window it is a pure passthrough -- which is
-  // what makes a firmware upload, all of which flows this way, essentially free.
-  if (this->detector_.needs_host_scan()) {
-    for (size_t i = 0; i < msg.data_len; i++) {
-      this->detector_.from_host(msg.data[i]);
-    }
   }
 }
 
@@ -284,13 +242,6 @@ void ZigbeeProxy::set_timeout_config(uint32_t initial_ms, uint32_t min_ms, uint3
   this->timeout_config_.current_timeout_ms = initial_ms;
   ESP_LOGV(TAG, "Timeout config updated: initial=%u, min=%u, max=%u", initial_ms, min_ms, max_ms);
 }
-
-#ifdef USE_ZIGBEE_PROXY_USB_UART
-void ZigbeeProxy::set_usb_uart_channel(usb_uart::USBUartChannel *channel) {
-  channel->set_rx_callback([this]() { this->process_uart_(); });
-  ESP_LOGD(TAG, "Registered USB UART RX callback for low-latency processing");
-}
-#endif
 
 // ASH Protocol State Machine
 void ZigbeeProxy::reset_ash_protocol_() {
@@ -314,33 +265,12 @@ void ZigbeeProxy::reset_ash_protocol_() {
   this->boot_sequence_active_ = true;
   this->ezsp_sequence_ = 0;
 
-  // Abandon RSTACKs owed from a previous attempt: they can no longer arrive in a state
-  // where suppressing them is correct, and a stale count would swallow a real reset.
-  this->own_rst_outstanding_ = 0;
-
   this->send_rst_frame_();
 }
 
-void ZigbeeProxy::reset_ncp_link_() {
-  this->ash_state_ = AshState::CONNECTING;
-  this->setup_time_ = millis();  // Reset timeout reference for the RSTACK wait
-  this->tx_sequence_ = 0;
-  this->rx_sequence_ = 0;
-  this->tx_buffer_pending_ = false;
-  this->tx_retry_count_ = 0;
-  this->parsing_state_ = ParsingState::WAIT_FLAG_START;
-  this->relay_length_ = 0;
-  this->detector_.reset();
-  this->send_rst_frame_(false);
-}
-
-void ZigbeeProxy::send_rst_frame_(bool own_reset) {
-  if (own_reset) {
-    this->own_rst_outstanding_++;
-  }
-
+void ZigbeeProxy::send_rst_frame_() {
   // Build a combined buffer: 32 CAN bytes followed immediately by the RST frame,
-  // sent as a single write_array call. This ensures correct byte ordering and
+  // sent as a single write. This ensures correct byte ordering and
   // minimizes the number of USB bulk transfers (all bytes fit in one USB FS packet).
   static constexpr uint8_t ASH_CAN_BYTE = 0x1A;
   static constexpr size_t CAN_COUNT = 32;
@@ -353,8 +283,7 @@ void ZigbeeProxy::send_rst_frame_(bool own_reset) {
   char hex_buf[format_hex_pretty_size(MAX_RST_FRAME_SIZE)];
 #endif
   ESP_LOGV(TAG, "RST frame bytes (%u): %s", rst_len, format_hex_pretty_to(hex_buf, combined + CAN_COUNT, rst_len));
-  this->write_array(combined, CAN_COUNT + rst_len);
-  this->flush();
+  this->parent_->write_from_tap(combined, CAN_COUNT + rst_len);
   ESP_LOGV(TAG, "Sent RST frame (with %u CAN bytes prefix)", CAN_COUNT);
 }
 
@@ -364,29 +293,14 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
   this->rx_sequence_ = 0;
   this->clear_tx_buffer_();
 
-  // Account for this RSTACK before deciding whether the client should see it. Only a
-  // reset we did not cause is news to the client; relaying one of ours makes bellows
-  // call enter_failed_state() and cancel every command it has in flight.
-  bool solicited_by_us = this->own_rst_outstanding_ > 0;
-  if (solicited_by_us) {
-    this->own_rst_outstanding_--;
-  }
-
   if (this->boot_state_ == BootState::WAIT_RSTACK) {
     // Initial RSTACK - start boot sequence
     ESP_LOGV(TAG, "Received RSTACK, starting EZSP initialization");
     this->ash_state_ = AshState::CONNECTED;
 
-    // Drain any stale bytes that arrived before the RSTACK (e.g. leftover
-    // UART FIFO bytes on HW UART, or a partial prior frame on USB CDC).
-    // For USB CDC the input_buffer_ is already fully up-to-date at this point
-    // (the RX callback just moved all pending chunks into it), so this loop
-    // completes immediately rather than spinning with yield().
-    while (this->available()) {
-      uint8_t discard;
-      this->read_byte(&discard);
-      ESP_LOGV(TAG, "Draining post-RSTACK byte: 0x%02X", discard);
-    }
+    // Stale bytes preceding the RSTACK (leftover UART FIFO content, or a partial prior
+    // frame) need no draining: the port owns the read side now, so anything before the
+    // RSTACK has already passed through the parser and been discarded by frame delimiting.
 
     this->boot_state_ = BootState::SEND_VERSION;
     this->advance_boot_state_();
@@ -399,28 +313,11 @@ void ZigbeeProxy::handle_rstack_frame_(const uint8_t *data, size_t length) {
 
     // Now check for WiFi/Zigbee channel conflicts
     this->check_wifi_zigbee_conflict_();
-  } else if (this->ash_state_ == AshState::CONNECTING) {
-    if (solicited_by_us) {
-      // One of our own resets answered while a client reset is still outstanding. Stay in
-      // CONNECTING and keep waiting for the RSTACK the client is actually owed.
-      ESP_LOGV(TAG, "Consumed own RSTACK while awaiting the client's");
-      return;
-    }
-    // RSTACK during connecting (triggered by client RST forwarding)
-    ESP_LOGV(TAG, "Received RSTACK, NCP ready");
-    this->ash_state_ = AshState::CONNECTED;
-  } else if (solicited_by_us) {
-    // Surplus RSTACK from one of our own resets, most often an RST retry racing a reply
-    // that was merely slow. The client never asked for it, so swallow it.
-    ESP_LOGV(TAG, "Consumed surplus RSTACK from own reset");
-    this->ash_state_ = AshState::CONNECTED;
-  } else if (this->api_connection_ != nullptr) {
-    // A reset we did not cause: the NCP rebooted on its own, which invalidates the
-    // client's session, so it has to hear about it.
-    ESP_LOGW(TAG, "NCP reset unexpectedly, notifying client");
-    this->ash_state_ = AshState::CONNECTED;
   } else {
-    ESP_LOGW(TAG, "Unexpected RSTACK received (boot_state=%d)", static_cast<int>(this->boot_state_));
+    // An RSTACK outside the harvest belongs to whoever reset the NCP -- a client opening
+    // its own session, most likely. Nothing to do but note that the link is alive.
+    ESP_LOGV(TAG, "RSTACK received outside boot sequence (boot_state=%d)", static_cast<int>(this->boot_state_));
+    this->ash_state_ = AshState::CONNECTED;
   }
 }
 
@@ -463,21 +360,16 @@ void ZigbeeProxy::handle_error_frame_(const uint8_t *data, size_t length) {
       break;
   }
 
+  // Reported only. This frame is only ever seen during the boot harvest, whose overall
+  // timeout already guarantees forward progress; resetting the NCP here would restart that
+  // timeout and could block startup indefinitely on a link that keeps erroring.
   ESP_LOGE(TAG, "NCP error: %s (0x%02X)", error_str, error_code);
-
-  if (this->api_connection_ != nullptr) {
-    // Forward error to client
-  } else {
-    // No client, attempt recovery ourselves
-    ESP_LOGV(TAG, "Attempting recovery");
-    this->reset_ash_protocol_();
-  }
 }
 
 bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
   uint8_t frame[8];
   size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::ACK, 0, ack_num);
-  this->write_array(frame, length);
+  this->parent_->write_from_tap(frame, length);
   this->last_ack_sent_ = ack_num;
   ESP_LOGV(TAG, "Sent ACK for frame %d", ack_num);
   return true;
@@ -486,7 +378,7 @@ bool ZigbeeProxy::send_ack_frame_(uint8_t ack_num) {
 bool ZigbeeProxy::send_nak_frame_(uint8_t ack_num) {
   uint8_t frame[8];
   size_t length = this->build_frame_(frame, sizeof(frame), nullptr, 0, AshFrameType::NAK, 0, ack_num);
-  this->write_array(frame, length);
+  this->parent_->write_from_tap(frame, length);
   ESP_LOGW(TAG, "Sent NAK for frame %d", ack_num);
   return true;
 }
@@ -514,7 +406,7 @@ bool ZigbeeProxy::send_data_frame_(const uint8_t *data, size_t length, bool retr
            format_hex_pretty_to(hex_buf, this->tx_buffer_.data(), frame_length));
 
   // Send frame
-  this->write_array(this->tx_buffer_.data(), frame_length);
+  this->parent_->write_from_tap(this->tx_buffer_.data(), frame_length);
 
   // Start ACK timer
   this->tx_buffer_pending_ = true;
@@ -576,7 +468,7 @@ void ZigbeeProxy::handle_retransmission_() {
            ASH_MAX_RETRIES);
 
   // Resend the pending frame
-  this->write_array(this->tx_pending_buffer_.data(), this->tx_pending_length_);
+  this->parent_->write_from_tap(this->tx_pending_buffer_.data(), this->tx_pending_length_);
   this->start_ack_timer_();
 }
 
@@ -1023,73 +915,53 @@ void ZigbeeProxy::check_bootloader_mode_(uint8_t prev_byte, uint8_t byte) {
   }
 }
 
-// UART processing (precondition: available() > 0, see inline process_uart_ in the header)
-void ZigbeeProxy::process_uart_slow_() {
-  do {
-    uint8_t byte;
-    if (!this->read_byte(&byte)) {
-      return;
-    }
-
-    // Verbose logging for debugging (ESP_LOGV already checks log level)
-    ESP_LOGV(TAG, "RX: 0x%02X", byte);
-
-    if (this->ash_state_ != AshState::CONNECTED) {
-      this->check_bootloader_mode_(this->last_rx_byte_, byte);
-      this->last_rx_byte_ = byte;
-    } else if (this->bootloader_state_ != BootloaderState::NORMAL) {
-      // Normal traffic while connected clears any stale bootloader detection
-      ESP_LOGV(TAG, "NCP returned to normal operation");
-      this->bootloader_state_ = BootloaderState::NORMAL;
-    }
-
-    if (this->boot_sequence_active_) {
-      // Harvest: this component is the ASH endpoint and consumes the frames itself
-      this->parse_byte_(byte);
-    } else {
-      this->relay_ncp_byte_(byte);
-    }
-  } while (this->available());
-
-  this->relay_flush_();
-}
-
-// ==================== Transparent relay ====================
-
-void ZigbeeProxy::relay_ncp_byte_(uint8_t byte) {
-  if (this->relay_length_ >= sizeof(this->relay_buffer_)) {
-    this->relay_flush_();
-  }
-  this->relay_buffer_[this->relay_length_++] = byte;
-
-  // Observation only: the detector never gates forwarding, so it adds no latency and a
-  // frame it cannot parse still reaches the client, which judges it for itself.
-  this->detector_.from_ncp(byte);
-
-  // In relay mode the detector is the only thing watching the link, so its progress is
-  // what tells us the NCP is alive. Without this ash_state_ sits at CONNECTING, times out
-  // into FAILED, and autonomous recovery resets the NCP underneath a working session --
-  // relaying an RSTACK the client never asked for, which kills it outright.
-  if (this->detector_.state() != AshDetectState::IDLE) {
-    this->ash_state_ = AshState::CONNECTED;
-  }
-
-  uint8_t ack_num;
-  if (this->detector_.take_pending_ack(ack_num)) {
-    // The client suppresses its own ACKs, so this is the only acknowledgement the NCP
-    // will see. Only ever sent for a frame that passed CRC and arrived in sequence.
-    this->send_ack_frame_(ack_num);
-    const uint8_t *ezsp = this->detector_.last_ezsp_frame();
-    const size_t ezsp_length = this->detector_.last_ezsp_frame_length();
-    this->sniff_network_info_(ezsp, ezsp_length);
-    this->sniff_stack_status_(ezsp, ezsp_length);
-  }
-}
-
 // A proxied getNetworkParameters response is the only authoritative view of the network
 // available while a client owns the link, so metadata is refreshed from the client's own
 // traffic rather than by injecting commands. Read-only: a frame that fails any check
 // simply leaves the previous values in place.
+void ZigbeeProxy::on_device_presence_changed_(bool connected) {
+  if (!connected) {
+    ESP_LOGD(TAG, "Radio disconnected, discarding network info");
+    this->boot_sequence_active_ = false;
+    this->boot_state_ = BootState::IDLE;
+    this->reharvest_pending_ = false;
+    if (this->network_info_.valid) {
+      this->network_info_ = {};
+      this->send_network_info_changed_msg_();
+    }
+    return;
+  }
+
+  // A radio just appeared. Whatever we knew described a different one, so start over.
+  ESP_LOGI(TAG, "Radio connected, reading network info");
+  if (this->network_info_.valid) {
+    this->network_info_ = {};
+    this->send_network_info_changed_msg_();
+  }
+  this->reharvest_pending_ = true;
+  this->reharvest_after_ = millis() + DEVICE_SETTLE_MS;
+}
+
+void ZigbeeProxy::on_protocol_disabled() {
+  // Everything here was read from a radio that a client is now taking over, so none of it
+  // can be trusted: it survives a reflash to Thread, or to nothing at all, and would leave
+  // us advertising a network that no longer exists. Reporting nothing is the honest answer
+  // until a fresh harvest says otherwise.
+  //
+  // The harvest cannot run now -- the client holds the port -- so it is deferred. Once the
+  // client goes away the port stays open for us (tap_needs_port) and loop() picks it up.
+  this->reharvest_pending_ = true;
+  this->reharvest_after_ = 0;
+  this->enable_loop();
+
+  if (!this->network_info_.valid) {
+    return;
+  }
+  ESP_LOGD(TAG, "Protocol handling disabled, discarding network info");
+  this->network_info_ = {};
+  this->send_network_info_changed_msg_();
+}
+
 void ZigbeeProxy::sniff_network_info_(const uint8_t *frame, size_t length) {
   // Every frame after the version handshake uses extended framing, so the header size is
   // fixed and needs no knowledge of the negotiated version.
@@ -1097,7 +969,7 @@ void ZigbeeProxy::sniff_network_info_(const uint8_t *frame, size_t length) {
     return;
   }
 
-  // The relay never derandomizes, so work on a copy: the original bytes are already on
+  // The observed bytes are the port's, not ours, so work on a copy: they are already on
   // their way to the client and must stay untouched.
   uint8_t decoded[EZSP_EXTENDED_HEADER_SIZE + NETWORK_PARAMS_RESPONSE_SIZE];
   memcpy(decoded, frame, sizeof(decoded));
@@ -1164,25 +1036,6 @@ void ZigbeeProxy::sniff_stack_status_(const uint8_t *frame, size_t length) {
   this->network_info_.extended_pan_id.fill(0);
   // The IEEE address is a hardware property and survives leaving a network, so it stays.
   this->send_network_info_changed_msg_();
-}
-
-void ZigbeeProxy::relay_flush_() {
-  if (this->relay_length_ == 0) {
-    return;
-  }
-  const size_t length = this->relay_length_;
-  this->relay_length_ = 0;
-  if (this->api_connection_ == nullptr) {
-    return;
-  }
-  this->outgoing_proto_msg_.data = this->relay_buffer_;
-  this->outgoing_proto_msg_.data_len = length;
-  if (!this->api_connection_->send_zigbee_proxy_frame(this->outgoing_proto_msg_)) {
-    // API TX backpressure. Dropping bytes is recoverable: the client sees a truncated
-    // frame, fails its CRC and NAKs, and the NCP retransmits. Withholding our ACK would
-    // achieve the same thing more slowly, and buffering risks unbounded growth.
-    ESP_LOGW(TAG, "Dropped %u relayed bytes (API TX buffer full)", length);
-  }
 }
 
 }  // namespace esphome::zigbee_proxy

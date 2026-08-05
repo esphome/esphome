@@ -219,9 +219,7 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 
 #ifdef USE_ZIGBEE_PROXY
-  void on_zigbee_proxy_frame(const ZigbeeProxyFrame &msg);
   void on_zigbee_proxy_request(const ZigbeeProxyRequest &msg);
-  bool send_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) { return this->send_message(msg); }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -245,6 +243,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
+  void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 

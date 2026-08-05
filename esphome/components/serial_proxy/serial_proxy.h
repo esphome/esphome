@@ -26,6 +26,7 @@ class APIConnection;
 namespace enums {
 enum SerialProxyPortType : uint32_t;
 enum SerialProxyRequestType : uint32_t;
+enum SerialProxyMode : uint32_t;
 }  // namespace enums
 }  // namespace esphome::api
 
@@ -61,6 +62,12 @@ class SerialProxyTap {
   /// True when the port must keep reading even with no subscriber attached, so a tap can
   /// do its own protocol work while nobody is listening.
   virtual bool tap_needs_port() const = 0;
+
+  /// A client explicitly turned protocol handling off for this port. Distinct from the
+  /// automatic reset when a session ends: this one means a client intends to do something
+  /// else with the device -- reflash it, most likely -- so anything the tap believes about
+  /// it should be treated as suspect.
+  virtual void on_protocol_disabled() = 0;
 };
 #endif
 
@@ -88,6 +95,15 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Get the port type
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
+
+  /// Set the initial mode (from YAML configuration)
+  void set_mode(api::enums::SerialProxyMode mode) { this->mode_ = mode; }
+
+  /// Get the current mode
+  api::enums::SerialProxyMode get_mode() const { return this->mode_; }
+
+  /// Handle a mode change requested by an API client
+  void set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change
@@ -139,6 +155,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// must ask for it back.
   void tap_request_port() { this->enable_loop(); }
 
+  /// Whether the underlying device is present. On a USB UART this tracks enumeration, so
+  /// a tap can notice the device being unplugged and plugged back in.
+  bool is_device_connected() const { return this->parent_->is_connected(); }
+
   /// Run one read-and-dispatch cycle immediately. Lets a tap make progress before the
   /// main loop is running -- during setup, for instance, while a component is still
   /// blocking on can_proceed().
@@ -153,6 +173,15 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// True when a live subscriber other than the given connection holds the port
   bool port_claimed_by_other_(api::APIConnection *api_connection) const;
+#endif
+
+  /// Return the port to RAW when a subscriber goes away, so the mode never outlives it.
+  /// Not tap-gated: the mode is a client-visible property whether or not a tap acts on it.
+  void reset_mode_();
+
+#ifdef USE_SERIAL_PROXY_TAP
+  /// True when the tap should be shown the traffic passing through this port
+  bool tap_observing_() const;
 #endif
 
   /// Instance index for identifying this proxy in API messages
@@ -171,6 +200,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Port type
   api::enums::SerialProxyPortType port_type_{};
+
+  /// How the bytes passing through are treated; zero is SERIAL_PROXY_MODE_RAW
+  api::enums::SerialProxyMode mode_{};
 
   /// Optional GPIO pins for modem control
   GPIOPin *rts_pin_{nullptr};

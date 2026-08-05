@@ -4156,6 +4156,19 @@ uint32_t SerialProxyRequestResponse::calculate_size() const {
   size += ProtoSize::calc_length(1, this->error_message.size());
   return size;
 }
+bool SerialProxySetModeRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value;
+      break;
+    case 2:
+      this->mode = static_cast<enums::SerialProxyMode>(value);
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
@@ -4194,28 +4207,6 @@ uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
 }
 #endif
 #ifdef USE_ZIGBEE_PROXY
-bool ZigbeeProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->data = value.data();
-      this->data_len = value.size();
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *ZigbeeProxyFrame::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-  uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->data, this->data_len);
-  return pos;
-}
-uint32_t ZigbeeProxyFrame::calculate_size() const {
-  uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->data_len);
-  return size;
-}
 bool ZigbeeProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:

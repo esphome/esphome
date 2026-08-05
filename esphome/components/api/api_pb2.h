@@ -351,12 +351,14 @@ enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_TIMEOUT = 3,
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4,
 };
+enum SerialProxyMode : uint32_t {
+  SERIAL_PROXY_MODE_RAW = 0,
+  SERIAL_PROXY_MODE_EZSP_ASH = 1,
+};
 #endif
 #ifdef USE_ZIGBEE_PROXY
 enum ZigbeeProxyRequestType : uint32_t {
-  ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
-  ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
-  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 2,
+  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 0,
 };
 #endif
 
@@ -3302,6 +3304,22 @@ class SerialProxyRequestResponse final : public ProtoMessage {
 
  protected:
 };
+class SerialProxySetModeRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 151;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_set_mode_request"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyMode mode{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
+};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 class BluetoothSetConnectionParamsRequest final : public ProtoDecodableMessage {
@@ -3342,24 +3360,6 @@ class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
 };
 #endif
 #ifdef USE_ZIGBEE_PROXY
-class ZigbeeProxyFrame final : public ProtoDecodableMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 149;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const LogString *message_name() const override { return LOG_STR("zigbee_proxy_frame"); }
-#endif
-  const uint8_t *data{nullptr};
-  uint16_t data_len{0};
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
-  uint32_t calculate_size() const;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
 class ZigbeeProxyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 150;

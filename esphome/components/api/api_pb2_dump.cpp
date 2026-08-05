@@ -856,14 +856,20 @@ template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::Ser
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::SerialProxyMode value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_MODE_RAW:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_RAW");
+    case enums::SERIAL_PROXY_MODE_EZSP_ASH:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_EZSP_ASH");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #endif
 #ifdef USE_ZIGBEE_PROXY
 template<> const char *proto_enum_to_string<enums::ZigbeeProxyRequestType>(enums::ZigbeeProxyRequestType value) {
   switch (value) {
-    case enums::ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE:
-      return ESPHOME_PSTR("ZIGBEE_PROXY_REQUEST_TYPE_SUBSCRIBE");
-    case enums::ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
-      return ESPHOME_PSTR("ZIGBEE_PROXY_REQUEST_TYPE_UNSUBSCRIBE");
     case enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO:
       return ESPHOME_PSTR("ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO");
     default:
@@ -2734,6 +2740,12 @@ const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("error_message"), this->error_message);
   return out.c_str();
 }
+const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModeRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
+  return out.c_str();
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
@@ -2753,11 +2765,6 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
 }
 #endif
 #ifdef USE_ZIGBEE_PROXY
-const char *ZigbeeProxyFrame::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("ZigbeeProxyFrame"));
-  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
-  return out.c_str();
-}
 const char *ZigbeeProxyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ZigbeeProxyRequest"));
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZigbeeProxyRequestType>(this->type));

@@ -8,6 +8,7 @@ esp32:
 <<: !include common.yaml
 
 zigbee_proxy:
+  serial_proxy_id: zigbee_serial
   buffer_size: 1024
   initial_timeout: 1600
   min_timeout: 400
