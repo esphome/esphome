@@ -99,6 +99,10 @@ esphome/components/bmp581_i2c/* @danielkent-net @kahrendt
 esphome/components/bmp581_spi/* @danielkent-net @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
+esphome/components/bthome/* @jpeletier
+esphome/components/bthome/binary_sensor/* @jpeletier
+esphome/components/bthome/sensor/* @jpeletier
+esphome/components/bthome/text_sensor/* @jpeletier
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow

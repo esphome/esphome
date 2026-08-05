@@ -1,0 +1,39 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: BATTERY_PCT
+    name: "Remote Battery"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: TEMPERATURE_C_E2
+    name: "Remote Temperature"
+  - platform: bthome
+    source_id: bthome_remote_encrypted
+    type: HUMIDITY_PCT_E2
+    name: "Remote Humidity Encrypted"
+
+binary_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: MOTION_DETECTED
+    name: "Remote Motion"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: DOOR_OPEN
+    name: "Remote Door"
+
+text_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: TEXT
+    name: "Remote Text"
+
+bthome:
+  remote_devices:
+    - id: bthome_remote_plain
+      mac_address: 11:22:33:44:55:66
+    - id: bthome_remote_encrypted
+      mac_address: AA:BB:CC:DD:EE:FF
+      key: 11223344556677889900AABBCCDDEEFF
