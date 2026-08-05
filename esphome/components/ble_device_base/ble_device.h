@@ -91,8 +91,7 @@ class ESPBTUUID {
 #if defined(__cpp_lib_span)
   const char *to_str(std::span<char, UUID_STR_LEN> output) const { return this->to_str(output.data()); }
 #endif
-  // UNSET is the default-constructed state; get_uuid() reports it as len 0,
-  // the historical esp32_ble sentinel for "no UUID configured".
+  // UNSET is the default-constructed state; get_uuid() reports it as len 0 (the historical sentinel).
   enum class Type : uint8_t { UNSET, UUID16, UUID32, UUID128 };
   Type type() const { return this->type_; }
   uint16_t uuid16() const { return this->uuid_.uuid16; }

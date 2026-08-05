@@ -27,9 +27,8 @@ TEST(BleDeviceUuid, ThirtyTwoBitMatchesEquivalentLongForm) {
   EXPECT_TRUE(u32 == u128);
 }
 
-// A default-constructed UUID is UNSET, the historical esp32_ble "not configured" sentinel
-// (get_uuid() reports it as len 0 on esp32). It must stay distinguishable from real UUIDs
-// so optional-UUID checks like ble_client's descriptor_uuid keep working.
+// A default-constructed UUID is UNSET, the historical "not configured" sentinel
+// (len 0 through the esp32 get_uuid() adapter).
 TEST(BleDeviceUuid, DefaultConstructedIsUnset) {
   const ESPBTUUID unset;
   EXPECT_EQ(unset.type(), ESPBTUUID::Type::UNSET);
@@ -38,11 +37,8 @@ TEST(BleDeviceUuid, DefaultConstructedIsUnset) {
   EXPECT_FALSE(unset.contains(0x00, 0x00));
 }
 
-// Every factory yields a set (non-UNSET) UUID. Together with the two tests above this pins
-// the equivalence between the historical get_uuid().len > 0 sentinel and type() != UNSET:
-// exactly default construction and text parse failure are unset, everything else is set,
-// including an explicitly configured 0x0000. (The UNSET -> len 0 mapping itself lives in the
-// esp32-only get_uuid() adapter, which host tests cannot compile.)
+// Every factory yields a non-UNSET UUID, even for 0x0000: only default construction and a
+// failed text parse are unset, keeping type() != UNSET equivalent to the old len > 0 check.
 TEST(BleDeviceUuid, AllFactoriesProduceSetUuids) {
   const uint8_t raw[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
                            0x00, 0x10, 0x00, 0x00, 0x34, 0x12, 0x00, 0x00};
@@ -56,10 +52,8 @@ TEST(BleDeviceUuid, AllFactoriesProduceSetUuids) {
   EXPECT_NE(ESPBTUUID::from_raw("6E400001-B5A3-F393-E0A9-E50E24DCCA9E").type(), ESPBTUUID::Type::UNSET);
 }
 
-// 0x0000 is a valid short UUID seen on real devices (e.g. the Beurer BF105 scale,
-// esphome/aioesphomeapi#1742), so an unset UUID must stay distinct from it: unset equals
-// only another unset UUID. The historical len-0 form conflated the two through the 128-bit
-// expansion; that accident is deliberately not preserved.
+// 0x0000 is a valid short UUID on real devices (esphome/aioesphomeapi#1742); an unset
+// UUID must never compare equal to it. Unset equals only unset.
 TEST(BleDeviceUuid, UnsetIsNotEqualToZeroUuid) {
   EXPECT_FALSE(ESPBTUUID() == ESPBTUUID::from_uint16(0x0000));
   EXPECT_FALSE(ESPBTUUID::from_uint16(0x0000) == ESPBTUUID());
