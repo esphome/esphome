@@ -66,7 +66,13 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     },
     PLATFORM_NRF52: {
         "state_markers": ["Last crash:"],
-        "addresses": ["PC=0x27a1c LR=0x1e33"],
+        "addresses": [
+            # The zephyr logger prints both registers with %08x, so even
+            # a vector-table PC pads past the decoder's {3,} bound.
+            "PC=0x00000050 LR=0x00000000",
+            # Synthetic short form; keeps the bound's lower edge pinned.
+            "PC=0x27a1c LR=0x1e33",
+        ],
     },
 }
 
@@ -170,7 +176,7 @@ GATE_EXEMPT_PATTERNS = {
 
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
 def test_platform_declarations_match_decoder(platform: str) -> None:
-    """Samples, declared patterns, and the decoder must agree.
+    r"""Samples, declared patterns, and the decoder must agree.
 
     Directions checked: every declared pattern exists; every address
     sample matches a declared pattern; every declared pattern is
@@ -184,10 +190,15 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     constant or a function-local re.search literal is invisible to it;
     the state-gated detection rests on a textual heuristic (every
     such decoder today spells it as ``return True`` or
-    ``backtrace_state = True``); and a decoder that gains a second
-    opening marker alongside a declared one passes unnoticed, since
-    the declared marker already satisfies both the marker-opens-region
-    check and the non-empty ``state_markers`` requirement.
+    ``backtrace_state = True``, and the declared-markers direction
+    pins the heuristic against a silent respelling); a decoder that
+    gains a second opening marker alongside a declared one passes
+    unnoticed, since the declared marker already satisfies both the
+    marker-opens-region check and the non-empty ``state_markers``
+    requirement; and the generative guard draws full matches only, so
+    a decoder match glued to trailing word characters that defeat the
+    pointer branch's ``\b`` is invisible to it (today's crash
+    handlers always delimit addresses).
     """
     module = importlib.import_module(f"esphome.components.{platform}")
     patterns: dict[str, re.Pattern] = {}
@@ -236,6 +247,15 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     # to a decoder would turn it into a false failure.
     source = inspect.getsource(module.process_stacktrace)
     sets_state = "return True" in source or "backtrace_state = True" in source
+    if CRASH_SAMPLES[platform]["state_markers"]:
+        # The heuristic fails open on a respelling (return bool(...));
+        # pinning it against the decoders known to be state-gated today
+        # turns a silent disarm into a failure that names the fix.
+        assert sets_state, (
+            f"{platform}.process_stacktrace declares state_markers but the "
+            "state-gating heuristic no longer recognises it; update the "
+            "spelling list in this test"
+        )
     if sets_state:
         assert CRASH_SAMPLES[platform]["state_markers"], (
             f"{platform}.process_stacktrace is state-gated but declares no "
