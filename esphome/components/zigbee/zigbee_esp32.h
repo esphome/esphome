@@ -90,7 +90,7 @@ class ZigbeeComponent final : public Component {
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
   CallbackManager<void(bool)> join_cb_{};
-  CallbackManager<void()> start_cb_{};
+  LazyCallbackManager<void()> start_cb_{};
   bool start_reported_{false};
   std::atomic<bool> started_ = false;
   std::atomic<bool> joined_ = false;
