@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstring>
 
 namespace esphome::ld6002b {
@@ -48,6 +49,20 @@ uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
          (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
 }
 
+int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
+  uint32_t raw = read_u32_le(data);
+  int32_t value;
+  std::memcpy(&value, &raw, sizeof(value));
+  return value;
+}
+
+float LD6002BComponent::read_f32_le(const uint8_t *data) {
+  uint32_t raw = read_u32_le(data);
+  float value;
+  std::memcpy(&value, &raw, sizeof(value));
+  return value;
+}
+
 void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[0] = value & 0xFF;
   data[1] = (value >> 8) & 0xFF;
@@ -70,6 +85,18 @@ void LD6002BComponent::setup() {
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
+#ifdef USE_SENSOR
+    want_target_stream = want_target_stream || this->target_count_sensor_ != nullptr;
+    if (!want_target_stream) {
+      for (const auto &target : this->targets_) {
+        if (target.x != nullptr || target.y != nullptr || target.z != nullptr || target.dop_idx != nullptr ||
+            target.cluster_id != nullptr) {
+          want_target_stream = true;
+          break;
+        }
+      }
+    }
+#endif
 #ifdef USE_BINARY_SENSOR
     want_target_stream = want_target_stream || this->presence_binary_sensor_ != nullptr;
     if (!want_target_stream) {
@@ -85,7 +112,6 @@ void LD6002BComponent::setup() {
       this->send_control_command_(CMD_TARGET_DISPLAY_ON);
     }
 
-    // Point-cloud streaming is introduced in a later part; make sure it is off.
     this->send_control_command_(CMD_POINT_CLOUD_OFF);
   });
 }
@@ -99,6 +125,16 @@ void LD6002BComponent::dump_config() {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
   }
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
+  for (auto &target : this->targets_) {
+    LOG_SENSOR("  ", "Target X", target.x);
+    LOG_SENSOR("  ", "Target Y", target.y);
+    LOG_SENSOR("  ", "Target Z", target.z);
+    LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
+    LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
+  }
+#endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
@@ -254,6 +290,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   std::array<int32_t, MAX_TARGETS> wire_cluster{};
   std::array<bool, MAX_TARGETS> wire_placed{};
   std::array<bool, MAX_TARGETS> slot_seen{};
+  std::array<uint8_t, MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
     wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
@@ -263,6 +300,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       if (this->slot_occupied_[s] && !slot_seen[s] && this->slot_cluster_[s] == wire_cluster[i]) {
         slot_seen[s] = true;
         wire_placed[i] = true;
+        slot_wire[s] = i;
         break;
       }
     }
@@ -280,10 +318,20 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       if (!this->slot_occupied_[s]) {
         this->slot_occupied_[s] = true;
         this->slot_cluster_[s] = wire_cluster[i];
+        slot_wire[s] = i;
         break;
       }
     }
   }
+
+#ifdef USE_SENSOR
+  if (this->target_count_sensor_ != nullptr) {
+    if (reported != this->last_target_count_) {
+      this->target_count_sensor_->publish_state(reported);
+      this->last_target_count_ = reported;
+    }
+  }
+#endif
 
   this->target_presence_any_ = (reported > 0);
 #ifdef USE_BINARY_SENSOR
@@ -293,11 +341,68 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #endif
 
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    bool has_target = this->slot_occupied_[i];
+    if (has_target) {
+#ifdef USE_SENSOR
+      uint16_t offset = 4 + (slot_wire[i] * TARGET_DATA_LEN);
+      float x = read_f32_le(data + offset + 0);
+      float y = read_f32_le(data + offset + 4);
+      float z = read_f32_le(data + offset + 8);
+      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t cluster_id = this->slot_cluster_[i];
+      TargetSensors &target = this->targets_[i];
+      if (target.x != nullptr) {
+        target.x->publish_state(x);
+      }
+      if (target.y != nullptr) {
+        target.y->publish_state(y);
+      }
+      if (target.z != nullptr) {
+        target.z->publish_state(z);
+      }
+      if (target.dop_idx != nullptr) {
+        target.dop_idx->publish_state(static_cast<float>(dop_idx));
+      }
+      if (target.cluster_id != nullptr) {
+        if (!this->last_cluster_id_valid_[i] || cluster_id != this->last_cluster_id_[i]) {
+          target.cluster_id->publish_state(static_cast<float>(cluster_id));
+          this->last_cluster_id_[i] = cluster_id;
+          this->last_cluster_id_valid_[i] = true;
+        }
+      }
+#endif
+    } else {
+#ifdef USE_SENSOR
+      TargetSensors &target = this->targets_[i];
+      if (this->last_target_presence_[i]) {
+        if (target.x != nullptr) {
+          target.x->publish_state(NAN);
+        }
+        if (target.y != nullptr) {
+          target.y->publish_state(NAN);
+        }
+        if (target.z != nullptr) {
+          target.z->publish_state(NAN);
+        }
+        if (target.dop_idx != nullptr) {
+          target.dop_idx->publish_state(NAN);
+        }
+        if (target.cluster_id != nullptr) {
+          target.cluster_id->publish_state(NAN);
+        }
+        // The slot is free: the next person's id is new even when it repeats this one.
+        this->last_cluster_id_valid_[i] = false;
+      }
+#endif
+    }
 #ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
       // publish_state() already skips unchanged states, no manual de-dup needed.
-      this->target_presence_[i]->publish_state(this->slot_occupied_[i]);
+      this->target_presence_[i]->publish_state(has_target);
     }
+#endif
+#ifdef USE_SENSOR
+    this->last_target_presence_[i] = has_target;
 #endif
   }
 }
