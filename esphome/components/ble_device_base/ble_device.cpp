@@ -307,13 +307,15 @@ optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
     // Only when no beacon was found at all: these frames were accepted before
     // the prefix check, so their disappearance must be observable at the
     // default log level. Throttled so a chatty non-iBeacon Apple advertiser
-    // cannot flood the log; a different address bypasses the shared window
-    // once so that advertiser cannot mask the device that actually regressed.
+    // cannot flood the log; a different address may bypass the shared window
+    // so that advertiser cannot mask the device that actually regressed — but
+    // with a 1 s floor, or two alternating advertisers log every frame.
     static uint32_t last_log = 0;
     static uint64_t last_addr = 0;
     const uint32_t now = millis();
     const uint64_t addr = this->address_uint64();
-    if (last_log == 0 || now - last_log > 60000 || addr != last_addr) {
+    const uint32_t since = now - last_log;
+    if (last_log == 0 || since > 60000 || (addr != last_addr && since > 1000)) {
       last_log = now;
       last_addr = addr;
       char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

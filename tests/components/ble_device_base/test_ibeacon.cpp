@@ -92,4 +92,67 @@ TEST(BleIBeacon, PrefixRejectedFlagsOnlyTheSubTypeCase) {
   EXPECT_FALSE(flagged);
 }
 
+namespace {
+
+// One AD manufacturer-data record: [len][0xFF][company LE][payload...].
+void append_mfr_record(std::vector<uint8_t> &adv, uint16_t company, const std::vector<uint8_t> &payload) {
+  adv.push_back(static_cast<uint8_t>(1 + 2 + payload.size()));
+  adv.push_back(0xFF);
+  adv.push_back(static_cast<uint8_t>(company & 0xFF));
+  adv.push_back(static_cast<uint8_t>(company >> 8));
+  adv.insert(adv.end(), payload.begin(), payload.end());
+}
+
+std::vector<uint8_t> beacon_payload(uint8_t sub_type, uint8_t length) {
+  std::vector<uint8_t> p(23, 0);
+  p[0] = sub_type;
+  p[1] = length;
+  p[18] = 0x12;
+  p[19] = 0x34;
+  p[20] = 0x56;
+  p[21] = 0x78;
+  p[22] = 0xC5;
+  return p;
+}
+
+ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
+  const uint8_t mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+  ESPBTDevice device;
+  device.from_scan_result(mac, -59, 0, adv.data(), static_cast<uint16_t>(adv.size()));
+  return device;
+}
+
+}  // namespace
+
+// get_ibeacon() wraps the parser with first-rejection capture and the log
+// gate; pin its short circuits so a regression there needs a code change, not
+// a review, to surface.
+TEST(BleIBeacon, GetIbeaconReturnsBeaconDespitePrecedingRejectedFrame) {
+  std::vector<uint8_t> adv;
+  append_mfr_record(adv, 0x004C, beacon_payload(0x10, 0x15));  // rejected prefix
+  append_mfr_record(adv, 0x004C, beacon_payload(0x02, 0x15));  // real iBeacon
+  auto device = device_from(adv);
+  auto beacon = device.get_ibeacon();
+  ASSERT_TRUE(beacon.has_value());
+  if (beacon.has_value()) {
+    EXPECT_EQ(beacon->get_major(), 0x1234);
+  }
+}
+
+TEST(BleIBeacon, GetIbeaconEmptyWhenOnlyRejectedFrames) {
+  std::vector<uint8_t> adv;
+  append_mfr_record(adv, 0x004C, beacon_payload(0x10, 0x15));
+  auto device = device_from(adv);
+  EXPECT_FALSE(device.get_ibeacon().has_value());
+}
+
+TEST(BleIBeacon, GetIbeaconEmptyWithoutManufacturerData) {
+  std::vector<uint8_t> adv;
+  adv.push_back(0x02);  // flags record only
+  adv.push_back(0x01);
+  adv.push_back(0x06);
+  auto device = device_from(adv);
+  EXPECT_FALSE(device.get_ibeacon().has_value());
+}
+
 }  // namespace esphome::ble_device_base::testing
