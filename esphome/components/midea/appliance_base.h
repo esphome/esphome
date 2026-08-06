@@ -18,7 +18,9 @@
 
 namespace esphome::midea {
 
-#ifdef USE_ESP_IDF
+// Mirrors the ARDUINO switch in MideaUART Helpers/Platform.h: these types
+// exist in the dudanov namespace exactly when the library is not on Arduino
+#ifndef ARDUINO
 using dudanov::Stream;
 using dudanov::String;
 #endif
