@@ -14,8 +14,6 @@ class OpenthermOutput final : public output::FloatOutput, public Component, publ
   float min_value_, max_value_;
 
  public:
-  // Read by the generated write-request builders every cycle, including before the first
-  // write_state(), so it needs a defined value: zero is "no demand" for every output.
   float state{0.0f};
 
   void set_id(const char *id) { this->id_ = id; }
