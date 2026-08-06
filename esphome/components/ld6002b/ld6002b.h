@@ -5,6 +5,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -18,6 +21,17 @@ static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
+#ifdef USE_SENSOR
+struct TargetSensors {
+  sensor::Sensor *x{nullptr};
+  sensor::Sensor *y{nullptr};
+  sensor::Sensor *z{nullptr};
+  sensor::Sensor *dop_idx{nullptr};
+  sensor::Sensor *cluster_id{nullptr};
+};
+
+#endif
+
 class LD6002BComponent : public Component, public uart::UARTDevice {
  public:
   void setup() override;
@@ -28,6 +42,36 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
   void set_wakeup_pulse_ms(uint32_t ms) { this->wakeup_pulse_ms_ = ms; }
   void set_auto_wake(bool enable) { this->auto_wake_ = enable; }
+
+#ifdef USE_SENSOR
+  void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }
+
+  void set_target_x_sensor(uint8_t target, sensor::Sensor *sensor) {
+    if (target >= MAX_TARGETS)
+      return;
+    this->targets_[target].x = sensor;
+  }
+  void set_target_y_sensor(uint8_t target, sensor::Sensor *sensor) {
+    if (target >= MAX_TARGETS)
+      return;
+    this->targets_[target].y = sensor;
+  }
+  void set_target_z_sensor(uint8_t target, sensor::Sensor *sensor) {
+    if (target >= MAX_TARGETS)
+      return;
+    this->targets_[target].z = sensor;
+  }
+  void set_target_dop_idx_sensor(uint8_t target, sensor::Sensor *sensor) {
+    if (target >= MAX_TARGETS)
+      return;
+    this->targets_[target].dop_idx = sensor;
+  }
+  void set_target_cluster_id_sensor(uint8_t target, sensor::Sensor *sensor) {
+    if (target >= MAX_TARGETS)
+      return;
+    this->targets_[target].cluster_id = sensor;
+  }
+#endif
 
 #ifdef USE_BINARY_SENSOR
   void set_presence_binary_sensor(binary_sensor::BinarySensor *sensor) { this->presence_binary_sensor_ = sensor; }
@@ -61,8 +105,14 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
   static uint16_t read_u16_be(const uint8_t *data);
   static uint32_t read_u32_le(const uint8_t *data);
+  static int32_t read_int32_le(const uint8_t *data);
+  static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
 
+#ifdef USE_SENSOR
+  std::array<TargetSensors, MAX_TARGETS> targets_{};
+  sensor::Sensor *target_count_sensor_{nullptr};
+#endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   std::array<binary_sensor::BinarySensor *, MAX_TARGETS> target_presence_{};
@@ -128,6 +178,14 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   std::array<bool, MAX_TARGETS> slot_occupied_{};
 
   bool target_presence_any_{false};
+
+#ifdef USE_SENSOR
+  std::array<bool, MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
+  // A cluster id names a person, so like the counts it is published on change, not per frame.
+  std::array<int32_t, MAX_TARGETS> last_cluster_id_{};
+  std::array<bool, MAX_TARGETS> last_cluster_id_valid_{};
+  uint32_t last_target_count_{0xFFFFFFFF};
+#endif
 };
 
 }  // namespace esphome::ld6002b
