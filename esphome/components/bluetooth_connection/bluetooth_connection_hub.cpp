@@ -265,20 +265,35 @@ void BluetoothConnection::send_service_for_discovery_() {
     fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid, service.uuid, use_efficient_uuids);
     service_resp.handle = service.start_handle;
 
-    if (service.characteristic_count > 0) {
-      service_resp.characteristics.init(service.characteristic_count);
-      for (uint16_t ci = 0; ci < service.characteristic_count; ci++) {
+    // Bounds-check the backend's index ranges against the table totals rather
+    // than trusting its discovery bookkeeping blindly (a miscounted range
+    // would otherwise be an out-of-bounds read here).
+    uint16_t char_count = service.characteristic_count;
+    if (service.first_characteristic >= table.characteristic_count) {
+      char_count = 0;
+    } else if (service.first_characteristic + char_count > table.characteristic_count) {
+      char_count = table.characteristic_count - service.first_characteristic;
+    }
+    if (char_count > 0) {
+      service_resp.characteristics.init(char_count);
+      for (uint16_t ci = 0; ci < char_count; ci++) {
         const auto &chr = table.characteristics[service.first_characteristic + ci];
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
         fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, chr.uuid, use_efficient_uuids);
         characteristic_resp.handle = chr.value_handle;
         characteristic_resp.properties = chr.properties;
-        if (chr.descriptor_count == 0) {
+        uint16_t desc_count = chr.descriptor_count;
+        if (chr.first_descriptor >= table.descriptor_count) {
+          desc_count = 0;
+        } else if (chr.first_descriptor + desc_count > table.descriptor_count) {
+          desc_count = table.descriptor_count - chr.first_descriptor;
+        }
+        if (desc_count == 0) {
           continue;
         }
-        characteristic_resp.descriptors.init(chr.descriptor_count);
-        for (uint16_t di = 0; di < chr.descriptor_count; di++) {
+        characteristic_resp.descriptors.init(desc_count);
+        for (uint16_t di = 0; di < desc_count; di++) {
           const auto &desc = table.descriptors[chr.first_descriptor + di];
           characteristic_resp.descriptors.emplace_back();
           auto &descriptor_resp = characteristic_resp.descriptors.back();
