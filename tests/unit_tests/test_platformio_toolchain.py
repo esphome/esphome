@@ -278,13 +278,54 @@ def test_run_idedata_raises_on_no_json(
 def test_run_idedata_raises_on_invalid_json(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
-    """Test _run_idedata raises on malformed JSON."""
+    """Malformed JSON is the environment (garbage stdout), so it must
+    surface as EsphomeError and get the recompile hint downstream.
+    """
     config = {"name": "test"}
     mock_run_platformio_cli_run.return_value = '{"invalid": json"}'
 
-    # The ValueError from json.loads is re-raised
-    with pytest.raises(ValueError):
+    with pytest.raises(EsphomeError):
         toolchain._run_idedata(config)
+
+
+def test_run_idedata_raises_on_launch_failure(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """A failed platformio launch returns its exit code as an int; that
+    must surface as EsphomeError, not a TypeError from re.search.
+    """
+    config = {"name": "test"}
+    mock_run_platformio_cli_run.return_value = 1
+
+    with pytest.raises(EsphomeError):
+        toolchain._run_idedata(config)
+
+
+def test_idedata_missing_prog_path_raises_esphome_error(setup_core: Path) -> None:
+    """A stale cached idedata JSON without prog_path is the build tree's
+    fault; it must surface as EsphomeError, not a KeyError.
+    """
+    with pytest.raises(EsphomeError):
+        _ = toolchain.IDEData({}).firmware_elf_path
+
+
+def test_idedata_missing_flash_image_field_raises_esphome_error(
+    setup_core: Path,
+) -> None:
+    """A cached idedata whose flash image entries lost a field must
+    classify as an environment error too, not a raw KeyError.
+    """
+    idedata = toolchain.IDEData({"extra": {"flash_images": [{"offset": "0x1000"}]}})
+    with pytest.raises(EsphomeError):
+        _ = idedata.extra_flash_images
+
+
+def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
+    """A section that is null instead of absent must classify the same
+    as a missing key instead of escaping as TypeError.
+    """
+    with pytest.raises(EsphomeError):
+        _ = toolchain.IDEData({"extra": None}).extra_flash_images
 
 
 def test_run_platformio_cli_sets_environment_variables(

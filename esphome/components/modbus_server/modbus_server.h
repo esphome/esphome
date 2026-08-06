@@ -61,6 +61,7 @@ class ServerRegister {
   const char *format_value(int64_t value, char *buf, size_t buf_size) const {
     switch (this->value_type) {
       case SensorValueType::U_WORD:
+      case SensorValueType::U_WORD_S:
       case SensorValueType::U_DWORD:
       case SensorValueType::U_DWORD_R:
       case SensorValueType::U_QWORD:
@@ -68,6 +69,7 @@ class ServerRegister {
         buf_append_printf(buf, buf_size, 0, "%" PRIu64, static_cast<uint64_t>(value));
         return buf;
       case SensorValueType::S_WORD:
+      case SensorValueType::S_WORD_S:
       case SensorValueType::S_DWORD:
       case SensorValueType::S_DWORD_R:
       case SensorValueType::S_QWORD:
