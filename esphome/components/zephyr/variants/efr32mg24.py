@@ -44,6 +44,11 @@ VARIANT = ZephyrVariant(
     # Zephyr tree has no ieee802154 driver for Silicon Labs Series 2 -- OpenThread and
     # Zigbee aren't feasible yet regardless of radio capability.
     transports=frozenset({"ble"}),
+    # Zephyr's hal_silabs blob check verifies the HAL's entire manifest once BT is
+    # enabled, not just this chip's -- e.g. the SiWG917 Wi-Fi/BT combo's firmware
+    # blob, unrelated to EFR32MG24 -- so fetch everything. Same reasoning as
+    # esp32_h2/esp32_c6's hal_espressif blobs.
+    blobs=("hal_silabs", ".*", ".blobs_hal_silabs_ready"),
     pinctrl_extractors={"i2c": get_i2c_pinctrl_silabs},
     gpio_port_width=16,
     gpio_port_labels=("a", "b", "c", "d"),
