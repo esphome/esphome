@@ -97,21 +97,7 @@ class BluetoothProxy final : public Component {
   void loop() override;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
-  void register_connection([[maybe_unused]] BluetoothConnection *connection) {
-    // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
-#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
-    if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
-#ifndef USE_ESP32
-      // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
-      // class has no Component lifecycle, so the index is assigned here.
-      connection->connection_index_ = this->connection_count_;
-#endif
-      this->connections_[this->connection_count_++] = connection;
-      connection->proxy_ = this;
-    }
-#endif
-  }
+  void register_connection(BluetoothConnection *connection);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
   void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
@@ -287,7 +273,7 @@ class BluetoothProxy final : public Component {
   /// when service streaming was interrupted -- the client (aioesphomeapi) has
   /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
   /// discovery and retry, rather than being told a partial list is complete.
-  void reset_connection_slot_(BluetoothConnection *connection, proxy_err_t reason);
+  void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
 #endif
 
   // Memory optimized layout for 32-bit systems
