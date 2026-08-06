@@ -344,6 +344,7 @@ CONFIG_SCHEMA = cv.All(
                 # 512KB RAM (double nrf54l15's), but kept at the same conservative
                 # value pending real-world profiling on this newer variant.
                 zephyr_nrf54lm20a=4,
+                zephyr_efr32mg24=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -366,6 +367,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_nrf52=8,  # Moderate RAM
                 zephyr_nrf54l15=8,  # Moderate RAM
                 zephyr_nrf54lm20a=8,  # Moderate RAM, same reasoning as max_connections above
+                zephyr_efr32mg24=8,  # Moderate RAM
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),

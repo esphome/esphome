@@ -40,14 +40,18 @@ VARIANT = ZephyrVariant(
     family="silabs",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    # BLE only: the xg24_ek2703a's bt_hci_silabs HCI node is enabled upstream, but this
-    # Zephyr tree has no ieee802154 driver for Silicon Labs Series 2 -- OpenThread and
-    # Zigbee aren't feasible yet regardless of radio capability.
-    transports=frozenset({"ble"}),
-    # Zephyr's hal_silabs blob check verifies the HAL's entire manifest once BT is
-    # enabled, not just this chip's -- e.g. the SiWG917 Wi-Fi/BT combo's firmware
-    # blob, unrelated to EFR32MG24 -- so fetch everything. Same reasoning as
-    # esp32_h2/esp32_c6's hal_espressif blobs.
+    # BLE always available (bt_hci_silabs HCI node enabled upstream). OpenThread also
+    # possible via the ieee802154 driver added upstream 2026-02-12 (commit bd89985e6,
+    # "drivers: ieee802154: Add support of 802.15.4 for EFR xG24") -- not yet in any
+    # tagged Zephyr release as of v4.4.1, so it needs `framework: source: {type: git,
+    # ref: main}` for now. No Zigbee support in this fork yet either way.
+    transports=frozenset({"ble", "openthread"}),
+    # Zephyr's hal_silabs blob check verifies the HAL's entire manifest once BT or
+    # 802.15.4 is enabled, not just this chip's -- e.g. the SiWG917 Wi-Fi/BT combo's
+    # firmware blob, unrelated to EFR32MG24 -- so fetch everything. Same reasoning as
+    # esp32_h2/esp32_c6's hal_espressif blobs. IEEE802154_SILABS_EFR32 also directly
+    # `depends on ZEPHYR_HAL_SILABS_MODULE_BLOBS`, so this is required for OpenThread
+    # too, not just BLE.
     blobs=("hal_silabs", ".*", ".blobs_hal_silabs_ready"),
     pinctrl_extractors={"i2c": get_i2c_pinctrl_silabs},
     gpio_port_width=16,
