@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_TARGET_COUNT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
@@ -21,7 +22,6 @@ DEPENDENCIES = ["ld2450"]
 
 CONF_MOVING_TARGET_COUNT = "moving_target_count"
 CONF_STILL_TARGET_COUNT = "still_target_count"
-CONF_TARGET_COUNT = "target_count"
 
 ICON_ACCOUNT_GROUP = "mdi:account-group"
 ICON_ACCOUNT_SWITCH = "mdi:account-switch"
