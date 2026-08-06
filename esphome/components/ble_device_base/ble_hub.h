@@ -58,7 +58,7 @@ struct HubCapabilities {
   bool merges_scan_response;
   /// GATT client connections are available: the platform has a
   /// bluetooth_connection backend implementing ble_device_base::BLEGattConnection
-  /// (ble_gatt_client.h). Today: esp32 and rp2.
+  /// (ble_gatt_client.h). Today: esp32; rp2 follows with its BTstack backend.
   bool gatt;
   /// request_scan_mode() is honored at runtime. Distinct from active_scan:
   /// a passive-only controller (bk72xx) can never switch, and a hub may
