@@ -72,9 +72,9 @@ ZEPHYR_VARIANTS = (
 # has no USB device controller node at all (board.yaml doesn't list "usb"), so
 # CDC/CDC1 would fail with an opaque "undefined node label 'zephyr_udc0'"
 # devicetree error instead of a clear config-time one -- same rule logger's own
-# hardware_uart: already applies (UART_SELECTION_ZEPHYR_NORDIC is the only zephyr
+# hardware_uart: already applies (UART_SELECTION_ZEPHYR_USB_CDC is the only zephyr
 # family list that includes USB_CDC).
-_CDC_CAPABLE_FAMILIES = {"nordic"}
+_CDC_CAPABLE_FAMILIES = {"nordic", "rpi_pico"}
 
 CDC_IDS = {"CDC": 0, "CDC1": 1}
 UARTS = ("CDC", "CDC1", "UART0", "UART1")

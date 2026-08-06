@@ -69,6 +69,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_RP2040,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -557,15 +558,26 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
+    elif zephyr_variant_family() == "rpi_pico":
+        # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
+        # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every rpi_pico-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RPI_PICO")
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
 
-    # esp32_h2/esp32_c6 are RV32IMAC -- no hardware FPU. Original ESP32 is Xtensa LX6,
-    # which does have one (soc/espressif/esp32/Kconfig selects CPU_HAS_FPU), so it can't
-    # be excluded by family the way the RISC-V esp32-family chips are.
-    if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
+    # esp32_h2/esp32_c6 are RV32IMAC -- no hardware FPU; rp2040 is Cortex-M0+, also
+    # without FPU. Original ESP32 is Xtensa LX6, which does have one -- it can't be
+    # excluded by family the way these chips are.
+    if zephyr_variant() not in (
+        ZEPHYR_VARIANT_ESP32_H2,
+        ZEPHYR_VARIANT_ESP32_C6,
+        ZEPHYR_VARIANT_RP2040,
+    ):
         zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
     # random_bytes() uses sys_rand_get() which requires the entropy subsystem
@@ -617,7 +629,7 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() in ("nordic", "silabs"):
+            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico"):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
@@ -1106,6 +1118,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.efr32mg24 import config_schema as _efr32mg24_config_schema
 
         config = _efr32mg24_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RP2040:
+        from .variants.rp2040 import config_schema as _rp2040_config_schema
+
+        config = _rp2040_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -1200,6 +1216,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.efr32mg24 import to_code as _efr32mg24_to_code
 
         await _efr32mg24_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_RP2040:
+        from .variants.rp2040 import to_code as _rp2040_to_code
+
+        await _rp2040_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 

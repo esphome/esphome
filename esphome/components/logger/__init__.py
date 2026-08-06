@@ -146,9 +146,9 @@ UART_SELECTION_HOST_ZEPHYR = [UART0, UART1]
 # esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
 # device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
 UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
-# nRF52840 has native USB (same &usbd/zephyr_udc0 peripheral MCUboot's own serial
-# recovery uses) -- see the USB_CDC codegen branch below.
-UART_SELECTION_ZEPHYR_NORDIC = [UART0, UART1, USB_CDC]
+# nRF52840 and RP2040 both have native USB (same &usbd/zephyr_udc0 peripheral
+# MCUboot's own serial recovery uses) -- see the USB_CDC codegen branch below.
+UART_SELECTION_ZEPHYR_USB_CDC = [UART0, UART1, USB_CDC]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -201,8 +201,8 @@ def uart_selection(value):
     if CORE.is_zephyr:
         if zephyr_variant() in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
-        if zephyr_variant_family() == "nordic":
-            return cv.one_of(*UART_SELECTION_ZEPHYR_NORDIC, upper=True)(value)
+        if zephyr_variant_family() == "nordic" or zephyr_variant_family() == "rpi_pico":
+            return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
 
@@ -330,6 +330,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32h2=USB_SERIAL_JTAG,
                 zephyr_esp32c6=USB_SERIAL_JTAG,
                 zephyr_nrf52=USB_CDC,
+                zephyr_rp2040=USB_CDC,
             ): cv.All(
                 cv.only_on(
                     [
