@@ -2052,10 +2052,11 @@ static void run_stream_step(StreamRequest &req) {
         }
         if (err == StorageError::OK) {
           const int64_t target = base + req.seek_target;
-          if (target < 0)
+          if (target < 0) {
             err = StorageError::INVALID_ARGS;
-          else
+          } else {
             req.offset = static_cast<uint64_t>(target);
+          }
         }
       }
       req.result = err;
