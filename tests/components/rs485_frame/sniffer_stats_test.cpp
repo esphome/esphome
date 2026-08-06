@@ -21,20 +21,34 @@ namespace esphome::rs485_frame::testing {
 
 namespace {
 
-// Exposes the protected entries_ table so tests can inspect what record() actually
-// captured, instead of scraping ESP_LOGI output.
+// Exposes the protected entries_ table and dump_payloads_() so tests can inspect both
+// what record() captured AND what the periodic console dump actually renders, instead of
+// scraping ESP_LOGI output.
 class SnifferStatsProbe : public SnifferStats {
  public:
   size_t entry_count() const { return this->entries_.size(); }
   const SnifferEntry &entry(size_t i) const { return this->entries_[i]; }
+
+  // Runs the real dump_payloads_() (the periodic sniffer_stats console table's hex+ASCII
+  // "payloads:" section) for entry 0 only, then returns the exact strings it wrote into
+  // hex_buf_/ascii_buf_ -- the same buffers dump_payloads_() hands to ESP_LOGI.
+  std::pair<std::string, std::string> dump_entry_zero_for_test() {
+    const uint8_t order[] = {0};
+    this->dump_payloads_(/*top_n=*/1, order);
+    return {std::string(this->hex_buf_.get()), std::string(this->ascii_buf_.get())};
+  }
 };
 
 }  // namespace
 
 // rs485-zbj: a forum report claimed the periodic sniffer dump stayed capped at 32 bytes
 // even with payload_capture_bytes: 48 set, despite dump_frames showing the full frame.
-// This proves record()'s actual captured PayloadCapture::len/bytes for a payload longer
-// than the historical 32-byte default, ruling out a capture-side truncation bug.
+// The console dump the reporter saw is dump_payloads_()'s hex+ASCII "payloads:" line, a
+// SEPARATE formatting step from what record() captures -- proving record()'s capture isn't
+// truncated does not prove the console line isn't, since dump_payloads_() re-renders from
+// hex_buf_/ascii_buf_ with its own byte-by-byte loop. This test drives both steps with the
+// reporter's real 35-byte Hayward payload and checks the actual rendered console strings,
+// not just the internal capture buffer.
 TEST(SnifferStatsTest, RecordCapturesFullPayloadPastLegacyThirtyTwoByteDefault) {
   SnifferStatsProbe stats;
   stats.init(/*max_entries=*/8, /*interval_ms=*/60000, /*payload_dump_top=*/4,
@@ -50,12 +64,24 @@ TEST(SnifferStatsTest, RecordCapturesFullPayloadPastLegacyThirtyTwoByteDefault) 
 
   stats.record(payload, /*now=*/0);
 
+  // --- Capture step: what record() stored ---
   ASSERT_EQ(stats.entry_count(), 1u);
   const SnifferEntry &e = stats.entry(0);
   ASSERT_EQ(e.unique_count, 1u);
   const PayloadCapture &captured = e.payloads[0];
   EXPECT_EQ(captured.len, 35u) << "payload_capture_bytes=48 should not truncate a 35-byte payload";
   EXPECT_EQ(std::vector<uint8_t>(captured.bytes.get(), captured.bytes.get() + captured.len), payload);
+
+  // --- Console-dump step: what dump_payloads_() actually renders ---
+  const auto [hex, ascii] = stats.dump_entry_zero_for_test();
+  EXPECT_EQ(ascii.size(), 35u) << "rendered ASCII preview should cover all 35 captured bytes";
+  // Non-printable bytes (0x01, 0x03, and the trailing 0x00) render as '.'. Bug report's exact
+  // symptom: the trailing "0P" of "05:30P" got cut from the console line -- confirm it's not.
+  EXPECT_EQ(ascii, ".. Filter Lo-all         to 05:30P.");
+  // hex_buf_ is "XX " per byte (35 * 3 chars); confirm the last byte (0x00) made it in,
+  // not just everything up to a stale 32-byte cutoff.
+  EXPECT_EQ(hex.size(), 35u * 3);
+  EXPECT_EQ(hex.substr(hex.size() - 9), "30 50 00 ");
 }
 
 }  // namespace esphome::rs485_frame::testing
