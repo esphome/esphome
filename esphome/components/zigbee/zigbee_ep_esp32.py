@@ -48,36 +48,7 @@ from .const_esp32 import (
 )
 
 # endpoint configs:
-ep_configs: dict[str, dict[str, Any]] = {
-    "binary_input": {
-        DEVICE_TYPE: "SIMPLE_SENSOR",
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "BINARY_INPUT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x55,
-                        CONF_TYPE: "BOOL",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x51,
-                        CONF_TYPE: "BOOL",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x6F,
-                        CONF_TYPE: "MAP8",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x1C,
-                        CONF_TYPE: "STRING",
-                    },
-                ],
-            },
-        ],
-    },
+sensor_ep_configs: dict[str, dict[str, Any]] = {
     "analog_input": {
         CONF_CLUSTERS: [
             {
@@ -247,9 +218,9 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_DEVICE: None,
                     },
                     {
-                        CONF_ATTRIBUTE_ID: 0x2,  # maximum value is needed!
+                        CONF_ATTRIBUTE_ID: 0x2,
                         CONF_TYPE: "SINGLE",
-                        CONF_VALUE: 9999,
+                        CONF_VALUE: 9999,  # overwrite default 1.0
                     },
                 ],
             },
@@ -271,6 +242,38 @@ ep_configs: dict[str, dict[str, Any]] = {
                     },
                     {CONF_ATTRIBUTE_ID: 0x0001, CONF_TYPE: "SINGLE", CONF_VALUE: 0.0},
                     {CONF_ATTRIBUTE_ID: 0x0002, CONF_TYPE: "SINGLE", CONF_VALUE: 0.1},
+                ],
+            },
+        ],
+    },
+}
+
+binary_sensor_ep_configs: dict[str, dict[str, Any]] = {
+    "binary_input": {
+        DEVICE_TYPE: "SIMPLE_SENSOR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "BINARY_INPUT",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x55,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x51,
+                        CONF_TYPE: "BOOL",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x6F,
+                        CONF_TYPE: "MAP8",
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x1C,
+                        CONF_TYPE: "STRING",
+                    },
                 ],
             },
         ],

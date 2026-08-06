@@ -201,26 +201,26 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
             return
         from .zigbee_zephyr import add_binary_sensor
     else:
-        from .zigbee_esp32 import add_binary_sensor
+        from .zigbee_esp32 import add_component as add_binary_sensor
     CORE.add_job(add_binary_sensor, entity, config)
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
             return
         from .zigbee_zephyr import add_sensor
     else:
-        from .zigbee_esp32 import add_sensor
+        from .zigbee_esp32 import add_component as add_sensor
     CORE.add_job(add_sensor, entity, config)
 
 

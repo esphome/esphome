@@ -47,6 +47,7 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
           .app_device_version = 0,
       };
       ep_desc = ezb_af_create_endpoint_desc(&config);
+      break;
     }
   }
   return ep_desc;
