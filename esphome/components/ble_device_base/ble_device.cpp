@@ -99,6 +99,8 @@ ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
 
 #ifdef USE_ESP32
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
+  if (uuid.len == 0)  // the unset sentinel get_uuid() emits
+    return {};
   if (uuid.len == ESP_UUID_LEN_16)
     return ESPBTUUID::from_uint16(uuid.uuid.uuid16);
   if (uuid.len == ESP_UUID_LEN_32)
@@ -109,6 +111,10 @@ ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
 esp_bt_uuid_t ESPBTUUID::get_uuid() const {
   esp_bt_uuid_t ret;
   switch (this->type_) {
+    case Type::UNSET:
+      ret.len = 0;
+      memset(&ret.uuid, 0, sizeof(ret.uuid));
+      break;
     case Type::UUID16:
       ret.len = ESP_UUID_LEN_16;
       ret.uuid.uuid16 = this->uuid_.uuid16;
@@ -140,7 +146,8 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
 #endif  // USE_ESP32
 
 ESPBTUUID ESPBTUUID::as_128bit() const {
-  if (this->type_ == Type::UUID128)
+  // Widening an unset UUID stays unset; expanding it would produce a set 0x0000 base UUID.
+  if (this->type_ == Type::UNSET || this->type_ == Type::UUID128)
     return *this;
   uint8_t data[16];
   this->to_128bit_(data);
@@ -150,6 +157,8 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   // Adjacent byte-pair search — identical semantics to esp32_ble::ESPBTUUID::contains.
   switch (this->type_) {
+    case Type::UNSET:
+      return false;
     case Type::UUID16:
       return (this->uuid_.uuid16 >> 8) == data2 && (this->uuid_.uuid16 & 0xFF) == data1;
     case Type::UUID32:
@@ -174,6 +183,9 @@ const char *ESPBTUUID::to_str(char *buf) const {
   // Identical output format to esp32_ble::ESPBTUUID::to_str.
   char *pos = buf;
   switch (this->type_) {
+    case Type::UNSET:
+      memcpy(buf, "None", 5);
+      return buf;
     case Type::UUID16:
       *pos++ = '0';
       *pos++ = 'x';
@@ -208,6 +220,7 @@ const char *ESPBTUUID::to_str(char *buf) const {
 void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   // Bluetooth Base UUID 00000000-0000-1000-8000-00805F9B34FB (LSB-first), with the 16/32-bit
   // value placed at bytes 12..; identical expansion to esp32_ble::ESPBTUUID::as_128bit().
+  // Callers screen out UNSET first (operator==, as_128bit); it would expand like 0x0000.
   static const uint8_t BASE[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
                                    0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   if (this->type_ == Type::UUID128) {
@@ -224,6 +237,8 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
   if (this->type_ == other.type_) {
     switch (this->type_) {
+      case Type::UNSET:
+        return true;
       case Type::UUID16:
         return this->uuid_.uuid16 == other.uuid_.uuid16;
       case Type::UUID32:
@@ -233,6 +248,9 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
     }
     return false;
   }
+  // Unset never equals a set UUID; 0x0000 is a valid value, distinct from "not configured".
+  if (this->type_ == Type::UNSET || other.type_ == Type::UNSET)
+    return false;
   // Different widths: expand both to the 128-bit Bluetooth Base UUID form and compare, so a
   // configured 16/32-bit UUID matches the equivalent 128-bit advertisement (esp32 parity).
   uint8_t a[16];
