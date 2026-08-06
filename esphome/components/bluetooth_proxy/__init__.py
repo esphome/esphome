@@ -328,9 +328,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Optional(CONF_ACTIVE): cv.boolean,
             cv.Optional(CONF_CACHE_SERVICES): cv.boolean,
+            # No upper bound here: the per-platform schemas enforce their own
+            # caps (9 on esp32, 1 on rp2), and this outer bound would report
+            # the wrong platform's limit in the error.
             cv.Optional(CONF_CONNECTION_SLOTS): cv.All(
                 cv.positive_int,
-                cv.Range(min=1, max=_IDF_MAX_CONNECTIONS),
+                cv.Range(min=1),
             ),
         },
         extra=cv.ALLOW_EXTRA,
