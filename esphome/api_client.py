@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any
 import warnings
@@ -35,6 +34,8 @@ async def async_run_logs(
     subscribe_states: bool = True,
 ) -> None:
     """Run the logs command in the event loop."""
+    from datetime import datetime
+
     conf = config["api"]
     name = config["esphome"]["name"]
     port: int = int(conf[CONF_PORT])
