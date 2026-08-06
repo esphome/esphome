@@ -151,6 +151,12 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
     return config
 
 
+# Platform schema builders for registered GATT hub platforms; every key of
+# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry (schemas carry
+# platform-specific keys, e.g. rp2040_ble_id).
+_GATT_HUB_SCHEMAS: dict[str, object] = {}
+
+
 @functools.cache
 def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
@@ -265,19 +271,24 @@ def _validate_platform(config: ConfigType) -> ConfigType:
             "family (advertisement-only)."
         )
     if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
-        # The registry decides which hub platforms run the full proxy; a new
-        # entry must also add its platform schema to this dispatch (the
-        # schema carries platform-specific keys, e.g. rp2040_ble_id).
-        return _rp2_config_schema()(config)
+        builder = _GATT_HUB_SCHEMAS.get(CORE.target_platform)
+        if builder is None:
+            raise cv.Invalid(
+                f"{CORE.target_platform} is registered in "
+                "bluetooth_connection.HUB_MAX_CONNECTIONS but has no schema in "
+                "_GATT_HUB_SCHEMAS; add its platform schema there"
+            )
+        return builder()(config)
     return _BLE_HUB_CONFIG_SCHEMA(config)
 
 
-def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
-    """Reject connection-oriented options by name on hub-only platforms.
+def _reject_unsupported_connection_keys(config: ConfigType) -> ConfigType:
+    """Reject connection options a platform does not support, by name.
 
-    Runs before the walkable schema below so the user gets "this option does
-    not exist here" instead of the option's esp32 value range (which would
-    imply a smaller number is accepted).
+    GATT hub platforms keep connection_slots but reject the esp32-only keys;
+    advertisement-only hubs reject all three. Runs before the walkable schema
+    below so the user gets "this option does not exist here" instead of a
+    value-range error implying the option works.
     """
     if not isinstance(config, dict) or CORE.is_esp32 or CORE.target_platform is None:
         return config
@@ -327,7 +338,7 @@ def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
 # rejects it as empty. extra=ALLOW_EXTRA passes `connections` through untouched
 # for _ESP32_CONFIG_SCHEMA to validate exactly once.
 CONFIG_SCHEMA = cv.All(
-    _reject_connection_keys_off_esp32,
+    _reject_unsupported_connection_keys,
     cv.Schema(
         {
             cv.Optional(CONF_ACTIVE): cv.boolean,
@@ -416,3 +427,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
 
     cg.add_define("USE_BLUETOOTH_PROXY")
+
+
+_GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema

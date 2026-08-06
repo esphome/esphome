@@ -4,8 +4,9 @@ them without importing the esp32 BLE stack; pin the two declarations together.
 The outer schema carries no defaults (the per-platform schema applies them), so
 drift cannot surface in validation output — a key renamed or removed in
 _esp32_config_schema() but not here would silently vanish from the dashboard's
-field extractor. This test is what catches that; validator bounds are pinned
-separately only for connection_slots (test_idf_max_connections_mirror).
+field extractor. This test is what catches that. The outer schema deliberately carries no
+upper bound on connection_slots (per-platform schemas enforce their own
+caps); the esp32 cap itself is pinned by test_idf_max_connections_mirror.
 """
 
 import voluptuous as vol
