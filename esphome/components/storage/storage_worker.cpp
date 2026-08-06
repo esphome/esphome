@@ -433,6 +433,10 @@ StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCa
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
 
+  // Arm the engine so the loop-sliced path promotes PENDING -> RUNNING and, on the task path, the
+  // completion is delivered from update(); mirrors submit_()/submit_raw_().
+  this->start_poller();
+
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // Task-safe target and nothing active already holds it -> run the single blocking format()
   // on the worker task, main loop free. Otherwise fall through to the loop-sliced engine,
@@ -617,7 +621,9 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
       // Not started yet -- finish it immediately, no partial I/O to unwind.
       req.result = StorageError::NOT_READY;
       req.state = RequestState::DONE;
-    } else if (state == RequestState::RUNNING) {
+    } else if (state == RequestState::RUNNING || state == RequestState::CANCELLED) {
+      // CANCELLED is still owned by its engine (its next run_chunk_() closes handles and sets DONE),
+      // so it must be drained like RUNNING -- not skipped, or the medium can unmount mid-call.
       if (i == this->loop_active_index_) {
         // Owned by the loop-sliced engine, which only ever advances from inside loop() -- we
         // are on the main loop right now too, so nothing else can touch this request
@@ -2116,6 +2122,9 @@ static bool find_free_stream_slot(FixedVector<StreamRequest> &pool, size_t *out_
 // callback must always fire from loop() (or the task), never reentrantly from inside the
 // caller's own begin_*/write_chunk/read_chunk/end_* call frame.
 void StorageWorker::dispatch_stream_step_(StreamRequest &req, size_t index) {
+  // Arm the engine unconditionally: stream completions are delivered from update() even on the task
+  // path, so the poller must run whether this step goes to the worker task or the loop-sliced engine.
+  this->start_poller();
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (this->is_task_safe_(req) && !this->stream_overlaps_active_(req, /*from_loop=*/false)) {
     QueueEntry entry{QueueEntryKind::STREAM, index};
@@ -2123,11 +2132,10 @@ void StorageWorker::dispatch_stream_step_(StreamRequest &req, size_t index) {
       return;
   }
 #endif
-  // Loop-sliced fallback: mark pending so loop() runs it on its next pass rather than here,
-  // and enable + raise the loop so that pass happens promptly and at full speed (streams
-  // share the transfer engine's driver -- see loop()'s tail).
+  // Loop-sliced fallback: mark pending so loop() runs it on its next pass rather than here
+  // (streams share the transfer engine's driver -- see loop()'s tail). The poller is already
+  // armed at the top of this function.
   req.pending_step_ = true;
-  this->start_poller();
 }
 
 // Resolves a caller's handle to its slot, or nullptr when the handle no longer refers to the
