@@ -26,18 +26,22 @@ static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
 // HCI "connection timeout" reason, reported when a teardown had to be forced.
 static constexpr uint8_t HCI_REASON_CONNECTION_TIMEOUT = 0x08;
 
-// Initiating-scan and connection parameters applied to outgoing connections:
-// initiating scan 60/30 ms; conn interval 15-30 ms (a middle ground between
-// GATT latency and leaving airtime for the shared CYW43 scan), latency 0,
-// supervision timeout 5 s, CE length 10-30 ms (BTstack defaults).
+// Initiating-scan parameters and connection-event lengths for outgoing
+// connections (BTstack-specific knobs; the connection intervals themselves are
+// the shared FAST/MEDIUM parameters from ble_device_base/ble_client_state.h,
+// used in the same lifecycle places as esp32: FAST for connect and service
+// discovery, MEDIUM once established).
 static constexpr uint16_t CONN_SCAN_INTERVAL = 96;  // 60 ms in 0.625 ms units
 static constexpr uint16_t CONN_SCAN_WINDOW = 48;    // 30 ms in 0.625 ms units
-static constexpr uint16_t CONN_INTERVAL_MIN = 12;   // 15 ms in 1.25 ms units
-static constexpr uint16_t CONN_INTERVAL_MAX = 24;   // 30 ms in 1.25 ms units
-static constexpr uint16_t CONN_LATENCY = 0;
-static constexpr uint16_t CONN_SUPERVISION_TIMEOUT = 500;  // 5 s in 10 ms units
-static constexpr uint16_t CONN_CE_MIN = 16;                // 10 ms in 0.625 ms units
-static constexpr uint16_t CONN_CE_MAX = 48;                // 30 ms in 0.625 ms units
+static constexpr uint16_t CONN_CE_MIN = 16;         // 10 ms in 0.625 ms units
+static constexpr uint16_t CONN_CE_MAX = 48;         // 30 ms in 0.625 ms units
+
+using ble_device_base::FAST_CONN_TIMEOUT;
+using ble_device_base::FAST_MAX_CONN_INTERVAL;
+using ble_device_base::FAST_MIN_CONN_INTERVAL;
+using ble_device_base::MEDIUM_CONN_TIMEOUT;
+using ble_device_base::MEDIUM_MAX_CONN_INTERVAL;
+using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 RP2GattClient *RP2GattClient::instances_[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
@@ -381,6 +385,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::MTU_EXCHANGED:
       if (this->state_ == EngineState::MTU_EXCHANGE) {
         this->mtu_ = event.value;
+        ESP_LOGD(TAG, "MTU %u", this->mtu_);
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->parent_->release_scan_inhibit();
@@ -406,6 +411,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   }
   this->con_handle_ = con_handle;
   this->state_ = EngineState::MTU_EXCHANGE;
+  ESP_LOGD(TAG, "Link up, handle=0x%04x, negotiating MTU", con_handle);
   BluetoothLock lock;
   // One wildcard listener covers notifications/indications for every
   // characteristic on this connection; the CCCD writes come from the API
@@ -586,6 +592,15 @@ void RP2GattClient::advance_discovery_(uint8_t att_status) {
 
 void RP2GattClient::finish_discovery_(int error) {
   this->discovery_phase_ = DiscoveryPhase::NONE;
+  ESP_LOGD(TAG, "Discovery done (err=%d): %u services, %u characteristics, %u descriptors", error, this->service_count_,
+           this->char_count_, this->desc_count_);
+  if (error == 0) {
+    // Discovery no longer needs the fast interval; settle into the shared
+    // steady-state parameters (same lifecycle place as esp32).
+    BluetoothLock lock;
+    gap_update_connection_parameters(this->con_handle_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
+                                     MEDIUM_CONN_TIMEOUT);
+  }
   if (error == 0 && this->truncated_) {
     ESP_LOGE(TAG, "Service table truncated (device exceeds %u services / %u characteristics / %u descriptors)",
              RP2_GATT_MAX_SERVICES, RP2_GATT_MAX_CHARACTERISTICS, RP2_GATT_MAX_DESCRIPTORS);
@@ -637,8 +652,8 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   uint8_t status;
   {
     BluetoothLock lock;
-    gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW, CONN_INTERVAL_MIN, CONN_INTERVAL_MAX,
-                                  CONN_LATENCY, CONN_SUPERVISION_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
+    gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL,
+                                  0, FAST_CONN_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
     status = gap_connect(this->peer_addr_, this->peer_addr_type_);
   }
   if (status != 0) {

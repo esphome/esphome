@@ -15,6 +15,27 @@ namespace esphome::ble_device_base {
 /// fields, understood by API clients. Shared by every GATT client backend.
 static constexpr int GATT_ERR_NOT_CONNECTED = -1;
 
+// Preferred connection parameters, shared by every platform's GATT client so
+// the backends cannot drift (units: interval 1.25 ms, timeout 10 ms; latency
+// is always 0). FAST is used for connection setup and service discovery,
+// where dozens of sequential queries each cost at least one connection
+// interval; MEDIUM is the steady state once a connection is established (or
+// from the start when the client connects with cached services). Stack
+// defaults (12.5-15 ms) are too slow for stable connections through
+// WiFi-based BLE proxies, causing disconnections; MEDIUM balances
+// responsiveness with bandwidth usage.
+static constexpr uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
+static constexpr uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
+// The timeout value was increased from 6s to 8s to address stability issues observed
+// in certain BLE devices when operating through WiFi-based BLE proxies. The longer
+// timeout reduces the likelihood of disconnections during periods of high latency.
+static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
+
+// Fastest connection parameters for devices with short discovery timeouts
+static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
+static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
+static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+
 enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
