@@ -8,21 +8,33 @@ ESPBLEiBeacon / ESPBTDeviceListener, in ble_device.h) and the tracker contract
 BLE consumers (sensor components, bluetooth_proxy) bind to whichever tracker the
 configuration declares via `cv.use_id(BLEHub)` — ESPHome resolves any declared
 subclass, so there is no platform table here and no dependency in either
-direction. A sensor appends inject_ble_hub to its CONFIG_SCHEMA (via cv.All) and
-calls register_ble_device() in to_code; a tracker component subclasses BLEHub
-(C++ and codegen class). Adding a new BLE chip requires only a new tracker
-component.
+direction. A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
+explicit ble_hub_id: is a declared key even on strict schemas) and calls
+register_ble_device() in to_code; a tracker component subclasses BLEHub (C++
+and codegen class) and MUST call register_hub_provider() at import time —
+without it _require_hub rejects configs that bind through the generated id
+(an explicit ble_hub_id: bypasses the registry). Adding a new BLE chip
+requires only a new in-tree tracker component; out-of-tree BLE hubs are
+not supported.
 
 AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
 """
 
+from collections.abc import Callable
 import re
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTIVE, CONF_CONTINUOUS, CONF_DURATION, CONF_INTERVAL
+from esphome.const import (
+    CONF_ACTIVE,
+    CONF_CONTINUOUS,
+    CONF_DURATION,
+    CONF_INTERVAL,
+    KEY_TARGET_PLATFORM,
+)
+from esphome.core import CORE, ID, KEY_CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
@@ -44,17 +56,92 @@ BLEHub = ble_device_base_ns.class_("BLEHub")
 ESPBTDeviceListener = ble_device_base_ns.class_("ESPBTDeviceListener")
 
 
-def inject_ble_hub(config: ConfigType) -> ConfigType:
-    """Validator: auto-resolve the configured BLE tracker into the config.
+# Config keys that provide a BLEHub, registered by each tracker component at
+# import time (a tracker's module is imported iff it can end up in the build).
+# Used only to phrase an actionable error when a BLE consumer is configured
+# without any tracker — the binding itself resolves any BLEHub subclass and
+# needs no platform table. Out-of-tree BLE hubs are not supported; the
+# registry and the messages below deal in in-tree trackers only.
+_HUB_PROVIDERS: set[str] = set()
 
-    Append via cv.All to a BLE consumer's CONFIG_SCHEMA. Uses cv.GenerateID +
-    cv.use_id(BLEHub): an omitted id resolves to the single declared tracker on
-    any platform; multiple trackers can be disambiguated with an explicit
-    ble_hub_id.
-    """
-    return cv.Schema(
-        {cv.GenerateID(CONF_BLE_HUB_ID): cv.use_id(BLEHub)}, extra=cv.ALLOW_EXTRA
-    )(config)
+# The in-tree trackers per target platform, so the missing-tracker error names
+# them even in a fresh process where no tracker module has been imported yet (a
+# consumer imports only ble_device_base, so the registry is empty exactly in
+# the most common failure: the tracker was simply forgotten). Filtered by the
+# current platform so an esp32 config is not told to add a Beken tracker; an
+# unknown/absent platform falls back to every in-tree name.
+_IN_TREE_HUB_PROVIDERS: dict[str, str] = {
+    "esp32": "esp32_ble_tracker",
+    "bk72xx": "bk72xx_ble_tracker",
+    "rp2": "rp2_ble_tracker",
+    "ln882x": "ln882h_ble_tracker",
+}
+
+
+def register_hub_provider(component: str) -> None:
+    """Called at import time by every component whose config key declares a BLEHub."""
+    _HUB_PROVIDERS.add(component)
+
+
+def _require_hub(value: ID) -> ID:
+    # Without this check a missing tracker surfaces at ID resolution as
+    # "Couldn't find any component that can be used for 'ble_device_base::BLEHub'"
+    # — a C++ class name the user never types. Component final validation cannot
+    # phrase it better: the ID pass runs first and its error skips all later
+    # steps. All explicitly configured components are loaded before any schema
+    # validates, so a registered provider in loaded_integrations is exact here.
+    if value.id is not None:
+        # Explicit ble_hub_id: — the user is pointing at a specific hub (the
+        # multi-hub disambiguation case). Let the ID pass judge it; its error
+        # names the missing id, which is accurate.
+        return value
+    if not _HUB_PROVIDERS & CORE.loaded_integrations:
+        # Defensive lookup rather than CORE.target_platform: the property
+        # raises when no platform is registered, and this message must never
+        # be the thing that crashes. In a real run the platform is always set
+        # (LoadTargetPlatformValidationStep runs before any other domain), so
+        # the unfiltered all-platforms fallback is reachable only from tests.
+        platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+        if platform is not None and platform not in _IN_TREE_HUB_PROVIDERS:
+            # Known platform with no in-tree hub (esp8266, host, rtl87xx, …):
+            # listing the other platforms' trackers would misdirect, and
+            # out-of-tree BLE hubs are not supported.
+            raise cv.Invalid(
+                f"No BLE tracker exists for {platform}; BLE components are "
+                "not supported on this platform"
+            )
+        in_tree = (
+            {tracker}
+            if (tracker := _IN_TREE_HUB_PROVIDERS.get(platform))
+            else set(_IN_TREE_HUB_PROVIDERS.values())
+        )
+        # in_tree only: _HUB_PROVIDERS is import-time state that outlives
+        # CORE.reset() in a long-lived process (dashboard), so a tracker from
+        # an earlier build of another platform must not leak into the message.
+        # The gate above is immune — loaded_integrations resets per run.
+        names = ", ".join(sorted(in_tree))
+        raise cv.Invalid(f"No BLE tracker configured — add one of: {names}")
+    return value
+
+
+# Schema fragment binding a consumer to the configured BLE tracker: extend a
+# consumer's CONFIG_SCHEMA with this so ble_hub_id: is a declared key — a
+# trailing validator after a PREVENT_EXTRA schema would reject the explicit
+# form before ever running. An omitted id resolves to the single declared
+# tracker on any platform; multiple trackers are disambiguated with an
+# explicit ble_hub_id.
+BLE_DEVICE_SCHEMA = cv.Schema(
+    {cv.GenerateID(CONF_BLE_HUB_ID): cv.All(cv.use_id(BLEHub), _require_hub)}
+)
+
+
+def rename_legacy_hub_id(component: str) -> Callable[[ConfigType], ConfigType]:
+    """Transitional alias for the pre-migration binding key: esp32_ble_id ->
+    ble_hub_id. Warns and auto-migrates until removal; every migrated platform
+    prepends this to its CONFIG_SCHEMA so existing configs keep validating."""
+    return cv.rename_key(
+        "esp32_ble_id", CONF_BLE_HUB_ID, removed_in="2027.2.0", component=component
+    )
 
 
 def request_irk_support() -> None:
@@ -217,3 +304,25 @@ def as_hex_array(value: str) -> cg.RawExpression:
 
 def as_reversed_hex_array(value: str) -> cg.RawExpression:
     return _hex_array_expression(value, reverse=True)
+
+
+def add_service_uuid(var: cg.MockObj, service_uuid: str) -> None:
+    """Emit the width-matched service-UUID setter for a consumer.
+
+    16-/32-bit UUIDs go out as plain hex literals, 128-bit as a reversed byte
+    array (BLE wire order). Shared here so every sensor platform dispatches the
+    same way instead of carrying its own if/elif copy.
+    """
+    if len(service_uuid) == len(BT_UUID16_FORMAT):
+        cg.add(var.set_service_uuid16(as_hex(service_uuid)))
+    elif len(service_uuid) == len(BT_UUID32_FORMAT):
+        cg.add(var.set_service_uuid32(as_hex(service_uuid)))
+    elif len(service_uuid) == len(BT_UUID128_FORMAT):
+        cg.add(var.set_service_uuid128(as_reversed_hex_array(service_uuid)))
+    else:
+        # bt_uuid restricts lengths to exactly these three formats; if that
+        # ever loosens, fail the build instead of emitting no setter (a
+        # sensor whose match_by_ is unset silently never matches). ValueError,
+        # not cv.Invalid: this runs from to_code, after validation, where
+        # voluptuous errors surface as raw tracebacks.
+        raise ValueError(f"Unsupported UUID format: {service_uuid}")

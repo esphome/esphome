@@ -501,6 +501,8 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
   if (this->parse_advertisements_) {
 #ifdef USE_ESP32_BLE_DEVICE
     ESPBTDevice device;
+    // The historical ingest keeps the raw scan-result fields populated for
+    // external components.
     device.parse_scan_rst(scan_result);
 
     bool found = false;

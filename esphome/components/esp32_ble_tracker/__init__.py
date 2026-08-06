@@ -43,6 +43,8 @@ AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
+ble_device_base.register_hub_provider("esp32_ble_tracker")
+
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 

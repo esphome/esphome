@@ -44,6 +44,8 @@ DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
 
+ble_device_base.register_hub_provider("bk72xx_ble_tracker")
+
 bk72xx_ble_tracker_ns = cg.esphome_ns.namespace("bk72xx_ble_tracker")
 BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
