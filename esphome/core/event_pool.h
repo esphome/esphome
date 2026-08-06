@@ -84,6 +84,27 @@ template<class T, uint8_t SIZE> class EventPool {
     }
   }
 
+  // Pre-create every pool entry so later allocate() calls are always a
+  // free-list pop — for producers that must never reach malloc() (IRQ-context
+  // packet handlers; the newlib malloc lock is not IRQ-safe). Call from
+  // setup(); returns false when the heap could not supply all SIZE entries
+  // (callers should mark_failed(), as an incomplete warm would silently put
+  // malloc() back on the producer path once the free list runs dry).
+  // The analyzer cannot see that release() always retains the pointer here:
+  // the free list is sized SIZE + 1, so its push cannot hit the ring-full
+  // drop branch during warm-up.
+  // NOLINTBEGIN(clang-analyzer-unix.Malloc)
+  bool warm() {
+    T *warm[SIZE];
+    uint8_t warmed = 0;
+    while (warmed < SIZE && (warm[warmed] = this->allocate()) != nullptr)
+      warmed++;
+    for (uint8_t i = 0; i < warmed; i++)
+      this->release(warm[i]);
+    return warmed == SIZE;
+  }
+  // NOLINTEND(clang-analyzer-unix.Malloc)
+
  private:
   // SIZE + 1 slots so all SIZE objects fit when the pool is fully drained
   // (the ring reserves one slot); otherwise the last release() of a
