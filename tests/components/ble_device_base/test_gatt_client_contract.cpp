@@ -22,7 +22,11 @@ class RecordingListener : public GattClientEventListener {
 
 class MinimalConnection : public BLEGattConnection {
  public:
-  int connect(uint64_t address, uint8_t addr_type) override { return 0; }
+  int connect(uint64_t address, uint8_t addr_type) override {
+    if (this->listener_ != nullptr)
+      this->listener_->on_connection_state(true, 517, 0);
+    return 0;
+  }
   int disconnect() override { return 0; }
   int discover_services() override {
     if (this->listener_ != nullptr)
@@ -46,6 +50,8 @@ TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {
   MinimalConnection connection;
   RecordingListener listener;
   connection.set_listener(&listener);
+  EXPECT_EQ(connection.connect(0xAABBCCDDEEFFULL, 0), 0);
+  EXPECT_TRUE(listener.connected_);
   EXPECT_EQ(connection.discover_services(), 0);
   EXPECT_EQ(listener.discovery_error_, 0);
   EXPECT_EQ(connection.read_characteristic(1), GATT_ERR_NOT_CONNECTED);

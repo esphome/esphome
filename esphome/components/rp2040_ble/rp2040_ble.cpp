@@ -19,7 +19,8 @@ void RP2040BLE::setup() {
   global_ble = this;
 
   // Pre-create every pool entry so the packet handler's allocate() is always a
-  // free-list pop — the IRQ path must never reach malloc(). Deliberately
+  // free-list pop — the IRQ path must never reach malloc() (the newlib malloc
+  // lock is not IRQ-safe). Deliberately
   // unconditional: warming lazily on the first scan would move the allocations
   // after setup, and doing it here keeps the pool's RAM cost visible at
   // startup instead of appearing once scanning begins. On an incomplete warm,
