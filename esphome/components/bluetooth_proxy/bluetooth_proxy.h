@@ -34,13 +34,12 @@
 namespace esphome::bluetooth_proxy {
 
 // The connection-domain types live in the bluetooth_connection component;
-// re-exported here (with the historical proxy-side spellings for the error
-// domain) so the proxy code reads unchanged.
+// re-exported here so the proxy code reads unqualified.
+using bluetooth_connection::CONN_OK;
+using bluetooth_connection::conn_err_t;
 using bluetooth_connection::DONE_SENDING_SERVICES;
+using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
-using proxy_err_t = bluetooth_connection::conn_err_t;
-static constexpr proxy_err_t PROXY_OK = bluetooth_connection::CONN_OK;
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = bluetooth_connection::GATT_NOT_CONNECTED;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
@@ -98,21 +97,7 @@ class BluetoothProxy final : public Component {
   void loop() override;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
-  void register_connection([[maybe_unused]] BluetoothConnection *connection) {
-    // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
-#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
-    if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
-#ifndef USE_ESP32
-      // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
-      // class has no Component lifecycle, so the index is assigned here.
-      connection->connection_index_ = this->connection_count_;
-#endif
-      this->connections_[this->connection_count_++] = connection;
-      connection->proxy_ = this;
-    }
-#endif
-  }
+  void register_connection(BluetoothConnection *connection);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
   void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
@@ -140,14 +125,14 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, proxy_err_t error = PROXY_OK);
+  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
   void send_gatt_services_done(uint64_t address);
-  void send_gatt_error(uint64_t address, uint16_t handle, proxy_err_t error);
-  void send_device_pairing(uint64_t address, bool paired, proxy_err_t error = PROXY_OK);
-  void send_device_unpairing(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
-  void send_device_clear_cache(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
+  void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+  void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
+  void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
+  void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
 
   void bluetooth_scanner_set_mode(bool active);
 
@@ -288,7 +273,7 @@ class BluetoothProxy final : public Component {
   /// when service streaming was interrupted -- the client (aioesphomeapi) has
   /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
   /// discovery and retry, rather than being told a partial list is complete.
-  void reset_connection_slot_(BluetoothConnection *connection, proxy_err_t reason);
+  void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
 #endif
 
   // Memory optimized layout for 32-bit systems

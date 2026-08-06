@@ -128,14 +128,18 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
 }
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
+/// Result of close_service_batch: keep filling the batch, send it now, or
+/// send now because a single oversized service was force-advanced (callers
+/// must not rewind past that forced advance on a failed send, or a
+/// never-fitting service would repack forever).
+enum class BatchClose : uint8_t { CONTINUE, SEND, SEND_FORCED };
+
 /// Close out the service just packed into resp (account its actual wire size,
-/// advance the cursor) and decide whether the batch must be sent now. Returns
-/// true when the caller should stop batching: either the service was popped
-/// to retry in the next batch, or a single oversized service is being
-/// force-sent. Shared tail of both platform streamers so the budget logic and
-/// its log lines cannot drift.
-bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
-                         uint8_t connection_index, const char *address_str);
+/// advance the cursor) and decide whether the batch must be sent now. Shared
+/// tail of both platform streamers so the budget logic and its log lines
+/// cannot drift.
+BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
+                               uint8_t connection_index, const char *address_str);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 
 }  // namespace esphome::bluetooth_connection

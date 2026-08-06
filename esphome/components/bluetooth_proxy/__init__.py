@@ -47,6 +47,8 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 # Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
 # proxy would be misdriven — bk72xx follows once the API carries a feature
 # flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
+# Coupled to bluetooth_connection: platforms with a GATT backend are also
+# listed in its HUB_MAX_CONNECTIONS and its FILTER_SOURCE_FILES hub entry.
 _HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
