@@ -39,7 +39,7 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
       ep_desc = ezb_zha_create_temperature_sensor(ep_id, &config);
       break;
     }
-    default:
+    default: {
       ezb_af_ep_config_t config = {
           .ep_id = ep_id,
           .app_profile_id = EZB_AF_HA_PROFILE_ID,
@@ -47,6 +47,7 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
           .app_device_version = 0,
       };
       ep_desc = ezb_af_create_endpoint_desc(&config);
+    }
   }
   return ep_desc;
 }
@@ -77,10 +78,11 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_carbon_dioxide_measurement_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_PM2_5_MEASUREMENT:
       return ezb_zcl_pm2_5_measurement_create_cluster_desc(NULL, role_mask);
-    default:
+    default: {
       ezb_zcl_custom_cluster_config_t config = {0};
       config.cluster_id = cluster_id;
       return ezb_zcl_custom_create_cluster_desc(&config, role_mask);
+    }
   }
 }
 
