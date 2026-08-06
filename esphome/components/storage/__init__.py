@@ -47,7 +47,6 @@ CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
 CONF_MAX_STREAMS = "max_streams"
 CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
-CONF_ON_COMPLETE = "on_complete"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
@@ -465,7 +464,14 @@ async def to_code(config: ConfigType) -> None:
         # past what its stack can carry would overflow rather than fail cleanly.
         if _get_data().worker_count > 0:
             needed = _walk_stack_bytes(path_max, _MAX_RECURSION_DEPTH)
-            budget = int(config[CONF_TASK_STACK_SIZE] * _WALK_STACK_HEADROOM)
+            raw = config[CONF_TASK_STACK_SIZE]
+            budget = int(raw * _WALK_STACK_HEADROOM)
+            if needed > raw:
+                raise cv.Invalid(
+                    f"storage: a {_MAX_RECURSION_DEPTH}-level tree walk with path_max {path_max} "
+                    f"needs roughly {needed} bytes of stack, which exceeds task_stack_size ({raw}) "
+                    f"and would overflow it at runtime. Raise task_stack_size."
+                )
             if needed > budget:
                 _LOGGER.warning(
                     "storage: a %d-level tree walk with path_max %d needs roughly %d bytes of "
@@ -474,7 +480,7 @@ async def to_code(config: ConfigType) -> None:
                     _MAX_RECURSION_DEPTH,
                     path_max,
                     needed,
-                    config[CONF_TASK_STACK_SIZE],
+                    raw,
                 )
 
     CORE.add_job(_emit_path_max)
