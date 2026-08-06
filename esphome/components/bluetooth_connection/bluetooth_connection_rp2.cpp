@@ -8,6 +8,7 @@
 #include <BluetoothLock.h>
 
 #include <cstring>
+#include <new>
 
 namespace esphome::bluetooth_connection {
 
@@ -124,6 +125,18 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
       hci_con_handle_t con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
       RP2GattClient *inst = instance_for_con_handle_(con_handle);
+      if (inst == nullptr) {
+        // The main loop may not have recorded the handle yet (the CONNECTED
+        // event is still queued); route to the instance that is connecting so
+        // an accept-then-drop peer cannot leave the engine on a dead handle.
+        for (uint8_t i = 0; i < instance_count_; i++) {
+          RP2GattClient *candidate = instances_[i];
+          if (candidate->con_handle_ == HCI_CON_HANDLE_INVALID && candidate->state_ != EngineState::IDLE) {
+            inst = candidate;
+            break;
+          }
+        }
+      }
       if (inst != nullptr) {
         inst->enqueue_event_irq_(RP2GattEvent::DISCONNECTED, hci_event_disconnection_complete_get_reason(packet), 0);
       }
@@ -354,14 +367,26 @@ void RP2GattClient::loop() {
     if (now - this->connect_started_ > CONNECT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Connect timeout");
       if (this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID) {
-        BluetoothLock lock;
-        gap_connect_cancel();
-        // The cancel produces a connection-complete event with a failure
-        // status, which drives the normal failure path. Restart the timer so
-        // a lost event cannot wedge the engine in CONNECTING forever.
-        this->connect_started_ = now;
+        if (!this->connect_cancel_attempted_) {
+          this->connect_cancel_attempted_ = true;
+          BluetoothLock lock;
+          gap_connect_cancel();
+          // The cancel produces a connection-complete event with a failure
+          // status, which drives the normal failure path; restart the timer
+          // so a lost event escalates below instead of wedging here.
+          this->connect_started_ = now;
+        } else {
+          // The cancel's completion never arrived: reclaim the slot and the
+          // scan rather than cancelling forever.
+          this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
+        }
       } else {
-        this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
+        // The link is up (MTU exchange stalled): tear it down properly so the
+        // controller frees its side; the DISCONNECTING safety net below
+        // reclaims state if the disconnection event is lost. Dropping engine
+        // state without gap_disconnect would leak the live link and the
+        // single GATT slot for the rest of the boot.
+        this->disconnect();
       }
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
@@ -388,7 +413,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
         ESP_LOGD(TAG, "MTU %u", this->mtu_);
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
-        this->parent_->release_scan_inhibit();
+        this->release_scan_inhibit_();
         if (this->listener_ != nullptr) {
           this->listener_->on_connection_state(true, this->mtu_, 0);
         }
@@ -425,9 +450,16 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   gatt_client_send_mtu_negotiation(&RP2GattClient::gatt_packet_handler, this->con_handle_);
 }
 
+void RP2GattClient::release_scan_inhibit_() {
+  if (this->holds_scan_inhibit_) {
+    this->holds_scan_inhibit_ = false;
+    this->parent_->release_scan_inhibit();
+  }
+}
+
 void RP2GattClient::fail_connection_(uint8_t reason) {
   this->cleanup_link_state_();
-  this->parent_->release_scan_inhibit();
+  this->release_scan_inhibit_();
   this->state_ = EngineState::IDLE;
   if (this->listener_ != nullptr) {
     this->listener_->on_connection_state(false, 0, reason);
@@ -494,8 +526,15 @@ int RP2GattClient::discover_services() {
   if (this->arena_ == nullptr) {
     // Transient: freed in release_services() right after the table streams
     // to the API client (mirrors Bluedroid's own per-connection GATT DB
-    // lifetime on esp32).
-    this->arena_ = std::make_unique<ServiceArena>();
+    // lifetime on esp32). Checked: a fragmented heap must surface as a
+    // stack error the proxy can report, not a device reset.
+    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
+    this->arena_ = allocator.allocate(1);
+    if (this->arena_ == nullptr) {
+      ESP_LOGE(TAG, "Service table allocation failed");
+      return ERROR_CODE_MEMORY_CAPACITY_EXCEEDED;
+    }
+    new (this->arena_) ServiceArena();
   }
   this->service_count_ = 0;
   this->char_count_ = 0;
@@ -627,7 +666,12 @@ ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
 }
 
 void RP2GattClient::release_services() {
-  this->arena_.reset();
+  if (this->arena_ != nullptr) {
+    RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
+    this->arena_->~ServiceArena();
+    allocator.deallocate(this->arena_, 1);
+    this->arena_ = nullptr;
+  }
   this->service_count_ = 0;
   this->char_count_ = 0;
   this->desc_count_ = 0;
@@ -637,6 +681,11 @@ void RP2GattClient::release_services() {
 // ---- Connection control ----
 
 int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
+  if (this->is_failed()) {
+    // setup() failed: nothing is registered for event routing and loop()
+    // never runs, so a connect could not complete or time out.
+    return GATT_ERR_NOT_CONNECTED;
+  }
   if (this->state_ != EngineState::IDLE) {
     return GATT_CLIENT_IN_WRONG_STATE;
   }
@@ -650,7 +699,9 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
 
   // Stop the shared radio's scan for the duration of the connect attempt
   // (esp32 parity: initiating and scanning contend for the radio).
+  this->holds_scan_inhibit_ = true;
   this->parent_->inhibit_scan();
+  this->connect_cancel_attempted_ = false;
   uint8_t status;
   {
     BluetoothLock lock;
@@ -660,7 +711,7 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   }
   if (status != 0) {
     ESP_LOGW(TAG, "gap_connect failed, status=0x%02x", status);
-    this->parent_->release_scan_inhibit();
+    this->release_scan_inhibit_();
     return status;
   }
   this->state_ = EngineState::CONNECTING;
