@@ -98,6 +98,8 @@ ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
 
 #ifdef USE_ESP32
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
+  if (uuid.len == 0)  // the unset sentinel get_uuid() emits
+    return {};
   if (uuid.len == ESP_UUID_LEN_16)
     return ESPBTUUID::from_uint16(uuid.uuid.uuid16);
   if (uuid.len == ESP_UUID_LEN_32)
@@ -108,6 +110,10 @@ ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
 esp_bt_uuid_t ESPBTUUID::get_uuid() const {
   esp_bt_uuid_t ret;
   switch (this->type_) {
+    case Type::UNSET:
+      ret.len = 0;
+      memset(&ret.uuid, 0, sizeof(ret.uuid));
+      break;
     case Type::UUID16:
       ret.len = ESP_UUID_LEN_16;
       ret.uuid.uuid16 = this->uuid_.uuid16;
@@ -129,7 +135,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   this->scan_result_ = &scan_result;
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
-  // address_str() then produce exactly the historical esp32 values.
+  // address_str_to() then produce exactly the historical esp32 values.
   uint8_t mac_lsb_first[6];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
@@ -139,7 +145,8 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
 #endif  // USE_ESP32
 
 ESPBTUUID ESPBTUUID::as_128bit() const {
-  if (this->type_ == Type::UUID128)
+  // Widening an unset UUID stays unset; expanding it would produce a set 0x0000 base UUID.
+  if (this->type_ == Type::UNSET || this->type_ == Type::UUID128)
     return *this;
   uint8_t data[16];
   this->to_128bit_(data);
@@ -149,6 +156,8 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   // Adjacent byte-pair search — identical semantics to esp32_ble::ESPBTUUID::contains.
   switch (this->type_) {
+    case Type::UNSET:
+      return false;
     case Type::UUID16:
       return (this->uuid_.uuid16 >> 8) == data2 && (this->uuid_.uuid16 & 0xFF) == data1;
     case Type::UUID32:
@@ -173,6 +182,9 @@ const char *ESPBTUUID::to_str(char *buf) const {
   // Identical output format to esp32_ble::ESPBTUUID::to_str.
   char *pos = buf;
   switch (this->type_) {
+    case Type::UNSET:
+      memcpy(buf, "None", 5);
+      return buf;
     case Type::UUID16:
       *pos++ = '0';
       *pos++ = 'x';
@@ -207,6 +219,7 @@ const char *ESPBTUUID::to_str(char *buf) const {
 void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   // Bluetooth Base UUID 00000000-0000-1000-8000-00805F9B34FB (LSB-first), with the 16/32-bit
   // value placed at bytes 12..; identical expansion to esp32_ble::ESPBTUUID::as_128bit().
+  // Callers screen out UNSET first (operator==, as_128bit); it would expand like 0x0000.
   static const uint8_t BASE[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
                                    0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   if (this->type_ == Type::UUID128) {
@@ -223,6 +236,8 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
   if (this->type_ == other.type_) {
     switch (this->type_) {
+      case Type::UNSET:
+        return true;
       case Type::UUID16:
         return this->uuid_.uuid16 == other.uuid_.uuid16;
       case Type::UUID32:
@@ -232,6 +247,9 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
     }
     return false;
   }
+  // Unset never equals a set UUID; 0x0000 is a valid value, distinct from "not configured".
+  if (this->type_ == Type::UNSET || other.type_ == Type::UNSET)
+    return false;
   // Different widths: expand both to the 128-bit Bluetooth Base UUID form and compare, so a
   // configured 16/32-bit UUID matches the equivalent 128-bit advertisement (esp32 parity).
   uint8_t a[16];
@@ -264,6 +282,21 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
 // ESPBTDevice
 // ---------------------------------------------------------------------------
 
+const char *ESPBTDevice::address_type_str() const {
+  switch (this->address_type_) {
+    case BLE_ADDR_TYPE_PUBLIC:
+      return "PUBLIC";
+    case BLE_ADDR_TYPE_RANDOM:
+      return "RANDOM";
+    case BLE_ADDR_TYPE_RPA_PUBLIC:
+      return "RPA_PUBLIC";
+    case BLE_ADDR_TYPE_RPA_RANDOM:
+      return "RPA_RANDOM";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data,
                                    uint16_t data_len) {
   // Ingest is BLE controller order (LSB-first); store in printable (MSB-first)
@@ -282,29 +315,13 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   this->parse_adv_(data, data_len);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "Parse Result:");
-  const char *address_type;
-  switch (this->address_type_) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type = "RPA_RANDOM";
-      break;
-    default:
-      address_type = "UNKNOWN";
-      break;
-  }
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGVV(TAG, "  Address: %s (%s)", this->address_str_to(addr_buf), address_type);
-  ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
+  ESP_LOGVV(TAG,
+            "Parse Result:\n"
+            "  Address: %s (%s)\n"
+            "  RSSI: %d\n"
+            "  Name: '%s'",
+            this->address_str_to(addr_buf), this->address_type_str(), this->rssi_, this->name_.c_str());
   for (auto &it : this->tx_powers_) {
     ESP_LOGVV(TAG, "  TX Power: %d", it);
   }
@@ -322,25 +339,32 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   for (auto &mfg_data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(mfg_data);
     if (ibeacon.has_value()) {
-      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_str(uuid_buf));
-      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
-      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
-      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
+      ESP_LOGVV(TAG,
+                "  Manufacturer iBeacon:\n"
+                "    UUID: %s\n"
+                "    Major: %u\n"
+                "    Minor: %u\n"
+                "    TXPower: %d",
+                ibeacon.value().get_uuid().to_str(uuid_buf), ibeacon.value().get_major(), ibeacon.value().get_minor(),
+                ibeacon.value().get_signal_power());
     } else {
       ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", mfg_data.uuid.to_str(uuid_buf),
                 format_hex_pretty_to(hex_buf, mfg_data.data.data(), mfg_data.data.size()));
     }
   }
   for (auto &svc_data : this->service_datas_) {
-    ESP_LOGVV(TAG, "  Service data:");
-    ESP_LOGVV(TAG, "    UUID: %s", svc_data.uuid.to_str(uuid_buf));
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
+    ESP_LOGVV(TAG,
+              "  Service data:\n"
+              "    UUID: %s\n"
+              "    Data: %s",
+              svc_data.uuid.to_str(uuid_buf),
+              format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
   }
   ESP_LOGVV(TAG, "  Adv data: %s", format_hex_pretty_to(hex_buf, data, data_len));
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
 }
 
+// Remove before 2027.2.0
 std::string ESPBTDevice::address_str() const {
   char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(this->address_str_to(buf));
@@ -491,6 +515,35 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
         break;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredDeviceLog
+// ---------------------------------------------------------------------------
+
+void DiscoveredDeviceLog::log_device(const char *tag, const ESPBTDevice &device) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  // Everything here feeds ESP_LOGD: below DEBUG the whole body (including the
+  // dedup vector growth) would be pure overhead, so compile it out entirely.
+  const uint64_t address = device.address_uint64();
+  for (auto &disc : this->already_discovered_) {
+    if (disc == address)
+      return;
+  }
+  this->already_discovered_.push_back(address);
+
+  char addr_buf[ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(tag,
+           "Found device %s RSSI=%d\n"
+           "  Address Type: %s",
+           device.address_str_to(addr_buf), device.get_rssi(), device.address_type_str());
+  if (!device.get_name().empty()) {
+    ESP_LOGD(tag, "  Name: '%s'", device.get_name().c_str());
+  }
+  for (auto &tx_power : device.get_tx_powers()) {
+    ESP_LOGD(tag, "  TX Power: %d", tx_power);
+  }
+#endif  // ESPHOME_LOG_HAS_DEBUG
 }
 
 }  // namespace esphome::ble_device_base

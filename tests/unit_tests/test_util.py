@@ -561,7 +561,7 @@ def test_run_external_process_line_callbacks() -> None:
             return "PROCESS CALLBACK\n"
         return None
 
-    with patch("esphome.util.subprocess.run") as mock_run:
+    with patch("subprocess.run") as mock_run:
 
         def run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             # Simulate subprocess writing to the stdout RedirectText
@@ -635,7 +635,7 @@ def test_detect_rp2040_bootsel_found() -> None:
     """Test BOOTSEL device detection when device is present."""
     mock_result = MagicMock()
     mock_result.stdout = b"Device Information\n type: RP2040\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 1
     assert result.permission_error is False
@@ -645,7 +645,7 @@ def test_detect_rp2040_bootsel_multiple() -> None:
     """Test BOOTSEL detection with multiple devices."""
     mock_result = MagicMock()
     mock_result.stdout = b"type: RP2040\ntype: RP2350\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 2
     assert result.permission_error is False
@@ -658,7 +658,7 @@ def test_detect_rp2040_bootsel_none() -> None:
         b"No accessible RP2040/RP2350 devices in BOOTSEL mode were found.\n"
     )
     mock_result.stderr = b""
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is False
@@ -675,7 +675,7 @@ def test_detect_rp2040_bootsel_permission_error() -> None:
         b"but picotool was unable to connect. "
         b"Maybe try 'sudo' or check your permissions.\n"
     )
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is True
@@ -686,7 +686,7 @@ def test_detect_rp2040_bootsel_libusb_access_error() -> None:
     mock_result = MagicMock()
     mock_result.stdout = b""
     mock_result.stderr = b"LIBUSB_ERROR_ACCESS\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is True
@@ -694,7 +694,7 @@ def test_detect_rp2040_bootsel_libusb_access_error() -> None:
 
 def test_detect_rp2040_bootsel_oserror() -> None:
     """Test BOOTSEL detection handles OSError."""
-    with patch("esphome.util.subprocess.run", side_effect=OSError("not found")):
+    with patch("subprocess.run", side_effect=OSError("not found")):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is False
@@ -703,7 +703,7 @@ def test_detect_rp2040_bootsel_oserror() -> None:
 def test_detect_rp2040_bootsel_timeout() -> None:
     """Test BOOTSEL detection handles timeout."""
     with patch(
-        "esphome.util.subprocess.run",
+        "subprocess.run",
         side_effect=subprocess.TimeoutExpired("picotool", 10),
     ):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")

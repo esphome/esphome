@@ -13,6 +13,7 @@ module.exports = {
     'merging-to-release',
     'merging-to-beta',
     'chained-pr',
+    'stacked-pr',
     'core',
     'small-pr',
     'medium-pr',

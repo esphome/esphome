@@ -8,7 +8,6 @@
 #include <array>
 #include <span>
 #include <string>
-#include <vector>
 
 #ifdef USE_ESP32
 
@@ -239,11 +238,14 @@ class ESP32BLETracker final : public Component,
 
   // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback cb) override {
-    this->raw_advertisement_callback_ = std::move(cb);
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+    this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true};
+    // scan_mode_switch is false: the mode is driven through this tracker's own
+    // API (set_scan_active + restart), not the neutral request_scan_mode().
+    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
+            /* scan_mode_switch = */ false};
   }
   void get_adapter_mac(uint8_t out[6]) override;
   bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
@@ -265,10 +267,15 @@ class ESP32BLETracker final : public Component,
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
 #endif
 
-  /// Add a listener for scanner state changes
+#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
+  /// Add a listener for scanner state changes. Only compiled when a consumer
+  /// requested a slot in codegen: register through
+  /// esp32_ble_tracker.register_scanner_state_listener() in your component's
+  /// to_code, which requests the slot and emits this call.
   void add_scanner_state_listener(BLEScannerStateListener *listener) {
     this->scanner_state_listeners_.push_back(listener);
   }
+#endif
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
  protected:
@@ -335,16 +342,19 @@ class ESP32BLETracker final : public Component,
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
 #endif
-  std::vector<BLEScannerStateListener *> scanner_state_listeners_;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
+  StaticVector<BLEScannerStateListener *, ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT>
+      scanner_state_listeners_;
+#endif
   // Parsed listeners registered through the neutral BLEHub contract (migrated
   // sensors); dispatched alongside listeners_.
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
   StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> neutral_listeners_;
 #endif
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{nullptr};
+  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
 #ifdef USE_ESP32_BLE_DEVICE
-  /// Vector of addresses that have already been printed in print_bt_device_info
-  std::vector<uint64_t> already_discovered_;
+  /// Per-period "Found device" DEBUG log with MAC dedup (shared ble_device_base impl)
+  ble_device_base::DiscoveredDeviceLog discovered_log_;
 #endif
 
   // Group 2: Structs (aligned to 4 bytes)
