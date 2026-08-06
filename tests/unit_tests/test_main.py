@@ -27,6 +27,7 @@ from esphome.__main__ import (
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
     command_bundle,
@@ -63,8 +64,13 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
-from esphome.components import esp32
-from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components import esp32, esp8266
+from esphome.components.esp32 import (
+    KEY_ESP32,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    get_esp32_variant,
+)
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -94,6 +100,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
 )
@@ -1621,6 +1628,12 @@ def test_upload_using_esptool_path_conversion(
     assert isinstance(partitions_path, str)
     assert partitions_path.endswith("partitions.bin")
 
+    # The chip argument must track get_esp32_variant: upload_using_esptool
+    # reads CORE.data directly to avoid the esp32 package import, and the
+    # two resolutions must not drift.
+    chip = cmd_list[cmd_list.index("--chip") + 1]
+    assert chip == get_esp32_variant().lower()
+
 
 def test_upload_using_esptool_skips_missing_extra_flash_images(
     tmp_path: Path,
@@ -2862,18 +2875,17 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     assert "MQTT IP discovery failed" in caplog.text
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_upload_program_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program with platform-specific upload handler."""
-    setup_core(platform="custom_platform")
+    setup_core(platform=PLATFORM_NRF52)
     mock_get_port_type.return_value = "CUSTOM"
 
-    mock_module = MagicMock()
-    mock_module.upload_program.return_value = True
-    mock_import.return_value = mock_module
+    platform_upload = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_upload
 
     config = {}
     args = MockArgs()
@@ -2883,8 +2895,8 @@ def test_upload_program_platform_specific_handler(
 
     assert exit_code == 0
     assert host == "custom_device"
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.upload_program.assert_called_once_with(config, args, "custom_device")
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "upload_program")
+    platform_upload.assert_called_once_with(config, args, "custom_device")
 
 
 def test_show_logs_serial(
@@ -2918,7 +2930,7 @@ def test_show_logs_no_logger() -> None:
         show_logs(CORE.config, args, devices)
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api(
     mock_run_logs: Mock,
 ) -> None:
@@ -2944,7 +2956,7 @@ def test_show_logs_api(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_no_states(
     mock_run_logs: Mock,
 ) -> None:
@@ -2971,7 +2983,7 @@ def test_show_logs_api_no_states(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_with_fqdn_mdns_disabled(
     mock_run_logs: Mock,
 ) -> None:
@@ -2998,7 +3010,7 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_with_mqtt_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -3108,16 +3120,15 @@ def test_show_logs_no_method_configured() -> None:
         show_logs(CORE.config, args, devices)
 
 
-@patch("esphome.__main__.importlib.import_module")
+@patch("esphome.platform_hooks.get_platform_hook")
 def test_show_logs_platform_specific_handler(
-    mock_import: Mock,
+    mock_get_hook: Mock,
 ) -> None:
     """Test show_logs with platform-specific logs handler."""
-    setup_core(platform="custom_platform", config={"logger": {}})
+    setup_core(platform=PLATFORM_NRF52, config={"logger": {}})
 
-    mock_module = MagicMock()
-    mock_module.show_logs.return_value = True
-    mock_import.return_value = mock_module
+    platform_show_logs = MagicMock(return_value=True)
+    mock_get_hook.return_value = platform_show_logs
 
     config = {"logger": {}}
     args = MockArgs()
@@ -3126,8 +3137,8 @@ def test_show_logs_platform_specific_handler(
     result = show_logs(config, args, devices)
 
     assert result == 0
-    mock_import.assert_called_once_with("esphome.components.custom_platform")
-    mock_module.show_logs.assert_called_once_with(config, args, devices)
+    mock_get_hook.assert_called_once_with(PLATFORM_NRF52, "show_logs")
+    platform_show_logs.assert_called_once_with(config, args, devices)
 
 
 def test_has_mqtt_logging_no_log_topic() -> None:
@@ -3245,6 +3256,14 @@ def test_get_port_type() -> None:
     assert get_port_type("10.0.0.1") == "NETWORK"
 
     assert get_port_type("BOOTSEL") == "BOOTSEL"
+
+
+def test_mqtt_reexports_discover_ip() -> None:
+    """The old import path must keep working for external code."""
+    from esphome.components import mqtt
+    from esphome.const import CONF_DISCOVER_IP
+
+    assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
 
 
 def test_has_mqtt_ip_lookup() -> None:
@@ -4974,7 +4993,7 @@ def test_upload_program_ota_mqttip_deduplication(
     assert "192.168.1.100" in call_args[0]
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_static_ip_with_mqttip(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -5013,7 +5032,7 @@ def test_show_logs_api_static_ip_with_mqttip(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_multiple_mqttip_resolves_once(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -5096,7 +5115,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_show_logs_api_mqtt_timeout_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
@@ -5717,6 +5736,65 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
     )
 
 
+def test_run_miniterm_analyzer_import_failure_keeps_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken platform import must not stop serial log streaming.
+
+    The decoder resolves lazily, so a crash-shaped line has to arrive
+    before the import is attempted at all.
+    """
+    mock_serial = MockSerial([b"PC: 0x40104960\r\n", MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
+        patch("serial.Serial", return_value=mock_serial),
+        patch(
+            "esphome.platform_hooks.get_platform_hook",
+            side_effect=ImportError("broken platform package"),
+        ),
+    ):
+        result = run_miniterm(config, "/dev/ttyUSB0", args)
+
+    assert result == 0
+    # A broken package is distinguishable from a plain capability gap.
+    assert "failed to import: broken platform package" in caplog.text
+
+
+def test_run_miniterm_no_stacktrace_analyzer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Platforms without a stacktrace analyzer log an info and stream anyway."""
+    mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_BK72XX}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        caplog.at_level("INFO", logger="esphome.platform_hooks"),
+        patch("serial.Serial", return_value=mock_serial),
+    ):
+        result = run_miniterm(config, "/dev/ttyUSB0", args)
+
+    assert result == 0
+    assert "Stacktrace analysis is unavailable" in caplog.text
+
+
 def test_run_miniterm_different_chunks_different_timestamps(
     capfd: CaptureFixture[str],
 ) -> None:
@@ -5797,7 +5875,9 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
 
     mock_serial = MockSerial([backtrace_chunk, MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    # An esp8266 dump on an esp8266 session; the platform-scoped gate
+    # would rightly never resolve esp32's decoder for these lines.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP8266}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -5823,7 +5903,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            esp32,
+            esp8266,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
@@ -5848,6 +5928,38 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     # Line 4: <<<stack<<< - state should be True (before processing end marker)
     assert "<<<stack<<<" in backtrace_states[3][0]
     assert backtrace_states[3][1] is True
+
+
+def test_run_miniterm_decoder_failure_keeps_streaming(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A decoder exception must not kill serial streaming.
+
+    This is the serial path's gain from sharing LogLineProcessor: before
+    the lift a decoder exception propagated out of the read loop.
+    """
+    chunk = b"PC: 0x4010496e\r\nBT0: 0x4010496e\r\nstill streaming\r\n"
+    mock_serial = MockSerial([chunk, MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    decoder = Mock(side_effect=EsphomeError("no idedata"))
+    with (
+        patch("serial.Serial", return_value=mock_serial),
+        patch.object(esp32, "process_stacktrace", decoder),
+    ):
+        run_miniterm(config, "/dev/ttyUSB0", args)
+
+    # The failure is contained and latched; streaming continued to EOF.
+    assert decoder.call_count == 1
+    assert "Crash trace decoding unavailable" in caplog.text
 
 
 def test_run_miniterm_handles_empty_reads(
@@ -6196,7 +6308,6 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     extracted_yaml = tmp_path / "extracted" / "device.yaml"
 
     with (
-        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
         patch(
             "esphome.bundle.prepare_bundle_for_compile",
             return_value=extracted_yaml,
@@ -6205,7 +6316,6 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     ):
         result = run_esphome(["esphome", "compile", str(bundle_path)])
 
-    mock_is_bundle.assert_called_once()
     mock_prepare.assert_called_once_with(bundle_path)
     # read_config returns None → exit code 2
     assert result == 2
@@ -6217,13 +6327,11 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     yaml_file.write_text("esphome:\n  name: test\n")
 
     with (
-        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
         patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
         patch("esphome.config.read_config", return_value=None),
     ):
         result = run_esphome(["esphome", "compile", str(yaml_file)])
 
-    mock_is_bundle.assert_called_once()
     mock_prepare.assert_not_called()
     assert result == 2
 
@@ -6252,6 +6360,26 @@ def test_run_esphome_skip_external_update_per_command(
 
     mock_read.assert_called_once()
     assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
+
+
+@pytest.mark.parametrize(
+    ("argv_extra", "expected"),
+    [(["--no-defaults"], True), ([], False)],
+)
+def test_run_esphome_snapshot_user_config_only_for_no_defaults(
+    tmp_path: Path, argv_extra: list[str], expected: bool
+) -> None:
+    """read_config is invoked with snapshot_user_config=True only when the
+    config command is run with --no-defaults; otherwise the expensive deep
+    copy is skipped."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.config.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", "config", str(yaml_file), *argv_extra])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["snapshot_user_config"] is expected
 
 
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
@@ -6468,7 +6596,7 @@ def test_should_subscribe_states_no_flag_overrides_env() -> None:
         assert _should_subscribe_states(args) is False
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_command_run_passes_no_states_to_show_logs(
     mock_run_logs: Mock,
 ) -> None:
@@ -6506,7 +6634,7 @@ def test_command_run_passes_no_states_to_show_logs(
     )
 
 
-@patch("esphome.components.api.client.run_logs")
+@patch("esphome.api_client.run_logs")
 def test_command_run_defaults_subscribe_states_true(
     mock_run_logs: Mock,
 ) -> None:
@@ -6608,3 +6736,27 @@ def test_command_idedata_esp_idf_no_build_errors() -> None:
         result = command_idedata(MagicMock(), CORE.config)
 
     assert result == 1
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_missing_port() -> None:
+    """A nonexistent serial port raises the does-not-exist guidance."""
+    with (
+        patch("os.access", return_value=False),
+        pytest.raises(EsphomeError, match="serial port does not exist"),
+    ):
+        check_permissions("/dev/ttyUSB99")
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_unreadable_port() -> None:
+    """An existing but unreadable serial port raises the dialout guidance."""
+    with (
+        patch("os.access", side_effect=lambda _path, mode: mode == os.F_OK),
+        pytest.raises(EsphomeError, match="read or write permission"),
+    ):
+        check_permissions("/dev/ttyUSB99")
