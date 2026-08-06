@@ -16,7 +16,6 @@ static constexpr uint32_t SETUP_DELAY_MS = 100;
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
 
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
-static constexpr uint16_t TYPE_REPORT_POINT_CLOUD = 0x0A08;
 
 // Control command values for TYPE_CONTROL
 static constexpr uint32_t CMD_POINT_CLOUD_ON = 0x06;
@@ -64,16 +63,6 @@ float LD6002BComponent::read_f32_le(const uint8_t *data) {
   return value;
 }
 
-bool LD6002BComponent::should_publish_float(float previous, float next, float epsilon) {
-  if (std::isnan(previous) && std::isnan(next)) {
-    return false;
-  }
-  if (std::isnan(previous) != std::isnan(next)) {
-    return true;
-  }
-  return std::fabs(previous - next) > epsilon;
-}
-
 void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[0] = value & 0xFF;
   data[1] = (value >> 8) & 0xFF;
@@ -81,25 +70,10 @@ void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[3] = (value >> 24) & 0xFF;
 }
 
-void LD6002BComponent::set_max_data_len(size_t max_data_len) {
-  // Record only; the buffer is allocated once in setup().
-  this->max_data_len_overridden_ = true;
-  this->max_data_len_ = max_data_len;
-}
-
 void LD6002BComponent::setup() {
-  size_t desired_data_len = this->max_data_len_;
-  if (!this->max_data_len_overridden_) {
-    bool point_cloud_configured = false;
-#ifdef USE_SENSOR
-    point_cloud_configured = point_cloud_configured || this->point_count_sensor_ != nullptr;
-#endif
-    desired_data_len = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  }
-  this->max_data_len_ = desired_data_len;
   // One allocation for the component lifetime; the parser reuses it for the header and every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(std::max<size_t>(desired_data_len, 6));
+  this->data_buf_ = allocator.allocate(DEFAULT_MAX_DATA_LEN);
   if (this->data_buf_ == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
@@ -138,30 +112,21 @@ void LD6002BComponent::setup() {
       this->send_control_command_(CMD_TARGET_DISPLAY_ON);
     }
 
-    bool want_point_cloud_stream = false;
-#ifdef USE_SENSOR
-    want_point_cloud_stream = want_point_cloud_stream || this->point_count_sensor_ != nullptr;
-#endif
-    this->send_control_command_(want_point_cloud_stream ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+    this->send_control_command_(CMD_POINT_CLOUD_OFF);
   });
 }
 
 void LD6002BComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HLK-LD6002B:\n"
-                "  Auto wake: %s\n"
-                "  Max data length: %u",
-                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
+                "  Auto wake: %s",
+                this->auto_wake_ ? "true" : "false");
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
   }
-  if (this->throttle_ms_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Throttle: %ums", this->throttle_ms_);
-  }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
-  LOG_SENSOR("  ", "Point Count", this->point_count_sensor_);
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
@@ -177,22 +142,6 @@ void LD6002BComponent::loop() {
     this->parse_byte_(byte);
   }
   this->process_command_queue_();
-}
-
-bool LD6002BComponent::should_throttle_stream_(uint32_t &last_publish_ms) {
-  if (this->throttle_ms_ == 0) {
-    return false;
-  }
-  uint32_t now = millis();
-  if (last_publish_ms == 0) {
-    last_publish_ms = now;
-    return false;
-  }
-  if (now - last_publish_ms < this->throttle_ms_) {
-    return true;
-  }
-  last_publish_ms = now;
-  return false;
 }
 
 void LD6002BComponent::reset_parser_() {
@@ -236,7 +185,7 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
           this->frame_type_ = read_u16_be(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
+          this->frame_oversize_ = this->data_len_ > DEFAULT_MAX_DATA_LEN;
           this->parse_state_ = ParseState::HCK;
         }
       }
@@ -315,12 +264,6 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     case TYPE_REPORT_TARGET:
       this->handle_target_report_(data, len);
       break;
-    case TYPE_REPORT_POINT_CLOUD:
-      if (this->should_throttle_stream_(this->last_point_publish_)) {
-        return;
-      }
-      this->handle_point_cloud_(data, len);
-      break;
     default:
       break;
   }
@@ -329,10 +272,6 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
-
-  // Throttle only the high-churn coordinate payloads. Presence/count transitions
-  // should still propagate immediately so entities do not look stale.
-  const bool publish_target_values = !this->should_throttle_stream_(this->last_target_publish_);
 
   uint32_t target_num = read_u32_le(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
@@ -380,9 +319,9 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 
 #ifdef USE_SENSOR
   if (this->target_count_sensor_ != nullptr) {
-    if (target_num != this->last_target_count_) {
-      this->target_count_sensor_->publish_state(target_num);
-      this->last_target_count_ = target_num;
+    if (reported != this->last_target_count_) {
+      this->target_count_sensor_->publish_state(reported);
+      this->last_target_count_ = reported;
     }
   }
 #endif
@@ -405,29 +344,24 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       int32_t cluster_id = this->slot_cluster_[i];
 #ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
-      if (publish_target_values && target.x != nullptr && should_publish_float(this->last_target_x_[i], x)) {
+      if (target.x != nullptr) {
         target.x->publish_state(x);
-        this->last_target_x_[i] = x;
       }
-      if (publish_target_values && target.y != nullptr && should_publish_float(this->last_target_y_[i], y)) {
+      if (target.y != nullptr) {
         target.y->publish_state(y);
-        this->last_target_y_[i] = y;
       }
-      if (publish_target_values && target.z != nullptr && should_publish_float(this->last_target_z_[i], z)) {
+      if (target.z != nullptr) {
         target.z->publish_state(z);
-        this->last_target_z_[i] = z;
       }
-      float dop_value = static_cast<float>(dop_idx);
-      if (publish_target_values && target.dop_idx != nullptr &&
-          should_publish_float(this->last_target_dop_[i], dop_value)) {
-        target.dop_idx->publish_state(dop_value);
-        this->last_target_dop_[i] = dop_value;
+      if (target.dop_idx != nullptr) {
+        target.dop_idx->publish_state(static_cast<float>(dop_idx));
       }
-      float cluster_value = static_cast<float>(cluster_id);
-      if (publish_target_values && target.cluster_id != nullptr &&
-          should_publish_float(this->last_target_cluster_[i], cluster_value)) {
-        target.cluster_id->publish_state(cluster_value);
-        this->last_target_cluster_[i] = cluster_value;
+      if (target.cluster_id != nullptr) {
+        if (!this->last_cluster_id_valid_[i] || cluster_id != this->last_cluster_id_[i]) {
+          target.cluster_id->publish_state(static_cast<float>(cluster_id));
+          this->last_cluster_id_[i] = cluster_id;
+          this->last_cluster_id_valid_[i] = true;
+        }
       }
 #endif
     } else {
@@ -436,24 +370,21 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       if (this->last_target_presence_[i]) {
         if (target.x != nullptr) {
           target.x->publish_state(NAN);
-          this->last_target_x_[i] = NAN;
         }
         if (target.y != nullptr) {
           target.y->publish_state(NAN);
-          this->last_target_y_[i] = NAN;
         }
         if (target.z != nullptr) {
           target.z->publish_state(NAN);
-          this->last_target_z_[i] = NAN;
         }
         if (target.dop_idx != nullptr) {
           target.dop_idx->publish_state(NAN);
-          this->last_target_dop_[i] = NAN;
         }
         if (target.cluster_id != nullptr) {
           target.cluster_id->publish_state(NAN);
-          this->last_target_cluster_[i] = NAN;
         }
+        // The slot is free: the next person's id is new even when it repeats this one.
+        this->last_cluster_id_valid_[i] = false;
       }
 #endif
     }
@@ -465,22 +396,6 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #endif
     this->last_target_presence_[i] = has_target;
   }
-}
-
-void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
-  if (len < 4)
-    return;
-
-  uint32_t point_num = read_u32_le(data);
-
-#ifdef USE_SENSOR
-  if (this->point_count_sensor_ != nullptr) {
-    if (point_num != this->last_point_count_) {
-      this->point_count_sensor_->publish_state(point_num);
-      this->last_point_count_ = point_num;
-    }
-  }
-#endif
 }
 
 void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {

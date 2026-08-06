@@ -7,8 +7,6 @@ sensor:
     ld6002b_id: ld6002b_radar
     target_count:
       name: Target Count
-    point_count:
-      name: Point Count
     target_1:
       x:
         name: Target-1 X
@@ -20,6 +18,28 @@ sensor:
         name: Target-1 Dop
       cluster_id:
         name: Target-1 Cluster
+    target_2:
+      x:
+        name: Target-2 X
+      y:
+        name: Target-2 Y
+      z:
+        name: Target-2 Z
+      dop_idx:
+        name: Target-2 Dop
+      cluster_id:
+        name: Target-2 Cluster
+    target_3:
+      x:
+        name: Target-3 X
+      y:
+        name: Target-3 Y
+      z:
+        name: Target-3 Z
+      dop_idx:
+        name: Target-3 Dop
+      cluster_id:
+        name: Target-3 Cluster
 
 binary_sensor:
   - platform: ld6002b

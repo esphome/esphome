@@ -4,11 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import CONF_TARGET, DEVICE_CLASS_OCCUPANCY
 
 from . import LD6002BComponent
-from .const import CONF_LD6002B_ID
+from .const import CONF_LD6002B_ID, MAX_TARGETS
 
 DEPENDENCIES = ["ld6002b"]
-
-MAX_TARGETS = 3
 
 CONFIG_SCHEMA = cv.Schema(
     {

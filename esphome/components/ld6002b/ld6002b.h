@@ -13,13 +13,11 @@
 #endif
 
 #include <array>
-#include <cmath>
 
 namespace esphome::ld6002b {
 
 static constexpr uint8_t MAX_TARGETS = 3;
 static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
-static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
@@ -44,11 +42,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
   void set_wakeup_pulse_ms(uint32_t ms) { this->wakeup_pulse_ms_ = ms; }
   void set_auto_wake(bool enable) { this->auto_wake_ = enable; }
-  void set_throttle(uint32_t throttle_ms) { this->throttle_ms_ = throttle_ms; }
 
 #ifdef USE_SENSOR
   void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }
-  void set_point_count_sensor(sensor::Sensor *sensor) { this->point_count_sensor_ = sensor; }
 
   void set_target_x_sensor(uint8_t target, sensor::Sensor *sensor) {
     if (target >= MAX_TARGETS)
@@ -85,7 +81,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
     this->target_presence_[target] = sensor;
   }
 #endif
-  void set_max_data_len(size_t max_data_len);
 
  protected:
   enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
@@ -96,12 +91,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
     std::array<uint8_t, CMD_MAX_DATA_LEN> data{};
   };
 
-  bool should_throttle_stream_(uint32_t &last_publish_ms);
   void parse_byte_(uint8_t byte);
   void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
-  void handle_point_cloud_(const uint8_t *data, uint16_t len);
 
   void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
@@ -115,12 +108,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
-  static bool should_publish_float(float previous, float next, float epsilon = 0.0001f);
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
   sensor::Sensor *target_count_sensor_{nullptr};
-  sensor::Sensor *point_count_sensor_{nullptr};
 #endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
@@ -130,9 +121,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   GPIOPin *wakeup_pin_{nullptr};
   uint32_t wakeup_pulse_ms_{50};
   bool auto_wake_{true};
-  uint32_t throttle_ms_{0};
-  uint32_t last_target_publish_{0};
-  uint32_t last_point_publish_{0};
 
   ParseState parse_state_{ParseState::SOF};
   uint8_t header_pos_{0};
@@ -144,8 +132,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t data_xor_{0};
   uint32_t discard_remaining_{0};
   bool frame_oversize_{false};
-  size_t max_data_len_{0};
-  bool max_data_len_overridden_{false};
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
@@ -194,13 +180,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   bool target_presence_any_{false};
 
   std::array<bool, MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
+  // A cluster id names a person, so like the counts it is published on change, not per frame.
+  std::array<int32_t, MAX_TARGETS> last_cluster_id_{};
+  std::array<bool, MAX_TARGETS> last_cluster_id_valid_{};
   uint32_t last_target_count_{0xFFFFFFFF};
-  uint32_t last_point_count_{0xFFFFFFFF};
-  std::array<float, MAX_TARGETS> last_target_x_{{NAN, NAN, NAN}};
-  std::array<float, MAX_TARGETS> last_target_y_{{NAN, NAN, NAN}};
-  std::array<float, MAX_TARGETS> last_target_z_{{NAN, NAN, NAN}};
-  std::array<float, MAX_TARGETS> last_target_dop_{{NAN, NAN, NAN}};
-  std::array<float, MAX_TARGETS> last_target_cluster_{{NAN, NAN, NAN}};
 };
 
 }  // namespace esphome::ld6002b
