@@ -129,16 +129,15 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
       hci_con_handle_t con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
       RP2GattClient *inst = instance_for_con_handle_(con_handle);
-      if (inst == nullptr) {
+      if (inst == nullptr && instance_count_ == 1) {
         // The main loop may not have recorded the handle yet (the CONNECTED
-        // event is still queued); route to the instance that is connecting so
-        // an accept-then-drop peer cannot leave the engine on a dead handle.
-        for (uint8_t i = 0; i < instance_count_; i++) {
-          RP2GattClient *candidate = instances_[i];
-          if (candidate->con_handle_ == HCI_CON_HANDLE_INVALID && candidate->state_ != EngineState::IDLE) {
-            inst = candidate;
-            break;
-          }
+        // event is still queued); with a single engine the connecting
+        // instance is unambiguous, so route there to close the
+        // accept-then-drop window. With multiple engines the event has no
+        // address to match on, so it must be dropped instead of guessed.
+        RP2GattClient *candidate = instances_[0];
+        if (candidate->con_handle_ == HCI_CON_HANDLE_INVALID && candidate->state_ != EngineState::IDLE) {
+          inst = candidate;
         }
       }
       if (inst != nullptr) {
@@ -426,8 +425,14 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
     this->con_handle_ = con_handle;
     this->state_ = EngineState::DISCONNECTING;
     this->disconnecting_started_ = millis();
-    BluetoothLock lock;
-    gap_disconnect(this->con_handle_);
+    uint8_t disc_status;
+    {
+      BluetoothLock lock;
+      disc_status = gap_disconnect(this->con_handle_);
+    }
+    if (disc_status != 0) {
+      this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
+    }
     return;
   }
   this->con_handle_ = con_handle;
@@ -443,6 +448,9 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   // exchange is kicked explicitly; GATT_EVENT_MTU completes it. Without the
   // explicit kick the MTU would only be exchanged on the first GATT query,
   // which never happens on a V3_WITH_CACHE connection.
+  // Both registration calls above return void in this BTstack; failures
+  // surface as a missing GATT_EVENT_MTU and are reclaimed by the connect
+  // timeout in loop().
   gatt_client_send_mtu_negotiation(&RP2GattClient::gatt_packet_handler, this->con_handle_);
 }
 
@@ -463,8 +471,15 @@ void RP2GattClient::fail_connection_(uint8_t reason) {
 }
 
 void RP2GattClient::cleanup_link_state_() {
-  // The wildcard listener is registered exactly while a connection handle
-  // exists (both are set together in handle_connected_).
+  // Drop notifications queued behind the disconnect so they cannot emit
+  // against a freed slot (address 0) on the next loop.
+  RP2GattNotifyEvent *stale;
+  while ((stale = this->notify_queue_.pop()) != nullptr) {
+    this->notify_pool_.release(stale);
+  }
+  // The wildcard listener is registered on the normal connect path right
+  // after con_handle_ is recorded; the cancel branch tears down before
+  // registering, where stop_listening on an unregistered entry is a no-op.
   if (this->con_handle_ != HCI_CON_HANDLE_INVALID) {
     BluetoothLock lock;
     gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
@@ -485,6 +500,12 @@ void RP2GattClient::handle_disconnected_(uint8_t reason) {
 }
 
 void RP2GattClient::handle_query_complete_(uint8_t att_status) {
+  // Stale completions cannot cross connections: the loop drains the whole
+  // event queue every iteration, teardown resets op/discovery state, and a
+  // new discovery is only issued after the new link's MTU event — which in
+  // this BTstack emits no QUERY_COMPLETE (the MTU state machine is separate
+  // from the query state machine). Completions with nothing in flight are
+  // dropped below.
   if (this->op_type_ != OpType::NONE) {
     OpType op = this->op_type_;
     this->op_type_ = OpType::NONE;
@@ -571,6 +592,12 @@ int RP2GattClient::issue_descriptor_query_(uint16_t char_index) {
 }
 
 void RP2GattClient::advance_discovery_(uint8_t att_status) {
+  if (this->arena_ == nullptr) {
+    // release_services() is publicly callable; a table freed mid-discovery
+    // must end the discovery instead of dereferencing a null arena.
+    this->finish_discovery_(GATT_ERR_NOT_CONNECTED);
+    return;
+  }
   if (att_status != 0) {
     this->finish_discovery_(att_status);
     return;
@@ -733,8 +760,10 @@ int RP2GattClient::disconnect() {
       if (this->con_handle_ == HCI_CON_HANDLE_INVALID) {
         // The cancel can lose the race against a successful connection
         // complete; handle_connected_ checks this flag and finishes the
-        // teardown instead of proceeding.
+        // teardown instead of proceeding. It also counts as the one cancel
+        // attempt, so a lost completion escalates on the next timeout tick.
         this->cancel_requested_ = true;
+        this->connect_cancel_attempted_ = true;
         BluetoothLock lock;
         gap_connect_cancel();
         // Completion arrives as a failed connection-complete event.
