@@ -23,7 +23,6 @@
 #include <btstack.h>
 
 #include <cstdint>
-#include <memory>
 
 namespace esphome::bluetooth_connection {
 
@@ -103,7 +102,8 @@ class RP2GattClient final : public Component,
 
   enum class OpType : uint8_t { NONE, READ_CHAR, WRITE_CHAR, READ_DESC, WRITE_DESC };
 
-  // The whole table in one transient allocation, freed after streaming.
+  // The whole table in one transient allocation (RAMAllocator, checked),
+  // freed after streaming.
   struct ServiceArena {
     ble_device_base::GattService services[RP2_GATT_MAX_SERVICES];
     ble_device_base::GattCharacteristic characteristics[RP2_GATT_MAX_CHARACTERISTICS];
@@ -130,12 +130,13 @@ class RP2GattClient final : public Component,
   void finish_discovery_(int error);
   void fail_connection_(uint8_t reason);
   void cleanup_link_state_();
+  void release_scan_inhibit_();
   bool op_in_flight_() const {
     return this->op_type_ != OpType::NONE || this->discovery_phase_ != DiscoveryPhase::NONE;
   }
 
   // Group 1: containers / large storage
-  std::unique_ptr<ServiceArena> arena_;
+  ServiceArena *arena_{nullptr};
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;
   esphome::LockFreeQueue<RP2GattNotifyEvent, RP2_GATT_NOTIFY_QUEUE_SIZE> notify_queue_;
@@ -172,6 +173,11 @@ class RP2GattClient final : public Component,
   DiscoveryPhase discovery_phase_{DiscoveryPhase::NONE};
   OpType op_type_{OpType::NONE};
   bool truncated_{false};
+  // One cancel attempt per connect: the second timeout escalates to failure.
+  bool connect_cancel_attempted_{false};
+  // This engine's own hold on the shared scan inhibit, so the pairing stays
+  // one-to-one per connection even with multiple slots.
+  bool holds_scan_inhibit_{false};
 
   // Instance registry for routing BTstack events (IRQ context) to engines.
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
