@@ -27,7 +27,6 @@ async def test_script_queued(
         "rejection": {"processed": [], "rejections": 0},
         "no_params": {"executions": 0},
         "boot": {"ended": []},
-        "after_stop": {"ended": []},
     }
 
     # Patterns for Test 1: Queue depth
@@ -133,31 +132,24 @@ async def test_script_queued(
         # Test 5: No params
         if no_params_end.search(line):
             test_results["no_params"]["executions"] += 1
-            if (
-                test_results["no_params"]["executions"] == 3
-                and not test5_complete.done()
-            ):
-                test5_complete.set_result(True)
-            if (
-                test_results["no_params"]["executions"] == 6
-                and not test5_again_complete.done()
-            ):
-                test5_again_complete.set_result(True)
+            executions = test_results["no_params"]["executions"]
+            for count, future in ((3, test5_complete), (6, test5_again_complete)):
+                if executions == count and not future.done():
+                    future.set_result(True)
 
         # Boot script (queued from on_boot before setup)
         if match := boot_end.search(line):
-            item = int(match.group(1))
-            if item not in test_results["boot"]["ended"]:
-                test_results["boot"]["ended"].append(item)
+            test_results["boot"]["ended"].append(int(match.group(1)))
             if len(test_results["boot"]["ended"]) == 2 and not boot_complete.done():
                 boot_complete.set_result(True)
 
         # Test 6: Re-execute after stop
-        if match := after_stop_end.search(line):
-            item = int(match.group(1))
-            test_results["after_stop"]["ended"].append(item)
-            if item == 9 and not test6_complete.done():
-                test6_complete.set_result(True)
+        if (
+            (match := after_stop_end.search(line))
+            and int(match.group(1)) == 9
+            and not test6_complete.done()
+        ):
+            test6_complete.set_result(True)
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -251,11 +243,8 @@ async def test_script_queued(
         )
 
         # Test 6: a stopped script (queue cleared, loop disabled) must run
-        # again on the next execute
+        # again on the next execute; the future resolves only on "END 9"
         test_service = next((s for s in services if s.name == "test_after_stop"), None)
         assert test_service is not None, "test_after_stop service not found"
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test6_complete, timeout=2.0)
-        assert 9 in test_results["after_stop"]["ended"], (
-            f"Test 6: Expected item 9 to run after stop, got {test_results['after_stop']['ended']}"
-        )

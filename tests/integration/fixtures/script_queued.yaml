@@ -1,10 +1,9 @@
 esphome:
   name: test-script-queued
   on_boot:
-    # Default priority (600.0) runs before QueueingScript::setup()
-    # This tests that executing and queueing before setup() survives the
-    # idle-loop disabling in setup() (the loop must stay enabled so the
-    # queued instance still gets dequeued)
+    # Default priority (600.0) runs before the script component is set up
+    # This tests that an instance queued during boot still gets dequeued
+    # once the main loop starts (the idle-loop disabling must not eat it)
     then:
       - logger.log: "=== BOOT: Executing queued script twice ==="
       - script.execute:
@@ -111,8 +110,8 @@ api:
         - script.execute: no_params_script
         - script.execute: no_params_script
 
-    # Test 6: Script still runs after its queue fully drained and after stop
-    # (the idle loop is disabled in both states and must re-enable on demand)
+    # Test 6: Re-execute after stop() cleared the queue
+    # (the idle loop must re-enable on demand)
     - action: test_after_stop
       then:
         - logger.log: "=== TEST 6: Re-execute after stop ==="
