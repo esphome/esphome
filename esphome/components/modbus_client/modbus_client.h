@@ -14,9 +14,6 @@ namespace esphome::modbus_client {
 /// device at play() time; the hub routes each reply by device pointer, so a changed address never
 /// mis-routes an earlier reply. (The address is not passed to the reply triggers - under overlapping
 /// sends it could misreport, and the handler can recompute the expression it configured.)
-/// Re-firing an action while its identical frame is still pending follows the hub's dedup rules: a
-/// duplicate read is absorbed into the pending transaction (one reply serves both), a duplicate write is
-/// dropped and resolves via on_not_sent.
 template<typename... Ts> class ClientActionBase : public Action<Ts...>, public modbus::ModbusClientDevice {
  public:
   TEMPLATABLE_VALUE(uint8_t, target_address)  // the modbus device address
