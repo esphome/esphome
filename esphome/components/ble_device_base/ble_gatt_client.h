@@ -62,12 +62,15 @@ struct GattService {
 /// Borrowed view of the backend-owned service table. Valid from a successful
 /// on_service_discovery_done() until release_services(). Characteristics and
 /// descriptors are reached through the per-service/per-characteristic index
-/// ranges, so only the service count is carried.
+/// ranges; the array totals let a consumer bounds-check those ranges instead
+/// of trusting the backend's discovery bookkeeping blindly.
 struct GattServiceTable {
   const GattService *services{nullptr};
   const GattCharacteristic *characteristics{nullptr};
   const GattDescriptor *descriptors{nullptr};
   uint16_t service_count{0};
+  uint16_t characteristic_count{0};
+  uint16_t descriptor_count{0};
 };
 
 /// Completion/event sink for a GATT connection. Implemented by the consumer
