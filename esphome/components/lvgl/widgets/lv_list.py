@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_BUTTON,
     CONF_ID,
     CONF_INDEX,
+    CONF_ON_BOOT,
     CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_TEXT,
@@ -22,15 +23,13 @@ from ..defines import (
     CONF_PAD_ROW,
     CONF_SCROLLBAR,
     CONF_WIDGETS,
-    DROP_SHADOW_STYLE_PROPS,
     LV_EVENT_TRIGGERS,
-    TRANSFORM_STYLE_PROPS,
+    SWIPE_TRIGGERS,
     TYPE_FLEX,
-    add_define,
     add_lv_use,
     literal,
 )
-from ..lv_validation import lv_image, lv_int, lv_text, padding
+from ..lv_validation import lv_int, lv_text, padding
 from ..lvcode import (
     UPDATE_EVENT,
     LocalVariable,
@@ -43,9 +42,9 @@ from ..lvcode import (
 )
 from ..schemas import (
     ALL_STYLES,
-    BASE_PROPS,
     WIDGET_TYPES,
     any_widget_schema,
+    apply_style_driven_defines,
     container_schema_value,
     remap_property,
 )
@@ -60,7 +59,7 @@ from . import (
     set_obj_properties,
 )
 from .buttonmatrix import CONF_BUTTONMATRIX
-from .img import CONF_IMAGE
+from .canvas import CONF_CANVAS
 from .label import CONF_LABEL
 from .meter import CONF_METER
 from .tabview import CONF_TABVIEW
@@ -90,6 +89,38 @@ def _get_list_triggers(list_id) -> ListTriggers:
     """
     triggers_by_list = CORE.data.setdefault(DOMAIN, {})
     return triggers_by_list.setdefault(list_id, ListTriggers())
+
+
+def _get_pending_list_triggers(list_id) -> ListTriggers:
+    """
+    Same shape as _get_list_triggers(), but holding raw on_add/on_remove automation
+    configs, not yet built - see ListType.to_code()/finish_list_triggers() below for why
+    building them has to be deferred.
+    """
+    pending_by_list = CORE.data.setdefault(DOMAIN + "_pending", {})
+    return pending_by_list.setdefault(list_id, ListTriggers())
+
+
+async def finish_list_triggers() -> None:
+    """
+    Builds every list's on_add/on_remove automations, stashed by ListType.to_code()
+    instead of being built there directly. Must run after set_widgets_completed(True) -
+    called from lvgl's own to_code, the same way generate_triggers() is, and for the same
+    reason: an lvgl action inside one of these automations awaits wait_for_widgets(),
+    which only resolves once every widget - including the list itself - has finished
+    being created. Building them during that same widget-creation walk (as ListType.to_code
+    used to do directly) means that await could never resolve, deadlocking codegen.
+    """
+    for list_id, pending in CORE.data.get(DOMAIN + "_pending", {}).items():
+        triggers = _get_list_triggers(list_id)
+        for conf in pending.on_add:
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
+            triggers.on_add.append(trigger)
+        for conf in pending.on_remove:
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
+            triggers.on_remove.append(trigger)
 
 
 def _fire_index_triggers(triggers: list, index) -> None:
@@ -165,15 +196,13 @@ class ListType(WidgetType):
         on_remove = config.get(CONF_ON_REMOVE, ())
         if not on_add and not on_remove:
             return
-        triggers = _get_list_triggers(w.config[CONF_ID])
-        for conf in on_add:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
-            triggers.on_add.append(trigger)
-        for conf in on_remove:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
-            triggers.on_remove.append(trigger)
+        # Only stashed here, not built: this runs during the widget-creation walk, and
+        # building an automation containing an lvgl action would deadlock (see
+        # finish_list_triggers()'s docstring). finish_list_triggers() does the actual
+        # cg.new_Pvariable()/build_automation() work once that walk has finished.
+        pending = _get_pending_list_triggers(w.config[CONF_ID])
+        pending.on_add.extend(on_add)
+        pending.on_remove.extend(on_remove)
 
 
 list_spec = ListType()
@@ -214,25 +243,35 @@ _DYNAMIC_WIDGET_UNSUPPORTED = (
     CONF_TABVIEW,
     CONF_TILEVIEW,
     CONF_METER,
+    CONF_CANVAS,
 )
 
 
 def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
+    # Every type here reaches for cg.Pvariable()/cg.new_Pvariable() or Widget.create()
+    # somewhere in its own to_code/on_create - fine for a widget built once at boot, but
+    # not for one lvgl.list.add rebuilds on every call. The next widget type added to the
+    # codebase should be checked against this rule too.
+    #
     # buttonmatrix/tabview/tileview register their own child widgets (matrix buttons,
-    # tabs, tiles) into the global widget map from inside their to_code - safe for a
-    # widget built once at boot, but lvgl.list.add re-enters this on every call, so
-    # those children would keep piling into that map and generate_triggers() (the
-    # only place that would wire their own on_click etc.) has already run by boot,
+    # tabs, tiles) into the global widget map - lvgl.list.add re-enters this on every
+    # call, so those children would keep piling into that map, and generate_triggers()
+    # (the only place that would wire their own on_click etc.) has already run by boot,
     # long before any runtime call - their triggers would silently never fire.
     # (tileview's children live under `tiles:`, not `widgets:`, so the recursion
     # below wouldn't otherwise reach them at all.)
     #
-    # meter is excluded for a different reason: its scale/indicator objects are
-    # built with cg.Pvariable() (a bare global `T *id;` plus an assignment where
-    # the code is currently being emitted), which is only safe at the top level of
-    # a boot-time to_code. Called from here, that assignment ends up emitted
-    # *outside* the very lambda that declares the local meter object it refers to
-    # (lvgl.list.add's do_add closure runs inside one), which doesn't compile.
+    # meter/canvas are excluded for a related but distinct reason: they declare a
+    # Pvariable (meter's scale/indicator objects; canvas's draw buffer) with
+    # cg.Pvariable()/cg.new_Pvariable(), which emits its assignment wherever code is
+    # currently being generated - fine at the top level of a boot-time to_code, but
+    # lvgl.list.add's do_add runs inside a lambda. For meter, that assignment ends up
+    # emitted *outside* the very lambda that declares the local object it refers to,
+    # which doesn't compile. For canvas, it compiles - CONF_DRAW_BUF_ID is a single
+    # Pvariable declared once per config site, not per call - but every call then
+    # overwrites that one global lv_draw_buf_t's pointer with a freshly
+    # lv_malloc_core()'d buffer: an unbounded leak of the previous buffer, and every
+    # canvas row sharing whatever the most recent buffer happens to be.
     if w_type_name in _DYNAMIC_WIDGET_UNSUPPORTED:
         raise cv.Invalid(
             f"'{w_type_name}' cannot be used with lvgl.list.add - it manages its own "
@@ -241,6 +280,31 @@ def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
     for child in w_conf.get(CONF_WIDGETS, ()):
         [(child_type, child_conf)] = child.items()
         _check_dynamic_widget_supported(child_type, child_conf)
+
+
+_UNSUPPORTED_DYNAMIC_TRIGGERS = SWIPE_TRIGGERS + (CONF_ON_BOOT,)
+
+
+def _check_no_unsupported_triggers(w_type_name: str, w_conf: dict) -> None:
+    # automation_schema() puts on_swipe_*/on_boot on every widget's schema, but
+    # _wire_dynamic_triggers only wires LV_EVENT_TRIGGERS/on_value/on_update - so these
+    # validate fine and then silently generate nothing at all for a widget added via
+    # lvgl.list.add: no LV_EVENT_GESTURE callback, no StartupTrigger, no automation
+    # body. Reject them instead, the same as _check_no_explicit_widget_id does for an
+    # explicit id: - swipe could in principle be wired the same way generate_triggers()
+    # does for static widgets, but on_boot has no coherent meaning for a widget that by
+    # definition doesn't exist yet at boot.
+    for key in _UNSUPPORTED_DYNAMIC_TRIGGERS:
+        if key in w_conf:
+            raise cv.Invalid(
+                f"'{key}' is not supported on a widget added via lvgl.list.add - it "
+                "would validate but generate nothing, since it's only wired for "
+                "widgets that exist at boot",
+                path=[w_type_name, key],
+            )
+    for child in w_conf.get(CONF_WIDGETS, ()):
+        [(child_type, child_conf)] = child.items()
+        _check_no_unsupported_triggers(child_type, child_conf)
 
 
 def _check_no_explicit_widget_id(raw_value: dict) -> None:
@@ -304,6 +368,7 @@ def list_add_schema(value):
     result[CONF_WIDGET] = any_widget_schema()(value)
     [(w_type_name, w_conf)] = result[CONF_WIDGET][0].items()
     _check_dynamic_widget_supported(w_type_name, w_conf)
+    _check_no_unsupported_triggers(w_type_name, w_conf)
     return result
 
 
@@ -326,10 +391,10 @@ def _register_dynamic_widget_style_uses(w_conf: dict) -> None:
     # Same hazard _register_lv_uses fixes above, for a different registry: lvgl's own
     # to_code reads df.get_styles_used() (populated by w.set_style(), deep inside
     # set_obj_properties() - long after this coroutine's first await, for an action
-    # outside the lvgl: block) exactly once, to decide whether to add_lv_use(image),
-    # or add_define() screen transparency / A8 draw support. A property that would only
-    # be added to that set by a runtime-built row is invisible to that one-time read, so
-    # it must be pre-registered here from the config alone, before that read can happen.
+    # outside the lvgl: block) exactly once, to decide what apply_style_driven_defines()
+    # drives off it. A property that would only be added to that set by a runtime-built
+    # row is invisible to that one-time read, so it must be pre-registered here from the
+    # config alone, before that read can happen.
     props = {
         remap_property(prop)
         for part_states in collect_parts(w_conf).values()
@@ -337,12 +402,7 @@ def _register_dynamic_widget_style_uses(w_conf: dict) -> None:
         for prop in state_props
         if prop in ALL_STYLES
     }
-    if any(BASE_PROPS.get(prop) is lv_image for prop in props):
-        add_lv_use(CONF_IMAGE)
-    if TRANSFORM_STYLE_PROPS & props:
-        add_define("LV_COLOR_SCREEN_TRANSP", "1")
-    if DROP_SHADOW_STYLE_PROPS & props:
-        add_define("LV_DRAW_SW_SUPPORT_A8", "1")
+    apply_style_driven_defines(props)
     for child in w_conf.get(CONF_WIDGETS, ()):
         [(_, child_conf)] = child.items()
         _register_dynamic_widget_style_uses(child_conf)
@@ -405,6 +465,17 @@ async def _build_dynamic_widget(
     var_name = f"dyn_{w_type_name}" if depth == 0 else f"dyn_{w_type_name}_{depth}"
     add_lv_use(w_type_name)
     add_lv_use(*widget_type.get_uses())
+
+    async def finish_and_fire(w: Widget) -> None:
+        # Shared tail for both branches below - must run while var's LocalVariable
+        # block (opened by whichever branch calls this) is still open, since it's
+        # referenced through w.obj/w.var.
+        await _finish_dynamic_widget(w, w_conf, list_id, list_obj, depth)
+        if top_level:
+            if index is not None:
+                lv.obj_move_to_index(w.obj, index)
+            _fire_on_add(list_id, list_obj, w.obj)
+
     if widget_type.is_compound():
         with LocalVariable(
             var_name, widget_type.w_type, widget_type.w_type.new()
@@ -418,20 +489,12 @@ async def _build_dynamic_widget(
                 literal("LV_EVENT_DELETE"),
                 var,
             )
-            await _finish_dynamic_widget(w, w_conf, list_id, list_obj, depth)
-            if top_level:
-                if index is not None:
-                    lv.obj_move_to_index(w.obj, index)
-                _fire_on_add(list_id, list_obj, w.obj)
+            await finish_and_fire(w)
     else:
         creator = await widget_type.obj_creator(parent, w_conf)
         with LocalVariable(var_name, lv_obj_t, creator) as var:
             w = Widget(var, widget_type, w_conf)
-            await _finish_dynamic_widget(w, w_conf, list_id, list_obj, depth)
-            if top_level:
-                if index is not None:
-                    lv.obj_move_to_index(w.obj, index)
-                _fire_on_add(list_id, list_obj, w.obj)
+            await finish_and_fire(w)
 
 
 async def _finish_dynamic_widget(
@@ -499,10 +562,23 @@ async def _wire_dynamic_triggers(w: Widget, config: dict) -> None:
         )
 
 
+LIST_REMOVE_SCHEMA = LIST_ID_SCHEMA.extend(
+    {
+        # positive_int, not int_: LVGL's lv_obj_get_child() treats a negative index as
+        # counting back from the end, so a negative index here would silently delete
+        # the *last* row while reporting that same negative value to on_remove as
+        # list_index - a value that matches no real row and can't be compared with
+        # on_add's, which is always a genuine 0-based position from
+        # lv_list_get_row_index().
+        cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
+    }
+)
+
+
 @automation.register_action(
     "lvgl.list.remove",
     ObjUpdateAction,
-    LIST_ID_SCHEMA.extend({cv.Required(CONF_INDEX): cv.templatable(cv.int_)}),
+    LIST_REMOVE_SCHEMA,
     synchronous=True,
 )
 async def list_remove_to_code(config, action_id, template_arg, args):

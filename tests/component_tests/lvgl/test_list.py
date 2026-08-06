@@ -11,6 +11,7 @@ import pytest
 from esphome.__main__ import generate_cpp_contents
 from esphome.components.lvgl.widgets.lv_list import (
     LIST_CREATE_SCHEMA,
+    LIST_REMOVE_SCHEMA,
     LIST_SCHEMA,
     list_add_schema,
 )
@@ -77,6 +78,7 @@ class TestListAddSchema:
             ("tabview", {"tabs": [{"name": "Tab1"}]}),
             ("tileview", {"tiles": [{"row": 0, "column": 0}]}),
             ("meter", {"scales": [{"range_from": 0, "range_to": 100}]}),
+            ("canvas", {"width": 20, "height": 20}),
         ],
     )
     def test_dynamic_widget_unsupported_rejected(
@@ -85,12 +87,15 @@ class TestListAddSchema:
         """buttonmatrix/tabview/tileview all register their own child widgets into
         the global widget map from inside their to_code - fine for a widget built
         once at boot, but broken if lvgl.list.add re-enters that on every call.
-        meter is rejected for a related but distinct reason: its scale/indicator
-        objects are declared with cg.Pvariable(), which emits its assignment
-        wherever code is currently being generated -- fine at the top level of a
-        boot-time to_code, but lvgl.list.add's do_add runs inside a lambda, so that
-        assignment would end up outside the very lambda that declares the local
-        meter object it refers to, which doesn't compile.
+        meter/canvas are rejected for a related but distinct reason: they declare a
+        Pvariable (meter's scale/indicator objects; canvas's draw buffer) with
+        cg.Pvariable()/cg.new_Pvariable(), which emits its assignment wherever code
+        is currently being generated -- fine at the top level of a boot-time
+        to_code, but lvgl.list.add's do_add runs inside a lambda. meter's assignment
+        would then end up outside the very lambda that declares the local object it
+        refers to (doesn't compile); canvas's Pvariable is declared once per config
+        site rather than per call, so every call overwrites its one draw buffer
+        (compiles, but leaks the old buffer and shares one buffer across every row).
         """
         with pytest.raises(cv.Invalid, match="cannot be used with lvgl.list.add"):
             list_add_schema({"id": "my_list", widget_key: widget_conf})
@@ -133,6 +138,59 @@ class TestListAddSchema:
         only an explicit one is rejected."""
         result = list_add_schema({"id": "my_list", "label": {"text": "hi"}})
         assert "id" in result["widget"][0]["label"]
+
+    @pytest.mark.parametrize(
+        ("key", "conf"),
+        [
+            ("on_swipe_left", [{"logger.log": "swiped"}]),
+            ("on_swipe_right", [{"logger.log": "swiped"}]),
+            ("on_swipe_up", [{"logger.log": "swiped"}]),
+            ("on_swipe_down", [{"logger.log": "swiped"}]),
+            ("on_boot", [{"logger.log": "booted"}]),
+        ],
+    )
+    def test_unsupported_trigger_rejected(self, key: str, conf: list) -> None:
+        """_wire_dynamic_triggers only wires LV_EVENT_TRIGGERS/on_value/on_update --
+        on_swipe_*/on_boot would otherwise validate fine and then silently generate
+        nothing at all for a widget added via lvgl.list.add.
+        """
+        with pytest.raises(cv.Invalid, match="is not supported"):
+            list_add_schema({"id": "my_list", "obj": {key: conf}})
+
+    def test_unsupported_trigger_rejected_when_nested(self) -> None:
+        with pytest.raises(cv.Invalid, match="is not supported"):
+            list_add_schema(
+                {
+                    "id": "my_list",
+                    "obj": {
+                        "widgets": [
+                            {
+                                "label": {
+                                    "text": "hi",
+                                    "on_swipe_left": [{"logger.log": "swiped"}],
+                                }
+                            }
+                        ]
+                    },
+                }
+            )
+
+
+# ---------------------------------------------------------------------------
+# lvgl.list.remove: index must be non-negative -- LVGL treats a negative index as
+# counting back from the end, which would silently delete the wrong row while
+# reporting a list_index that matches nothing real to on_remove.
+# ---------------------------------------------------------------------------
+
+
+class TestListRemoveSchema:
+    def test_negative_index_rejected(self) -> None:
+        with pytest.raises(cv.Invalid, match="at least 0"):
+            LIST_REMOVE_SCHEMA({"id": "my_list", "index": -1})
+
+    def test_zero_index_accepted(self) -> None:
+        result = LIST_REMOVE_SCHEMA({"id": "my_list", "index": 0})
+        assert result["index"] == 0
 
 
 # ---------------------------------------------------------------------------
