@@ -18,6 +18,11 @@
 
 namespace esphome::midea {
 
+#ifdef USE_ESP_IDF
+using dudanov::Stream;
+using dudanov::String;
+#endif
+
 /* Stream from UART component */
 class UARTStream : public Stream {
  public:
