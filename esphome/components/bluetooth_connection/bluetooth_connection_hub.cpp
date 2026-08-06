@@ -34,16 +34,25 @@ void BluetoothConnection::start_connect() {
 }
 
 void BluetoothConnection::disconnect() {
+  // Idempotent like the esp32 class: the proxy's teardown loop calls this
+  // every 100 ms while the API subscriber is gone, and a repeat call must not
+  // reach the backend (whose busy error would free the slot mid-teardown).
+  if (this->state_ == ClientState::IDLE || this->state_ == ClientState::DISCONNECTING) {
+    return;
+  }
   int err = this->backend_->disconnect();
   if (err != 0) {
     ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
     // Backend refused (already idle): free the slot so the client is not stuck.
     this->reset_connection_(err);
+    return;
   }
+  this->state_ = ClientState::DISCONNECTING;
 }
 
 void BluetoothConnection::reset_connection_(proxy_err_t reason) {
   this->state_ = ClientState::IDLE;
+  this->services_discovered_ = false;
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -54,8 +63,13 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected) {
     this->mtu_ = mtu;
     if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
-      // The API client has the services cached; never discover them.
+      // The API client has the services cached; never discover them. No
+      // discovery phase needs the fast interval, so settle straight into the
+      // shared steady-state parameters (same lifecycle place as esp32).
       this->state_ = ClientState::ESTABLISHED;
+      this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
+                                               ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
+                                               ble_device_base::MEDIUM_CONN_TIMEOUT);
       this->proxy_->send_device_connection(this->address_, true, mtu);
       this->proxy_->send_connections_free();
       return;
@@ -81,12 +95,15 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
 }
 
 void BluetoothConnection::on_service_discovery_done(int error) {
+  ESP_LOGD(TAG, "[%d] [%s] Discovery finished (err=%d), sending connected (mtu=%u)", this->connection_index_,
+           this->address_str_, error, this->mtu_);
   if (error != 0) {
     ESP_LOGW(TAG, "[%d] [%s] Service discovery failed, err=%d", this->connection_index_, this->address_str_, error);
     this->disconnect();
     return;
   }
   this->state_ = ClientState::ESTABLISHED;
+  this->services_discovered_ = true;
   this->proxy_->send_device_connection(this->address_, true, this->mtu_);
   this->proxy_->send_connections_free();
 }

@@ -52,8 +52,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        # Hub platforms with a GATT client backend
-        "bluetooth_connection_hub.cpp": {PlatformFramework.RP2_ARDUINO},
+        # Every hub platform the proxy admits (the file compiles empty where
+        # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
+        # cannot hit a missing-symbol trap here.
+        "bluetooth_connection_hub.cpp": {
+            PlatformFramework.RP2_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
         "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
     }
 )
