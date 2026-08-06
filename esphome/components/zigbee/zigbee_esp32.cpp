@@ -122,12 +122,13 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined_ = false;
-      global_zigbee->enable_loop_soon_any_context();
     } break;
     case EZB_NWK_SIGNAL_NETWORK_STATUS: {
       const ezb_nwk_signal_network_status_params_t *network_status_params =
-          (ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
+          (const ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
       if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
+        global_zigbee->joined_ = false;
+        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
         ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
             .dst_nwk_addr = ezb_nwk_get_short_address(),
             .field =
@@ -139,7 +140,6 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         // Send leave request to the network to rejoin
         // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
         ezb_zdo_nwk_mgmt_leave_req(&leave_req);
-        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
       } else {
         ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
