@@ -54,11 +54,7 @@ class ZigbeeComponent final : public Component {
   static bool app_signal_handler(const ezb_app_signal_t *app_signal);
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
 
-  void factory_reset() {
-    esp_zigbee_lock_acquire(portMAX_DELAY);
-    esp_zigbee_factory_reset();  // triggers a reboot
-    esp_zigbee_lock_release();
-  }
+  void factory_reset();
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
@@ -66,13 +62,10 @@ class ZigbeeComponent final : public Component {
 
   // True after the Zigbee stack has been initialized and the device has started up. Is set before the stack started
   // network commissioning or has joined a network and won't be reset until the device is rebooted.
-  bool is_started() { return this->started; }
+  bool is_started() { return this->started_; }
 
   // True if the device has joined a network and is ready to send and receive messages.
-  bool is_joined() { return this->joined; }
-  std::atomic<bool> started = false;
-  std::atomic<bool> joined = false;
-  std::atomic<bool> factory_new = false;
+  bool is_joined() { return this->joined_; }
 
  protected:
   struct {
@@ -95,8 +88,11 @@ class ZigbeeComponent final : public Component {
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
-  bool join_reported_{false};
   CallbackManager<void(bool)> join_cb_{};
+  std::atomic<bool> started_ = false;
+  std::atomic<bool> joined_ = false;
+  std::atomic<bool> join_pending_ = false;
+  std::atomic<bool> factory_new_ = false;
 };
 
 template<typename T>
