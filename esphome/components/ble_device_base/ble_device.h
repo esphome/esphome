@@ -166,6 +166,13 @@ inline uint64_t mac_lsb_first_to_uint64(const uint8_t *mac) {
   return addr;
 }
 
+/// Unpack a uint64 BLE address into printable (MSB-first) byte order —
+/// the order bd_addr_t / esp_bd_addr_t style APIs expect.
+inline void uint64_to_mac_msb_first(uint64_t address, uint8_t out[6]) {
+  for (int i = 0; i < 6; i++)
+    out[i] = (address >> ((5 - i) * 8)) & 0xFF;
+}
+
 // ---------------------------------------------------------------------------
 // ESPBTDevice — parsed BLE advertisement
 // ---------------------------------------------------------------------------
