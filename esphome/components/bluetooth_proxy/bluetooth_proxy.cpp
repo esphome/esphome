@@ -239,6 +239,8 @@ esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_par
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
+void BluetoothProxy::log_slot_accounting_mismatch_() { ESP_LOGW(TAG, "Connection slot free-count mismatch, clamped"); }
+
 void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_value) {
   for (auto &slot : this->connections_free_response_.allocated) {
     if (slot == find_value) {

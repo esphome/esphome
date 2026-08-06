@@ -53,6 +53,7 @@ using ClientState = ble_device_base::ClientState;
 // Version 4: Pairing support
 // Version 5: Cache clear support
 static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_ACTIVE_NO_CACHE_CLEAR_VERSION = 4;
 static constexpr uint32_t LEGACY_ACTIVE_NO_PAIRING_VERSION = 3;
 static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
@@ -161,9 +162,13 @@ class BluetoothProxy final : public Component {
     if (!this->active_) {
       return LEGACY_PASSIVE_ONLY_VERSION;
     }
-    // Without pairing support, legacy clients (which predate the feature
-    // flags) must see version 3 — active connections, no pairing/cache-clear.
-    return bluetooth_connection::SUPPORTS_PAIRING ? LEGACY_ACTIVE_CONNECTIONS_VERSION
+    // Legacy clients (which predate the feature flags) map versions to
+    // capability sets: 5 adds cache clearing, 4 adds pairing, 3 is active
+    // connections only.
+    if (bluetooth_connection::SUPPORTS_CACHE_CLEARING) {
+      return LEGACY_ACTIVE_CONNECTIONS_VERSION;
+    }
+    return bluetooth_connection::SUPPORTS_PAIRING ? LEGACY_ACTIVE_NO_CACHE_CLEAR_VERSION
                                                   : LEGACY_ACTIVE_NO_PAIRING_VERSION;
   }
 
@@ -262,16 +267,21 @@ class BluetoothProxy final : public Component {
     if (new_address == 0 && old_address != 0) {
       if (resp.free < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
         resp.free++;
+      } else {
+        this->log_slot_accounting_mismatch_();
       }
       this->replace_allocated_slot_(old_address, 0);
     } else if (new_address != 0 && old_address == 0) {
       if (resp.free > 0) {
         resp.free--;
+      } else {
+        this->log_slot_accounting_mismatch_();
       }
       this->replace_allocated_slot_(0, new_address);
     }
   }
   void replace_allocated_slot_(uint64_t find_value, uint64_t set_value);
+  void log_slot_accounting_mismatch_();
   /// Free a connection slot after teardown: notify the API client and reset
   /// the streaming cursor. Important: does NOT send send_gatt_services_done()
   /// when service streaming was interrupted -- the client (aioesphomeapi) has
