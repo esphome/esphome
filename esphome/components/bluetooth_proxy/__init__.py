@@ -65,9 +65,11 @@ bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
 
 BluetoothProxy = bluetooth_proxy_ns.class_("BluetoothProxy", cg.Component)
 
-# Mirrors esp32_ble.IDF_MAX_CONNECTIONS as a literal so the statically walkable
-# CONFIG_SCHEMA below can state the connection_slots range without importing the
-# esp32 BLE stack. tests/component_tests/bluetooth_proxy/ pins the two together.
+# Mirrors esp32_ble.IDF_MAX_CONNECTIONS as a drift guard only: the esp32
+# schema builder asserts the two agree at import, and
+# tests/component_tests/bluetooth_proxy/ pins them together. The outer
+# walkable schema deliberately carries no upper bound (per-platform schemas
+# enforce their own caps).
 _IDF_MAX_CONNECTIONS = 9
 
 

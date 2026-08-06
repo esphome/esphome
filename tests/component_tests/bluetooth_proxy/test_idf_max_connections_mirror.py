@@ -1,6 +1,6 @@
 """bluetooth_proxy mirrors esp32_ble.IDF_MAX_CONNECTIONS; pin them together.
 
-The mirror exists so the statically walkable CONFIG_SCHEMA can express the
+The mirror exists so the esp32 schema (as a drift guard) can express the
 connection_slots range without importing the esp32 BLE stack (that import
 registers esp32-only automations on every platform). The runtime check in
 _esp32_config_schema() only fires while validating an esp32 config, so this

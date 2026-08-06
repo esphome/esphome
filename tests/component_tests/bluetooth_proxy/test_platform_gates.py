@@ -70,6 +70,10 @@ def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
     _set_platform("rp2")
     with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
         bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
+    # Values past the esp32 bound must also report the rp2 limit, not the
+    # outer schema's former max of 9.
+    with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 12})
 
 
 def test_rp2_rejects_esp32_only_keys_by_name() -> None:
