@@ -332,6 +332,9 @@ enum class StreamState : uint8_t {
   CLOSING,
   CANCELLED,
   DONE,
+  // Cursor control between chunks -- IDLE-only single steps, like READING.
+  SEEKING,
+  TELLING,
 };
 
 // Opaque handle returned to the caller -- valid for the stream's lifetime (begin_* through
@@ -373,6 +376,11 @@ struct StreamRequest {
   size_t pending_len{0};
   uint8_t *pending_read_buf{nullptr};
   size_t *bytes_transferred_out{nullptr};  // read_chunk() writes the actual count here
+
+  // seek()/tell(): target + mode for a SEEKING step; tell() writes the position here.
+  int64_t seek_target{0};
+  storage::SeekMode seek_mode{storage::SeekMode::SET};
+  uint64_t *tell_out{nullptr};
 
   // Bumped on every slot claim so a StreamHandle from a finished stream stops matching once
   // the slot is reused (never 0 -- that is the unclaimed value). Main-loop-only.
@@ -546,6 +554,17 @@ class StorageWorker : public PollingComponent {
   storage::StorageError read_chunk(const StreamHandle &handle, uint8_t *buf, size_t len, size_t *bytes_read,
                                    CompletionCallback &&on_read);
   storage::StorageError end_read(const StreamHandle &handle, CompletionCallback &&on_closed);
+
+  // Repositions the stream's cursor (SeekMode as in storage.h: SET/CUR/END). For a filesystem
+  // stream this seeks the open handle; for a network stream it is arithmetic on the read/write
+  // offset (END consults file_size()). on_seeked fires once, later, on the main loop; the stream
+  // must be IDLE (between chunks). NOT_READY if a step is in flight, INVALID_ARGS on an unknown
+  // handle or a resulting negative position.
+  storage::StorageError seek(const StreamHandle &handle, int64_t offset, storage::SeekMode mode,
+                             CompletionCallback &&on_seeked);
+  // Reports the current cursor position into *position before on_told fires. Same IDLE-only,
+  // main-loop-callback contract as the rest of the stream API.
+  storage::StorageError tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told);
 
  protected:
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,

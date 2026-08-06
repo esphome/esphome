@@ -175,7 +175,8 @@ bool StorageWorker::wait_for_network_ready_(TransferRequest &req, StorageError e
 // contend, or an upload sitting between chunks would block every transfer on that storage.
 static bool stream_step_active(StreamState state) {
   return state == StreamState::OPENING || state == StreamState::WRITING || state == StreamState::READING ||
-         state == StreamState::CLOSING || state == StreamState::CANCELLED;
+         state == StreamState::SEEKING || state == StreamState::TELLING || state == StreamState::CLOSING ||
+         state == StreamState::CANCELLED;
 }
 
 bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
@@ -2024,6 +2025,57 @@ static void run_stream_step(StreamRequest &req) {
       break;
     }
 
+    case StreamState::SEEKING: {
+      if (req.is_fs) {
+        // The driver's seek() handles SET/CUR/END natively; sync req.offset from it afterwards so
+        // tell() and any later network-style bookkeeping agree.
+        err = static_cast<FilesystemStorage *>(req.storage)->seek(req.handle, req.seek_target, req.seek_mode);
+        if (err == StorageError::OK)
+          err = static_cast<FilesystemStorage *>(req.storage)->tell(req.handle, &req.offset);
+      } else {
+        // NetworkStorage has no handle -- read_chunk()/write_chunk() address by req.offset, so a
+        // seek is arithmetic on it. END needs the file size.
+        int64_t base = 0;
+        switch (req.seek_mode) {
+          case storage::SeekMode::SET:
+            base = 0;
+            break;
+          case storage::SeekMode::CUR:
+            base = static_cast<int64_t>(req.offset);
+            break;
+          case storage::SeekMode::END: {
+            uint64_t sz = 0;
+            err = storage::file_size(req.storage, req.path, &sz);
+            base = static_cast<int64_t>(sz);
+            break;
+          }
+        }
+        if (err == StorageError::OK) {
+          const int64_t target = base + req.seek_target;
+          if (target < 0)
+            err = StorageError::INVALID_ARGS;
+          else
+            req.offset = static_cast<uint64_t>(target);
+        }
+      }
+      req.result = err;
+      req.state = StreamState::IDLE;
+      break;
+    }
+
+    case StreamState::TELLING: {
+      if (req.is_fs) {
+        err = static_cast<FilesystemStorage *>(req.storage)->tell(req.handle, &req.offset);
+      }
+      // NetworkStorage: the tracked offset already IS the position.
+      if (err == StorageError::OK && req.tell_out != nullptr)
+        *req.tell_out = req.offset;
+      req.tell_out = nullptr;
+      req.result = err;
+      req.state = StreamState::IDLE;
+      break;
+    }
+
     case StreamState::CLOSING: {
       if (req.is_fs && req.handle != nullptr)
         err = static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
@@ -2195,6 +2247,40 @@ StorageError StorageWorker::end_write(const StreamHandle &handle, CompletionCall
 
 StorageError StorageWorker::end_read(const StreamHandle &handle, CompletionCallback &&on_closed) {
   return this->end_write(handle, std::move(on_closed));  // identical close path
+}
+
+StorageError StorageWorker::seek(const StreamHandle &handle, int64_t offset, storage::SeekMode mode,
+                                 CompletionCallback &&on_seeked) {
+  StreamRequest *slot = this->stream_for_handle_(handle);
+  if (slot == nullptr)
+    return StorageError::INVALID_ARGS;
+  StreamRequest &req = *slot;
+  StreamState expected = StreamState::IDLE;
+  if (!req.state.compare_exchange_strong(expected, StreamState::SEEKING))
+    return StorageError::NOT_READY;
+
+  req.seek_target = offset;
+  req.seek_mode = mode;
+  req.callback = std::move(on_seeked);
+
+  this->dispatch_stream_step_(req, handle.index);
+  return StorageError::OK;
+}
+
+StorageError StorageWorker::tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told) {
+  StreamRequest *slot = this->stream_for_handle_(handle);
+  if (slot == nullptr)
+    return StorageError::INVALID_ARGS;
+  StreamRequest &req = *slot;
+  StreamState expected = StreamState::IDLE;
+  if (!req.state.compare_exchange_strong(expected, StreamState::TELLING))
+    return StorageError::NOT_READY;
+
+  req.tell_out = position;
+  req.callback = std::move(on_told);
+
+  this->dispatch_stream_step_(req, handle.index);
+  return StorageError::OK;
 }
 
 }  // namespace esphome::storage
