@@ -34,13 +34,12 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   }
 
   // ---- proxy dispatch surface (mirrors the esp32 class) ----
-  proxy_err_t read_characteristic(uint16_t handle);
-  proxy_err_t write_characteristic(uint16_t handle, const uint8_t *data, size_t length, bool response);
-  proxy_err_t read_descriptor(uint16_t handle);
-  proxy_err_t write_descriptor(uint16_t handle, const uint8_t *data, size_t length, bool response);
-  proxy_err_t notify_characteristic(uint16_t handle, bool enable);
-  proxy_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                                       uint16_t timeout);
+  conn_err_t read_characteristic(uint16_t handle);
+  conn_err_t write_characteristic(uint16_t handle, const uint8_t *data, size_t length, bool response);
+  conn_err_t read_descriptor(uint16_t handle);
+  conn_err_t write_descriptor(uint16_t handle, const uint8_t *data, size_t length, bool response);
+  conn_err_t notify_characteristic(uint16_t handle, bool enable);
+  conn_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
 
   /// Start connecting: record the API address type (BLE_ADDR_TYPE_* code
   /// space) and open the connection through the backend. Failures report
@@ -92,8 +91,8 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
 
   void start_connect();
   void send_service_for_discovery_();
-  void reset_connection_(proxy_err_t reason);
-  proxy_err_t check_connected_op_(const char *action, const char *type) const;
+  void reset_connection_(conn_err_t reason);
+  conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
 
   // Memory optimized layout for 32-bit systems (a vptr precedes: pointers and
