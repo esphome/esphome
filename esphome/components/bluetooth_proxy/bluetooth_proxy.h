@@ -16,7 +16,6 @@
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
 #ifdef USE_ESP32
-#include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
@@ -27,7 +26,16 @@
 #include <esp_bt_device.h>
 #else
 #include "esphome/components/ble_device_base/ble_hub.h"
+#ifdef USE_BLE_GATT_CLIENT
+#include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
+#endif
 #endif  // USE_ESP32
+
+// The GATT dispatch below compiles wherever a connection backend exists:
+// esp32 (Bluedroid) or a hub platform with the neutral GATT client.
+#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+#define BLUETOOTH_PROXY_HAS_GATT
+#endif
 
 namespace esphome::bluetooth_proxy {
 
@@ -38,9 +46,9 @@ using bluetooth_connection::INIT_SENDING_SERVICES;
 using bluetooth_connection::PROXY_OK;
 using bluetooth_connection::proxy_err_t;
 
-#ifdef USE_ESP32
+#ifdef BLUETOOTH_PROXY_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
-using namespace esp32_ble_client;
+using ClientState = ble_device_base::ClientState;
 #endif
 
 // Legacy versions:
@@ -50,6 +58,7 @@ using namespace esp32_ble_client;
 // Version 4: Pairing support
 // Version 5: Cache clear support
 static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_ACTIVE_NO_PAIRING_VERSION = 3;
 static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
@@ -71,10 +80,12 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
                              public esp32_ble_tracker::BLEScannerStateListener,
                              public Component {
-  // Allow the connection to update connections_free_response_
-  friend bluetooth_connection::BluetoothConnection;
 #else
 class BluetoothProxy final : public Component {
+#endif
+#ifdef BLUETOOTH_PROXY_HAS_GATT
+  // Allow the connection to update connections_free_response_
+  friend bluetooth_connection::BluetoothConnection;
 #endif
  public:
   BluetoothProxy();
@@ -89,25 +100,31 @@ class BluetoothProxy final : public Component {
   void setup() override;
   void loop() override;
 
-#ifdef USE_ESP32
+#ifdef BLUETOOTH_PROXY_HAS_GATT
   // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
   void register_connection([[maybe_unused]] BluetoothConnection *connection) {
     // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
 #if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
     if (this->connection_count_ < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
+#ifndef USE_ESP32
+      // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
+      // class has no Component lifecycle, so the index is assigned here.
+      connection->connection_index_ = this->connection_count_;
+#endif
       this->connections_[this->connection_count_++] = connection;
       connection->proxy_ = this;
     }
 #endif
   }
-#else
+#endif  // BLUETOOTH_PROXY_HAS_GATT
+#ifndef USE_ESP32
   void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
   // snapshots scan_active()/scan_running() and installs the raw callback, and
   // the BLEHub contract does not promise those are settled any earlier than
   // the hub's own setup().
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI - 1.0f; }
-#endif  // USE_ESP32
+#endif  // !USE_ESP32
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
@@ -121,6 +138,10 @@ class BluetoothProxy final : public Component {
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
+  /// Whether the subscribed API client understands 16/32-bit UUID fields.
+  bool client_supports_efficient_uuids() const {
+    return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
+  }
 
   void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, proxy_err_t error = PROXY_OK);
   void send_connections_free();
@@ -133,17 +154,6 @@ class BluetoothProxy final : public Component {
 
   void bluetooth_scanner_set_mode(bool active);
 
-#ifdef USE_ESP32
-  static void uint64_to_bd_addr(uint64_t address, esp_bd_addr_t bd_addr) {
-    bd_addr[0] = (address >> 40) & 0xff;
-    bd_addr[1] = (address >> 32) & 0xff;
-    bd_addr[2] = (address >> 24) & 0xff;
-    bd_addr[3] = (address >> 16) & 0xff;
-    bd_addr[4] = (address >> 8) & 0xff;
-    bd_addr[5] = (address >> 0) & 0xff;
-  }
-#endif
-
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
@@ -153,10 +163,13 @@ class BluetoothProxy final : public Component {
 #endif
 
   uint32_t get_legacy_version() const {
-    if (this->active_) {
-      return LEGACY_ACTIVE_CONNECTIONS_VERSION;
+    if (!this->active_) {
+      return LEGACY_PASSIVE_ONLY_VERSION;
     }
-    return LEGACY_PASSIVE_ONLY_VERSION;
+    // Without pairing support, legacy clients (which predate the feature
+    // flags) must see version 3 — active connections, no pairing/cache-clear.
+    return bluetooth_connection::SUPPORTS_PAIRING ? LEGACY_ACTIVE_CONNECTIONS_VERSION
+                                                  : LEGACY_ACTIVE_NO_PAIRING_VERSION;
   }
 
   uint32_t get_feature_flags() const {
@@ -175,11 +188,18 @@ class BluetoothProxy final : public Component {
     }
 #endif
     if (this->active_) {
+      // REMOTE_CACHING is mandatory for active connections: API clients
+      // refuse to connect without it (it selects which V3 connect request
+      // they send, not device-side caching).
       flags |= BluetoothProxyFeature::FEATURE_ACTIVE_CONNECTIONS;
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
-      flags |= BluetoothProxyFeature::FEATURE_PAIRING;
-      flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
       flags |= BluetoothProxyFeature::FEATURE_CONNECTION_PARAMS_SETTING;
+      if (bluetooth_connection::SUPPORTS_PAIRING) {
+        flags |= BluetoothProxyFeature::FEATURE_PAIRING;
+      }
+      if (bluetooth_connection::SUPPORTS_CACHE_CLEARING) {
+        flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
+      }
     }
 
     return flags;
@@ -230,22 +250,53 @@ class BluetoothProxy final : public Component {
   }
   void log_advertisement_flush_();
 
-#ifdef USE_ESP32
+#ifdef BLUETOOTH_PROXY_HAS_GATT
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
-  void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
+  void log_connection_request_ignored_(BluetoothConnection *connection, ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
 #endif
   void log_not_connected_gatt_(const char *action, const char *type);
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
 
+#ifdef BLUETOOTH_PROXY_HAS_GATT
+  /// Keep the pre-allocated connections-free message in step when a
+  /// connection slot changes address (0 = free). Called from the connection
+  /// classes' set_address().
+  void update_address_slot_(uint64_t old_address, uint64_t new_address) {
+    auto &resp = this->connections_free_response_;
+    if (new_address == 0 && old_address != 0) {
+      resp.free++;
+      this->replace_allocated_slot_(old_address, 0);
+    } else if (new_address != 0 && old_address == 0) {
+      resp.free--;
+      this->replace_allocated_slot_(0, new_address);
+    }
+  }
+  void replace_allocated_slot_(uint64_t find_value, uint64_t set_value) {
+    for (auto &slot : this->connections_free_response_.allocated) {
+      if (slot == find_value) {
+        slot = set_value;
+        return;
+      }
+    }
+  }
+  /// Free a connection slot after teardown: notify the API client and reset
+  /// the streaming cursor. Important: does NOT send send_gatt_services_done()
+  /// when service streaming was interrupted -- the client (aioesphomeapi) has
+  /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
+  /// discovery and retry, rather than being told a partial list is complete.
+  void reset_connection_slot_(BluetoothConnection *connection, proxy_err_t reason);
+#endif
+
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
 
-#ifdef USE_ESP32
+#ifdef BLUETOOTH_PROXY_HAS_GATT
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
-#else
+#endif
+#ifndef USE_ESP32
   ble_device_base::BLEHub *hub_{nullptr};
 #endif
 

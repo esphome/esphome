@@ -16,6 +16,10 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
+# The hub-platform wrapper codegen class (drives a ble_device_base
+# BLEGattConnection backend; see bluetooth_connection_hub.h).
+HubBluetoothConnection = bluetooth_connection_ns.class_("BluetoothConnection")
+
 
 @functools.cache
 def esp32_connection_class() -> cg.MockObjClass:
@@ -38,5 +42,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        # Hub platforms with a GATT client backend
+        "bluetooth_connection_hub.cpp": {PlatformFramework.RP2_ARDUINO},
     }
 )
