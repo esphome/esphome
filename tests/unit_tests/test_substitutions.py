@@ -370,7 +370,7 @@ def test_validate_config_captures_user_config_snapshot(tmp_path: Path) -> None:
     """
     test_config = _get_test_minimal_valid_config(tmp_path)
 
-    result = config_module.validate_config(test_config, None)
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
 
     # Snapshot is populated.
     assert result.user_config is not None
@@ -393,7 +393,7 @@ def test_validate_config_user_config_snapshot_is_deep_copy(tmp_path: Path) -> No
     """
     test_config = _get_test_minimal_valid_config(tmp_path)
 
-    result = config_module.validate_config(test_config, None)
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
 
     assert result.user_config is not None
     # preload_core_config injected build_path onto the validated config.
@@ -402,6 +402,32 @@ def test_validate_config_user_config_snapshot_is_deep_copy(tmp_path: Path) -> No
     assert "build_path" not in result.user_config["esphome"]
     # And the two are not aliased.
     assert result["esphome"] is not result.user_config["esphome"]
+
+
+def test_validate_config_snapshot_without_substitutions(tmp_path: Path) -> None:
+    """The snapshot works for configs that have no substitutions block."""
+    test_config = _get_test_minimal_valid_config(tmp_path)
+    del test_config[CONF_SUBSTITUTIONS]
+
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
+
+    assert result.user_config is not None
+    assert CONF_SUBSTITUTIONS not in result.user_config
+    assert result.user_config["esphome"] == {"name": "test_device"}
+
+
+def test_validate_config_skips_user_config_snapshot_by_default(
+    tmp_path: Path,
+) -> None:
+    """Without ``snapshot_user_config`` the deep copy is skipped entirely;
+    only ``esphome config --no-defaults`` needs the snapshot and the copy is
+    too expensive to take on every load.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None)
+
+    assert result.user_config is None
 
 
 def test_merge_config_preserves_ordered_dict() -> None:

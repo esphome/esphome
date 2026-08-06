@@ -27,6 +27,7 @@ from esphome.__main__ import (
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
     command_bundle,
@@ -6361,6 +6362,26 @@ def test_run_esphome_skip_external_update_per_command(
     assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
 
 
+@pytest.mark.parametrize(
+    ("argv_extra", "expected"),
+    [(["--no-defaults"], True), ([], False)],
+)
+def test_run_esphome_snapshot_user_config_only_for_no_defaults(
+    tmp_path: Path, argv_extra: list[str], expected: bool
+) -> None:
+    """read_config is invoked with snapshot_user_config=True only when the
+    config command is run with --no-defaults; otherwise the expensive deep
+    copy is skipped."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.config.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", "config", str(yaml_file), *argv_extra])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["snapshot_user_config"] is expected
+
+
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
@@ -6715,3 +6736,27 @@ def test_command_idedata_esp_idf_no_build_errors() -> None:
         result = command_idedata(MagicMock(), CORE.config)
 
     assert result == 1
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_missing_port() -> None:
+    """A nonexistent serial port raises the does-not-exist guidance."""
+    with (
+        patch("os.access", return_value=False),
+        pytest.raises(EsphomeError, match="serial port does not exist"),
+    ):
+        check_permissions("/dev/ttyUSB99")
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_unreadable_port() -> None:
+    """An existing but unreadable serial port raises the dialout guidance."""
+    with (
+        patch("os.access", side_effect=lambda _path, mode: mode == os.F_OK),
+        pytest.raises(EsphomeError, match="read or write permission"),
+    ):
+        check_permissions("/dev/ttyUSB99")
