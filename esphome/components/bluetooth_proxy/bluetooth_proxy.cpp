@@ -239,6 +239,26 @@ esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_par
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
+// maybe_unused: in a passive proxy (active: false) MAX is 0, the body is removed, and connection is unused.
+void BluetoothProxy::register_connection([[maybe_unused]] BluetoothConnection *connection) {
+// Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
+#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
+  if (this->connection_count_ >= BLUETOOTH_PROXY_MAX_CONNECTIONS) {
+    // Cannot happen with codegen-sized registration; a silent drop would
+    // surface later as a null proxy_ dereference, so refuse loudly.
+    ESP_LOGE(TAG, "Connection registry full, dropping registration");
+    return;
+  }
+#ifndef USE_ESP32
+  // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
+  // class has no Component lifecycle, so the index is assigned here.
+  connection->connection_index_ = this->connection_count_;
+#endif
+  this->connections_[this->connection_count_++] = connection;
+  connection->proxy_ = this;
+#endif
+}
+
 void BluetoothProxy::log_slot_accounting_mismatch_() { ESP_LOGW(TAG, "Connection slot free-count mismatch, clamped"); }
 
 void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_value) {
@@ -253,7 +273,7 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
   ESP_LOGW(TAG, "Connection slot accounting mismatch (find 0x%llx)", (unsigned long long) find_value);
 }
 
-void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, proxy_err_t reason) {
+void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
   this->send_device_connection(connection->get_address(), false, 0, reason);
   connection->set_address(0);
   connection->send_service_ = INIT_SENDING_SERVICES;
@@ -359,18 +379,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
 #else
       // Explicit pairing is not offered (FEATURE_PAIRING is not advertised);
       // peripheral-initiated security still works through the platform's SM.
-      this->send_device_pairing(msg.address, false, ESP_GATT_NOT_CONNECTED);
+      this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
 #endif
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
-      proxy_err_t ret = bluetooth_connection::unpair_device(msg.address);
-      this->send_device_unpairing(msg.address, ret == PROXY_OK, ret);
+      conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
+      this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
-      proxy_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
-      this->send_device_clear_cache(msg.address, ret == PROXY_OK, ret);
+      conn_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
+      this->send_device_clear_cache(msg.address, ret == CONN_OK, ret);
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
@@ -389,7 +409,7 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
   }
 
   auto err = connection->read_characteristic(msg.handle);
-  if (err != PROXY_OK) {
+  if (err != CONN_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
@@ -402,7 +422,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
   }
 
   auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
-  if (err != PROXY_OK) {
+  if (err != CONN_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
@@ -415,7 +435,7 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
   }
 
   auto err = connection->read_descriptor(msg.handle);
-  if (err != PROXY_OK) {
+  if (err != CONN_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
@@ -428,7 +448,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
   }
 
   auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
-  if (err != PROXY_OK) {
+  if (err != CONN_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
 }
@@ -456,7 +476,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   }
 
   auto err = connection->notify_characteristic(msg.handle, msg.enable);
-  if (err != PROXY_OK) {
+  if (err != CONN_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
 }

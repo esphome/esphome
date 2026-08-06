@@ -1,3 +1,4 @@
+// Hub-platform connection wrapper (USE_RP2 hub builds today).
 #include "bluetooth_connection_hub.h"
 
 #if !defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
@@ -68,6 +69,10 @@ void BluetoothConnection::check_disconnect_timeout_() {
 }
 
 void BluetoothConnection::reset_connection_(conn_err_t reason) {
+  if (this->pending_error_ != 0) {
+    reason = this->pending_error_;
+    this->pending_error_ = 0;
+  }
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
   this->backend_->release_services();
@@ -77,13 +82,23 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
 // ---- GattClientEventListener ----
 
 void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int error) {
+  if (connected && this->address_ == 0) {
+    // Late completion for a slot that was already freed: nothing to report,
+    // and the api-gone sweep or a new reservation owns the slot now.
+    this->backend_->disconnect();
+    return;
+  }
   if (connected && this->state_ == ClientState::DISCONNECTING) {
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
     int err = this->backend_->disconnect();
-    if (err != 0 && err != GATT_NOT_CONNECTED) {
-      ESP_LOGW(TAG, "[%d] [%s] teardown disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
+    if (err == GATT_NOT_CONNECTED) {
+      // Nothing left to tear down after all.
       this->reset_connection_(err);
+    } else if (err != 0) {
+      // Transient refusal while the link is up: keep DISCONNECTING and let
+      // the safety timeout arbitrate (same policy as disconnect()).
+      ESP_LOGW(TAG, "[%d] [%s] teardown disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
     }
     return;
   }
@@ -119,6 +134,9 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
 void BluetoothConnection::on_service_discovery_done(int error) {
   if (error != 0) {
     ESP_LOGW(TAG, "[%d] [%s] Service discovery failed, err=%d", this->connection_index_, this->address_str_, error);
+    // Carry the GATT error into the disconnection report so the client sees
+    // the real cause instead of a generic HCI reason.
+    this->pending_error_ = error;
     this->disconnect();
     return;
   }
@@ -269,15 +287,15 @@ void BluetoothConnection::send_service_for_discovery_() {
     return;
   }
 
-  // The subscriber vanished mid-stream: rewind so a reconnecting client can
-  // request the services fresh, and free the table (the api-gone sweep in the
-  // proxy loop tears the connection down anyway).
+  // The subscriber vanished mid-stream: park the cursor at done WITHOUT
+  // sending services-done (esp32 parity — a resubscribing client gets
+  // silence and its 30 s timeout, never an authoritative partial list) and
+  // free the table; the api-gone sweep tears the connection down anyway.
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
              this->address_str_);
-    this->send_service_ = INIT_SENDING_SERVICES;
-    this->services_discovered_ = false;
+    this->send_service_ = DONE_SENDING_SERVICES;
     this->backend_->release_services();
     return;
   }
@@ -362,7 +380,13 @@ void BluetoothConnection::send_service_for_discovery_() {
       }
     }
 
-    if (close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str_)) {
+    BatchClose close =
+        close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str_);
+    if (close == BatchClose::SEND_FORCED) {
+      // The oversized service's forced advance must survive a failed send.
+      batch_start = this->send_service_;
+    }
+    if (close != BatchClose::CONTINUE) {
       break;
     }
   }

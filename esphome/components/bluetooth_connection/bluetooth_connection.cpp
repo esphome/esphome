@@ -9,8 +9,8 @@ namespace esphome::bluetooth_connection {
 
 static const char *const TAG = "bluetooth_connection";
 
-bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
-                         uint8_t connection_index, const char *address_str) {
+BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
+                               uint8_t connection_index, const char *address_str) {
   // Calculate the actual size of just this service (+1 for the field tag)
   size_t service_size = resp.services.back().calculate_size() + 1;
 
@@ -28,13 +28,14 @@ bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &cu
       ESP_LOGW(TAG, "[%d] [%s] Service %d is too large (%u bytes) but sending anyway", connection_index, address_str,
                send_service, (unsigned) service_size);
       send_service++;
+      return BatchClose::SEND_FORCED;
     }
-    return true;
+    return BatchClose::SEND;
   }
 
   current_size += service_size;
   send_service++;
-  return false;
+  return BatchClose::CONTINUE;
 }
 
 }  // namespace esphome::bluetooth_connection
