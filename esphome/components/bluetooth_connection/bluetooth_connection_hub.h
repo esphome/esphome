@@ -64,7 +64,11 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   void set_state(ClientState st) { this->state_ = st; }
   bool connected() const { return this->state_ == ClientState::ESTABLISHED; }
   void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
-  bool has_gatt_services() const { return this->backend_->get_service_table().service_count > 0; }
+  // Latched at discovery completion rather than read from the backend table:
+  // streaming frees the table, and this must stay true for the connection's
+  // lifetime (esp32 parity — a repeat GetServices is silently ignored there,
+  // never answered with an authoritative empty database).
+  bool has_gatt_services() const { return this->services_discovered_; }
 
   /// Stream any pending service-discovery batch. Called from the proxy's
   /// loop — hub connections have no Component loop of their own (the esp32
@@ -113,6 +117,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   ConnectionType connection_type_{ConnectionType::V1};
   uint8_t remote_addr_type_{0};
   uint8_t connection_index_{0};
+  bool services_discovered_{false};
 };
 
 }  // namespace esphome::bluetooth_connection

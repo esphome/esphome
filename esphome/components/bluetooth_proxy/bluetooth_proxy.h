@@ -31,12 +31,6 @@
 #endif
 #endif  // USE_ESP32
 
-// The GATT dispatch below compiles wherever a connection backend exists:
-// esp32 (Bluedroid) or a hub platform with the neutral GATT client.
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
-#define BLUETOOTH_PROXY_HAS_GATT
-#endif
-
 namespace esphome::bluetooth_proxy {
 
 // The connection-domain types live in the bluetooth_connection component;
@@ -47,7 +41,7 @@ using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
 
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
 using ClientState = ble_device_base::ClientState;
 #endif
@@ -84,7 +78,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 #else
 class BluetoothProxy final : public Component {
 #endif
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Allow the connection to update connections_free_response_
   friend bluetooth_connection::BluetoothConnection;
 #endif
@@ -101,7 +95,7 @@ class BluetoothProxy final : public Component {
   void setup() override;
   void loop() override;
 
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // maybe_unused: in a passive proxy (active: false) MAX is 0, the body below is removed, and connection is unused.
   void register_connection([[maybe_unused]] BluetoothConnection *connection) {
     // Guard the always-false comparison (-Wtype-limits) in a passive proxy (active: false), where MAX is 0.
@@ -117,7 +111,7 @@ class BluetoothProxy final : public Component {
     }
 #endif
   }
-#endif  // BLUETOOTH_PROXY_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
   void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
@@ -251,7 +245,7 @@ class BluetoothProxy final : public Component {
   }
   void log_advertisement_flush_();
 
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
@@ -259,7 +253,7 @@ class BluetoothProxy final : public Component {
   void log_not_connected_gatt_(const char *action, const char *type);
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
 
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   /// Keep the pre-allocated connections-free message in step when a
   /// connection slot changes address (0 = free). Called from the connection
   /// classes' set_address().
@@ -293,7 +287,7 @@ class BluetoothProxy final : public Component {
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
 
-#ifdef BLUETOOTH_PROXY_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
