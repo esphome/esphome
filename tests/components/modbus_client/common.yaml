@@ -1,0 +1,53 @@
+# The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
+# is a single modbus client hub) and a templatable device address; no component block is needed. The
+# address is not passed back to reply handlers - recompute the configured expression if needed.
+# The hub does not bound retries, so a retry lambda must (here: a counter capped at 3), or a dead
+# device is retried forever. Reset the counter before the send or on a terminal outcome (on_response)
+# so the cap is per transaction, not per device lifetime. Never reset in on_sent: it fires again on
+# every retry, so the cap would never be reached.
+globals:
+  - id: read_retries
+    type: int
+    initial_value: "0"
+  - id: combined_retries
+    type: int
+    initial_value: "0"
+
+button:
+  - platform: template
+    name: "Send Read"
+    on_press:
+      - lambda: "id(read_retries) = 0;"
+      - modbus_client.send:
+          address: 0x01
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          # on_no_response lambda form: return true to retry. `request` is the timed-out PDU.
+          on_no_response: !lambda "return !request.empty() && request[0] == 0x03 && id(read_retries)++ < 3;"
+      # Per-send inline reply handlers (fire-and-continue): they run when this send's outcome is known;
+      # the targeted address is not passed back - recompute the configured expression if needed.
+      # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
+      - modbus_client.send:
+          address: 0x01
+          pdu: !lambda "return modbus::helpers::create_read_pdu(modbus::FunctionCode::READ_HOLDING_REGISTERS, 0x0010, 1);"
+      - modbus_client.send:
+          address: !lambda "return 1;"
+          pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
+          on_sent:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X", request.empty() ? 0 : request[0]);'
+          on_response:
+            then:
+              - lambda: |-
+                  id(combined_retries) = 0;
+                  ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+          # on_no_response combined form: run actions on timeout AND decide the retry via nested retry:.
+          on_no_response:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "no reply for fc 0x%X", request.empty() ? 0 : request[0]);'
+            retry: !lambda "return !request.empty() && request[0] == 0x03 && id(combined_retries)++ < 3;"
+          on_not_sent:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "not sent fc 0x%X", request.empty() ? 0 : request[0]);'
