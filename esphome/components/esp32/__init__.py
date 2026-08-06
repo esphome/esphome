@@ -1500,7 +1500,10 @@ def final_validate(config):
         ]
 
         # V1 ECDSA is only available on the original ESP32
-        if scheme == SIGNING_SCHEME_ECDSA_V1 and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS:
+        if (
+            scheme == SIGNING_SCHEME_ECDSA_V1
+            and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS
+        ):
             errs.append(
                 cv.Invalid(
                     f"Signing scheme 'ecdsa_v1' is only supported on "
@@ -1513,7 +1516,9 @@ def final_validate(config):
             # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
             # Note: string comparison works here because cv.one_of constrains
             # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
-            if scheme == SIGNING_SCHEME_RSA3072 and (min_rev is None or min_rev < "3.0"):
+            if scheme == SIGNING_SCHEME_RSA3072 and (
+                min_rev is None or min_rev < "3.0"
+            ):
                 errs.append(
                     cv.Invalid(
                         f"Signing scheme 'rsa3072' on {VARIANT_FRIENDLY[variant]} "
@@ -1534,7 +1539,11 @@ def final_validate(config):
                     )
                 )
             # V1 on rev 3.0+ -- suggest V2 RSA for stronger security
-            elif scheme == SIGNING_SCHEME_ECDSA_V1 and min_rev is not None and min_rev >= "3.0":
+            elif (
+                scheme == SIGNING_SCHEME_ECDSA_V1
+                and min_rev is not None
+                and min_rev >= "3.0"
+            ):
                 _LOGGER.info(
                     "Using Secure Boot V1 ECDSA on %s rev %s. "
                     "Consider using 'rsa3072' (Secure Boot V2 RSA) for "
@@ -1545,8 +1554,14 @@ def final_validate(config):
         else:
             # Non-ESP32 variants: check V2 scheme-variant compatibility
             scheme_variant_conflicts = {
-                SIGNING_SCHEME_ECDSA256: (SIGNED_OTA_V2_RSA_ONLY_VARIANTS, SIGNING_SCHEME_RSA3072),
-                SIGNING_SCHEME_RSA3072: (SIGNED_OTA_V2_ECC_ONLY_VARIANTS, SIGNING_SCHEME_ECDSA256),
+                SIGNING_SCHEME_ECDSA256: (
+                    SIGNED_OTA_V2_RSA_ONLY_VARIANTS,
+                    SIGNING_SCHEME_RSA3072,
+                ),
+                SIGNING_SCHEME_RSA3072: (
+                    SIGNED_OTA_V2_ECC_ONLY_VARIANTS,
+                    SIGNING_SCHEME_ECDSA256,
+                ),
             }
             if (
                 conflict := scheme_variant_conflicts.get(scheme)
@@ -2707,7 +2722,9 @@ async def to_code(config):
         # n; the 4 KiB padding and reserved signature sector the verifier
         # depends on survive only because --secure-pad-v2 keys off
         # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
-        external_rsa = scheme == SIGNING_SCHEME_RSA3072 and CONF_SIGNING_KEY not in signed_ota
+        external_rsa = (
+            scheme == SIGNING_SCHEME_RSA3072 and CONF_SIGNING_KEY not in signed_ota
+        )
         verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
         # verification_keys is accepted only for external RSA (rsa3072 with no
         # signing_key), enforced in _validate_signed_ota_keys. Assert the
