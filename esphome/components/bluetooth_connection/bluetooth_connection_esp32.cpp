@@ -12,81 +12,20 @@ namespace esphome::bluetooth_connection {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
+using ble_device_base::ESPBTUUID;
+
 static const char *const TAG = "bluetooth_connection";
 
-// This function is allocation-free and directly packs UUIDs into the output array
-// using precalculated constants for the Bluetooth base UUID
-static void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, esp_bt_uuid_t uuid_source) {
-  // Bluetooth base UUID: 00000000-0000-1000-8000-00805F9B34FB
-  // out[0] = bytes 8-15 (big-endian)
-  // - For 128-bit UUIDs: use bytes 8-15 as-is
-  // - For 16/32-bit UUIDs: insert into bytes 12-15, use 0x00001000 for bytes 8-11
-  out[0] = uuid_source.len == ESP_UUID_LEN_128
-               ? (((uint64_t) uuid_source.uuid.uuid128[15] << 56) | ((uint64_t) uuid_source.uuid.uuid128[14] << 48) |
-                  ((uint64_t) uuid_source.uuid.uuid128[13] << 40) | ((uint64_t) uuid_source.uuid.uuid128[12] << 32) |
-                  ((uint64_t) uuid_source.uuid.uuid128[11] << 24) | ((uint64_t) uuid_source.uuid.uuid128[10] << 16) |
-                  ((uint64_t) uuid_source.uuid.uuid128[9] << 8) | ((uint64_t) uuid_source.uuid.uuid128[8]))
-               : (((uint64_t) (uuid_source.len == ESP_UUID_LEN_16 ? uuid_source.uuid.uuid16 : uuid_source.uuid.uuid32)
-                   << 32) |
-                  0x00001000ULL);  // Base UUID bytes 8-11
-  // out[1] = bytes 0-7 (big-endian)
-  // - For 128-bit UUIDs: use bytes 0-7 as-is
-  // - For 16/32-bit UUIDs: use precalculated base UUID constant
-  out[1] = uuid_source.len == ESP_UUID_LEN_128
-               ? ((uint64_t) uuid_source.uuid.uuid128[7] << 56) | ((uint64_t) uuid_source.uuid.uuid128[6] << 48) |
-                     ((uint64_t) uuid_source.uuid.uuid128[5] << 40) | ((uint64_t) uuid_source.uuid.uuid128[4] << 32) |
-                     ((uint64_t) uuid_source.uuid.uuid128[3] << 24) | ((uint64_t) uuid_source.uuid.uuid128[2] << 16) |
-                     ((uint64_t) uuid_source.uuid.uuid128[1] << 8) | ((uint64_t) uuid_source.uuid.uuid128[0])
-               : 0x800000805F9B34FBULL;  // Base UUID bytes 0-7: 80-00-00-80-5F-9B-34-FB
+proxy_err_t unpair_device(uint64_t address) {
+  esp_bd_addr_t bd_addr;
+  ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
+  return esp_ble_remove_bond_device(bd_addr);
 }
 
-// Helper to fill UUID in the appropriate format based on client support and UUID type
-static void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uuid, const esp_bt_uuid_t &uuid,
-                           bool use_efficient_uuids) {
-  if (!use_efficient_uuids || uuid.len == ESP_UUID_LEN_128) {
-    // Use 128-bit format for old clients or when UUID is already 128-bit
-    fill_128bit_uuid_array(uuid_128, uuid);
-  } else if (uuid.len == ESP_UUID_LEN_16) {
-    short_uuid = uuid.uuid.uuid16;
-  } else if (uuid.len == ESP_UUID_LEN_32) {
-    short_uuid = uuid.uuid.uuid32;
-  }
-}
-
-// Constants for size estimation
-static constexpr uint8_t SERVICE_OVERHEAD_LEGACY = 25;     // UUID(20) + handle(4) + overhead(1)
-static constexpr uint8_t SERVICE_OVERHEAD_EFFICIENT = 10;  // UUID(6) + handle(4)
-static constexpr uint8_t CHAR_SIZE_128BIT = 35;            // UUID(20) + handle(4) + props(4) + overhead(7)
-static constexpr uint8_t DESC_SIZE_128BIT = 25;            // UUID(20) + handle(4) + overhead(1)
-static constexpr uint8_t DESC_SIZE_16BIT = 10;             // UUID(6) + handle(4)
-static constexpr uint8_t DESC_PER_CHAR = 1;                // Assume 1 descriptor per characteristic
-
-// Helper to estimate service size before fetching all data
-/**
- * Estimate the size of a Bluetooth service based on the number of characteristics and UUID format.
- *
- * @param char_count The number of characteristics in the service.
- * @param use_efficient_uuids Whether to use efficient UUIDs (16-bit or 32-bit) for newer APIVersions.
- * @return The estimated size of the service in bytes.
- *
- * This function calculates the size of a Bluetooth service by considering:
- * - A service overhead, which depends on whether efficient UUIDs are used.
- * - The size of each characteristic, assuming 128-bit UUIDs for safety.
- * - The size of descriptors, assuming one 128-bit descriptor per characteristic.
- */
-static size_t estimate_service_size(uint16_t char_count, bool use_efficient_uuids) {
-  size_t service_overhead = use_efficient_uuids ? SERVICE_OVERHEAD_EFFICIENT : SERVICE_OVERHEAD_LEGACY;
-  // Always assume 128-bit UUIDs for characteristics to be safe
-  size_t char_size = CHAR_SIZE_128BIT;
-  // Assume one 128-bit descriptor per characteristic
-  size_t desc_size = DESC_SIZE_128BIT * DESC_PER_CHAR;
-
-  return service_overhead + (char_size + desc_size) * char_count;
-}
-
-bool BluetoothConnection::supports_efficient_uuids_() const {
-  auto *api_conn = this->proxy_->get_api_connection();
-  return api_conn && api_conn->client_supports_api_version(1, 12);
+proxy_err_t clear_gatt_cache(uint64_t address) {
+  esp_bd_addr_t bd_addr;
+  ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
+  return esp_ble_gattc_cache_clean(bd_addr);
 }
 
 void BluetoothConnection::dump_config() {
@@ -94,28 +33,9 @@ void BluetoothConnection::dump_config() {
   BLEClientBase::dump_config();
 }
 
-void BluetoothConnection::update_allocated_slot_(uint64_t find_value, uint64_t set_value) {
-  auto &allocated = this->proxy_->connections_free_response_.allocated;
-  for (auto &slot : allocated) {
-    if (slot == find_value) {
-      slot = set_value;
-      return;
-    }
-  }
-}
-
 void BluetoothConnection::set_address(uint64_t address) {
-  // If we're clearing an address (disconnecting), update the pre-allocated message
-  if (address == 0 && this->address_ != 0) {
-    this->proxy_->connections_free_response_.free++;
-    this->update_allocated_slot_(this->address_, 0);
-  }
-  // If we're setting a new address (connecting), update the pre-allocated message
-  else if (address != 0 && this->address_ == 0) {
-    this->proxy_->connections_free_response_.free--;
-    this->update_allocated_slot_(0, address);
-  }
-
+  // Keep the proxy's pre-allocated connections-free message in step
+  this->proxy_->update_address_slot_(this->address_, address);
   // Call parent implementation to actually set the address
   BLEClientBase::set_address(address);
 }
@@ -157,20 +77,7 @@ void BluetoothConnection::on_disconnect_complete(esp_err_t reason) {
   this->reset_connection_(reason);
 }
 
-void BluetoothConnection::reset_connection_(esp_err_t reason) {
-  // Send disconnection notification
-  this->proxy_->send_device_connection(this->address_, false, 0, reason);
-
-  // Important: If we were in the middle of sending services, we do NOT send
-  // send_gatt_services_done() here. This ensures the client knows that
-  // the service discovery was interrupted and can retry. The client
-  // (aioesphomeapi) implements a 30-second timeout (DEFAULT_BLE_TIMEOUT)
-  // to detect incomplete service discovery rather than relying on us to
-  // tell them about a partial list.
-  this->set_address(0);
-  this->send_service_ = INIT_SENDING_SERVICES;
-  this->proxy_->send_connections_free();
-}
+void BluetoothConnection::reset_connection_(esp_err_t reason) { this->proxy_->reset_connection_slot_(this, reason); }
 
 void BluetoothConnection::send_service_for_discovery_() {
   if (this->send_service_ >= this->service_count_) {
@@ -188,16 +95,13 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // Check if client supports efficient UUIDs
-  bool use_efficient_uuids = this->supports_efficient_uuids_();
+  bool use_efficient_uuids = this->proxy_->client_supports_efficient_uuids();
 
   // Prepare response
   api::BluetoothGATTGetServicesResponse resp;
   resp.address = this->address_;
 
   // Dynamic batching based on actual size
-  // Conservative MTU limit for API messages (accounts for WPA3 overhead)
-  static constexpr size_t MAX_PACKET_SIZE = 1360;
-
   // Keep running total of actual message size
   size_t current_size = resp.calculate_size();
 
@@ -238,7 +142,8 @@ void BluetoothConnection::send_service_for_discovery_() {
     resp.services.emplace_back();
     auto &service_resp = resp.services.back();
 
-    fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid, service_result.uuid, use_efficient_uuids);
+    fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid, ESPBTUUID::from_uuid(service_result.uuid),
+                   use_efficient_uuids);
 
     service_resp.handle = service_result.start_handle;
 
@@ -268,7 +173,8 @@ void BluetoothConnection::send_service_for_discovery_() {
 
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
-        fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, char_result.uuid, use_efficient_uuids);
+        fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid, ESPBTUUID::from_uuid(char_result.uuid),
+                       use_efficient_uuids);
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
         char_offset++;
@@ -309,40 +215,17 @@ void BluetoothConnection::send_service_for_discovery_() {
 
           characteristic_resp.descriptors.emplace_back();
           auto &descriptor_resp = characteristic_resp.descriptors.back();
-          fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, desc_result.uuid, use_efficient_uuids);
+          fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid, ESPBTUUID::from_uuid(desc_result.uuid),
+                         use_efficient_uuids);
           descriptor_resp.handle = desc_result.handle;
           desc_offset++;
         }
       }
     }  // end if (total_char_count > 0)
 
-    // Calculate the actual size of just this service
-    size_t service_size = service_resp.calculate_size() + 1;  // +1 for field tag
-
-    // Check if adding this service would exceed the limit
-    if (current_size + service_size > MAX_PACKET_SIZE) {
-      // We would go over - pop the last service if we have more than one
-      if (resp.services.size() > 1) {
-        resp.services.pop_back();
-        ESP_LOGD(TAG, "[%d] [%s] Service %d would exceed limit (current: %d + service: %d > %d), sending current batch",
-                 this->connection_index_, this->address_str(), this->send_service_, current_size, service_size,
-                 MAX_PACKET_SIZE);
-        // Don't increment send_service_ - we'll retry this service in next batch
-      } else {
-        // This single service is too large, but we have to send it anyway
-        ESP_LOGV(TAG, "[%d] [%s] Service %d is too large (%d bytes) but sending anyway", this->connection_index_,
-                 this->address_str(), this->send_service_, service_size);
-        // Increment so we don't get stuck
-        this->send_service_++;
-      }
-      // Send what we have
+    if (close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str())) {
       break;
     }
-
-    // Now we know we're keeping this service, add its size
-    current_size += service_size;
-    // Successfully added this service, increment counter
-    this->send_service_++;
   }
 
   // Send the message with dynamically batched services
