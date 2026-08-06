@@ -33,6 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
             LD6002BSwitch,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
+            default_restore_mode="RESTORE_DEFAULT_ON",
         ),
     }
 )
