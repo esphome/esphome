@@ -34,11 +34,13 @@
 namespace esphome::bluetooth_proxy {
 
 // The connection-domain types live in the bluetooth_connection component;
-// re-exported here so the proxy code reads unqualified.
-using bluetooth_connection::ESP_GATT_NOT_CONNECTED;
+// re-exported here (with the historical proxy-side spellings for the error
+// domain) so the proxy code reads unchanged.
+using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::INIT_SENDING_SERVICES;
-using bluetooth_connection::PROXY_OK;
-using bluetooth_connection::proxy_err_t;
+using proxy_err_t = bluetooth_connection::conn_err_t;
+static constexpr proxy_err_t PROXY_OK = bluetooth_connection::CONN_OK;
+static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = bluetooth_connection::GATT_NOT_CONNECTED;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;

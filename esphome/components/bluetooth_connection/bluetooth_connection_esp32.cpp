@@ -16,13 +16,13 @@ using ble_device_base::ESPBTUUID;
 
 static const char *const TAG = "bluetooth_connection";
 
-proxy_err_t unpair_device(uint64_t address) {
+conn_err_t unpair_device(uint64_t address) {
   esp_bd_addr_t bd_addr;
   ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
   return esp_ble_remove_bond_device(bd_addr);
 }
 
-proxy_err_t clear_gatt_cache(uint64_t address) {
+conn_err_t clear_gatt_cache(uint64_t address) {
   esp_bd_addr_t bd_addr;
   ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
   return esp_ble_gattc_cache_clean(bd_addr);
@@ -401,7 +401,7 @@ void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
 esp_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("read", "characteristic");
-    return ESP_GATT_NOT_CONNECTED;
+    return GATT_NOT_CONNECTED;
   }
 
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
@@ -414,7 +414,7 @@ esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8
                                                     bool response) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("write", "characteristic");
-    return ESP_GATT_NOT_CONNECTED;
+    return GATT_NOT_CONNECTED;
   }
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
 
@@ -430,7 +430,7 @@ esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8
 esp_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("read", "descriptor");
-    return ESP_GATT_NOT_CONNECTED;
+    return GATT_NOT_CONNECTED;
   }
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
 
@@ -441,7 +441,7 @@ esp_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
 esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length, bool response) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("write", "descriptor");
-    return ESP_GATT_NOT_CONNECTED;
+    return GATT_NOT_CONNECTED;
   }
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
 
@@ -457,7 +457,7 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *
 esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
   if (!this->connected()) {
     this->log_gatt_not_connected_("notify", "characteristic");
-    return ESP_GATT_NOT_CONNECTED;
+    return GATT_NOT_CONNECTED;
   }
 
   if (enable) {

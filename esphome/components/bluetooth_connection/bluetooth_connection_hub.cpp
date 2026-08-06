@@ -50,7 +50,7 @@ void BluetoothConnection::disconnect() {
   this->state_ = ClientState::DISCONNECTING;
 }
 
-void BluetoothConnection::reset_connection_(proxy_err_t reason) {
+void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
   this->backend_->release_services();
@@ -174,56 +174,56 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
 
 // ---- GATT operations ----
 
-proxy_err_t BluetoothConnection::check_connected_op_(const char *action, const char *type) const {
+conn_err_t BluetoothConnection::check_connected_op_(const char *action, const char *type) const {
   if (this->connected()) {
-    return PROXY_OK;
+    return CONN_OK;
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot %s GATT %s, not connected.", this->connection_index_, this->address_str_, action,
            type);
-  return ESP_GATT_NOT_CONNECTED;
+  return GATT_NOT_CONNECTED;
 }
 
-proxy_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
-  if (proxy_err_t err = this->check_connected_op_("read", "characteristic"); err != PROXY_OK)
+conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
+  if (conn_err_t err = this->check_connected_op_("read", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_characteristic(handle);
 }
 
-proxy_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
-                                                      bool response) {
-  if (proxy_err_t err = this->check_connected_op_("write", "characteristic"); err != PROXY_OK)
+conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
+                                                     bool response) {
+  if (conn_err_t err = this->check_connected_op_("write", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_characteristic(handle, data, static_cast<uint16_t>(length), response);
 }
 
-proxy_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
-  if (proxy_err_t err = this->check_connected_op_("read", "descriptor"); err != PROXY_OK)
+conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
+  if (conn_err_t err = this->check_connected_op_("read", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_descriptor(handle);
 }
 
-proxy_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
-                                                  bool /*response*/) {
-  if (proxy_err_t err = this->check_connected_op_("write", "descriptor"); err != PROXY_OK)
+conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
+                                                 bool /*response*/) {
+  if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_descriptor(handle, data, static_cast<uint16_t>(length));
 }
 
-proxy_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
-  if (proxy_err_t err = this->check_connected_op_("notify", "characteristic"); err != PROXY_OK)
+conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
+  if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
            enable ? "Registering for" : "Unregistering for", handle);
   return this->backend_->notify_characteristic(handle, enable);
 }
 
-proxy_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, uint16_t max_interval,
-                                                          uint16_t latency, uint16_t timeout) {
-  if (proxy_err_t err = this->check_connected_op_("update params of", "connection"); err != PROXY_OK)
+conn_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
+                                                         uint16_t timeout) {
+  if (conn_err_t err = this->check_connected_op_("update params of", "connection"); err != CONN_OK)
     return err;
   return this->backend_->update_connection_params(min_interval, max_interval, latency, timeout);
 }
