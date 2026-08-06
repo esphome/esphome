@@ -201,7 +201,8 @@ def uart_selection(value):
     if CORE.is_zephyr:
         if zephyr_variant() in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
-        if zephyr_variant_family() == "nordic" or zephyr_variant_family() == "rpi_pico":
+        family = zephyr_variant_family()
+        if family == "nordic" or family == "rpi_pico":
             return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError

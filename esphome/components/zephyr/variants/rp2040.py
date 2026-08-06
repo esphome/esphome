@@ -44,8 +44,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    framework = config[CONF_FRAMEWORK]
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "rp2040", config, "RP2040 support"
     )
     set_core_data(
@@ -64,7 +63,6 @@ async def to_code(config: ConfigType) -> None:
     from .. import (
         zephyr_add_overlay,
         zephyr_add_prj_conf,
-        zephyr_set_prj_conf_override,
         zephyr_setup_preferences,
         zephyr_to_code,
     )
@@ -78,8 +76,6 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
     zephyr_add_prj_conf("TEST_RANDOM_GENERATOR", True)
-
-    zephyr_set_prj_conf_override("ENTROPY_GENERATOR", False)
 
     # Reserve space for NVS storage partition at end of flash.
     # Layout targets 2 MB flash (standard on most RP2040 boards including

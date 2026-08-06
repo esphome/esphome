@@ -580,8 +580,11 @@ def zephyr_to_code(config: ConfigType) -> None:
     ):
         zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem.
+    # RP2040 has no hardware RNG — the variant provides TEST_RANDOM_GENERATOR instead,
+    # and enabling ENTROPY_GENERATOR would try to select a nonexistent driver.
+    if zephyr_variant_family() != "rpi_pico":
+        zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
