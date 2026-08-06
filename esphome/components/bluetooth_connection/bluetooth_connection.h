@@ -35,16 +35,16 @@ namespace esphome::bluetooth_connection {
 // esp_err_t keeps the header independent of how a platform's SDK spells its
 // error type.
 #ifdef USE_ESP32
-using proxy_err_t = esp_err_t;
-static constexpr proxy_err_t PROXY_OK = ESP_OK;
+using conn_err_t = esp_err_t;
+static constexpr conn_err_t CONN_OK = ESP_OK;
 #else
-using proxy_err_t = int;
-static constexpr proxy_err_t PROXY_OK = 0;
+using conn_err_t = int;
+static constexpr conn_err_t CONN_OK = 0;
 #endif
 
 // The ESPHome-private "not connected" wire value, shared with the neutral
 // GATT contract so backend and wrapper cannot drift.
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_CONNECTED;
+static constexpr conn_err_t GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_CONNECTED;
 
 // What the platform's connection backend supports beyond GATT operations;
 // the proxy derives its feature flags and legacy version from these.
@@ -58,11 +58,11 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 
 // Address-scoped (not connection-scoped) maintenance requests.
 #ifdef USE_ESP32
-proxy_err_t unpair_device(uint64_t address);
-proxy_err_t clear_gatt_cache(uint64_t address);
+conn_err_t unpair_device(uint64_t address);
+conn_err_t clear_gatt_cache(uint64_t address);
 #else
-inline proxy_err_t unpair_device(uint64_t) { return ESP_GATT_NOT_CONNECTED; }
-inline proxy_err_t clear_gatt_cache(uint64_t) { return ESP_GATT_NOT_CONNECTED; }
+inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
+inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
 
 // send_service_ cursor states; >= 0 is the next service index to stream.
