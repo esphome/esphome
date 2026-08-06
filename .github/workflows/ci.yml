@@ -706,7 +706,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -786,7 +785,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
