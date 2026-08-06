@@ -10,10 +10,13 @@ from esphome.components.zephyr import (
     zephyr_add_sysbuild_conf,
     zephyr_data,
     zephyr_variant,
+    zephyr_variant_family,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
+    KEY_FRAMEWORK_TYPE,
+    ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
@@ -33,7 +36,7 @@ def AUTO_LOAD() -> list[str]:
     # file at all -- this OTAComponent is entirely separate. platform: zephyr does:
     # it always compiles ota_backend_zephyr.cpp regardless of which ota: platform
     # is selected (see ota's own AUTO_LOAD()), and that backend needs sha256 (NCS's
-    # PSA crypto drivers can't do MD5).
+    # PSA crypto drivers, and mainline's default crypto backend, can't do MD5).
     return ["sha256"] if CORE.is_zephyr else []
 
 
@@ -61,7 +64,17 @@ ZEPHYR_VARIANTS = (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_EFR32MG24,
 )
+
+# Families whose boards actually have a USB peripheral this CDC-ACM transport can
+# use -- nordic (native USB) and legacy platform: nrf52. EFR32MG24's xg24_ek2703a
+# has no USB device controller node at all (board.yaml doesn't list "usb"), so
+# CDC/CDC1 would fail with an opaque "undefined node label 'zephyr_udc0'"
+# devicetree error instead of a clear config-time one -- same rule logger's own
+# hardware_uart: already applies (UART_SELECTION_ZEPHYR_NORDIC is the only zephyr
+# family list that includes USB_CDC).
+_CDC_CAPABLE_FAMILIES = {"nordic"}
 
 CDC_IDS = {"CDC": 0, "CDC1": 1}
 UARTS = ("CDC", "CDC1", "UART0", "UART1")
@@ -71,12 +84,22 @@ def _validate_platform(conf: ConfigType) -> ConfigType:
     # Two ways to end up on a supported chip: the legacy platform: nrf52
     # component, or platform: zephyr with one of ZEPHYR_VARIANTS (a separate,
     # mainline/NCS-based port).
-    if CORE.is_nrf52 or (CORE.is_zephyr and zephyr_variant() in ZEPHYR_VARIANTS):
-        return conf
-    raise cv.Invalid(
-        "This feature is only available on nrf52 (platform: nrf52, or "
-        "platform: zephyr with variant: nrf52, nrf54l15, or nrf54lm20a)."
-    )
+    if not (CORE.is_nrf52 or (CORE.is_zephyr and zephyr_variant() in ZEPHYR_VARIANTS)):
+        raise cv.Invalid(
+            "This feature is only available on nrf52 (platform: nrf52, or "
+            "platform: zephyr with variant: nrf52, nrf54l15, nrf54lm20a, or "
+            "efr32mg24)."
+        )
+    hw_uart = conf[CONF_TRANSPORT].get(CONF_HARDWARE_UART)
+    if hw_uart in CDC_IDS and not (
+        CORE.is_nrf52 or zephyr_variant_family() in _CDC_CAPABLE_FAMILIES
+    ):
+        raise cv.Invalid(
+            f"'{hw_uart}' is not available on this variant -- it has no USB "
+            f"peripheral. Use 'UART0'/'UART1', or 'ble: true', instead.",
+            [CONF_TRANSPORT, CONF_HARDWARE_UART],
+        )
+    return conf
 
 
 CONFIG_SCHEMA = cv.All(
@@ -166,7 +189,11 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
-        zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+        # NCS-only sample Kconfig (undefined in mainline Zephyr -- EFR32MG24 is the
+        # first supported variant that isn't NCS-based, and mainline treats an
+        # undefined-symbol assignment as a fatal Kconfig warning).
+        if zephyr_data().get(KEY_FRAMEWORK_TYPE) == "ncs":
+            zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
     if CONF_HARDWARE_UART in transport:
         hw_uart = transport[CONF_HARDWARE_UART]
         if hw_uart in CDC_IDS:
@@ -179,8 +206,8 @@ async def to_code(config: ConfigType) -> None:
             # be used directly below or the devicetree reference is left dangling.
             uart_name = zephyr_add_cdc_acm(config, CDC_IDS[hw_uart])
         elif CORE.is_zephyr:
-            # Physical UART peripherals are numbered differently per variant (e.g.
-            # nRF54 uses uart20/uart30 instead of nRF52's uart0/uart1) -- resolve
+            # Physical UART peripherals are numbered/named differently per variant
+            # (e.g. nRF54 uses uart20/uart30, EFR32MG24 has only usart0) -- resolve
             # via the variant's own node labels instead of assuming nRF52's names.
             uart_name = VARIANTS[zephyr_variant()].uart_node_labels[hw_uart]
         else:
