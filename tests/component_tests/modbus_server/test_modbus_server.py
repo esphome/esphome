@@ -82,3 +82,5 @@ def test_raw_value_type_rejected() -> None:
     with pytest.raises(cv.Invalid):
         validator("RAW")
     assert validator("U_WORD") == "U_WORD"
+    assert validator("U_WORD_S") == "U_WORD_S"
+    assert validator("S_WORD_S") == "S_WORD_S"

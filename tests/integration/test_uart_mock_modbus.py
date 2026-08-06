@@ -215,7 +215,10 @@ async def test_uart_mock_modbus_server_controller(
 
     expected_values = {
         "reg_u_word": 99,
+        "reg_u_word_s": 4660,
+        "reg_u_word_s_raw": 13330,
         "reg_s_word": -99,
+        "reg_s_word_s": -2,
         "reg_u_dword": 16909060,
         "reg_s_dword": -16909060,
         "reg_u_dword_r": pytest.approx(67305985),
@@ -249,14 +252,16 @@ async def test_uart_mock_modbus_server_controller_write(
 
     Verifies that writing to modbus server registers via the controller updates
     the server's stored values, which are then read back correctly on the next poll.
-    All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
+    All 14 value types are tested: U/S_WORD, U/S_WORD_S, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     register_test_cases: dict[str, RegisterTestCase] = {
         "reg_u_word": RegisterTestCase(11, "write_u_word", 42, 42),
+        "reg_u_word_s": RegisterTestCase(4660, "write_u_word_s", 17185, 17185),
         "reg_s_word": RegisterTestCase(-11, "write_s_word", -42, -42),
+        "reg_s_word_s": RegisterTestCase(-2, "write_s_word_s", -257, -257),
         "reg_u_dword": RegisterTestCase(1001, "write_u_dword", 2002, 2002),
         "reg_s_dword": RegisterTestCase(-1001, "write_s_dword", -2002, -2002),
         "reg_u_dword_r": RegisterTestCase(3003, "write_u_dword_r", 4004, 4004),
