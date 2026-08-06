@@ -23,8 +23,8 @@ from esphome.bundle import (
     _default_target_dir,
     _find_used_secret_keys,
     add_bundle_file,
+    add_secret_scan_dir,
     extract_bundle,
-    is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
     remap_bundle_path,
@@ -96,26 +96,6 @@ def _setup_config_dir(
 
     CORE.config_path = config_dir / "test.yaml"
     return config_dir
-
-
-# ---------------------------------------------------------------------------
-# is_bundle_path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("filename", "expected"),
-    [
-        (f"my_device{BUNDLE_EXTENSION}", True),
-        (f"MY_DEVICE{BUNDLE_EXTENSION.upper()}", True),
-        ("my_device.yaml", False),
-        ("my_device.tar.gz", False),
-        ("my_device.zip", False),
-        ("", False),
-    ],
-)
-def test_is_bundle_path(filename: str, expected: bool) -> None:
-    assert is_bundle_path(Path(filename)) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -1248,7 +1228,8 @@ def test_discover_files_deeply_nested_include(tmp_path: Path) -> None:
 def test_discover_files_nested_include_unresolved_substitution(
     tmp_path: Path,
 ) -> None:
-    """!include with substitution vars in path cannot be resolved; skipped gracefully."""
+    """!include with substitution vars in path but no candidate files on disk
+    (the glob's only match is the config itself) is skipped gracefully."""
     config_dir = _setup_config_dir(tmp_path)
     (config_dir / "test.yaml").write_text(
         "esphome:\n  name: test\nwifi: !include ${platform}.yaml\n"
@@ -1260,6 +1241,62 @@ def test_discover_files_nested_include_unresolved_substitution(
 
     paths = [f.path for f in files]
     assert "test.yaml" in paths
+
+
+def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
+    """The issue-17650 layout: templated package includes chain through a glob
+    candidate into a Jinja conditional whose ``../`` branch is bundled."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "includes/esp-basics.yaml": (
+                "packages:\n"
+                "  - !include boards/${board}.yaml\n"
+                "  - !include keys/${system_name}.yaml\n"
+            ),
+            "includes/boards/wemos-d1-mini.yaml": (
+                'packages:\n  - !include ${ "NO BT.yaml" if bt else "../empty.yaml" }\n'
+            ),
+            "includes/keys/device-a.yaml": "api:\n",
+            "includes/keys/device-b.yaml": "api:\n",
+            "includes/empty.yaml": "{}\n",
+        },
+    )
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\npackages:\n  - !include includes/esp-basics.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "includes/esp-basics.yaml" in paths
+    assert "includes/boards/wemos-d1-mini.yaml" in paths
+    assert "includes/keys/device-a.yaml" in paths
+    assert "includes/keys/device-b.yaml" in paths
+    assert "includes/empty.yaml" in paths
+
+
+def test_discover_files_candidate_outside_config_dir_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A candidate branch resolving above the config dir is not bundled."""
+    config_dir = _setup_config_dir(tmp_path)
+    (tmp_path / "outside.yaml").write_text("api:\n")
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\n"
+        'wifi: !include ${ "a.yaml" if x else "../outside.yaml" }\n'
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert not any("outside" in p for p in paths)
+    assert any(
+        "outside config directory" in r.message and "outside.yaml" in r.message
+        for r in caplog.records
+    )
 
 
 def test_discover_files_nested_include_load_failure(
@@ -1592,6 +1629,44 @@ def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
     assert "ota_password" in secrets_data
     assert "hunter2" in secrets_data
     assert "unused" not in secrets_data
+
+
+def test_create_bundle_scans_remote_package_files_for_secrets(tmp_path: Path) -> None:
+    """Secrets referenced only by git-fetched package files must be shipped
+    in the filtered secrets.yaml (regression test for issue 18023)."""
+    config_dir = _setup_config_dir(tmp_path)
+
+    secrets = config_dir / "secrets.yaml"
+    secrets.write_text("ota_password: hunter2\nunused: should_not_appear\n")
+
+    # Simulate a git-fetched package checkout referencing a secret
+    repo_dir = config_dir / ".esphome" / "packages" / "6bcd6aa8"
+    package_dir = repo_dir / "packages"
+    package_dir.mkdir(parents=True)
+    (package_dir / "base.yml").write_text(
+        "ota:\n  - platform: esphome\n    password: !secret ota_password\n"
+    )
+    # References inside hidden directories such as .git must not be scanned
+    hidden_dir = repo_dir / ".git"
+    hidden_dir.mkdir()
+    (hidden_dir / "leak.yaml").write_text("password: !secret unused\n")
+    add_secret_scan_dir(repo_dir)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+
+    buf = io.BytesIO(result.data)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+        names = tar.getnames()
+
+    assert "ota_password" in secrets_data
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
+    # The package checkout itself must not be bundled
+    assert not any("base.yml" in name for name in names)
 
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:

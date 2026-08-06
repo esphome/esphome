@@ -708,6 +708,19 @@ RP2_BOARD_PINS = {
         "SS": 17,
         "TX": 0,
     },
+    "ilabs_cpico_2350": {
+        "LED": 25,
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 1,
+        "SCK": 18,
+        "SCL": 5,
+        "SCL1": 27,
+        "SDA": 4,
+        "SDA1": 26,
+        "SS": 17,
+        "TX": 0,
+    },
     "ilabs_rpico32": {
         "MISO": 24,
         "MOSI": 23,
@@ -1513,6 +1526,19 @@ RP2_BOARD_PINS = {
         "SS": 17,
         "TX": 0,
     },
+    "weact_rp2350b": {
+        "LED": 25,
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 1,
+        "SCK": 18,
+        "SCL": 5,
+        "SCL1": 27,
+        "SDA": 4,
+        "SDA1": 26,
+        "SS": 17,
+        "TX": 0,
+    },
     "wiznet_55rp20_evb_pico": {
         "LED": 19,
         "MISO": 2,
@@ -1877,6 +1903,11 @@ BOARDS = {
         "mcu": "rp2040",
         "max_pin": 29,
     },
+    "ilabs_cpico_2350": {
+        "name": "iLabs CPico 2350",
+        "mcu": "rp2350",
+        "max_pin": 47,
+    },
     "ilabs_rpico32": {
         "name": "iLabs RPICO32",
         "mcu": "rp2040",
@@ -1948,12 +1979,12 @@ BOARDS = {
         "max_pin": 29,
     },
     "pcbcupid_glyph_2040": {
-        "name": "PCBCupid Glyph 2040",
+        "name": "Pcbcupid GLYPH 2040",
         "mcu": "rp2040",
         "max_pin": 29,
     },
     "pcbcupid_glyph_mini_2040": {
-        "name": "PCBCupid Glyph Mini 2040",
+        "name": "Pcbcupid GLYPH MINI 2040",
         "mcu": "rp2040",
         "max_pin": 29,
     },
@@ -2257,6 +2288,11 @@ BOARDS = {
         "mcu": "rp2350",
         "max_pin": 47,
         "wifi": True,
+    },
+    "weact_rp2350b": {
+        "name": "WeAct Studio RP2350B Core Board",
+        "mcu": "rp2350",
+        "max_pin": 47,
     },
     "wiznet_5100s_evb_pico": {
         "name": "WIZnet W5100S-EVB-Pico",
