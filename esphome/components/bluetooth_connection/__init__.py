@@ -3,7 +3,10 @@
 This component holds the BluetoothConnection implementations the proxy drives
 for active connections (esp32 Bluedroid today, rp2 BTstack). It is auto-loaded
 by bluetooth_proxy and has no user-facing configuration; the proxy's codegen
-declares and registers the connection instances.
+declares and registers the connection instances. The connection sources
+deliberately include bluetooth_proxy.h: the proxy is the one consumer, and the
+API-message emission lives with the connection rather than behind another
+indirection.
 """
 
 import functools
@@ -17,8 +20,9 @@ from esphome.core import CORE
 def AUTO_LOAD() -> list[str]:
     """The esp32 connection header includes esp32_ble_client; make the build
     closure self-satisfying on every platform instead of relying on the
-    consumer's auto loads."""
-    if CORE.is_esp32:
+    consumer's auto loads. With no target platform (tooling resolving the
+    manifest), expose the union so dependency closures stay complete."""
+    if CORE.is_esp32 or CORE.target_platform is None:
         return ["ble_device_base", "esp32_ble_client"]
     return ["ble_device_base"]
 

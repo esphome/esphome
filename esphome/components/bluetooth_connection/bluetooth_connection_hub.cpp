@@ -42,11 +42,16 @@ void BluetoothConnection::disconnect() {
     return;
   }
   int err = this->backend_->disconnect();
-  if (err != 0) {
-    ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
-    // Backend refused (already idle): free the slot so the client is not stuck.
+  if (err == GATT_NOT_CONNECTED) {
+    // Backend already idle: free the slot so the client is not stuck.
+    ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle", this->connection_index_, this->address_str_);
     this->reset_connection_(err);
     return;
+  }
+  if (err != 0) {
+    // Transient refusal: stay DISCONNECTING and let the safety timeout
+    // arbitrate rather than freeing a slot whose teardown is unresolved.
+    ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
   }
   this->state_ = ClientState::DISCONNECTING;
   this->disconnecting_started_ = millis();
@@ -75,7 +80,11 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected && this->state_ == ClientState::DISCONNECTING) {
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
-    this->backend_->disconnect();
+    int err = this->backend_->disconnect();
+    if (err != 0 && err != GATT_NOT_CONNECTED) {
+      ESP_LOGW(TAG, "[%d] [%s] teardown disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
+      this->reset_connection_(err);
+    }
     return;
   }
   if (connected) {
@@ -144,7 +153,9 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
   resp.address = this->address_;
   resp.handle = handle;
   resp.set_data(data, len);
-  api_connection->send_message(resp);
+  if (!api_connection->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send read response", this->connection_index_, this->address_str_);
+  }
 }
 
 void BluetoothConnection::on_write_result(uint16_t handle, int error) {
@@ -159,7 +170,9 @@ void BluetoothConnection::on_write_result(uint16_t handle, int error) {
   api::BluetoothGATTWriteResponse resp;
   resp.address = this->address_;
   resp.handle = handle;
-  api_connection->send_message(resp);
+  if (!api_connection->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send write response", this->connection_index_, this->address_str_);
+  }
 }
 
 void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int error) {
@@ -175,7 +188,9 @@ void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int err
   api::BluetoothGATTNotifyResponse resp;
   resp.address = this->address_;
   resp.handle = handle;
-  api_connection->send_message(resp);
+  if (!api_connection->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send notify state response", this->connection_index_, this->address_str_);
+  }
 }
 
 void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {
@@ -187,7 +202,9 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
   resp.address = this->address_;
   resp.handle = handle;
   resp.set_data(data, len);
-  api_connection->send_message(resp);
+  if (!api_connection->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
+  }
 }
 
 // ---- GATT operations ----
@@ -265,6 +282,7 @@ void BluetoothConnection::send_service_for_discovery_() {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
              this->address_str_);
     this->send_service_ = INIT_SENDING_SERVICES;
+    this->services_discovered_ = false;
     this->backend_->release_services();
     return;
   }
@@ -304,8 +322,14 @@ void BluetoothConnection::send_service_for_discovery_() {
       char_count = table.characteristic_count - service.first_characteristic;
     }
     if (char_count != service.characteristic_count) {
-      ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), clamped", this->connection_index_,
-               this->address_str_, this->send_service_);
+      // A miscounted backend range must not stream a truncated database as
+      // authoritative (V3 clients cache it permanently): abort and tear the
+      // connection down; the client times out and retries.
+      ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), aborting stream",
+               this->connection_index_, this->address_str_, this->send_service_);
+      this->send_service_ = DONE_SENDING_SERVICES;
+      this->disconnect();
+      return;
     }
     if (char_count > 0) {
       service_resp.characteristics.init(char_count);
@@ -323,8 +347,11 @@ void BluetoothConnection::send_service_for_discovery_() {
           desc_count = table.descriptor_count - chr.first_descriptor;
         }
         if (desc_count != chr.descriptor_count) {
-          ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), clamped", this->connection_index_,
-                   this->address_str_, this->send_service_);
+          ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), aborting stream",
+                   this->connection_index_, this->address_str_, this->send_service_);
+          this->send_service_ = DONE_SENDING_SERVICES;
+          this->disconnect();
+          return;
         }
         if (desc_count == 0) {
           continue;
@@ -346,8 +373,11 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // Send the message with dynamically batched services; on a failed send,
-  // rewind the cursor so the batch is retried instead of silently skipped.
+  // rewind the cursor so the batch is retried instead of silently skipped
+  // (bounded: a subscriber that stays gone ends streaming via the api-lost
+  // rewind above).
   if (!api_conn->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", this->connection_index_, this->address_str_);
     this->send_service_ = batch_start;
   }
 }
