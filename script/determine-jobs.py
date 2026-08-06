@@ -658,7 +658,7 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
-    """Determine if C++ benchmarks should run based on changed files.
+    """Determine if benchmarks (C++ and Python) should run based on changed files.
 
     Benchmarks run when any of the following conditions are met:
 
