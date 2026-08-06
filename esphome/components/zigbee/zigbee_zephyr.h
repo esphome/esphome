@@ -94,7 +94,7 @@ class ZigbeeComponent final : public Component {
   void dump_reporting_();
   std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
   CallbackManager<void(bool)> join_cb_;
-  CallbackManager<void()> start_cb_;
+  LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
