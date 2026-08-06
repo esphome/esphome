@@ -1,6 +1,6 @@
 #include "bluetooth_connection.h"
 
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/log.h"
@@ -39,4 +39,4 @@ bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &cu
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_ESP32 || USE_BLE_GATT_CLIENT
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT

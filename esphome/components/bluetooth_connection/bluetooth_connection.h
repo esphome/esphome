@@ -16,6 +16,13 @@
 #include <esp_err.h>
 #endif
 
+// A GATT connection backend exists in this build: esp32 (Bluedroid) or a hub
+// platform with the neutral GATT client compiled in. Single-sourced here so
+// the proxy and this component cannot drift.
+#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+#define BLUETOOTH_CONNECTION_HAS_GATT
+#endif
+
 namespace esphome::api {
 class BluetoothGATTGetServicesResponse;
 }  // namespace esphome::api
@@ -120,7 +127,7 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
   }
 }
 
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 /// Close out the service just packed into resp (account its actual wire size,
 /// advance the cursor) and decide whether the batch must be sent now. Returns
 /// true when the caller should stop batching: either the service was popped
@@ -129,6 +136,6 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
 /// its log lines cannot drift.
 bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
                          uint8_t connection_index, const char *address_str);
-#endif
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT
 
 }  // namespace esphome::bluetooth_connection
