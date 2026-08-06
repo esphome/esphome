@@ -236,6 +236,8 @@ async def test_script_queued(
 
         # Test 5 again: after the queue fully drained (loop disabled while
         # idle), executing again must still work
+        test_service = next((s for s in services if s.name == "test_no_params"), None)
+        assert test_service is not None, "test_no_params service not found"
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test5_again_complete, timeout=2.0)
         assert test_results["no_params"]["executions"] == 6, (
