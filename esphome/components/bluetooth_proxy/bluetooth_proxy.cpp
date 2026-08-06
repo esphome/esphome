@@ -125,7 +125,7 @@ void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *typ
 void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
                                                 const char *type) {
   this->log_not_connected_gatt_(action, type);
-  this->send_gatt_error(address, handle, ESP_GATT_NOT_CONNECTED);
+  this->send_gatt_error(address, handle, GATT_NOT_CONNECTED);
 }
 
 #ifdef USE_ESP32
@@ -473,7 +473,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
     ESP_LOGW(TAG, "[%d] [%s] Cannot set connection params, not connected",
              connection ? static_cast<int>(connection->get_connection_index()) : -1,
              connection ? connection->address_str() : "unknown");
-    resp.error = ESP_GATT_NOT_CONNECTED;
+    resp.error = GATT_NOT_CONNECTED;
     this->api_connection_->send_message(resp);
     return;
   }
@@ -558,7 +558,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       ESP_LOGW(TAG, "Active connections are not supported on this platform");
-      this->send_device_connection(msg.address, false, 0, ESP_GATT_NOT_CONNECTED);
+      this->send_device_connection(msg.address, false, 0, GATT_NOT_CONNECTED);
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
       // Not an error: the device is already disconnected, which is the requested state.
@@ -566,13 +566,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       this->send_connections_free();
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-      this->send_device_pairing(msg.address, false, ESP_GATT_NOT_CONNECTED);
+      this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
-      this->send_device_unpairing(msg.address, false, ESP_GATT_NOT_CONNECTED);
+      this->send_device_unpairing(msg.address, false, GATT_NOT_CONNECTED);
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
-      this->send_device_clear_cache(msg.address, false, ESP_GATT_NOT_CONNECTED);
+      this->send_device_clear_cache(msg.address, false, GATT_NOT_CONNECTED);
       break;
   }
 }
@@ -606,7 +606,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
     return;
   api::BluetoothSetConnectionParamsResponse resp;
   resp.address = msg.address;
-  resp.error = ESP_GATT_NOT_CONNECTED;
+  resp.error = GATT_NOT_CONNECTED;
   this->api_connection_->send_message(resp);
 }
 
@@ -667,7 +667,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
 #endif
 }
 
-void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, proxy_err_t error) {
+void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
   api::BluetoothDeviceConnectionResponse call;
@@ -695,7 +695,7 @@ void BluetoothProxy::send_gatt_services_done(uint64_t address) {
   this->api_connection_->send_message(call);
 }
 
-void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, proxy_err_t error) {
+void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
   api::BluetoothGATTErrorResponse call;
@@ -705,7 +705,7 @@ void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, proxy_er
   this->api_connection_->send_message(call);
 }
 
-void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, proxy_err_t error) {
+void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
   api::BluetoothDevicePairingResponse call;
@@ -716,7 +716,7 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, proxy_er
   this->api_connection_->send_message(call);
 }
 
-void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, proxy_err_t error) {
+void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
   api::BluetoothDeviceUnpairingResponse call;
@@ -729,7 +729,7 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, proxy
 
 // Shared by both platform paths: the neutral bluetooth_device_request() uses it to
 // answer a clear-cache request with a clean error, so it must not be esp32-guarded.
-void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, proxy_err_t error) {
+void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
   api::BluetoothDeviceClearCacheResponse call;

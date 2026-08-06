@@ -34,13 +34,12 @@
 namespace esphome::bluetooth_proxy {
 
 // The connection-domain types live in the bluetooth_connection component;
-// re-exported here (with the historical proxy-side spellings for the error
-// domain) so the proxy code reads unchanged.
+// re-exported here so the proxy code reads unqualified.
+using bluetooth_connection::CONN_OK;
+using bluetooth_connection::conn_err_t;
 using bluetooth_connection::DONE_SENDING_SERVICES;
+using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
-using proxy_err_t = bluetooth_connection::conn_err_t;
-static constexpr proxy_err_t PROXY_OK = bluetooth_connection::CONN_OK;
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = bluetooth_connection::GATT_NOT_CONNECTED;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
@@ -140,14 +139,14 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, proxy_err_t error = PROXY_OK);
+  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
   void send_gatt_services_done(uint64_t address);
-  void send_gatt_error(uint64_t address, uint16_t handle, proxy_err_t error);
-  void send_device_pairing(uint64_t address, bool paired, proxy_err_t error = PROXY_OK);
-  void send_device_unpairing(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
-  void send_device_clear_cache(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
+  void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+  void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
+  void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
+  void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
 
   void bluetooth_scanner_set_mode(bool active);
 
