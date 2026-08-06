@@ -1,0 +1,9 @@
+# Advertisement-only proxy on rp2 by explicit choice: active false must keep
+# validating (and keeps the GATT backend out of the build).
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+bluetooth_proxy:
+  active: false

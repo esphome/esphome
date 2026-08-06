@@ -46,3 +46,32 @@ def test_hub_platform_accepts_the_advertisement_only_shape() -> None:
     _set_platform("ln882x")
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is False
+
+
+def test_rp2_defaults_to_the_full_proxy() -> None:
+    # esp32 parity: active defaults to true, with the platform's slot limit.
+    _set_platform("rp2")
+    validated = bluetooth_proxy.CONFIG_SCHEMA({})
+    assert validated[CONF_ACTIVE] is True
+    assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 1
+
+
+def test_rp2_accepts_explicit_passive() -> None:
+    _set_platform("rp2")
+    validated = bluetooth_proxy.CONFIG_SCHEMA({CONF_ACTIVE: False})
+    assert validated[CONF_ACTIVE] is False
+
+
+def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
+    # The prebuilt BTstack library allows exactly one GATT client connection.
+    _set_platform("rp2")
+    with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
+
+
+def test_rp2_rejects_esp32_only_keys_by_name() -> None:
+    _set_platform("rp2")
+    with pytest.raises(cv.Invalid, match="'cache_services' is esp32-only"):
+        bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
+    with pytest.raises(cv.Invalid, match="'connections' is esp32-only"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
