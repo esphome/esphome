@@ -11,12 +11,23 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.core import CORE
 
 from ..helpers import get_define_value
 
 
+@pytest.mark.parametrize(
+    ("config", "define"),
+    [
+        ("bk72xx_tracker.yaml", "BK72XX_BLE_SCAN_LISTENER_COUNT"),
+        ("rp2_tracker.yaml", "RP2040_BLE_SCAN_LISTENER_COUNT"),
+    ],
+)
 def test_tracker_requests_one_slot(
+    config: str,
+    define: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -25,18 +36,27 @@ def test_tracker_requests_one_slot(
     The neutral listener count must stay absent from the same build: no BLE
     consumer registered through register_ble_device().
     """
-    generate_main(component_config_path("bk72xx_tracker.yaml"))
-    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") == "1"
+    generate_main(component_config_path(config))
+    assert get_define_value(define) == "1"
     assert get_define_value("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT") is None
 
 
+@pytest.mark.parametrize(
+    ("config", "define"),
+    [
+        ("bk72xx_controller_only.yaml", "BK72XX_BLE_SCAN_LISTENER_COUNT"),
+        ("rp2_controller_only.yaml", "RP2040_BLE_SCAN_LISTENER_COUNT"),
+    ],
+)
 def test_controller_only_emits_no_count(
+    config: str,
+    define: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """No consumer, no define — the guarded listener storage compiles out."""
-    generate_main(component_config_path("bk72xx_controller_only.yaml"))
-    assert get_define_value("BK72XX_BLE_SCAN_LISTENER_COUNT") is None
+    generate_main(component_config_path(config))
+    assert get_define_value(define) is None
 
 
 def test_neutral_listener_count_emitted_when_requested() -> None:
@@ -61,3 +81,55 @@ def test_neutral_listener_count_emitted_when_requested() -> None:
     )
     CORE.flush_tasks()
     assert get_define_value(ble_device_base.LISTENER_COUNT_DEFINE) == "1"
+
+
+def test_esp32_tracker_handler_counts(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A bare tracker registers its four esp32_ble handlers and nothing else."""
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT") is None
+    # No consumer subscribed to scanner state, so the storage compiles out.
+    assert (
+        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT")
+        is None
+    )
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") is None
+
+
+def test_esp32_bluetooth_proxy_requests_scanner_state_slot(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The proxy requests one scanner state slot, one raw listener slot and a
+    client slot per connection (three by default with active: true)."""
+    generate_main(component_config_path("esp32_bluetooth_proxy.yaml"))
+    assert (
+        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT")
+        == "1"
+    )
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
+
+
+def test_counts_reset_between_compiles(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A second compile in the same process starts from zero.
+
+    The module level counters this change removes leaked across compiles in a
+    long lived host process (dashboard, device-builder), growing the handler
+    counts by one per compile and oversizing the StaticCallbackManager storage.
+    """
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
+    CORE.reset()
+    generate_main(component_config_path("esp32_tracker_only.yaml"))
+    assert get_define_value("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT") == "1"
