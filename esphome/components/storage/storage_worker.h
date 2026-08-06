@@ -267,7 +267,7 @@ struct TransferRequest {
   // no second full buffer is allocated.
   uint8_t verify_passes{0};
   uint8_t verify_pass_done{0};
-  bool verifying{false};
+  std::atomic<bool> verifying{false};
   // Set by the worker task right before a blocking whole-chip erase(0, capacity) and cleared
   // right after. A chip erase busy-waits for its full duration (tens of seconds) without
   // advancing bytes_done, so the stall watchdog (check_stalled_, main loop) would otherwise
@@ -278,6 +278,10 @@ struct TransferRequest {
   // it needs no conditional-atomic dance; the flag is written on the task and read on the
   // main loop.
   std::atomic<bool> blocking_erase_active{false};
+  // Set by wait_for_network_ready_() when a chunk stayed RUNNING waiting for a network
+  // storage to come up; the worker-task loop paces its retry on it (loop-sliced paces
+  // naturally via update()). Reset at the top of each run_chunk_().
+  bool network_waiting{false};
 
   // Externally observable progress (see get_transfer_status()): bytes_done is advanced by
   // run_chunk_() on whichever engine runs the transfer (possibly the worker task) while the

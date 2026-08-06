@@ -22,6 +22,12 @@ void StorageWorker::setup() {
     // Drain channel, not the unregister channel: a safe-eject quiesces without unregistering,
     // and the worker has to let go of the device in that case too.
     global_storage_registry->add_on_quiesce_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
+  } else {
+    // The registry (BUS priority) is guaranteed to exist by DATA, this component's setup priority.
+    // If it somehow does not, the drain contract cannot be honored -- fail loudly rather than let
+    // in-flight I/O continue against an unmounted medium.
+    ESP_LOGE(TAG, "storage registry unavailable -- cannot honor the drain contract");
+    this->mark_failed();
   }
   // PollingComponent::call_setup() auto-starts the poller before setup(); stop it here so an
   // idle worker schedules nothing. The first submit funnel (start_poller()) arms it when work
@@ -167,6 +173,7 @@ bool StorageWorker::wait_for_network_ready_(TransferRequest &req, StorageError e
     req.waiting_logged = true;
     ESP_LOGD(TAG, "Network storage not ready yet -- waiting for it to come up");
   }
+  req.network_waiting = true;
   return true;  // stay RUNNING; the loop retries this request on the next pass
 }
 
@@ -306,6 +313,10 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->raw_address = 0;
   slot->raw_erase_pos = 0;
   slot->raw_erase_end = 0;
+  slot->force_sliced_erase = false;
+  slot->verify_passes = 0;
+  slot->verify_pass_done = 0;
+  slot->verifying = false;
   slot->src_is_fs = src->get_storage_type() == StorageType::FILESYSTEM;
   slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
   // Tree ops keep their roots aside: src_path/dst_path are reused for the file currently in
@@ -410,6 +421,13 @@ StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCa
   slot->src_path[0] = '\0';
   slot->dst_path[0] = '\0';
   slot->raw_device = nullptr;
+  slot->raw_address = 0;
+  slot->raw_erase_pos = 0;
+  slot->raw_erase_end = 0;
+  slot->force_sliced_erase = false;
+  slot->verify_passes = 0;
+  slot->verify_pass_done = 0;
+  slot->verifying = false;
   slot->cancel_result = StorageError::NOT_READY;
   slot->callback = std::move(on_done);
   slot->result = StorageError::OK;
@@ -511,6 +529,10 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
 
+  // Arm the engine before dispatch so a task-queued raw op still gets its completion delivered
+  // from update(); mirrors submit_(). Fixes the early-return-before-start_poller() path.
+  this->start_poller();
+
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   // A raw device that declared itself alone on a hardware bus (assume_exclusive_bus) reports
   // STORAGE_CAP_IO_TASK_SAFE, so its blocking I/O may run on the worker task instead of the
@@ -530,7 +552,7 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
 #endif
   // Loop-sliced engine: raw devices without the task-safe opt-in are main-loop citizens
   // (esp_flash & friends), and this is also the fallback when task dispatch is skipped above.
-  this->start_poller();
+  // (The poller is already armed above.)
   return StorageError::OK;
 }
 
@@ -584,6 +606,8 @@ bool StorageWorker::get_transfer_status(TransferJob job, TransferStatus *out) co
   out->verify_passes = req.verify_passes;
   out->verify_pass = 0;
   if (state == RequestState::RUNNING) {
+    // verifying is atomic; the erase cursors and req.op read just below can tear against the task
+    // for one poll frame -- an accepted, bounded race (wrong phase label at worst, never data).
     if (req.verifying) {
       out->phase = TransferPhase::VERIFY;
       out->verify_pass = static_cast<uint8_t>(req.verify_pass_done + 1);
@@ -937,6 +961,10 @@ void StorageWorker::task_loop_() {
       // (and the pending callback) stuck forever.
       while (req.state.load() != RequestState::DONE) {
         this->run_chunk_(req, /*on_task=*/true);
+        // A network storage that answered NOT_READY while reconnecting would otherwise be hammered
+        // back-to-back for the whole NETWORK_READY_WINDOW_MS; pace the retry instead of spinning.
+        if (req.network_waiting)
+          vTaskDelay(pdMS_TO_TICKS(50));
       }
     } else {
       // STREAM: single step per queue entry, unlike TransferRequest above -- the caller submits
@@ -1626,9 +1654,13 @@ void StorageWorker::check_stalled_() {
     ESP_LOGW(TAG, "Stream on '%s' idle for %us - abandoning it", sreq.path,
              static_cast<unsigned>(STREAM_IDLE_TIMEOUT_MS / 1000));
     if (sstate == StreamState::DONE) {
-      // Finished but never collected -- the client is gone; reclaim the slot.
+      // Finished but never collected -- the client is gone. Deliver the result once (the update()
+      // sweep would have, had it run first) before reclaiming, so a waiter still learns the outcome.
+      CompletionCallback cb = std::move(sreq.callback);
       sreq.callback = nullptr;
       sreq.state = StreamState::FREE;
+      if (cb)
+        cb(sreq.result);
     } else if (sstate == StreamState::IDLE) {
       // Same immediate-finish contract as the quiesce drain: no I/O in flight.
       if (sreq.is_fs && sreq.handle != nullptr)
@@ -1651,6 +1683,7 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
     finish_request(req, req.cancel_result);
     return;
   }
+  req.network_waiting = false;  // set again below only if a side is still coming up
   if (global_storage_registry != nullptr &&
       ((req.src_storage != nullptr && !global_storage_registry->is_registered(req.src_storage)) ||
        (req.dst_storage != nullptr && !global_storage_registry->is_registered(req.dst_storage)))) {
