@@ -310,9 +310,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
         if (!this->gmt_time_sync_callback_registered_) {
           // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] {
-            this->send_gmt_time_();
-          });
+          this->time_id_->add_on_time_sync_callback([this] { this->send_gmt_time_(); });
           this->gmt_time_sync_callback_registered_ = true;
         }
       } else
@@ -321,47 +319,47 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         ESP_LOGW(TAG, "GMT_TIME_QUERY is not handled because time is not configured");
       }
       break;
-      case TuyaCommandType::VACUUM_MAP_UPLOAD:
-        this->send_command_(
-            TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
-        ESP_LOGW(TAG, "Vacuum map upload requested, responding that it is not enabled.");
-        break;
-      case TuyaCommandType::GET_NETWORK_STATUS: {
-        uint8_t wifi_status = this->get_wifi_status_code_();
+    case TuyaCommandType::VACUUM_MAP_UPLOAD:
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
+      ESP_LOGW(TAG, "Vacuum map upload requested, responding that it is not enabled.");
+      break;
+    case TuyaCommandType::GET_NETWORK_STATUS: {
+      uint8_t wifi_status = this->get_wifi_status_code_();
 
-        this->send_command_(
-            TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
-        ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
-        break;
-      }
-      case TuyaCommandType::EXTENDED_SERVICES: {
-        uint8_t subcommand = buffer[0];
-        switch ((TuyaExtendedServicesCommandType) subcommand) {
-          case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
-            this->send_command_(
-                TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
-                            .payload = std::vector<uint8_t>{
-                                static_cast<uint8_t>(TuyaExtendedServicesCommandType::RESET_NOTIFICATION), 0x00}});
-            ESP_LOGV(TAG, "Reset status notification enabled");
-            break;
-          }
-          case TuyaExtendedServicesCommandType::MODULE_RESET: {
-            ESP_LOGE(TAG, "EXTENDED_SERVICES::MODULE_RESET is not handled");
-            break;
-          }
-          case TuyaExtendedServicesCommandType::UPDATE_IN_PROGRESS: {
-            ESP_LOGE(TAG, "EXTENDED_SERVICES::UPDATE_IN_PROGRESS is not handled");
-            break;
-          }
-          default:
-            ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
-        }
-        break;
-      }
-      default:
-        ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
+      ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
+      break;
     }
+    case TuyaCommandType::EXTENDED_SERVICES: {
+      uint8_t subcommand = buffer[0];
+      switch ((TuyaExtendedServicesCommandType) subcommand) {
+        case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
+          this->send_command_(
+              TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
+                          .payload = std::vector<uint8_t>{
+                              static_cast<uint8_t>(TuyaExtendedServicesCommandType::RESET_NOTIFICATION), 0x00}});
+          ESP_LOGV(TAG, "Reset status notification enabled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::MODULE_RESET: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::MODULE_RESET is not handled");
+          break;
+        }
+        case TuyaExtendedServicesCommandType::UPDATE_IN_PROGRESS: {
+          ESP_LOGE(TAG, "EXTENDED_SERVICES::UPDATE_IN_PROGRESS is not handled");
+          break;
+        }
+        default:
+          ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received", subcommand);
+      }
+      break;
+    }
+    default:
+      ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
+}
 
 void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
   while (len >= 4) {
@@ -386,7 +384,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
         {
           char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
           ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id,
-                    format_hex_pretty_to(hex_buf, datapoint.value_raw.data(), datapoint.value_raw.size()));
+                   format_hex_pretty_to(hex_buf, datapoint.value_raw.data(), datapoint.value_raw.size()));
         }
         break;
       case TuyaDatapointType::BOOLEAN:
@@ -446,8 +444,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     bool skip = false;
     for (auto i : this->ignore_mcu_update_on_datapoints_) {
       if (datapoint.id == i) {
-        ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update",
-                  datapoint.id);
+        ESP_LOGV(TAG, "Datapoint %u found in ignore_mcu_update_on_datapoints list, dropping MCU update", datapoint.id);
         skip = true;
         break;
       }
@@ -502,8 +499,8 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
   ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(command.cmd),
-            version, format_hex_pretty_to(hex_buf, command.payload.data(), command.payload.size()),
-            static_cast<uint8_t>(this->init_state_));
+           version, format_hex_pretty_to(hex_buf, command.payload.data(), command.payload.size()),
+           static_cast<uint8_t>(this->init_state_));
 #endif
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
@@ -740,8 +737,7 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
 
 void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced) {
   char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id,
-            format_hex_pretty_to(hex_buf, value.data(), value.size()));
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty_to(hex_buf, value.data(), value.size()));
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
@@ -774,8 +770,7 @@ void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const std::string &
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
-void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type,
-                                    std::vector<uint8_t> data) {
+void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data) {
   std::vector<uint8_t> buffer;
   buffer.push_back(datapoint_id);
   buffer.push_back(static_cast<uint8_t>(datapoint_type));
