@@ -1,0 +1,9 @@
+# Advertisement-only proxy on rp2 by explicit choice: compiled so the
+# active-false combination (no GATT backend in the build) keeps building.
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+bluetooth_proxy:
+  active: false

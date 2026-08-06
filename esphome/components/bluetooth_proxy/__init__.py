@@ -260,7 +260,10 @@ def _validate_platform(config: ConfigType) -> ConfigType:
             "platform. It runs on esp32 and rp2 (full proxy) and the ln882x "
             "family (advertisement-only)."
         )
-    if CORE.target_platform == PLATFORM_RP2:
+    if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
+        # The registry decides which hub platforms run the full proxy; a new
+        # entry must also add its platform schema to this dispatch (the
+        # schema carries platform-specific keys, e.g. rp2040_ble_id).
         return _rp2_config_schema()(config)
     return _BLE_HUB_CONFIG_SCHEMA(config)
 
@@ -280,17 +283,27 @@ def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
         # implying an advertisement-only proxy is available.
         return config
     if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
-        # Full proxy: connection_slots is real here; per-connection codegen
-        # (`connections`) and the Bluedroid NVS service cache stay esp32-only.
-        rejected = (CONF_CACHE_SERVICES, CONF_CONNECTIONS)
-        reason = "is esp32-only (Bluedroid GATT stack)"
+        # Full proxy: connection_slots is real here; the per-connection list
+        # exists internally but carries no user options, and the Bluedroid
+        # NVS service cache is esp32-only.
+        rejected = {
+            CONF_CONNECTIONS: (
+                "has no per-connection options on this platform; use "
+                "'connection_slots' to set the count"
+            ),
+            CONF_CACHE_SERVICES: "is esp32-only (Bluedroid NVS service cache)",
+        }
     else:
-        rejected = (CONF_CONNECTION_SLOTS, CONF_CACHE_SERVICES, CONF_CONNECTIONS)
         reason = (
             "requires active connection support; this platform runs the "
             "advertisement-only proxy and has no such option"
         )
-    for key in rejected:
+        rejected = {
+            CONF_CONNECTION_SLOTS: reason,
+            CONF_CACHE_SERVICES: reason,
+            CONF_CONNECTIONS: reason,
+        }
+    for key, reason in rejected.items():
         if key in config:
             raise cv.Invalid(f"'{key}' {reason}", path=[key])
     return config
