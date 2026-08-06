@@ -8,6 +8,7 @@
 #include "ble_aes_ccm.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -265,22 +266,65 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(this->beacon_data_)); }
 
-optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
+optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data, bool *prefix_rejected) {
   // iBeacon manufacturer specific data (after company-ID bytes have been stripped):
   //   [0x02][0x15][16-byte UUID][2-byte major][2-byte minor][1-byte power] = exactly 23 bytes
-  // Parity with esp32_ble_tracker: gate on the Apple company ID and length only.
-  // (Checking the 0x02/0x15 sub-type prefix would be stricter, but is a behavior
-  // change; it belongs to a follow-up, not this refactor.)
   if (!data.uuid.contains(0x4C, 0x00))  // Apple company ID 0x004C
     return {};
   if (data.data.size() != 23)
     return {};
+  // Require the iBeacon sub-type/length prefix — stricter than the legacy
+  // esp32 parser, which accepted any 23-byte Apple payload and surfaced
+  // non-iBeacon frames as garbage beacons.
+  if (data.data[0] != 0x02 || data.data[1] != 0x15) {
+    if (prefix_rejected != nullptr)
+      *prefix_rejected = true;
+    return {};
+  }
   return ESPBLEiBeacon(data.data.data());
 }
 
 // ---------------------------------------------------------------------------
 // ESPBTDevice
 // ---------------------------------------------------------------------------
+
+optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
+  bool prefix_rejected = false;
+  uint8_t rejected_sub_type = 0;
+  uint8_t rejected_len = 0;
+  for (const auto &it : this->manufacturer_datas_) {
+    bool rejected = false;
+    auto res = ESPBLEiBeacon::from_manufacturer_data(it, &rejected);
+    if (res.has_value())
+      return res;
+    if (rejected && !prefix_rejected) {
+      prefix_rejected = true;
+      rejected_sub_type = it.data[0];
+      rejected_len = it.data[1];
+    }
+  }
+  if (prefix_rejected) {
+    // Only when no beacon was found at all: these frames were accepted before
+    // the prefix check, so their disappearance must be observable at the
+    // default log level. Throttled so a chatty non-iBeacon Apple advertiser
+    // cannot flood the log; a different address may bypass the shared window
+    // so that advertiser cannot mask the device that actually regressed — but
+    // with a 1 s floor, or two alternating advertisers log every frame.
+    static uint32_t last_log = 0;
+    static uint64_t last_addr = 0;
+    const uint32_t now = millis();
+    const uint64_t addr = this->address_uint64();
+    const uint32_t since = now - last_log;
+    if (last_log == 0 || since > 60000 || (addr != last_addr && since > 1000)) {
+      last_log = now;
+      last_addr = addr;
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
+               this->address_str_to(addr_buf), rejected_sub_type, rejected_len);
+    }
+  }
+  return {};
+}
 
 const char *ESPBTDevice::address_type_str() const {
   switch (this->address_type_) {
