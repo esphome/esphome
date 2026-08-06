@@ -4,7 +4,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
 from esphome.core import Lambda
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
@@ -29,6 +29,8 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 # The pdu lambda's return type: a stack-allocated StaticVector capped at the Modbus PDU limit
 # (modbus.MAX_PDU_SIZE). Lambdas can return a byte list or a modbus::helpers::create_*_pdu() result.
+# The list form below is bounded by cv.Length; a lambda cannot be. PduBuffer drops bytes past
+# modbus.MAX_PDU_SIZE without reporting it, so an over-long lambda PDU is silently truncated.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
 
 
@@ -63,14 +65,14 @@ _ACTION_BASE_SCHEMA = cv.Schema(
         # on_no_response takes either a returning lambda (`!lambda "return <bool>;"`, gets `request`,
         # returns true to have the hub retry the frame) OR a `then:` automation of actions; the automation
         # form may also carry an optional `retry:` returning lambda to run actions AND decide the retry.
-        cv.Optional(CONF_ON_NO_RESPONSE): cv.Any(
-            cv.returning_lambda,
-            cv.All(
+        cv.Optional(CONF_ON_NO_RESPONSE): cv.All(
+            cv.Any(
+                cv.returning_lambda,
                 automation.validate_automation(
                     {cv.Optional(CONF_RETRY): cv.returning_lambda}, single=True
                 ),
-                _synchronous_handler,
             ),
+            _synchronous_handler,
         ),
         cv.Optional(CONF_ON_NOT_SENT): _handler_schema(),
     }
@@ -89,8 +91,16 @@ MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
 )
 
 
-async def register_client_action(var, config, args, response_args):
-    """Wire the shared action plumbing: hub parent, templated device address, outcome triggers."""
+async def register_client_action(
+    var: cg.MockObj,
+    config: ConfigType,
+    args: TemplateArgsType,
+    response_args: TemplateArgsType,
+) -> cg.MockObj:
+    """Wire the shared action plumbing: hub parent, templated device address, outcome triggers.
+
+    response_args are the on_response handler's arguments, which differ per action.
+    """
     parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(

@@ -19,7 +19,7 @@ namespace esphome::modbus_client {
 /// dropped and resolves via on_not_sent.
 template<typename... Ts> class ClientActionBase : public Action<Ts...>, public modbus::ModbusClientDevice {
  public:
-  TEMPLATABLE_VALUE(uint8_t, target_address)  // device address 1-247, or 0 to broadcast (no reply)
+  TEMPLATABLE_VALUE(uint8_t, target_address)  // the modbus device address
 
   Trigger<std::span<const uint8_t>> *get_sent_trigger() { return &this->sent_trigger_; }
   Trigger<std::span<const uint8_t>, modbus::ExceptionCode> *get_error_trigger() { return &this->error_trigger_; }
@@ -72,6 +72,8 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 /// non-standard/custom transactions pass through untouched.
 /// The PDU is a stack-allocated modbus::helpers::PduBuffer, so a pdu lambda can build one with the
 /// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
+/// A PduBuffer drops bytes past modbus::MAX_PDU_SIZE without reporting it (the hub's oversize check
+/// cannot fire - that limit is the capacity), so an over-long lambda-built PDU is silently truncated.
 template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(modbus::helpers::PduBuffer, pdu)

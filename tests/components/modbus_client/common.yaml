@@ -21,6 +21,9 @@ button:
           pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
           # on_no_response lambda form: return true to retry. `request` is the timed-out PDU.
           on_no_response: !lambda "return !request.empty() && request[0] == 0x03 && id(read_retries)++ < 3;"
+          on_sent:
+            then:
+              - lambda: "id(read_retries) = 0;"
       # Per-send inline reply handlers (fire-and-continue): they run when this send's outcome is known;
       # the targeted address is not passed back - recompute the configured expression if needed.
       # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
