@@ -16,13 +16,13 @@ using ble_device_base::ESPBTUUID;
 
 static const char *const TAG = "bluetooth_connection";
 
-proxy_err_t unpair_device(uint64_t address) {
+conn_err_t unpair_device(uint64_t address) {
   esp_bd_addr_t bd_addr;
   ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
   return esp_ble_remove_bond_device(bd_addr);
 }
 
-proxy_err_t clear_gatt_cache(uint64_t address) {
+conn_err_t clear_gatt_cache(uint64_t address) {
   esp_bd_addr_t bd_addr;
   ble_device_base::uint64_to_mac_msb_first(address, bd_addr);
   return esp_ble_gattc_cache_clean(bd_addr);

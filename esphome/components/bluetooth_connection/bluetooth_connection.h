@@ -58,11 +58,11 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 
 // Address-scoped (not connection-scoped) maintenance requests.
 #ifdef USE_ESP32
-proxy_err_t unpair_device(uint64_t address);
-proxy_err_t clear_gatt_cache(uint64_t address);
+conn_err_t unpair_device(uint64_t address);
+conn_err_t clear_gatt_cache(uint64_t address);
 #else
-inline proxy_err_t unpair_device(uint64_t) { return ESP_GATT_NOT_CONNECTED; }
-inline proxy_err_t clear_gatt_cache(uint64_t) { return ESP_GATT_NOT_CONNECTED; }
+inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
+inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
 
 // send_service_ cursor states; >= 0 is the next service index to stream.
