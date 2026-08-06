@@ -620,6 +620,8 @@ ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
     table.characteristics = this->arena_->characteristics;
     table.descriptors = this->arena_->descriptors;
     table.service_count = this->service_count_;
+    table.characteristic_count = this->char_count_;
+    table.descriptor_count = this->desc_count_;
   }
   return table;
 }
