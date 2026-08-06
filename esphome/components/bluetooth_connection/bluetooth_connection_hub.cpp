@@ -4,6 +4,7 @@
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -48,6 +49,17 @@ void BluetoothConnection::disconnect() {
     return;
   }
   this->state_ = ClientState::DISCONNECTING;
+  this->disconnecting_started_ = millis();
+}
+
+void BluetoothConnection::check_disconnect_timeout_() {
+  // Safety net mirroring the esp32 base class: if the backend's disconnect
+  // completion is lost, force the slot free instead of leaking it.
+  static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
+  if (this->state_ == ClientState::DISCONNECTING && millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
+    this->reset_connection_(GATT_NOT_CONNECTED);
+  }
 }
 
 void BluetoothConnection::reset_connection_(conn_err_t reason) {
@@ -60,6 +72,12 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
 // ---- GattClientEventListener ----
 
 void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int error) {
+  if (connected && this->state_ == ClientState::DISCONNECTING) {
+    // The link came up after a disconnect request won the race; finish the
+    // teardown instead of reporting a connection the client no longer wants.
+    this->backend_->disconnect();
+    return;
+  }
   if (connected) {
     this->mtu_ = mtu;
     if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
@@ -90,13 +108,13 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
 }
 
 void BluetoothConnection::on_service_discovery_done(int error) {
-  ESP_LOGD(TAG, "[%d] [%s] Discovery finished (err=%d), sending connected (mtu=%u)", this->connection_index_,
-           this->address_str_, error, this->mtu_);
   if (error != 0) {
     ESP_LOGW(TAG, "[%d] [%s] Service discovery failed, err=%d", this->connection_index_, this->address_str_, error);
     this->disconnect();
     return;
   }
+  ESP_LOGD(TAG, "[%d] [%s] Discovery finished, sending connected (mtu=%u)", this->connection_index_, this->address_str_,
+           this->mtu_);
   this->state_ = ClientState::ESTABLISHED;
   this->services_discovered_ = true;
   this->proxy_->send_device_connection(this->address_, true, this->mtu_);
@@ -234,10 +252,15 @@ void BluetoothConnection::send_service_for_discovery_() {
     return;
   }
 
-  // Early return if no API connection
+  // The subscriber vanished mid-stream: rewind so a reconnecting client can
+  // request the services fresh, and free the table (the api-gone sweep in the
+  // proxy loop tears the connection down anyway).
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
-    this->send_service_ = DONE_SENDING_SERVICES;
+    ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
+             this->address_str_);
+    this->send_service_ = INIT_SENDING_SERVICES;
+    this->backend_->release_services();
     return;
   }
 
@@ -250,6 +273,7 @@ void BluetoothConnection::send_service_for_discovery_() {
 
   // Dynamic batching based on actual size, same contract as the esp32 streamer
   size_t current_size = resp.calculate_size();
+  int16_t batch_start = this->send_service_;
 
   while (this->send_service_ < static_cast<int16_t>(table.service_count)) {
     const auto &service = table.services[this->send_service_];
@@ -274,6 +298,10 @@ void BluetoothConnection::send_service_for_discovery_() {
     } else if (service.first_characteristic + char_count > table.characteristic_count) {
       char_count = table.characteristic_count - service.first_characteristic;
     }
+    if (char_count != service.characteristic_count) {
+      ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), clamped", this->connection_index_,
+               this->address_str_, this->send_service_);
+    }
     if (char_count > 0) {
       service_resp.characteristics.init(char_count);
       for (uint16_t ci = 0; ci < char_count; ci++) {
@@ -288,6 +316,10 @@ void BluetoothConnection::send_service_for_discovery_() {
           desc_count = 0;
         } else if (chr.first_descriptor + desc_count > table.descriptor_count) {
           desc_count = table.descriptor_count - chr.first_descriptor;
+        }
+        if (desc_count != chr.descriptor_count) {
+          ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), clamped", this->connection_index_,
+                   this->address_str_, this->send_service_);
         }
         if (desc_count == 0) {
           continue;
@@ -308,8 +340,11 @@ void BluetoothConnection::send_service_for_discovery_() {
     }
   }
 
-  // Send the message with dynamically batched services
-  api_conn->send_message(resp);
+  // Send the message with dynamically batched services; on a failed send,
+  // rewind the cursor so the batch is retried instead of silently skipped.
+  if (!api_conn->send_message(resp)) {
+    this->send_service_ = batch_start;
+  }
 }
 
 }  // namespace esphome::bluetooth_connection

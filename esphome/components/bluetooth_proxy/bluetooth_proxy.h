@@ -260,21 +260,18 @@ class BluetoothProxy final : public Component {
   void update_address_slot_(uint64_t old_address, uint64_t new_address) {
     auto &resp = this->connections_free_response_;
     if (new_address == 0 && old_address != 0) {
-      resp.free++;
+      if (resp.free < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
+        resp.free++;
+      }
       this->replace_allocated_slot_(old_address, 0);
     } else if (new_address != 0 && old_address == 0) {
-      resp.free--;
+      if (resp.free > 0) {
+        resp.free--;
+      }
       this->replace_allocated_slot_(0, new_address);
     }
   }
-  void replace_allocated_slot_(uint64_t find_value, uint64_t set_value) {
-    for (auto &slot : this->connections_free_response_.allocated) {
-      if (slot == find_value) {
-        slot = set_value;
-        return;
-      }
-    }
-  }
+  void replace_allocated_slot_(uint64_t find_value, uint64_t set_value);
   /// Free a connection slot after teardown: notify the API client and reset
   /// the streaming cursor. Important: does NOT send send_gatt_services_done()
   /// when service streaming was interrupted -- the client (aioesphomeapi) has

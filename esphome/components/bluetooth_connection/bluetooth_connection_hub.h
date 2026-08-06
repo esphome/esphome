@@ -69,13 +69,15 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   // never answered with an authoritative empty database).
   bool has_gatt_services() const { return this->services_discovered_; }
 
-  /// Stream any pending service-discovery batch. Called from the proxy's
-  /// loop — hub connections have no Component loop of their own (the esp32
-  /// class streams from its own loop()).
+  /// Stream any pending service-discovery batch and police the disconnect
+  /// safety timeout. Called from the proxy's loop — hub connections have no
+  /// Component loop of their own (the esp32 class streams from its own
+  /// loop() and has the same 10 s safety net in its base class).
   void process_pending_services() {
     if (this->send_service_ >= 0) {
       this->send_service_for_discovery_();
     }
+    this->check_disconnect_timeout_();
   }
 
   // ---- ble_device_base::GattClientEventListener ----
@@ -91,6 +93,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
 
   void start_connect();
   void send_service_for_discovery_();
+  void check_disconnect_timeout_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
@@ -105,8 +108,9 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   int16_t send_service_{INIT_SENDING_SERVICES};
   uint16_t mtu_{23};
 
-  // Group 3: 8-byte types
+  // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};
+  uint32_t disconnecting_started_{0};
 
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
