@@ -662,10 +662,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
 
     Benchmarks run when any of the following conditions are met:
 
-    1. Core C++ files changed (esphome/core/*)
-    2. Top-level Python modules changed (esphome/*.py) — the Python
-       benchmarks exercise config loading (config.py, yaml_util.py, ...),
-       so a slowdown there is invisible unless the benchmarks job runs
+    1. Core files changed (esphome/core/*, C++ or Python)
+    2. Top-level Python files changed (esphome/*.py and esphome/*.pyi) —
+       the Python benchmarks exercise config loading (config.py,
+       yaml_util.py, ...), so a slowdown there is invisible unless the
+       benchmarks job runs
     3. The host platform changed (esphome/components/host/*) — benchmarks
        are built and run on the host platform, so its implementations of
        ``millis()``/``micros()``/etc. affect every benchmark

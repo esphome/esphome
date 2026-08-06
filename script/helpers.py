@@ -1381,17 +1381,17 @@ def core_changed(files: list[str]) -> bool:
 
 
 def base_python_changed(files: list[str]) -> bool:
-    """Check if any Python module directly in esphome/ has changed.
+    """Check if any Python file directly in esphome/ has changed.
 
-    Matches top-level modules like esphome/config.py and esphome/yaml_util.py
-    but not files in subdirectories such as esphome/components/ or
-    esphome/dashboard/.
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
 
     Args:
         files: List of file paths to check
 
     Returns:
-        True if any top-level esphome Python module has changed
+        True if any top-level esphome Python file has changed
     """
     return any(
         f.startswith("esphome/")
