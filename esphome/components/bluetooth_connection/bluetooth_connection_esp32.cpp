@@ -232,6 +232,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   // Send the message with dynamically batched services; on a failed send,
   // rewind the cursor so the batch is retried instead of silently skipped.
   if (!api_conn->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", this->connection_index_, this->address_str_);
     this->send_service_ = batch_start;
   }
 }
