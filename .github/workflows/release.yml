@@ -4,7 +4,7 @@ name: Publish Release
 # Releases (production and beta) are named after the version they publish.
 # Dev builds are named after the dated dev tag, which is passed in by the
 # nightly workflow because a run name cannot compute it itself.
-run-name: ${{ inputs.tag || github.event.release.tag_name || format('Manual build ({0})', github.ref_name) }}
+run-name: ${{ github.event.inputs.tag || github.event.release.tag_name || format('Manual build ({0})', github.ref_name) }}
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
       - name: Get tag
         id: tag
         env:
-          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         # yamllint disable rule:line-length
         run: |
           if [[ "${{ github.event_name }}" = "release" ]]; then
