@@ -107,6 +107,33 @@ class TestListAddSchema:
                 }
             )
 
+    def test_explicit_id_rejected(self) -> None:
+        """A dynamically-added widget is LocalVariable-scoped and rebuilt fresh
+        on every call, never registered anywhere an id could be looked up by --
+        an explicit id: would otherwise validate fine and then fail confusingly
+        (an uncaught traceback, not a clean config error) the moment anything
+        tries to reference it.
+        """
+        with pytest.raises(cv.Invalid, match="'id' is not allowed"):
+            list_add_schema(
+                {"id": "my_list", "label": {"id": "dyn_label", "text": "hi"}}
+            )
+
+    def test_explicit_id_rejected_when_nested(self) -> None:
+        with pytest.raises(cv.Invalid, match="'id' is not allowed"):
+            list_add_schema(
+                {
+                    "id": "my_list",
+                    "obj": {"widgets": [{"label": {"id": "dyn_label", "text": "hi"}}]},
+                }
+            )
+
+    def test_no_explicit_id_still_valid(self) -> None:
+        """An id is auto-generated (and simply unused) when none is given --
+        only an explicit one is rejected."""
+        result = list_add_schema({"id": "my_list", "label": {"text": "hi"}})
+        assert "id" in result["widget"][0]["label"]
+
 
 # ---------------------------------------------------------------------------
 # The list widget's own schema: pad_row is shared between create/update, but
@@ -211,13 +238,19 @@ def test_add_button_with_checkable_flag(main_cpp: str) -> None:
 def test_add_nested_hierarchy_with_compound_child(main_cpp: str) -> None:
     """`obj: {widgets: [label, dropdown]}` builds a plain label child and a
     heap-allocated (compound) dropdown child, both parented to the new row.
+
+    The child variable names carry a `_1` (depth) suffix, distinguishing them
+    from the row's own top-level variable -- necessary so that a child of the
+    *same* widget type as its parent (e.g. `obj: {widgets: [{obj: {...}}]}`)
+    doesn't declare a C++ variable that shadows its own not-yet-initialized
+    self, silently parenting the child to garbage.
     """
     assert "lv_obj_t *dyn_obj_VAR_ = lv_obj_create(test_list);" in main_cpp
     assert (
-        "lv_obj_t *dyn_label_VAR_ = lv_label_create(dyn_obj_VAR_);\n"
-        "            lv_obj_add_style(dyn_label_VAR_, _lv_theme_style_label_main_default, "
+        "lv_obj_t *dyn_label_1_VAR_ = lv_label_create(dyn_obj_VAR_);\n"
+        "            lv_obj_add_style(dyn_label_1_VAR_, _lv_theme_style_label_main_default, "
         "(lv_state_t)(LV_PART_MAIN));\n"
-        '            lv_label_set_text(dyn_label_VAR_, "Nested");'
+        '            lv_label_set_text(dyn_label_1_VAR_, "Nested");'
     ) in main_cpp
 
 
@@ -226,14 +259,31 @@ def test_add_applies_theme_styles_to_dynamic_widget(main_cpp: str) -> None:
     statically-declared widget of the same type gets, not render unthemed.
     """
     assert (
-        "lv_obj_add_style(dyn_label_VAR_, _lv_theme_style_label_main_default, "
+        "lv_obj_add_style(dyn_label_1_VAR_, _lv_theme_style_label_main_default, "
         "(lv_state_t)(LV_PART_MAIN));"
     ) in main_cpp
-    assert "LvDropdownType *dyn_dropdown_VAR_ = new LvDropdownType();" in main_cpp
+    assert "LvDropdownType *dyn_dropdown_1_VAR_ = new LvDropdownType();" in main_cpp
     assert "lv_dropdown_create(dyn_obj_VAR_)" in main_cpp
     assert (
         "lvgl::delete_lv_compound_on_delete<LvDropdownType>, LV_EVENT_DELETE, "
-        "dyn_dropdown_VAR_);"
+        "dyn_dropdown_1_VAR_);"
+    ) in main_cpp
+
+
+def test_add_nested_same_type_child_does_not_shadow_parent(main_cpp: str) -> None:
+    """A child of the same widget type as its parent (`obj: {widgets: [{obj:
+    ...}]}`) must get a distinct C++ variable name (or the child's declaration
+    would shadow its own not-yet-initialized self, parenting it to garbage --
+    compiling clean but for a -Wuninitialized warning). A grandchild of a third
+    type proves depth, not just type, drives the disambiguating suffix.
+    """
+    assert "lv_obj_t *dyn_obj_VAR_ = lv_obj_create(test_list);" in main_cpp
+    assert "lv_obj_t *dyn_obj_1_VAR_ = lv_obj_create(dyn_obj_VAR_);" in main_cpp
+    assert (
+        "lv_obj_t *dyn_label_2_VAR_ = lv_label_create(dyn_obj_1_VAR_);\n"
+        "                lv_obj_add_style(dyn_label_2_VAR_, _lv_theme_style_label_main_default, "
+        "(lv_state_t)(LV_PART_MAIN));\n"
+        '                lv_label_set_text(dyn_label_2_VAR_, "Grandchild");'
     ) in main_cpp
 
 
@@ -248,7 +298,7 @@ def test_on_add_fires_once_per_entry_via_shared_trigger(main_cpp: str) -> None:
     """A single on_add: automation means a single Trigger instance, reused by
     every lvgl.list.add_text/add call site.
     """
-    assert main_cpp.count("triggerint_id->trigger(lvgl::lv_list_get_row_index(") == 4
+    assert main_cpp.count("triggerint_id->trigger(lvgl::lv_list_get_row_index(") == 5
 
 
 def test_remove_guards_against_missing_child_and_fires_before_delete(
@@ -261,11 +311,25 @@ def test_remove_guards_against_missing_child_and_fires_before_delete(
     assert (
         "int list_index_VAR_ = 0;\n"
         "        {\n"
-        "            lv_obj_t *list_child_VAR_ = lv_obj_get_child(test_list, list_index_VAR_);\n"
+        "            lv_obj_t *list_child_VAR_ = lvgl::lv_list_get_row_for_remove(test_list, list_index_VAR_);\n"
         "            if (list_child_VAR_) {\n"
         "                triggerint_id_2->trigger(list_index_VAR_);\n"
         "                lv_obj_del(list_child_VAR_);"
     ) in main_cpp
+
+
+def test_remove_out_of_range_lookup_uses_shared_cpp_helper(main_cpp: str) -> None:
+    """The out-of-range lookup (and its log line) live in a single C++ helper --
+    lvgl::lv_list_get_row_for_remove() in lvgl_esphome.cpp -- rather than being
+    generated inline at every lvgl.list.remove call site, since a config can
+    have many of them and duplicating that logic (and its log string) at each
+    one would waste flash for no benefit.
+    """
+    assert (
+        "lv_obj_t *list_child_VAR_ = lvgl::lv_list_get_row_for_remove(test_list, list_index_VAR_);"
+        in main_cpp
+    )
+    assert "ESP_LOGV" not in main_cpp
 
 
 def test_clear_fires_on_remove_for_every_entry_then_cleans(main_cpp: str) -> None:

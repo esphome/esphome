@@ -972,6 +972,14 @@ int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
   }
   return -1;
 }
+
+lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index) {
+  lv_obj_t *child = lv_obj_get_child(list, index);
+  if (child == nullptr) {
+    ESP_LOGV(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
+  }
+  return child;
+}
 #endif  // USE_LVGL_LIST
 }  // namespace esphome::lvgl
 

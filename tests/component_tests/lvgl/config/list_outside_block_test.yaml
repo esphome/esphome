@@ -5,7 +5,10 @@ esphome:
     then:
       - lvgl.list.add:
           id: test_list
-          switch: {}
+          switch:
+            transform_rotation: 100
+            drop_shadow_color: 0x000000
+            bg_image_src: my_image
 
 esp32:
   board: lolin_c3_mini
@@ -24,6 +27,13 @@ display:
       number: GPIO8
       ignore_strapping_warning: true
     dc_pin: GPIO3
+
+image:
+  - platform: file
+    file: mdi:battery
+    id: my_image
+    resize: 8x8
+    type: binary
 
 lvgl:
   widgets:

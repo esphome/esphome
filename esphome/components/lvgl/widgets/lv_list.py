@@ -22,12 +22,15 @@ from ..defines import (
     CONF_PAD_ROW,
     CONF_SCROLLBAR,
     CONF_WIDGETS,
+    DROP_SHADOW_STYLE_PROPS,
     LV_EVENT_TRIGGERS,
+    TRANSFORM_STYLE_PROPS,
     TYPE_FLEX,
+    add_define,
     add_lv_use,
     literal,
 )
-from ..lv_validation import lv_int, lv_text, padding
+from ..lv_validation import lv_image, lv_int, lv_text, padding
 from ..lvcode import (
     UPDATE_EVENT,
     LocalVariable,
@@ -38,11 +41,26 @@ from ..lvcode import (
     lv_expr,
     lv_obj,
 )
-from ..schemas import WIDGET_TYPES, any_widget_schema, container_schema_value
+from ..schemas import (
+    ALL_STYLES,
+    BASE_PROPS,
+    WIDGET_TYPES,
+    any_widget_schema,
+    container_schema_value,
+    remap_property,
+)
 from ..trigger import add_trigger
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t
-from . import Widget, WidgetType, apply_theme_styles, get_widgets, set_obj_properties
+from . import (
+    Widget,
+    WidgetType,
+    apply_theme_styles,
+    collect_parts,
+    get_widgets,
+    set_obj_properties,
+)
 from .buttonmatrix import CONF_BUTTONMATRIX
+from .img import CONF_IMAGE
 from .label import CONF_LABEL
 from .meter import CONF_METER
 from .tabview import CONF_TABVIEW
@@ -225,6 +243,30 @@ def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
         _check_dynamic_widget_supported(child_type, child_conf)
 
 
+def _check_no_explicit_widget_id(raw_value: dict) -> None:
+    # lvgl.list.add's widgets are LocalVariable-scoped and rebuilt fresh on every
+    # call, never registered anywhere an id could be looked up by - so an explicit
+    # id: here validates fine (any_widget_schema()'s GenerateID() marker accepts a
+    # user-supplied value the same as an absent one) but is completely inert, and
+    # referencing it elsewhere later fails at codegen time with an uncaught
+    # voluptuous.Invalid traceback rather than a clean config error. Reject it up
+    # front instead, using the raw (pre-validation) dict, since post-validation
+    # every widget always has an id (auto-generated if one wasn't given).
+    for w_type_name, w_conf in raw_value.items():
+        if not isinstance(w_conf, dict):
+            continue
+        if CONF_ID in w_conf:
+            raise cv.Invalid(
+                "'id' is not allowed on a widget added via lvgl.list.add - it is "
+                "rebuilt fresh on every call and never registered anywhere it "
+                "could be looked up by",
+                path=[w_type_name, CONF_ID],
+            )
+        for child in w_conf.get(CONF_WIDGETS, ()):
+            if isinstance(child, dict):
+                _check_no_explicit_widget_id(child)
+
+
 @schema_extractor("schema")
 def list_add_schema(value):
     # A plain cv.Schema can't express "id, an optional index, plus exactly one arbitrary
@@ -258,6 +300,7 @@ def list_add_schema(value):
         raise cv.Invalid(
             "lvgl.list.add takes exactly one widget definition, e.g. 'label:' or 'button:', alongside 'id' and optional 'index'"
         )
+    _check_no_explicit_widget_id(value)
     result[CONF_WIDGET] = any_widget_schema()(value)
     [(w_type_name, w_conf)] = result[CONF_WIDGET][0].items()
     _check_dynamic_widget_supported(w_type_name, w_conf)
@@ -279,6 +322,32 @@ def _register_lv_uses(w_type_name: str, w_conf: dict) -> None:
         _register_lv_uses(child_type, child_conf)
 
 
+def _register_dynamic_widget_style_uses(w_conf: dict) -> None:
+    # Same hazard _register_lv_uses fixes above, for a different registry: lvgl's own
+    # to_code reads df.get_styles_used() (populated by w.set_style(), deep inside
+    # set_obj_properties() - long after this coroutine's first await, for an action
+    # outside the lvgl: block) exactly once, to decide whether to add_lv_use(image),
+    # or add_define() screen transparency / A8 draw support. A property that would only
+    # be added to that set by a runtime-built row is invisible to that one-time read, so
+    # it must be pre-registered here from the config alone, before that read can happen.
+    props = {
+        remap_property(prop)
+        for part_states in collect_parts(w_conf).values()
+        for state_props in part_states.values()
+        for prop in state_props
+        if prop in ALL_STYLES
+    }
+    if any(BASE_PROPS.get(prop) is lv_image for prop in props):
+        add_lv_use(CONF_IMAGE)
+    if TRANSFORM_STYLE_PROPS & props:
+        add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    if DROP_SHADOW_STYLE_PROPS & props:
+        add_define("LV_DRAW_SW_SUPPORT_A8", "1")
+    for child in w_conf.get(CONF_WIDGETS, ()):
+        [(_, child_conf)] = child.items()
+        _register_dynamic_widget_style_uses(child_conf)
+
+
 @automation.register_action(
     "lvgl.list.add",
     ObjUpdateAction,
@@ -288,6 +357,7 @@ def _register_lv_uses(w_type_name: str, w_conf: dict) -> None:
 async def list_add_to_code(config, action_id, template_arg, args):
     [(w_type_name, w_conf)] = config[CONF_WIDGET][0].items()
     _register_lv_uses(w_type_name, w_conf)
+    _register_dynamic_widget_style_uses(w_conf)
     widgets = await get_widgets(config)
 
     async def do_add(w: Widget):
@@ -315,6 +385,7 @@ async def _build_dynamic_widget(
     list_obj,
     top_level: bool = False,
     index=None,
+    depth: int = 0,
 ) -> None:
     # Builds one widget (recursively, with children and triggers) using a LocalVariable
     # instead of the usual global Pvariable, so this can run fresh on every call instead
@@ -324,12 +395,19 @@ async def _build_dynamic_widget(
     # how to destroy LVGL's own object tree, not a separate C++ wrapper paired with it.
     # `index`, when given, only applies to the top-level entry (moving a whole row to a
     # given position), not to its children.
+    #
+    # The local variable's name is suffixed with `depth` for any widget below the row's
+    # own top level: `_finish_dynamic_widget` recurses into this function without ever
+    # unwinding the parent's `with LocalVariable(...)` block, so a same-named child (e.g.
+    # `obj: {widgets: [{obj: {...}}]}`) would otherwise declare a C++ variable that
+    # shadows its own not-yet-initialized self, silently parenting the child to garbage.
     widget_type = WIDGET_TYPES[w_type_name]
+    var_name = f"dyn_{w_type_name}" if depth == 0 else f"dyn_{w_type_name}_{depth}"
     add_lv_use(w_type_name)
     add_lv_use(*widget_type.get_uses())
     if widget_type.is_compound():
         with LocalVariable(
-            f"dyn_{w_type_name}", widget_type.w_type, widget_type.w_type.new()
+            var_name, widget_type.w_type, widget_type.w_type.new()
         ) as var:
             creator = await widget_type.obj_creator(parent, w_conf)
             lv_add(var.set_obj(creator))
@@ -340,23 +418,25 @@ async def _build_dynamic_widget(
                 literal("LV_EVENT_DELETE"),
                 var,
             )
-            await _finish_dynamic_widget(w, w_conf, list_id, list_obj)
+            await _finish_dynamic_widget(w, w_conf, list_id, list_obj, depth)
             if top_level:
                 if index is not None:
                     lv.obj_move_to_index(w.obj, index)
                 _fire_on_add(list_id, list_obj, w.obj)
     else:
         creator = await widget_type.obj_creator(parent, w_conf)
-        with LocalVariable(f"dyn_{w_type_name}", lv_obj_t, creator) as var:
+        with LocalVariable(var_name, lv_obj_t, creator) as var:
             w = Widget(var, widget_type, w_conf)
-            await _finish_dynamic_widget(w, w_conf, list_id, list_obj)
+            await _finish_dynamic_widget(w, w_conf, list_id, list_obj, depth)
             if top_level:
                 if index is not None:
                     lv.obj_move_to_index(w.obj, index)
                 _fire_on_add(list_id, list_obj, w.obj)
 
 
-async def _finish_dynamic_widget(w: Widget, w_conf: dict, list_id, list_obj) -> None:
+async def _finish_dynamic_widget(
+    w: Widget, w_conf: dict, list_id, list_obj, depth: int = 0
+) -> None:
     await w.type.on_create(w.obj, w_conf)
     apply_theme_styles(w)
     await set_obj_properties(w, w_conf)
@@ -364,7 +444,9 @@ async def _finish_dynamic_widget(w: Widget, w_conf: dict, list_id, list_obj) -> 
     await _wire_dynamic_triggers(w, w_conf)
     for child in w_conf.get(CONF_WIDGETS, ()):
         [(child_type, child_conf)] = child.items()
-        await _build_dynamic_widget(child_type, child_conf, w.obj, list_id, list_obj)
+        await _build_dynamic_widget(
+            child_type, child_conf, w.obj, list_id, list_obj, depth=depth + 1
+        )
 
 
 async def _wire_dynamic_triggers(w: Widget, config: dict) -> None:
@@ -433,10 +515,16 @@ async def list_remove_to_code(config, action_id, template_arg, args):
         # point its expression is used, and index is needed at two call sites.
         # lv_obj_del recursively destroys the whole subtree under the removed entry,
         # so a hierarchy added via lvgl.list.add is always cleaned up in full.
+        # The out-of-range lookup (and its log line) live in a shared C++ helper
+        # rather than being generated inline here: a config can have many
+        # lvgl.list.remove call sites, and duplicating that logic (and its log
+        # string literal) at each one would waste flash for no benefit.
         with (
             LocalVariable("list_index", cg.int_, index, modifier="") as idx,
             LocalVariable(
-                "list_child", lv_obj_t, lv_expr.obj_get_child(w.obj, idx)
+                "list_child",
+                lv_obj_t,
+                cg.RawExpression(f"lvgl::lv_list_get_row_for_remove({w.obj}, {idx})"),
             ) as child,
             LvConditional(child),
         ):

@@ -59,6 +59,14 @@ lvgl:
                       options:
                         - "One"
                         - "Two"
+          - lvgl.list.add:
+              id: test_list
+              obj:
+                widgets:
+                  - obj:
+                      widgets:
+                        - label:
+                            text: "Grandchild"
           - lvgl.list.remove:
               id: test_list
               index: 0

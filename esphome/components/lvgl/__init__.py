@@ -56,7 +56,9 @@ from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_ANIMATIONS,
+    DROP_SHADOW_STYLE_PROPS,
     LOGGER,
+    TRANSFORM_STYLE_PROPS,
     add_lv_use,
     get_focused_widgets,
     get_lv_images_used,
@@ -487,12 +489,7 @@ async def to_code(configs):
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
 
-    if {
-        "transform_rotation",
-        "transform_scale",
-        "transform_scale_x",
-        "transform_scale_y",
-    } & styles_used:
+    if TRANSFORM_STYLE_PROPS & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
 
     if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
@@ -500,14 +497,7 @@ async def to_code(configs):
 
     # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
     lv_image_formats = {"RGB565", "ARGB8888"}
-    if {
-        "drop_shadow_color",
-        "drop_shadow_offset_x",
-        "drop_shadow_offset_y",
-        "drop_shadow_opa",
-        "drop_shadow_quality",
-        "drop_shadow_radius",
-    } & styles_used:
+    if DROP_SHADOW_STYLE_PROPS & styles_used:
         lv_image_formats.add("A8")
 
     for image_id in get_lv_images_used():
