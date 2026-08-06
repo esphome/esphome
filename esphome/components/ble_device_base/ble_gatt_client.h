@@ -80,6 +80,8 @@ struct GattServiceTable {
 /// (bluetooth_proxy's connection wrapper). Every callback runs on the main loop.
 class GattClientEventListener {
  public:
+  virtual ~GattClientEventListener() = default;
+
   /// Connected (with negotiated MTU) or disconnected/connect-failed
   /// (error = HCI status or disconnect reason).
   virtual void on_connection_state(bool connected, uint16_t mtu, int error) = 0;
