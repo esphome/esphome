@@ -1872,7 +1872,7 @@ BOARDS = {
     "ilabs_cpico_2350": {
         "name": "iLabs CPico 2350",
         "mcu": "rp2350",
-        "max_pin": 47,
+        "max_pin": 29,
     },
     "ilabs_rpico32": {
         "name": "iLabs RPICO32",
