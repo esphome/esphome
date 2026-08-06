@@ -179,11 +179,13 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
   bool target_presence_any_{false};
 
+#ifdef USE_SENSOR
   std::array<bool, MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
   // A cluster id names a person, so like the counts it is published on change, not per frame.
   std::array<int32_t, MAX_TARGETS> last_cluster_id_{};
   std::array<bool, MAX_TARGETS> last_cluster_id_valid_{};
   uint32_t last_target_count_{0xFFFFFFFF};
+#endif
 };
 
 }  // namespace esphome::ld6002b

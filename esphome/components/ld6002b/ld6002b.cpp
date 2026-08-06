@@ -127,6 +127,13 @@ void LD6002BComponent::dump_config() {
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
+  for (auto &target : this->targets_) {
+    LOG_SENSOR("  ", "Target X", target.x);
+    LOG_SENSOR("  ", "Target Y", target.y);
+    LOG_SENSOR("  ", "Target Z", target.z);
+    LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
+    LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
@@ -336,13 +343,13 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     bool has_target = this->slot_occupied_[i];
     if (has_target) {
+#ifdef USE_SENSOR
       uint16_t offset = 4 + (slot_wire[i] * TARGET_DATA_LEN);
       float x = read_f32_le(data + offset + 0);
       float y = read_f32_le(data + offset + 4);
       float z = read_f32_le(data + offset + 8);
       int32_t dop_idx = read_int32_le(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
-#ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr) {
         target.x->publish_state(x);
@@ -394,7 +401,9 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       this->target_presence_[i]->publish_state(has_target);
     }
 #endif
+#ifdef USE_SENSOR
     this->last_target_presence_[i] = has_target;
+#endif
   }
 }
 

@@ -14,7 +14,7 @@ sensor:
         name: Target-1 Y
       z:
         name: Target-1 Z
-      dop_idx:
+      doppler_index:
         name: Target-1 Dop
       cluster_id:
         name: Target-1 Cluster
@@ -25,7 +25,7 @@ sensor:
         name: Target-2 Y
       z:
         name: Target-2 Z
-      dop_idx:
+      doppler_index:
         name: Target-2 Dop
       cluster_id:
         name: Target-2 Cluster
@@ -36,7 +36,7 @@ sensor:
         name: Target-3 Y
       z:
         name: Target-3 Z
-      dop_idx:
+      doppler_index:
         name: Target-3 Dop
       cluster_id:
         name: Target-3 Cluster

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_TARGET_COUNT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_X,
@@ -12,14 +13,25 @@ from esphome.const import (
 from . import LD6002BComponent
 from .const import (
     CONF_CLUSTER_ID,
-    CONF_DOP_IDX,
+    CONF_DOPPLER_INDEX,
     CONF_LD6002B_ID,
     CONF_Z,
-    KEY_TARGET_COUNT,
     MAX_TARGETS,
 )
 
 DEPENDENCIES = ["ld6002b"]
+
+# The ld2450 defaults for a streamed value: hold the last reading for a second so a
+# dropped frame does not read as absence, then rate-limit what reaches the frontend.
+_VALUE_SENSOR_FILTERS = [
+    {
+        "timeout": {
+            "timeout": cv.TimePeriod(milliseconds=1000),
+            "value": "last",
+        }
+    },
+    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+]
 
 TARGET_SCHEMA = cv.Schema(
     {
@@ -27,58 +39,26 @@ TARGET_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[
-                {
-                    "timeout": {
-                        "timeout": cv.TimePeriod(milliseconds=1000),
-                        "value": "last",
-                    }
-                },
-                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-            ],
+            filters=_VALUE_SENSOR_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Y): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[
-                {
-                    "timeout": {
-                        "timeout": cv.TimePeriod(milliseconds=1000),
-                        "value": "last",
-                    }
-                },
-                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-            ],
+            filters=_VALUE_SENSOR_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_Z): sensor.sensor_schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             device_class=DEVICE_CLASS_DISTANCE,
-            filters=[
-                {
-                    "timeout": {
-                        "timeout": cv.TimePeriod(milliseconds=1000),
-                        "value": "last",
-                    }
-                },
-                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-            ],
+            filters=_VALUE_SENSOR_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_DOP_IDX): sensor.sensor_schema(
+        cv.Optional(CONF_DOPPLER_INDEX): sensor.sensor_schema(
             accuracy_decimals=0,
-            filters=[
-                {
-                    "timeout": {
-                        "timeout": cv.TimePeriod(milliseconds=1000),
-                        "value": "last",
-                    }
-                },
-                {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
-            ],
+            filters=_VALUE_SENSOR_FILTERS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CLUSTER_ID): sensor.sensor_schema(
@@ -91,7 +71,7 @@ TARGET_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-        cv.Optional(KEY_TARGET_COUNT): sensor.sensor_schema(
+        cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
@@ -102,7 +82,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
-    if target_count_config := config.get(KEY_TARGET_COUNT):
+    if target_count_config := config.get(CONF_TARGET_COUNT):
         sens = await sensor.new_sensor(target_count_config)
         cg.add(hub.set_target_count_sensor(sens))
 
@@ -117,8 +97,8 @@ async def to_code(config):
             if z_config := target_config.get(CONF_Z):
                 sens = await sensor.new_sensor(z_config)
                 cg.add(hub.set_target_z_sensor(i, sens))
-            if dop_idx_config := target_config.get(CONF_DOP_IDX):
-                sens = await sensor.new_sensor(dop_idx_config)
+            if doppler_index_config := target_config.get(CONF_DOPPLER_INDEX):
+                sens = await sensor.new_sensor(doppler_index_config)
                 cg.add(hub.set_target_dop_idx_sensor(i, sens))
             if cluster_id_config := target_config.get(CONF_CLUSTER_ID):
                 sens = await sensor.new_sensor(cluster_id_config)
