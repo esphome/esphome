@@ -12,6 +12,7 @@ import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import PlatformFramework
 
+AUTO_LOAD = ["ble_device_base"]
 CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
