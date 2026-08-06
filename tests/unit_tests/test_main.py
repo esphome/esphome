@@ -27,6 +27,7 @@ from esphome.__main__ import (
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
     command_bundle,
@@ -6715,3 +6716,27 @@ def test_command_idedata_esp_idf_no_build_errors() -> None:
         result = command_idedata(MagicMock(), CORE.config)
 
     assert result == 1
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_missing_port() -> None:
+    """A nonexistent serial port raises the does-not-exist guidance."""
+    with (
+        patch("os.access", return_value=False),
+        pytest.raises(EsphomeError, match="serial port does not exist"),
+    ):
+        check_permissions("/dev/ttyUSB99")
+
+
+@pytest.mark.skipif(
+    os.name != "posix", reason="serial permission checks are posix-only"
+)
+def test_check_permissions_unreadable_port() -> None:
+    """An existing but unreadable serial port raises the dialout guidance."""
+    with (
+        patch("os.access", side_effect=lambda _path, mode: mode == os.F_OK),
+        pytest.raises(EsphomeError, match="read or write permission"),
+    ):
+        check_permissions("/dev/ttyUSB99")
