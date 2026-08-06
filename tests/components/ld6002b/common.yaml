@@ -1,0 +1,11 @@
+ld6002b:
+  id: ld6002b_radar
+  wakeup_pin: GPIO14
+
+binary_sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    target:
+      name: Presence
+    target_1:
+      name: Target-1 Presence
