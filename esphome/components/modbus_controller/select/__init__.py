@@ -4,7 +4,12 @@ from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE, TYPE_REGISTER_M
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
 
-from .. import ModbusController, SensorItem, modbus_controller_ns
+from .. import (
+    ModbusController,
+    SensorItem,
+    modbus_controller_ns,
+    validate_skip_updates_deprecated,
+)
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
@@ -69,7 +74,7 @@ CONFIG_SCHEMA = cv.All(
                 INTEGER_SENSOR_VALUE_TYPE
             ),
             cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
-            cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
@@ -95,7 +100,6 @@ async def to_code(config):
         value_type,
         config[CONF_ADDRESS],
         reg_count,
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
         list(options_map.values()),
     )

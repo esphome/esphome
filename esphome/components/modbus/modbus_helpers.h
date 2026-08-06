@@ -162,6 +162,27 @@ inline FunctionCode modbus_register_write_function(EntityType reg_type, bool mul
   }
 }
 
+/// Best-effort mapping from a function code to the entity table it acts on. Returns EntityType::CUSTOM for
+/// custom or unrecognized function codes. Used to attach metadata to custom PDUs for logging/dispatch.
+inline EntityType entity_type_from_function_code(uint8_t function_code) {
+  switch (static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+      return EntityType::COIL;
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+      return EntityType::DISCRETE_INPUT;
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      return EntityType::HOLDING;
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return EntityType::INPUT_REGISTER;
+    default:
+      return EntityType::CUSTOM;
+  }
+}
+
 inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0'); }
 
 /** Get a byte from a hex string

@@ -23,11 +23,10 @@ from .. import (
 )
 from ..const import (
     CONF_BITMASK,
-    CONF_CUSTOM_COMMAND,
+    CONF_CUSTOM_PDU,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
-    CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
@@ -53,9 +52,9 @@ def validate_min_max(config):
 
 
 def validate_modbus_number(config):
-    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+    if CONF_CUSTOM_PDU not in config and CONF_ADDRESS not in config:
         raise cv.Invalid(
-            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
     return config
 
@@ -94,7 +93,6 @@ async def to_code(config):
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
         reg_count,
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
 

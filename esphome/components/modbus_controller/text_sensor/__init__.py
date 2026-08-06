@@ -19,7 +19,6 @@ from ..const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
-    CONF_SKIP_UPDATES,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -70,7 +69,6 @@ async def to_code(config):
         reg_count,
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
 

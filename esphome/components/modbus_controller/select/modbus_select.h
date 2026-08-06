@@ -11,8 +11,8 @@ namespace esphome::modbus_controller {
 
 class ModbusSelect final : public Component, public select::Select, public SensorItem {
  public:
-  ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint16_t skip_updates,
-               bool force_new_range, std::vector<int64_t> mapping) {
+  ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, bool force_new_range,
+               std::vector<int64_t> mapping) {
     this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
     this->set_address(start_address);
@@ -20,7 +20,6 @@ class ModbusSelect final : public Component, public select::Select, public Senso
     this->bitmask = 0xFFFFFFFF;              // not configurable
     this->register_count = register_count;
     this->response_bytes = 0;  // not configurable
-    this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
     this->mapping_ = std::move(mapping);
   }
@@ -46,6 +45,8 @@ class ModbusSelect final : public Component, public select::Select, public Senso
   bool optimistic_{false};
   optional<transform_func_t> transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
+  /// The in-flight write command (its own hub device); must outlive the call, replaced on each write.
+  optional<ModbusCommandItem> write_command_{nullopt};
 };
 
 }  // namespace esphome::modbus_controller
