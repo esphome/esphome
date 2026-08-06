@@ -68,9 +68,13 @@ void RP2GattClient::setup() {
   }
 
   // Register this engine for IRQ-context event routing.
-  if (this->instance_count_ < ESPHOME_BLE_GATT_CLIENT_COUNT) {
-    instances_[instance_count_++] = this;
+  if (this->instance_count_ >= ESPHOME_BLE_GATT_CLIENT_COUNT) {
+    // Cannot happen with codegen-sized storage; refuse loudly if it ever does.
+    ESP_LOGE(TAG, "GATT client registry full");
+    this->mark_failed();
+    return;
   }
+  instances_[instance_count_++] = this;
 
   // One HCI event handler for all engine instances (BTstack supports multiple
   // registrations, so rp2040_ble's own handler is unaffected).
@@ -171,9 +175,6 @@ void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t 
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
       con_handle = gatt_event_characteristic_value_query_result_get_handle(packet);
       break;
-    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
-      con_handle = gatt_event_long_characteristic_value_query_result_get_handle(packet);
-      break;
     case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
       con_handle = gatt_event_characteristic_descriptor_query_result_get_handle(packet);
       break;
@@ -265,21 +266,6 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       }
       memcpy(this->op_buffer_, gatt_event_characteristic_value_query_result_get_value(packet), len);
       this->op_len_ = len;
-      break;
-    }
-    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT: {
-      uint16_t offset = gatt_event_long_characteristic_value_query_result_get_value_offset(packet);
-      uint16_t len = gatt_event_long_characteristic_value_query_result_get_value_length(packet);
-      if (offset >= RP2_GATT_MAX_ATTR_LEN) {
-        break;
-      }
-      if (offset + len > RP2_GATT_MAX_ATTR_LEN) {
-        len = RP2_GATT_MAX_ATTR_LEN - offset;
-      }
-      memcpy(this->op_buffer_ + offset, gatt_event_long_characteristic_value_query_result_get_value(packet), len);
-      if (offset + len > this->op_len_) {
-        this->op_len_ = offset + len;
-      }
       break;
     }
     case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
@@ -434,6 +420,16 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
     this->fail_connection_(status);
     return;
   }
+  if (this->cancel_requested_) {
+    // A disconnect request raced the connection complete and lost; finish
+    // the teardown instead of reporting a connection nobody wants.
+    this->con_handle_ = con_handle;
+    this->state_ = EngineState::DISCONNECTING;
+    this->disconnecting_started_ = millis();
+    BluetoothLock lock;
+    gap_disconnect(this->con_handle_);
+    return;
+  }
   this->con_handle_ = con_handle;
   this->state_ = EngineState::MTU_EXCHANGE;
   ESP_LOGD(TAG, "Link up, handle=0x%04x, negotiating MTU", con_handle);
@@ -474,6 +470,7 @@ void RP2GattClient::cleanup_link_state_() {
     gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
   }
   this->con_handle_ = HCI_CON_HANDLE_INVALID;
+  this->cancel_requested_ = false;
   this->op_type_ = OpType::NONE;
   this->discovery_phase_ = DiscoveryPhase::NONE;
   this->release_services();
@@ -532,7 +529,7 @@ int RP2GattClient::discover_services() {
     this->arena_ = allocator.allocate(1);
     if (this->arena_ == nullptr) {
       ESP_LOGE(TAG, "Service table allocation failed");
-      return ERROR_CODE_MEMORY_CAPACITY_EXCEEDED;
+      return ble_device_base::GATT_ERR_NO_MEMORY;
     }
     new (this->arena_) ServiceArena();
   }
@@ -633,6 +630,11 @@ void RP2GattClient::finish_discovery_(int error) {
   this->discovery_phase_ = DiscoveryPhase::NONE;
   ESP_LOGD(TAG, "Discovery done (err=%d): %u services, %u characteristics, %u descriptors", error, this->service_count_,
            this->char_count_, this->desc_count_);
+  if (error == 0 && this->truncated_) {
+    // A partial table must not stream: V3 clients cache the database
+    // permanently, so an incomplete one would be wrong forever.
+    error = ATT_ERROR_INSUFFICIENT_RESOURCES;
+  }
   if (error == 0) {
     // Discovery no longer needs the fast interval; settle into the shared
     // steady-state parameters (same lifecycle place as esp32).
@@ -640,7 +642,7 @@ void RP2GattClient::finish_discovery_(int error) {
     gap_update_connection_parameters(this->con_handle_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
                                      MEDIUM_CONN_TIMEOUT);
   }
-  if (error == 0 && this->truncated_) {
+  if (this->truncated_) {
     ESP_LOGE(TAG, "Service table truncated (device exceeds %u services / %u characteristics / %u descriptors)",
              RP2_GATT_MAX_SERVICES, RP2_GATT_MAX_CHARACTERISTICS, RP2_GATT_MAX_DESCRIPTORS);
   }
@@ -702,6 +704,7 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   this->holds_scan_inhibit_ = true;
   this->parent_->inhibit_scan();
   this->connect_cancel_attempted_ = false;
+  this->cancel_requested_ = false;
   uint8_t status;
   {
     BluetoothLock lock;
@@ -728,6 +731,10 @@ int RP2GattClient::disconnect() {
       return 0;  // already on its way down
     case EngineState::CONNECTING: {
       if (this->con_handle_ == HCI_CON_HANDLE_INVALID) {
+        // The cancel can lose the race against a successful connection
+        // complete; handle_connected_ checks this flag and finishes the
+        // teardown instead of proceeding.
+        this->cancel_requested_ = true;
         BluetoothLock lock;
         gap_connect_cancel();
         // Completion arrives as a failed connection-complete event.
@@ -738,9 +745,17 @@ int RP2GattClient::disconnect() {
     default:
       break;
   }
+  uint8_t status;
   {
     BluetoothLock lock;
-    gap_disconnect(this->con_handle_);
+    status = gap_disconnect(this->con_handle_);
+  }
+  if (status != 0) {
+    // The stack refused (e.g. the handle is already gone): reclaim state now
+    // instead of waiting out the safety timeout.
+    ESP_LOGW(TAG, "gap_disconnect failed, status=0x%02x", status);
+    this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
+    return 0;
   }
   this->state_ = EngineState::DISCONNECTING;
   this->disconnecting_started_ = millis();

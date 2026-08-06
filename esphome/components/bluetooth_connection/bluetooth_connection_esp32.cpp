@@ -104,6 +104,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   // Dynamic batching based on actual size
   // Keep running total of actual message size
   size_t current_size = resp.calculate_size();
+  int16_t batch_start = this->send_service_;
 
   while (this->send_service_ < this->service_count_) {
     esp_gattc_service_elem_t service_result;
@@ -228,8 +229,11 @@ void BluetoothConnection::send_service_for_discovery_() {
     }
   }
 
-  // Send the message with dynamically batched services
-  api_conn->send_message(resp);
+  // Send the message with dynamically batched services; on a failed send,
+  // rewind the cursor so the batch is retried instead of silently skipped.
+  if (!api_conn->send_message(resp)) {
+    this->send_service_ = batch_start;
+  }
 }
 
 void BluetoothConnection::log_connection_error_(const char *operation, esp_gatt_status_t status) {

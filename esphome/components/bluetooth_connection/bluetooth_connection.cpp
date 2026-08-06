@@ -25,7 +25,7 @@ bool close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &cu
     } else {
       // This single service is too large, but we have to send it anyway;
       // advance so we don't get stuck
-      ESP_LOGV(TAG, "[%d] [%s] Service %d is too large (%u bytes) but sending anyway", connection_index, address_str,
+      ESP_LOGW(TAG, "[%d] [%s] Service %d is too large (%u bytes) but sending anyway", connection_index, address_str,
                send_service, (unsigned) service_size);
       send_service++;
     }

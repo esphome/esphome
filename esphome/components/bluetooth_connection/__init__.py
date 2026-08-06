@@ -11,8 +11,18 @@ import functools
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import PLATFORM_RP2, PlatformFramework
+from esphome.core import CORE
 
-AUTO_LOAD = ["ble_device_base"]
+
+def AUTO_LOAD() -> list[str]:
+    """The esp32 connection header includes esp32_ble_client; make the build
+    closure self-satisfying on every platform instead of relying on the
+    consumer's auto loads."""
+    if CORE.is_esp32:
+        return ["ble_device_base", "esp32_ble_client"]
+    return ["ble_device_base"]
+
+
 CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")

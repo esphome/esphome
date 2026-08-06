@@ -239,6 +239,18 @@ esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_par
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
+void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_value) {
+  for (auto &slot : this->connections_free_response_.allocated) {
+    if (slot == find_value) {
+      slot = set_value;
+      return;
+    }
+  }
+  // The accounting arrays are only mutated here and sized to the slot count,
+  // so a miss means the bookkeeping already drifted — say so.
+  ESP_LOGW(TAG, "Connection slot accounting mismatch (find 0x%llx)", (unsigned long long) find_value);
+}
+
 void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, proxy_err_t reason) {
   this->send_device_connection(connection->get_address(), false, 0, reason);
   connection->set_address(0);

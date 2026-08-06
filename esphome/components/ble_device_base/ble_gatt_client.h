@@ -12,7 +12,10 @@
 // Error domain (plain int, forwarded to the API without translation):
 //   0            success
 //   1..0x11      ATT error codes (Bluetooth spec; BTstack and Bluedroid agree)
-//   GATT_ERR_NOT_CONNECTED (-1)  no connection to the peer
+//   GATT_ERR_NOT_CONNECTED (-1)  no connection to the peer (on esp32 a raw
+//                ESP_FAIL from the stack shares this value; both read as a
+//                failed, unusable connection on the client side)
+//   GATT_ERR_NO_MEMORY (-2)      backend storage exhausted
 //   anything else: platform stack error/status code, surfaced opaquely.
 // Connection events carry HCI status/disconnect reason codes (same code
 // space on every controller).

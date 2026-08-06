@@ -175,6 +175,8 @@ class RP2GattClient final : public Component,
   bool truncated_{false};
   // One cancel attempt per connect: the second timeout escalates to failure.
   bool connect_cancel_attempted_{false};
+  // A disconnect request raced an in-flight connect; finish teardown on link-up.
+  bool cancel_requested_{false};
   // This engine's own hold on the shared scan inhibit, so the pairing stays
   // one-to-one per connection even with multiple slots.
   bool holds_scan_inhibit_{false};
