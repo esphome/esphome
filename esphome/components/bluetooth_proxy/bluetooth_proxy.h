@@ -13,11 +13,13 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
+#include "esphome/components/bluetooth_connection/bluetooth_connection.h"
+
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#include "bluetooth_connection.h"
+#include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
@@ -29,23 +31,15 @@
 
 namespace esphome::bluetooth_proxy {
 
-// Proxy-owned error type for the API error fields, which are plain integers on
-// the wire. Aliases esp_err_t on esp32 (where the values come from IDF calls);
-// a bare int elsewhere. Owning the name instead of probing for esp_err_t keeps
-// the header independent of how a hub platform's SDK spells its error type.
-#ifdef USE_ESP32
-using proxy_err_t = esp_err_t;
-static constexpr proxy_err_t PROXY_OK = ESP_OK;
-#else
-using proxy_err_t = int;
-static constexpr proxy_err_t PROXY_OK = 0;
-#endif
-
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = -1;
-static constexpr int DONE_SENDING_SERVICES = -2;
-static constexpr int INIT_SENDING_SERVICES = -3;
+// The connection-domain types live in the bluetooth_connection component;
+// re-exported here so the proxy code reads unqualified.
+using bluetooth_connection::ESP_GATT_NOT_CONNECTED;
+using bluetooth_connection::INIT_SENDING_SERVICES;
+using bluetooth_connection::PROXY_OK;
+using bluetooth_connection::proxy_err_t;
 
 #ifdef USE_ESP32
+using BluetoothConnection = bluetooth_connection::BluetoothConnection;
 using namespace esp32_ble_client;
 #endif
 
@@ -77,7 +71,8 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
                              public esp32_ble_tracker::BLEScannerStateListener,
                              public Component {
-  friend class BluetoothConnection;  // Allow connection to update connections_free_response_
+  // Allow the connection to update connections_free_response_
+  friend bluetooth_connection::BluetoothConnection;
 #else
 class BluetoothProxy final : public Component {
 #endif

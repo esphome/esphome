@@ -1,4 +1,4 @@
-#include "bluetooth_connection.h"
+#include "bluetooth_connection_esp32.h"
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/helpers.h"
@@ -6,11 +6,13 @@
 
 #ifdef USE_ESP32
 
-#include "bluetooth_proxy.h"
+#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 
-namespace esphome::bluetooth_proxy {
+namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_proxy.connection";
+namespace espbt = esphome::esp32_ble_tracker;
+
+static const char *const TAG = "bluetooth_connection";
 
 // This function is allocation-free and directly packs UUIDs into the output array
 // using precalculated constants for the Bluetooth base UUID
@@ -592,6 +594,6 @@ esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisemen
   return this->proxy_->get_advertisement_parser_type();
 }
 
-}  // namespace esphome::bluetooth_proxy
+}  // namespace esphome::bluetooth_connection
 
 #endif  // USE_ESP32
