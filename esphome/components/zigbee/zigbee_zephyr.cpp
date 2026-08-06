@@ -30,7 +30,9 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   switch (sig) {
     case ZB_ZDO_SIGNAL_SKIP_STARTUP:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_SKIP_STARTUP, status: %d", status);
-      on_start_();
+      if (status == RET_OK) {
+        on_start_();
+      }
       break;
     case ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
       ESP_LOGD(TAG, "ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY, status: %d", status);
