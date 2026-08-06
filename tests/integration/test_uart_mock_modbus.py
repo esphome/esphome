@@ -215,7 +215,10 @@ async def test_uart_mock_modbus_server_controller(
 
     expected_values = {
         "reg_u_word": 99,
+        "reg_u_word_s": 4660,
+        "reg_u_word_s_raw": 13330,
         "reg_s_word": -99,
+        "reg_s_word_s": -2,
         "reg_u_dword": 16909060,
         "reg_s_dword": -16909060,
         "reg_u_dword_r": pytest.approx(67305985),
@@ -249,14 +252,16 @@ async def test_uart_mock_modbus_server_controller_write(
 
     Verifies that writing to modbus server registers via the controller updates
     the server's stored values, which are then read back correctly on the next poll.
-    All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
+    All 14 value types are tested: U/S_WORD, U/S_WORD_S, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     register_test_cases: dict[str, RegisterTestCase] = {
         "reg_u_word": RegisterTestCase(11, "write_u_word", 42, 42),
+        "reg_u_word_s": RegisterTestCase(4660, "write_u_word_s", 17185, 17185),
         "reg_s_word": RegisterTestCase(-11, "write_s_word", -42, -42),
+        "reg_s_word_s": RegisterTestCase(-2, "write_s_word_s", -257, -257),
         "reg_u_dword": RegisterTestCase(1001, "write_u_dword", 2002, 2002),
         "reg_s_dword": RegisterTestCase(-1001, "write_s_dword", -2002, -2002),
         "reg_u_dword_r": RegisterTestCase(3003, "write_u_dword_r", 4004, 4004),
@@ -452,14 +457,80 @@ async def test_uart_mock_modbus_shared_address(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Fair bus scheduling across controllers sharing one client hub "
-    "requires the modbus_controller refactor in esphome#11781. On dev the "
-    "controllers each queue independently and contend for the bus, so the "
-    "request counts diverge. Expected to XPASS (and this marker removed) once "
-    "that refactor lands.",
-)
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_custom_command(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a custom_command sensor polling a register served by the mock server.
+
+    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
+    routes the response back to the polling command, whose sensor lambda parses the payload.
+    Guards the custom polling wiring: the command must reference the sensor's custom_data and
+    decode the real function code, or nothing is ever transmitted. A plain read on the same
+    register anchors the bus.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {"plain_read": 259, "custom_read": 259}
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_offline(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A silent device drives the controller offline; answering again recovers it.
+
+    The mock answers nothing at first, so the controller burns through max_cmd_retries
+    (1 retry after the first timeout) and fires on_offline. While offline it keeps
+    retrying every offline_skip_updates+1 cycles. The test then flips the mock to
+    answering; the next retry gets a response, on_online fires, and the register value
+    publishes. This pins the pooled non-response counter, can_send() gating, the
+    offline retry cadence, and recovery - none of which the responding-path tests touch.
+
+    The fixture gives offline_skip_updates and the sensor's skip_updates the same period
+    on purpose: offline probing must follow the offline cadence alone, since requiring
+    both cadences to coincide leaves phase combinations where no probe ever goes out.
+    """
+
+    tracker = SensorTracker(["link_state", "reg"])
+    offline_future = tracker.expect("link_state", 0)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # The unanswered poll and its retry each time out (~100ms), then on_offline fires.
+        await tracker.await_change(offline_future, "link_state", timeout=5.0)
+
+        # Register the recovery expectations before waking the device so no update is missed.
+        online_future = tracker.expect("link_state", 1)
+        value_future = tracker.expect("reg", 259)
+        serve_btn = find_entity(entities, "serve", ButtonInfo)
+        assert serve_btn is not None, "Serve button not found"
+        client.button_command(serve_btn.key)
+
+        # The next offline-cadence retry gets an answer: back online, value published.
+        await tracker.await_change(online_future, "link_state", timeout=5.0)
+        await tracker.await_change(value_future, "reg", timeout=5.0)
+
+
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_fairness(
     yaml_config: str,

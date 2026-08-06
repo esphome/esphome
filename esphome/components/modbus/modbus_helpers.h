@@ -128,6 +128,11 @@ inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
 
+/// Coils and discrete inputs are the bit-addressed entity tables; the other types are 16-bit registers.
+inline bool is_entity_type_binary(EntityType type) {
+  return type == EntityType::COIL || type == EntityType::DISCRETE_INPUT;
+}
+
 inline FunctionCode modbus_register_read_function(EntityType reg_type) {
   switch (reg_type) {
     case EntityType::COIL:
