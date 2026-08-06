@@ -773,6 +773,100 @@ uint32_t WaveshareEPaperTypeA::idle_timeout_() {
 }
 
 // ========================================================
+//                          2.66inch_e-paper_b
+// ========================================================
+// Datasheet:
+//  - https://www.waveshare.com/wiki/2.66inch_e-Paper_Module_(B)
+//  - https://files.waveshare.com/upload/e/ec/2.66inch-e-paper-b-specification.pdf
+//  - https://github.com/waveshareteam/Pico_ePaper_Code/blob/main/c/lib/e-Paper/EPD_2in66b.c
+
+void HOT WaveshareEPaper2P66InB::draw_absolute_pixel_internal(int x, int y, Color color) {
+  // this panel's source outputs run right-to-left with respect to the RAM bit order
+  WaveshareEPaperBWR::draw_absolute_pixel_internal(this->get_width_internal() - 1 - x, y, color);
+}
+
+void WaveshareEPaper2P66InB::reset_cursor_() {
+  // SetCursor(0, 0)
+  this->command(0x4E);  // SET_RAM_X_ADDRESS_COUNTER
+  this->data(0x00);
+
+  this->command(0x4F);  // SET_RAM_Y_ADDRESS_COUNTER
+  this->data(0x00);
+  this->data(0x00);
+}
+
+void WaveshareEPaper2P66InB::initialize() {
+  this->reset_();
+
+  this->wait_until_idle_();
+  this->command(0x12);  // soft reset
+  this->wait_until_idle_();
+
+  this->command(0x11);  // data entry mode
+  this->data(0x03);
+
+  // SetWindows(0, 0, width - 1, height - 1)
+  uint32_t xend = this->get_width_controller() - 1;
+  uint32_t yend = this->get_height_internal() - 1;
+
+  this->command(0x44);  // SET_RAM_X_ADDRESS_START_END_POSITION
+  this->data(0x00);
+  this->data((xend >> 3) & 0x1f);
+
+  this->command(0x45);  // SET_RAM_Y_ADDRESS_START_END_POSITION
+  this->data(0x00);
+  this->data(0x00);
+  this->data(yend & 0xff);
+  this->data((yend >> 8) & 0x01);
+
+  this->command(0x21);  // display update control
+  this->data(0x00);
+  this->data(0x80);
+
+  this->reset_cursor_();
+  this->wait_until_idle_();
+}
+
+void HOT WaveshareEPaper2P66InB::display() {
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+
+  // the address counters have advanced past the end of RAM after the previous refresh
+  this->reset_cursor_();
+
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  // both the buffer and the panel treat a set bit as white, so no inversion
+  this->command(0x24);
+  delay(2);
+  for (uint32_t i = 0; i < buf_half_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED)
+  this->command(0x26);
+  delay(2);
+  for (uint32_t i = 0; i < buf_half_len; i++) {
+    this->data(this->buffer_[buf_half_len + i]);
+  }
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+int WaveshareEPaper2P66InB::get_width_internal() { return 152; }
+int WaveshareEPaper2P66InB::get_height_internal() { return 296; }
+uint32_t WaveshareEPaper2P66InB::idle_timeout_() { return 20000; }
+void WaveshareEPaper2P66InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.66in B");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
 //                          Type B
 // ========================================================
 // Datasheet:
