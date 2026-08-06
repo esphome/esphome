@@ -11,9 +11,12 @@
 
 namespace esphome::ble_device_base {
 
-/// ESPHome-private "not connected" error for the API's plain-int error
-/// fields, understood by API clients. Shared by every GATT client backend.
+/// ESPHome-private errors for the API's plain-int error fields, outside the
+/// ATT code range so they cannot be mistaken for spec errors. -1 is
+/// understood by API clients as "not connected". Shared by every GATT
+/// client backend.
 static constexpr int GATT_ERR_NOT_CONNECTED = -1;
+static constexpr int GATT_ERR_NO_MEMORY = -2;
 
 enum class ClientState : uint8_t {
   // Connection is allocated
