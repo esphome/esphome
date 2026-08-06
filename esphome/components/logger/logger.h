@@ -179,7 +179,7 @@ class Logger final : public Component {
 #endif
   uint8_t get_log_level() { return this->current_level_; }
 
-  /// Re-emit WARN/ERROR messages captured during boot through the normal log
+  /// Re-emit messages captured during boot through the normal log
   /// dispatch so connected listeners (API, MQTT, ...) can see them. Stops
   /// further capture; safe to call multiple times. Warns when the logger was
   /// built without 'boot_log_buffer_size'.
@@ -396,7 +396,7 @@ class Logger final : public Component {
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  // Sequential records of early WARN/ERROR lines: u16 text_len | u8 level | u32 millis | const char *tag | text
+  // Sequential records of early lines: u16 text_len | u8 level | u32 millis | const char *tag | text
   char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER

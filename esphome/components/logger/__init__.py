@@ -106,6 +106,7 @@ USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
 CONF_BOOT_LOG_BUFFER_SIZE = "boot_log_buffer_size"
+CONF_BOOT_LOG_LEVEL = "boot_log_level"
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
@@ -273,6 +274,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.int_range(min=512, max=16384),
                 ),
             ),
+            cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -385,11 +387,14 @@ async def to_code(config: ConfigType) -> None:
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
-    # Boot log buffer captures early WARN/ERROR lines for later replay
+    # Boot log buffer captures early lines for later replay
     # (logger.replay_boot_logs action). Buffer is a direct member of Logger.
     if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
         cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
         cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
+        cg.add_build_flag(
+            f"-DESPHOME_LOGGER_BOOT_LOG_LEVEL={LOG_LEVELS[config[CONF_BOOT_LOG_LEVEL]]}"
+        )
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,

@@ -209,7 +209,7 @@ void Logger::process_messages_() {
 static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 2 + 1 + 4 + sizeof(const char *);
 
 void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
-  if (this->boot_log_done_ || level > ESPHOME_LOG_LEVEL_WARN || level == ESPHOME_LOG_LEVEL_NONE)
+  if (this->boot_log_done_ || level > ESPHOME_LOGGER_BOOT_LOG_LEVEL || level == ESPHOME_LOG_LEVEL_NONE)
     return;
   // Strip the leading ANSI color prefix and trailing reset; the replay adds its own around the stamp.
   const char *text = buf.data;
