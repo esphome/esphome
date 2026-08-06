@@ -40,3 +40,11 @@ modbus_server:
         value_type: U_WORD
         read_lambda: |-
           return (random_uint32() % 100);
+      # Covers CPP_TYPE_REGISTER_MAP / signed byte-swapped codegen
+      - address: 0x6
+        value_type: S_WORD_S
+        read_lambda: |-
+          return -2;
+        write_lambda: |-
+          printf("address=%d, value=%d\n", (int) address, (int) x);
+          return true;

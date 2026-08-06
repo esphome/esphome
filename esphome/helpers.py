@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -8,12 +8,9 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import stat
 import sys
-import tempfile
 from typing import TYPE_CHECKING, TextIO
-from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -56,13 +53,18 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
-def fnv1_hash(string: str) -> int:
-    """FNV-1 32-bit hash function (multiply then XOR)."""
+def _fnv1_hash(values: Iterable[int]) -> int:
+    """FNV-1 32-bit hash (multiply then XOR) over a sequence of integer values."""
     hash_value = FNV1_OFFSET_BASIS
-    for char in string:
+    for value in values:
         hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
-        hash_value ^= ord(char)
+        hash_value ^= value
     return hash_value
+
+
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR) over code points."""
+    return _fnv1_hash(map(ord, string))
 
 
 def fnv1a_32bit_hash(string: str) -> int:
@@ -89,10 +91,25 @@ def fnv1a_32bit_hash(string: str) -> int:
 def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
-    Used for pre-computing entity object_id hashes at code generation time.
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h
+    with per_code_point set. This is the OLD entity hash; it computes preference
+    keys that existing devices already have stored (see
+    https://github.com/esphome/backlog/issues/85) and is also still used for live
+    keys derived from config IDs (see the motion component's calibration key).
+    Note: lower() here is Unicode aware while the C++ reconstruction is not; see
+    the known limitation note on the C++ function.
     """
     return fnv1_hash(sanitize(snake_case(name)))
+
+
+def fnv1_hash_name(name: str) -> int:
+    """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
+
+    IMPORTANT: Must produce same result as C++ fnv1_hash_bytes() in helpers.h,
+    which hashes the name bytes as stored on the device.
+    Used for pre-computing entity keys at code generation time.
+    """
+    return _fnv1_hash(name.encode("utf-8"))
 
 
 def strip_accents(value: str) -> str:
@@ -261,6 +278,9 @@ def resolve_ip_address(
         hosts = host
     else:
         if not is_ip_address(host):
+            # Deferred: upload/logs with an IP target never parse a URL.
+            from urllib.parse import urlparse
+
             url = urlparse(host)
             if url.scheme != "":
                 host = url.hostname
@@ -412,6 +432,8 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
+    import shutil
+
     def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
             raise exc
@@ -449,6 +471,11 @@ def _write_file(
 
     Automatically creates all parent directories.
     """
+    # Deferred: a cache-hit upload/logs run never writes a file; keep the
+    # tempfile/shutil chain (bz2, lzma, random) off that path.
+    import shutil
+    import tempfile
+
     data = text
     if isinstance(text, str):
         data = text.encode()
@@ -524,6 +551,8 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
 
     Returns True if file was copied, False if files already matched.
     """
+    import shutil
+
     if file_compare(src, dst):
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -627,7 +656,7 @@ def add_class_to_obj(value, cls):
         raise
 
 
-def snake_case(value):
+def snake_case(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_snake_case`."""
     return value.replace(" ", "_").lower()
 
@@ -635,7 +664,7 @@ def snake_case(value):
 _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
-def sanitize(value):
+def sanitize(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
 
@@ -685,7 +714,7 @@ class ProgressBar:
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
-    from esphome.config_validation import Version
+    from esphome.core import Version
 
     version = Version.parse(ESPHOME_VERSION)
     if version.is_beta:
