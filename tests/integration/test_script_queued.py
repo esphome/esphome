@@ -26,6 +26,8 @@ async def test_script_queued(
         "stop": {"processed": [], "stop_logged": False},
         "rejection": {"processed": [], "rejections": 0},
         "no_params": {"executions": 0},
+        "boot": {"ended": []},
+        "after_stop": {"ended": []},
     }
 
     # Patterns for Test 1: Queue depth
@@ -49,12 +51,21 @@ async def test_script_queued(
     # Patterns for Test 5: No params
     no_params_end = re.compile(r"No params: END")
 
+    # Patterns for boot script (executed twice from on_boot before setup)
+    boot_end = re.compile(r"Boot queued: END (\d+)")
+
+    # Patterns for Test 6: Re-execute after stop
+    after_stop_end = re.compile(r"Stop test: END (\d+)")
+
     # Test completion futures
+    boot_complete = loop.create_future()
     test1_complete = loop.create_future()
     test2_complete = loop.create_future()
     test3_complete = loop.create_future()
     test4_complete = loop.create_future()
     test5_complete = loop.create_future()
+    test5_again_complete = loop.create_future()
+    test6_complete = loop.create_future()
 
     def check_output(line: str) -> None:
         """Check log output for all test messages."""
@@ -127,6 +138,26 @@ async def test_script_queued(
                 and not test5_complete.done()
             ):
                 test5_complete.set_result(True)
+            if (
+                test_results["no_params"]["executions"] == 6
+                and not test5_again_complete.done()
+            ):
+                test5_again_complete.set_result(True)
+
+        # Boot script (queued from on_boot before setup)
+        if match := boot_end.search(line):
+            item = int(match.group(1))
+            if item not in test_results["boot"]["ended"]:
+                test_results["boot"]["ended"].append(item)
+            if len(test_results["boot"]["ended"]) == 2 and not boot_complete.done():
+                boot_complete.set_result(True)
+
+        # Test 6: Re-execute after stop
+        if match := after_stop_end.search(line):
+            item = int(match.group(1))
+            test_results["after_stop"]["ended"].append(item)
+            if item == 9 and not test6_complete.done():
+                test6_complete.set_result(True)
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -134,6 +165,13 @@ async def test_script_queued(
     ):
         # Get services
         _, services = await client.list_entities_services()
+
+        # Boot: both executions from on_boot must complete, including the one
+        # that was queued before QueueingScript::setup() ran
+        await asyncio.wait_for(boot_complete, timeout=2.0)
+        assert sorted(test_results["boot"]["ended"]) == [1, 2], (
+            f"Boot: Expected both on_boot executions to complete, got {sorted(test_results['boot']['ended'])}"
+        )
 
         # Test 1: Queue depth limit
         test_service = next((s for s in services if s.name == "test_queue_depth"), None)
@@ -202,4 +240,22 @@ async def test_script_queued(
         # Verify Test 5
         assert test_results["no_params"]["executions"] == 3, (
             f"Test 5: Expected 3 executions, got {test_results['no_params']['executions']}"
+        )
+
+        # Test 5 again: after the queue fully drained (loop disabled while
+        # idle), executing again must still work
+        await client.execute_service(test_service, {})
+        await asyncio.wait_for(test5_again_complete, timeout=2.0)
+        assert test_results["no_params"]["executions"] == 6, (
+            f"Test 5 again: Expected 6 executions total, got {test_results['no_params']['executions']}"
+        )
+
+        # Test 6: a stopped script (queue cleared, loop disabled) must run
+        # again on the next execute
+        test_service = next((s for s in services if s.name == "test_after_stop"), None)
+        assert test_service is not None, "test_after_stop service not found"
+        await client.execute_service(test_service, {})
+        await asyncio.wait_for(test6_complete, timeout=2.0)
+        assert 9 in test_results["after_stop"]["ended"], (
+            f"Test 6: Expected item 9 to run after stop, got {test_results['after_stop']['ended']}"
         )

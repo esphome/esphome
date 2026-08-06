@@ -120,6 +120,16 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
  */
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
+  void setup() override {
+    // Start with loop disabled - only enable when there's work to do
+    // IMPORTANT: Only disable if the queue is empty, otherwise execute() was already
+    // called before our setup() (e.g., from on_boot trigger at same priority level)
+    // and we must not undo its enable_loop() call
+    if (this->num_queued_ == 0) {
+      this->disable_loop();
+    }
+  }
+
   void execute(Ts... x) override {
     if (this->is_action_running() || this->num_queued_ > 0) {
       // num_queued_ is the number of *queued* instances (waiting, not including currently running)
@@ -142,6 +152,9 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       // Use std::make_unique to replace the unique_ptr
       this->var_queue_[write_pos] = std::make_unique<std::tuple<Ts...>>(x...);
       this->num_queued_++;
+      // Enable loop now that there is something to dequeue - don't call loop()
+      // synchronously! Let the event loop call it to avoid reentrancy issues
+      this->enable_loop();
       return;
     }
 
@@ -156,6 +169,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
     this->var_queue_.reset();
     this->num_queued_ = 0;
     this->queue_front_ = 0;
+    this->disable_loop();
     Script<Ts...>::stop();
   }
 
@@ -167,6 +181,10 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       auto tuple_ptr = std::move(this->var_queue_[this->queue_front_]);
       this->queue_front_ = (this->queue_front_ + 1) % queue_capacity;
       this->trigger_tuple_(*tuple_ptr, std::make_index_sequence<sizeof...(Ts)>{});
+    }
+    if (this->num_queued_ == 0) {
+      // Queue is now empty - disable loop until the next execute()
+      this->disable_loop();
     }
   }
 
