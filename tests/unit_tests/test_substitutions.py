@@ -404,6 +404,18 @@ def test_validate_config_user_config_snapshot_is_deep_copy(tmp_path: Path) -> No
     assert result["esphome"] is not result.user_config["esphome"]
 
 
+def test_validate_config_snapshot_without_substitutions(tmp_path: Path) -> None:
+    """The snapshot works for configs that have no substitutions block."""
+    test_config = _get_test_minimal_valid_config(tmp_path)
+    del test_config[CONF_SUBSTITUTIONS]
+
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
+
+    assert result.user_config is not None
+    assert CONF_SUBSTITUTIONS not in result.user_config
+    assert result.user_config["esphome"] == {"name": "test_device"}
+
+
 def test_validate_config_skips_user_config_snapshot_by_default(
     tmp_path: Path,
 ) -> None:
