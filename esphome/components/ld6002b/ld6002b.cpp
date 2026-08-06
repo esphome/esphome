@@ -202,22 +202,39 @@ void LD6002BComponent::setup() {
       }
     }
 #endif
-    if (want_target_stream) {
-      this->send_control_command_(CMD_TARGET_DISPLAY_ON);
+    bool target_display_controlled = false;
 #ifdef USE_SWITCH
-      if (this->target_display_switch_ != nullptr) {
-        this->target_display_switch_->publish_state(true);
-      }
+    if (this->target_display_switch_ != nullptr) {
+      target_display_controlled = true;
+      // Nothing reports this switch back, so its restored state is the only state
+      // there is: apply it to the module and tell the frontend what was applied.
+      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
+      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+      this->target_display_switch_->publish_state(state);
+    }
 #endif
+    if (!target_display_controlled && want_target_stream) {
+      this->send_control_command_(CMD_TARGET_DISPLAY_ON);
     }
 
     bool point_cloud_controlled = false;
 #ifdef USE_SWITCH
-    // The switch owns the stream: whatever state it restores is what applies it.
-    point_cloud_controlled = this->point_cloud_switch_ != nullptr;
+    if (this->point_cloud_switch_ != nullptr) {
+      point_cloud_controlled = true;
+      // The switch owns the stream: whatever state it restores is what applies it.
+      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
+      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+      this->point_cloud_switch_->publish_state(state);
+    }
 #endif
     if (!point_cloud_controlled) {
-      this->send_control_command_(CMD_POINT_CLOUD_OFF);
+      // No switch: the stream follows the sensor that reads it, which is also what
+      // the frame buffer above was sized for.
+      bool want_point_cloud = false;
+#ifdef USE_SENSOR
+      want_point_cloud = this->point_count_sensor_ != nullptr;
+#endif
+      this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
     }
 #ifdef USE_NUMBER
     if (this->z_min_number_ != nullptr || this->z_max_number_ != nullptr) {
@@ -232,6 +249,12 @@ void LD6002BComponent::setup() {
 #endif
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
+    if (want_low_power) {
+      // The module reports this one back, so the query below confirms what it took.
+      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
+      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
+      this->low_power_switch_->publish_state(state);
+    }
 #else
     bool want_low_power = false;
 #endif
@@ -246,7 +269,7 @@ void LD6002BComponent::setup() {
 
 #ifdef USE_TEXT_SENSOR
     if (this->ota_version_text_sensor_ != nullptr) {
-      this->send_command_untracked_(TYPE_QUERY_VERSION, VERSION_QUERY_DATA, sizeof(VERSION_QUERY_DATA));
+      this->queue_command_(TYPE_QUERY_VERSION, VERSION_QUERY_DATA, sizeof(VERSION_QUERY_DATA));
     }
 #endif
   });
@@ -282,6 +305,17 @@ void LD6002BComponent::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Work Mode", this->work_mode_text_sensor_);
   LOG_TEXT_SENSOR("  ", "OTA Version", this->ota_version_text_sensor_);
+#endif
+#ifdef USE_NUMBER
+  LOG_NUMBER("  ", "Hold Delay", this->hold_delay_number_);
+  LOG_NUMBER("  ", "Z Min", this->z_min_number_);
+  LOG_NUMBER("  ", "Z Max", this->z_max_number_);
+  LOG_NUMBER("  ", "Low Power Sleep", this->low_power_sleep_number_);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
+  LOG_SWITCH("  ", "Point Cloud", this->point_cloud_switch_);
+  LOG_SWITCH("  ", "Target Display", this->target_display_switch_);
 #endif
 }
 
@@ -601,7 +635,6 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
   uint32_t delay = read_u32_le(data);
-  this->hold_delay_seconds_ = delay;
 #ifdef USE_NUMBER
   if (this->hold_delay_number_ != nullptr) {
     this->hold_delay_number_->publish_state(delay);
@@ -635,11 +668,6 @@ void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t le
 #ifdef USE_SWITCH
   if (this->low_power_switch_ != nullptr) {
     this->low_power_switch_->publish_state(enabled);
-  }
-#endif
-#ifdef USE_TEXT_SENSOR
-  if (this->work_mode_text_sensor_ != nullptr && !this->work_mode_reported_) {
-    this->publish_work_mode_(enabled);
   }
 #endif
   this->update_work_mode_fallback_();
@@ -677,8 +705,7 @@ void LD6002BComponent::update_work_mode_fallback_() {
     return;
   }
   const bool presence = this->target_presence_any_;
-  const char *mode = (!this->low_power_enabled_ || presence) ? "normal" : "low_power";
-  this->publish_work_mode_(mode[0] == 'l');
+  this->publish_work_mode_(this->low_power_enabled_ && !presence);
 #endif
 }
 
@@ -813,10 +840,6 @@ void LD6002BComponent::send_command_(uint16_t type, const uint8_t *data, uint8_t
   this->send_command_internal_(type, data, len, true);
 }
 
-void LD6002BComponent::send_command_untracked_(uint16_t type, const uint8_t *data, uint8_t len) {
-  this->send_command_internal_(type, data, len, false);
-}
-
 void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
@@ -901,11 +924,22 @@ void LD6002BComponent::send_control_command_(uint32_t command) {
   this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
+void LD6002BComponent::send_z_range_() {
+  // One frame carries both bounds, so half a range cannot be written.
+  if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
+    ESP_LOGW(TAG, "Z range not written, other bound unknown");
+    return;
+  }
+  uint8_t data[8];
+  write_f32_le(data, this->z_min_);
+  write_f32_le(data + 4, this->z_max_);
+  this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
+}
+
 void LD6002BComponent::set_number_value(NumberType type, float value) {
   switch (type) {
     case NumberType::HOLD_DELAY: {
       uint32_t delay = static_cast<uint32_t>(value);
-      this->hold_delay_seconds_ = delay;
       uint8_t data[4];
       write_u32_le(data, delay);
       this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
@@ -913,21 +947,11 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
     }
     case NumberType::Z_MIN:
       this->z_min_ = value;
-      if (!std::isnan(this->z_min_) && !std::isnan(this->z_max_)) {
-        uint8_t data[8];
-        write_f32_le(data, this->z_min_);
-        write_f32_le(data + 4, this->z_max_);
-        this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
-      }
+      this->send_z_range_();
       break;
     case NumberType::Z_MAX:
       this->z_max_ = value;
-      if (!std::isnan(this->z_min_) && !std::isnan(this->z_max_)) {
-        uint8_t data[8];
-        write_f32_le(data, this->z_min_);
-        write_f32_le(data + 4, this->z_max_);
-        this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
-      }
+      this->send_z_range_();
       break;
     case NumberType::LOW_POWER_SLEEP: {
       uint32_t sleep_ms = static_cast<uint32_t>(value);

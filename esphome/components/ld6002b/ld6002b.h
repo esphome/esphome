@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_SENSOR
@@ -13,6 +12,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_TEXT_SENSOR
+#include "esphome/core/preferences.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #ifdef USE_NUMBER
@@ -58,7 +58,7 @@ struct TargetSensors {
 #endif
 
 struct VersionPref {
-  char value[16];
+  char value[32];
 };
 
 class LD6002BComponent : public Component, public uart::UARTDevice {
@@ -161,10 +161,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
   void send_command_(uint16_t type, const uint8_t *data, uint8_t len);
-  void send_command_untracked_(uint16_t type, const uint8_t *data, uint8_t len);
   void send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void send_control_command_(uint32_t command);
+  void send_z_range_();
 
   static uint16_t read_u16_be(const uint8_t *data);
   static uint32_t read_u32_le(const uint8_t *data);
@@ -185,6 +185,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *work_mode_text_sensor_{nullptr};
   text_sensor::TextSensor *ota_version_text_sensor_{nullptr};
+  ESPPreferenceObject version_pref_{};
+  bool version_pref_initialized_{false};
 #endif
 #ifdef USE_NUMBER
   number::Number *hold_delay_number_{nullptr};
@@ -192,8 +194,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   number::Number *z_max_number_{nullptr};
   number::Number *low_power_sleep_number_{nullptr};
 #endif
-  ESPPreferenceObject version_pref_{};
-  bool version_pref_initialized_{false};
 #ifdef USE_SWITCH
   switch_::Switch *low_power_switch_{nullptr};
   switch_::Switch *point_cloud_switch_{nullptr};
@@ -258,7 +258,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
   float z_min_{NAN};
   float z_max_{NAN};
-  uint32_t hold_delay_seconds_{0};
 
   // Which person owns each target_N slot, so a slot survives the module re-sorting its array.
   std::array<int32_t, MAX_TARGETS> slot_cluster_{};

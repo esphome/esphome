@@ -18,7 +18,6 @@ SwitchType = ld6002b_ns.enum("SwitchType", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_LOW_POWER): switch.switch_schema(
             LD6002BSwitch,
