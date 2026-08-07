@@ -393,7 +393,10 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
     if CONF_HIDDEN in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have 'hidden' without SSID!")
+        raise cv.Invalid(
+            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
+            "list, put 'hidden' inside the network entry instead."
+        )
 
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section

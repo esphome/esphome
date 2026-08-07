@@ -1,0 +1,5 @@
+# Exercises the hidden option in the single-network ssid/password shorthand.
+wifi:
+  ssid: MyHiddenNetwork
+  password: password1
+  hidden: true
