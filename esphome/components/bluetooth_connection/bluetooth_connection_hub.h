@@ -107,11 +107,11 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   // Group 2: 2-byte types
   int16_t send_service_{INIT_SENDING_SERVICES};
   uint16_t mtu_{23};
-  conn_err_t pending_error_{0};
 
   // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};
   uint32_t disconnecting_started_{0};
+  conn_err_t pending_error_{0};
 
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
