@@ -7,6 +7,8 @@ sensor:
     ld6002b_id: ld6002b_radar
     target_count:
       name: Target Count
+    point_count:
+      name: Point Count
     target_1:
       x:
         name: Target-1 X
@@ -48,3 +50,33 @@ binary_sensor:
       name: Presence
     target_1:
       name: Target-1 Presence
+
+text_sensor:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    work_mode:
+      name: Work Mode
+    ota_version:
+      name: OTA Version
+
+number:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    hold_delay:
+      name: Hold Delay
+    z_min:
+      name: Z Min
+    z_max:
+      name: Z Max
+    low_power_sleep_time:
+      name: Low Power Sleep
+
+switch:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    low_power:
+      name: Low Power
+    point_cloud:
+      name: Point Cloud
+    target_display:
+      name: Target Display
