@@ -28,11 +28,12 @@ static const char *const TAG = "bk72xx_ble_tracker";
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
 
-// A PENDING start (asynchronous active-scan activity create, a few ms) is
-// retried on this short gate for the first few attempts; a create that never
-// settles falls back to the exponential backoff above.
+// A PENDING start (the asynchronous active-scan create/start sequence, a few
+// ms per step) is retried on this short gate and not charged to the failure
+// backoff; a sequence still pending after a full streak of attempts is
+// counted as one failure, so a wedged controller escalates into the backoff.
 static constexpr uint32_t SCAN_START_PENDING_RETRY_MS = 100;
-static constexpr uint8_t SCAN_START_PENDING_FAST_RETRIES = 3;
+static constexpr uint8_t SCAN_START_PENDING_STREAK_LIMIT = 10;
 
 // ---------------------------------------------------------------------------
 // Component lifecycle
@@ -126,19 +127,21 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   // inside the failure accounting below either way.
   const uint8_t doublings = std::min<uint8_t>(this->failed_start_count_, SCAN_START_RETRY_MAX_DOUBLINGS);
   uint32_t gate = SCAN_START_RETRY_MS << doublings;
-  if (this->start_pending_ && this->failed_start_count_ <= SCAN_START_PENDING_FAST_RETRIES) {
-    // Still charged to the failure accounting below, so a create that never
-    // settles escalates into the exponential backoff.
+  if (this->start_pending_ && this->failed_start_count_ == 0)
     gate = SCAN_START_PENDING_RETRY_MS;
-  }
   if ((!force || this->failed_start_count_ != 0) && now - this->last_scan_start_attempt_ < gate)
     return false;
   this->start_scan_();
-  if (!this->scan_running_ && this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
-    ++this->failed_start_count_;
-    if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
-      ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
-               (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
+  if (!this->scan_running_) {
+    if (this->start_pending_ && ++this->pending_streak_ < SCAN_START_PENDING_STREAK_LIMIT)
+      return false;  // an in-progress bring-up is not a failure
+    this->pending_streak_ = 0;
+    if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
+      ++this->failed_start_count_;
+      if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
+        ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
+                 (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
+      }
     }
   }
   return this->scan_running_;
@@ -257,6 +260,7 @@ void BK72xxBLETracker::start_scan_() {
   this->scan_running_ = true;
   this->scan_requested_ = false;  // the latched one-shot request is satisfied
   this->failed_start_count_ = 0;  // reset here so direct starts clear the backoff too
+  this->pending_streak_ = 0;
   this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging

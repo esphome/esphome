@@ -16,7 +16,7 @@ from esphome.components.ln882h_ble_tracker import (
 from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA as RP2_SCHEMA
 
 
-def _validate(**kwargs: str) -> dict:
+def _validate(**kwargs: str | bool) -> dict:
     """Run a scan_parameters config through the bk72xx tracker's real schema."""
     return BK72XX_SCHEMA(kwargs)
 

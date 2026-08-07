@@ -67,7 +67,9 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 #
 # active defaults to off, unlike the other active-capable trackers: the active
 # start bypasses the BDK's passive-only scan API (bk72xx_ble's
-# active_scan_start_), so it is opt-in until proven broadly on hardware.
+# active_scan_start_), so the YAML default is opt-in until proven broadly on
+# hardware. Runtime mode requests (Home Assistant via bluetooth_proxy) stay
+# enabled deliberately — that is the point of admitting bk72xx to the proxy.
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
     "100ms", supports_active=True, active_default=False
 )

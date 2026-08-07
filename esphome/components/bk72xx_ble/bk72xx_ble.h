@@ -21,10 +21,10 @@ enum class BLEComponentState : uint8_t {
 
 /// Outcome of a scan_start() call.
 enum class ScanStartResult : uint8_t {
-  STARTED,  ///< The controller accepted the start; the scan chain is running.
+  STARTED,  ///< The scan is running (observed on the controller).
   PENDING,  ///< The start sequence is still in progress (an asynchronous
-            ///< activity create, or another BLE operation in flight); call
-            ///< scan_start() again to advance it.
+            ///< activity create or start, or another BLE operation in
+            ///< flight); call scan_start() again to advance it.
   FAILED,   ///< The controller rejected the start; retry later.
 };
 
@@ -122,6 +122,10 @@ class BK72xxBLE final : public Component {
   // scan_stop() arrived while a controller operation was in flight; loop()
   // completes it once the operation settles.
   bool scan_stop_pending_{false};
+  // The packed active-scan start command was sent; STARTED is reported only
+  // once the activity is observed running, so a GAPM-rejected start surfaces
+  // as another PENDING/retry instead of a silent dead scanner.
+  bool active_start_armed_{false};
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

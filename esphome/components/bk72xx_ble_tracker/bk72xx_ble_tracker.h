@@ -161,6 +161,7 @@ class BK72xxBLETracker : public Component,
 
   uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
   uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
+  uint8_t pending_streak_{0};            // consecutive PENDING attempts; a full streak counts as one failure
   uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
