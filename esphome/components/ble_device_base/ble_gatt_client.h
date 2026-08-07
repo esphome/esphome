@@ -128,7 +128,8 @@ class BLEGattConnection {
 
   /// Backend-owned service table (see GattServiceTable lifetime).
   virtual GattServiceTable get_service_table() = 0;
-  /// Free the transient service table storage. Call after streaming.
+  /// Free the transient service table storage. Call after streaming;
+  /// idempotent (a call with no table held is a no-op).
   virtual void release_services() = 0;
 
  protected:
