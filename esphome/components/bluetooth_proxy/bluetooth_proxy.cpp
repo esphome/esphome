@@ -484,6 +484,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
   if (this->api_connection_ == nullptr)
     return;
+  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
 
   auto *connection = this->get_connection_(msg.address, false);
   api::BluetoothSetConnectionParamsResponse resp;
@@ -624,6 +625,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
   if (this->api_connection_ == nullptr)
     return;
+  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
   api::BluetoothSetConnectionParamsResponse resp;
   resp.address = msg.address;
   resp.error = GATT_NOT_CONNECTED;
