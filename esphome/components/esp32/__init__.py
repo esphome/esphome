@@ -2255,13 +2255,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     disable_vfs_dir: bool,
     disable_fatfs: bool,
 ) -> None:
-    """Reconcile VFS/FATFS sdkconfig flags.
-
-    Runs at FINAL priority so every require_vfs_termios()/require_vfs_select()/
-    require_vfs_dir()/require_fatfs() call (made from the various components' to_code at
-    their own priorities) is seen first. A user-supplied sdkconfig_options value always
-    takes precedence.
-    """
+    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     def set_opt(name: str, value: SdkconfigValueType) -> None:
@@ -2269,47 +2263,29 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
+    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
-    # VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
+    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
+    # sockets use lwip_select() either way. ~2.7KB flash when off.
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-    # VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # Components that need it (e.g., storage drivers) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
+    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
-    # FATFS support
-    # Components that need FATFS (SD card, USB storage, ...) call require_fatfs().
+    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
+    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
+    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Storage drivers need long filenames and enough FATFS volumes for several drivers
-        # at once (SD + USB + wear levelling -- every esp_vfs_fat mount consumes one). All of
-        # these are only defaults: override any of them via
-        # esp32 -> framework -> advanced -> sdkconfig_options.
-        # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice (NONE / HEAP / STACK): when the
-        # user picked any member via sdkconfig_options, leave the whole group alone --
-        # writing our default next to their pick would put two =y entries into one choice
-        # and leave the winner to file sort order. Cost note: LFN_HEAP allocates a buffer
-        # (up to MAX_LFN chars) per long-filename operation at runtime; LFN_STACK avoids
-        # the heap at the price of task stack depth.
         lfn_keys = (
             "CONFIG_FATFS_LFN_NONE",
             "CONFIG_FATFS_LFN_HEAP",
@@ -2915,11 +2891,8 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-    # FINAL priority: components may call require_vfs_*() / require_fatfs() from their own
-    # to_code, which can run at or below this platform to_code's priority (the upcoming
-    # storage drivers sit at COMPONENT, iterated after esp32), so an inline read here would
-    # be iteration-order-dependent. Reconciling once after every job ran makes the outcome
-    # independent of component order.
+    # FINAL: require_*() calls can come from to_code at or below this priority, so an
+    # inline read would be iteration-order-dependent; reconcile once after every job ran.
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
