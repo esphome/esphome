@@ -447,7 +447,7 @@ void RP2GattClient::can_write_no_rsp_trampoline(void *context) {
   }
   uint8_t status = gatt_client_write_value_of_characteristic_without_response(self->con_handle_, self->op_handle_,
                                                                               self->op_len_, self->op_buffer_);
-  if (status == GATT_CLIENT_BUSY &&
+  if ((status == GATT_CLIENT_BUSY || status == BTSTACK_ACL_BUFFERS_FULL) &&
       gatt_client_request_to_write_without_response(&self->can_write_registration_, self->con_handle_) == 0) {
     return;  // next window retries; a failed re-arm falls through as an error
   }
@@ -908,7 +908,9 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
       }
       status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, handle, len,
                                                                           const_cast<uint8_t *>(data));
-      if (status == GATT_CLIENT_BUSY) {
+      // BTSTACK_ACL_BUFFERS_FULL is the same transient flow control one layer
+      // down (L2CAP), so it defers identically.
+      if (status == GATT_CLIENT_BUSY || status == BTSTACK_ACL_BUFFERS_FULL) {
         if (this->op_in_flight_()) {
           // The op buffer is owned; bounce the busy to the caller as before.
           return status;
