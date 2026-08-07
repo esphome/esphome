@@ -6,7 +6,6 @@
 
 #include "common.h"
 #include "esphome/components/modbus/modbus.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::modbus {
 
@@ -29,6 +28,19 @@ class RecordingDevice : public ModbusServerDevice {
   std::vector<uint16_t> last_values;
 };
 
+// A server device that rejects every write, to exercise the broadcast dispatch loop's rejection branch.
+class RejectingDevice : public ModbusServerDevice {
+ public:
+  explicit RejectingDevice(uint8_t address) { this->set_address(address); }
+
+  ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) override {
+    this->write_count++;
+    return ExceptionCode::ILLEGAL_DATA_ADDRESS;
+  }
+
+  int write_count{0};
+};
+
 // A UART that records every byte written so the test can assert the hub sends no reply.
 class RecordingUART : public testing::NullUART {
  public:
@@ -42,12 +54,6 @@ class RecordingUART : public testing::NullUART {
 class TestServerHub : public ModbusServerHub {
  public:
   bool tx_blocked() override { return false; }
-
-  void prime_send_timestamps_for_test() {
-    uint32_t now = millis();
-    this->last_modbus_byte_ = now;
-    this->last_send_ = now;
-  }
 
   // Builds a complete client frame (address + FC + pdu + CRC) and runs the full receive-side parser
   // (parse_modbus_frames), so the expecting-peer-response routing is exercised, not just the frame parser
@@ -130,6 +136,32 @@ TEST(ModbusBroadcast, SingleRegisterBroadcastDispatchedWhileExpectingPeerRespons
   EXPECT_TRUE(uart.written.empty());  // broadcasts are never answered
 }
 
+// After dispatching a broadcast, the hub must not still expect a peer response: a following unicast FC 0x06
+// to one of our own devices must be handled, not misparsed as that peer's response and dropped.
+TEST(ModbusBroadcast, BroadcastClearsStalePeerExpectation) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RecordingDevice device(0x02);
+  hub.register_device(&device);
+
+  // A unicast write to an unregistered peer (0x09) leaves the hub expecting that peer's response.
+  const uint8_t pdu_data[] = {0x00, 0x10, 0x00, 0x2A};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(0x09, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data,
+                                              sizeof(pdu_data)));
+
+  // The broadcast that follows clears that expectation as it is dispatched.
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
+  ASSERT_EQ(device.write_count, 1);
+
+  // The next unicast FC 0x06 to our own device is handled, not swallowed by the stale expectation.
+  ASSERT_TRUE(hub.run_receive_parser_for_test(0x02, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data,
+                                              sizeof(pdu_data)));
+  EXPECT_EQ(device.write_count, 2);
+}
+
 // A broadcast multi-register write is decoded and delivered to every device, still without a reply.
 TEST(ModbusBroadcast, MultipleRegisterWriteReachesAllDevicesWithoutReply) {
   TestServerHub hub;
@@ -195,12 +227,36 @@ TEST(ModbusBroadcast, InvalidMultipleWriteBroadcastProducesNoWriteAndNoReply) {
   EXPECT_TRUE(uart.written.empty());
 }
 
+// A device that rejects a broadcast write must not stop dispatch to devices registered after it, and the
+// broadcast is still never answered.
+TEST(ModbusBroadcast, RejectingDeviceDoesNotStopBroadcastDispatch) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RejectingDevice rejecter(0x02);
+  RecordingDevice device(0x03);
+  hub.register_device(&rejecter);  // registered first, so a rejection happens before the normal device
+  hub.register_device(&device);
+
+  // FC 0x06 payload: start address 0x9D31, value 0x00A5 (big-endian, no address/CRC).
+  const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
+
+  EXPECT_EQ(rejecter.write_count, 1);  // the rejecting device was still invoked
+  EXPECT_EQ(device.write_count, 1);    // and dispatch continued to the device registered after it
+  EXPECT_EQ(device.last_start_address, 0x9D31);
+  ASSERT_EQ(device.last_values.size(), 1u);
+  EXPECT_EQ(device.last_values[0], 0x00A5);
+  EXPECT_TRUE(uart.written.empty());  // a broadcast is never answered, even when a device rejects
+}
+
 // A unicast out-of-range write sends exactly one exception frame on the wire.
 TEST(ModbusBroadcast, UnicastOutOfRangeWriteSendsSingleExceptionFrame) {
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
-  hub.prime_send_timestamps_for_test();
 
   RecordingDevice device(0x02);
   hub.register_device(&device);
