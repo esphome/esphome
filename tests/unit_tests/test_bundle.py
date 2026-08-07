@@ -25,7 +25,6 @@ from esphome.bundle import (
     add_bundle_file,
     add_secret_scan_dir,
     extract_bundle,
-    is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
     remap_bundle_path,
@@ -97,26 +96,6 @@ def _setup_config_dir(
 
     CORE.config_path = config_dir / "test.yaml"
     return config_dir
-
-
-# ---------------------------------------------------------------------------
-# is_bundle_path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("filename", "expected"),
-    [
-        (f"my_device{BUNDLE_EXTENSION}", True),
-        (f"MY_DEVICE{BUNDLE_EXTENSION.upper()}", True),
-        ("my_device.yaml", False),
-        ("my_device.tar.gz", False),
-        ("my_device.zip", False),
-        ("", False),
-    ],
-)
-def test_is_bundle_path(filename: str, expected: bool) -> None:
-    assert is_bundle_path(Path(filename)) is expected
 
 
 # ---------------------------------------------------------------------------

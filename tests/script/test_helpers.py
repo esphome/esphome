@@ -1851,3 +1851,24 @@ def test_get_component_test_files_component_without_tests(
 )
 def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/config.py"], True),
+        (["esphome/yaml_util.py"], True),
+        (["esphome/__main__.py"], True),
+        (["esphome/const.pyi"], True),
+        (["README.md", "esphome/helpers.py"], True),
+        (["esphome/core/config.py"], False),
+        (["esphome/components/sensor/__init__.py"], False),
+        (["esphome/dashboard/web_server.py"], False),
+        (["esphome/idf_component.yml"], False),
+        (["tests/unit_tests/test_config.py"], False),
+        ([], False),
+    ],
+)
+def test_base_python_changed(files: list[str], expected: bool) -> None:
+    """Only Python modules directly in esphome/ count as base Python changes."""
+    assert helpers.base_python_changed(files) is expected
