@@ -31,6 +31,16 @@ HUB_TRACKERS = {
 }
 
 
+def test_hub_platform_list_covers_every_hub_platform() -> None:
+    # A platform added to _HUB_PLATFORMS (bk72xx is planned) would otherwise
+    # get no gate coverage at all; GATT platforms have their own tests.
+    advertisement_only = set(bluetooth_proxy._HUB_PLATFORMS) - set(
+        bluetooth_connection.HUB_MAX_CONNECTIONS
+    )
+    assert {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS} == advertisement_only
+    assert set(HUB_TRACKERS) == set(bluetooth_proxy._HUB_PLATFORMS)
+
+
 def _set_platform(platform: str | None) -> None:
     # For arms set_core_config cannot express (bare platform, no framework).
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
@@ -42,16 +52,6 @@ def _register_tracker(platform: str) -> None:
     tracker = HUB_TRACKERS[platform]
     ble_device_base.register_hub_provider(tracker)
     CORE.loaded_integrations.add(tracker)
-
-
-def test_hub_parametrization_covers_every_hub_platform() -> None:
-    # A platform added to _HUB_PLATFORMS without an entry here would silently
-    # get no gate coverage; GATT platforms are covered by their own tests.
-    advertisement_only = set(bluetooth_proxy._HUB_PLATFORMS) - set(
-        bluetooth_connection.HUB_MAX_CONNECTIONS
-    )
-    assert {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS} == advertisement_only
-    assert set(HUB_TRACKERS) == set(bluetooth_proxy._HUB_PLATFORMS)
 
 
 def test_ble_less_platform_gets_the_real_reason(
