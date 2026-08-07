@@ -282,11 +282,15 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         # Fail here with the actual reason. Without this gate the error surfaces
         # later as an unresolvable hub ID ("Are you missing a hub declaration?")
         # on platforms where no hub component can be declared.
-        hub_platforms = ", ".join(sorted(_HUB_PLATFORMS))
+        full = ", ".join(["esp32", *sorted(bluetooth_connection.HUB_MAX_CONNECTIONS)])
+        adv_only = ", ".join(
+            sorted(set(_HUB_PLATFORMS) - set(bluetooth_connection.HUB_MAX_CONNECTIONS))
+        )
         raise cv.Invalid(
             f"bluetooth_proxy is not supported on {CORE.target_platform}: no "
             "active-scan-capable BLE tracker hub is available for this "
-            f"platform. It runs on esp32 (full proxy) and {hub_platforms}."
+            f"platform. It runs on {full} (full proxy) and {adv_only} "
+            "(advertisement-only)."
         )
     if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
         return _GATT_HUB_SCHEMAS[CORE.target_platform]()(config)

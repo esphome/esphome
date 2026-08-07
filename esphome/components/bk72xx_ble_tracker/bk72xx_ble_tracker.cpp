@@ -57,6 +57,10 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->scan_requested_before_ota_ = this->scan_requested_;
     this->stop_scan();
+    // The OTA transfer starves the main loop, so a stop deferred behind an
+    // in-flight controller operation would leave the radio scanning for the
+    // whole update — drain it here, bounded.
+    this->parent_->flush_pending_stop(100);
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop() restarts the scan on its next iteration (continuous idle branch).
@@ -277,8 +281,15 @@ void BK72xxBLETracker::start_scan_() {
 }
 
 void BK72xxBLETracker::stop_scan_() {
-  if (!this->scan_running_)
+  if (!this->scan_running_) {
+    if (this->start_pending_) {
+      // Abandon an in-flight bring-up and release its created activity; no
+      // on_scan_end, the scan never ran.
+      this->start_pending_ = false;
+      this->parent_->scan_stop();
+    }
     return;
+  }
   this->parent_->scan_stop();
   this->scan_running_ = false;
   ESP_LOGD(TAG, "Scan stopped");
@@ -299,13 +310,13 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
     return true;
   this->scan_active_ = active;
   ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
-  // Apply to a running scan by restarting the CONTROLLER scan with the new
-  // mode, bypassing the tracker's stop/start bookkeeping: no on_scan_end (the
-  // scan logically continues, only the request mode changes), no period reset.
-  // An idle scanner picks the mode up on its next start (rp2_ble_tracker
+  // Apply to a running scan by re-requesting the CONTROLLER scan in the new
+  // mode (its reconciler restarts a scan running in the wrong mode),
+  // bypassing the tracker's stop/start bookkeeping: no on_scan_end (the scan
+  // logically continues, only the request mode changes), no period reset. An
+  // idle scanner picks the mode up on its next start (rp2_ble_tracker
   // parity).
   if (this->scan_running_) {
-    this->parent_->scan_stop();
     switch (this->controller_scan_start_()) {
       case bk72xx_ble::ScanStartResult::STARTED:
         break;

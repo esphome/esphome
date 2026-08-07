@@ -104,9 +104,9 @@ class BK72xxBLETracker : public Component,
     this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    // Active scanning goes through bk72xx_ble::active_scan_start_ (the BDK's
-    // own API is passive-only). Scan responses arrive as separate reports,
-    // never merged. No GATT client.
+    // Active scanning via bk72xx_ble's reconciler (the BDK API is
+    // passive-only). Scan responses arrive as separate reports, never merged.
+    // No GATT client.
     return {.active_scan = true, .merges_scan_response = false, .gatt = false, .scan_mode_switch = true};
   }
   bool request_scan_mode(bool active) override;

@@ -19,17 +19,22 @@ enum class BLEComponentState : uint8_t {
   ACTIVE,
 };
 
-/// Outcome of a scan_start() call.
+/// What the consumer wants the scanner doing. The reconciler (advance_())
+/// moves the controller toward this one SDK operation at a time.
+enum class ScanIntent : uint8_t { STOPPED, PASSIVE, ACTIVE };
+
+/// Outcome of one reconciliation step.
 enum class ScanStartResult : uint8_t {
-  STARTED,  ///< The scan is running (observed on the controller).
-  PENDING,  ///< The start sequence is still in progress (an asynchronous
-            ///< activity create or start, or another BLE operation in
-            ///< flight); call scan_start() again to advance it.
-  FAILED,   ///< The controller rejected the start; retry later.
+  STARTED,  ///< The intent is reached: scan observed running (or, for a stop,
+            ///< the activity fully released).
+  PENDING,  ///< A step is in flight (asynchronous create/start/stop, or
+            ///< another BLE operation); loop() keeps advancing, and calling
+            ///< scan_start() again reports the current outcome.
+  FAILED,   ///< The controller rejected a step; retry later.
 };
 
-/// scan_actv_idx_ value marking "no scan activity", the BDK's own convention.
-static constexpr uint8_t INVALID_ACTV_IDX = 0xFF;
+/// scan_activity_idx_ value marking "no scan activity", the BDK's own convention.
+static constexpr uint8_t INVALID_ACTIVITY_IDX = 0xFF;
 
 /// One advertisement report from the controller.
 struct BLEScanReport {
@@ -81,16 +86,19 @@ class BK72xxBLE final : public Component {
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 #endif
 
-  /// Start the controller scan. Interval/window are in BLE units (0.625 ms);
-  /// enables the stack first if needed. An active start involves an
-  /// asynchronous activity create, reported as PENDING — call again to
-  /// advance the sequence until it reports STARTED or FAILED.
+  /// Request a scan. Interval/window are in BLE units (0.625 ms); enables the
+  /// stack first if needed. Latches the intent and advances the reconciler:
+  /// PENDING until the scan is observed running (loop() keeps advancing in
+  /// between), so call again to learn the outcome.
   ScanStartResult scan_start(uint16_t interval, uint16_t window, bool active);
-  /// Stop the controller scan (no-op when not scanning). Also discards a scan
-  /// activity that was created for an active scan but not started yet. A stop
-  /// requested while a controller operation is still in flight is completed
-  /// from loop() once the operation settles.
+  /// Request the scanner stopped and any scan activity released; steps that
+  /// cannot run yet (a controller operation in flight) are completed from
+  /// loop().
   void scan_stop();
+  /// Drive a requested stop to completion synchronously, bounded by
+  /// timeout_ms — for callers that must have the radio idle before loop()
+  /// runs again (OTA).
+  void flush_pending_stop(uint32_t timeout_ms);
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
   /// context — bounded copy under the scheduler lock, nothing else).
@@ -98,11 +106,9 @@ class BK72xxBLE final : public Component {
 
  protected:
   void resolve_mac_();
-  /// scan_stop(), reporting whether it settled; false means the stop deferred
-  /// (controller operation in flight) and the caller must report PENDING.
-  bool try_scan_stop_();
+  ScanStartResult advance_();
+  ScanStartResult send_active_start_();
   bool acquire_scan_activity_();
-  ScanStartResult active_scan_start_(uint16_t interval, uint16_t window);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —
@@ -118,14 +124,15 @@ class BK72xxBLE final : public Component {
   // pool slot on a failed push and keeps release() off the producer path.
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
   uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
-  uint8_t scan_actv_idx_{INVALID_ACTV_IDX};
-  // scan_stop() arrived while a controller operation was in flight; loop()
-  // completes it once the operation settles.
-  bool scan_stop_pending_{false};
-  // The packed active-scan start command was sent; STARTED is reported only
-  // once the activity is observed running, so a GAPM-rejected start surfaces
-  // as another PENDING/retry instead of a silent dead scanner.
-  bool active_start_armed_{false};
+  uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
+  ScanIntent scan_intent_{ScanIntent::STOPPED};
+  uint16_t scan_interval_{0};  // BLE units; latched by scan_start()
+  uint16_t scan_window_{0};
+  // Mode the current activity was (or is being) started with — our own
+  // command history, which the controller state alone cannot answer.
+  bool activity_mode_active_{false};
+  // advance_() has more reconciling to do; loop() keeps driving it.
+  bool reconcile_pending_{false};
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };
