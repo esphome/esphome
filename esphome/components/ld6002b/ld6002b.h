@@ -155,6 +155,11 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void handle_version_report_(const uint8_t *data, uint16_t len);
   void update_work_mode_fallback_();
   void publish_work_mode_(bool low_power);
+  // Drops every target-derived reading and the slot table they are indexed by.
+  void clear_target_state_();
+#ifdef USE_SENSOR
+  void clear_target_slot_(uint8_t index);
+#endif
 #ifdef USE_NUMBER
   void publish_number_clamped_(number::Number *number, float value);
 #endif
@@ -267,6 +272,11 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   std::array<bool, MAX_TARGETS> slot_occupied_{};
 
   bool target_presence_any_{false};
+  // What the switches and setup asked the module for, which is not the same as
+  // what it is doing yet: a stream keeps sending until it acts on the command.
+  // The report handlers read these and drop anything a stopped stream still emits.
+  bool target_display_enabled_{false};
+  bool point_cloud_enabled_{false};
   bool work_mode_reported_{false};
   bool low_power_enabled_{false};
   bool low_power_reported_{false};

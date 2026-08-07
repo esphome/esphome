@@ -202,6 +202,13 @@ void LD6002BComponent::setup() {
       }
     }
 #endif
+#ifdef USE_TEXT_SENSOR
+    // The work mode fallback reads presence off this stream, so it counts as a
+    // consumer of it here.  This only feeds the automatic branch below: with a
+    // target_display switch configured that switch still decides, and the
+    // fallback weighs no presence at all while the stream is off.
+    want_target_stream = want_target_stream || this->work_mode_text_sensor_ != nullptr;
+#endif
     bool target_display_controlled = false;
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
@@ -211,10 +218,17 @@ void LD6002BComponent::setup() {
       const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
       this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
       this->target_display_switch_->publish_state(state);
+      this->target_display_enabled_ = state;
     }
 #endif
-    if (!target_display_controlled && want_target_stream) {
-      this->send_control_command_(CMD_TARGET_DISPLAY_ON);
+    if (!target_display_controlled) {
+      // No switch: the stream follows its consumers.  With none, nothing is sent
+      // and the module's own default stands -- but the reports are gated out
+      // regardless, because there is nothing configured for them to feed.
+      this->target_display_enabled_ = want_target_stream;
+      if (want_target_stream) {
+        this->send_control_command_(CMD_TARGET_DISPLAY_ON);
+      }
     }
 
     bool point_cloud_controlled = false;
@@ -225,6 +239,7 @@ void LD6002BComponent::setup() {
       const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
       this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
       this->point_cloud_switch_->publish_state(state);
+      this->point_cloud_enabled_ = state;
     }
 #endif
     if (!point_cloud_controlled) {
@@ -235,6 +250,7 @@ void LD6002BComponent::setup() {
       want_point_cloud = this->point_count_sensor_ != nullptr;
 #endif
       this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+      this->point_cloud_enabled_ = want_point_cloud;
     }
 #ifdef USE_NUMBER
     if (this->z_min_number_ != nullptr || this->z_max_number_ != nullptr) {
@@ -485,6 +501,12 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 }
 
 void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
+  // The module stops streaming when it acts on the command, not when the command
+  // is queued, so trailing frames after an off must not repopulate what
+  // set_switch_state just cleared.
+  if (!this->target_display_enabled_) {
+    return;
+  }
   if (len < 4)
     return;
 
@@ -582,26 +604,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #endif
     } else {
 #ifdef USE_SENSOR
-      TargetSensors &target = this->targets_[i];
-      if (this->last_target_presence_[i]) {
-        if (target.x != nullptr) {
-          target.x->publish_state(NAN);
-        }
-        if (target.y != nullptr) {
-          target.y->publish_state(NAN);
-        }
-        if (target.z != nullptr) {
-          target.z->publish_state(NAN);
-        }
-        if (target.dop_idx != nullptr) {
-          target.dop_idx->publish_state(NAN);
-        }
-        if (target.cluster_id != nullptr) {
-          target.cluster_id->publish_state(NAN);
-        }
-        // The slot is free: the next person's id is new even when it repeats this one.
-        this->last_cluster_id_valid_[i] = false;
-      }
+      this->clear_target_slot_(i);
 #endif
     }
 #ifdef USE_BINARY_SENSOR
@@ -617,6 +620,11 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 }
 
 void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
+  // Same window as the target stream: a frame already in flight must not put the
+  // count back after the switch cleared it.
+  if (!this->point_cloud_enabled_) {
+    return;
+  }
   if (len < 4)
     return;
 
@@ -696,7 +704,9 @@ void LD6002BComponent::update_work_mode_fallback_() {
   if (!this->low_power_reported_) {
     return;
   }
-  const bool presence = this->target_presence_any_;
+  // Presence is only meaningful while the stream that maintains it runs; with it
+  // off there is nothing to weigh and low power alone decides.
+  const bool presence = this->target_display_enabled_ && this->target_presence_any_;
   this->publish_work_mode_(this->low_power_enabled_ && !presence);
 #endif
 }
@@ -1005,6 +1015,71 @@ void LD6002BComponent::save_version_pref_(const char *value) {
 #endif
 }
 
+#ifdef USE_SENSOR
+void LD6002BComponent::clear_target_slot_(uint8_t index) {
+  if (!this->last_target_presence_[index]) {
+    return;
+  }
+  TargetSensors &target = this->targets_[index];
+  if (target.x != nullptr) {
+    target.x->publish_state(NAN);
+  }
+  if (target.y != nullptr) {
+    target.y->publish_state(NAN);
+  }
+  if (target.z != nullptr) {
+    target.z->publish_state(NAN);
+  }
+  if (target.dop_idx != nullptr) {
+    target.dop_idx->publish_state(NAN);
+  }
+  if (target.cluster_id != nullptr) {
+    target.cluster_id->publish_state(NAN);
+  }
+  // The slot is free: the next person's id is new even when it repeats this one.
+  this->last_cluster_id_valid_[index] = false;
+}
+#endif
+
+void LD6002BComponent::clear_target_state_() {
+  // Nothing corrects any of this until the stream comes back.  The slot table goes
+  // with it: slots key on cluster ids, which only track a person while reports are
+  // arriving, and the room can empty and refill across the gap -- so the next
+  // report starts from an empty table and fills slots in wire order, rather than
+  // handing one back to whoever last held that id.
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+#ifdef USE_SENSOR
+    this->clear_target_slot_(i);
+    this->last_target_presence_[i] = false;
+#endif
+    if (this->slot_occupied_[i]) {
+      this->slot_occupied_[i] = false;
+#ifdef USE_BINARY_SENSOR
+      if (this->target_presence_[i] != nullptr) {
+        this->target_presence_[i]->publish_state(false);
+      }
+#endif
+    }
+  }
+#ifdef USE_SENSOR
+  if (this->last_target_count_ != 0xFFFFFFFF) {
+    if (this->target_count_sensor_ != nullptr) {
+      this->target_count_sensor_->publish_state(NAN);
+    }
+    this->last_target_count_ = 0xFFFFFFFF;
+  }
+#endif
+  if (this->target_presence_any_) {
+    this->target_presence_any_ = false;
+#ifdef USE_BINARY_SENSOR
+    if (this->presence_binary_sensor_ != nullptr) {
+      this->presence_binary_sensor_->publish_state(this->target_presence_any_);
+    }
+#endif
+    this->update_work_mode_fallback_();
+  }
+}
+
 void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
   switch (type) {
     case SwitchType::LOW_POWER:
@@ -1014,10 +1089,25 @@ void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
       this->update_work_mode_fallback_();
       break;
     case SwitchType::POINT_CLOUD:
+      this->point_cloud_enabled_ = state;
       this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+#ifdef USE_SENSOR
+      // The count only moves while the stream runs, so the last one would stand as
+      // a live reading.  The dedup sentinel is cleared with it: the same count is
+      // new again when the stream comes back.
+      if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
+        this->point_count_sensor_->publish_state(NAN);
+        this->last_point_count_ = 0xFFFFFFFF;
+      }
+#endif
       break;
     case SwitchType::TARGET_DISPLAY:
+      this->target_display_enabled_ = state;
       this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+      if (!state) {
+        // Every target entity is fed by the reports this just stopped.
+        this->clear_target_state_();
+      }
       break;
   }
 }
