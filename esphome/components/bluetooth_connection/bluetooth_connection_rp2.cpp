@@ -75,14 +75,18 @@ void RP2GattClient::setup() {
     this->mark_failed();
     return;
   }
-  instances[instance_count++] = this;
-
-  // One HCI event handler for all engine instances (BTstack supports multiple
-  // registrations, so rp2040_ble's own handler is unaffected).
-  if (hci_event_registration.callback == nullptr) {
+  {
+    // One locked section: the slot store lands before the count bump, and a
+    // live HCI handler (N > 1 builds) cannot read a half-written registry.
     BluetoothLock lock;
-    hci_event_registration.callback = &RP2GattClient::hci_packet_handler;
-    hci_add_event_handler(&hci_event_registration);
+    instances[instance_count] = this;
+    instance_count++;
+    // One HCI event handler for all engine instances (BTstack supports
+    // multiple registrations, so rp2040_ble's own handler is unaffected).
+    if (hci_event_registration.callback == nullptr) {
+      hci_event_registration.callback = &RP2GattClient::hci_packet_handler;
+      hci_add_event_handler(&hci_event_registration);
+    }
   }
 
   this->disable_loop();
