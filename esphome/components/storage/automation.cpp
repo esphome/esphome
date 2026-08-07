@@ -206,64 +206,10 @@ void perform_file_write(const std::string &path, std::string content, bool appen
   if (!append) {
     // PathStorage-level helper -- works on FILESYSTEM and NETWORK storages alike.
     err = write_file(ps, rel, reinterpret_cast<const uint8_t *>(content.data()), content.size());
-  } else if (ps->get_storage_type() == StorageType::FILESYSTEM) {
-    // Filesystem append: native handle-based APPEND open.
-    auto *fs = static_cast<FilesystemStorage *>(ps);
-    FileHandle *handle = nullptr;
-    err = fs->open(rel, handle, OpenMode::APPEND);
-    if (err != StorageError::OK) {
-      ESP_LOGE(TAG, "file_append: open '%s' failed (%s)", path.c_str(), error_to_string(err));
-      return;
-    }
-    // Loop until the whole payload lands: a short write is not an error, only no progress is
-    // (mirrors write_file()). Append is small (logs/values), so no watchdog feed is needed.
-    const auto *bytes = reinterpret_cast<const uint8_t *>(content.data());
-    size_t total = 0;
-    while (total < content.size()) {
-      size_t written = 0;
-      err = fs->write(handle, bytes + total, content.size() - total, &written);
-      if (err != StorageError::OK)
-        break;
-      if (written == 0) {
-        err = StorageError::WRITE_ERROR;
-        break;
-      }
-      total += written;
-    }
-    // Close errors must surface: FATFS-backed drivers flush on close (see copy() contract).
-    StorageError close_err = fs->close(handle);
-    if (err == StorageError::OK)
-      err = close_err;
   } else {
-    // Network append: the chunk API takes an explicit offset (NFS supports offset writes
-    // natively), so appending is stat-for-size + one write_chunk at EOF -- O(1) RAM, no
-    // read-modify-write. A missing file starts at offset 0 (created by the write). The
-    // stat->write window is not atomic against other writers; acceptable for a single node
-    // appending its own logs/values.
-    auto *ns = static_cast<NetworkStorage *>(ps);
-    uint64_t offset = 0;
-    FileStat st{};
-    err = ns->stat(rel, &st);
-    if (err == StorageError::OK) {
-      offset = st.size;
-    } else if (err != StorageError::NOT_FOUND) {
-      ESP_LOGE(TAG, "file_append: stat '%s' failed (%s)", path.c_str(), error_to_string(err));
-      return;
-    }
-    // Loop until the whole payload lands, advancing the offset (mirrors write_file()).
-    const auto *bytes = reinterpret_cast<const uint8_t *>(content.data());
-    size_t total = 0;
-    while (total < content.size()) {
-      size_t written = 0;
-      err = ns->write_chunk(rel, bytes + total, offset + total, content.size() - total, &written);
-      if (err != StorageError::OK)
-        break;
-      if (written == 0) {
-        err = StorageError::WRITE_ERROR;
-        break;
-      }
-      total += written;
-    }
+    // Same, via the interface's append helper (filesystem: native APPEND open; network:
+    // stat-for-size + offset write_chunk). The blocking-size limit now covers append too.
+    err = append_file(ps, rel, reinterpret_cast<const uint8_t *>(content.data()), content.size());
   }
 
   if (err != StorageError::OK) {
