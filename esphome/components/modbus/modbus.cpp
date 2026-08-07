@@ -381,6 +381,8 @@ ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, ui
 // Write PDU layout after the function code: start address(2) [+ quantity(2) + byte count(1)] + register values.
 static constexpr uint16_t WRITE_SINGLE_VALUES_OFFSET = 2;
 static constexpr uint16_t WRITE_MULTIPLE_VALUES_OFFSET = 5;
+// FC 0x17 writes follow read start(2) + read quantity(2) + write start(2) + write quantity(2) + byte count(1).
+static constexpr uint16_t READ_WRITE_VALUES_OFFSET = 9;
 
 ResponseStatus ModbusServerHub::parse_write_single_(const uint8_t *data, uint16_t &start_address,
                                                     RegisterValues &registers) {
@@ -408,9 +410,9 @@ ResponseStatus ModbusServerHub::parse_write_multiple_(const uint8_t *data, uint1
 }
 
 // Bounds contract, enforced by the callers rather than locally: data must point at the whole write PDU payload
-// (the bytes after the function code). Both parse paths hand it parse_modbus_client_frame_'s zero-initialised
-// 256-byte data buffer, and client_pdu_length()'s min(byte_count, MAX_NUM_OF_REGISTERS_TO_WRITE * 2) clamp
-// together with parse_write_multiple_'s number_of_registers * 2 == number_of_bytes guard keep every read inside it.
+// (the bytes after the function code). Every caller hands it parse_modbus_client_frame_'s zero-initialised
+// 256-byte data buffer, and client_pdu_length()'s byte-count clamp together with the caller's
+// number_of_registers * 2 == number_of_bytes guard keep every read inside it.
 void ModbusServerHub::assemble_registers_(const uint8_t *data, uint16_t values_offset, uint16_t number_of_registers,
                                           RegisterValues &registers) {
   for (uint16_t i = 0; i < number_of_registers; i++) {
@@ -588,11 +590,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       // Perform the write first (Modbus 6.17). Scoped so the write values are off the stack before the read
       // values are allocated, keeping only one RegisterValues buffer live at a time.
       {
-        // Assemble the written register values (host byte order); they follow the 9-byte request header.
         RegisterValues write_registers;
-        for (uint16_t i = 0; i < number_of_write_registers; i++) {
-          write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
-        }
+        this->assemble_registers_(data, READ_WRITE_VALUES_OFFSET, number_of_write_registers, write_registers);
         // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
         // without a dedicated handler; a device that maps registers by address reconstructs the read response
         // from the values it just stored.
