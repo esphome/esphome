@@ -62,12 +62,15 @@ async def to_code(config):
         (CONF_HOLD_DELAY, NumberType.HOLD_DELAY, "set_hold_delay_number", 0, 65535, 1),
         (CONF_Z_MIN, NumberType.Z_MIN, "set_z_min_number", -10, 10, 0.1),
         (CONF_Z_MAX, NumberType.Z_MAX, "set_z_max_number", -10, 10, 0.1),
+        # 0x0205 carries a uint32 of milliseconds; the vendor documents 500 ms as
+        # the default and no upper bound, so the range ends at a minute rather
+        # than at a default the module is free to be sleeping past.
         (
             CONF_LOW_POWER_SLEEP_TIME,
             NumberType.LOW_POWER_SLEEP,
             "set_low_power_sleep_number",
             0,
-            500,
+            60000,
             100,
         ),
     ):

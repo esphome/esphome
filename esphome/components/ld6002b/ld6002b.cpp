@@ -634,8 +634,8 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
 void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
-  uint32_t delay = read_u32_le(data);
 #ifdef USE_NUMBER
+  uint32_t delay = read_u32_le(data);
   this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
@@ -670,8 +670,8 @@ void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t le
 void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
-  uint32_t sleep_ms = read_u32_le(data);
 #ifdef USE_NUMBER
+  uint32_t sleep_ms = read_u32_le(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
@@ -679,8 +679,8 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
 void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
-  const bool low_power = (data[0] == 0);
 #ifdef USE_TEXT_SENSOR
+  const bool low_power = (data[0] == 0);
   if (this->work_mode_text_sensor_ != nullptr) {
     this->work_mode_reported_ = true;
     this->publish_work_mode_(low_power);
