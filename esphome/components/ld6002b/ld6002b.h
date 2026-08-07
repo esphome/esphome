@@ -171,8 +171,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
     std::array<uint8_t, CMD_MAX_DATA_LEN> data{};
   };
 
-  void init_installation_pref_();
-  void save_installation_pref_(uint8_t value);
   void parse_byte_(uint8_t byte);
   void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
@@ -241,8 +239,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   select::Select *sensitivity_select_{nullptr};
   select::Select *trigger_speed_select_{nullptr};
   select::Select *installation_select_{nullptr};
-  ESPPreferenceObject installation_pref_{};
-  bool installation_pref_initialized_{false};
 #endif
 #ifdef USE_SWITCH
   switch_::Switch *low_power_switch_{nullptr};
@@ -277,6 +273,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
+  // Named so a repeated press replaces its own pending timeout instead of stacking
+  // another, and so the command path can cancel it when it takes the pin over.
+  static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 

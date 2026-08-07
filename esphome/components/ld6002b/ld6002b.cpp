@@ -356,7 +356,6 @@ void LD6002BComponent::setup() {
       this->send_control_command_(CMD_GET_LOW_POWER);
     }
 
-    this->init_installation_pref_();
     this->init_version_pref_();
 
 #ifdef USE_TEXT_SENSOR
@@ -409,6 +408,11 @@ void LD6002BComponent::dump_config() {
   LOG_SWITCH("  ", "Point Cloud", this->point_cloud_switch_);
   LOG_SWITCH("  ", "Target Display", this->target_display_switch_);
 #endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Sensitivity", this->sensitivity_select_);
+  LOG_SELECT("  ", "Trigger Speed", this->trigger_speed_select_);
+  LOG_SELECT("  ", "Installation Mode", this->installation_select_);
+#endif
 }
 
 void LD6002BComponent::loop() {
@@ -417,30 +421,6 @@ void LD6002BComponent::loop() {
     this->parse_byte_(byte);
   }
   this->process_command_queue_();
-}
-
-void LD6002BComponent::init_installation_pref_() {
-#ifdef USE_SELECT
-  if (this->installation_select_ == nullptr) {
-    return;
-  }
-  this->installation_pref_ = this->installation_select_->make_entity_preference<uint8_t>();
-  this->installation_pref_initialized_ = true;
-
-  uint8_t value = 0;
-  if (this->installation_pref_.load(&value) && value <= 1) {
-    this->installation_select_->publish_state(value);
-  }
-#endif
-}
-
-void LD6002BComponent::save_installation_pref_(uint8_t value) {
-#ifdef USE_SELECT
-  if (!this->installation_pref_initialized_) {
-    return;
-  }
-  this->installation_pref_.save(&value);
-#endif
 }
 
 void LD6002BComponent::reset_parser_() {
@@ -805,7 +785,6 @@ void LD6002BComponent::handle_installation_report_(const uint8_t *data, uint16_t
   uint8_t value = data[0];
   if (value <= 1) {
     this->installation_select_->publish_state(value);
-    this->save_installation_pref_(value);
   }
 #endif
 }
@@ -1026,6 +1005,8 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
     if (len > 0 && data != nullptr) {
       std::memcpy(this->wake_scratch_.data(), data, len);
     }
+    // A button pulse must not raise the pin in the middle of this one.
+    this->cancel_timeout(WAKE_BUTTON_TIMEOUT);
     this->wake_pulse_pending_ = true;
     this->wakeup_pin_->digital_write(false);
     const uint8_t generation = this->send_generation_;
@@ -1110,10 +1091,13 @@ void LD6002BComponent::send_z_range_() {
 }
 
 void LD6002BComponent::wake_() {
-  if (this->wakeup_pin_ == nullptr)
+  // A command's own pulse raises the pin and writes after it, so ride along instead of
+  // claiming the flag: claiming it would send that command down the immediate-write path
+  // with the pin still low.
+  if (this->wakeup_pin_ == nullptr || this->wake_pulse_pending_)
     return;
   this->wakeup_pin_->digital_write(false);
-  this->set_timeout(this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
+  this->set_timeout(WAKE_BUTTON_TIMEOUT, this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
 void LD6002BComponent::set_number_value(NumberType type, float value) {
@@ -1168,9 +1152,6 @@ void LD6002BComponent::set_select_value(SelectType type, size_t index) {
         this->send_control_command_(CMD_INSTALL_TOP);
       } else if (index == 1) {
         this->send_control_command_(CMD_INSTALL_SIDE);
-      }
-      if (index <= 1) {
-        this->save_installation_pref_(static_cast<uint8_t>(index));
       }
       break;
   }
