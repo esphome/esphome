@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import functools
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import ble_device_base, bluetooth_connection
@@ -156,6 +157,9 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
 # platform-specific keys, e.g. rp2040_ble_id).
 _GATT_HUB_SCHEMAS: dict[str, Callable[[], cv.All]] = {}
 
+# Per-platform connection codegen, keyed like _GATT_HUB_SCHEMAS.
+_GATT_HUB_TO_CODE: dict[str, Callable[..., Any]] = {}
+
 
 @functools.cache
 def _rp2_config_schema() -> cv.All:
@@ -186,37 +190,53 @@ def _rp2_config_schema() -> cv.All:
         }
 
     max_conn = bluetooth_connection.HUB_MAX_CONNECTIONS[PLATFORM_RP2]
-    schema = cv.Schema(
-        {
-            **_COMMON_SCHEMA_KEYS,
-            # Declared directly (BLE_DEVICE_SCHEMA-style): appending a validator
-            # after a strict schema rejects an explicit `ble_hub_id` before it
-            # runs (see _BLE_HUB_CONFIG_SCHEMA).
-            cv.GenerateID(ble_device_base.CONF_BLE_HUB_ID): cv.use_id(
-                ble_device_base.BLEHub
-            ),
-            # The GATT backend drives the controller directly (connect, GATT
-            # ops), not through the tracker hub.
-            cv.GenerateID(CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE),
-            cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
-            cv.Optional(
-                CONF_CONNECTION_SLOTS, default=min(DEFAULT_CONNECTION_SLOTS, max_conn)
-            ): cv.All(
-                cv.positive_int,
-                cv.Range(
-                    min=1,
-                    max=max_conn,
-                    msg=f"rp2 supports at most {max_conn} connection slot(s); "
-                    "the framework's BTstack library is built with "
-                    "MAX_NR_GATT_CLIENTS 1",
+    schema = (
+        cv.Schema(
+            {
+                **_COMMON_SCHEMA_KEYS,
+                # The GATT backend drives the controller directly (connect, GATT
+                # ops), not through the tracker hub.
+                cv.GenerateID(CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE),
+                cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_CONNECTION_SLOTS,
+                    default=min(DEFAULT_CONNECTION_SLOTS, max_conn),
+                ): cv.All(
+                    cv.positive_int,
+                    cv.Range(
+                        min=1,
+                        max=max_conn,
+                        msg=f"rp2 supports at most {max_conn} connection slot(s); "
+                        "the framework's BTstack library is built with "
+                        f"MAX_NR_GATT_CLIENTS {max_conn}",
+                    ),
                 ),
-            ),
-        }
-    ).extend(cv.COMPONENT_SCHEMA)
+            }
+        )
+        .extend(
+            # ble_hub_id with the friendly no-tracker-configured guard.
+            ble_device_base.BLE_DEVICE_SCHEMA
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+    )
     return cv.All(schema, populate_connections)
 
 
+async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    # One wrapper + backend pair per slot (the esp32 arm's pattern).
+    ble_parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
+    for connection_conf in config[CONF_CONNECTIONS]:
+        ble_device_base.request_gatt_client()
+        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
+        await cg.register_component(backend, connection_conf)
+        cg.add(backend.set_parent(ble_parent))
+        connection = cg.new_Pvariable(connection_conf[CONF_ID])
+        cg.add(connection.set_backend(backend))
+        cg.add(var.register_connection(connection))
+
+
 _GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema
+_GATT_HUB_TO_CODE[PLATFORM_RP2] = _rp2_connections_to_code
 
 
 # Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
@@ -406,17 +426,7 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     if not slots:
         return
 
-    # Full proxy: one wrapper + one platform backend per connection slot,
-    # mirroring the esp32 arm's per-connection instantiation.
-    ble_parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
-    for connection_conf in config[CONF_CONNECTIONS]:
-        ble_device_base.request_gatt_client()
-        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
-        await cg.register_component(backend, connection_conf)
-        cg.add(backend.set_parent(ble_parent))
-        connection = cg.new_Pvariable(connection_conf[CONF_ID])
-        cg.add(connection.set_backend(backend))
-        cg.add(var.register_connection(connection))
+    await _GATT_HUB_TO_CODE[CORE.target_platform](var, config)
 
 
 async def to_code(config: ConfigType) -> None:
