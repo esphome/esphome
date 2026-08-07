@@ -51,9 +51,10 @@ static constexpr conn_err_t GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_C
 #if defined(USE_ESP32)
 static constexpr bool SUPPORTS_PAIRING = true;
 static constexpr bool SUPPORTS_CACHE_CLEARING = true;
-#elif defined(USE_BLE_GATT_CLIENT)
+#elif defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
 // The rp2 BTstack backend pairs (just works + bonding); it has no service
-// cache to clear.
+// cache to clear. Keyed on the backend, not the generic client define, so a
+// future backend without pairing keeps the stub arm below.
 static constexpr bool SUPPORTS_PAIRING = true;
 static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #else
@@ -62,7 +63,7 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
 conn_err_t unpair_device(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }

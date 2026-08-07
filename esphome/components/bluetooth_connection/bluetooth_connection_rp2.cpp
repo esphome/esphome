@@ -177,6 +177,15 @@ void RP2GattClient::sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *p
       }
       break;
     }
+    case SM_EVENT_REENCRYPTION_COMPLETE: {
+      // A bonded peer re-encrypts instead of pairing; BTstack emits only this
+      // event on that path, so it answers the PAIR request too.
+      RP2GattClient *inst = instance_for_con_handle(sm_event_reencryption_complete_get_handle(packet));
+      if (inst != nullptr) {
+        inst->enqueue_event_irq_(RP2GattEvent::PAIRING_RESULT, sm_event_reencryption_complete_get_status(packet), 0);
+      }
+      break;
+    }
     default:
       break;
   }
