@@ -102,6 +102,8 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
     int err = this->backend_->disconnect();
+    // Fresh teardown attempt: give it the full safety window.
+    this->disconnecting_started_ = millis();
     if (err == GATT_NOT_CONNECTED) {
       // Nothing left to tear down after all.
       this->reset_connection_(err);
@@ -313,7 +315,7 @@ conn_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, 
 
 void BluetoothConnection::send_service_for_discovery_() {
   auto table = this->backend_->get_service_table();
-  if (this->send_service_ >= static_cast<int16_t>(table.service_count)) {
+  if (this->send_service_ >= table.service_count) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);
     this->backend_->release_services();
@@ -344,7 +346,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   size_t current_size = resp.calculate_size();
   int16_t batch_start = this->send_service_;
 
-  while (this->send_service_ < static_cast<int16_t>(table.service_count)) {
+  while (this->send_service_ < table.service_count) {
     const auto &service = table.services[this->send_service_];
 
     // If this service likely won't fit, send current batch (unless it's the first)
