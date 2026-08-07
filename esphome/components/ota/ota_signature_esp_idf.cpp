@@ -14,9 +14,20 @@
 #include <esp_partition.h>
 #include <esp_rom_crc.h>
 
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) made the legacy mbedtls_rsa_*/mbedtls_sha256_* headers
+// private. Use the PSA Crypto API instead, like the sha256 component does. PSA
+// crypto is auto-initialized by ESP-IDF at startup (esp_psa_crypto_init.c,
+// priority 104), so no psa_crypto_init() call is needed.
+#define USE_OTA_SIG_PSA
+#include "ota_rsa_der.h"
+#include <psa/crypto.h>
+#else
 #include <mbedtls/md.h>
 #include <mbedtls/rsa.h>
 #include <mbedtls/sha256.h>
+#endif
 
 namespace esphome::ota {
 
@@ -70,7 +81,14 @@ bool block_is_valid(const uint8_t *block) {
 }
 
 bool key_digest_of(const uint8_t *block, KeyDigest &out) {
+#ifdef USE_OTA_SIG_PSA
+  size_t out_len = 0;
+  return psa_hash_compute(PSA_ALG_SHA_256, block + OFFSET_KEY, KEY_REGION_LEN, out.data(), out.size(), &out_len) ==
+             PSA_SUCCESS &&
+         out_len == out.size();
+#else
   return mbedtls_sha256(block + OFFSET_KEY, KEY_REGION_LEN, out.data(), /*is224=*/0) == 0;
+#endif
 }
 
 // The offset of the signature sector: the app length rounded up to 4 KiB.
@@ -93,20 +111,40 @@ bool signature_sector_offset(const esp_partition_t *part, size_t &out_offset) {
 // Returns false on a read or hash error so a hash failure is not later
 // misreported as a signature mismatch.
 bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t *out) {
+#ifdef USE_OTA_SIG_PSA
+  psa_hash_operation_t ctx = PSA_HASH_OPERATION_INIT;
+  bool ok = psa_hash_setup(&ctx, PSA_ALG_SHA_256) == PSA_SUCCESS;
+#else
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
   bool ok = mbedtls_sha256_starts(&ctx, /*is224=*/0) == 0;
+#endif
   uint8_t buf[512];
   for (size_t off = 0; ok && off < image_padded_len; off += sizeof(buf)) {
     size_t chunk = std::min(sizeof(buf), image_padded_len - off);
-    if (esp_partition_read(part, off, buf, chunk) != ESP_OK || mbedtls_sha256_update(&ctx, buf, chunk) != 0) {
+    if (esp_partition_read(part, off, buf, chunk) != ESP_OK) {
       ok = false;
+      break;
     }
+#ifdef USE_OTA_SIG_PSA
+    ok = psa_hash_update(&ctx, buf, chunk) == PSA_SUCCESS;
+#else
+    ok = mbedtls_sha256_update(&ctx, buf, chunk) == 0;
+#endif
   }
+#ifdef USE_OTA_SIG_PSA
+  size_t out_len = 0;
+  if (ok) {
+    ok = psa_hash_finish(&ctx, out, SHA256_BYTES, &out_len) == PSA_SUCCESS && out_len == SHA256_BYTES;
+  }
+  // A no-op once the operation has been finished
+  psa_hash_abort(&ctx);
+#else
   if (ok) {
     ok = mbedtls_sha256_finish(&ctx, out) == 0;
   }
   mbedtls_sha256_free(&ctx);
+#endif
   return ok;
 }
 
@@ -114,6 +152,7 @@ bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t 
 // block's modulus and signature are stored little-endian; reverse them in place
 // -- block is the caller's scratch buffer, overwritten on the next iteration --
 // rather than stacking a second 384-byte copy of each bignum.
+
 bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
   std::reverse(block + OFFSET_MODULUS, block + OFFSET_MODULUS + RSA_3072_BYTES);
   std::reverse(block + OFFSET_SIGNATURE, block + OFFSET_SIGNATURE + RSA_3072_BYTES);
@@ -122,22 +161,48 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
   uint8_t exponent_be[4] = {static_cast<uint8_t>(exponent_le >> 24), static_cast<uint8_t>(exponent_le >> 16),
                             static_cast<uint8_t>(exponent_le >> 8), static_cast<uint8_t>(exponent_le)};
 
+#ifdef USE_OTA_SIG_PSA
+  static_assert(RSA_3072_BYTES == RSA_3072_MODULUS_BYTES, "signature block and DER encoder disagree on modulus size");
+  uint8_t der[RSA_DER_PUBKEY_MAX];
+  const size_t der_len = rsa_der_public_key(block + OFFSET_MODULUS, exponent_be, sizeof(exponent_be), der, sizeof(der));
+  psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attr, PSA_KEY_TYPE_RSA_PUBLIC_KEY);
+  psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_HASH);
+  // ANY_SALT preserves the salt-length acceptance of mbedtls_rsa_rsassa_pss_verify(),
+  // which this replaces; espsecure signs with a 32-byte salt. TF-PSA-Crypto defines
+  // PSA_WANT_ALG_RSA_PSS_ANY_SALT from PSA_WANT_ALG_RSA_PSS, which IDF enables.
+  psa_set_key_algorithm(&attr, PSA_ALG_RSA_PSS_ANY_SALT(PSA_ALG_SHA_256));
+  mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
+  const bool key_ok = der_len != 0 && psa_import_key(&attr, der, der_len, &key) == PSA_SUCCESS;
+#else
   mbedtls_rsa_context rsa;
   mbedtls_rsa_init(&rsa);
-  bool key_ok = mbedtls_rsa_import_raw(&rsa, block + OFFSET_MODULUS, RSA_3072_BYTES, nullptr, 0, nullptr, 0, nullptr, 0,
-                                       exponent_be, sizeof(exponent_be)) == 0 &&
-                mbedtls_rsa_complete(&rsa) == 0 &&
-                mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0;
+  const bool key_ok = mbedtls_rsa_import_raw(&rsa, block + OFFSET_MODULUS, RSA_3072_BYTES, nullptr, 0, nullptr, 0,
+                                             nullptr, 0, exponent_be, sizeof(exponent_be)) == 0 &&
+                      mbedtls_rsa_complete(&rsa) == 0 &&
+                      mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256) == 0;
+#endif
   bool verified = false;
   if (!key_ok) {
     // A setup/allocation failure (e.g. OOM right after the download) is not a
     // signature mismatch -- log it distinctly so it isn't read as "wrong key".
     OTA_IDF_SIG_LOG(ESP_LOGE, "RSA key setup failed");
   } else {
+#ifdef USE_OTA_SIG_PSA
+    verified = psa_verify_hash(key, PSA_ALG_RSA_PSS_ANY_SALT(PSA_ALG_SHA_256), digest, SHA256_BYTES,
+                               block + OFFSET_SIGNATURE, RSA_3072_BYTES) == PSA_SUCCESS;
+#else
     verified =
         mbedtls_rsa_rsassa_pss_verify(&rsa, MBEDTLS_MD_SHA256, SHA256_BYTES, digest, block + OFFSET_SIGNATURE) == 0;
+#endif
   }
+#ifdef USE_OTA_SIG_PSA
+  if (key_ok) {
+    psa_destroy_key(key);
+  }
+#else
   mbedtls_rsa_free(&rsa);
+#endif
   return verified;
 }
 
