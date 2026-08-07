@@ -115,9 +115,14 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
       // discovery phase needs the fast interval, so settle straight into the
       // shared steady-state parameters (same lifecycle place as esp32).
       this->state_ = ClientState::ESTABLISHED;
-      this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
-                                               ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
-                                               ble_device_base::MEDIUM_CONN_TIMEOUT);
+      int param_err = this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
+                                                               ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
+                                                               ble_device_base::MEDIUM_CONN_TIMEOUT);
+      if (param_err != 0) {
+        // Survivable: the link just stays on the fast interval.
+        ESP_LOGW(TAG, "[%d] [%s] conn param update failed, err=%d", this->connection_index_, this->address_str_,
+                 param_err);
+      }
       this->proxy_->send_device_connection(this->address_, true, mtu);
       this->proxy_->send_connections_free();
       return;

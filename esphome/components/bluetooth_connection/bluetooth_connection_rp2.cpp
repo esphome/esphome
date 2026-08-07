@@ -426,6 +426,8 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
     this->con_handle_ = con_handle;
     this->state_ = EngineState::DISCONNECTING;
     this->disconnecting_started_ = millis();
+    // No more initiating: give the radio back to the scanner during teardown.
+    this->release_scan_inhibit_();
     uint8_t disc_status;
     {
       BluetoothLock lock;
@@ -698,6 +700,9 @@ ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
 
 void RP2GattClient::release_services() {
   if (this->arena_ != nullptr) {
+    // Under BluetoothLock so a discovery result landing in the BTstack
+    // context cannot write into the arena mid-free.
+    BluetoothLock lock;
     RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
     this->arena_->~ServiceArena();
     allocator.deallocate(this->arena_, 1);
@@ -793,6 +798,8 @@ int RP2GattClient::disconnect() {
   }
   this->state_ = EngineState::DISCONNECTING;
   this->disconnecting_started_ = millis();
+  // No more initiating: give the radio back to the scanner during teardown.
+  this->release_scan_inhibit_();
   this->enable_loop();
   return 0;
 }
