@@ -76,6 +76,8 @@ void BluetoothConnection::check_disconnect_timeout_() {
 
 void BluetoothConnection::on_pairing_result(int status) {
   if (this->address_ == 0) {
+    // A drop before completion already answered: reset_connection_slot_ sends
+    // the connection response, which the client's pair watcher raises on.
     return;
   }
   this->paired_ = status == 0;
