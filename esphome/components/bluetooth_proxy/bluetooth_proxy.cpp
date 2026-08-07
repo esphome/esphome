@@ -369,12 +369,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR: {
-#ifdef USE_ESP32
+      // Both connection classes expose the same pairing surface; success is
+      // reported when the platform's pairing completion arrives.
       auto *connection = this->get_connection_(msg.address, false);
       if (connection != nullptr) {
         if (!connection->is_paired()) {
           auto err = connection->pair();
-          if (err != ESP_OK) {
+          if (err != CONN_OK) {
             this->send_device_pairing(msg.address, false, err);
           }
         } else {
@@ -384,11 +385,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         // Answer instead of leaving the client to time out.
         this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
       }
-#else
-      // Explicit pairing is not offered (FEATURE_PAIRING is not advertised);
-      // peripheral-initiated security still works through the platform's SM.
-      this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
-#endif
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {

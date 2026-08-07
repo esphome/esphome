@@ -74,6 +74,14 @@ void BluetoothConnection::check_disconnect_timeout_() {
   }
 }
 
+void BluetoothConnection::on_pairing_result(int status) {
+  if (this->address_ == 0) {
+    return;
+  }
+  this->paired_ = status == 0;
+  this->proxy_->send_device_pairing(this->address_, status == 0, status);
+}
+
 void BluetoothConnection::reset_connection_(conn_err_t reason) {
   if (this->pending_error_ != 0) {
     reason = this->pending_error_;
@@ -81,6 +89,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   }
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
+  this->paired_ = false;
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }

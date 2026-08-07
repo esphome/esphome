@@ -95,6 +95,7 @@ class GattClientEventListener {
   virtual void on_notify_state(uint16_t handle, bool enabled, int error) = 0;
   /// Notification/indication data from the peer. data/len valid during the call.
   virtual void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) = 0;
+  virtual void on_pairing_result(int status) {}
 };
 
 /// One GATT client connection slot. Operations return 0 when accepted
@@ -123,6 +124,8 @@ class BLEGattConnection {
   /// handle. Local registration only — the CCCD write is the API client's
   /// responsibility (it arrives as a plain write_descriptor).
   virtual int notify_characteristic(uint16_t handle, bool enable) = 0;
+  /// Initiate pairing on the live link. Completion: on_pairing_result().
+  virtual int pair() { return GATT_ERR_NOT_CONNECTED; }
   virtual int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                        uint16_t timeout) = 0;
 
