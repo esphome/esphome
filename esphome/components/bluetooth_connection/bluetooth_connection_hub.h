@@ -46,7 +46,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   /// through the same reset path a failed open takes on esp32.
   void initiate_connection(uint8_t address_type) {
     this->remote_addr_type_ = address_type;
-    this->start_connect();
+    this->start_connect_();
   }
   void disconnect();
   // A backend disconnect() is a single call that also cancels an in-progress
@@ -91,7 +91,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
  protected:
   friend class bluetooth_proxy::BluetoothProxy;
 
-  void start_connect();
+  void start_connect_();
   void send_service_for_discovery_();
   void check_disconnect_timeout_();
   void reset_connection_(conn_err_t reason);

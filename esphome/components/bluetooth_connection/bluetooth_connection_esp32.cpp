@@ -224,13 +224,8 @@ void BluetoothConnection::send_service_for_discovery_() {
       }
     }  // end if (total_char_count > 0)
 
-    BatchClose close =
-        close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str());
-    if (close == BatchClose::SEND_FORCED) {
-      // The oversized service's forced advance must survive a failed send.
-      batch_start = this->send_service_;
-    }
-    if (close != BatchClose::CONTINUE) {
+    if (close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str()) !=
+        BatchClose::CONTINUE) {
       break;
     }
   }
