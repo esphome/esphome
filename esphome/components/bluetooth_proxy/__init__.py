@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import functools
 import logging
 
@@ -67,11 +68,10 @@ bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
 
 BluetoothProxy = bluetooth_proxy_ns.class_("BluetoothProxy", cg.Component)
 
-# Mirrors esp32_ble.IDF_MAX_CONNECTIONS as a drift guard only: the esp32
-# schema builder asserts the two agree at import, and
-# tests/component_tests/bluetooth_proxy/ pins them together. The outer
-# walkable schema deliberately carries no upper bound (per-platform schemas
-# enforce their own caps).
+# Mirrors esp32_ble.IDF_MAX_CONNECTIONS (the loosest platform cap): the esp32
+# schema builder asserts the two agree, tests/component_tests/bluetooth_proxy/
+# pins them together, and the outer walkable schema uses it as the
+# connection_slots bound (per-platform schemas tighten it).
 _IDF_MAX_CONNECTIONS = 9
 
 
@@ -154,7 +154,7 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
 # Platform schema builders for registered GATT hub platforms; every key of
 # bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry (schemas carry
 # platform-specific keys, e.g. rp2040_ble_id).
-_GATT_HUB_SCHEMAS: dict[str, object] = {}
+_GATT_HUB_SCHEMAS: dict[str, Callable[[], cv.All]] = {}
 
 
 @functools.cache
@@ -214,6 +214,9 @@ def _rp2_config_schema() -> cv.All:
         }
     ).extend(cv.COMPONENT_SCHEMA)
     return cv.All(schema, populate_connections)
+
+
+_GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema
 
 
 # Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
@@ -343,12 +346,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Optional(CONF_ACTIVE): cv.boolean,
             cv.Optional(CONF_CACHE_SERVICES): cv.boolean,
-            # No upper bound here: the per-platform schemas enforce their own
-            # caps (9 on esp32, 1 on rp2), and this outer bound would report
-            # the wrong platform's limit in the error.
+            # Bounded by the loosest platform cap so range walkers (the
+            # device-builder field-range sync) see a real Range; the
+            # per-platform schemas tighten it (1 on rp2) with their own error.
             cv.Optional(CONF_CONNECTION_SLOTS): cv.All(
                 cv.positive_int,
-                cv.Range(min=1),
+                cv.Range(min=1, max=_IDF_MAX_CONNECTIONS),
             ),
         },
         extra=cv.ALLOW_EXTRA,
@@ -396,7 +399,9 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
 
     # The api component sizes BluetoothConnectionsFreeResponse.allocated with
     # this define whenever a proxy is present. Zero on advertisement-only hubs.
-    slots = config[CONF_CONNECTION_SLOTS] if config[CONF_ACTIVE] else 0
+    # Sized from the instantiated connections so the define can never diverge
+    # from the loop below (the define sizes fixed storage in the proxy).
+    slots = len(config.get(CONF_CONNECTIONS, ()))
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", slots)
     if not slots:
         return
@@ -427,6 +432,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
 
     cg.add_define("USE_BLUETOOTH_PROXY")
-
-
-_GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema

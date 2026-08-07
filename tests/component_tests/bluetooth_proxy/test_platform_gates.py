@@ -96,3 +96,12 @@ def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
     # dependency closures stay complete for build_codeowners and friends.
     _set_platform(None)
     assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_client"]
+
+
+def test_every_registered_hub_platform_has_a_schema_arm() -> None:
+    # A platform added to HUB_MAX_CONNECTIONS without a schema builder would
+    # only fail when a config for it is validated; pin the coupling here.
+    missing = set(bluetooth_connection.HUB_MAX_CONNECTIONS) - set(
+        bluetooth_proxy._GATT_HUB_SCHEMAS
+    )
+    assert not missing
