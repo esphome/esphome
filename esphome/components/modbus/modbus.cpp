@@ -183,9 +183,11 @@ void ModbusServerHub::parse_modbus_frames() {
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
     bool retry_as_client = false;
-    // Broadcast frames are always client frames, so we don't wait for a peer response
+    // A broadcast is a client request, never a peer response; clear any stale expectation (RTU is half-duplex).
     const bool is_broadcast = this->rx_buffer_[0] == BROADCAST_ADDRESS;
-    if (this->expecting_peer_response_ != 0 && !is_broadcast) {
+    if (is_broadcast)
+      this->expecting_peer_response_ = 0;
+    if (this->expecting_peer_response_ != 0) {
       if (!this->parse_modbus_server_frame_()) {
         ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
                  this->expecting_peer_response_);
