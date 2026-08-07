@@ -24,6 +24,10 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
+# The hub-platform wrapper codegen class (drives a ble_device_base
+# BLEGattConnection backend; see bluetooth_connection_hub.h).
+HubBluetoothConnection = bluetooth_connection_ns.class_("BluetoothConnection")
+
 
 @functools.cache
 def esp32_connection_class() -> cg.MockObjClass:
@@ -41,6 +45,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "bluetooth_connection_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        # Every hub platform the proxy admits (the file compiles empty where
+        # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
+        # cannot hit a missing-symbol trap here.
+        "bluetooth_connection_hub.cpp": {
+            PlatformFramework.RP2_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
     }
 )

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace esphome::ld6002b {
@@ -14,20 +15,40 @@ static constexpr uint32_t SETUP_DELAY_MS = 100;
 
 // Command/message types
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
+static constexpr uint16_t TYPE_SET_HOLD_DELAY = 0x0203;
+static constexpr uint16_t TYPE_SET_Z_RANGE = 0x0204;
+static constexpr uint16_t TYPE_SET_LOW_POWER_SLEEP = 0x0205;
 
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
+static constexpr uint16_t TYPE_REPORT_POINT_CLOUD = 0x0A08;
+static constexpr uint16_t TYPE_REPORT_DELAY = 0x0A0D;
+static constexpr uint16_t TYPE_REPORT_Z_RANGE = 0x0A10;
+static constexpr uint16_t TYPE_REPORT_LOW_POWER = 0x0A12;
+static constexpr uint16_t TYPE_REPORT_LOW_POWER_SLEEP = 0x0A13;
+static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A14;
+static constexpr uint16_t TYPE_QUERY_VERSION = 0xFFFF;
 
 // Control command values for TYPE_CONTROL
+static constexpr uint32_t CMD_GET_DELAY = 0x05;
 static constexpr uint32_t CMD_POINT_CLOUD_ON = 0x06;
 static constexpr uint32_t CMD_POINT_CLOUD_OFF = 0x07;
 static constexpr uint32_t CMD_TARGET_DISPLAY_ON = 0x08;
 static constexpr uint32_t CMD_TARGET_DISPLAY_OFF = 0x09;
+static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
+static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
+static constexpr uint32_t CMD_LOW_POWER_OFF = 0x17;
+static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
+static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
 
 static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
+
+static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
 static const char *control_command_name(uint32_t command) {
   switch (command) {
+    case CMD_GET_DELAY:
+      return "get_delay";
     case CMD_POINT_CLOUD_ON:
       return "point_cloud_on";
     case CMD_POINT_CLOUD_OFF:
@@ -36,8 +57,66 @@ static const char *control_command_name(uint32_t command) {
       return "target_display_on";
     case CMD_TARGET_DISPLAY_OFF:
       return "target_display_off";
+    case CMD_GET_Z_RANGE:
+      return "get_z_range";
+    case CMD_LOW_POWER_ON:
+      return "low_power_on";
+    case CMD_LOW_POWER_OFF:
+      return "low_power_off";
+    case CMD_GET_LOW_POWER:
+      return "get_low_power";
+    case CMD_GET_LOW_POWER_SLEEP:
+      return "get_low_power_sleep";
     default:
       return "unknown";
+  }
+}
+
+static const char *frame_type_name(uint16_t type) {
+  switch (type) {
+    case TYPE_CONTROL:
+      return "control";
+    case TYPE_SET_HOLD_DELAY:
+      return "set_hold_delay";
+    case TYPE_SET_Z_RANGE:
+      return "set_z_range";
+    case TYPE_SET_LOW_POWER_SLEEP:
+      return "set_low_power_sleep";
+    case TYPE_REPORT_TARGET:
+      return "report_target";
+    case TYPE_REPORT_POINT_CLOUD:
+      return "report_point_cloud";
+    case TYPE_REPORT_DELAY:
+      return "report_delay";
+    case TYPE_REPORT_Z_RANGE:
+      return "report_z_range";
+    case TYPE_REPORT_LOW_POWER:
+      return "report_low_power";
+    case TYPE_REPORT_LOW_POWER_SLEEP:
+      return "report_low_power_sleep";
+    case TYPE_REPORT_WORK_MODE:
+      return "report_work_mode";
+    case TYPE_QUERY_VERSION:
+      return "query_version";
+    default:
+      return "unknown";
+  }
+}
+
+static bool is_expected_control_report(uint32_t command, uint16_t type) {
+  switch (command) {
+    case CMD_GET_DELAY:
+      return type == TYPE_REPORT_DELAY;
+    case CMD_GET_Z_RANGE:
+      return type == TYPE_REPORT_Z_RANGE;
+    case CMD_GET_LOW_POWER:
+    case CMD_LOW_POWER_ON:
+    case CMD_LOW_POWER_OFF:
+      return type == TYPE_REPORT_LOW_POWER;
+    case CMD_GET_LOW_POWER_SLEEP:
+      return type == TYPE_REPORT_LOW_POWER_SLEEP;
+    default:
+      return false;
   }
 }
 #endif
@@ -70,10 +149,25 @@ void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[3] = (value >> 24) & 0xFF;
 }
 
+void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
+  uint32_t raw;
+  std::memcpy(&raw, &value, sizeof(raw));
+  write_u32_le(data, raw);
+}
+
 void LD6002BComponent::setup() {
+  // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
+  bool point_cloud_configured = false;
+#ifdef USE_SENSOR
+  point_cloud_configured = point_cloud_configured || this->point_count_sensor_ != nullptr;
+#endif
+#ifdef USE_SWITCH
+  point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
+#endif
+  this->max_data_len_ = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
   // One allocation for the component lifetime; the parser reuses it for the header and every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(DEFAULT_MAX_DATA_LEN);
+  this->data_buf_ = allocator.allocate(this->max_data_len_);
   if (this->data_buf_ == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
@@ -108,25 +202,120 @@ void LD6002BComponent::setup() {
       }
     }
 #endif
-    if (want_target_stream) {
-      this->send_control_command_(CMD_TARGET_DISPLAY_ON);
+#ifdef USE_TEXT_SENSOR
+    // The work mode fallback reads presence off this stream, so it counts as a
+    // consumer of it here.  This only feeds the automatic branch below: with a
+    // target_display switch configured that switch still decides, and the
+    // fallback weighs no presence at all while the stream is off.
+    want_target_stream = want_target_stream || this->work_mode_text_sensor_ != nullptr;
+#endif
+    bool target_display_controlled = false;
+#ifdef USE_SWITCH
+    if (this->target_display_switch_ != nullptr) {
+      target_display_controlled = true;
+      // Nothing reports this switch back, so its restored state is the only state
+      // there is.  Restoring through the switch keeps its inversion in the path:
+      // the restored value is logical, and turn_on()/turn_off() are what turn it
+      // into the raw command, the published state and the stream flag.
+      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
+      if (state) {
+        this->target_display_switch_->turn_on();
+      } else {
+        this->target_display_switch_->turn_off();
+      }
+    }
+#endif
+    if (!target_display_controlled) {
+      // No switch: the stream follows its consumers.  With none, nothing is sent
+      // and the module's own default stands -- but the reports are gated out
+      // regardless, because there is nothing configured for them to feed.
+      this->target_display_enabled_ = want_target_stream;
+      if (want_target_stream) {
+        this->send_control_command_(CMD_TARGET_DISPLAY_ON);
+      }
     }
 
-    this->send_control_command_(CMD_POINT_CLOUD_OFF);
+    bool point_cloud_controlled = false;
+#ifdef USE_SWITCH
+    if (this->point_cloud_switch_ != nullptr) {
+      point_cloud_controlled = true;
+      // The switch owns the stream, so it is also what applies the restored state:
+      // driving it rather than the module keeps the entity's inversion in the path.
+      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
+      if (state) {
+        this->point_cloud_switch_->turn_on();
+      } else {
+        this->point_cloud_switch_->turn_off();
+      }
+    }
+#endif
+    if (!point_cloud_controlled) {
+      // No switch: the stream follows the sensor that reads it, which is also what
+      // the frame buffer above was sized for.
+      bool want_point_cloud = false;
+#ifdef USE_SENSOR
+      want_point_cloud = this->point_count_sensor_ != nullptr;
+#endif
+      this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+      this->point_cloud_enabled_ = want_point_cloud;
+    }
+#ifdef USE_NUMBER
+    if (this->z_min_number_ != nullptr || this->z_max_number_ != nullptr) {
+      this->send_control_command_(CMD_GET_Z_RANGE);
+    }
+    if (this->low_power_sleep_number_ != nullptr) {
+      this->send_control_command_(CMD_GET_LOW_POWER_SLEEP);
+    }
+    if (this->hold_delay_number_ != nullptr) {
+      this->send_control_command_(CMD_GET_DELAY);
+    }
+#endif
+#ifdef USE_SWITCH
+    bool want_low_power = this->low_power_switch_ != nullptr;
+    if (want_low_power) {
+      // The module reports this one back, so the query below confirms what it took.
+      // Driving the switch applies its inversion; it also marks the restored value
+      // as reported, so the work mode fallback runs on that until the query lands.
+      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
+      if (state) {
+        this->low_power_switch_->turn_on();
+      } else {
+        this->low_power_switch_->turn_off();
+      }
+    }
+#else
+    bool want_low_power = false;
+#endif
+#ifdef USE_TEXT_SENSOR
+    want_low_power = want_low_power || this->work_mode_text_sensor_ != nullptr;
+#endif
+    if (want_low_power) {
+      this->send_control_command_(CMD_GET_LOW_POWER);
+    }
+
+    this->init_version_pref_();
+
+#ifdef USE_TEXT_SENSOR
+    if (this->ota_version_text_sensor_ != nullptr) {
+      this->queue_command_(TYPE_QUERY_VERSION, VERSION_QUERY_DATA, sizeof(VERSION_QUERY_DATA));
+    }
+#endif
   });
 }
 
 void LD6002BComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HLK-LD6002B:\n"
-                "  Auto wake: %s",
-                this->auto_wake_ ? "true" : "false");
+                "  Auto wake: %s\n"
+                "  Max data length: %u",
+                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
+  LOG_SENSOR("  ", "Point Count", this->point_count_sensor_);
   for (auto &target : this->targets_) {
     LOG_SENSOR("  ", "Target X", target.x);
     LOG_SENSOR("  ", "Target Y", target.y);
@@ -140,6 +329,21 @@ void LD6002BComponent::dump_config() {
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     LOG_BINARY_SENSOR("  ", "Target Presence", this->target_presence_[i]);
   }
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Work Mode", this->work_mode_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "OTA Version", this->ota_version_text_sensor_);
+#endif
+#ifdef USE_NUMBER
+  LOG_NUMBER("  ", "Hold Delay", this->hold_delay_number_);
+  LOG_NUMBER("  ", "Z Min", this->z_min_number_);
+  LOG_NUMBER("  ", "Z Max", this->z_max_number_);
+  LOG_NUMBER("  ", "Low Power Sleep", this->low_power_sleep_number_);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
+  LOG_SWITCH("  ", "Point Cloud", this->point_cloud_switch_);
+  LOG_SWITCH("  ", "Target Display", this->target_display_switch_);
 #endif
 }
 
@@ -192,7 +396,7 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
           this->frame_type_ = read_u16_be(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > DEFAULT_MAX_DATA_LEN;
+          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
           this->parse_state_ = ParseState::HCK;
         }
       }
@@ -267,9 +471,41 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     return;
   }
 
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  const uint32_t active_control_command =
+      (this->command_active_ && this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
+          ? read_u32_le(this->active_command_.data.data())
+          : 0;
+  if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
+    ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
+             control_command_name(active_control_command), active_control_command);
+  }
+#endif
+
   switch (type) {
     case TYPE_REPORT_TARGET:
       this->handle_target_report_(data, len);
+      break;
+    case TYPE_REPORT_POINT_CLOUD:
+      this->handle_point_cloud_(data, len);
+      break;
+    case TYPE_REPORT_DELAY:
+      this->handle_delay_report_(data, len);
+      break;
+    case TYPE_REPORT_Z_RANGE:
+      this->handle_z_range_report_(data, len);
+      break;
+    case TYPE_REPORT_LOW_POWER:
+      this->handle_low_power_report_(data, len);
+      break;
+    case TYPE_REPORT_LOW_POWER_SLEEP:
+      this->handle_low_power_sleep_report_(data, len);
+      break;
+    case TYPE_REPORT_WORK_MODE:
+      this->handle_work_mode_report_(data, len);
+      break;
+    case TYPE_QUERY_VERSION:
+      this->handle_version_report_(data, len);
       break;
     default:
       break;
@@ -277,6 +513,12 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 }
 
 void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
+  // The module stops streaming when it acts on the command, not when the command
+  // is queued, so trailing frames after an off must not repopulate what
+  // set_switch_state just cleared.
+  if (!this->target_display_enabled_) {
+    return;
+  }
   if (len < 4)
     return;
 
@@ -339,6 +581,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     this->presence_binary_sensor_->publish_state(this->target_presence_any_);
   }
 #endif
+  this->update_work_mode_fallback_();
 
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     bool has_target = this->slot_occupied_[i];
@@ -373,26 +616,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 #endif
     } else {
 #ifdef USE_SENSOR
-      TargetSensors &target = this->targets_[i];
-      if (this->last_target_presence_[i]) {
-        if (target.x != nullptr) {
-          target.x->publish_state(NAN);
-        }
-        if (target.y != nullptr) {
-          target.y->publish_state(NAN);
-        }
-        if (target.z != nullptr) {
-          target.z->publish_state(NAN);
-        }
-        if (target.dop_idx != nullptr) {
-          target.dop_idx->publish_state(NAN);
-        }
-        if (target.cluster_id != nullptr) {
-          target.cluster_id->publish_state(NAN);
-        }
-        // The slot is free: the next person's id is new even when it repeats this one.
-        this->last_cluster_id_valid_[i] = false;
-      }
+      this->clear_target_slot_(i);
 #endif
     }
 #ifdef USE_BINARY_SENSOR
@@ -405,6 +629,150 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     this->last_target_presence_[i] = has_target;
 #endif
   }
+}
+
+void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
+  // Same window as the target stream: a frame already in flight must not put the
+  // count back after the switch cleared it.
+  if (!this->point_cloud_enabled_) {
+    return;
+  }
+  if (len < 4)
+    return;
+
+#ifdef USE_SENSOR
+  uint32_t point_num = read_u32_le(data);
+  if (this->point_count_sensor_ != nullptr) {
+    if (point_num != this->last_point_count_) {
+      this->point_count_sensor_->publish_state(point_num);
+      this->last_point_count_ = point_num;
+    }
+  }
+#endif
+}
+
+void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
+  if (len < 4)
+    return;
+#ifdef USE_NUMBER
+  uint32_t delay = read_u32_le(data);
+  this->publish_number_clamped_(this->hold_delay_number_, delay);
+#endif
+}
+
+void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len) {
+  if (len < 8)
+    return;
+  float z_min = read_f32_le(data);
+  float z_max = read_f32_le(data + 4);
+  this->z_min_ = z_min;
+  this->z_max_ = z_max;
+#ifdef USE_NUMBER
+  this->publish_number_clamped_(this->z_min_number_, z_min);
+  this->publish_number_clamped_(this->z_max_number_, z_max);
+#endif
+}
+
+void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t len) {
+  if (len < 1)
+    return;
+  bool enabled = data[0] != 0;
+  this->low_power_enabled_ = enabled;
+  this->low_power_reported_ = true;
+#ifdef USE_SWITCH
+  if (this->low_power_switch_ != nullptr) {
+    this->low_power_switch_->publish_state(enabled);
+  }
+#endif
+  this->update_work_mode_fallback_();
+}
+
+void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
+  if (len < 4)
+    return;
+#ifdef USE_NUMBER
+  uint32_t sleep_ms = read_u32_le(data);
+  this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
+#endif
+}
+
+void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
+  if (len < 1)
+    return;
+#ifdef USE_TEXT_SENSOR
+  const bool low_power = (data[0] == 0);
+  if (this->work_mode_text_sensor_ != nullptr) {
+    this->work_mode_reported_ = true;
+    this->publish_work_mode_(low_power);
+  }
+#endif
+}
+
+void LD6002BComponent::update_work_mode_fallback_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->work_mode_text_sensor_ == nullptr || this->work_mode_reported_) {
+    return;
+  }
+  if (!this->low_power_reported_) {
+    return;
+  }
+  // Presence is only meaningful while the stream that maintains it runs; with it
+  // off there is nothing to weigh and low power alone decides.
+  const bool presence = this->target_display_enabled_ && this->target_presence_any_;
+  this->publish_work_mode_(this->low_power_enabled_ && !presence);
+#endif
+}
+
+void LD6002BComponent::publish_work_mode_(bool low_power) {
+#ifdef USE_TEXT_SENSOR
+  if (this->work_mode_text_sensor_ == nullptr) {
+    return;
+  }
+  if (this->last_work_mode_valid_ && this->last_work_mode_low_power_ == low_power) {
+    return;
+  }
+  this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
+  this->last_work_mode_valid_ = true;
+  this->last_work_mode_low_power_ = low_power;
+#endif
+}
+
+#ifdef USE_NUMBER
+void LD6002BComponent::publish_number_clamped_(number::Number *number, float value) {
+  if (number == nullptr)
+    return;
+  const float min_value = number->traits.get_min_value();
+  const float max_value = number->traits.get_max_value();
+  // Outside the declared range the user cannot write the value back, so publish
+  // what they can reach and say what the module actually sent.
+  if (value < min_value || value > max_value) {
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
+             max_value);
+    value = std::clamp(value, min_value, max_value);
+  }
+  number->publish_state(value);
+}
+#endif
+
+void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len) {
+  if (len < 4)
+    return;
+#ifdef USE_TEXT_SENSOR
+  if (this->ota_version_text_sensor_ == nullptr)
+    return;
+  uint8_t project = data[0];
+  uint8_t major = data[1];
+  uint8_t minor = data[2];
+  uint8_t patch = data[3];
+  char buf[32];
+  if (project == 0) {
+    std::snprintf(buf, sizeof(buf), "%u.%u.%u", major, minor, patch);
+  } else {
+    std::snprintf(buf, sizeof(buf), "p%u %u.%u.%u", project, major, minor, patch);
+  }
+  this->ota_version_text_sensor_->publish_state(buf);
+  this->save_version_pref_(buf);
+#endif
 }
 
 void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
@@ -585,6 +953,175 @@ void LD6002BComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
   write_u32_le(data, command);
   this->queue_command_(TYPE_CONTROL, data, sizeof(data));
+}
+
+void LD6002BComponent::send_z_range_() {
+  // One frame carries both bounds, so half a range cannot be written.
+  if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
+    ESP_LOGW(TAG, "Z range not written, other bound unknown");
+    return;
+  }
+  // Both bounds are known and crossed; the frame has no way to say that.
+  if (this->z_min_ > this->z_max_) {
+    ESP_LOGW(TAG, "Z range not written, min above max");
+    return;
+  }
+  uint8_t data[8];
+  write_f32_le(data, this->z_min_);
+  write_f32_le(data + 4, this->z_max_);
+  this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
+}
+
+void LD6002BComponent::set_number_value(NumberType type, float value) {
+  switch (type) {
+    case NumberType::HOLD_DELAY: {
+      uint32_t delay = static_cast<uint32_t>(value);
+      uint8_t data[4];
+      write_u32_le(data, delay);
+      this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
+      break;
+    }
+    case NumberType::Z_MIN:
+      this->z_min_ = value;
+      this->send_z_range_();
+      break;
+    case NumberType::Z_MAX:
+      this->z_max_ = value;
+      this->send_z_range_();
+      break;
+    case NumberType::LOW_POWER_SLEEP: {
+      uint32_t sleep_ms = static_cast<uint32_t>(value);
+      uint8_t data[4];
+      write_u32_le(data, sleep_ms);
+      this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
+      break;
+    }
+  }
+}
+
+void LD6002BComponent::init_version_pref_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->ota_version_text_sensor_ == nullptr) {
+    return;
+  }
+  this->version_pref_ = this->ota_version_text_sensor_->make_entity_preference<VersionPref>();
+  this->version_pref_initialized_ = true;
+
+  VersionPref pref{};
+  if (this->version_pref_.load(&pref) && pref.value[0] != '\0') {
+    pref.value[sizeof(pref.value) - 1] = '\0';
+    this->ota_version_text_sensor_->publish_state(pref.value);
+  }
+#endif
+}
+
+void LD6002BComponent::save_version_pref_(const char *value) {
+#ifdef USE_TEXT_SENSOR
+  if (!this->version_pref_initialized_) {
+    return;
+  }
+  VersionPref pref{};
+  std::strncpy(pref.value, value, sizeof(pref.value) - 1);
+  pref.value[sizeof(pref.value) - 1] = '\0';
+  this->version_pref_.save(&pref);
+#endif
+}
+
+#ifdef USE_SENSOR
+void LD6002BComponent::clear_target_slot_(uint8_t index) {
+  if (!this->last_target_presence_[index]) {
+    return;
+  }
+  TargetSensors &target = this->targets_[index];
+  if (target.x != nullptr) {
+    target.x->publish_state(NAN);
+  }
+  if (target.y != nullptr) {
+    target.y->publish_state(NAN);
+  }
+  if (target.z != nullptr) {
+    target.z->publish_state(NAN);
+  }
+  if (target.dop_idx != nullptr) {
+    target.dop_idx->publish_state(NAN);
+  }
+  if (target.cluster_id != nullptr) {
+    target.cluster_id->publish_state(NAN);
+  }
+  // The slot is free: the next person's id is new even when it repeats this one.
+  this->last_cluster_id_valid_[index] = false;
+}
+#endif
+
+void LD6002BComponent::clear_target_state_() {
+  // Nothing corrects any of this until the stream comes back.  The slot table goes
+  // with it: slots key on cluster ids, which only track a person while reports are
+  // arriving, and the room can empty and refill across the gap -- so the next
+  // report starts from an empty table and fills slots in wire order, rather than
+  // handing one back to whoever last held that id.
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+#ifdef USE_SENSOR
+    this->clear_target_slot_(i);
+    this->last_target_presence_[i] = false;
+#endif
+    if (this->slot_occupied_[i]) {
+      this->slot_occupied_[i] = false;
+#ifdef USE_BINARY_SENSOR
+      if (this->target_presence_[i] != nullptr) {
+        this->target_presence_[i]->publish_state(false);
+      }
+#endif
+    }
+  }
+#ifdef USE_SENSOR
+  if (this->last_target_count_ != 0xFFFFFFFF) {
+    if (this->target_count_sensor_ != nullptr) {
+      this->target_count_sensor_->publish_state(NAN);
+    }
+    this->last_target_count_ = 0xFFFFFFFF;
+  }
+#endif
+  if (this->target_presence_any_) {
+    this->target_presence_any_ = false;
+#ifdef USE_BINARY_SENSOR
+    if (this->presence_binary_sensor_ != nullptr) {
+      this->presence_binary_sensor_->publish_state(this->target_presence_any_);
+    }
+#endif
+    this->update_work_mode_fallback_();
+  }
+}
+
+void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
+  switch (type) {
+    case SwitchType::LOW_POWER:
+      this->low_power_enabled_ = state;
+      this->low_power_reported_ = true;
+      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
+      this->update_work_mode_fallback_();
+      break;
+    case SwitchType::POINT_CLOUD:
+      this->point_cloud_enabled_ = state;
+      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+#ifdef USE_SENSOR
+      // The count only moves while the stream runs, so the last one would stand as
+      // a live reading.  The dedup sentinel is cleared with it: the same count is
+      // new again when the stream comes back.
+      if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
+        this->point_count_sensor_->publish_state(NAN);
+        this->last_point_count_ = 0xFFFFFFFF;
+      }
+#endif
+      break;
+    case SwitchType::TARGET_DISPLAY:
+      this->target_display_enabled_ = state;
+      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+      if (!state) {
+        // Every target entity is fed by the reports this just stopped.
+        this->clear_target_state_();
+      }
+      break;
+  }
 }
 
 }  // namespace esphome::ld6002b

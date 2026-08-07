@@ -15,6 +15,7 @@ from .const import (
     CONF_CLUSTER_ID,
     CONF_DOPPLER_INDEX,
     CONF_LD6002B_ID,
+    CONF_POINT_COUNT,
     CONF_Z,
     MAX_TARGETS,
 )
@@ -75,6 +76,10 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 ).extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
 
@@ -85,6 +90,10 @@ async def to_code(config):
     if target_count_config := config.get(CONF_TARGET_COUNT):
         sens = await sensor.new_sensor(target_count_config)
         cg.add(hub.set_target_count_sensor(sens))
+
+    if point_count_config := config.get(CONF_POINT_COUNT):
+        sens = await sensor.new_sensor(point_count_config)
+        cg.add(hub.set_point_count_sensor(sens))
 
     for i in range(MAX_TARGETS):
         if target_config := config.get(f"target_{i + 1}"):
