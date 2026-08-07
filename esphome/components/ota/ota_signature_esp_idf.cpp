@@ -21,6 +21,7 @@
 // crypto is auto-initialized by ESP-IDF at startup (esp_psa_crypto_init.c,
 // priority 104), so no psa_crypto_init() call is needed.
 #define USE_OTA_SIG_PSA
+#include "ota_rsa_der.h"
 #include <psa/crypto.h>
 #else
 #include <mbedtls/md.h>
@@ -151,76 +152,6 @@ bool image_digest(const esp_partition_t *part, size_t image_padded_len, uint8_t 
 // block's modulus and signature are stored little-endian; reverse them in place
 // -- block is the caller's scratch buffer, overwritten on the next iteration --
 // rather than stacking a second 384-byte copy of each bignum.
-#ifdef USE_OTA_SIG_PSA
-// PSA imports RSA public keys as a DER RSAPublicKey (RFC 8017 A.1.1):
-//   SEQUENCE { modulus INTEGER, publicExponent INTEGER }
-// The signature block stores both as raw bignums, so wrap them here. A DER
-// INTEGER is signed, so an unsigned value whose top bit is set needs a leading
-// zero byte, and leading zero bytes are otherwise dropped. The sizes are fixed
-// by the format (RSA-3072): 4 (SEQUENCE header) + 389 (modulus) + at most 7
-// (exponent) bytes.
-constexpr size_t DER_PUBKEY_MAX = 400;
-
-// Writes one DER INTEGER; returns its length, or 0 if the value is zero or does not fit.
-size_t der_write_integer(uint8_t *out, size_t out_len, const uint8_t *value, size_t value_len) {
-  while (value_len > 0 && value[0] == 0x00) {
-    value++;
-    value_len--;
-  }
-  if (value_len == 0) {
-    return 0;  // A zero modulus or exponent is not a usable key
-  }
-  const bool pad = (value[0] & 0x80) != 0;
-  const size_t content_len = value_len + (pad ? 1 : 0);
-  const size_t len_bytes = content_len < 0x80 ? 1 : (content_len <= 0xFF ? 2 : 3);
-  if (1 + len_bytes + content_len > out_len) {
-    return 0;
-  }
-  size_t i = 0;
-  out[i++] = 0x02;  // INTEGER
-  if (len_bytes == 2) {
-    out[i++] = 0x81;
-  } else if (len_bytes == 3) {
-    out[i++] = 0x82;
-    out[i++] = static_cast<uint8_t>(content_len >> 8);
-  }
-  out[i++] = static_cast<uint8_t>(content_len);
-  if (pad) {
-    out[i++] = 0x00;
-  }
-  memcpy(out + i, value, value_len);
-  return i + value_len;
-}
-
-// Builds the DER RSAPublicKey; returns its length, or 0 on failure.
-size_t der_public_key(const uint8_t *modulus_be, const uint8_t *exponent_be, uint8_t *out, size_t out_len) {
-  // Encode the two INTEGERs after the largest possible SEQUENCE header, then
-  // shift them down once the real header length is known.
-  constexpr size_t HEADER_MAX = 4;
-  size_t body = der_write_integer(out + HEADER_MAX, out_len - HEADER_MAX, modulus_be, RSA_3072_BYTES);
-  if (body == 0) {
-    return 0;
-  }
-  const size_t exponent = der_write_integer(out + HEADER_MAX + body, out_len - HEADER_MAX - body, exponent_be, 4);
-  if (exponent == 0) {
-    return 0;
-  }
-  body += exponent;
-  uint8_t header[HEADER_MAX];
-  size_t header_len = 0;
-  header[header_len++] = 0x30;  // SEQUENCE
-  if (body >= 0x80) {
-    header[header_len++] = body <= 0xFF ? 0x81 : 0x82;
-    if (body > 0xFF) {
-      header[header_len++] = static_cast<uint8_t>(body >> 8);
-    }
-  }
-  header[header_len++] = static_cast<uint8_t>(body);
-  memmove(out + header_len, out + HEADER_MAX, body);
-  memcpy(out, header, header_len);
-  return header_len + body;
-}
-#endif  // USE_OTA_SIG_PSA
 
 bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
   std::reverse(block + OFFSET_MODULUS, block + OFFSET_MODULUS + RSA_3072_BYTES);
@@ -231,15 +162,16 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
                             static_cast<uint8_t>(exponent_le >> 8), static_cast<uint8_t>(exponent_le)};
 
 #ifdef USE_OTA_SIG_PSA
-  uint8_t der[DER_PUBKEY_MAX];
-  const size_t der_len = der_public_key(block + OFFSET_MODULUS, exponent_be, der, sizeof(der));
+  uint8_t der[RSA_DER_PUBKEY_MAX];
+  const size_t der_len = rsa_der_public_key(block + OFFSET_MODULUS, exponent_be, sizeof(exponent_be), der, sizeof(der));
   psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
   psa_set_key_type(&attr, PSA_KEY_TYPE_RSA_PUBLIC_KEY);
   psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_HASH);
   // ANY_SALT preserves the salt-length acceptance of mbedtls_rsa_rsassa_pss_verify(),
-  // which this replaces; espsecure signs with a 32-byte salt.
+  // which this replaces; espsecure signs with a 32-byte salt. TF-PSA-Crypto defines
+  // PSA_WANT_ALG_RSA_PSS_ANY_SALT from PSA_WANT_ALG_RSA_PSS, which IDF enables.
   psa_set_key_algorithm(&attr, PSA_ALG_RSA_PSS_ANY_SALT(PSA_ALG_SHA_256));
-  psa_key_id_t key = PSA_KEY_ID_NULL;
+  mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
   const bool key_ok = der_len != 0 && psa_import_key(&attr, der, der_len, &key) == PSA_SUCCESS;
 #else
   mbedtls_rsa_context rsa;
