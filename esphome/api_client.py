@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from datetime import datetime
-import importlib
 import logging
 from typing import TYPE_CHECKING, Any
 import warnings
@@ -18,6 +16,7 @@ with warnings.catch_warnings():
 
 from esphome.const import CONF_ENCRYPTION, CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
+from esphome.stacktrace import LogLineProcessor
 from esphome.util import safe_print
 
 if TYPE_CHECKING:
@@ -29,56 +28,14 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class _LogLineProcessor:
-    """Feeds incoming log lines to the stack-trace decoder.
-
-    Two responsibilities beyond just calling the decoder:
-    1. Catch everything the decoder can raise. aioesphomeapi isolates
-       exceptions raised by log handlers, so an escaping one no longer
-       kills the session, but it does log a full traceback per line. A
-       crash dump carries a PC line plus one per backtrace frame, so the
-       tracebacks bury the dump the user is trying to read. Decoding is a
-       diagnostic nicety; nothing it raises is worth that noise.
-    2. Disable decoding after the first failure. _decode_pc shells out to
-       the toolchain to resolve addr2line, which is expensive; a single
-       crash dump can contain many PC/BT lines and we don't want to retry
-       the failing subprocess for each one. This only works if every
-       failure is caught, which is why 1 is not narrowed to EsphomeError.
-    """
-
-    def __init__(self, config: dict[str, Any], platform_handler: Any | None) -> None:
-        self._config = config
-        self._platform_handler = platform_handler
-        self._decode_enabled = platform_handler is not None
-        self.backtrace_state = False
-
-    def process_line(self, raw_line: str) -> None:
-        if not self._decode_enabled:
-            return
-        try:
-            self.backtrace_state = self._platform_handler(
-                self._config, raw_line, self.backtrace_state
-            )
-        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
-            self._decode_enabled = False
-            self.backtrace_state = False
-            # _run_idedata raises EsphomeError with no message; fall back
-            # to a generic explanation when str(exc) is empty.
-            detail = str(exc) or "build artifacts not found locally"
-            _LOGGER.debug("Stack-trace decoding failed", exc_info=True)
-            _LOGGER.warning(
-                "Crash trace decoding unavailable: %s. "
-                "Run 'esphome compile' for this device to enable PC decoding.",
-                detail,
-            )
-
-
 async def async_run_logs(
     config: dict[str, Any],
     addresses: list[str],
     subscribe_states: bool = True,
 ) -> None:
     """Run the logs command in the event loop."""
+    from datetime import datetime
+
     conf = config["api"]
     name = config["esphome"]["name"]
     port: int = int(conf[CONF_PORT])
@@ -100,21 +57,8 @@ async def async_run_logs(
         provide_time=False,
     )
 
-    # Try platform-specific stacktrace handler first, fall back to generic
-    platform_process_stacktrace = None
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        platform_process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        # Distinguish "platform has no analyzer" from a genuinely broken
-        # platform package when debugging.
-        _LOGGER.debug("Stacktrace analyzer lookup failed", exc_info=True)
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    processor = _LogLineProcessor(config, platform_process_stacktrace)
+    # Decoder resolution policy lives in LogLineProcessor.
+    processor = LogLineProcessor(config, CORE.target_platform)
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""

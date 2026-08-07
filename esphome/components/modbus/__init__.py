@@ -14,6 +14,20 @@ import esphome.final_validate as fv
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+# Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
+# generated unless a config uses one).
+AUTO_LOAD = ["modbus_client"]
+
+# Mirrors modbus::MAX_PDU_SIZE in modbus_definitions.h: 256-byte RTU frame minus address and CRC.
+MAX_PDU_SIZE = 253
+
+# Mirror the per-function entity count limits from modbus_definitions.h. Keep these in step with the
+# C++ constants of the same name; the spec sets a different ceiling for each function code.
+MAX_NUM_OF_COILS_TO_READ = 2000
+MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000
+MAX_NUM_OF_COILS_TO_WRITE = 1968
+MAX_NUM_OF_REGISTERS_TO_READ = 125
+MAX_NUM_OF_REGISTERS_TO_WRITE = 123
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)

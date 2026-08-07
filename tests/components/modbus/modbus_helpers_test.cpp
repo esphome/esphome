@@ -92,6 +92,18 @@ TEST(ModbusClientFrameLength, ReadWriteMultipleByteCountCappedAtSpecLimit) {
   EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 10 + MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2);
 }
 
+TEST(ModbusClientFrameLength, ReadWriteMultipleUsesByteCount) {
+  // read start(2) + read qty(2) + write start(2) + write qty(2) + byte count(1) then data
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02, 0x04, 0xAA, 0xBB, 0xCC, 0xDD};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13 + 4);
+}
+
+TEST(ModbusClientFrameLength, ReadWriteMultipleMissingByteCount) {
+  // header present up to the write quantity but the byte count byte (frame[10]) is absent
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13);
+}
+
 TEST(ModbusClientFrameLength, WriteMultipleMissingByteCount) {
   const uint8_t frame[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02};
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9);

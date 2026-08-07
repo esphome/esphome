@@ -52,7 +52,22 @@ class LN882HBLETracker : public Component,
   void set_scan_interval(uint16_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint16_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
+  /// Set from YAML (scan_parameters.continuous); also the value
+  /// configured_continuous() reports and a bare start_scan action restores.
+  void set_configured_continuous(bool scan_continuous) {
+    this->scan_continuous_ = scan_continuous;
+    this->scan_continuous_configured_ = scan_continuous;
+  }
+  /// Runtime control (esp32_ble_tracker lambda parity): does not change the
+  /// configured value, so configured_continuous() still reports what YAML
+  /// asked for.
   void set_scan_continuous(bool scan_continuous) { this->scan_continuous_ = scan_continuous; }
+  bool scan_continuous() const { return this->scan_continuous_; }
+  bool configured_continuous() const { return this->scan_continuous_configured_; }
+  /// Re-anchor the one-shot duration clock of a running scan to now — used
+  /// when an action changes the scan mode without stopping the radio. The
+  /// continuous-mode on_scan_end period is deliberately not touched.
+  void restart_scan_duration();
 
   // ---- Public scan control ----
   // Mirrors esp32_ble_tracker: set_scan_continuous() + start_scan() / stop_scan().
@@ -72,7 +87,8 @@ class LN882HBLETracker : public Component,
     // The LN882H controller supports active scanning; adv + scan response arrive
     // as separate reports and are merged by this tracker (Bluedroid semantics).
     // The SDK's GATT client is not exposed.
-    return {.active_scan = true, .merges_scan_response = true, .gatt = false};
+    // scan_mode_switch: request_scan_mode() is implemented (restart-if-running).
+    return {.active_scan = true, .merges_scan_response = true, .gatt = false, .scan_mode_switch = true};
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
@@ -124,6 +140,8 @@ class LN882HBLETracker : public Component,
   uint16_t scan_window_{80};     // 80 × 0.625 ms = 50 ms (SDK SCAN_WINDOW_DEF; 50/100 = 50 %)
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
+  bool pending_start_{false};              // start_scan() latched before the controller's setup()
+  bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_running_before_ota_{false};     // one-shot scan running at OTA start, restarted on OTA failure

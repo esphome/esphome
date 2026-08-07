@@ -158,8 +158,9 @@ sensor:
     address: 0x9020
     value_type: U_WORD
     offset: 2
-  # Raw-decode lambda in the documented style: `item->offset` locates this sensor's data in the range
-  # response, and the compatibility helpers accept the span the lambda is handed.
+  # Raw-decode lambda kept on the deprecated get_data() helper on purpose: `data` is a span now, so this
+  # pins that the compatibility overload still accepts one. The deprecation warning it raises is the
+  # point - it is what a user on the old helper sees. `item->offset` locates this sensor's data.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor_raw_lambda

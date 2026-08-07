@@ -312,6 +312,14 @@ class ModbusClientHub : public Modbus {
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
+using ResponseStatus = std::optional<ExceptionCode>;
+
+// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
+// the capacity of this type.
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
+
 class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
@@ -328,6 +336,15 @@ class ModbusServerHub : public Modbus {
   // Shared by register and coil/discrete-input handlers, which all use the same 16-bit address space.
   // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
   bool check_address_range_(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t count);
+
+  // Builds the body of a register read response (byte count followed by the big-endian register values) into
+  // response_buffer. Shared by every function code that answers with register values, so the read reply stays
+  // identical across them. Returns false once an exception has been sent: the one the handler reported via
+  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers, the count exceeds the
+  // protocol read limit, or the body does not fit.
+  bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                      uint16_t number_of_registers, const RegisterValues &registers,
+                                      std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
@@ -339,9 +356,6 @@ class ModbusServerHub : public Modbus {
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
   uint16_t deferred_payload_len_{0};
 };
-
-// Transaction status: std::nullopt on success, otherwise a Modbus exception code
-using ResponseStatus = std::optional<ExceptionCode>;
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by
@@ -562,11 +576,6 @@ class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_e
     this->on_modbus_error(request_pdu.empty() ? 0 : request_pdu[0], static_cast<uint8_t>(exception_code));
   }
 };
-
-// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
-// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
-// the capacity of this type.
-using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
 class ModbusServerDevice {
  public:
