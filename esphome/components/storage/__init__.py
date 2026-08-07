@@ -50,6 +50,7 @@ CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
+CONF_ON_COMPLETE = "on_complete"
 CONF_ON_UNREGISTERED = "on_unregistered"
 
 # No AUTO_LOAD of json here: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT
