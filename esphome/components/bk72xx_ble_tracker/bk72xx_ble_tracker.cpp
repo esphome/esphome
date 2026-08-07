@@ -171,9 +171,11 @@ void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
   ble_device_base::ESPBTDevice device;
   device.from_scan_result(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
   bool found = false;
-  for (auto *listener : this->listeners_)
-    if (listener->parse_device(device))
+  for (auto *listener : this->listeners_) {
+    if (listener->parse_device(device)) {
       found = true;
+    }
+  }
   // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
   // it and the scan is one-shot (continuous scans would spam).
   if (!found && !this->scan_continuous_)
@@ -206,6 +208,17 @@ void BK72xxBLETracker::start_scan() {
   // like any other attempt.
   this->scan_requested_ = true;
   this->try_start_with_backoff_(millis(), /* force= */ true);
+}
+
+void BK72xxBLETracker::restart_scan_duration() {
+  if (!this->scan_running_)
+    return;
+  // Re-anchor only the one-shot duration clock. scan_period_start_ (the
+  // continuous-mode on_scan_end period) is deliberately left alone: a
+  // start_scan action fired more often than scan_duration_ would otherwise
+  // suppress on_scan_end indefinitely — and absence detection (ble_rssi's NAN
+  // publish) rides on that period.
+  this->scan_start_time_ = millis();
 }
 
 void BK72xxBLETracker::stop_scan() {

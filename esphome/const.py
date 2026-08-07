@@ -121,6 +121,7 @@ PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 SECRETS_FILES = ("secrets.yaml", "secrets.yml")
@@ -347,6 +348,7 @@ CONF_DISABLE_CRC = "disable_crc"
 CONF_DISABLED = "disabled"
 CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCONNECT_DELAY = "disconnect_delay"
+CONF_DISCOVER_IP = "discover_ip"
 CONF_DISCOVERY = "discovery"
 CONF_DISCOVERY_OBJECT_ID_GENERATOR = "discovery_object_id_generator"
 CONF_DISCOVERY_PREFIX = "discovery_prefix"
@@ -1423,9 +1425,12 @@ KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
 # esp32 storage keys; defined here so the upload/logs fast path
-# (storage_json.apply_to_core) can use them without importing the
-# esp32 component package.
+# (storage_json.apply_to_core, espidf.toolchain) can use them without
+# importing the esp32 component package.
 KEY_ESP32 = "esp32"
+# Also used by esp8266 to index its BOARDS metadata dicts, whose
+# entries in boards.py spell the literal; do not change the value.
+KEY_FLASH_SIZE = "flash_size"
 KEY_IDF_VERSION = "idf_version"
 
 # Entity categories

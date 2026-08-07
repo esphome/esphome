@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import binascii
-from datetime import datetime
 import json
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from esphome import const
 from esphome.const import (
@@ -23,6 +23,9 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, Version
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -329,9 +332,9 @@ class StorageJSON:
         }
         # The compile pipeline populates CORE.data[KEY_ESP32] when esp32's
         # validator runs; on the cache fast path that validator is skipped,
-        # so populate the variant upload_using_esptool reads via
-        # esp32.get_esp32_variant(). target_platform on disk is the variant
-        # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
+        # so populate the variant upload_using_esptool reads from
+        # CORE.data[KEY_ESP32][KEY_VARIANT]. target_platform on disk is the
+        # variant (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
         if target_platform == const.PLATFORM_ESP32:
             esp32_data = {KEY_VARIANT: self.target_platform}
             if self.framework_version:
@@ -372,6 +375,10 @@ class EsphomeStorageJSON:
 
     @property
     def last_update_check(self) -> datetime | None:
+        # Deferred: this module is on the upload/logs fast path; only the
+        # dashboard's update check touches these accessors.
+        from datetime import datetime
+
         try:
             # Stored format is naive ISO without %z; preserved for backward compat.
             return datetime.strptime(  # noqa: DTZ007
