@@ -56,9 +56,15 @@ struct HubCapabilities {
   /// frame. When false, consumers relying on scan-response fields (e.g. names)
   /// may only see them where the receiver merges per address (Home Assistant does).
   bool merges_scan_response;
-  /// GATT client connections are available (today: esp32 only, but a chip SDK
-  /// gaining GATT support only has to flip this bit).
+  /// GATT client connections are available: the platform has a
+  /// bluetooth_connection backend implementing ble_device_base::BLEGattConnection
+  /// (ble_gatt_client.h). Today: esp32; rp2 follows with its BTstack backend.
   bool gatt;
+  /// request_scan_mode() is honored at runtime. Distinct from active_scan:
+  /// a passive-only controller (bk72xx) can never switch, and a hub may
+  /// support active scanning yet still refuse the runtime switch
+  /// (esp32_ble_tracker drives its mode through its own tracker API).
+  bool scan_mode_switch;
 };
 
 class BLEHub {
@@ -79,6 +85,17 @@ class BLEHub {
   virtual bool scan_running() = 0;
   /// True when the current/configured scan mode is active (scan requests sent).
   virtual bool scan_active() = 0;
+  /// Request a scan-mode change (active = send scan requests). Returns false
+  /// when the hub cannot honor the request; the caller reports the real state
+  /// back to its subscriber. A hub that returns true applies the mode
+  /// immediately: a running scan is restarted with the new mode, an idle one
+  /// picks it up on its next start. The default cannot-change keeps hubs
+  /// without a mode switch (and out-of-tree trackers) building unchanged.
+  /// Independent of HubCapabilities::active_scan: that bit describes what the
+  /// CONTROLLER can do; whether this method honors requests is advertised by
+  /// HubCapabilities::scan_mode_switch, so consumers can gate features on the
+  /// switch without probing.
+  virtual bool request_scan_mode(bool active) { return false; }
 };
 
 }  // namespace esphome::ble_device_base
