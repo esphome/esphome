@@ -43,9 +43,16 @@ modbus:
 modbus_server:
   - address: 1
     registers:
-      # The malformed request's write half targets this register. If the invalid frame were
-      # wrongly accepted, this write_lambda would fire the "write_seen" sensor.
+      # The malformed request's write half spans 0x01-0x02. Both are registered so modbus_server's
+      # address pre-flight cannot reject the frame on its own: if the hub wrongly accepted it, these
+      # write_lambdas would fire the "write_seen" sensor.
       - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 0;
+        write_lambda: |-
+          id(write_seen).publish_state(1);
+          return true;
+      - address: 0x02
         value_type: U_WORD
         read_lambda: return 0;
         write_lambda: |-
