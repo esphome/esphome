@@ -883,8 +883,8 @@ void ModbusClientHub::sweep_() {
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
-                               CommandOptions options) {
+bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
+                                CommandOptions options) {
   // Requests refused here never enter the machine and get no callback - the false return is it.
   if (pdu.empty()) {
     ESP_LOGW(TAG, "Empty PDU refused for address %" PRIu8, address);
@@ -995,7 +995,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     ESP_LOGW(TAG, "send_raw() payload too short to contain a PDU, refused");
     return;
   }
-  this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
+  this->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
