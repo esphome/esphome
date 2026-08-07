@@ -2310,7 +2310,11 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # and leave the winner to file sort order. Cost note: LFN_HEAP allocates a buffer
         # (up to MAX_LFN chars) per long-filename operation at runtime; LFN_STACK avoids
         # the heap at the price of task stack depth.
-        lfn_keys = ("CONFIG_FATFS_LFN_NONE", "CONFIG_FATFS_LFN_HEAP", "CONFIG_FATFS_LFN_STACK")
+        lfn_keys = (
+            "CONFIG_FATFS_LFN_NONE",
+            "CONFIG_FATFS_LFN_HEAP",
+            "CONFIG_FATFS_LFN_STACK",
+        )
         if not any(k in opts for k in lfn_keys):
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
