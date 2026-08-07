@@ -8,13 +8,28 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
 )
+from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
+from esphome.components.zephyr import zephyr_add_cdc_acm, zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RX_BUFFER_SIZE, CONF_TX_BUFFER_SIZE
+from esphome.const import (
+    CONF_DEBUG,
+    CONF_DISABLED,
+    CONF_ID,
+    CONF_RX_BUFFER_SIZE,
+    CONF_TX_BUFFER_SIZE,
+)
+from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
-AUTO_LOAD = ["uart"]
-DEPENDENCIES = ["tinyusb"]
+
+
+def AUTO_LOAD():
+    if CORE.using_zephyr:
+        return ["uart"]
+    return ["uart", "tinyusb"]
+
 
 CONF_INTERFACES = "interfaces"
 
@@ -29,6 +44,8 @@ USBCDCACMInstance = usb_cdc_acm_ns.class_(
 INTERFACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(USBCDCACMInstance),
+        cv.Optional(CONF_DEBUG): maybe_empty_debug,
+        cv.Optional(CONF_DISABLED): cv.All(cv.boolean, cv.only_on_nrf52),
     }
 )
 
@@ -49,14 +66,20 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    esp32.only_on_variant(
-        supported=[
-            VARIANT_ESP32H4,
-            VARIANT_ESP32P4,
-            VARIANT_ESP32S2,
-            VARIANT_ESP32S3,
-            VARIANT_ESP32S31,
-        ],
+    cv.Any(
+        cv.only_on_nrf52,
+        cv.All(
+            cv.only_on_esp32,
+            esp32.only_on_variant(
+                supported=[
+                    VARIANT_ESP32H4,
+                    VARIANT_ESP32P4,
+                    VARIANT_ESP32S2,
+                    VARIANT_ESP32S3,
+                    VARIANT_ESP32S31,
+                ],
+            ),
+        ),
     ),
 )
 
@@ -65,21 +88,47 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    num_interfaces = len(config[CONF_INTERFACES])
+    cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)
+    any_port_enabled = False
     # Create and register interface instances
     for interface_index, interface_conf in enumerate(config[CONF_INTERFACES]):
-        interface = cg.new_Pvariable(interface_conf[CONF_ID])
+        if interface_conf.get(CONF_DISABLED, False):
+            continue
+        any_port_enabled = True
+        interface = None
+        if CORE.using_zephyr:
+            port = f"cdc_acm_uart{interface_index}"
+            zephyr_add_cdc_acm(config, interface_index)
+            interface = cg.new_Pvariable(
+                interface_conf[CONF_ID],
+                MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({port}))"),
+            )
+        else:
+            interface = cg.new_Pvariable(interface_conf[CONF_ID])
         await cg.register_parented(interface, var)
         cg.add(interface.set_interface_number(interface_index))
         cg.add(var.add_interface(interface))
-
-    # Configure TinyUSB with the correct number of CDC interfaces
-    num_interfaces = len(config[CONF_INTERFACES])
-    add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_COUNT", num_interfaces)
-    add_idf_sdkconfig_option(
-        "CONFIG_TINYUSB_CDC_RX_BUFSIZE", config[CONF_RX_BUFFER_SIZE]
-    )
-    add_idf_sdkconfig_option(
-        "CONFIG_TINYUSB_CDC_TX_BUFSIZE", config[CONF_TX_BUFFER_SIZE]
-    )
-    cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)
+        if CONF_DEBUG in interface_conf:
+            cg.add_global(uart_ns.using)
+            await debug_to_code(interface_conf[CONF_DEBUG], interface)
+    if CORE.using_zephyr:
+        if any_port_enabled:
+            zephyr_add_prj_conf("UART_LINE_CTRL", True)
+            zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+            cg.add_define(
+                "ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE]
+            )
+            cg.add_define(
+                "ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE]
+            )
+    else:
+        # Configure TinyUSB with the correct number of CDC interfaces
+        add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_TINYUSB_CDC_COUNT", num_interfaces)
+        add_idf_sdkconfig_option(
+            "CONFIG_TINYUSB_CDC_RX_BUFSIZE", config[CONF_RX_BUFFER_SIZE]
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_TINYUSB_CDC_TX_BUFSIZE", config[CONF_TX_BUFFER_SIZE]
+        )

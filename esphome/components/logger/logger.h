@@ -153,6 +153,9 @@ class Logger final : public Component {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
 #endif
+#if defined(USE_ZEPHYR)
+  const device *get_hw_serial() const { return this->uart_dev_; }
+#endif
 #ifdef USE_ESP32
   uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
