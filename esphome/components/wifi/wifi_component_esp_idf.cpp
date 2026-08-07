@@ -891,65 +891,65 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.sta_scan_done;
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
-    scan_result_.clear();
-    this->scan_done_ = true;
-    if (it.status != 0) {
-      // scan error
-      return;
-    }
-
-    if (it.number == 0) {
-      // no results
-      return;
-    }
-
     uint16_t number = it.number;
     bool needs_full = this->needs_full_scan_results_();
+    {
+      // Mutate in place under the lock; blocking a portal request is fine and
+      // avoids scratch buffers
+      ScanResultsLock lock(this);
+      this->scan_result_.clear();
+      this->scan_done_ = true;
+      if (it.status != 0) {
+        // scan error
+        return;
+      }
 
-    // Smart reserve: full capacity if needed, small reserve otherwise
-    if (needs_full) {
-      this->scan_result_.reserve(number);
-    } else {
-      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
-    }
+      if (number == 0) {
+        // no results
+        return;
+      }
+
+      // Smart reserve: full capacity if needed, small reserve otherwise
+      this->scan_result_.reserve(needs_full ? number : WIFI_SCAN_RESULT_FILTERED_RESERVE);
 
 #ifdef USE_ESP32_HOSTED
-    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
-    // Presumably an upstream bug, work-around by getting all records at once
-    // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
-    static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
-    SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.get());
-    if (err != ESP_OK) {
-      esp_wifi_clear_ap_list();
-      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      return;
-    }
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t &record = records.get()[i];
-#else
-    // Process one record at a time to avoid large buffer allocation
-    for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t record;
-      err = esp_wifi_scan_get_ap_record(&record);
+      // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+      // Presumably an upstream bug, work-around by getting all records at once
+      // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
+      static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
+      SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
+      err = esp_wifi_scan_get_ap_records(&number, records.get());
       if (err != ESP_OK) {
-        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
-        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
-        break;
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
+        return;
       }
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t &record = records.get()[i];
+#else
+      // Process one record at a time to avoid large buffer allocation
+      for (uint16_t i = 0; i < number; i++) {
+        wifi_ap_record_t record;
+        err = esp_wifi_scan_get_ap_record(&record);
+        if (err != ESP_OK) {
+          ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+          esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+          break;
+        }
 #endif  // USE_ESP32_HOSTED
 
-      // Check C string first - avoid std::string construction for non-matching networks
-      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+        // Check C string first - avoid std::string construction for non-matching networks
+        const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
 
-      // Only construct std::string and store if needed
-      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
-        bssid_t bssid;
-        std::copy(record.bssid, record.bssid + 6, bssid.begin());
-        this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
-                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
-      } else {
-        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+        // Only construct std::string and store if needed
+        if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+          bssid_t bssid;
+          std::copy(record.bssid, record.bssid + 6, bssid.begin());
+          this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                          record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+        } else {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+        }
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),

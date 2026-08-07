@@ -1,0 +1,19 @@
+# Deep sleep combined with OTA while bootloader rollback support is enabled
+# (the default on ESP-IDF). Entering deep sleep runs the safe shutdown hooks,
+# where safe_mode confirms the running app image so the bootloader does not
+# roll back a fresh OTA update when the device goes to sleep before
+# boot_is_good_after has elapsed.
+substitutions:
+  wakeup_pin: GPIO4
+
+packages:
+  deep_sleep: !include common.yaml
+  deep_sleep_esp32: !include common-esp32.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+    password: "superlongpasswordthatnoonewillknow"

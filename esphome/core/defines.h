@@ -44,6 +44,7 @@
 #define USE_AREAS
 #define USE_BINARY_SENSOR
 #define USE_BINARY_SENSOR_FILTER
+#define USE_BLE_DEVICE_IRK
 #define USE_BUTTON
 #define USE_CAMERA
 #define USE_CLIMATE
@@ -56,6 +57,7 @@
 #define USE_DATETIME_TIME
 #define USE_DEBUG
 #define USE_DEEP_SLEEP
+#define USE_DEEP_SLEEP_ON_WAKE
 #define USE_DEVICES
 #define USE_DISPLAY
 #define USE_ENTITY_DEVICE_CLASS
@@ -136,6 +138,7 @@
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
 #define USE_NETWORK
+#define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
 #define USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
@@ -154,8 +157,12 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
+// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
+// slot-based platforms (esp8266, rp2040) never set it in generated builds
+#define USE_PREFERENCE_KEY_LOOKUP
 #define USE_PROVISIONING
 #define USE_QR_CODE
+#define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
 #define USE_SAFE_MODE_CALLBACK
 #define ESPHOME_SAFE_MODE_CALLBACK_COUNT 1
 #define USE_SELECT
@@ -205,8 +212,11 @@
 #define MAX_API_CONNECTIONS 6
 #define USE_MD5
 #define USE_SHA256
+#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
+#define USE_WIREGUARD
+#endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
 #define USE_RUNTIME_IMAGE_PNG
@@ -219,7 +229,6 @@
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_WIFI_MANUAL_IP
-#define USE_WIREGUARD
 #endif
 
 // Arduino-specific feature flags
@@ -233,6 +242,30 @@
 #define USE_NATIVE_64BIT_TIME
 #endif
 
+// bluetooth_proxy runs on any platform with a BLE hub (advertisement-only off
+// esp32). Declared here per analysis ENVIRONMENT, not per hub platform —
+// USE_LIBRETINY also covers chips with no hub, e.g. rtl87xx (the authoritative
+// gate is _HUB_PLATFORMS in bluetooth_proxy/__init__.py) — so the neutral
+// declarations in bluetooth_proxy.h are parsed under LibreTiny static analysis
+// (the header is included by api_connection.cpp, which the tidy filter selects;
+// the proxy's own .cpp is not a selected translation unit). Not declared for
+// platforms whose API/network types the proxy header cannot assume.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
+#define USE_BLUETOOTH_PROXY
+// Mirror the codegen values per platform: _to_code_esp32() emits the connection
+// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
+// advertisement-only hubs) — so static analysis checks the same
+// std::array<uint64_t, N> instantiation a real build produces.
+#ifdef USE_ESP32
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#elif defined(USE_RP2)
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
+#else
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
+#endif
+#define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
+#endif
+
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESP32_CRASH_HANDLER
@@ -241,6 +274,13 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
 #define USE_OTA_SIGNED_VERIFICATION
+#define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+// Stub values for tooling; a real build's codegen emits these from verification_keys.
+#define OTA_TRUSTED_KEY_COUNT 1
+#define OTA_TRUSTED_KEY_DIGESTS \
+  { \
+    { 0 } \
+  }
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
@@ -248,10 +288,8 @@
 #define USE_ESPNOW
 #define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
-#define USE_BLUETOOTH_PROXY
-#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
-#define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #define USE_CAPTIVE_PORTAL
+#define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP32_BLE
 #define USE_ESP32_BLE_MAX_CONNECTIONS 3
 #define USE_ESP32_BLE_CLIENT
@@ -268,6 +306,8 @@
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
+#define ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT 1
+#define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT 1
 #define ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT 1
@@ -298,10 +338,12 @@
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_OTA
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WEBSERVER_GZIP
 #define USE_WEBSERVER_SORTING
+#define USE_WEBSERVER_ALLOWED_ORIGINS
 #define WEB_SERVER_DEFAULT_HEADERS_COUNT 1
 #define USE_CAPTIVE_PORTAL_GZIP
 #define USE_WIFI_11KV_SUPPORT
@@ -385,6 +427,7 @@
 #define USE_ESP8266_CRASH_HANDLER
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 1, 2)
 #define USE_CAPTIVE_PORTAL
+#define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP8266_LOGGER_SERIAL
 #define USE_ESP8266_LOGGER_SERIAL1
 #define USE_ESP8266_PREFERENCES_FLASH
@@ -407,6 +450,7 @@
 
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
@@ -414,13 +458,17 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define RP2040_BLE_SCAN_LISTENER_COUNT 1
+#define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_GATT_CLIENT
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
@@ -429,14 +477,26 @@
 #ifndef USE_ETHERNET_SPI
 #define USE_ETHERNET_SPI
 #endif
+#define USE_ETHERNET_W5500
+#define USE_WIFI_IP_STATE_LISTENERS
+#define ESPHOME_WIFI_IP_STATE_LISTENERS 2
+#define USE_ETHERNET_IP_STATE_LISTENERS
+#define ESPHOME_ETHERNET_IP_STATE_LISTENERS 2
 #endif
 
 #ifdef USE_LIBRETINY
+#define USE_BK72XX_BLE
+#define BK72XX_BLE_SCAN_LISTENER_COUNT 1
+#define USE_LN882H_BLE
+#define LN882H_BLE_SCAN_LISTENER_COUNT 1
+#define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_CAPTIVE_PORTAL
+#define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
 #define USE_LWIP_FAST_SELECT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
+#define USE_WEBSERVER_AUTH_DIGEST
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
