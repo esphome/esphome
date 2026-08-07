@@ -61,6 +61,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "bluetooth_connection_hub.cpp": {
             PlatformFramework.RP2_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
         },
         "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
     }

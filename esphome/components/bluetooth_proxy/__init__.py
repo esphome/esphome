@@ -4,7 +4,13 @@ import logging
 import esphome.codegen as cg
 from esphome.components import ble_device_base, bluetooth_connection
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
+from esphome.const import (
+    CONF_ACTIVE,
+    CONF_ID,
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+)
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -42,14 +48,12 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 
 
 # Platforms with an in-tree ble_device_base BLE tracker hub whose controller
-# supports active scanning. Passive-only hubs (bk72xx) are deliberately NOT
-# admitted yet: every current client (aioesphomeapi, bleak-esphome, Home
-# Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
-# proxy would be misdriven — bk72xx follows once the API carries a feature
-# flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
+# supports active scanning — every current client (aioesphomeapi, bleak-esphome,
+# Home Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
+# hub must not be admitted (it would be misdriven).
 # Coupled to bluetooth_connection: platforms with a GATT backend are also
 # listed in its HUB_MAX_CONNECTIONS and its FILTER_SOURCE_FILES hub entry.
-_HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
+_HUB_PLATFORMS = (PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
@@ -278,11 +282,11 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         # Fail here with the actual reason. Without this gate the error surfaces
         # later as an unresolvable hub ID ("Are you missing a hub declaration?")
         # on platforms where no hub component can be declared.
+        hub_platforms = ", ".join(sorted(_HUB_PLATFORMS))
         raise cv.Invalid(
             f"bluetooth_proxy is not supported on {CORE.target_platform}: no "
             "active-scan-capable BLE tracker hub is available for this "
-            "platform. It runs on esp32 and rp2 (full proxy) and the ln882x "
-            "family (advertisement-only)."
+            f"platform. It runs on esp32 (full proxy) and {hub_platforms}."
         )
     if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
         return _GATT_HUB_SCHEMAS[CORE.target_platform]()(config)

@@ -243,6 +243,7 @@ def scan_parameters_schema(
     *,
     window_default: str = "30ms",
     supports_active: bool = False,
+    active_default: bool = True,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
@@ -250,7 +251,8 @@ def scan_parameters_schema(
     bk72xx/rp2 100/30 ms — the reference scan rates of the respective stacks;
     LN882H's SDK recommends 100/50 ms). Pass supports_active=True only when
     the tracker supports active scanning; it exposes the `active` option
-    (whose own default is on, esp32_ble_tracker behavior).
+    (defaulting to on, esp32_ble_tracker behavior — a tracker whose active
+    path is opt-in can pass active_default=False).
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
@@ -259,7 +261,7 @@ def scan_parameters_schema(
         cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
     }
     if supports_active:
-        schema[cv.Optional(CONF_ACTIVE, default=True)] = cv.boolean
+        schema[cv.Optional(CONF_ACTIVE, default=active_default)] = cv.boolean
     return cv.All(cv.Schema(schema), validate_scan_parameters)
 
 

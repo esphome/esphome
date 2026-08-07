@@ -8,7 +8,7 @@ from esphome import config_validation as cv
 from esphome.components.bk72xx_ble_tracker import (
     SCAN_PARAMETERS_SCHEMA as BK72XX_SCHEMA,
 )
-from esphome.components.ble_device_base import to_ble_units
+from esphome.components.ble_device_base import scan_parameters_schema, to_ble_units
 from esphome.components.esp32_ble_tracker import SCAN_PARAMETERS_SCHEMA as ESP32_SCHEMA
 from esphome.components.ln882h_ble_tracker import (
     SCAN_PARAMETERS_SCHEMA as LN882H_SCHEMA,
@@ -17,7 +17,7 @@ from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA as RP2_SCH
 
 
 def _validate(**kwargs: str) -> dict:
-    """Run a scan_parameters config through a passive tracker's real schema."""
+    """Run a scan_parameters config through the bk72xx tracker's real schema."""
     return BK72XX_SCHEMA(kwargs)
 
 
@@ -48,11 +48,13 @@ def test_to_ble_units_truncates() -> None:
 
 
 def test_bk72xx_defaults_are_valid() -> None:
-    """bk72xx pins the BK reference rate: 100 ms interval, shared 30 ms window."""
+    """bk72xx pins the BK reference rate — 100 ms interval, shared 30 ms window —
+    and exposes active with an opt-in default (its active start bypasses the
+    passive-only BDK API)."""
     config = _validate()
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
-    assert "active" not in config
+    assert config["active"] is False
 
 
 def test_esp32_defaults_are_valid() -> None:
@@ -86,10 +88,16 @@ def test_esp32_active_can_disable() -> None:
     assert config["active"] is False
 
 
+def test_bk72xx_active_can_enable() -> None:
+    config = _validate(active=True)
+    assert config["active"] is True
+
+
 def test_passive_schema_rejects_active_key() -> None:
     """Trackers without active scan support must not silently accept the option."""
+    passive_schema = scan_parameters_schema("100ms")
     with pytest.raises(cv.Invalid):
-        _validate(active="true")
+        passive_schema({"active": True})
 
 
 # --- accepted configurations ---

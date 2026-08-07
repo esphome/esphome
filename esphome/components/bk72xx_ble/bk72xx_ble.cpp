@@ -60,6 +60,21 @@ extern "C" {
 #include "ble_api.h"  // bk_ble_scan_start/stop, ble_entry, ble_set_notice_cb,
                       // app_ble_get_idle_actv_idx_handle, struct scan_param,
                       // recv_adv_t, ble_notice_t, BLE_5_REPORT_ADV, SCAN_ACTV
+// Active scanning: the BDK's scan API is passive-only (its start path
+// hardcodes the observer type with the active property bit commented out, in
+// both the 5.1 and 5.2 stacks), so active_scan_start_() packs the
+// GAPM_ACTIVITY_START_CMD itself — identical to the SDK's
+// app_ble_start_scaning() except for that bit — armed through the SDK's own
+// operation bookkeeping so its state machine runs unchanged. These are the
+// real SDK headers; the component pins beken-bdk 3.0.78.
+#include "app_ble.h"     // app_ble_env, app_ble_run, app_ble_actv_state_get,
+                         // actv_state_t, BLE_OP_START_SCAN_POS, BLE_START_SCAN
+#include "kernel_msg.h"  // KERNEL_MSG_ALLOC, kernel_msg_send
+#if __has_include("gapm_msg.h")
+#include "gapm_msg.h"  // BLE 5.2 (BK7238/BK7252N): gapm_activity_start_cmd, GAPM_SCAN_*
+#else
+#include "gapm_task.h"  // BLE 5.1 (BK7231N/BK7236): same declarations, older header name
+#endif
 #ifdef BK72XX_BLE_HAS_COMMON_BDADDR
 #include "common_bt_defines.h"  // struct bd_addr
 // The controller's public BLE address, populated by the BDK during ble_entry().
@@ -251,13 +266,34 @@ void BK72xxBLE::resolve_mac_() {
 // Controller scan primitives
 // ---------------------------------------------------------------------------
 
-bool BK72xxBLE::scan_start(uint16_t interval, uint16_t window) {
+// Pin the SDK surface the packed start command depends on: a beken-bdk bump
+// that moves these must fail the build, not corrupt the kernel message.
+static_assert(GAPM_SCAN_PROP_PHY_1M_BIT == (1 << 0) && GAPM_SCAN_PROP_ACTIVE_1M_BIT == (1 << 2),
+              "beken-bdk GAPM scan property bits changed; revalidate active_scan_start_() "
+              "against the SDK's app_ble_start_scaning()");
+static_assert(sizeof(struct gapm_scan_param) == 16 && sizeof(struct gapm_scan_wd_op_param) == 4,
+              "beken-bdk gapm_scan_param layout changed; revalidate active_scan_start_() "
+              "against the SDK's app_ble_start_scaning()");
+
+ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active())
     this->enable();
 
-  if (this->scan_actv_idx_ != 0xFF) {
+  const actv_state_t state =
+      (this->scan_actv_idx_ == INVALID_ACTV_IDX) ? ACTV_IDLE : app_ble_actv_state_get(this->scan_actv_idx_);
+  if (state == ACTV_SCAN_STARTED) {
     // Already scanning — stop first so this call cleanly restarts with the new
     // parameters (the BDK cannot start a second scan on a busy activity).
+    this->scan_stop();
+  }
+
+  if (active)
+    return this->active_scan_start_(interval, window);
+
+  if (this->scan_actv_idx_ != INVALID_ACTV_IDX) {
+    // A created-but-unstarted activity left over from an active-scan attempt;
+    // the passive path creates its own, so discard it (scan_stop() picks
+    // delete-vs-stop from the activity state).
     this->scan_stop();
   }
 
@@ -267,25 +303,98 @@ bool BK72xxBLE::scan_start(uint16_t interval, uint16_t window) {
   sp.interval = interval;
   sp.window = window;
 
-  this->scan_actv_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
-  if (this->scan_actv_idx_ == 0xFF) {
-    ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
-    return false;
-  }
+  if (!this->acquire_scan_activity_())
+    return ScanStartResult::FAILED;
   ble_err_t ret = bk_ble_scan_start(this->scan_actv_idx_, &sp, nullptr);
   if (ret != ERR_SUCCESS) {
     ESP_LOGE(TAG, "Scan start failed (err %d)", static_cast<int>(ret));
-    this->scan_actv_idx_ = 0xFF;
+    this->scan_actv_idx_ = INVALID_ACTV_IDX;
+    return ScanStartResult::FAILED;
+  }
+  return ScanStartResult::STARTED;
+}
+
+bool BK72xxBLE::acquire_scan_activity_() {
+  this->scan_actv_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
+  if (this->scan_actv_idx_ == INVALID_ACTV_IDX) {
+    ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
     return false;
   }
   return true;
 }
 
-void BK72xxBLE::scan_stop() {
-  if (this->scan_actv_idx_ != 0xFF) {
-    bk_ble_scan_stop(this->scan_actv_idx_, nullptr);
-    this->scan_actv_idx_ = 0xFF;
+ScanStartResult BK72xxBLE::active_scan_start_(uint16_t interval, uint16_t window) {
+  const actv_state_t state =
+      (this->scan_actv_idx_ == INVALID_ACTV_IDX) ? ACTV_IDLE : app_ble_actv_state_get(this->scan_actv_idx_);
+
+  if (state != ACTV_SCAN_CREATED) {
+    if (state != ACTV_IDLE) {
+      // Creation (or a previous activity's teardown) still completing on the
+      // BLE task; the next call finds it settled.
+      return ScanStartResult::PENDING;
+    }
+    // Step 1: create the scan activity through the public API. Creation is
+    // asynchronous (a GAPM round-trip on the BLE task); report PENDING and a
+    // later call finds the activity created and starts it.
+    if (!this->acquire_scan_activity_())
+      return ScanStartResult::FAILED;
+    ble_err_t ret = bk_ble_create_scaning(this->scan_actv_idx_, nullptr);
+    if (ret == ERR_BLE_STATUS) {
+      // Another BLE operation is in flight; the next call retries the create.
+      this->scan_actv_idx_ = INVALID_ACTV_IDX;
+      return ScanStartResult::PENDING;
+    }
+    if (ret != ERR_SUCCESS) {
+      ESP_LOGE(TAG, "Scan activity create failed (err %d)", static_cast<int>(ret));
+      this->scan_actv_idx_ = INVALID_ACTV_IDX;
+      return ScanStartResult::FAILED;
+    }
+    return ScanStartResult::PENDING;
   }
+
+  if (app_ble_env_state_get() != APP_BLE_READY) {
+    // Another BLE operation is in flight; the next call retries the start.
+    return ScanStartResult::PENDING;
+  }
+
+  // Step 2: start the created activity. Mirrors the SDK's
+  // bk_ble_start_scaning() field-for-field, except prop adds the active bit;
+  // the operation bookkeeping keeps its completion handling unchanged.
+  app_ble_run(this->scan_actv_idx_, BLE_START_SCAN, 1 << BLE_OP_START_SCAN_POS, nullptr);
+  struct gapm_activity_start_cmd *cmd =
+      KERNEL_MSG_ALLOC(GAPM_ACTIVITY_START_CMD, TASK_BLE_GAPM, TASK_BLE_APP, gapm_activity_start_cmd);
+  if (cmd == nullptr) {
+    app_ble_reset();  // the SDK's own failure path for an unsent operation
+    ESP_LOGE(TAG, "Scan start failed: kernel message allocation");
+    return ScanStartResult::FAILED;
+  }
+  cmd->operation = GAPM_START_ACTIVITY;
+  cmd->actv_idx = app_ble_env.actvs[this->scan_actv_idx_].gap_advt_idx;
+  cmd->u_param.scan_param.type = GAPM_SCAN_TYPE_OBSERVER;
+  cmd->u_param.scan_param.prop = GAPM_SCAN_PROP_PHY_1M_BIT | GAPM_SCAN_PROP_ACTIVE_1M_BIT;
+  cmd->u_param.scan_param.scan_param_1m.scan_intv = interval;
+  cmd->u_param.scan_param.scan_param_1m.scan_wd = window;
+  cmd->u_param.scan_param.scan_param_coded.scan_intv = 0;
+  cmd->u_param.scan_param.scan_param_coded.scan_wd = 0;
+  cmd->u_param.scan_param.dup_filt_pol = 0;
+  cmd->u_param.scan_param.rsvd = 0;
+  cmd->u_param.scan_param.duration = 0;  // scan until stopped
+  cmd->u_param.scan_param.period = 10;   // matches the SDK's passive start
+  kernel_msg_send(cmd);
+  return ScanStartResult::STARTED;
+}
+
+void BK72xxBLE::scan_stop() {
+  if (this->scan_actv_idx_ == INVALID_ACTV_IDX)
+    return;
+  if (app_ble_actv_state_get(this->scan_actv_idx_) == ACTV_SCAN_CREATED) {
+    // Created but never started (an active-scan start sequence that did not
+    // finish): a stop would be rejected, delete the activity instead.
+    bk_ble_delete_scaning(this->scan_actv_idx_, nullptr);
+  } else {
+    bk_ble_scan_stop(this->scan_actv_idx_, nullptr);
+  }
+  this->scan_actv_idx_ = INVALID_ACTV_IDX;
 }
 
 }  // namespace esphome::bk72xx_ble

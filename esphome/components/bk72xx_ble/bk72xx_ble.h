@@ -19,6 +19,18 @@ enum class BLEComponentState : uint8_t {
   ACTIVE,
 };
 
+/// Outcome of a scan_start() call.
+enum class ScanStartResult : uint8_t {
+  STARTED,  ///< The controller accepted the start; the scan chain is running.
+  PENDING,  ///< The start sequence is still in progress (an asynchronous
+            ///< activity create, or another BLE operation in flight); call
+            ///< scan_start() again to advance it.
+  FAILED,   ///< The controller rejected the start; retry later.
+};
+
+/// scan_actv_idx_ value marking "no scan activity", the BDK's own convention.
+static constexpr uint8_t INVALID_ACTV_IDX = 0xFF;
+
 /// One advertisement report from the controller.
 struct BLEScanReport {
   uint8_t mac[6];  // LSB-first, as the controller delivers it
@@ -69,10 +81,13 @@ class BK72xxBLE final : public Component {
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 #endif
 
-  /// Start the controller scan. Interval/window are in BLE units (0.625 ms).
-  /// Enables the stack first if needed. Returns false on controller failure.
-  bool scan_start(uint16_t interval, uint16_t window);
-  /// Stop the controller scan (no-op when not scanning).
+  /// Start the controller scan. Interval/window are in BLE units (0.625 ms);
+  /// enables the stack first if needed. An active start involves an
+  /// asynchronous activity create, reported as PENDING — call again to
+  /// advance the sequence until it reports STARTED or FAILED.
+  ScanStartResult scan_start(uint16_t interval, uint16_t window, bool active);
+  /// Stop the controller scan (no-op when not scanning). Also discards a scan
+  /// activity that was created for an active scan but not started yet.
   void scan_stop();
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
@@ -81,6 +96,8 @@ class BK72xxBLE final : public Component {
 
  protected:
   void resolve_mac_();
+  bool acquire_scan_activity_();
+  ScanStartResult active_scan_start_(uint16_t interval, uint16_t window);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —
@@ -96,7 +113,7 @@ class BK72xxBLE final : public Component {
   // pool slot on a failed push and keeps release() off the producer path.
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
   uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
-  uint8_t scan_actv_idx_{0xFF};
+  uint8_t scan_actv_idx_{INVALID_ACTV_IDX};
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

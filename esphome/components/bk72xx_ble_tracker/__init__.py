@@ -25,6 +25,7 @@ from esphome.components.ble_device_base import automation as ble_automation
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTIVE,
     CONF_CONTINUOUS,
     CONF_DURATION,
     CONF_ID,
@@ -63,7 +64,13 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 # interval defaults to the BK reference scan rate — 100 ms with the shared 30 ms
 # window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
 # to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
+#
+# active defaults to off, unlike the other active-capable trackers: the active
+# start bypasses the BDK's passive-only scan API (bk72xx_ble's
+# active_scan_start_), so it is opt-in until proven broadly on hardware.
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "100ms", supports_active=True, active_default=False
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -161,6 +168,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         await ble_automation.advertise_trigger_to_code(conf, var)

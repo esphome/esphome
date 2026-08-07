@@ -21,6 +21,7 @@
 //       window:      30ms
 //       duration:    5min
 //       continuous:  true
+//       active:      false
 
 #pragma once
 
@@ -70,6 +71,7 @@ class BK72xxBLETracker : public Component,
   void set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
+  void set_scan_active(bool scan_active) { this->scan_active_ = scan_active; }
   /// Set from YAML (scan_parameters.continuous); also the value
   /// configured_continuous() reports and a bare start_scan action restores.
   void set_configured_continuous(bool scan_continuous) {
@@ -102,19 +104,12 @@ class BK72xxBLETracker : public Component,
     this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    // The Beken BDK exposes no active-scan path (passive scanning only), so the
-    // controller never solicits scan responses and never merges them; consumers
-    // relying on scan-response fields (device names) get them only where the
-    // receiver merges per address (Home Assistant does). No GATT client either.
-    // scan_mode_switch stays false for the same reason: with no active-scan
-    // path there is no mode to switch to.
-    return {.active_scan = false, .merges_scan_response = false, .gatt = false, .scan_mode_switch = false};
+    // Active scanning goes through bk72xx_ble::active_scan_start_ (the BDK's
+    // own API is passive-only). Scan responses arrive as separate reports,
+    // never merged. No GATT client.
+    return {.active_scan = true, .merges_scan_response = false, .gatt = false, .scan_mode_switch = true};
   }
-  bool request_scan_mode(bool active) override {
-    // Passive-only controller: a passive request is already honored, an active
-    // one cannot be.
-    return !active;
-  }
+  bool request_scan_mode(bool active) override;
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
   void get_adapter_mac(uint8_t out[6]) override {
@@ -124,7 +119,7 @@ class BK72xxBLETracker : public Component,
       out[i] = mac[5 - i];
   }
   bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return false; }  // BK72xx scan is passive-only
+  bool scan_active() override { return this->scan_active_; }
 
   // ---- bk72xx_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the
@@ -134,6 +129,10 @@ class BK72xxBLETracker : public Component,
  protected:
   void start_scan_();
   void stop_scan_();
+  void fire_scan_end_();
+  /// Stamp-and-start for every controller scan attempt, so the retry rate
+  /// limit covers all callers; latches start_pending_ for the backoff gate.
+  bk72xx_ble::ScanStartResult controller_scan_start_();
   /// Attempt a rate-limited (re)start; returns true when the scan is running,
   /// which means the caller must not compare its cached millis() against the
   /// timestamps start_scan_() just refreshed. force bypasses the rate gate for
@@ -143,6 +142,9 @@ class BK72xxBLETracker : public Component,
 
   bool scan_running_{false};
   bool scan_requested_{false};  // latched start_scan() request not yet running; loop() retries with backoff
+  // The last controller start reported PENDING (active-scan activity create in
+  // flight): retried on a short gate instead of the failure backoff.
+  bool start_pending_{false};
   // Defaults: the BK reference — 30 % duty cycle
   // (interval 100 ms / window 30 ms), in 0.625 ms BLE units.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
@@ -150,6 +152,7 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
   bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
+  bool scan_active_{false};                // opt-in default; see scan_parameters.active
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_requested_before_ota_{false};   // pending one-shot latch saved at OTA start, re-latched on OTA failure
