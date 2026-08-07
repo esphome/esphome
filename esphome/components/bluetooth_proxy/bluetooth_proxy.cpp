@@ -60,7 +60,6 @@ void BluetoothProxy::setup() {
 
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->hub_->scan_active();
-  this->last_scan_running_ = this->hub_->scan_running();
 
   // The hub delivers raw advertisements on the ESPHome main loop:
   // mac is least-significant octet first (BLE controller convention).
@@ -94,15 +93,20 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
 }
 
 void BluetoothProxy::send_bluetooth_scanner_state_() {
+  bool running = this->hub_->scan_running();
   api::BluetoothScannerStateResponse resp;
-  resp.state = this->hub_->scan_running() ? api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_RUNNING
-                                          : api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_IDLE;
+  resp.state = running ? api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_RUNNING
+                       : api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_IDLE;
   resp.mode = this->hub_->scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                                         : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
   resp.configured_mode = this->configured_scan_active_
                              ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                              : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
-  this->api_connection_->send_message(resp);
+  // Latch only what actually went on the wire: on a backpressured send the
+  // change detector in loop() retries next tick instead of going stale.
+  if (this->api_connection_->send_message(resp)) {
+    this->last_scan_running_ = running;
+  }
 }
 
 #endif  // USE_ESP32
@@ -557,9 +561,7 @@ void BluetoothProxy::loop() {
   }
 
   // The hub has no scanner-state listener interface; poll and report on change.
-  bool running = this->hub_->scan_running();
-  if (running != this->last_scan_running_) {
-    this->last_scan_running_ = running;
+  if (this->hub_->scan_running() != this->last_scan_running_) {
     this->send_bluetooth_scanner_state_();
   }
 
@@ -645,10 +647,9 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
     }
   }
   if (this->api_connection_ != nullptr) {
-    // Keep loop()'s change detector in step with the state sent here, so a
-    // failed restart (scan_running_ dropped by the tracker) is not reported
-    // twice — once now and again on the next tick.
-    this->last_scan_running_ = this->hub_->scan_running();
+    // Reports the mode change; the sender also refreshes last_scan_running_, so
+    // a failed restart (scan_running_ dropped by the tracker) is not reported
+    // again by loop() on the next tick.
     this->send_bluetooth_scanner_state_();
   }
 }
@@ -673,7 +674,6 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   this->parent_->recalculate_advertisement_parser_types();
   this->send_bluetooth_scanner_state_(this->parent_->get_scanner_state());
 #else
-  this->last_scan_running_ = this->hub_->scan_running();
   this->send_bluetooth_scanner_state_();
 #endif
 }
