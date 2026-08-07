@@ -349,7 +349,8 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
     this->address_[i] = mac[5 - i];
   this->address_type_ = addr_type;
   this->rssi_ = rssi;
-  this->name_.clear();
+  this->name_len_ = 0;
+  this->name_[0] = '\0';
   this->service_uuids_.clear();
   this->manufacturer_datas_.clear();
   this->service_datas_.clear();
@@ -365,7 +366,7 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
             "  Address: %s (%s)\n"
             "  RSSI: %d\n"
             "  Name: '%s'",
-            this->address_str_to(addr_buf), this->address_type_str(), this->rssi_, this->name_.c_str());
+            this->address_str_to(addr_buf), this->address_type_str(), this->rssi_, this->name_);
   for (auto &it : this->tx_powers_) {
     ESP_LOGVV(TAG, "  TX Power: %d", it);
   }
@@ -477,8 +478,12 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
         // Keep the longest name seen — a merged adv + scan-response frame may carry both the
         // shortened and the complete name, and the shortened form must never replace the
         // complete one (same rule as esp32_ble_tracker's parse_adv_).
-        if (ad_data_len > this->name_.length())
-          this->name_.assign(reinterpret_cast<const char *>(ad_data), ad_data_len);
+        if (ad_data_len > this->name_len_) {
+          uint8_t name_len = ad_data_len > MAX_ADV_NAME_LEN ? MAX_ADV_NAME_LEN : static_cast<uint8_t>(ad_data_len);
+          memcpy(this->name_, ad_data, name_len);
+          this->name_[name_len] = '\0';
+          this->name_len_ = name_len;
+        }
         break;
 
       case 0x0A:  // TX Power Level
