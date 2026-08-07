@@ -63,6 +63,8 @@ from .const_esp32 import (
     SCALE,
 )
 from .zigbee_ep_esp32 import (
+    ANALOG_INPUT_EP,
+    BINARY_INPUT_EP,
     add_ep,
     binary_sensor_ep_configs,
     create_ep,
@@ -208,7 +210,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         if dev_class not in sensor_ep_configs:
             raise cv.Invalid(
                 "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(k for k in sensor_ep_configs if k != 'analog_input')}. Use 'cluster: basic' otherwise."
+                f"Supported: {', '.join(sensor_ep_configs)}. Use 'cluster: basic' otherwise."
             )
         ep = copy.deepcopy(sensor_ep_configs[dev_class])
         if unit not in ep[ALLOWED_UNITS]:
@@ -221,7 +223,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             if isinstance(attr.get(CONF_LAMBDA), dict):
                 attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
     else:
-        ep = copy.deepcopy(sensor_ep_configs["analog_input"])
+        ep = copy.deepcopy(ANALOG_INPUT_EP)
         apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
         bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
         accuracy = config.get(CONF_ACCURACY_DECIMALS)
@@ -262,10 +264,10 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
         else:
             raise cv.Invalid(
                 "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(k for k in binary_sensor_ep_configs if k != 'binary_input')}. Use 'cluster: basic' otherwise."
+                f"Supported: {', '.join(binary_sensor_ep_configs)}. Use 'cluster: basic' otherwise."
             )
     else:
-        ep = copy.deepcopy(binary_sensor_ep_configs["binary_input"])
+        ep = copy.deepcopy(BINARY_INPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
