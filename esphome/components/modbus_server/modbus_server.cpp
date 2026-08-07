@@ -145,7 +145,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         }
         return true;
       })) {
-    ESP_LOGW(TAG, "Write request rejected before applying any register. Sending exception response.");
+    ESP_LOGW(TAG, "Write request rejected before applying any register.");
     return precheck;
   }
 

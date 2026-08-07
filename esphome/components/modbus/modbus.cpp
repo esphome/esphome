@@ -285,7 +285,12 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
-  this->process_modbus_client_frame_(address, function_code, data);
+  if (address == BROADCAST_ADDRESS) {
+    // Keep the unicast response buffers out of the broadcast call chain.
+    this->process_broadcast_frame_(function_code, data);
+  } else {
+    this->process_modbus_client_frame_(address, function_code, data);
+  }
 
   return true;
 }
@@ -445,9 +450,10 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint
   for (auto *device : this->devices_) {
     // A broadcast is never answered, so a rejecting device has no other feedback channel; log it so a
     // misconfigured register map is diagnosable instead of looking identical to a successful write.
-    if (ResponseStatus status = device->on_write_registers(start_address, registers); status.has_value()) {
+    if (ResponseStatus device_status = device->on_write_registers(start_address, registers);
+        device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
-               static_cast<uint8_t>(status.value()));
+               static_cast<uint8_t>(device_status.value()));
     }
   }
 }
@@ -497,12 +503,6 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
 }
 
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
-  if (address == BROADCAST_ADDRESS) {
-    // A broadcast is delivered to every registered device and is never answered (Modbus 4.1 / 6.12).
-    this->process_broadcast_frame_(function_code, data);
-    return;
-  }
-
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
