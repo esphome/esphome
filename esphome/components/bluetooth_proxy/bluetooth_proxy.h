@@ -248,7 +248,10 @@ class BluetoothProxy final : public Component {
   /// Keep the pre-allocated connections-free message in step when a
   /// connection slot changes address (0 = free). Called from the connection
   /// classes' set_address().
-  void update_address_slot_(uint64_t old_address, uint64_t new_address) {
+  // maybe_unused + guard: in a passive proxy (active: false) MAX is 0, the
+  // body is removed, and the free < MAX compare would trip -Wtype-limits.
+  void update_address_slot_([[maybe_unused]] uint64_t old_address, [[maybe_unused]] uint64_t new_address) {
+#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
     auto &resp = this->connections_free_response_;
     if (new_address == 0 && old_address != 0) {
       if (resp.free < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
@@ -265,6 +268,7 @@ class BluetoothProxy final : public Component {
       }
       this->replace_allocated_slot_(0, new_address);
     }
+#endif  // BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
   }
   void replace_allocated_slot_(uint64_t find_value, uint64_t set_value);
   void log_slot_accounting_mismatch_();
