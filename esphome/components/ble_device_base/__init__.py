@@ -150,6 +150,21 @@ def request_irk_support() -> None:
     cg.add_define("USE_BLE_DEVICE_IRK")
 
 
+# Number of GATT client connection slots in this build; sizes the platform
+# backend's connection storage.
+GATT_CLIENT_COUNT_DEFINE = "ESPHOME_BLE_GATT_CLIENT_COUNT"
+
+_request_gatt_connection_slot = cg.slot_counter(GATT_CLIENT_COUNT_DEFINE)
+
+
+def request_gatt_client() -> None:
+    """Compile in the neutral GATT client contract (ble_gatt_client.h) and
+    claim one connection slot. Called by bluetooth_proxy once per connection
+    it instantiates on a hub platform."""
+    cg.add_define("USE_BLE_GATT_CLIENT")
+    _request_gatt_connection_slot()
+
+
 _request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
 
 
