@@ -27,7 +27,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(f"area_{i}"): binary_sensor.binary_sensor_schema(
+            cv.Optional(f"detection_area_{i}"): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_OCCUPANCY,
             )
             for i in range(AREA_COUNT)
@@ -49,6 +49,6 @@ async def to_code(config):
             cg.add(hub.set_target_presence_binary_sensor(i, sens))
 
     for i in range(AREA_COUNT):
-        if area_config := config.get(f"area_{i}"):
+        if area_config := config.get(f"detection_area_{i}"):
             sens = await binary_sensor.new_binary_sensor(area_config)
             cg.add(hub.set_area_presence_binary_sensor(i, sens))

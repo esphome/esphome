@@ -12,14 +12,14 @@ LD6002BSelect = ld6002b_ns.class_("LD6002BSelect", select.Select)
 SelectType = ld6002b_ns.enum("SelectType", is_class=True)
 
 AREA_ID_OPTIONS = [
-    "interference_0",
-    "interference_1",
-    "interference_2",
-    "interference_3",
-    "detection_0",
-    "detection_1",
-    "detection_2",
-    "detection_3",
+    "interference_area_0",
+    "interference_area_1",
+    "interference_area_2",
+    "interference_area_3",
+    "detection_area_0",
+    "detection_area_1",
+    "detection_area_2",
+    "detection_area_3",
 ]
 
 CONFIG_SCHEMA = cv.Schema(

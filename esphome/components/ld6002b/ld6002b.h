@@ -153,40 +153,64 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
     this->targets_[target].cluster_id = sensor;
   }
   void set_interference_area_x_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].x_min = sensor;
   }
   void set_interference_area_x_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].x_max = sensor;
   }
   void set_interference_area_y_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].y_min = sensor;
   }
   void set_interference_area_y_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].y_max = sensor;
   }
   void set_interference_area_z_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].z_min = sensor;
   }
   void set_interference_area_z_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->interference_areas_[area].z_max = sensor;
   }
 
   void set_detection_area_x_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].x_min = sensor;
   }
   void set_detection_area_x_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].x_max = sensor;
   }
   void set_detection_area_y_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].y_min = sensor;
   }
   void set_detection_area_y_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].y_max = sensor;
   }
   void set_detection_area_z_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].z_min = sensor;
   }
   void set_detection_area_z_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
     this->detection_areas_[area].z_max = sensor;
   }
 #endif
@@ -280,7 +304,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void update_area_numbers_(const AreaConfig &area);
   void update_area_numbers_for_id_(uint8_t area_id);
   void queue_area_config_(uint8_t area_id, const AreaConfig &desired);
-  void try_apply_pending_area_();
+  void try_apply_pending_area_(bool reported_interference);
   void init_area_id_pref_();
   void save_area_id_pref_(uint8_t value);
   void init_version_pref_();
@@ -367,9 +391,13 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
-  // Sized for the boot burst: with every platform configured, setup() enqueues
-  // roughly ten GET/config commands back to back before the first ack lands.
-  static constexpr uint8_t CMD_QUEUE_SIZE = 16;
+  // Sized for the two bursts that reach it, both counted as what is still queued
+  // once the first command is dequeued: boot leaves 11 with every platform
+  // configured, and pressing all fourteen buttons before an ack lands leaves 15.
+  // Neither overflowed 16, but one free slot is not headroom, and overflowing is a
+  // dropped command with only a log line to show for it.  Costs 256 bytes more per
+  // configured instance, and this component is MULTI_CONF.
+  static constexpr uint8_t CMD_QUEUE_SIZE = 24;
   static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 300;
   // A sleeping module consumes the first frame to wake and answers only the one after it.
   static constexpr uint32_t CMD_FIRST_ACK_TIMEOUT_MS = 600;
@@ -432,11 +460,11 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   bool target_display_enabled_{false};
   bool point_cloud_enabled_{false};
   bool area_presence_any_{false};
-  bool area_write_pending_{false};
+  bool area_write_in_flight_{false};
   bool work_mode_reported_{false};
   bool low_power_enabled_{false};
   bool low_power_reported_{false};
-  bool pending_area_apply_{false};
+  bool deferred_apply_pending_{false};
   uint8_t pending_area_id_{0xFF};
   AreaConfig pending_area_updates_{};
   bool last_work_mode_valid_{false};

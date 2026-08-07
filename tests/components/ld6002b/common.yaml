@@ -76,8 +76,8 @@ binary_sensor:
       name: Presence
     target_1:
       name: Target-1 Presence
-    area_0:
-      name: Area-0 Presence
+    detection_area_0:
+      name: Detection Area-0 Presence
 
 text_sensor:
   - platform: ld6002b

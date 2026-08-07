@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AREA_ID,
     CONF_BUTTON,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
@@ -14,6 +15,7 @@ import esphome.final_validate as fv
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
+    CONF_APPLY_AREA,
     CONF_AREA_CONFIG,
     CONF_HOLD_DELAY,
     CONF_LD6002B_ID,
@@ -110,7 +112,7 @@ def final_validate(config):
     hub_id = config[CONF_LD6002B_ID]
 
     has_apply_area = any(
-        entry.get(CONF_LD6002B_ID) == hub_id and entry.get("apply_area") is not None
+        entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_APPLY_AREA) is not None
         for entry in full_config.get(CONF_BUTTON, [])
     )
     if not has_apply_area:
@@ -120,7 +122,7 @@ def final_validate(config):
         )
 
     has_area_id_select = any(
-        entry.get(CONF_LD6002B_ID) == hub_id and entry.get("area_id") is not None
+        entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_AREA_ID) is not None
         for entry in full_config.get("select", [])
     )
     if not has_area_id_select:

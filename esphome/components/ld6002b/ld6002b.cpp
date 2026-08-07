@@ -63,11 +63,12 @@ static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
 static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
 static constexpr uint32_t CMD_RESET_UNATTENDED = 0x1A;
 
-static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
-static constexpr uint16_t AREA_DATA_LEN = 24;    // 6 floats
-static constexpr uint16_t AREA_CONFIG_LEN = 28;  // int32 + 6 floats
+static constexpr uint16_t TARGET_DATA_LEN = 20;         // x,y,z,dop_idx,cluster_id
+static constexpr uint16_t AREA_DATA_LEN = 24;           // 6 floats
+static constexpr uint16_t AREA_CONFIG_LEN = 28;         // int32 + 6 floats
+static constexpr uint16_t AREA_PRESENCE_ENTRY_LEN = 4;  // uint32 per detection area
 
-static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_0 for initial display
+static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_area_0 for initial display
 
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
 
@@ -451,11 +452,30 @@ void LD6002BComponent::dump_config() {
     LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
     LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
   }
+  for (auto &area : this->interference_areas_) {
+    LOG_SENSOR("  ", "Interference Area X Min", area.x_min);
+    LOG_SENSOR("  ", "Interference Area X Max", area.x_max);
+    LOG_SENSOR("  ", "Interference Area Y Min", area.y_min);
+    LOG_SENSOR("  ", "Interference Area Y Max", area.y_max);
+    LOG_SENSOR("  ", "Interference Area Z Min", area.z_min);
+    LOG_SENSOR("  ", "Interference Area Z Max", area.z_max);
+  }
+  for (auto &area : this->detection_areas_) {
+    LOG_SENSOR("  ", "Detection Area X Min", area.x_min);
+    LOG_SENSOR("  ", "Detection Area X Max", area.x_max);
+    LOG_SENSOR("  ", "Detection Area Y Min", area.y_min);
+    LOG_SENSOR("  ", "Detection Area Y Max", area.y_max);
+    LOG_SENSOR("  ", "Detection Area Z Min", area.z_min);
+    LOG_SENSOR("  ", "Detection Area Z Max", area.z_max);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     LOG_BINARY_SENSOR("  ", "Target Presence", this->target_presence_[i]);
+  }
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    LOG_BINARY_SENSOR("  ", "Detection Area Presence", this->area_presence_[i]);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -467,6 +487,12 @@ void LD6002BComponent::dump_config() {
   LOG_NUMBER("  ", "Z Min", this->z_min_number_);
   LOG_NUMBER("  ", "Z Max", this->z_max_number_);
   LOG_NUMBER("  ", "Low Power Sleep", this->low_power_sleep_number_);
+  LOG_NUMBER("  ", "Area X Min", this->area_x_min_number_);
+  LOG_NUMBER("  ", "Area X Max", this->area_x_max_number_);
+  LOG_NUMBER("  ", "Area Y Min", this->area_y_min_number_);
+  LOG_NUMBER("  ", "Area Y Max", this->area_y_max_number_);
+  LOG_NUMBER("  ", "Area Z Min", this->area_z_min_number_);
+  LOG_NUMBER("  ", "Area Z Max", this->area_z_max_number_);
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
@@ -477,6 +503,7 @@ void LD6002BComponent::dump_config() {
   LOG_SELECT("  ", "Sensitivity", this->sensitivity_select_);
   LOG_SELECT("  ", "Trigger Speed", this->trigger_speed_select_);
   LOG_SELECT("  ", "Installation Mode", this->installation_select_);
+  LOG_SELECT("  ", "Area ID", this->area_id_select_);
 #endif
 }
 
@@ -592,7 +619,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   }
   if (len == 0 && this->command_active_ && this->command_sent_ && type == this->active_command_.type) {
     ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
-    const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_pending_;
+    const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_in_flight_;
     // This settles one expected reply; the rest stay owed and become the debt for the next command.
     this->send_generation_++;
     this->stale_ack_type_ = type;
@@ -603,7 +630,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->last_send_ms_ = 0;
     this->process_command_queue_();
     if (refresh_areas) {
-      this->area_write_pending_ = false;
+      this->area_write_in_flight_ = false;
       this->set_timeout(50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
     }
     return;
@@ -808,8 +835,13 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
 #endif
 }
 
+// 0x0A0A carries one uint32 per detection area -- the protocol names the four
+// fields detection_state_area0..3 -- so this covers area ids 4..7 only.  The
+// interference areas have no presence report: a target inside one is what they
+// exist to suppress.
 void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
-  if (len < 16)
+  const uint16_t needed = AREA_COUNT * AREA_PRESENCE_ENTRY_LEN;
+  if (len < needed)
     return;
 
   this->area_presence_any_ = false;
@@ -878,7 +910,7 @@ void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *dat
       this->update_area_numbers_(store);
     }
   }
-  this->try_apply_pending_area_();
+  this->try_apply_pending_area_(interference);
 }
 
 void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
@@ -1100,7 +1132,15 @@ void LD6002BComponent::process_command_queue_() {
           ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
         }
         if (this->active_command_.type == TYPE_SET_AREA) {
-          this->area_write_pending_ = false;
+          this->area_write_in_flight_ = false;
+        }
+        // The deferred apply is waiting on the report this command would have
+        // brought back, and nothing else re-arms it.  Dropping it here is the
+        // difference between one apply lost to a timeout and one that rides in on
+        // an unrelated area report later, writing bounds the user has moved on from.
+        if (active_control_command == CMD_GET_AREAS && this->deferred_apply_pending_) {
+          this->deferred_apply_pending_ = false;
+          ESP_LOGW(TAG, "Area read timed out, dropping deferred area apply");
         }
         // A reply may still be in flight for the attempt we just gave up on, so carry one over as
         // debt rather than clearing the ledger, or that late ACK would retire the successor. Only
@@ -1275,7 +1315,7 @@ void LD6002BComponent::apply_area_config_() {
 
   if (std::isnan(desired.x_min) || std::isnan(desired.x_max) || std::isnan(desired.y_min) ||
       std::isnan(desired.y_max) || std::isnan(desired.z_min) || std::isnan(desired.z_max)) {
-    this->pending_area_apply_ = true;
+    this->deferred_apply_pending_ = true;
     this->pending_area_id_ = this->area_id_;
     this->pending_area_updates_ = AreaConfig{};
     this->pending_area_updates_.x_min = this->area_x_min_;
@@ -1409,6 +1449,13 @@ void LD6002BComponent::update_area_numbers_for_id_(uint8_t area_id) {
 }
 
 void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
+  // One frame carries all three pairs and cannot express a crossed one; the module
+  // would keep a box nothing can ever be inside.  Both callers arrive with the six
+  // bounds resolved, so this is the last place that can say no.
+  if (desired.x_min > desired.x_max || desired.y_min > desired.y_max || desired.z_min > desired.z_max) {
+    ESP_LOGW(TAG, "Area %u not written, min above max", area_id);
+    return;
+  }
   uint8_t data[AREA_CONFIG_LEN];
   write_int32_le(data, static_cast<int32_t>(area_id));
   write_f32_le(data + 4, desired.x_min);
@@ -1419,7 +1466,7 @@ void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   write_f32_le(data + 24, desired.z_max);
 
   this->queue_command_(TYPE_SET_AREA, data, sizeof(data));
-  this->area_write_pending_ = true;
+  this->area_write_in_flight_ = true;
 
   const bool interference = area_id < AREA_COUNT;
   const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
@@ -1428,12 +1475,12 @@ void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   this->update_area_numbers_(store);
 }
 
-void LD6002BComponent::try_apply_pending_area_() {
-  if (!this->pending_area_apply_) {
+void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
+  if (!this->deferred_apply_pending_) {
     return;
   }
   if (this->pending_area_id_ > 7) {
-    this->pending_area_apply_ = false;
+    this->deferred_apply_pending_ = false;
     return;
   }
   const bool interference = this->pending_area_id_ < AREA_COUNT;
@@ -1456,11 +1503,18 @@ void LD6002BComponent::try_apply_pending_area_() {
 
   if (std::isnan(desired.x_min) || std::isnan(desired.x_max) || std::isnan(desired.y_min) ||
       std::isnan(desired.y_max) || std::isnan(desired.z_min) || std::isnan(desired.z_max)) {
+    // Only the report covering this area's half can still fill it in, and there is
+    // exactly one of those per read.  Once it has landed with a bound still unknown,
+    // nothing further is coming and waiting means waiting forever.
+    if (reported_interference == interference) {
+      this->deferred_apply_pending_ = false;
+      ESP_LOGW(TAG, "Dropping deferred area apply, area report incomplete");
+    }
     return;
   }
 
   const uint8_t area_id = this->pending_area_id_;
-  this->pending_area_apply_ = false;
+  this->deferred_apply_pending_ = false;
   this->queue_area_config_(area_id, desired);
 }
 
@@ -1624,6 +1678,8 @@ void LD6002BComponent::press_button(ButtonType type) {
       break;
     case ButtonType::AUTO_INTERFERENCE:
       this->send_control_command_(CMD_AUTO_INTERFERENCE);
+      // The module recomputes the interference areas without reporting them.
+      this->send_control_command_(CMD_GET_AREAS);
       break;
     case ButtonType::GET_AREAS:
       this->send_control_command_(CMD_GET_AREAS);

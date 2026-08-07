@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AREA_ID,
     CONF_ID,
     CONF_WAKEUP_PIN,
     ENTITY_CATEGORY_CONFIG,
@@ -88,7 +89,7 @@ def final_validate(config):
 
     if config.get(CONF_APPLY_AREA):
         has_area_id_select = any(
-            entry.get(CONF_LD6002B_ID) == hub_id and entry.get("area_id") is not None
+            entry.get(CONF_LD6002B_ID) == hub_id and entry.get(CONF_AREA_ID) is not None
             for entry in full_config.get("select", [])
         )
         if not has_area_id_select:
