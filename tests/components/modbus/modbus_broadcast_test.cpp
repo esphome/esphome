@@ -4,6 +4,7 @@
 #include <optional>
 #include <vector>
 
+#include "common.h"
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/core/hal.h"
 
@@ -29,50 +30,23 @@ class RecordingDevice : public ModbusServerDevice {
 };
 
 // A UART that records every byte written so the test can assert the hub sends no reply.
-class RecordingUART : public uart::UARTComponent {
+class RecordingUART : public testing::NullUART {
  public:
-  RecordingUART() { this->set_baud_rate(9600); }
-
   void write_array(const uint8_t *data, size_t len) override {
     this->written.insert(this->written.end(), data, data + len);
   }
-  bool peek_byte(uint8_t *data) override { return false; }
-  bool read_array(uint8_t *data, size_t len) override { return false; }
-  size_t available() override { return 0; }
-  uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS; }
-  void check_logger_conflict() override {}
-  // ESP32-only: naming the ESP8266 macro would grep this gtest file into that clang-tidy scan.
-#ifdef USE_ESP32
-  void load_settings(bool dump_config) override {}
-#endif
-
   std::vector<uint8_t> written;
 };
 
-// Exposes the protected client-frame entry point so a full broadcast frame can be routed in tests.
+// Drives full frames through the server hub's receive path in tests.
 class TestServerHub : public ModbusServerHub {
  public:
-  using ModbusServerHub::process_modbus_client_frame_;
-
   bool tx_blocked() override { return false; }
 
   void prime_send_timestamps_for_test() {
     uint32_t now = millis();
     this->last_modbus_byte_ = now;
     this->last_send_ = now;
-  }
-
-  bool process_full_client_frame_for_test(uint8_t address, uint8_t function_code, const uint8_t *pdu_data,
-                                          size_t pdu_data_len) {
-    this->rx_buffer_.clear();
-    this->rx_buffer_.reserve(pdu_data_len + 4);
-    this->rx_buffer_.push_back(address);
-    this->rx_buffer_.push_back(function_code);
-    this->rx_buffer_.insert(this->rx_buffer_.end(), pdu_data, pdu_data + pdu_data_len);
-    uint16_t crc = crc16(this->rx_buffer_.data(), this->rx_buffer_.size());
-    this->rx_buffer_.push_back(crc & 0xFF);
-    this->rx_buffer_.push_back(crc >> 8);
-    return this->parse_modbus_client_frame_();
   }
 
   // Builds a complete client frame (address + FC + pdu + CRC) and runs the full receive-side parser
@@ -96,8 +70,8 @@ class TestServerHub : public ModbusServerHub {
 }  // namespace
 
 // A broadcast (address 0) single-register write reaches every registered device and is not answered.
-// Driven through the full frame parser (process_full_client_frame_for_test) so the address-0 routing
-// layer -- frame length, CRC, and client-vs-broadcast dispatch -- is exercised, not just the handler below it.
+// Driven through the full receive parser (parse_modbus_frames) so the address-0 routing -- frame length,
+// CRC, and client-vs-broadcast dispatch -- is exercised, not just the handler below it.
 TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
   TestServerHub hub;
   RecordingUART uart;
@@ -110,7 +84,7 @@ TEST(ModbusBroadcast, SingleRegisterWriteReachesAllDevicesWithoutReply) {
 
   // FC 0x06 payload: start address 0x9D31, value 0x00A5 (big-endian, no address/CRC).
   const uint8_t pdu_data[] = {0x9D, 0x31, 0x00, 0xA5};
-  ASSERT_TRUE(hub.process_full_client_frame_for_test(
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
       BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER), pdu_data, sizeof(pdu_data)));
 
   for (RecordingDevice *device : {&device_a, &device_b}) {
@@ -233,8 +207,8 @@ TEST(ModbusBroadcast, UnicastOutOfRangeWriteSendsSingleExceptionFrame) {
 
   // FC 0x10 payload: start 0xFFFF, quantity 2, byte count 4, values valid but address range overflows.
   const uint8_t pdu_data[] = {0xFF, 0xFF, 0x00, 0x02, 0x04, 0x01, 0x02, 0x03, 0x04};
-  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
-                                                     pdu_data, sizeof(pdu_data)));
+  ASSERT_TRUE(hub.run_receive_parser_for_test(0x02, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS),
+                                              pdu_data, sizeof(pdu_data)));
 
   EXPECT_EQ(device.write_count, 0);
   ASSERT_EQ(uart.written.size(), 5u);
