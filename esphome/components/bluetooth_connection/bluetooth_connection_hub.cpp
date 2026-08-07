@@ -164,6 +164,9 @@ void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint1
 }
 
 void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
+  // Late completion for a freed slot; nothing to report.
+  if (this->address_ == 0)
+    return;
   if (error != 0) {
     this->log_gatt_operation_error_("reading char/descriptor", handle, error);
     this->proxy_->send_gatt_error(this->address_, handle, error);
@@ -182,6 +185,8 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
 }
 
 void BluetoothConnection::on_write_result(uint16_t handle, int error) {
+  if (this->address_ == 0)
+    return;
   if (error != 0) {
     this->log_gatt_operation_error_("writing char/descriptor", handle, error);
     this->proxy_->send_gatt_error(this->address_, handle, error);
@@ -199,6 +204,8 @@ void BluetoothConnection::on_write_result(uint16_t handle, int error) {
 }
 
 void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int error) {
+  if (this->address_ == 0)
+    return;
   if (error != 0) {
     this->log_gatt_operation_error_(enabled ? "registering notifications" : "unregistering notifications", handle,
                                     error);
@@ -217,6 +224,8 @@ void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int err
 }
 
 void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {
+  if (this->address_ == 0)
+    return;
   ESP_LOGV(TAG, "[%d] [%s] Notify: handle=0x%2X", this->connection_index_, this->address_str_, handle);
   auto *api_connection = this->proxy_->get_api_connection();
   if (api_connection == nullptr)
