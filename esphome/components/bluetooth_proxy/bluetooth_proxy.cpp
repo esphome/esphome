@@ -93,7 +93,10 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
 }
 
 void BluetoothProxy::send_bluetooth_scanner_state_() {
-  bool running = this->hub_->scan_running();
+  // One read feeds both the frame and the change detector; the detector only
+  // advances if the frame was accepted, so a dropped send (WOULD_BLOCK on a
+  // full TX buffer) is retried from loop() instead of leaving a stale state.
+  const bool running = this->hub_->scan_running();
   api::BluetoothScannerStateResponse resp;
   resp.state = running ? api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_RUNNING
                        : api::enums::BluetoothScannerState::BLUETOOTH_SCANNER_STATE_IDLE;
@@ -102,8 +105,6 @@ void BluetoothProxy::send_bluetooth_scanner_state_() {
   resp.configured_mode = this->configured_scan_active_
                              ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                              : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
-  // Latch only what actually went on the wire: on a backpressured send the
-  // change detector in loop() retries next tick instead of going stale.
   if (this->api_connection_->send_message(resp)) {
     this->last_scan_running_ = running;
   }
