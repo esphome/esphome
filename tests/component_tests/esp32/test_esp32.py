@@ -622,8 +622,8 @@ def test_reconcile_network_sdkconfig(
 @pytest.mark.parametrize(
     ("requires", "fatfs_required", "disables", "preset", "expected"),
     [
-        # No require_* calls, nothing disabled: the three VFS features default to enabled,
-        # FATFS is left untouched entirely.
+        # Nothing required and every disable_* flag off (NOT the shipped defaults, which
+        # disable everything): VFS enabled, FATFS left untouched entirely.
         pytest.param(
             {},
             False,
@@ -634,10 +634,10 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
-            id="defaults_enable_vfs_fatfs_untouched",
+            id="nothing_disabled_nothing_required",
         ),
-        # Everything disabled and nothing required: VFS off, FATFS falls back to the
-        # smallest footprint (8.3 names, one volume).
+        # The shipped out-of-the-box path: every disable_* flag defaults to True and nothing
+        # is required -- VFS off, FATFS at the smallest footprint (8.3 names, one volume).
         pytest.param(
             {},
             False,
@@ -715,6 +715,22 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
             id="fatfs_user_lfn_stack_untouched",
+        ),
+        # disable_fatfs (the shipped default) with a user LFN pick: the choice group is the
+        # user's -- no LFN_NONE=y written next to their member, only the volume fallback.
+        pytest.param(
+            {},
+            False,
+            (False, False, False, True),
+            {"CONFIG_FATFS_LFN_HEAP": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_HEAP": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 1,
+            },
+            id="disable_fatfs_user_lfn_untouched",
         ),
         # Same for an explicit LFN_NONE preset: the group is the user's, only the volume
         # count default is added.

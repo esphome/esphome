@@ -2285,19 +2285,21 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
     # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
     # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
+    lfn_keys = (
+        "CONFIG_FATFS_LFN_NONE",
+        "CONFIG_FATFS_LFN_HEAP",
+        "CONFIG_FATFS_LFN_STACK",
+    )
+    user_picked_lfn = any(k in opts for k in lfn_keys)
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        lfn_keys = (
-            "CONFIG_FATFS_LFN_NONE",
-            "CONFIG_FATFS_LFN_HEAP",
-            "CONFIG_FATFS_LFN_STACK",
-        )
-        if not any(k in opts for k in lfn_keys):
+        if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
