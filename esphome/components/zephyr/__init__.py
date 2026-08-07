@@ -1232,14 +1232,21 @@ def _upload_using_picotool() -> bool:
     """Upload Zephyr firmware to RP2040 in BOOTSEL mode using picotool."""
     import shutil
     import subprocess
+    import sys
     from pathlib import Path as _Path
 
-    from esphome.util import PICOTOOL_PACKAGE, detect_rp2040_bootsel
+    from esphome.util import (
+        PICOTOOL_PACKAGE,
+        detect_rp2040_bootsel,
+        is_picotool_usb_permission_error,
+    )
 
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
     pio_packages = _Path.home() / ".platformio" / "packages"
-    picotool = pio_packages / PICOTOOL_PACKAGE / "picotool"
+    picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
     if not picotool.is_file():
-        picotool = _Path(shutil.which("picotool") or "")
+        picotool = _Path(shutil.which(binary_name) or "")
+
     if not picotool or not picotool.is_file():
         _LOGGER.error(
             "picotool not found. Install it via PlatformIO (rp2040 platform) "
@@ -1258,14 +1265,36 @@ def _upload_using_picotool() -> bool:
         return False
 
     _LOGGER.info("Uploading Zephyr firmware to RP2040 via picotool...")
-    result = subprocess.run(
-        [str(picotool), "load", "-x", str(elf)],
-        stderr=subprocess.PIPE,
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [str(picotool), "load", "-x", str(elf)],
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _LOGGER.error("picotool upload timed out after 60 seconds.")
+        return False
+    except OSError as err:
+        _LOGGER.error("Failed to run picotool: %s", err)
+        return False
+
     if result.returncode != 0:
-        _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        if stderr:
+            for line in stderr.splitlines():
+                _LOGGER.error("picotool: %s", line)
+        if is_picotool_usb_permission_error(stderr):
+            msg = "Permission denied accessing USB device."
+            if sys.platform.startswith("linux"):
+                from esphome.__main__ import _RP2040_UDEV_HINT
+
+                msg += f" {_RP2040_UDEV_HINT}"
+            _LOGGER.error(msg)
+        else:
+            _LOGGER.error(
+                "picotool upload failed (exit code %d).", result.returncode
+            )
         return False
     return True
 

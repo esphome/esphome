@@ -349,16 +349,23 @@ def choose_upload_log_host(
 
     # Add RP2040 BOOTSEL device option when uploading
     bootsel_permission_error = False
-    if purpose == Purpose.UPLOADING and (
-        picotool := (
-            (_find_picotool() if CORE.is_rp2 else None)
-            or (
-                _find_picotool_zephyr()
-                if (CORE.is_zephyr and CORE.data.get("zephyr", {}).get("variant") == "RP2040")
-                else None
+    if (
+        purpose == Purpose.UPLOADING
+        and (
+            picotool := (
+                (_find_picotool() if CORE.is_rp2 else None)
+                or (
+                    _find_picotool_zephyr()
+                    if (
+                        CORE.is_zephyr
+                        and CORE.data.get("zephyr", {}).get("variant") == "RP2040"
+                    )
+                    else None
+                )
             )
         )
-    ) is not None:
+        is not None
+    ):
         bootsel = detect_rp2040_bootsel(picotool)
         if bootsel.device_count > 0:
             options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
@@ -403,7 +410,13 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and (CORE.is_rp2 or (CORE.is_zephyr and CORE.data.get("zephyr", {}).get("variant") == "RP2040"))
+        and (
+            CORE.is_rp2
+            or (
+                CORE.is_zephyr
+                and CORE.data.get("zephyr", {}).get("variant") == "RP2040"
+            )
+        )
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -1034,13 +1047,15 @@ def _find_picotool() -> Path | None:
 
 def _find_picotool_zephyr() -> Path | None:
     """Find picotool without PlatformIO — looks in the global packages dir."""
+    import sys
     from pathlib import Path as P
 
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
     pio_packages = P.home() / ".platformio" / "packages"
-    picotool = pio_packages / PICOTOOL_PACKAGE / "picotool"
+    picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
     if picotool.is_file():
         return picotool
-    return Path("picotool") if shutil.which("picotool") else None
+    return P(binary_name) if shutil.which(binary_name) else None
 
 
 def upload_using_picotool(config: ConfigType) -> int:
