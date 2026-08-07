@@ -624,6 +624,75 @@ StorageError write_file(PathStorage *storage, const char *path, const uint8_t *d
   }
 }
 
+StorageError append_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError err = check_blocking_transfer_size(size);
+  if (err != StorageError::OK)
+    return err;
+
+  FileHandle *handle = nullptr;
+  err = storage->open(path, handle, OpenMode::APPEND);
+  if (err != StorageError::OK)
+    return err;
+
+  size_t total_written = 0;
+  while (total_written < size) {
+    size_t bytes_transferred = 0;
+    err = storage->write(handle, data + total_written, size - total_written, &bytes_transferred);
+    if (err != StorageError::OK) {
+      storage->close(handle);
+      return err;
+    }
+    if (bytes_transferred == 0) {
+      storage->close(handle);
+      return StorageError::WRITE_ERROR;
+    }
+    total_written += bytes_transferred;
+    App.feed_wdt();
+  }
+  // Close errors must surface: FATFS-backed drivers flush on close (see copy()'s contract).
+  return storage->close(handle);
+}
+StorageError append_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError size_check = check_blocking_transfer_size(size);
+  if (size_check != StorageError::OK)
+    return size_check;
+
+  // write_chunk() addresses by explicit offset, so appending is stat-for-size + writing at EOF.
+  // A missing file starts at offset 0 (created by the write).
+  uint64_t offset = 0;
+  FileStat st{};
+  StorageError err = storage->stat(path, &st);
+  if (err == StorageError::OK) {
+    offset = st.size;
+  } else if (err != StorageError::NOT_FOUND) {
+    return err;
+  }
+
+  size_t total_written = 0;
+  while (total_written < size) {
+    size_t bytes_transferred = 0;
+    err = storage->write_chunk(path, data + total_written, offset + total_written, size - total_written,
+                               &bytes_transferred);
+    if (err != StorageError::OK)
+      return err;
+    if (bytes_transferred == 0)
+      return StorageError::WRITE_ERROR;
+    total_written += bytes_transferred;
+    App.feed_wdt();
+  }
+  return StorageError::OK;
+}
+StorageError append_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return append_file(static_cast<FilesystemStorage *>(storage), path, data, size);
+    case StorageType::NETWORK:
+      return append_file(static_cast<NetworkStorage *>(storage), path, data, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
+}
+
 // The bytes of one file, given a chunk buffer to borrow. Split out of copy() so a directory
 // walk can reuse the same buffer for every file instead of allocating one per entry.
 static StorageError copy_one_file(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage,
