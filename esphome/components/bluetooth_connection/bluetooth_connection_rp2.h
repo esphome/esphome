@@ -164,6 +164,7 @@ class RP2GattClient final : public Component,
   // Group 3: 4-byte types
   uint32_t connect_started_{0};
   uint32_t disconnecting_started_{0};
+  uint32_t wnr_deferred_at_{0};
 
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)

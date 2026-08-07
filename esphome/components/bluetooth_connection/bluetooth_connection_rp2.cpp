@@ -24,6 +24,7 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
 static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
+static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 10000;
 
 // HCI "connection timeout" reason, reported when a teardown had to be forced.
 static constexpr uint8_t HCI_REASON_CONNECTION_TIMEOUT = 0x08;
@@ -402,6 +403,16 @@ void RP2GattClient::loop() {
       ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
+  } else if (this->state_ == EngineState::READY && this->op_type_ == OpType::WRITE_CHAR_NO_RSP &&
+             millis() - this->wnr_deferred_at_ > WRITE_NO_RSP_TIMEOUT_MS) {
+    // The can-send window never opened; report instead of hanging the op slot.
+    {
+      BluetoothLock lock;
+      this->op_type_ = OpType::NONE;
+    }
+    if (this->listener_ != nullptr) {
+      this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
+    }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
                                                    this->event_queue_.empty() && this->notify_queue_.empty())) {
     // Nothing pending: the enqueue path re-arms the loop from any context.
@@ -563,7 +574,7 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
   // this BTstack emits no QUERY_COMPLETE (the MTU state machine is separate
   // from the query state machine). Completions with nothing in flight are
   // dropped below.
-  if (this->op_type_ != OpType::NONE) {
+  if (this->op_type_ != OpType::NONE && this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
     OpType op = this->op_type_;
     this->op_type_ = OpType::NONE;
     if (this->listener_ == nullptr) {
@@ -920,6 +931,7 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
         this->op_type_ = OpType::WRITE_CHAR_NO_RSP;
         this->op_handle_ = handle;
         this->op_len_ = len;
+        this->wnr_deferred_at_ = millis();
         this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
         this->can_write_registration_.context = this;
         uint8_t req = gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
