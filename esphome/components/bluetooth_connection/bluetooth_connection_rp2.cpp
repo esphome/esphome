@@ -176,17 +176,11 @@ void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t 
     case GATT_EVENT_ALL_CHARACTERISTIC_DESCRIPTORS_QUERY_RESULT:
       con_handle = gatt_event_all_characteristic_descriptors_query_result_get_handle(packet);
       break;
-    case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-      con_handle = gatt_event_characteristic_value_query_result_get_handle(packet);
-      break;
     case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
       con_handle = gatt_event_long_characteristic_value_query_result_get_handle(packet);
       break;
     case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
       con_handle = gatt_event_long_characteristic_descriptor_query_result_get_handle(packet);
-      break;
-    case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
-      con_handle = gatt_event_characteristic_descriptor_query_result_get_handle(packet);
       break;
     case GATT_EVENT_NOTIFICATION:
       con_handle = gatt_event_notification_get_handle(packet);
@@ -269,15 +263,6 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       this->desc_count_++;
       break;
     }
-    case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT: {
-      uint16_t len = gatt_event_characteristic_value_query_result_get_value_length(packet);
-      if (len > RP2_GATT_MAX_ATTR_LEN) {
-        len = RP2_GATT_MAX_ATTR_LEN;
-      }
-      memcpy(this->op_buffer_, gatt_event_characteristic_value_query_result_get_value(packet), len);
-      this->op_len_ = len;
-      break;
-    }
     case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT: {
       // One blob per event at value_offset; assemble into the op buffer.
       uint16_t offset = gatt_event_long_characteristic_value_query_result_get_value_offset(packet);
@@ -308,15 +293,6 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       if (offset + len > this->op_len_) {
         this->op_len_ = offset + len;
       }
-      break;
-    }
-    case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
-      uint16_t len = gatt_event_characteristic_descriptor_query_result_get_descriptor_length(packet);
-      if (len > RP2_GATT_MAX_ATTR_LEN) {
-        len = RP2_GATT_MAX_ATTR_LEN;
-      }
-      memcpy(this->op_buffer_, gatt_event_characteristic_descriptor_query_result_get_descriptor(packet), len);
-      this->op_len_ = len;
       break;
     }
     case GATT_EVENT_NOTIFICATION:
@@ -599,7 +575,8 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
         // A value that is an exact multiple of MTU - 1 ends with a trailing
         // blob request some peers refuse with INVALID_OFFSET; the read is
         // complete, not failed.
-        if (att_status == ATT_ERROR_INVALID_OFFSET && this->op_len_ > 0) {
+        if ((att_status == ATT_ERROR_INVALID_OFFSET || att_status == ATT_ERROR_ATTRIBUTE_NOT_LONG) &&
+            this->op_len_ > 0) {
           att_status = 0;
         }
         this->listener_->on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
@@ -925,6 +902,10 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
     uint8_t status;
     {
       BluetoothLock lock;
+      if (this->op_type_ == OpType::WRITE_CHAR_NO_RSP) {
+        // A deferred write is parked; sending now would overtake it.
+        return GATT_CLIENT_BUSY;
+      }
       status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, handle, len,
                                                                           const_cast<uint8_t *>(data));
       if (status == GATT_CLIENT_BUSY) {
