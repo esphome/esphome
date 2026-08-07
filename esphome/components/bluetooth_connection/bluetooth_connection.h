@@ -129,11 +129,8 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 /// Result of close_service_batch: keep filling the batch or send it now.
-/// A single service too large for the budget is packed alone into an
-/// oversized batch; on a failed (backpressured) send the callers rewind to
-/// the batch start, so the identical batch is rebuilt and retried -- no
-/// service is ever silently skipped. A send that can never succeed means the
-/// API connection is gone, which ends streaming through the api-lost sweep.
+/// An oversized service is packed alone; a failed (backpressured) send is
+/// retried from the batch start, so no service is silently skipped.
 enum class BatchClose : uint8_t { CONTINUE, SEND };
 
 /// Close out the service just packed into resp (account its actual wire size,

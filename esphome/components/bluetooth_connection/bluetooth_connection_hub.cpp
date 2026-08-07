@@ -87,8 +87,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     // and the api-gone sweep or a new reservation owns the slot now.
     int err = this->backend_->disconnect();
     if (err != 0 && err != GATT_NOT_CONNECTED) {
-      // No state to re-arm: the slot no longer owns the link, so just make
-      // the refused close visible instead of silently orphaning the link.
+      // The slot no longer owns the link; surface the refused close.
       ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
     }
     return;
@@ -123,8 +122,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     int err = this->backend_->discover_services();
     if (err != 0) {
       ESP_LOGW(TAG, "[%d] [%s] discover_services failed, err=%d", this->connection_index_, this->address_str_, err);
-      // Latch the real cause so the disconnect report carries it instead of
-      // a generic HCI reason (same as the on_service_discovery_done path).
+      // Latch the real cause for the disconnect report.
       this->pending_error_ = err;
       this->disconnect();
     }
