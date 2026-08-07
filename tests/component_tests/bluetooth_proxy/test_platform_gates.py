@@ -19,9 +19,10 @@ from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
 
+# Advertisement-only hub platforms; rp2 runs the full proxy and has its own
+# tests below.
 HUB_PLATFORM_FRAMEWORKS = [
     PlatformFramework.LN882X_ARDUINO,
-    PlatformFramework.RP2_ARDUINO,
 ]
 
 HUB_TRACKERS = {
@@ -45,10 +46,11 @@ def _register_tracker(platform: str) -> None:
 
 def test_hub_parametrization_covers_every_hub_platform() -> None:
     # A platform added to _HUB_PLATFORMS without an entry here would silently
-    # get no gate coverage.
-    assert {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS} == set(
-        bluetooth_proxy._HUB_PLATFORMS
+    # get no gate coverage; GATT platforms are covered by their own tests.
+    advertisement_only = set(bluetooth_proxy._HUB_PLATFORMS) - set(
+        bluetooth_connection.HUB_MAX_CONNECTIONS
     )
+    assert {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS} == advertisement_only
     assert set(HUB_TRACKERS) == set(bluetooth_proxy._HUB_PLATFORMS)
 
 
@@ -126,7 +128,8 @@ def test_hub_platform_accepts_the_advertisement_only_shape(
 def test_rp2_defaults_to_the_full_proxy() -> None:
     # esp32 parity: active defaults to true, with the platform's slot limit,
     # and one populated connection entry for the codegen to index.
-    _set_hub_platform("rp2", "rp2_ble_tracker")
+    _set_platform("rp2")
+    _register_tracker(PLATFORM_RP2)
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is True
     assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 1
@@ -134,7 +137,8 @@ def test_rp2_defaults_to_the_full_proxy() -> None:
 
 
 def test_rp2_accepts_explicit_passive() -> None:
-    _set_hub_platform("rp2", "rp2_ble_tracker")
+    _set_platform("rp2")
+    _register_tracker(PLATFORM_RP2)
     validated = bluetooth_proxy.CONFIG_SCHEMA({CONF_ACTIVE: False})
     assert validated[CONF_ACTIVE] is False
     assert bluetooth_proxy.CONF_CONNECTIONS not in validated
@@ -142,7 +146,8 @@ def test_rp2_accepts_explicit_passive() -> None:
 
 def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
     # The prebuilt BTstack library allows exactly one GATT client connection.
-    _set_hub_platform("rp2", "rp2_ble_tracker")
+    _set_platform("rp2")
+    _register_tracker(PLATFORM_RP2)
     with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
         bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
     # Values past even the loosest platform cap stop at the outer walkable
@@ -153,7 +158,8 @@ def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
 
 
 def test_rp2_rejects_esp32_only_keys_by_name() -> None:
-    _set_hub_platform("rp2", "rp2_ble_tracker")
+    _set_platform("rp2")
+    _register_tracker(PLATFORM_RP2)
     with pytest.raises(cv.Invalid, match="'cache_services' is esp32-only"):
         bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
     with pytest.raises(cv.Invalid, match="'connections' has no per-connection options"):
