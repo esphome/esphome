@@ -12,11 +12,18 @@ from esphome.const import (
 
 from . import LD6002BComponent
 from .const import (
+    AREA_COUNT,
     CONF_CLUSTER_ID,
     CONF_DOPPLER_INDEX,
     CONF_LD6002B_ID,
     CONF_POINT_COUNT,
     CONF_Z,
+    CONF_Z_MAX,
+    CONF_Z_MIN,
+    KEY_X_MAX,
+    KEY_X_MIN,
+    KEY_Y_MAX,
+    KEY_Y_MIN,
     MAX_TARGETS,
 )
 
@@ -68,20 +75,69 @@ TARGET_SCHEMA = cv.Schema(
     }
 )
 
-
-CONFIG_SCHEMA = cv.Schema(
+AREA_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-        cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
-            accuracy_decimals=0,
+        cv.Optional(KEY_X_MIN): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
-            accuracy_decimals=0,
+        cv.Optional(KEY_X_MAX): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(KEY_Y_MIN): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(KEY_Y_MAX): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_Z_MIN): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_Z_MAX): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_DISTANCE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
-).extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
+)
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
+            cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+        }
+    )
+    .extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
+    .extend(
+        {cv.Optional(f"interference_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
+    )
+    .extend(
+        {cv.Optional(f"detection_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
+    )
+)
 
 
 async def to_code(config):
@@ -112,3 +168,45 @@ async def to_code(config):
             if cluster_id_config := target_config.get(CONF_CLUSTER_ID):
                 sens = await sensor.new_sensor(cluster_id_config)
                 cg.add(hub.set_target_cluster_id_sensor(i, sens))
+
+    for i in range(AREA_COUNT):
+        if area_config := config.get(f"interference_area_{i}"):
+            if x_min_config := area_config.get(KEY_X_MIN):
+                sens = await sensor.new_sensor(x_min_config)
+                cg.add(hub.set_interference_area_x_min_sensor(i, sens))
+            if x_max_config := area_config.get(KEY_X_MAX):
+                sens = await sensor.new_sensor(x_max_config)
+                cg.add(hub.set_interference_area_x_max_sensor(i, sens))
+            if y_min_config := area_config.get(KEY_Y_MIN):
+                sens = await sensor.new_sensor(y_min_config)
+                cg.add(hub.set_interference_area_y_min_sensor(i, sens))
+            if y_max_config := area_config.get(KEY_Y_MAX):
+                sens = await sensor.new_sensor(y_max_config)
+                cg.add(hub.set_interference_area_y_max_sensor(i, sens))
+            if z_min_config := area_config.get(CONF_Z_MIN):
+                sens = await sensor.new_sensor(z_min_config)
+                cg.add(hub.set_interference_area_z_min_sensor(i, sens))
+            if z_max_config := area_config.get(CONF_Z_MAX):
+                sens = await sensor.new_sensor(z_max_config)
+                cg.add(hub.set_interference_area_z_max_sensor(i, sens))
+
+    for i in range(AREA_COUNT):
+        if area_config := config.get(f"detection_area_{i}"):
+            if x_min_config := area_config.get(KEY_X_MIN):
+                sens = await sensor.new_sensor(x_min_config)
+                cg.add(hub.set_detection_area_x_min_sensor(i, sens))
+            if x_max_config := area_config.get(KEY_X_MAX):
+                sens = await sensor.new_sensor(x_max_config)
+                cg.add(hub.set_detection_area_x_max_sensor(i, sens))
+            if y_min_config := area_config.get(KEY_Y_MIN):
+                sens = await sensor.new_sensor(y_min_config)
+                cg.add(hub.set_detection_area_y_min_sensor(i, sens))
+            if y_max_config := area_config.get(KEY_Y_MAX):
+                sens = await sensor.new_sensor(y_max_config)
+                cg.add(hub.set_detection_area_y_max_sensor(i, sens))
+            if z_min_config := area_config.get(CONF_Z_MIN):
+                sens = await sensor.new_sensor(z_min_config)
+                cg.add(hub.set_detection_area_z_min_sensor(i, sens))
+            if z_max_config := area_config.get(CONF_Z_MAX):
+                sens = await sensor.new_sensor(z_max_config)
+                cg.add(hub.set_detection_area_z_max_sensor(i, sens))
