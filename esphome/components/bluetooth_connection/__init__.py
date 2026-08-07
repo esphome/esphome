@@ -25,14 +25,12 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
-# Connection-slot limit of the rp2 BTstack backend. The prebuilt BTstack
-# library in arduino-pico is compiled with MAX_NR_GATT_CLIENTS 1, so exactly
-# one concurrent GATT connection exists; raising this requires an upstream
-# arduino-pico change. The layer itself is built for N connections.
+# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1;
+# raising this needs an upstream change (the layer itself supports N).
 RP2_MAX_CONNECTIONS = 1
 
-# Hub platforms with a GATT connection backend, mapped to their slot limit —
-# the single registry of "which hub platforms run the full proxy".
+# Hub platforms with a GATT backend, mapped to their slot limit — the single
+# registry of which hub platforms run the full proxy.
 HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
 
 # The hub-platform wrapper and the rp2 BTstack backend codegen classes.
