@@ -2,7 +2,7 @@ import functools
 import logging
 
 import esphome.codegen as cg
-from esphome.components import ble_device_base
+from esphome.components import ble_device_base, bluetooth_connection
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
 from esphome.core import CORE
@@ -27,13 +27,18 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     target platform set, so it takes one of the concrete branches.
     """
     if CORE.is_esp32:
-        return ["esp32_ble_client", "esp32_ble_tracker"]
+        return ["bluetooth_connection", "esp32_ble_client", "esp32_ble_tracker"]
     if CORE.target_platform in _HUB_PLATFORMS:
-        return ["ble_device_base"]
+        return ["ble_device_base", "bluetooth_connection"]
     # No target platform, or one this component does not support: tooling
     # resolving the manifest (including the host-pinned dependency resolver) —
     # expose every arm so the closure keeps the esp32 BLE stack.
-    return ["ble_device_base", "esp32_ble_client", "esp32_ble_tracker"]
+    return [
+        "ble_device_base",
+        "bluetooth_connection",
+        "esp32_ble_client",
+        "esp32_ble_tracker",
+    ]
 
 
 # Platforms with an in-tree ble_device_base BLE tracker hub whose controller
@@ -67,7 +72,7 @@ _IDF_MAX_CONNECTIONS = 9
 @functools.cache
 def _esp32_config_schema() -> cv.All:
     """Build the esp32 schema, importing the esp32 BLE stack only when used."""
-    from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+    from esphome.components import esp32_ble, esp32_ble_tracker
 
     if esp32_ble.IDF_MAX_CONNECTIONS != _IDF_MAX_CONNECTIONS:
         raise cv.Invalid(
@@ -77,9 +82,7 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    BluetoothConnection = bluetooth_proxy_ns.class_(
-        "BluetoothConnection", esp32_ble_client.BLEClientBase
-    )
+    BluetoothConnection = bluetooth_connection.esp32_connection_class()
     CONNECTION_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(BluetoothConnection),
