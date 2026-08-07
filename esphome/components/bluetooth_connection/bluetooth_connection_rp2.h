@@ -46,10 +46,11 @@ static constexpr uint16_t RP2_GATT_MAX_ATTR_LEN = 512;
 // Control events from the BTstack handlers to loop().
 struct RP2GattEvent {
   enum Type : uint8_t {
-    CONNECTED,       // status + con_handle (value)
-    DISCONNECTED,    // status = HCI reason
-    MTU_EXCHANGED,   // value = negotiated MTU
-    QUERY_COMPLETE,  // status = ATT status of the finished query
+    CONNECTED,          // status + con_handle (value)
+    DISCONNECTED,       // status = HCI reason
+    MTU_EXCHANGED,      // value = negotiated MTU
+    QUERY_COMPLETE,     // status = ATT status of the finished query
+    WRITE_NO_RSP_DONE,  // status = result of the deferred write
   };
   Type type;
   uint8_t status;
@@ -106,7 +107,7 @@ class RP2GattClient final : public Component,
 
   enum class DiscoveryPhase : uint8_t { NONE, SERVICES, CHARACTERISTICS, DESCRIPTORS };
 
-  enum class OpType : uint8_t { NONE, READ_CHAR, WRITE_CHAR, READ_DESC, WRITE_DESC };
+  enum class OpType : uint8_t { NONE, READ_CHAR, WRITE_CHAR, WRITE_CHAR_NO_RSP, READ_DESC, WRITE_DESC };
 
   // The whole table in one transient allocation (RAMAllocator, checked),
   // freed after streaming.
@@ -124,6 +125,7 @@ class RP2GattClient final : public Component,
   void handle_gatt_event_irq_(uint8_t event_type, const uint8_t *packet);
   void enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value);
   void enqueue_notify_irq_(uint16_t handle, const uint8_t *data, uint16_t len);
+  void assemble_blob_irq_(uint16_t offset, const uint8_t *data, uint16_t len);
 
   // Main-loop state machine.
   void handle_event_(const RP2GattEvent &event);
@@ -137,6 +139,8 @@ class RP2GattClient final : public Component,
   void fail_connection_(uint8_t reason);
   void cleanup_link_state_();
   bool notify_subscribed_(uint16_t handle) const;
+  static void can_write_no_rsp_trampoline(void *context);
+  void finish_write_no_rsp_(uint8_t status);
   void release_scan_inhibit_();
   bool op_in_flight_() const {
     return this->op_type_ != OpType::NONE || this->discovery_phase_ != DiscoveryPhase::NONE;
@@ -156,10 +160,12 @@ class RP2GattClient final : public Component,
 
   // BTstack registrations
   gatt_client_notification_t notification_registration_{};
+  btstack_context_callback_registration_t can_write_registration_{};
 
   // Group 3: 4-byte types
   uint32_t connect_started_{0};
   uint32_t disconnecting_started_{0};
+  uint32_t write_no_rsp_started_{0};
 
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
