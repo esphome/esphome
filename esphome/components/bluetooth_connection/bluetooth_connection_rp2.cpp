@@ -397,7 +397,7 @@ void RP2GattClient::loop() {
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
   } else if (this->state_ == EngineState::READY && this->op_type_ == OpType::WRITE_CHAR_NO_RSP &&
-             millis() - this->wnr_deferred_at_ > WRITE_NO_RSP_TIMEOUT_MS) {
+             millis() - this->write_no_rsp_started_ > WRITE_NO_RSP_TIMEOUT_MS) {
     // The can-send window never opened; report instead of hanging the op slot.
     bool timed_out = false;
     {
@@ -932,7 +932,7 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
         this->op_type_ = OpType::WRITE_CHAR_NO_RSP;
         this->op_handle_ = handle;
         this->op_len_ = len;
-        this->wnr_deferred_at_ = millis();
+        this->write_no_rsp_started_ = millis();
         this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
         this->can_write_registration_.context = this;
         uint8_t req = gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
