@@ -389,6 +389,14 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
       conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
+      if (ret == CONN_OK) {
+        // The bond is gone; a live connection must not short-circuit the
+        // next PAIR as already paired.
+        auto *connection = this->get_connection_(msg.address, false);
+        if (connection != nullptr) {
+          connection->set_unpaired();
+        }
+      }
       this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
       break;
     }

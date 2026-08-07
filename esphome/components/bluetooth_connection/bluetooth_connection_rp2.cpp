@@ -168,6 +168,8 @@ void RP2GattClient::sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *p
   switch (hci_event_packet_get_type(packet)) {
     case SM_EVENT_JUST_WORKS_REQUEST:
       // Confirming from the SM callback is the intended BTstack pattern.
+      // Unscoped on purpose: no peripheral role exists in-tree, and scoping
+      // would drop a request racing the queued CONNECTED event.
       sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
       break;
     case SM_EVENT_PAIRING_COMPLETE: {
@@ -1067,22 +1069,6 @@ int RP2GattClient::pair() {
   return 0;
 }
 
-conn_err_t unpair_device(uint64_t address) {
-  uint8_t mac[6];
-  ble_device_base::uint64_to_mac_msb_first(address, mac);
-  BluetoothLock lock;
-  for (int i = 0; i < le_device_db_max_count(); i++) {
-    int addr_type = 0;
-    bd_addr_t addr;
-    le_device_db_info(i, &addr_type, addr, nullptr);
-    if (addr_type != BD_ADDR_TYPE_UNKNOWN && memcmp(addr, mac, sizeof(bd_addr_t)) == 0) {
-      le_device_db_remove(i);
-      return CONN_OK;
-    }
-  }
-  return GATT_NOT_CONNECTED;
-}
-
 int RP2GattClient::notify_characteristic(uint16_t handle, bool enable) {
   if (this->state_ != EngineState::READY) {
     return GATT_ERR_NOT_CONNECTED;
@@ -1126,6 +1112,22 @@ int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_
   }
   BluetoothLock lock;
   return gap_update_connection_parameters(this->con_handle_, min_interval, max_interval, latency, timeout);
+}
+
+conn_err_t unpair_device(uint64_t address) {
+  uint8_t mac[6];
+  ble_device_base::uint64_to_mac_msb_first(address, mac);
+  BluetoothLock lock;
+  for (int i = 0; i < le_device_db_max_count(); i++) {
+    int addr_type = 0;
+    bd_addr_t addr;
+    le_device_db_info(i, &addr_type, addr, nullptr);
+    if (addr_type != BD_ADDR_TYPE_UNKNOWN && memcmp(addr, mac, sizeof(bd_addr_t)) == 0) {
+      le_device_db_remove(i);
+      return CONN_OK;
+    }
+  }
+  return GATT_NOT_CONNECTED;
 }
 
 }  // namespace esphome::bluetooth_connection

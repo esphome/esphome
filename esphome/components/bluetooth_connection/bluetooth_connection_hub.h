@@ -50,6 +50,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   }
   void disconnect();
   bool is_paired() const { return this->paired_; }
+  void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
   // A backend disconnect() is a single call that also cancels an in-progress
   // connect; there is no deferred-disconnect state to track.
