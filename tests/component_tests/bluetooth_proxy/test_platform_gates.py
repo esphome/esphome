@@ -5,7 +5,7 @@ advertisement-only arm applies its own defaults."""
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import bluetooth_proxy
+from esphome.components import bluetooth_connection, bluetooth_proxy
 from esphome.const import (
     CONF_ACTIVE,
     KEY_CORE,
@@ -21,6 +21,11 @@ HUB_PLATFORM_FRAMEWORKS = [
     PlatformFramework.LN882X_ARDUINO,
     PlatformFramework.RP2_ARDUINO,
 ]
+
+
+def _set_platform(platform: str | None) -> None:
+    # For arms set_core_config cannot express (bare platform, no framework).
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
 
 
 def test_ble_less_platform_gets_the_real_reason(
@@ -90,3 +95,17 @@ def test_hub_platform_accepts_the_advertisement_only_shape(
     set_core_config(platform_framework)
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is False
+
+
+def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
+    # The esp32 connection header includes esp32_ble_client; the auto load
+    # must satisfy that closure itself (regression: it once relied on the
+    # consumer's auto loads).
+    _set_platform("esp32")
+    assert "esp32_ble_client" in bluetooth_connection.AUTO_LOAD()
+    _set_platform("rp2")
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
+    # No target platform (tooling resolving the manifest): the union, so
+    # dependency closures stay complete for build_codeowners and friends.
+    _set_platform(None)
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_client"]

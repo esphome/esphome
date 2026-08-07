@@ -13,13 +13,13 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-#include "esphome/components/ble_device_base/ble_client_state.h"
+#include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#include "bluetooth_connection.h"
+#include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
@@ -31,23 +31,16 @@
 
 namespace esphome::bluetooth_proxy {
 
-// Proxy-owned error type for the API error fields, which are plain integers on
-// the wire. Aliases esp_err_t on esp32 (where the values come from IDF calls);
-// a bare int elsewhere. Owning the name instead of probing for esp_err_t keeps
-// the header independent of how a hub platform's SDK spells its error type.
-#ifdef USE_ESP32
-using proxy_err_t = esp_err_t;
-static constexpr proxy_err_t PROXY_OK = ESP_OK;
-#else
-using proxy_err_t = int;
-static constexpr proxy_err_t PROXY_OK = 0;
-#endif
-
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_CONNECTED;
-static constexpr int DONE_SENDING_SERVICES = -2;
-static constexpr int INIT_SENDING_SERVICES = -3;
+// The connection-domain types live in the bluetooth_connection component;
+// re-exported here so the proxy code reads unqualified.
+using bluetooth_connection::CONN_OK;
+using bluetooth_connection::conn_err_t;
+using bluetooth_connection::DONE_SENDING_SERVICES;
+using bluetooth_connection::GATT_NOT_CONNECTED;
+using bluetooth_connection::INIT_SENDING_SERVICES;
 
 #ifdef USE_ESP32
+using BluetoothConnection = bluetooth_connection::BluetoothConnection;
 using namespace esp32_ble_client;
 #endif
 
@@ -79,7 +72,8 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
                              public esp32_ble_tracker::BLEScannerStateListener,
                              public Component {
-  friend class BluetoothConnection;  // Allow connection to update connections_free_response_
+  // Allow the connection to update connections_free_response_
+  friend bluetooth_connection::BluetoothConnection;
 #else
 class BluetoothProxy final : public Component {
 #endif
@@ -129,14 +123,14 @@ class BluetoothProxy final : public Component {
   void unsubscribe_api_connection(api::APIConnection *api_connection);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, proxy_err_t error = PROXY_OK);
+  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
   void send_gatt_services_done(uint64_t address);
-  void send_gatt_error(uint64_t address, uint16_t handle, proxy_err_t error);
-  void send_device_pairing(uint64_t address, bool paired, proxy_err_t error = PROXY_OK);
-  void send_device_unpairing(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
-  void send_device_clear_cache(uint64_t address, bool success, proxy_err_t error = PROXY_OK);
+  void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+  void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
+  void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
+  void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
 
   void bluetooth_scanner_set_mode(bool active);
 
