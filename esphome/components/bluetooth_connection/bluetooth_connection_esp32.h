@@ -1,12 +1,18 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 
-namespace esphome::bluetooth_proxy {
+#include "bluetooth_connection.h"
 
+namespace esphome::bluetooth_proxy {
 class BluetoothProxy;
+}  // namespace esphome::bluetooth_proxy
+
+namespace esphome::bluetooth_connection {
 
 class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
  public:
@@ -31,7 +37,7 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
   void set_address(uint64_t address) override;
 
  protected:
-  friend class BluetoothProxy;
+  friend class bluetooth_proxy::BluetoothProxy;
 
   void on_disconnect_complete(esp_err_t reason) override;
 
@@ -47,16 +53,16 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
-  BluetoothProxy *proxy_;
+  bluetooth_proxy::BluetoothProxy *proxy_;
 
   // Group 2: 2-byte types
-  int16_t send_service_{-3};  // -3 = INIT_SENDING_SERVICES, -2 = DONE_SENDING_SERVICES, >=0 = service index
+  int16_t send_service_{INIT_SENDING_SERVICES};  // see bluetooth_connection.h cursor states
 
   // Group 3: 1-byte types
   bool seen_mtu_or_services_{false};
   // 1 byte used, 1 byte padding
 };
 
-}  // namespace esphome::bluetooth_proxy
+}  // namespace esphome::bluetooth_connection
 
 #endif  // USE_ESP32
