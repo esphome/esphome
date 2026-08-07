@@ -5,7 +5,8 @@ namespace esphome::epaper_spi {
 
 /**
  * Waveshare (B) series BWR e-paper displays using SSD1680-compatible controllers.
- * Waveshare uses 0=red, 1=no-red, the inverse of EPaperWeAct3C
+ * Adds the soft reset the controller expects after a hardware reset. Red plane polarity
+ * varies between panels in this series and is set per model via set_invert_red().
  */
 class EpaperWaveshareB : public EPaperWeAct3C {
  public:
@@ -13,7 +14,6 @@ class EpaperWaveshareB : public EPaperWeAct3C {
 
  protected:
   bool reset() override;
-  uint8_t transform_red_byte(uint8_t byte) const override { return static_cast<uint8_t>(~byte); }
 };
 
 }  // namespace esphome::epaper_spi
