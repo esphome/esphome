@@ -18,6 +18,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
 #include "esphome/components/esp32_ble/ble.h"
@@ -88,22 +89,11 @@ struct ClientStateCounts {
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
 };
 
-enum class ClientState : uint8_t {
-  // Connection is allocated
-  INIT,
-  // Client is disconnecting
-  DISCONNECTING,
-  // Connection is idle, no device detected.
-  IDLE,
-  // Device advertisement found.
-  DISCOVERED,
-  // Connection in progress.
-  CONNECTING,
-  // Initial connection established.
-  CONNECTED,
-  // The client and sub-clients have completed setup.
-  ESTABLISHED,
-};
+// The client connection state types are owned by the platform-neutral
+// ble_device_base layer; re-exported here for backward compatibility.
+using ClientState = ble_device_base::ClientState;
+using ConnectionType = ble_device_base::ConnectionType;
+using ble_device_base::client_state_to_string;
 
 enum class ScannerState {
   // Scanner is idle, init state
@@ -126,21 +116,6 @@ enum class ScannerState {
 class BLEScannerStateListener {
  public:
   virtual void on_scanner_state(ScannerState state) = 0;
-};
-
-// Helper function to convert ClientState to string
-const char *client_state_to_string(ClientState state);
-
-enum class ConnectionType : uint8_t {
-  // The default connection type, we hold all the services in ram
-  // for the duration of the connection.
-  V1,
-  // The client has a cache of the services and mtu so we should not
-  // fetch them again
-  V3_WITH_CACHE,
-  // The client does not need the services and mtu once we send them
-  // so we should wipe them from memory as soon as we send them
-  V3_WITHOUT_CACHE
 };
 
 /// Base class for BLE GATT clients that connect to remote devices.
