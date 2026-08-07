@@ -256,8 +256,10 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
     auto values = this->values_.value(x...);
     // Bound before packing so the stack buffer below cannot overflow; the builder validates the rest
     // (an empty set rejects into an empty PDU there and resolves via on_not_sent like any refused send).
+    // Only the lambda form can get here - the list form is bounded by the config schema. Send nothing
+    // rather than returning early, so the hub logs the refusal instead of the write vanishing silently.
     if (values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
-      this->on_not_sent({});
+      this->send_or_resolve_({});
       return;
     }
     // Transient pack on the stack: ceil(1968 / 8) = 246 bytes for the spec-maximum write.
