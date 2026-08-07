@@ -15,29 +15,18 @@ static const char *const TAG = "rp2040_ble";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 RP2040BLE *global_ble = nullptr;
 
-// The analyzer cannot see that release() always retains the pointer here: the
-// pool's free list is sized SIZE + 1, so its push cannot hit the ring-full
-// drop branch for at most SIZE releases.
-// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void RP2040BLE::setup() {
   global_ble = this;
 
   // Pre-create every pool entry so the packet handler's allocate() is always a
-  // free-list pop — the IRQ path must never reach malloc() (heap allocation
-  // after setup is forbidden, and the newlib malloc lock is not IRQ-safe).
-  // Deliberately unconditional: warming lazily on the first scan would move
-  // the allocations after setup, and doing it here keeps the pool's RAM cost
-  // visible at startup instead of appearing once scanning begins.
-  BLEScanReport *warm[MAX_SCAN_REPORT_QUEUE_SIZE - 1];
-  size_t warmed = 0;
-  while (warmed < MAX_SCAN_REPORT_QUEUE_SIZE - 1 && (warm[warmed] = this->report_pool_.allocate()) != nullptr)
-    warmed++;
-  for (size_t i = 0; i < warmed; i++)
-    this->report_pool_.release(warm[i]);
-  if (warmed != MAX_SCAN_REPORT_QUEUE_SIZE - 1) {
-    // An incomplete warm would silently put malloc() back on the IRQ path once
-    // the free list runs dry; refuse to run instead (the stack is never
-    // enabled, so the packet handler cannot fire).
+  // free-list pop — the IRQ path must never reach malloc() (the newlib malloc
+  // lock is not IRQ-safe). Deliberately
+  // unconditional: warming lazily on the first scan would move the allocations
+  // after setup, and doing it here keeps the pool's RAM cost visible at
+  // startup instead of appearing once scanning begins. On an incomplete warm,
+  // refuse to run instead (the stack is never enabled, so the packet handler
+  // cannot fire).
+  if (!this->report_pool_.warm()) {
     ESP_LOGE(TAG, "Scan report pool warm-up failed");
     this->mark_failed();
     return;
@@ -49,7 +38,6 @@ void RP2040BLE::setup() {
     this->state_ = BLEComponentState::DISABLED;
   }
 }
-// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void RP2040BLE::enable() {
   if (this->state_ == BLEComponentState::ACTIVE || this->state_ == BLEComponentState::ENABLING) {
