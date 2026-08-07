@@ -26,7 +26,7 @@ void BluetoothConnection::set_address(uint64_t address) {
   format_mac_addr_upper(mac, this->address_str_);
 }
 
-void BluetoothConnection::start_connect() {
+void BluetoothConnection::start_connect_() {
   this->state_ = ClientState::CONNECTING;
   int err = this->backend_->connect(this->address_, this->remote_addr_type_);
   if (err != 0) {
@@ -85,7 +85,11 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected && this->address_ == 0) {
     // Late completion for a slot that was already freed: nothing to report,
     // and the api-gone sweep or a new reservation owns the slot now.
-    this->backend_->disconnect();
+    int err = this->backend_->disconnect();
+    if (err != 0 && err != GATT_NOT_CONNECTED) {
+      // The slot no longer owns the link; surface the refused close.
+      ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
+    }
     return;
   }
   if (connected && this->state_ == ClientState::DISCONNECTING) {
@@ -123,6 +127,8 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     int err = this->backend_->discover_services();
     if (err != 0) {
       ESP_LOGW(TAG, "[%d] [%s] discover_services failed, err=%d", this->connection_index_, this->address_str_, err);
+      // Latch the real cause for the disconnect report.
+      this->pending_error_ = err;
       this->disconnect();
     }
     return;
@@ -385,13 +391,8 @@ void BluetoothConnection::send_service_for_discovery_() {
       }
     }
 
-    BatchClose close =
-        close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str_);
-    if (close == BatchClose::SEND_FORCED) {
-      // The oversized service's forced advance must survive a failed send.
-      batch_start = this->send_service_;
-    }
-    if (close != BatchClose::CONTINUE) {
+    if (close_service_batch(resp, current_size, this->send_service_, this->connection_index_, this->address_str_) !=
+        BatchClose::CONTINUE) {
       break;
     }
   }

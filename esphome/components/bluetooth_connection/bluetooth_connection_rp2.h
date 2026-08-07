@@ -22,16 +22,22 @@
 
 #include <btstack.h>
 
+#include <array>
 #include <cstdint>
 
 namespace esphome::bluetooth_connection {
 
 // Caps for the transient service table. Sized generously for real devices
 // (typical peripherals expose < 8 services / < 30 characteristics); a peer
-// exceeding a cap streams a truncated table (flagged) instead of failing.
+// exceeding a cap fails discovery with INSUFFICIENT_RESOURCES rather than
+// streaming an incomplete database a V3 client would cache permanently.
 static constexpr uint16_t RP2_GATT_MAX_SERVICES = 16;
 static constexpr uint16_t RP2_GATT_MAX_CHARACTERISTICS = 96;
 static constexpr uint16_t RP2_GATT_MAX_DESCRIPTORS = 96;
+
+// Concurrent notify subscriptions per connection (enable fails with
+// GATT_ERR_NO_MEMORY when exceeded; real clients subscribe to a handful).
+static constexpr uint8_t RP2_GATT_MAX_NOTIFY_SUBSCRIPTIONS = 16;
 
 // ATT spec maximum attribute value length; bounds the op buffer and
 // notification payloads.
@@ -113,7 +119,7 @@ class RP2GattClient final : public Component,
   // BTstack packet handlers (IRQ context: copy-and-enqueue only).
   static void hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
   static void gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
-  static RP2GattClient *instance_for_con_handle_(hci_con_handle_t con_handle);
+  static RP2GattClient *instance_for_con_handle(hci_con_handle_t con_handle);
 
   void handle_gatt_event_irq_(uint8_t event_type, const uint8_t *packet);
   void enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value);
@@ -130,6 +136,7 @@ class RP2GattClient final : public Component,
   void finish_discovery_(int error);
   void fail_connection_(uint8_t reason);
   void cleanup_link_state_();
+  bool notify_subscribed_(uint16_t handle) const;
   void release_scan_inhibit_();
   bool op_in_flight_() const {
     return this->op_type_ != OpType::NONE || this->discovery_phase_ != DiscoveryPhase::NONE;
@@ -167,6 +174,10 @@ class RP2GattClient final : public Component,
   uint16_t disc_char_cursor_{0};
 
   // Group 5: arrays / 1-byte types
+  // Subscribed notify handles; the loop() drain filters the wildcard
+  // listener's deliveries on this list (esp32 parity for enable=false).
+  std::array<uint16_t, RP2_GATT_MAX_NOTIFY_SUBSCRIPTIONS> notify_subscriptions_{};
+  uint8_t notify_subscription_count_{0};
   bd_addr_t peer_addr_{};  // MSB-first, as gap_connect expects
   bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
   EngineState state_{EngineState::IDLE};
@@ -183,11 +194,11 @@ class RP2GattClient final : public Component,
 
   // Instance registry for routing BTstack events (IRQ context) to engines.
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-  static RP2GattClient *instances_[ESPHOME_BLE_GATT_CLIENT_COUNT];
+  static RP2GattClient *instances[ESPHOME_BLE_GATT_CLIENT_COUNT];
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-  static uint8_t instance_count_;
+  static uint8_t instance_count;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-  static btstack_packet_callback_registration_t hci_event_registration_;
+  static btstack_packet_callback_registration_t hci_event_registration;
 };
 
 }  // namespace esphome::bluetooth_connection
