@@ -145,6 +145,9 @@ async def register_client_action(
             var.get_response_trigger(), response_args, response_conf
         )
     if custom_conf := config.get(CONF_ON_CUSTOM_RESPONSE):
+        # Tell the action a handler exists; without this it falls back to the base's warn-once log so an
+        # unhandled diverted reply is still reported instead of firing an empty trigger.
+        cg.add(var.set_custom_response_handled())
         await automation.build_automation(
             var.get_custom_response_trigger(),
             [(_PDU_SPAN, "request"), (_PDU_SPAN, "response")],
@@ -205,12 +208,12 @@ _REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
 
 _TYPED_RESPONSE_SCHEMA = _ACTION_BASE_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        # Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the
+        # hub reuses once the handler returns, so a deferring action would resume on freed memory.
+        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         # A reply the dispatch gate diverts (not a standard-conformant transaction) arrives here with the
         # raw request/response PDUs; real device exceptions still arrive via on_error.
-        cv.Optional(CONF_ON_CUSTOM_RESPONSE): automation.validate_automation(
-            single=True
-        ),
+        cv.Optional(CONF_ON_CUSTOM_RESPONSE): _handler_schema(),
     }
 )
 
@@ -218,7 +221,7 @@ _READ_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         cv.Optional(CONF_COUNT, default=1): cv.templatable(
-            cv.int_range(min=1, max=125)
+            cv.int_range(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_READ)
         ),
     }
 )
@@ -297,7 +300,7 @@ _READ_BITS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         cv.Optional(CONF_COUNT, default=1): cv.templatable(
-            cv.int_range(min=1, max=2000)
+            cv.int_range(min=1, max=modbus.MAX_NUM_OF_COILS_TO_READ)
         ),
     }
 )
@@ -338,7 +341,10 @@ _WRITE_MULTIPLE_REGISTERS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         cv.Required(CONF_VALUES): cv.templatable(
-            cv.All(cv.ensure_list(cv.hex_uint16_t), cv.Length(min=1, max=123))
+            cv.All(
+                cv.ensure_list(cv.hex_uint16_t),
+                cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE),
+            )
         ),
     }
 )
@@ -347,7 +353,10 @@ _WRITE_MULTIPLE_COILS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         cv.Required(CONF_VALUES): cv.templatable(
-            cv.All(cv.ensure_list(cv.boolean), cv.Length(min=1, max=1968))
+            cv.All(
+                cv.ensure_list(cv.boolean),
+                cv.Length(min=1, max=modbus.MAX_NUM_OF_COILS_TO_WRITE),
+            )
         ),
     }
 )
