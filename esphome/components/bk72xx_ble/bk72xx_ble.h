@@ -98,6 +98,9 @@ class BK72xxBLE final : public Component {
 
  protected:
   void resolve_mac_();
+  /// scan_stop(), reporting whether it settled; false means the stop deferred
+  /// (controller operation in flight) and the caller must report PENDING.
+  bool try_scan_stop_();
   bool acquire_scan_activity_();
   ScanStartResult active_scan_start_(uint16_t interval, uint16_t window);
 

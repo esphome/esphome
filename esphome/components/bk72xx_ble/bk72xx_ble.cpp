@@ -283,20 +283,16 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
   if (!this->is_active())
     this->enable();
 
-  if (this->scan_stop_pending_) {
-    // A deferred stop still owns the activity; it must settle first.
-    this->scan_stop();
-    if (this->scan_stop_pending_)
-      return ScanStartResult::PENDING;
-  }
+  // A deferred stop still owns the activity; it must settle first.
+  if (this->scan_stop_pending_ && !this->try_scan_stop_())
+    return ScanStartResult::PENDING;
 
   const actv_state_t state =
       (this->scan_actv_idx_ == INVALID_ACTV_IDX) ? ACTV_IDLE : app_ble_actv_state_get(this->scan_actv_idx_);
   if (state == ACTV_SCAN_STARTED) {
     // Already scanning — stop first so this call cleanly restarts with the new
     // parameters (the BDK cannot start a second scan on a busy activity).
-    this->scan_stop();
-    if (this->scan_stop_pending_)
+    if (!this->try_scan_stop_())
       return ScanStartResult::PENDING;
   }
 
@@ -307,8 +303,7 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
     // A created-but-unstarted activity left over from an active-scan attempt;
     // the passive path creates its own, so discard it (scan_stop() picks
     // delete-vs-stop from the activity state).
-    this->scan_stop();
-    if (this->scan_stop_pending_)
+    if (!this->try_scan_stop_())
       return ScanStartResult::PENDING;
   }
 
@@ -327,6 +322,11 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
     return ScanStartResult::FAILED;
   }
   return ScanStartResult::STARTED;
+}
+
+bool BK72xxBLE::try_scan_stop_() {
+  this->scan_stop();
+  return !this->scan_stop_pending_;
 }
 
 bool BK72xxBLE::acquire_scan_activity_() {
