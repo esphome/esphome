@@ -61,7 +61,14 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     from esphome import yaml_util
 
     try:
-        config = yaml_util.load_yaml(cache_path, clear_secrets=False)
+        # Fast path never validates or generates code - no source ranges
+        # needed (see load_yaml). Callers must not feed this config into
+        # read_config/write_cpp: the esp_range consumers in config.py and
+        # cpp_generator.py are isinstance-guarded and would degrade
+        # silently (wrong error/lambda locations) instead of raising.
+        config = yaml_util.load_yaml(
+            cache_path, clear_secrets=False, track_document_range=False
+        )
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         return None
 
