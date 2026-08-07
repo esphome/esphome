@@ -15,7 +15,7 @@ namespace esphome::ota {
 // they are wrapped here. Only RSA-3072 exists in that format, which fixes both
 // headers: a 3072-bit modulus always has its top bit set, so its INTEGER is
 // always tag + 2-byte length (0x181 = 385) + the sign pad; and the SEQUENCE
-// body is always 391..396 bytes, so its header is always tag + 2-byte length.
+// body is always 392..396 bytes, so its header is always tag + 2-byte length.
 // Only the exponent varies in width.
 constexpr size_t RSA_3072_MODULUS_BYTES = 384;
 constexpr uint8_t RSA_DER_MODULUS_PREFIX[] = {0x02, 0x82, 0x01, 0x81, 0x00};
@@ -28,6 +28,7 @@ constexpr size_t RSA_DER_PUBKEY_MAX = 4 + RSA_DER_MODULUS_LEN + 7;
 ///
 /// @param modulus_be   Big-endian modulus, RSA_3072_MODULUS_BYTES long.
 /// @param exponent_be  Big-endian exponent, exponent_len bytes, leading zeros allowed.
+///                     Rejected if the significant bytes would not fit a short-form length.
 /// @return the encoded length, or 0 if the exponent is zero or the buffer is too small.
 inline size_t rsa_der_public_key(const uint8_t *modulus_be, const uint8_t *exponent_be, size_t exponent_len,
                                  uint8_t *out, size_t out_len) {
@@ -41,7 +42,11 @@ inline size_t rsa_der_public_key(const uint8_t *modulus_be, const uint8_t *expon
     return 0;  // a zero exponent is not a usable key
   }
   const bool pad = (exponent_be[0] & 0x80) != 0;
-  const size_t exponent_der_len = 2 + (pad ? 1 : 0) + exponent_len;
+  const size_t exponent_content_len = exponent_len + (pad ? 1 : 0);
+  if (exponent_content_len > 0x7F) {
+    return 0;  // would need a long-form length, which this encoder does not write
+  }
+  const size_t exponent_der_len = 2 + exponent_content_len;
   const size_t body_len = RSA_DER_MODULUS_LEN + exponent_der_len;
   const size_t total_len = 4 + body_len;
   if (total_len > out_len) {
@@ -58,7 +63,7 @@ inline size_t rsa_der_public_key(const uint8_t *modulus_be, const uint8_t *expon
   memcpy(out + i, modulus_be, RSA_3072_MODULUS_BYTES);
   i += RSA_3072_MODULUS_BYTES;
   out[i++] = 0x02;  // INTEGER
-  out[i++] = static_cast<uint8_t>(exponent_len + (pad ? 1 : 0));
+  out[i++] = static_cast<uint8_t>(exponent_content_len);
   if (pad) {
     out[i++] = 0x00;
   }
