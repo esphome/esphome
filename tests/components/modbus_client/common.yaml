@@ -51,3 +51,65 @@ button:
           on_not_sent:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "not sent fc 0x%X", request.empty() ? 0 : request[0]);'
+  - platform: template
+    name: "Typed Actions"
+    on_press:
+      - modbus_client.write_single_register:
+          address: 0x01
+          start_address: 0x0102
+          value: !lambda "return 42;"
+          on_response:
+            then:
+              - logger.log: "write acked"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "write exception %d", (int) exception_code);'
+      - modbus_client.read_holding_registers:
+          address: !lambda "return 1;"
+          start_address: 0x10
+          count: 2
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
+          on_no_response:
+            then:
+              - logger.log: "typed read timeout"
+      - modbus_client.read_input_registers:
+          address: 0x01
+          start_address: 0x20
+          on_custom_response:
+            then:
+              - lambda: |-
+                  ESP_LOGW("modbus_client.test", "non-standard reply: fc 0x%02X, %u byte request",
+                           response.empty() ? 0 : response[0], (unsigned) request.size());
+      - modbus_client.write_single_coil:
+          address: 0x01
+          start_address: 0x01
+          value: true
+      - modbus_client.read_coils:
+          address: 0x01
+          start_address: 0x03
+          count: 16
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "coil0=%d n=%u", bits[0], (unsigned) bits.size());'
+      - modbus_client.read_discrete_inputs:
+          address: 0x01
+          start_address: 0x00
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0200
+          values: !lambda "return {1, 2, 3};"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "multi write acked");'
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0010
+          values: [true, false, true]
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'

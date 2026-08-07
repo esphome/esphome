@@ -435,6 +435,58 @@ async def test_uart_mock_modbus_server_controller_multiple(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_client_typed(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test the typed modbus_client actions end to end (each action its own hub device).
+
+    Start Scenario fires three typed actions: write_single_register puts 777 in server register 0x10 (the
+    ack fires on_response -> ack_flag); read_holding_registers reads it back,
+    with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
+    a read of unserved register 0x99 resolves via on_error with the device's exception code
+    (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via
+    on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code), proving the bit-read request and typed error
+    delivery. A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12
+    chained inside its ack handler (-> multi_value = 222); a multi-coil write draws ILLEGAL_FUNCTION from
+    the register-only server (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
+    builds an empty (rejected) PDU, is refused at the hub door, and resolves via on_not_sent
+    (-> not_sent_flag).
+    """
+
+    tracker = SensorTracker(
+        [
+            "typed_value",
+            "ack_flag",
+            "error_code",
+            "coil_error_code",
+            "multi_value",
+            "multi_coil_error",
+            "not_sent_flag",
+        ]
+    )
+    futures = tracker.expect_all(
+        {
+            "typed_value": 777,
+            "ack_flag": 1,
+            "error_code": 2,
+            "coil_error_code": 1,
+            "multi_value": 222,
+            "multi_coil_error": 1,
+            "not_sent_flag": 1,
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_client_inline(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
