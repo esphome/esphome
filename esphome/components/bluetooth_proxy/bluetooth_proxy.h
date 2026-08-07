@@ -13,6 +13,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
+#include "esphome/components/ble_device_base/ble_client_state.h"
+
 #ifdef USE_ESP32
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -41,7 +43,7 @@ using proxy_err_t = int;
 static constexpr proxy_err_t PROXY_OK = 0;
 #endif
 
-static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = -1;
+static constexpr proxy_err_t ESP_GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_CONNECTED;
 static constexpr int DONE_SENDING_SERVICES = -2;
 static constexpr int INIT_SENDING_SERVICES = -3;
 

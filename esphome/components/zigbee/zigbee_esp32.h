@@ -57,6 +57,7 @@ class ZigbeeComponent final : public Component {
   void factory_reset();
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
 
   bool is_battery_powered() { return this->basic_cluster_data_.power_source == EZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
 
@@ -89,6 +90,8 @@ class ZigbeeComponent final : public Component {
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   ezb_af_device_desc_t dev_desc_;
   CallbackManager<void(bool)> join_cb_{};
+  LazyCallbackManager<void()> start_cb_{};
+  bool start_reported_{false};
   std::atomic<bool> started_ = false;
   std::atomic<bool> joined_ = false;
   std::atomic<bool> join_pending_ = false;

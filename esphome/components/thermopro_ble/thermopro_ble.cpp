@@ -92,7 +92,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-void ThermoProBLE::update_device_type_(const std::string &device_name) {
+void ThermoProBLE::update_device_type_(StringRef device_name) {
   // check for changed device name (should only happen on initial call)
   if (this->device_name_ == device_name) {
     return;

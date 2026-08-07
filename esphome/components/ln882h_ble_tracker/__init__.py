@@ -29,6 +29,8 @@ DEPENDENCIES = ["ln882x"]
 AUTO_LOAD = ["ble_device_base", "ln882h_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
 
+ble_device_base.register_hub_provider("ln882h_ble_tracker")
+
 ln882h_ble_tracker_ns = cg.esphome_ns.namespace("ln882h_ble_tracker")
 LN882HBLETracker = ln882h_ble_tracker_ns.class_(
     "LN882HBLETracker", ble_device_base.BLEHub, cg.Component
