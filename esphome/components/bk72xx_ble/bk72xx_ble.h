@@ -87,7 +87,9 @@ class BK72xxBLE final : public Component {
   /// advance the sequence until it reports STARTED or FAILED.
   ScanStartResult scan_start(uint16_t interval, uint16_t window, bool active);
   /// Stop the controller scan (no-op when not scanning). Also discards a scan
-  /// activity that was created for an active scan but not started yet.
+  /// activity that was created for an active scan but not started yet. A stop
+  /// requested while a controller operation is still in flight is completed
+  /// from loop() once the operation settles.
   void scan_stop();
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
@@ -114,6 +116,9 @@ class BK72xxBLE final : public Component {
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
   uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
   uint8_t scan_actv_idx_{INVALID_ACTV_IDX};
+  // scan_stop() arrived while a controller operation was in flight; loop()
+  // completes it once the operation settles.
+  bool scan_stop_pending_{false};
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

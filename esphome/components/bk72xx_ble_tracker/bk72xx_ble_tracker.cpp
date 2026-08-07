@@ -315,6 +315,7 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
       case bk72xx_ble::ScanStartResult::FAILED:
         // The controller really stopped: behave exactly like loop()'s
         // reconciliation branch — notify listeners and let its retry recover.
+        ESP_LOGW(TAG, "Scan restart after mode change failed; retrying");
         this->scan_running_ = false;
         this->scan_requested_ = true;
         this->fire_scan_end_();

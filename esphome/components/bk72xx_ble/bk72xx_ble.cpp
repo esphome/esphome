@@ -188,6 +188,10 @@ void BK72xxBLE::enable() {
 }
 
 void BK72xxBLE::loop() {
+  // Complete a stop that arrived while a controller operation was in flight.
+  if (this->scan_stop_pending_)
+    this->scan_stop();
+
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();
@@ -279,12 +283,21 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
   if (!this->is_active())
     this->enable();
 
+  if (this->scan_stop_pending_) {
+    // A deferred stop still owns the activity; it must settle first.
+    this->scan_stop();
+    if (this->scan_stop_pending_)
+      return ScanStartResult::PENDING;
+  }
+
   const actv_state_t state =
       (this->scan_actv_idx_ == INVALID_ACTV_IDX) ? ACTV_IDLE : app_ble_actv_state_get(this->scan_actv_idx_);
   if (state == ACTV_SCAN_STARTED) {
     // Already scanning — stop first so this call cleanly restarts with the new
     // parameters (the BDK cannot start a second scan on a busy activity).
     this->scan_stop();
+    if (this->scan_stop_pending_)
+      return ScanStartResult::PENDING;
   }
 
   if (active)
@@ -295,6 +308,8 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
     // the passive path creates its own, so discard it (scan_stop() picks
     // delete-vs-stop from the activity state).
     this->scan_stop();
+    if (this->scan_stop_pending_)
+      return ScanStartResult::PENDING;
   }
 
   struct scan_param sp;
@@ -331,17 +346,20 @@ ScanStartResult BK72xxBLE::active_scan_start_(uint16_t interval, uint16_t window
     if (state != ACTV_IDLE) {
       // Creation (or a previous activity's teardown) still completing on the
       // BLE task; the next call finds it settled.
+      ESP_LOGD(TAG, "Active scan start deferred (activity state %d)", static_cast<int>(state));
       return ScanStartResult::PENDING;
     }
     // Step 1: create the scan activity through the public API. Creation is
     // asynchronous (a GAPM round-trip on the BLE task); report PENDING and a
     // later call finds the activity created and starts it.
-    if (!this->acquire_scan_activity_())
+    if (this->scan_actv_idx_ == INVALID_ACTV_IDX && !this->acquire_scan_activity_())
       return ScanStartResult::FAILED;
     ble_err_t ret = bk_ble_create_scaning(this->scan_actv_idx_, nullptr);
     if (ret == ERR_BLE_STATUS) {
-      // Another BLE operation is in flight; the next call retries the create.
-      this->scan_actv_idx_ = INVALID_ACTV_IDX;
+      // Another BLE operation is in flight — possibly the create for this
+      // very slot, whose completion stamps it CREATED. Keep the index so the
+      // retry resumes against the same slot instead of orphaning it.
+      ESP_LOGD(TAG, "Active scan create deferred (controller busy)");
       return ScanStartResult::PENDING;
     }
     if (ret != ERR_SUCCESS) {
@@ -354,6 +372,7 @@ ScanStartResult BK72xxBLE::active_scan_start_(uint16_t interval, uint16_t window
 
   if (app_ble_env_state_get() != APP_BLE_READY) {
     // Another BLE operation is in flight; the next call retries the start.
+    ESP_LOGD(TAG, "Active scan start deferred (controller busy)");
     return ScanStartResult::PENDING;
   }
 
@@ -385,16 +404,35 @@ ScanStartResult BK72xxBLE::active_scan_start_(uint16_t interval, uint16_t window
 }
 
 void BK72xxBLE::scan_stop() {
-  if (this->scan_actv_idx_ == INVALID_ACTV_IDX)
+  if (this->scan_actv_idx_ == INVALID_ACTV_IDX) {
+    this->scan_stop_pending_ = false;
     return;
+  }
+  if (app_ble_env_state_get() != APP_BLE_READY) {
+    // A controller operation is in flight — possibly the packed start command,
+    // during which the activity still reads ACTV_SCAN_CREATED, so acting now
+    // could delete an activity whose start lands afterwards (leaking the slot
+    // with the radio on). Defer; loop() completes the stop once it settles.
+    this->scan_stop_pending_ = true;
+    return;
+  }
+  // Settled: ACTV_SCAN_CREATED now unambiguously means "never started", where
+  // a stop would be rejected — delete the activity instead.
+  ble_err_t ret;
   if (app_ble_actv_state_get(this->scan_actv_idx_) == ACTV_SCAN_CREATED) {
-    // Created but never started (an active-scan start sequence that did not
-    // finish): a stop would be rejected, delete the activity instead.
-    bk_ble_delete_scaning(this->scan_actv_idx_, nullptr);
+    ret = bk_ble_delete_scaning(this->scan_actv_idx_, nullptr);
   } else {
-    bk_ble_scan_stop(this->scan_actv_idx_, nullptr);
+    ret = bk_ble_scan_stop(this->scan_actv_idx_, nullptr);
+  }
+  if (ret != ERR_SUCCESS) {
+    // Keep the handle and retry from loop() so a rejected stop cannot leak
+    // the activity slot with the component's handle forgotten.
+    ESP_LOGW(TAG, "Scan stop deferred (err %d)", static_cast<int>(ret));
+    this->scan_stop_pending_ = true;
+    return;
   }
   this->scan_actv_idx_ = INVALID_ACTV_IDX;
+  this->scan_stop_pending_ = false;
 }
 
 }  // namespace esphome::bk72xx_ble
