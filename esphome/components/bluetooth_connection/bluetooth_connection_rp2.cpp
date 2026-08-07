@@ -406,11 +406,16 @@ void RP2GattClient::loop() {
   } else if (this->state_ == EngineState::READY && this->op_type_ == OpType::WRITE_CHAR_NO_RSP &&
              millis() - this->wnr_deferred_at_ > WRITE_NO_RSP_TIMEOUT_MS) {
     // The can-send window never opened; report instead of hanging the op slot.
+    bool timed_out = false;
     {
       BluetoothLock lock;
-      this->op_type_ = OpType::NONE;
+      // The trampoline may have just sent it; its queued result wins.
+      if (this->event_queue_.empty()) {
+        this->op_type_ = OpType::NONE;
+        timed_out = true;
+      }
     }
-    if (this->listener_ != nullptr) {
+    if (timed_out && this->listener_ != nullptr) {
       this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
     }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
@@ -935,10 +940,14 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
         this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
         this->can_write_registration_.context = this;
         uint8_t req = gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
-        if (req != 0) {
+        if (req != 0 && req != ERROR_CODE_COMMAND_DISALLOWED) {
           this->op_type_ = OpType::NONE;
           return req;
         }
+        // COMMAND_DISALLOWED = still armed from a timed-out deferral; that
+        // registration sends the newly parked payload. Keep the loop running
+        // so the deadline below can fire on a stalled link.
+        this->enable_loop();
         return 0;
       }
     }
