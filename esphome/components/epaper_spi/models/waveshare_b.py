@@ -15,7 +15,11 @@ class WaveshareB(EpaperModel):
             (0x11, 0x03),  # Data entry mode
             (0x3C, 0x05),  # Border waveform
             (0x18, 0x80),  # Internal temperature sensor
-            (0x21, self.get_default("ram_option", 0x80), 0x80),  # Display update control
+            (
+                0x21,
+                self.get_default("ram_option", 0x80),
+                0x80,
+            ),  # Display update control
         )
 
     async def to_code(self, var, config):

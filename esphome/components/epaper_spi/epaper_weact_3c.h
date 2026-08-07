@@ -37,9 +37,7 @@ class EPaperWeAct3C : public EPaperBase {
   bool transfer_data() override;
 
   // Some panels wire the red plane the other way round; models declare which.
-  uint8_t transform_red_byte(uint8_t byte) const {
-    return this->invert_red_ ? static_cast<uint8_t>(~byte) : byte;
-  }
+  uint8_t transform_red_byte(uint8_t byte) const { return this->invert_red_ ? static_cast<uint8_t>(~byte) : byte; }
 
   bool invert_red_{false};
 };
