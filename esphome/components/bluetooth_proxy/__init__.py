@@ -3,7 +3,6 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import ble_device_base, bluetooth_connection
-from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
 from esphome.core import CORE
@@ -185,7 +184,9 @@ def _rp2_config_schema() -> cv.All:
                 **_COMMON_SCHEMA_KEYS,
                 # The GATT backend drives the controller directly (connect, GATT
                 # ops), not through the tracker hub.
-                cv.GenerateID(CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE),
+                cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(
+                    rp2040_ble.RP2040BLE
+                ),
                 cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
                 cv.Optional(
                     CONF_CONNECTION_SLOTS,
@@ -212,12 +213,14 @@ def _rp2_config_schema() -> cv.All:
 
 
 async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import rp2040_ble
+
     # One wrapper + backend pair per slot (the esp32 arm's pattern).
     for connection_conf in config[CONF_CONNECTIONS]:
         ble_device_base.request_gatt_client()
         backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
         await cg.register_component(backend, connection_conf)
-        await cg.register_parented(backend, config[CONF_RP2040_BLE_ID])
+        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))

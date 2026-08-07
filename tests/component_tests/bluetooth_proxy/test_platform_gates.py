@@ -209,10 +209,20 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
 def test_defines_h_mirrors_the_rp2_slot_cap() -> None:
     # esphome/core/defines.h carries a literal BLUETOOTH_PROXY_MAX_CONNECTIONS
     # for static analysis; pin it to the real rp2 cap.
-    defines = Path(__file__).parents[3] / "esphome" / "core" / "defines.h"
+    defines = (Path(__file__).parents[3] / "esphome" / "core" / "defines.h").read_text()
+    cap = bluetooth_connection.RP2_MAX_CONNECTIONS
+    # The rp2 arm's define, tolerating blank/comment lines in between.
     match = re.search(
-        r"#elif defined\(USE_RP2\)\s*\n#define BLUETOOTH_PROXY_MAX_CONNECTIONS (\d+)",
-        defines.read_text(),
+        r"#elif defined\(USE_RP2\)\s*(?:(?://[^\n]*)?\n)+#define BLUETOOTH_PROXY_MAX_CONNECTIONS (\d+)",
+        defines,
     )
-    assert match is not None
-    assert int(match.group(1)) == bluetooth_connection.RP2_MAX_CONNECTIONS
+    assert match is not None, "no USE_RP2 arm defines BLUETOOTH_PROXY_MAX_CONNECTIONS"
+    assert int(match.group(1)) == cap, (
+        f"defines.h rp2 arm carries {match.group(1)}, expected {cap}"
+    )
+    # The static-analysis client count scales with the same cap.
+    match = re.search(r"#define ESPHOME_BLE_GATT_CLIENT_COUNT (\d+)", defines)
+    assert match is not None, "ESPHOME_BLE_GATT_CLIENT_COUNT missing from defines.h"
+    assert int(match.group(1)) == cap, (
+        f"ESPHOME_BLE_GATT_CLIENT_COUNT is {match.group(1)}, expected {cap}"
+    )
