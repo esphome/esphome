@@ -2144,18 +2144,18 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     # FATFS support
     # Components that need FATFS (SD card, USB storage, ...) call require_fatfs().
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Storage drivers need long filenames (heap-allocated, full 255-char length) and
-        # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
-        # every esp_vfs_fat mount consumes one). All of these are only defaults: override
-        # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        # Long filenames, unless the user turned them off. With CONFIG_FATFS_LFN_NONE set,
-        # FatFs is 8.3-only and the two options that size the LFN buffer have no dependency
-        # left to satisfy -- writing them then sets a symbol IDF has disabled. A YAML
-        # sdkconfig_options value arrives wrapped so it is written out verbatim; one set from
-        # here is a plain bool, hence reading through both shapes.
-        lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
-        lfn_off = getattr(lfn_off, "value", lfn_off)
-        if str(lfn_off).strip().lower() not in ("y", "true", "1"):
+        # Storage drivers need long filenames and enough FATFS volumes for several drivers
+        # at once (SD + USB + wear levelling -- every esp_vfs_fat mount consumes one). All of
+        # these are only defaults: override any of them via
+        # esp32 -> framework -> advanced -> sdkconfig_options.
+        # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice (NONE / HEAP / STACK): when the
+        # user picked any member via sdkconfig_options, leave the whole group alone --
+        # writing our default next to their pick would put two =y entries into one choice
+        # and leave the winner to file sort order. Cost note: LFN_HEAP allocates a buffer
+        # (up to MAX_LFN chars) per long-filename operation at runtime; LFN_STACK avoids
+        # the heap at the price of task stack depth.
+        lfn_keys = ("CONFIG_FATFS_LFN_NONE", "CONFIG_FATFS_LFN_HEAP", "CONFIG_FATFS_LFN_STACK")
+        if not any(k in opts for k in lfn_keys):
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
@@ -2692,9 +2692,11 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-    # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
-    # make those calls from their own to_code, which runs after this platform to_code, so
-    # reading the flags inline here would never see them (VFS/FATFS would stay disabled).
+    # FINAL priority: components may call require_vfs_*() / require_fatfs() from their own
+    # to_code, which can run at or below this platform to_code's priority (the upcoming
+    # storage drivers sit at COMPONENT, iterated after esp32), so an inline read here would
+    # be iteration-order-dependent. Reconciling once after every job ran makes the outcome
+    # independent of component order.
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
