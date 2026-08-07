@@ -2201,6 +2201,9 @@ StorageError StorageWorker::begin_write(PathStorage *storage, const char *path, 
   req.is_fs = storage->get_storage_type() == StorageType::FILESYSTEM;
   req.handle = nullptr;
   req.offset = 0;
+  req.seek_target = 0;
+  req.seek_mode = storage::SeekMode::SET;
+  req.tell_out = nullptr;  // never carry a stale caller-frame pointer across claims
   req.callback = std::move(on_open);
   req.result = StorageError::OK;
 
@@ -2228,6 +2231,9 @@ StorageError StorageWorker::begin_read(PathStorage *storage, const char *path, S
   req.is_fs = storage->get_storage_type() == StorageType::FILESYSTEM;
   req.handle = nullptr;
   req.offset = 0;
+  req.seek_target = 0;
+  req.seek_mode = storage::SeekMode::SET;
+  req.tell_out = nullptr;  // never carry a stale caller-frame pointer across claims
   req.callback = std::move(on_open);
   req.result = StorageError::OK;
 
