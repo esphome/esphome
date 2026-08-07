@@ -52,9 +52,11 @@ void BluetoothConnection::disconnect() {
   if (err != 0) {
     // Transient refusal: stay DISCONNECTING and let the safety timeout
     // arbitrate rather than freeing a slot whose teardown is unresolved.
-    // Latch the refusal so the timeout's report carries the real cause.
+    // Latch the refusal unless a GATT cause is already recorded (first wins).
     ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
-    this->pending_error_ = err;
+    if (this->pending_error_ == 0) {
+      this->pending_error_ = err;
+    }
   }
   this->state_ = ClientState::DISCONNECTING;
   this->disconnecting_started_ = millis();
