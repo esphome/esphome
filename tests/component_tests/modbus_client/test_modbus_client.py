@@ -7,11 +7,13 @@ guard is a safety property: these tests pin it to every handler slot.
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import modbus_client
 from esphome.components.modbus_client import (
     CONF_ON_NO_RESPONSE,
     CONF_ON_NOT_SENT,
     CONF_ON_SENT,
     CONF_PDU,
+    CONFIG_SCHEMA,
     MODBUS_CLIENT_SEND_SCHEMA,
 )
 from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
@@ -114,3 +116,37 @@ def test_on_no_response_retry_lambda_accepted() -> None:
             },
         }
     )
+
+
+# The standalone component block. The compile fixtures cover the accepted shapes end to end; these pin
+# the parts a fixture cannot express - a rejection, and a module flag whose absence breaks other
+# components rather than this one.
+
+
+def test_component_requires_an_address() -> None:
+    """address identifies the device on the bus, so there is no sensible default."""
+    with pytest.raises(cv.Invalid, match=CONF_ADDRESS):
+        CONFIG_SCHEMA({})
+
+
+def test_component_accepts_an_address_alone() -> None:
+    """modbus_id is optional: it resolves to the single hub when only one is declared."""
+    config = CONFIG_SCHEMA({CONF_ADDRESS: 0x01})
+    assert config[CONF_ADDRESS] == 0x01
+
+
+def test_component_rejects_an_out_of_range_address() -> None:
+    """A Modbus device address is one byte."""
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({CONF_ADDRESS: 0x100})
+
+
+def test_multi_conf_no_default_is_set() -> None:
+    """Load-bearing: the modbus hub auto-loads this component to register its actions.
+
+    Without MULTI_CONF_NO_DEFAULT that auto-load builds a default entry, which then fails the required
+    address above - breaking every configuration that uses modbus but never declares a modbus_client
+    block. validate-autoload.esp32-idf.yaml covers the same path end to end; this names the reason.
+    """
+    assert modbus_client.MULTI_CONF is True
+    assert modbus_client.MULTI_CONF_NO_DEFAULT is True
