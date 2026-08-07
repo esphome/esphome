@@ -224,13 +224,13 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
         .power_source = this->basic_cluster_data_.power_source,
     };
     cluster_desc = ezb_zcl_basic_create_cluster_desc(&basic_cluster_cfg, EZB_ZCL_CLUSTER_SERVER);
+    ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
   }
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
                                       this->basic_cluster_data_.manufacturer);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID,
                                       this->basic_cluster_data_.model);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
-  ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
 }
 
 bool ZigbeeComponent::register_device() {
