@@ -366,6 +366,8 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
+/// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
+using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
 /** Create a modbus read request PDU.
  * @param function_code one of READ_COILS, READ_DISCRETE_INPUTS, READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS

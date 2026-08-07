@@ -4,8 +4,9 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
-#include <array>
+#include <algorithm>
 #include <span>
+#include <vector>
 
 namespace esphome::modbus_client {
 
@@ -188,25 +189,40 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
   bool coils_;
 };
 
-/// modbus_client.write_single_register / write_single_coil: on_response is the acknowledgement (the ack
-/// only echoes the request, so it carries no arguments).
-template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<Ts...> {
+/// modbus_client.write_single_register: on_response is the acknowledgement (the ack only echoes the
+/// request, so it carries no arguments).
+template<typename... Ts> class WriteSingleRegisterAction : public TypedClientActionBase<Ts...> {
  public:
-  explicit WriteSingleAction(bool coil) : coil_(coil) {}
   TEMPLATABLE_VALUE(uint16_t, start_address)
   TEMPLATABLE_VALUE(uint16_t, value)
 
   Trigger<> *get_response_trigger() { return &this->response_trigger_; }
 
   void play(const Ts &...x) override {
-    const uint16_t start = this->start_address_.value(x...);
-    const uint16_t value = this->value_.value(x...);
-    this->send_or_resolve_(this->coil_ ? modbus::helpers::create_write_single_coil_pdu(start, value != 0)
-                                       : modbus::helpers::create_write_single_register_pdu(start, value));
+    this->send_or_resolve_(
+        modbus::helpers::create_write_single_register_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
     if (this->check_status_(status))
       this->response_trigger_.trigger();
+  }
+
+ protected:
+  Trigger<> response_trigger_;
+};
+
+/// modbus_client.write_single_coil: on_response is the acknowledgement (no arguments). A coil holds one
+/// bit, so the value is a bool - the wire only ever carries 0x0000 or 0xFF00.
+template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionBase<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, start_address)
+  TEMPLATABLE_VALUE(bool, value)
+
+  Trigger<> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(const Ts &...x) override {
+    this->send_or_resolve_(
+        modbus::helpers::create_write_single_coil_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_coil(uint16_t address, bool value, modbus::ResponseStatus status) override {
     if (this->check_status_(status))
@@ -215,22 +231,41 @@ template<typename... Ts> class WriteSingleAction : public TypedClientActionBase<
 
  protected:
   Trigger<> response_trigger_;
-  bool coil_;
 };
 
 /// modbus_client.write_multiple_registers: on_response is the acknowledgement (no arguments).
+/// A `values:` list is emitted as a flash array and sent straight from there; only a lambda builds a
+/// vector, and only when it runs. Same split as canbus's send action, and for the same reason: a static
+/// list must not allocate on every play().
 template<typename... Ts> class WriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
-  TEMPLATABLE_VALUE(std::vector<uint16_t>, values)
+
+  /// Static config: the registers live in flash, so play() neither allocates nor copies.
+  void set_values_static(const uint16_t *values, size_t len) {
+    this->values_.data = values;
+    this->len_ = static_cast<ssize_t>(len);
+  }
+  /// Lambda config: the registers are only known at play() time. Stateless lambdas (all ESPHome
+  /// generates) convert to a plain function pointer, so this stays pointer-sized.
+  void set_values_template(std::vector<uint16_t> (*func)(Ts...)) {
+    this->values_.func = func;
+    this->len_ = -1;  // sentinel: template mode
+  }
 
   Trigger<> *get_response_trigger() { return &this->response_trigger_; }
 
   void play(const Ts &...x) override {
-    auto values = this->values_.value(x...);
-    // An empty or over-long set rejects into an empty PDU inside the builder and resolves via on_not_sent.
-    this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(this->start_address_.value(x...),
-                                                                       std::span<const uint16_t>(values)));
+    const uint16_t start = this->start_address_.value(x...);
+    // An empty or over-long set rejects into an empty PDU inside the builder, which logs the reason;
+    // the empty PDU then resolves via on_not_sent like any refused send.
+    if (this->len_ >= 0) {
+      this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(
+          start, std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))));
+      return;
+    }
+    const std::vector<uint16_t> values = this->values_.func(x...);
+    this->send_or_resolve_(modbus::helpers::create_write_registers_pdu(start, std::span<const uint16_t>(values)));
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                    modbus::ResponseStatus status) override {
@@ -240,35 +275,57 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
 
  protected:
   Trigger<> response_trigger_;
+  ssize_t len_{-1};  // -1 = template mode, >= 0 = static mode with this many registers
+  union Values {
+    std::vector<uint16_t> (*func)(Ts...);
+    const uint16_t *data;
+  } values_;
 };
 
-/// modbus_client.write_multiple_coils: on_response is the acknowledgement (no arguments). The
-/// values arrive as bytes (std::vector<bool> cannot bind to std::span<const bool>) and are packed into
-/// the wire layout for the base's packed write_multiple_coils() overload.
+/// modbus_client.write_multiple_coils: on_response is the acknowledgement (no arguments).
+/// A `values:` list is packed into wire layout at code-generation time and stored in flash, so play()
+/// neither allocates nor packs. A lambda returns std::vector<bool> - already a bit per coil rather than
+/// a byte - and is packed into a stack buffer on the way to the builder.
 template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, start_address)
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, values)
+
+  /// Static config: `packed` is the wire layout (LSB first) held in flash, `count` the number of coils.
+  void set_values_static(const uint8_t *packed, size_t count) {
+    this->values_.packed = packed;
+    this->count_ = static_cast<ssize_t>(count);
+  }
+  /// Lambda config: the coils are only known at play() time.
+  void set_values_template(std::vector<bool> (*func)(Ts...)) {
+    this->values_.func = func;
+    this->count_ = -1;  // sentinel: template mode
+  }
 
   Trigger<> *get_response_trigger() { return &this->response_trigger_; }
 
   void play(const Ts &...x) override {
-    auto values = this->values_.value(x...);
-    // Bound before packing so the stack buffer below cannot overflow; the builder validates the rest
-    // (an empty set rejects into an empty PDU there and resolves via on_not_sent like any refused send).
-    // Only the lambda form can get here - the list form is bounded by the config schema. Send nothing
-    // rather than returning early, so the hub logs the refusal instead of the write vanishing silently.
-    if (values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
-      this->send_or_resolve_({});
+    const uint16_t start = this->start_address_.value(x...);
+    if (this->count_ >= 0) {
+      const auto count = static_cast<uint16_t>(this->count_);
+      this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(
+          start,
+          modbus::PackedBits(std::span<const uint8_t>(this->values_.packed, modbus::packed_bit_bytes(count)), count)));
       return;
     }
-    // Transient pack on the stack: ceil(1968 / 8) = 246 bytes for the spec-maximum write.
-    std::array<uint8_t, (modbus::MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> buf{};
-    modbus::MutablePackedBits bits(std::span<uint8_t>(buf.data(), (values.size() + 7) / 8),
-                                   static_cast<uint16_t>(values.size()));
-    for (size_t i = 0; i < values.size(); i++)
-      bits.set(i, values[i] != 0);
-    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(this->start_address_.value(x...), bits));
+    const std::vector<bool> values = this->values_.func(x...);
+    // Pack only what the buffer holds, but hand the builder the real count: an over-long set fails its
+    // bound check there, with a message naming the count, instead of being re-checked here.
+    modbus::helpers::CoilPackBuffer packed;
+    const size_t packable = std::min<size_t>(values.size(), modbus::MAX_NUM_OF_COILS_TO_WRITE);
+    for (size_t i = 0; i != packable; i++) {
+      if (i % 8 == 0)
+        packed.push_back(0);
+      if (values[i])
+        packed[i / 8] |= (1 << (i % 8));
+    }
+    const auto count = static_cast<uint16_t>(std::min<size_t>(values.size(), 0xFFFF));
+    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(
+        start, modbus::PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), count)));
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
@@ -278,6 +335,11 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
 
  protected:
   Trigger<> response_trigger_;
+  ssize_t count_{-1};  // -1 = template mode, >= 0 = static mode with this many coils
+  union Values {
+    std::vector<bool> (*func)(Ts...);
+    const uint8_t *packed;
+  } values_;
 };
 
 }  // namespace esphome::modbus_client

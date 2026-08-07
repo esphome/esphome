@@ -85,7 +85,7 @@ button:
       - modbus_client.write_single_coil:
           address: 0x01
           start_address: 0x01
-          value: 1
+          value: true
       - modbus_client.read_coils:
           address: 0x01
           start_address: 0x03

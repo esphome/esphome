@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_ON_RESPONSE,
     CONF_VALUE,
 )
-from esphome.core import Lambda
+from esphome.core import ID, Lambda
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
@@ -31,8 +31,11 @@ ModbusClientSendAction = modbus_client_ns.class_(
 ReadRegistersAction = modbus_client_ns.class_(
     "ReadRegistersAction", automation.Action, modbus.ModbusClientDevice
 )
-WriteSingleAction = modbus_client_ns.class_(
-    "WriteSingleAction", automation.Action, modbus.ModbusClientDevice
+WriteSingleRegisterAction = modbus_client_ns.class_(
+    "WriteSingleRegisterAction", automation.Action, modbus.ModbusClientDevice
+)
+WriteSingleCoilAction = modbus_client_ns.class_(
+    "WriteSingleCoilAction", automation.Action, modbus.ModbusClientDevice
 )
 ReadBitsAction = modbus_client_ns.class_(
     "ReadBitsAction", automation.Action, modbus.ModbusClientDevice
@@ -60,6 +63,11 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 # The list form below is bounded by cv.Length; a lambda cannot be. PduBuffer drops bytes past
 # modbus.MAX_PDU_SIZE without reporting it, so an over-long lambda PDU is silently truncated.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
+
+
+def _packed_bit_bytes(bits: int) -> int:
+    """Mirrors modbus::packed_bit_bytes(): bytes needed to hold this many coils on the wire."""
+    return (bits + 7) // 8
 
 
 def _synchronous_handler(value: ConfigType) -> ConfigType:
@@ -226,10 +234,18 @@ _READ_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     }
 )
 
-_WRITE_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+    }
+)
+
+# A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
+_WRITE_SINGLE_COIL_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
     }
 )
 
@@ -265,44 +281,52 @@ async def read_input_registers_to_code(config, action_id, template_arg, args):
     return await _read_registers_to_code(config, action_id, template_arg, args, False)
 
 
-async def _write_single_to_code(config, action_id, template_arg, args, coil):
-    var = cg.new_Pvariable(action_id, template_arg, coil)
+async def _write_single_to_code(config, action_id, template_arg, args, value_type):
+    var = cg.new_Pvariable(action_id, template_arg)
     cg.add(
         var.set_start_address(
             await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
         )
     )
-    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.uint16)))
+    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, value_type)))
     return await register_client_action(var, config, args, [])
 
 
 @automation.register_action(
     "modbus_client.write_single_register",
-    WriteSingleAction,
-    _WRITE_SCHEMA,
+    WriteSingleRegisterAction,
+    _WRITE_SINGLE_REGISTER_SCHEMA,
     synchronous=True,
 )
 async def write_single_register_to_code(config, action_id, template_arg, args):
-    return await _write_single_to_code(config, action_id, template_arg, args, False)
+    return await _write_single_to_code(config, action_id, template_arg, args, cg.uint16)
 
 
 @automation.register_action(
     "modbus_client.write_single_coil",
-    WriteSingleAction,
-    _WRITE_SCHEMA,
+    WriteSingleCoilAction,
+    _WRITE_SINGLE_COIL_SCHEMA,
     synchronous=True,
 )
 async def write_single_coil_to_code(config, action_id, template_arg, args):
-    return await _write_single_to_code(config, action_id, template_arg, args, True)
+    return await _write_single_to_code(config, action_id, template_arg, args, cg.bool_)
 
 
-_READ_BITS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Optional(CONF_COUNT, default=1): cv.templatable(
-            cv.int_range(min=1, max=modbus.MAX_NUM_OF_COILS_TO_READ)
-        ),
-    }
+def _read_bits_schema(max_count: int) -> cv.Schema:
+    # The spec sets the read ceiling per function code, so each action carries its own.
+    return _TYPED_RESPONSE_SCHEMA.extend(
+        {
+            cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+            cv.Optional(CONF_COUNT, default=1): cv.templatable(
+                cv.int_range(min=1, max=max_count)
+            ),
+        }
+    )
+
+
+_READ_COILS_SCHEMA = _read_bits_schema(modbus.MAX_NUM_OF_COILS_TO_READ)
+_READ_DISCRETE_INPUTS_SCHEMA = _read_bits_schema(
+    modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO_READ
 )
 
 
@@ -320,7 +344,7 @@ async def _read_bits_to_code(config, action_id, template_arg, args, coils):
 @automation.register_action(
     "modbus_client.read_coils",
     ReadBitsAction,
-    _READ_BITS_SCHEMA,
+    _READ_COILS_SCHEMA,
     synchronous=True,
 )
 async def read_coils_to_code(config, action_id, template_arg, args):
@@ -330,7 +354,7 @@ async def read_coils_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "modbus_client.read_discrete_inputs",
     ReadBitsAction,
-    _READ_BITS_SCHEMA,
+    _READ_DISCRETE_INPUTS_SCHEMA,
     synchronous=True,
 )
 async def read_discrete_inputs_to_code(config, action_id, template_arg, args):
@@ -375,13 +399,15 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
             await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
         )
     )
-    cg.add(
-        var.set_values(
-            await cg.templatable(
-                config[CONF_VALUES], args, cg.std_vector.template(cg.uint16)
-            )
-        )
-    )
+    values = config[CONF_VALUES]
+    if cg.is_template(values):
+        templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
+        cg.add(var.set_values_template(templ))
+    else:
+        # A static list goes to flash, so play() sends straight from there without allocating.
+        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(var, config, args, [])
 
 
@@ -398,11 +424,17 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
             await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
         )
     )
-    cg.add(
-        var.set_values(
-            await cg.templatable(
-                config[CONF_VALUES], args, cg.std_vector.template(cg.uint8)
-            )
-        )
-    )
+    values = config[CONF_VALUES]
+    if cg.is_template(values):
+        templ = await cg.templatable(values, args, cg.std_vector.template(cg.bool_))
+        cg.add(var.set_values_template(templ))
+    else:
+        # Pack to wire layout (LSB first) here, so the runtime neither allocates nor packs.
+        packed = bytearray(_packed_bit_bytes(len(values)))
+        for i, coil in enumerate(values):
+            if coil:
+                packed[i // 8] |= 1 << (i % 8)
+        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
+        cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(var, config, args, [])
