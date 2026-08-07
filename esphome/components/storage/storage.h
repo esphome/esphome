@@ -52,9 +52,9 @@ enum class SeekMode : uint8_t {
   END,      // relative to end of file
 };
 
-// Identifies the concrete subtype of a Storage pointer without RTTI.
+// Identifies the concrete subtype of a Storage pointer without Run Time Type Information.
 // Used by StorageRegistry::for_each_filesystem/raw/network() to safely
-// static_cast without dynamic_cast (RTTI is disabled on ESP32).
+// static_cast without dynamic_cast (Run Time Type Information is disabled on ESP32).
 enum class StorageType : uint8_t {
   RAW = 0,
   FILESYSTEM,
