@@ -1657,10 +1657,11 @@ void StorageWorker::check_stalled_() {
       // Finished but never collected -- the client is gone. Deliver the result once (the update()
       // sweep would have, had it run first) before reclaiming, so a waiter still learns the outcome.
       CompletionCallback cb = std::move(sreq.callback);
+      StorageError result = sreq.result;  // capture before the slot is FREE, like update()'s sweep
       sreq.callback = nullptr;
       sreq.state = StreamState::FREE;
       if (cb)
-        cb(sreq.result);
+        cb(result);
     } else if (sstate == StreamState::IDLE) {
       // Same immediate-finish contract as the quiesce drain: no I/O in flight.
       if (sreq.is_fs && sreq.handle != nullptr)
@@ -2242,6 +2243,12 @@ StorageError StorageWorker::write_chunk(const StreamHandle &handle, const uint8_
   if (slot == nullptr)
     return StorageError::INVALID_ARGS;
   StreamRequest &req = *slot;
+  // The previous step finished but its completion has not been delivered from update() yet;
+  // claiming the slot now would overwrite (and silently drop) that callback. Refuse instead --
+  // stream calls are sequenced by their completions. Main-loop-only, so this read cannot race
+  // the delivery sweep.
+  if (req.callback)
+    return StorageError::NOT_READY;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::WRITING))
     return StorageError::NOT_READY;
@@ -2260,6 +2267,12 @@ StorageError StorageWorker::read_chunk(const StreamHandle &handle, uint8_t *buf,
   if (slot == nullptr)
     return StorageError::INVALID_ARGS;
   StreamRequest &req = *slot;
+  // The previous step finished but its completion has not been delivered from update() yet;
+  // claiming the slot now would overwrite (and silently drop) that callback. Refuse instead --
+  // stream calls are sequenced by their completions. Main-loop-only, so this read cannot race
+  // the delivery sweep.
+  if (req.callback)
+    return StorageError::NOT_READY;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::READING))
     return StorageError::NOT_READY;
@@ -2278,6 +2291,12 @@ StorageError StorageWorker::end_write(const StreamHandle &handle, CompletionCall
   if (slot == nullptr)
     return StorageError::INVALID_ARGS;
   StreamRequest &req = *slot;
+  // The previous step finished but its completion has not been delivered from update() yet;
+  // claiming the slot now would overwrite (and silently drop) that callback. Refuse instead --
+  // stream calls are sequenced by their completions. Main-loop-only, so this read cannot race
+  // the delivery sweep.
+  if (req.callback)
+    return StorageError::NOT_READY;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::CLOSING))
     return StorageError::NOT_READY;
@@ -2297,6 +2316,12 @@ StorageError StorageWorker::seek(const StreamHandle &handle, int64_t offset, sto
   if (slot == nullptr)
     return StorageError::INVALID_ARGS;
   StreamRequest &req = *slot;
+  // The previous step finished but its completion has not been delivered from update() yet;
+  // claiming the slot now would overwrite (and silently drop) that callback. Refuse instead --
+  // stream calls are sequenced by their completions. Main-loop-only, so this read cannot race
+  // the delivery sweep.
+  if (req.callback)
+    return StorageError::NOT_READY;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::SEEKING))
     return StorageError::NOT_READY;
@@ -2314,6 +2339,12 @@ StorageError StorageWorker::tell(const StreamHandle &handle, uint64_t *position,
   if (slot == nullptr)
     return StorageError::INVALID_ARGS;
   StreamRequest &req = *slot;
+  // The previous step finished but its completion has not been delivered from update() yet;
+  // claiming the slot now would overwrite (and silently drop) that callback. Refuse instead --
+  // stream calls are sequenced by their completions. Main-loop-only, so this read cannot race
+  // the delivery sweep.
+  if (req.callback)
+    return StorageError::NOT_READY;
   StreamState expected = StreamState::IDLE;
   if (!req.state.compare_exchange_strong(expected, StreamState::TELLING))
     return StorageError::NOT_READY;
