@@ -14,10 +14,3 @@ wifi:
 
 ota:
   - platform: esphome
-
-# A migrated BLE sensor so CI compiles the tracker's listener dispatch path
-# (ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT sized to a real listener).
-sensor:
-  - platform: ble_rssi
-    mac_address: 11:22:33:44:55:66
-    name: BLE Test RSSI
