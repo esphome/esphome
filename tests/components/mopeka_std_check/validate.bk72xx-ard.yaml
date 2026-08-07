@@ -11,3 +11,9 @@ sensor:
     tank_type: Europe_11kg
     level:
       name: BK Mopeka Std Level
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - platform: mopeka_std_check
+    mac_address: D3:75:F2:DC:16:92
+    tank_type: Europe_11kg
+    level:
+      name: BK Propane implicit level
