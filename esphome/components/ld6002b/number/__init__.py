@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_CONFIG,
@@ -59,36 +58,22 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
-    if hold_delay_config := config.get(CONF_HOLD_DELAY):
-        n = cg.new_Pvariable(hold_delay_config[CONF_ID], NumberType.HOLD_DELAY)
-        await number.register_number(
-            n, hold_delay_config, min_value=0, max_value=65535, step=1
-        )
-        await cg.register_parented(n, config[CONF_LD6002B_ID])
-        cg.add(hub.set_hold_delay_number(n))
-
-    if z_min_config := config.get(CONF_Z_MIN):
-        n = cg.new_Pvariable(z_min_config[CONF_ID], NumberType.Z_MIN)
-        await number.register_number(
-            n, z_min_config, min_value=-10, max_value=10, step=0.1
-        )
-        await cg.register_parented(n, config[CONF_LD6002B_ID])
-        cg.add(hub.set_z_min_number(n))
-
-    if z_max_config := config.get(CONF_Z_MAX):
-        n = cg.new_Pvariable(z_max_config[CONF_ID], NumberType.Z_MAX)
-        await number.register_number(
-            n, z_max_config, min_value=-10, max_value=10, step=0.1
-        )
-        await cg.register_parented(n, config[CONF_LD6002B_ID])
-        cg.add(hub.set_z_max_number(n))
-
-    if low_power_sleep_config := config.get(CONF_LOW_POWER_SLEEP_TIME):
-        n = cg.new_Pvariable(
-            low_power_sleep_config[CONF_ID], NumberType.LOW_POWER_SLEEP
-        )
-        await number.register_number(
-            n, low_power_sleep_config, min_value=0, max_value=500, step=100
-        )
-        await cg.register_parented(n, config[CONF_LD6002B_ID])
-        cg.add(hub.set_low_power_sleep_number(n))
+    for key, number_type, setter, min_value, max_value, step in (
+        (CONF_HOLD_DELAY, NumberType.HOLD_DELAY, "set_hold_delay_number", 0, 65535, 1),
+        (CONF_Z_MIN, NumberType.Z_MIN, "set_z_min_number", -10, 10, 0.1),
+        (CONF_Z_MAX, NumberType.Z_MAX, "set_z_max_number", -10, 10, 0.1),
+        (
+            CONF_LOW_POWER_SLEEP_TIME,
+            NumberType.LOW_POWER_SLEEP,
+            "set_low_power_sleep_number",
+            0,
+            500,
+            100,
+        ),
+    ):
+        if conf := config.get(key):
+            n = await number.new_number(
+                conf, number_type, min_value=min_value, max_value=max_value, step=step
+            )
+            await cg.register_parented(n, config[CONF_LD6002B_ID])
+            cg.add(getattr(hub, setter)(n))
