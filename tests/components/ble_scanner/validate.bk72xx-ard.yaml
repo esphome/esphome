@@ -8,3 +8,6 @@ text_sensor:
   - platform: ble_scanner
     ble_hub_id: ble_hub
     name: BK Scanner
+  # No ble_hub_id: exercises the generated binding _require_hub guards.
+  - platform: ble_scanner
+    name: BK Scanner Implicit
