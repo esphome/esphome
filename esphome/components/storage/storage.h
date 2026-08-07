@@ -689,6 +689,16 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 // PathStorage overload -- see read_file(PathStorage *, ...) above.
 StorageError write_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size);
 
+// Appends an entire buffer to the end of a file in one call, creating it if absent. Filesystem
+// storages use a native OpenMode::APPEND open; network storages stat for the current size and
+// write_chunk() at that offset (O(1) RAM, no read-modify-write -- the stat->write window is not
+// atomic against other writers, which is acceptable for a single node appending its own
+// logs/values). Same blocking-size limit and short-write contract as write_file().
+StorageError append_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size);
+StorageError append_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size);
+// PathStorage overload -- see read_file(PathStorage *, ...) above.
+StorageError append_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size);
+
 // Copies a file OR a whole directory tree, within the same storage or across two different
 // storages (e.g. SD -> USB, USB -> NFS). What the source is decides which: a caller passes a
 // path and gets the obvious thing, recursion included (bounded by STORAGE_MAX_RECURSION_DEPTH,
