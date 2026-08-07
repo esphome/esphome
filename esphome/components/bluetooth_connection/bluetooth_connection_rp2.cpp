@@ -426,12 +426,9 @@ void RP2GattClient::loop() {
       ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
-  } else if (this->state_ == EngineState::IDLE) {
-    this->disable_loop();
-  } else if (this->state_ == EngineState::READY && !this->op_in_flight_() && this->event_queue_.empty() &&
-             this->notify_queue_.empty()) {
-    // Idle established link: the enqueue path re-arms the loop from any
-    // context, so nothing is polled while nothing is pending.
+  } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
+                                                   this->event_queue_.empty() && this->notify_queue_.empty())) {
+    // Nothing pending: the enqueue path re-arms the loop from any context.
     this->disable_loop();
   }
 }
