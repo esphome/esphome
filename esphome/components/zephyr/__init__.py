@@ -1228,13 +1228,50 @@ async def to_code(config: ConfigType) -> None:
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 
 
+def _upload_using_picotool() -> bool:
+    """Upload Zephyr firmware to RP2040 in BOOTSEL mode using picotool."""
+    import shutil
+    import subprocess
+    from pathlib import Path as _Path
+
+    from esphome.util import PICOTOOL_PACKAGE, detect_rp2040_bootsel
+
+    pio_packages = _Path.home() / ".platformio" / "packages"
+    picotool = pio_packages / PICOTOOL_PACKAGE / "picotool"
+    if not picotool.is_file():
+        picotool = _Path(shutil.which("picotool") or "")
+    if not picotool or not picotool.is_file():
+        _LOGGER.error(
+            "picotool not found. Install it via PlatformIO (rp2040 platform) "
+            "or your system package manager."
+        )
+        return False
+
+    elf = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.elf")
+    if not elf.is_file():
+        _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
+        return False
+
+    bootsel = detect_rp2040_bootsel(str(picotool))
+    if bootsel.device_count == 0:
+        _LOGGER.error("No RP2040 device in BOOTSEL mode found.")
+        return False
+
+    _LOGGER.info("Uploading Zephyr firmware to RP2040 via picotool...")
+    result = subprocess.run(
+        [str(picotool), "load", "-x", str(elf)],
+        stderr=subprocess.PIPE,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode != 0:
+        _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+        return False
+    return True
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     if KEY_ZEPHYR not in CORE.data:
-        # `esphome upload`/`logs` can skip full config validation via the
-        # validated-config cache (see compiled_config.py), so the variant
-        # runtime state that _variant_config_schema() ordinarily populates as
-        # a side effect never got set. Re-run it on the already-validated
-        # (round-tripped) zephyr: block to repopulate it.
         zephyr_config = config.get(CORE.target_platform)
         if not zephyr_config:
             raise EsphomeError(
@@ -1242,6 +1279,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 "please re-validate and recompile."
             )
         CONFIG_SCHEMA(zephyr_config)
+
+    if host == "BOOTSEL":
+        return _upload_using_picotool()
 
     if host == "PYOCD":
         if zephyr_variant_family() == "esp32":
