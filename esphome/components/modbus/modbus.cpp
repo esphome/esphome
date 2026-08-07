@@ -392,6 +392,15 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
     return false;
   }
 
+  // The byte count is a single byte, so the count must stay within the protocol read limit; above it the
+  // static_cast<uint8_t>(number_of_registers * 2) below would silently truncate the byte count.
+  if (number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
+    ESP_LOGE(TAG, "Read response of %" PRIu16 " registers exceeds the limit of %" PRIu16, number_of_registers,
+             MAX_NUM_OF_REGISTERS_TO_READ);
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
   // Byte count(1) + two bytes per register. Checked here rather than at the call sites so the bound travels with
   // the write itself: a future caller starting at a non-zero response_len, or passing a smaller buffer, is
   // rejected instead of overrunning it before send_response_'s size guard can fire.

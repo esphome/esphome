@@ -340,7 +340,8 @@ class ModbusServerHub : public Modbus {
   // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays
   // identical across them. Returns false once an exception has been sent: the one the handler reported via
-  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers or the body does not fit.
+  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers, the count exceeds the
+  // protocol read limit, or the body does not fit.
   bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
