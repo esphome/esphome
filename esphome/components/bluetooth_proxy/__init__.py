@@ -239,17 +239,15 @@ _GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema
 _GATT_HUB_TO_CODE[PLATFORM_RP2] = _rp2_connections_to_code
 
 
-# Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
-# callback feeds the same API batching. GATT/active connections are excluded at
-# compile time — only the esp32 build compiles the connection stack; nothing
-# reads HubCapabilities::gatt at runtime for this today.
-# Keys both platform schemas must declare identically; each arm spreads this
-# dict so the shared surface cannot drift. CONF_ACTIVE deliberately stays
-# per-arm: its default differs (esp32 True, hub arms False — no GATT).
+# Keys every platform arm declares identically; each arm spreads this dict so
+# the shared surface cannot drift. CONF_ACTIVE stays per-arm: its default
+# differs (esp32 True, rp2 True, advertisement-only False).
 _COMMON_SCHEMA_KEYS = {
     cv.GenerateID(): cv.declare_id(BluetoothProxy),
 }
 
+# Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
+# callback feeds the same API batching, no connection stack compiled.
 _BLE_HUB_CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -272,9 +270,10 @@ _BLE_HUB_CONFIG_SCHEMA = cv.All(
 def _validate_platform(config: ConfigType) -> ConfigType:
     """Apply the schema for the platform actually being compiled.
 
-    esp32 keeps the full GATT proxy; every other platform gets the
-    advertisement-only shape, which rejects the connection-oriented options
-    above because its schema does not define them.
+    Three-way dispatch: esp32 gets the full GATT proxy, HUB_MAX_CONNECTIONS
+    platforms get their _GATT_HUB_SCHEMAS arm, the remaining hub platforms get
+    the advertisement-only shape; unsupported keys were already rejected by
+    name in _reject_unsupported_connection_keys.
     """
     if config is SCHEMA_EXTRACT:
         # The language-schema dumper runs without a platform. Expose the esp32
