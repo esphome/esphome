@@ -30,7 +30,7 @@ bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 RP2_MAX_CONNECTIONS = 1
 
 # Hub platforms with a GATT backend, mapped to their slot limit — the single
-# registry of which hub platforms run the full proxy.
+# registry of which hub platforms run the connection-capable proxy.
 HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
 
 # The hub-platform wrapper and the rp2 BTstack backend codegen classes.
