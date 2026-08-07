@@ -788,6 +788,10 @@ class WiFiComponent final : public Component {
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
   void clear_roaming_state_();
+#ifdef USE_ESP32
+  /// Redo post-connect bookkeeping after a driver-initiated roam (e.g. 802.11v BTM)
+  void handle_driver_roam_();
+#endif
 
   /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
   bool roaming_suppressed_() const {

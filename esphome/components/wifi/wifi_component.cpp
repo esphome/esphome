@@ -2416,6 +2416,21 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_state_ = RoamingState::IDLE;
 }
 
+#ifdef USE_ESP32
+void WiFiComponent::handle_driver_roam_() {
+  // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
+  // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
+  // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
+  // untouched so an in-flight roaming scan is not orphaned.
+  this->roaming_last_check_ = App.get_loop_component_start_time();
+  this->roaming_attempts_ = 0;
+  this->clear_all_bssid_priorities_();
+#ifdef USE_WIFI_FAST_CONNECT
+  this->save_fast_connect_settings_();
+#endif
+}
+#endif
+
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
     ScanResultsLock lock(this);
