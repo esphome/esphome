@@ -20,7 +20,6 @@ CONF_MOVE_FALLBACK_COPY = "move_fallback_copy"
 # The key every storage driver uses for its mount point, so that _final_validate()
 # below finds them all without each driver having to cooperate.
 CONF_MOUNT_PATH = "mount_path"
-CONF_ON_COMPLETE = "on_complete"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
