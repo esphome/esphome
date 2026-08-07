@@ -1,12 +1,8 @@
-"""Per-platform GATT connection backends for the Bluetooth proxy.
+"""Per-platform GATT connection backends the Bluetooth proxy drives.
 
-This component holds the BluetoothConnection implementations the proxy drives
-for active connections (esp32 Bluedroid today, rp2 BTstack). It is auto-loaded
-by bluetooth_proxy and has no user-facing configuration; the proxy's codegen
-declares and registers the connection instances. The connection sources
-deliberately include bluetooth_proxy.h: the proxy is the one consumer, and the
-API-message emission lives with the connection rather than behind another
-indirection.
+Backends: esp32 Bluedroid, rp2 BTstack. Auto-loaded by bluetooth_proxy, no
+user-facing configuration; the proxy's codegen declares and registers the
+connection instances.
 """
 
 import functools
@@ -18,10 +14,8 @@ from esphome.core import CORE
 
 
 def AUTO_LOAD() -> list[str]:
-    """The esp32 connection header includes esp32_ble_client; make the build
-    closure self-satisfying on every platform instead of relying on the
-    consumer's auto loads. With no target platform (tooling resolving the
-    manifest), expose the union so dependency closures stay complete."""
+    """The esp32 connection header includes esp32_ble_client, so the closure
+    must be self-satisfying; no target platform (tooling) gets the union."""
     if CORE.is_esp32 or CORE.target_platform is None:
         return ["ble_device_base", "esp32_ble_client"]
     return ["ble_device_base"]
@@ -48,12 +42,8 @@ RP2GattClient = bluetooth_connection_ns.class_("RP2GattClient", cg.Component)
 
 @functools.cache
 def esp32_connection_class() -> cg.MockObjClass:
-    """Declare the esp32 BluetoothConnection codegen class.
-
-    Lazy: importing esp32_ble_client pulls in the esp32 BLE stack, whose
-    modules register esp32-only automations as an import side effect; they
-    must not leak into other platforms' registries (see bluetooth_proxy).
-    """
+    """Lazy: importing esp32_ble_client registers esp32-only automations as
+    an import side effect, which must not leak into other platforms."""
     from esphome.components import esp32_ble_client
 
     return bluetooth_connection_ns.class_(
