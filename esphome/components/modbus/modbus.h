@@ -326,6 +326,12 @@ class ModbusClientHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
+/// True when a transaction carried no exception. The optional holds the exception, so has_value() means
+/// the request FAILED - the inverse of how "status" usually reads. Prefer this at the call site; the
+/// bare !status.has_value() has already been mistaken for a failure check more than once. Where the code
+/// is going to unwrap the exception anyway, status.has_value() followed by status.value() stays clearer.
+inline bool succeeded(ResponseStatus status) { return !status.has_value(); }
+
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
