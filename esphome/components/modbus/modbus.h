@@ -312,9 +312,9 @@ class ModbusClientHub : public Modbus {
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
-// Transaction status: std::nullopt on success, otherwise the Modbus exception code. Server handlers return it;
-// (future) client response callbacks receive it. Named without a side prefix so both directions share it.
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
+
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
@@ -346,6 +346,15 @@ class ModbusServerHub : public Modbus {
   // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
   // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
   ResponseStatus check_register_range_(uint16_t start_address, uint16_t number_of_registers);
+
+  // Builds the body of a register read response (byte count followed by the big-endian register values) into
+  // response_buffer. Shared by every function code that answers with register values, so the read reply stays
+  // identical across them. Returns false once an exception has been sent: the one the handler reported via
+  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers, the count exceeds the
+  // protocol read limit, or the body does not fit.
+  bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                      uint16_t number_of_registers, const RegisterValues &registers,
+                                      std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);

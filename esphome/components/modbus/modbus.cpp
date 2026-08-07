@@ -450,6 +450,50 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint
   }
 }
 
+bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                                     uint16_t number_of_registers, const RegisterValues &registers,
+                                                     std::span<uint8_t> response_buffer, uint16_t &response_len) {
+  // A handler that returns an exception leaves registers partially filled, so check the exception
+  // first and forward it before validating the register count on the success path.
+  if (status.has_value()) {
+    this->send_exception_(address, function_code, status.value());
+    return false;
+  }
+
+  if (registers.size() != number_of_registers) {
+    ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
+  // The byte count is a single byte, so the count must stay within the protocol read limit; above it the
+  // static_cast<uint8_t>(number_of_registers * 2) below would silently truncate the byte count.
+  if (number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
+    ESP_LOGE(TAG, "Read response of %" PRIu16 " registers exceeds the limit of %" PRIu16, number_of_registers,
+             MAX_NUM_OF_REGISTERS_TO_READ);
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
+  // Byte count(1) + two bytes per register. Checked here rather than at the call sites so the bound travels with
+  // the write itself: a future caller starting at a non-zero response_len, or passing a smaller buffer, is
+  // rejected instead of overrunning it before send_response_'s size guard can fire.
+  const size_t required = static_cast<size_t>(response_len) + 1 + static_cast<size_t>(number_of_registers) * 2;
+  if (required > response_buffer.size()) {
+    ESP_LOGE(TAG, "Read response needs %zu bytes but only %zu are available", required, response_buffer.size());
+    this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+    return false;
+  }
+
+  response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+  for (auto r : registers) {
+    auto register_bytes = decode_value(r);
+    response_buffer[response_len++] = register_bytes[0];
+    response_buffer[response_len++] = register_bytes[1];
+  }
+  return true;
+}
+
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
   if (address == BROADCAST_ADDRESS) {
     // A broadcast is delivered to every registered device and is never answered (Modbus 4.1 / 6.12).
@@ -492,24 +536,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         status = device->on_read_input_registers(start_address, number_of_registers, registers);
       }
 
-      // A handler that returns an exception leaves registers partially filled, so check the exception
-      // first and forward it before validating the register count on the success path.
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (!this->build_or_reject_read_response_(address, function_code, status, number_of_registers, registers,
+                                                response_buffer, response_len)) {
         return;
-      }
-
-      if (registers.size() != number_of_registers) {
-        ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
-        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
-        return;
-      }
-
-      response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-      for (auto r : registers) {
-        auto register_bytes = decode_value(r);
-        response_buffer[response_len++] = register_bytes[0];
-        response_buffer[response_len++] = register_bytes[1];
       }
       break;
     }
@@ -530,6 +559,56 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       status = device->on_write_registers(start_address, registers);
       response_data = data;  // echo the request header per Modbus 6.6, 6.12
       response_len = 4;
+      break;
+    }
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
+      // PDU data: read start address(2) + read quantity(2) + write start address(2) + write quantity(2) +
+      // write byte count(1) + write register values. Per Modbus 6.17 the write is performed before the read.
+      uint16_t read_start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
+      uint16_t write_start_address = helpers::get_data<uint16_t>(data, 4);
+      uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data, 6);
+      uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 8);
+      if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ ||
+          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE_RW ||
+          number_of_write_registers * 2 != number_of_bytes) {
+        ESP_LOGW(TAG, "Invalid number of registers (read %" PRIu16 ", write %" PRIu16 ") or bytes %" PRIu8,
+                 number_of_registers, number_of_write_registers, number_of_bytes);
+        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
+        return;
+      }
+      status = this->check_register_range_(read_start_address, number_of_registers);
+      if (!status.has_value()) {
+        status = this->check_register_range_(write_start_address, number_of_write_registers);
+      }
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
+      // Perform the write first (Modbus 6.17). Scoped so the write values are off the stack before the read
+      // values are allocated, keeping only one RegisterValues buffer live at a time.
+      {
+        // Assemble the written register values (host byte order); they follow the 9-byte request header.
+        RegisterValues write_registers;
+        for (uint16_t i = 0; i < number_of_write_registers; i++) {
+          write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
+        }
+        // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
+        // without a dedicated handler; a device that maps registers by address reconstructs the read response
+        // from the values it just stored.
+        status = device->on_write_registers(write_start_address, write_registers);
+      }
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
+      RegisterValues registers;
+      status = device->on_read_holding_registers(read_start_address, number_of_registers, registers);
+
+      if (!this->build_or_reject_read_response_(address, function_code, status, number_of_registers, registers,
+                                                response_buffer, response_len)) {
+        return;
+      }
       break;
     }
     default:
