@@ -74,6 +74,7 @@ template<class T, uint8_t SIZE> class EventPool {
   // (entries that already exist are counted, not re-created); must not run
   // concurrently with allocate()/release().
   bool warm() {
+    // NOLINTNEXTLINE(clang-analyzer-unix.Malloc) -- ownership transfers to the free list
     while (this->total_created_ < SIZE) {
       T *event = this->create_();
       if (event == nullptr)
