@@ -28,6 +28,8 @@ DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
 
+ble_device_base.register_hub_provider("rp2_ble_tracker")
+
 rp2_ble_tracker_ns = cg.esphome_ns.namespace("rp2_ble_tracker")
 RP2BLETracker = rp2_ble_tracker_ns.class_(
     "RP2BLETracker", ble_device_base.BLEHub, cg.Component
