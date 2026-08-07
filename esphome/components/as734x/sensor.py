@@ -276,7 +276,7 @@ _COMMON_SCHEMA = (
                     unit_of_measurement=UNIT_PPFD,
                     icon=ICON_PPFD,
                     accuracy_decimals=3,
-                    device_class=DEVICE_CLASS_IRRADIANCE,
+                    device_class=DEVICE_CLASS_EMPTY,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
