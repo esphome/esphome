@@ -2,6 +2,9 @@
 real reason, hub platforms reject GATT-only options by name, and the
 advertisement-only arm applies its own defaults."""
 
+from pathlib import Path
+import re
+
 import pytest
 
 from esphome import config_validation as cv
@@ -19,9 +22,10 @@ from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
 
+# Advertisement-only hub platforms; rp2 runs the full proxy and has its own
+# tests below.
 HUB_PLATFORM_FRAMEWORKS = [
     PlatformFramework.LN882X_ARDUINO,
-    PlatformFramework.RP2_ARDUINO,
 ]
 
 HUB_TRACKERS = {
@@ -32,9 +36,11 @@ HUB_TRACKERS = {
 
 def test_hub_platform_list_covers_every_hub_platform() -> None:
     # A platform added to _HUB_PLATFORMS (bk72xx is planned) would otherwise
-    # get no gate coverage at all.
-    covered = {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS}
-    assert covered == set(bluetooth_proxy._HUB_PLATFORMS)
+    # get no gate coverage at all; GATT platforms have their own tests.
+    advertisement_only = set(bluetooth_proxy._HUB_PLATFORMS) - set(
+        bluetooth_connection.HUB_MAX_CONNECTIONS
+    )
+    assert {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS} == advertisement_only
     assert set(HUB_TRACKERS) == set(bluetooth_proxy._HUB_PLATFORMS)
 
 
@@ -122,6 +128,55 @@ def test_hub_platform_accepts_the_advertisement_only_shape(
     assert validated[CONF_ACTIVE] is False
 
 
+def test_rp2_defaults_to_the_full_proxy(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # esp32 parity: active defaults to true, with the platform's slot limit,
+    # and one populated connection entry for the codegen to index.
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    _register_tracker(PLATFORM_RP2)
+    validated = bluetooth_proxy.CONFIG_SCHEMA({})
+    assert validated[CONF_ACTIVE] is True
+    assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 1
+    assert len(validated[bluetooth_proxy.CONF_CONNECTIONS]) == 1
+
+
+def test_rp2_accepts_explicit_passive(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    _register_tracker(PLATFORM_RP2)
+    validated = bluetooth_proxy.CONFIG_SCHEMA({CONF_ACTIVE: False})
+    assert validated[CONF_ACTIVE] is False
+    assert bluetooth_proxy.CONF_CONNECTIONS not in validated
+
+
+def test_rp2_rejects_slots_beyond_the_btstack_limit(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The prebuilt BTstack library allows exactly one GATT client connection.
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    _register_tracker(PLATFORM_RP2)
+    with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
+    # Values past even the loosest platform cap stop at the outer walkable
+    # schema, which stays bounded for range walkers (device-builder sync);
+    # in-range values get the platform message above.
+    with pytest.raises(cv.Invalid, match="at most 9"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 12})
+
+
+def test_rp2_rejects_esp32_only_keys_by_name(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    _register_tracker(PLATFORM_RP2)
+    with pytest.raises(cv.Invalid, match="'cache_services' is esp32-only"):
+        bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
+    with pytest.raises(cv.Invalid, match="'connections' has no per-connection options"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
+
+
 def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
     # The esp32 connection header includes esp32_ble_client; the auto load
     # must satisfy that closure itself (regression: it once relied on the
@@ -134,3 +189,40 @@ def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
     # dependency closures stay complete for build_codeowners and friends.
     _set_platform(None)
     assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_client"]
+
+
+def test_every_registered_hub_platform_has_a_schema_arm() -> None:
+    # A platform added to HUB_MAX_CONNECTIONS without a schema builder,
+    # codegen arm, or _HUB_PLATFORMS entry would only fail when a config for
+    # it is validated (or not even then); pin all three couplings here.
+    registered = set(bluetooth_connection.HUB_MAX_CONNECTIONS)
+    assert registered <= set(bluetooth_proxy._GATT_HUB_SCHEMAS)
+    assert registered <= set(bluetooth_proxy._GATT_HUB_TO_CODE)
+    assert registered <= set(bluetooth_proxy._HUB_PLATFORMS)
+    # The outer walkable schema's bound must stay the loosest platform cap.
+    assert (
+        max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())
+        <= bluetooth_proxy._IDF_MAX_CONNECTIONS
+    )
+
+
+def test_defines_h_mirrors_the_rp2_slot_cap() -> None:
+    # esphome/core/defines.h carries a literal BLUETOOTH_PROXY_MAX_CONNECTIONS
+    # for static analysis; pin it to the real rp2 cap.
+    defines = (Path(__file__).parents[3] / "esphome" / "core" / "defines.h").read_text()
+    cap = bluetooth_connection.RP2_MAX_CONNECTIONS
+    # The rp2 arm's define, tolerating blank/comment lines in between.
+    match = re.search(
+        r"#elif defined\(USE_RP2\)\s*(?:(?://[^\n]*)?\n)+#define BLUETOOTH_PROXY_MAX_CONNECTIONS (\d+)",
+        defines,
+    )
+    assert match is not None, "no USE_RP2 arm defines BLUETOOTH_PROXY_MAX_CONNECTIONS"
+    assert int(match.group(1)) == cap, (
+        f"defines.h rp2 arm carries {match.group(1)}, expected {cap}"
+    )
+    # The static-analysis client count scales with the same cap.
+    match = re.search(r"#define ESPHOME_BLE_GATT_CLIENT_COUNT (\d+)", defines)
+    assert match is not None, "ESPHOME_BLE_GATT_CLIENT_COUNT missing from defines.h"
+    assert int(match.group(1)) == cap, (
+        f"ESPHOME_BLE_GATT_CLIENT_COUNT is {match.group(1)}, expected {cap}"
+    )
