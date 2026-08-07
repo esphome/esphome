@@ -32,6 +32,9 @@ namespace esphome::ld6002b {
 
 static constexpr uint8_t MAX_TARGETS = 3;
 static constexpr uint8_t AREA_COUNT = 4;
+// Interference areas own ids 0..AREA_COUNT-1 and detection areas the next four, so
+// this is the whole id space TYPE_SET_AREA accepts.
+static constexpr uint8_t AREA_ID_COUNT = AREA_COUNT * 2;
 static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
 static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
@@ -295,6 +298,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void publish_work_mode_(bool low_power);
   // Drops every target-derived reading and the slot table they are indexed by.
   void clear_target_state_();
+  void clear_area_presence_();
 #ifdef USE_SENSOR
   void clear_target_slot_(uint8_t index);
 #endif
@@ -303,7 +307,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #endif
   void update_area_numbers_(const AreaConfig &area);
   void update_area_numbers_for_id_(uint8_t area_id);
-  void queue_area_config_(uint8_t area_id, const AreaConfig &desired);
+  bool queue_area_config_(uint8_t area_id, const AreaConfig &desired);
   void try_apply_pending_area_(bool reported_interference);
   void init_area_id_pref_();
   void save_area_id_pref_(uint8_t value);
@@ -444,6 +448,13 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   float area_y_max_{NAN};
   float area_z_min_{NAN};
   float area_z_max_{NAN};
+  // What the user has typed and not yet applied; NaN per axis means "nothing of
+  // mine here, take the module's value".  Same sentinel shape as
+  // pending_area_updates_.  Exactly two things empty it: the area_id select moving
+  // to another area, and an apply that was accepted.  A write the bounds guard
+  // refused and anything the module resets on its own leave it alone -- those
+  // values are still the user's to fix.
+  AreaConfig area_edits_{};
   std::array<AreaConfig, AREA_COUNT> interference_area_values_{};
   std::array<AreaConfig, AREA_COUNT> detection_area_values_{};
   uint8_t area_id_{0xFF};

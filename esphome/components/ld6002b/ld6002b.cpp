@@ -846,7 +846,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * 4));
+    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -1000,13 +1000,24 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
 void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
-#ifdef USE_TEXT_SENSOR
+  // Zero is the unattended half of this transition.  Read outside the text sensor's
+  // ifdef because the area sensors do not need one configured to have gone stale.
   const bool low_power = (data[0] == 0);
+#ifdef USE_TEXT_SENSOR
   if (this->work_mode_text_sensor_ != nullptr) {
     this->work_mode_reported_ = true;
     this->publish_work_mode_(low_power);
   }
 #endif
+  // Protocol V1.2 section 2.1.17: this message is sent only on the transition
+  // between the unattended low-power mode and normal operation, so a zero is the
+  // module stating that nobody is in any area.  Not while a target is still being
+  // tracked, though: the reset_unattended command is undocumented on whether it
+  // forces this report, and where two statements from the module disagree the live
+  // one wins.
+  if (low_power && !this->target_presence_any_) {
+    this->clear_area_presence_();
+  }
 }
 
 void LD6002BComponent::update_work_mode_fallback_() {
@@ -1292,7 +1303,7 @@ void LD6002BComponent::apply_area_config_() {
     ESP_LOGW(TAG, "Area ID not selected; ignoring apply");
     return;
   }
-  if (this->area_id_ > 7) {
+  if (this->area_id_ >= AREA_ID_COUNT) {
     ESP_LOGW(TAG, "Invalid area id: %u", this->area_id_);
     return;
   }
@@ -1324,11 +1335,18 @@ void LD6002BComponent::apply_area_config_() {
     this->pending_area_updates_.y_max = this->area_y_max_;
     this->pending_area_updates_.z_min = this->area_z_min_;
     this->pending_area_updates_.z_max = this->area_z_max_;
+    // Copied above, so they are the deferred apply's values now rather than an
+    // unsent edit.  Anything typed from here belongs to whatever the user does
+    // next, which may well be a different area.
+    this->area_edits_ = AreaConfig{};
     ESP_LOGI(TAG, "Area config incomplete; requesting current areas before applying");
     this->send_control_command_(CMD_GET_AREAS);
     return;
   }
-  this->queue_area_config_(this->area_id_, desired);
+  // Only a write the module will actually see retires them.
+  if (this->queue_area_config_(this->area_id_, desired)) {
+    this->area_edits_ = AreaConfig{};
+  }
 }
 
 void LD6002BComponent::wake_() {
@@ -1367,21 +1385,27 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
     }
     case NumberType::AREA_X_MIN:
       this->area_x_min_ = value;
+      this->area_edits_.x_min = value;
       break;
     case NumberType::AREA_X_MAX:
       this->area_x_max_ = value;
+      this->area_edits_.x_max = value;
       break;
     case NumberType::AREA_Y_MIN:
       this->area_y_min_ = value;
+      this->area_edits_.y_min = value;
       break;
     case NumberType::AREA_Y_MAX:
       this->area_y_max_ = value;
+      this->area_edits_.y_max = value;
       break;
     case NumberType::AREA_Z_MIN:
       this->area_z_min_ = value;
+      this->area_edits_.z_min = value;
       break;
     case NumberType::AREA_Z_MAX:
       this->area_z_max_ = value;
+      this->area_edits_.z_max = value;
       break;
   }
 }
@@ -1423,38 +1447,54 @@ void LD6002BComponent::set_select_value(SelectType type, size_t index) {
 }
 
 void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
-  this->area_x_min_ = area.x_min;
-  this->area_x_max_ = area.x_max;
-  this->area_y_min_ = area.y_min;
-  this->area_y_max_ = area.y_max;
-  this->area_z_min_ = area.z_min;
-  this->area_z_max_ = area.z_max;
+  // A report refreshes every axis the user is not in the middle of changing.  An
+  // unapplied edit is the one value here the module cannot know about, so taking
+  // the report over it would discard what the user typed with nothing to show for it.
+  const AreaConfig &edits = this->area_edits_;
+  if (std::isnan(edits.x_min))
+    this->area_x_min_ = area.x_min;
+  if (std::isnan(edits.x_max))
+    this->area_x_max_ = area.x_max;
+  if (std::isnan(edits.y_min))
+    this->area_y_min_ = area.y_min;
+  if (std::isnan(edits.y_max))
+    this->area_y_max_ = area.y_max;
+  if (std::isnan(edits.z_min))
+    this->area_z_min_ = area.z_min;
+  if (std::isnan(edits.z_max))
+    this->area_z_max_ = area.z_max;
 #ifdef USE_NUMBER
-  this->publish_number_clamped_(this->area_x_min_number_, area.x_min);
-  this->publish_number_clamped_(this->area_x_max_number_, area.x_max);
-  this->publish_number_clamped_(this->area_y_min_number_, area.y_min);
-  this->publish_number_clamped_(this->area_y_max_number_, area.y_max);
-  this->publish_number_clamped_(this->area_z_min_number_, area.z_min);
-  this->publish_number_clamped_(this->area_z_max_number_, area.z_max);
+  // The mirror, not the report: an axis kept above has to keep its displayed value
+  // too, or the entity and the value the next apply sends would disagree.
+  this->publish_number_clamped_(this->area_x_min_number_, this->area_x_min_);
+  this->publish_number_clamped_(this->area_x_max_number_, this->area_x_max_);
+  this->publish_number_clamped_(this->area_y_min_number_, this->area_y_min_);
+  this->publish_number_clamped_(this->area_y_max_number_, this->area_y_max_);
+  this->publish_number_clamped_(this->area_z_min_number_, this->area_z_min_);
+  this->publish_number_clamped_(this->area_z_max_number_, this->area_z_max_);
 #endif
 }
 
 void LD6002BComponent::update_area_numbers_for_id_(uint8_t area_id) {
-  if (area_id >= AREA_COUNT * 2)
+  if (area_id >= AREA_ID_COUNT)
     return;
   const bool interference = area_id < AREA_COUNT;
   const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
   const AreaConfig &area = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  // The edits belonged to the area being navigated away from.
+  this->area_edits_ = AreaConfig{};
   this->update_area_numbers_(area);
 }
 
-void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
+bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
   // One frame carries all three pairs and cannot express a crossed one; the module
   // would keep a box nothing can ever be inside.  Both callers arrive with the six
-  // bounds resolved, so this is the last place that can say no.
+  // bounds resolved, so this is the last place that can say no -- and the return
+  // value is how saying no reaches the caller, which must not then retire the edits
+  // the user still has to fix.
   if (desired.x_min > desired.x_max || desired.y_min > desired.y_max || desired.z_min > desired.z_max) {
     ESP_LOGW(TAG, "Area %u not written, min above max", area_id);
-    return;
+    return false;
   }
   uint8_t data[AREA_CONFIG_LEN];
   write_int32_le(data, static_cast<int32_t>(area_id));
@@ -1472,14 +1512,21 @@ void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
   AreaConfig &store = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
   store = desired;
-  this->update_area_numbers_(store);
+  // The six numbers show one area at a time, and a deferred apply can land here for
+  // an area the user has navigated away from.  Same question handle_area_report_
+  // asks before it touches them.
+  const uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
+  if (area_id == selected_id) {
+    this->update_area_numbers_(store);
+  }
+  return true;
 }
 
 void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
   if (!this->deferred_apply_pending_) {
     return;
   }
-  if (this->pending_area_id_ > 7) {
+  if (this->pending_area_id_ >= AREA_ID_COUNT) {
     this->deferred_apply_pending_ = false;
     return;
   }
@@ -1527,12 +1574,16 @@ void LD6002BComponent::init_area_id_pref_() {
   this->area_id_pref_initialized_ = true;
 
   uint8_t value = 0;
-  if (this->area_id_pref_.load(&value) && value < AREA_COUNT * 2) {
-    this->area_id_select_->publish_state(value);
-    this->area_id_ = value;
-    this->area_id_set_ = true;
-    this->update_area_numbers_for_id_(value);
+  if (!this->area_id_pref_.load(&value) || value >= AREA_ID_COUNT) {
+    // No stored selection.  The numbers are about to display this area either way,
+    // so select it for real: a displayed area that apply_area then refuses to write
+    // is the one combination the user cannot make sense of.
+    value = AREA_ID_DEFAULT;
   }
+  this->area_id_select_->publish_state(value);
+  this->area_id_ = value;
+  this->area_id_set_ = true;
+  this->update_area_numbers_for_id_(value);
 #endif
 }
 
@@ -1598,6 +1649,27 @@ void LD6002BComponent::clear_target_slot_(uint8_t index) {
   this->last_cluster_id_valid_[index] = false;
 }
 #endif
+
+void LD6002BComponent::clear_area_presence_() {
+  if (!this->area_presence_any_) {
+    return;
+  }
+  // Nothing else corrects this: 0x0A0A carries no period the protocol states and no
+  // command stops it, so the module going unattended is the only moment the
+  // component can know a stored "occupied" has stopped being true.
+  this->area_presence_any_ = false;
+#ifdef USE_BINARY_SENSOR
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    if (this->area_presence_[i] != nullptr) {
+      this->area_presence_[i]->publish_state(false);
+    }
+  }
+  const bool presence = this->target_presence_any_ || this->area_presence_any_;
+  if (this->presence_binary_sensor_ != nullptr) {
+    this->presence_binary_sensor_->publish_state(presence);
+  }
+#endif
+}
 
 void LD6002BComponent::clear_target_state_() {
   // Nothing corrects any of this until the stream comes back.  The slot table goes
