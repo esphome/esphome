@@ -147,6 +147,11 @@ async def register_client_action(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
         )
     )
+    # Present for every typed action and absent from modbus_client.send, which has a pdu instead.
+    if (start_address := config.get(CONF_START_ADDRESS)) is not None:
+        cg.add(
+            var.set_start_address(await cg.templatable(start_address, args, cg.uint16))
+        )
     if sent_conf := config.get(CONF_ON_SENT):
         await automation.build_automation(
             var.get_sent_trigger(), [(_PDU_SPAN, "request")], sent_conf
@@ -231,25 +236,57 @@ _TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(
 )
 
 
-def _read_schema(max_count: int) -> cv.Schema:
+def _no_address_overflow(count_key: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject a range that runs past the 16-bit address space, which the device could never answer.
+
+    Only literal configurations can be checked: either operand may be a lambda, and its value is not known
+    until play(). The PDU builders repeat this check at runtime, so the lambda case is still rejected and
+    logged - just later.
+    """
+
+    def validate(config: ConfigType) -> ConfigType:
+        start = config[CONF_START_ADDRESS]
+        count = config[count_key]
+        if isinstance(start, Lambda) or isinstance(count, Lambda):
+            return config
+        # CONF_COUNT is a number; CONF_VALUES is the list whose length is the count.
+        length = count if isinstance(count, int) else len(count)
+        if start + length > 0x10000:
+            raise cv.Invalid(
+                f"{CONF_START_ADDRESS} 0x{start:04X} plus {length} entities runs past the end of the "
+                f"16-bit address space (last addressable entity is 0xFFFF)",
+                path=[CONF_START_ADDRESS],
+            )
+        return config
+
+    return validate
+
+
+def _read_schema(max_count: int) -> cv.All:
     """Read action schema. The spec sets the read ceiling per function code, so each one passes its own."""
-    return _TYPED_ACTION_SCHEMA.extend(
-        {
-            cv.Optional(CONF_COUNT, default=1): cv.templatable(
-                cv.int_range(min=1, max=max_count)
-            ),
-        }
+    return cv.All(
+        _TYPED_ACTION_SCHEMA.extend(
+            {
+                cv.Optional(CONF_COUNT, default=1): cv.templatable(
+                    cv.int_range(min=1, max=max_count)
+                ),
+            }
+        ),
+        _no_address_overflow(CONF_COUNT),
     )
 
 
-def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Schema:
+def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.All:
     """Multi-write action schema, differing only in the element type and the spec's per-function limit."""
-    return _TYPED_ACTION_SCHEMA.extend(
-        {
-            cv.Required(CONF_VALUES): cv.templatable(
-                cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
-            ),
-        }
+    return cv.All(
+        _TYPED_ACTION_SCHEMA.extend(
+            {
+                cv.Required(CONF_VALUES): cv.templatable(
+                    cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
+                ),
+            }
+        ),
+        _no_address_overflow(CONF_VALUES),
     )
 
 
@@ -267,11 +304,6 @@ _WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
 
 async def _read_registers_to_code(config, action_id, template_arg, args, holding):
     var = cg.new_Pvariable(action_id, template_arg, holding)
-    cg.add(
-        var.set_start_address(
-            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
-        )
-    )
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
     return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])
 
@@ -298,11 +330,6 @@ async def read_input_registers_to_code(config, action_id, template_arg, args):
 
 async def _write_single_to_code(config, action_id, template_arg, args, value_type):
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(
-        var.set_start_address(
-            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
-        )
-    )
     cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, value_type)))
     return await register_client_action(var, config, args, [])
 
@@ -333,11 +360,6 @@ _READ_DISCRETE_INPUTS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO
 
 async def _read_bits_to_code(config, action_id, template_arg, args, coils):
     var = cg.new_Pvariable(action_id, template_arg, coils)
-    cg.add(
-        var.set_start_address(
-            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
-        )
-    )
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
     return await register_client_action(var, config, args, [(PackedBits, "bits")])
 
@@ -379,11 +401,6 @@ _WRITE_MULTIPLE_COILS_SCHEMA = _write_multiple_schema(
 )
 async def write_multiple_registers_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(
-        var.set_start_address(
-            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
-        )
-    )
     values = config[CONF_VALUES]
     if cg.is_template(values):
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
@@ -404,11 +421,6 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
 )
 async def write_multiple_coils_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(
-        var.set_start_address(
-            await cg.templatable(config[CONF_START_ADDRESS], args, cg.uint16)
-        )
-    )
     values = config[CONF_VALUES]
     if cg.is_template(values):
         templ = await cg.templatable(values, args, cg.std_vector.template(cg.bool_))

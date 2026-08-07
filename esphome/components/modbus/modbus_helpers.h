@@ -429,11 +429,21 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value);
  *  Function 0x0F Write Multiple Coils
  * @param start_address modbus address of the first coil to write
  * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
- *               over-long set is rejected and an empty PDU is returned). Note std::vector<bool> is bit-packed and
- *               does not convert to a span; pass a std::array<bool, N> or other contiguous bool container.
+ *               over-long set is rejected and an empty PDU is returned)
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
+
+/** Create modbus write multiple coils command (function 0x0F) from a std::vector<bool>.
+ * Prefer the span overload above whenever the coils are already in contiguous storage - a std::array<bool, N>
+ * or any other contiguous bool container converts to it. This overload exists only because std::vector<bool>
+ * is bit-packed and so cannot convert to a span; without it every caller holding one re-implements the packing.
+ * @param start_address modbus address of the first coil to write
+ * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
+ *               over-long set is rejected and an empty PDU is returned)
+ * @return PDU (function code + data, no address, no CRC)
+ */
+PduBuffer create_write_coils_pdu(uint16_t start_address, const std::vector<bool> &values);
 
 /** Create modbus write multiple coils command (function 0x0F) from bits packed as on the wire.
  * @param start_address modbus address of the first coil to write

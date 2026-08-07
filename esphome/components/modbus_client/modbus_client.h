@@ -4,7 +4,6 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
-#include <algorithm>
 #include <span>
 #include <vector>
 
@@ -128,8 +127,10 @@ template<typename... Ts> class TypedClientActionBase : public ClientActionBase<T
   }
 
  protected:
-  /// True when the reply carries no exception; exception replies fired on_error instead.
-  bool check_status_(modbus::ResponseStatus status) { return !status.has_value(); }
+  /// Defensive assertion, not a live branch: ClientActionBase::on_error intercepts every exception reply
+  /// before the dispatch runs, so a typed callback below is only ever reached with a success status. Kept
+  /// so a future change to that interception cannot silently deliver an exception as a successful reply.
+  bool is_success_(modbus::ResponseStatus status) { return !status.has_value(); }
 
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> custom_response_trigger_;
   bool custom_response_handled_{false};
@@ -153,7 +154,7 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
   }
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                          modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger(registers);
   }
 
@@ -180,7 +181,7 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
   }
   void on_read_bits(modbus::EntityType entity_type, uint16_t start_address, modbus::PackedBits bits,
                     modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger(bits);
   }
 
@@ -203,7 +204,7 @@ template<typename... Ts> class WriteSingleRegisterAction : public TypedClientAct
         modbus::helpers::create_write_single_register_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger();
   }
 
@@ -225,7 +226,7 @@ template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionB
         modbus::helpers::create_write_single_coil_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_coil(uint16_t address, bool value, modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger();
   }
 
@@ -269,7 +270,7 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                    modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger();
   }
 
@@ -312,24 +313,12 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
           modbus::PackedBits(std::span<const uint8_t>(this->values_.packed, modbus::packed_bit_bytes(count)), count)));
       return;
     }
-    const std::vector<bool> values = this->values_.func(x...);
-    // Pack only what the buffer holds, but hand the builder the real count: an over-long set fails its
-    // bound check there, with a message naming the count, instead of being re-checked here.
-    modbus::helpers::CoilPackBuffer packed;
-    const size_t packable = std::min<size_t>(values.size(), modbus::MAX_NUM_OF_COILS_TO_WRITE);
-    for (size_t i = 0; i != packable; i++) {
-      if (i % 8 == 0)
-        packed.push_back(0);
-      if (values[i])
-        packed[i / 8] |= (1 << (i % 8));
-    }
-    const auto count = static_cast<uint16_t>(std::min<size_t>(values.size(), 0xFFFF));
-    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(
-        start, modbus::PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), count)));
+    // The builder packs and bound-checks; an over-long set is rejected and logged there.
+    this->send_or_resolve_(modbus::helpers::create_write_coils_pdu(start, this->values_.func(x...)));
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
-    if (this->check_status_(status))
+    if (this->is_success_(status))
       this->response_trigger_.trigger();
   }
 
