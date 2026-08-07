@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 
+ALLOWED_UNITS = "allowed_units"
 DEVICE_TYPE = "device_type"
 ROLE = "role"
-CONF_CLUSTER = "cluster"
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
 CONF_ATTRIBUTE_ID = "attribute_id"

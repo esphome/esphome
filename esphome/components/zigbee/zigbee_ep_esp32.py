@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_TYPE,
-    CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -37,6 +36,7 @@ from .const import (
     REPORT,
 )
 from .const_esp32 import (
+    ALLOWED_UNITS,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
@@ -78,7 +78,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_TEMPERATURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_CELSIUS],
+        ALLOWED_UNITS: [UNIT_CELSIUS],
         DEVICE_TYPE: "TEMPERATURE_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -97,7 +97,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_HUMIDITY: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_PERCENT],
+        ALLOWED_UNITS: [UNIT_PERCENT],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "REL_HUMIDITY_MEASUREMENT",
@@ -115,7 +115,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
+        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PRESSURE_MEASUREMENT",
@@ -136,7 +136,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
+        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
         DEVICE_TYPE: "PRESSURE_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -158,7 +158,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_VOLUME_FLOW_RATE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
+        ALLOWED_UNITS: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
         DEVICE_TYPE: "FLOW_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -180,7 +180,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_ILLUMINANCE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_LUX],
+        ALLOWED_UNITS: [UNIT_LUX],
         DEVICE_TYPE: "LIGHT_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -205,7 +205,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_PM25: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_MICROGRAMS_PER_CUBIC_METER],
+        ALLOWED_UNITS: [UNIT_MICROGRAMS_PER_CUBIC_METER],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PM2_5_MEASUREMENT",
@@ -227,7 +227,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_CARBON_DIOXIDE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_PARTS_PER_MILLION],
+        ALLOWED_UNITS: [UNIT_PARTS_PER_MILLION],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "CARBON_DIOXIDE_MEASUREMENT",

@@ -48,6 +48,7 @@ from .const import (
     ZigbeeAttribute,
 )
 from .const_esp32 import (
+    ALLOWED_UNITS,
     ATTR_TYPE,
     CLUSTER_ID,
     CLUSTER_ROLE,
@@ -85,10 +86,10 @@ def get_c_type(attr_type: str) -> Any | None:
     if "STRING" in attr_type:
         return cg.std_string
     test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
-    if test and test.group(2):
+    if test:
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
     test = re.match(r"^INT(\d{1,2})$", attr_type)
-    if test and test.group(1):
+    if test:
         return getattr(cg, "int" + get_c_size(test.group(1), [8, 16, 32, 64]))
     return None
 
@@ -101,10 +102,10 @@ def get_cv_by_type(attr_type: str) -> Any | None:
     if "STRING" in attr_type:
         return cv.string
     test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
-    if test and test.group(2):
+    if test:
         return cv.positive_int
     test = re.match(r"^INT(\d{1,2})$", attr_type)
-    if test and test.group(1):
+    if test:
         return cv.int_
     raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
 
@@ -117,11 +118,13 @@ def get_default_by_type(attr_type: str) -> str | bool | int | float:
     if attr_type in ["SINGLE", "DOUBLE"]:
         return float("nan")
     test = re.match(r"^(UINT|ENUM)(\d{1,2})$", attr_type)
-    if test and test.group(2):
-        return 2 ** (int(test.group(2))) - 1  # max value for unsigned int
+    if test:
+        # ZCL "invalid value" sentinel for unsigned ints is the maximum (0xFFFF for INT16)
+        return 2 ** (int(test.group(2))) - 1
     test = re.match(r"^INT(\d{1,2})$", attr_type)
-    if test and test.group(1):
-        return 1 << (int(test.group(1)) - 1)  # max value for signed int
+    if test:
+        # ZCL "invalid value" sentinel for signed ints is the minimum (0x8000 for INT16)
+        return -(1 << (int(test.group(1)) - 1))
     return 0
 
 
@@ -202,26 +205,21 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     dev_class = config.get(CONF_DEVICE_CLASS)
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     if config[CONF_CLUSTER] == "default":
-        if dev_class is None:
-            raise cv.Invalid(
-                "'cluster: default' requires a 'device_class'. "
-                f"Supported: {', '.join(sensor_ep_configs.keys() - {'analog_input'})}. Use 'cluster: basic' otherwise."
-            )
         if dev_class not in sensor_ep_configs:
             raise cv.Invalid(
-                f"Device class '{dev_class}' is not supported as default cluster. Use basic cluster instead."
+                "'cluster: default' requires a supported 'device_class'. "
+                f"Supported: {', '.join(k for k in sensor_ep_configs if k != 'analog_input')}. Use 'cluster: basic' otherwise."
             )
         ep = copy.deepcopy(sensor_ep_configs[dev_class])
-        if unit not in ep[CONF_UNIT_OF_MEASUREMENT]:
+        if unit not in ep[ALLOWED_UNITS]:
             raise cv.Invalid(
-                f"Device class '{dev_class}' requires one of units {', '.join(ep[CONF_UNIT_OF_MEASUREMENT])}."
+                f"Device class '{dev_class}' requires one of units {', '.join(ep[ALLOWED_UNITS])}."
             )
-        if len(ep[CONF_UNIT_OF_MEASUREMENT]) > 1:
-            for attr in ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES]:
-                if isinstance(attr.get(SCALE), dict):
-                    attr[SCALE] = attr[SCALE][unit]
-                if isinstance(attr.get(CONF_LAMBDA), dict):
-                    attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
+        for attr in ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES]:
+            if isinstance(attr.get(SCALE), dict):
+                attr[SCALE] = attr[SCALE][unit]
+            if isinstance(attr.get(CONF_LAMBDA), dict):
+                attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
     else:
         ep = copy.deepcopy(sensor_ep_configs["analog_input"])
         apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
@@ -261,14 +259,10 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     if config[CONF_CLUSTER] == "default":
         if dev_class in binary_sensor_ep_configs:
             ep = copy.deepcopy(binary_sensor_ep_configs[dev_class])
-        elif dev_class is None:
-            raise cv.Invalid(
-                "'cluster: default' requires a 'device_class'. "
-                f"Supported: {', '.join(binary_sensor_ep_configs.keys() - {'binary_input'})}. Use 'cluster: basic' otherwise."
-            )
         else:
             raise cv.Invalid(
-                f"Device class '{dev_class}' is not supported as default cluster. Use basic cluster instead."
+                "'cluster: default' requires a supported 'device_class'. "
+                f"Supported: {', '.join(k for k in binary_sensor_ep_configs if k != 'binary_input')}. Use 'cluster: basic' otherwise."
             )
     else:
         ep = copy.deepcopy(binary_sensor_ep_configs["binary_input"])
