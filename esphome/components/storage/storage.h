@@ -1,5 +1,8 @@
 #pragma once
 
+// WARNING: This component is EXPERIMENTAL. The API may change at any time
+// without following the normal breaking changes policy. Use at your own risk.
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"

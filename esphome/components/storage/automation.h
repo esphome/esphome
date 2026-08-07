@@ -1,5 +1,8 @@
 #pragma once
 
+// WARNING: This component is EXPERIMENTAL. The API may change at any time
+// without following the normal breaking changes policy. Use at your own risk.
+
 // defines.h MUST be the first include: define-gated action classes exist in
 // this header, and main.cpp placement-news them into sizeof()-sized static
 // buffers -- any TU parsing these class declarations with a different define
