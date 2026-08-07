@@ -47,6 +47,8 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 # Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
 # proxy would be misdriven — bk72xx follows once the API carries a feature
 # flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
+# Coupled to bluetooth_connection: platforms with a GATT backend are also
+# listed in its HUB_MAX_CONNECTIONS and its FILTER_SOURCE_FILES hub entry.
 _HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
@@ -160,16 +162,14 @@ _BLE_HUB_CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             **_COMMON_SCHEMA_KEYS,
-            # Declared directly (BLE_DEVICE_SCHEMA-style): appending a validator
-            # after a strict schema rejects an explicit `ble_hub_id` before it
-            # runs, and that key is the documented way to disambiguate once a
-            # platform has two trackers.
-            cv.GenerateID(ble_device_base.CONF_BLE_HUB_ID): cv.use_id(
-                ble_device_base.BLEHub
-            ),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(
+        # ble_hub_id with the friendly no-tracker-configured guard.
+        ble_device_base.BLE_DEVICE_SCHEMA
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     _validate_no_active,
 )
 

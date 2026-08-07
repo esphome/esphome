@@ -34,6 +34,15 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
     return this->update_conn_params_(min_interval, max_interval, latency, timeout, "custom");
   }
 
+  bool has_gatt_services() const { return this->service_count_ != 0; }
+
+  /// Start connecting: record the API address type and hand the client to the
+  /// tracker's promote loop (it pauses the scan and opens the connection).
+  void initiate_connection(uint8_t address_type) {
+    this->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(address_type));
+    this->set_state(esp32_ble_tracker::ClientState::DISCOVERED);
+  }
+
   void set_address(uint64_t address) override;
 
  protected:
@@ -41,10 +50,8 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
 
   void on_disconnect_complete(esp_err_t reason) override;
 
-  bool supports_efficient_uuids_() const;
   void send_service_for_discovery_();
   void reset_connection_(esp_err_t reason);
-  void update_allocated_slot_(uint64_t find_value, uint64_t set_value);
   void log_connection_error_(const char *operation, esp_gatt_status_t status);
   void log_connection_warning_(const char *operation, esp_err_t err);
   void log_gatt_not_connected_(const char *action, const char *type);
