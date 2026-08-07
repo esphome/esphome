@@ -16,6 +16,7 @@ static const char *const TAG = "bluetooth_connection.rp2";
 
 using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;
+using ble_device_base::GATT_ERR_NO_MEMORY;
 
 // Engine-owned timeouts: BTstack has a 30 s ATT transaction timeout but no
 // connect timeout — a stuck LE_CONNECTING both blocks future gap_connect calls
