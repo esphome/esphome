@@ -16,21 +16,28 @@ DEPENDENCIES = ["ld6002b"]
 LD6002BSwitch = ld6002b_ns.class_("LD6002BSwitch", switch.Switch)
 SwitchType = ld6002b_ns.enum("SwitchType", is_class=True)
 
+# None of these three carry an inversion. They name what the module is doing, not
+# how something is wired to it, so an inverted one would only report the opposite
+# of the truth -- and the boot restore, which applies a state nothing reports back,
+# is where that would be hardest to spot.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_LOW_POWER): switch.switch_schema(
             LD6002BSwitch,
+            block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
             LD6002BSwitch,
+            block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
             LD6002BSwitch,
+            block_inverted=True,
             device_class=DEVICE_CLASS_SWITCH,
             entity_category=ENTITY_CATEGORY_CONFIG,
             default_restore_mode="RESTORE_DEFAULT_ON",

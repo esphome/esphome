@@ -214,11 +214,15 @@ void LD6002BComponent::setup() {
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
       // Nothing reports this switch back, so its restored state is the only state
-      // there is: apply it to the module and tell the frontend what was applied.
+      // there is.  Restoring through the switch keeps its inversion in the path:
+      // the restored value is logical, and turn_on()/turn_off() are what turn it
+      // into the raw command, the published state and the stream flag.
       const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
-      this->target_display_switch_->publish_state(state);
-      this->target_display_enabled_ = state;
+      if (state) {
+        this->target_display_switch_->turn_on();
+      } else {
+        this->target_display_switch_->turn_off();
+      }
     }
 #endif
     if (!target_display_controlled) {
@@ -235,11 +239,14 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream: whatever state it restores is what applies it.
+      // The switch owns the stream, so it is also what applies the restored state:
+      // driving it rather than the module keeps the entity's inversion in the path.
       const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
-      this->point_cloud_switch_->publish_state(state);
-      this->point_cloud_enabled_ = state;
+      if (state) {
+        this->point_cloud_switch_->turn_on();
+      } else {
+        this->point_cloud_switch_->turn_off();
+      }
     }
 #endif
     if (!point_cloud_controlled) {
@@ -267,9 +274,14 @@ void LD6002BComponent::setup() {
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
       // The module reports this one back, so the query below confirms what it took.
+      // Driving the switch applies its inversion; it also marks the restored value
+      // as reported, so the work mode fallback runs on that until the query lands.
       const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
-      this->low_power_switch_->publish_state(state);
+      if (state) {
+        this->low_power_switch_->turn_on();
+      } else {
+        this->low_power_switch_->turn_off();
+      }
     }
 #else
     bool want_low_power = false;
