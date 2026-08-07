@@ -540,8 +540,11 @@ class StorageWorker : public PollingComponent {
                                     CompletionCallback &&on_open);
   // Pushes exactly one chunk. `data` must remain valid until on_written fires -- the worker
   // does not copy it (streams are expected to be large/frequent; copying would defeat the
-  // point). Returns StorageError::OK once queued or an immediate error (handle unknown/not
-  // IDLE) in which case on_written is NOT invoked.
+  // point). Returns StorageError::OK once queued or an immediate error (handle unknown, not
+  // IDLE, or the previous step's completion has not been delivered yet) in which case
+  // on_written is NOT invoked. This applies to every per-chunk call below (read_chunk, end_*,
+  // seek, tell): stream calls are sequenced by their completions -- wait for the callback
+  // before issuing the next call, or NOT_READY is returned.
   storage::StorageError write_chunk(const StreamHandle &handle, const uint8_t *data, size_t len,
                                     CompletionCallback &&on_written);
   // Closes the handle (closes the underlying FileHandle for FilesystemStorage; a no-op data-
@@ -562,8 +565,8 @@ class StorageWorker : public PollingComponent {
   // Repositions the stream's cursor (SeekMode as in storage.h: SET/CUR/END). For a filesystem
   // stream this seeks the open handle; for a network stream it is arithmetic on the read/write
   // offset (END consults file_size()). on_seeked fires once, later, on the main loop; the stream
-  // must be IDLE (between chunks). NOT_READY if a step is in flight, INVALID_ARGS on an unknown
-  // handle or a resulting negative position.
+  // must be IDLE (between chunks). NOT_READY if a step is in flight or its completion is still
+  // undelivered, INVALID_ARGS on an unknown handle or a resulting negative position.
   storage::StorageError seek(const StreamHandle &handle, int64_t offset, storage::SeekMode mode,
                              CompletionCallback &&on_seeked);
   // Reports the current cursor position into *position before on_told fires. Same IDLE-only,
