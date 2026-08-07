@@ -14,12 +14,12 @@ def _set_platform(platform: str | None) -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
 
 
-def _set_rp2_with_tracker() -> None:
-    # The rp2 arm's ble_hub_id guard needs a loaded tracker, normally
-    # registered as an import side effect of the tracker module.
-    _set_platform("rp2")
-    ble_device_base.register_hub_provider("rp2_ble_tracker")
-    CORE.loaded_integrations.add("rp2_ble_tracker")
+def _set_hub_platform(platform: str, tracker: str) -> None:
+    # The ble_hub_id guard needs a loaded tracker, normally registered as an
+    # import side effect of the tracker module.
+    _set_platform(platform)
+    ble_device_base.register_hub_provider(tracker)
+    CORE.loaded_integrations.add(tracker)
 
 
 def test_ble_less_platform_gets_the_real_reason() -> None:
@@ -37,7 +37,7 @@ def test_ble_less_platform_connection_keys_fall_through() -> None:
 
 
 def test_hub_platform_rejects_active() -> None:
-    _set_platform("ln882x")
+    _set_hub_platform("ln882x", "ln882h_ble_tracker")
     with pytest.raises(cv.Invalid, match="Active connections are not supported"):
         bluetooth_proxy.CONFIG_SCHEMA({"active": True})
 
@@ -51,7 +51,7 @@ def test_hub_platform_rejects_connection_keys_by_name() -> None:
 
 
 def test_hub_platform_accepts_the_advertisement_only_shape() -> None:
-    _set_platform("ln882x")
+    _set_hub_platform("ln882x", "ln882h_ble_tracker")
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is False
 
@@ -59,7 +59,7 @@ def test_hub_platform_accepts_the_advertisement_only_shape() -> None:
 def test_rp2_defaults_to_the_full_proxy() -> None:
     # esp32 parity: active defaults to true, with the platform's slot limit,
     # and one populated connection entry for the codegen to index.
-    _set_rp2_with_tracker()
+    _set_hub_platform("rp2", "rp2_ble_tracker")
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is True
     assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 1
@@ -67,7 +67,7 @@ def test_rp2_defaults_to_the_full_proxy() -> None:
 
 
 def test_rp2_accepts_explicit_passive() -> None:
-    _set_rp2_with_tracker()
+    _set_hub_platform("rp2", "rp2_ble_tracker")
     validated = bluetooth_proxy.CONFIG_SCHEMA({CONF_ACTIVE: False})
     assert validated[CONF_ACTIVE] is False
     assert bluetooth_proxy.CONF_CONNECTIONS not in validated
@@ -75,7 +75,7 @@ def test_rp2_accepts_explicit_passive() -> None:
 
 def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
     # The prebuilt BTstack library allows exactly one GATT client connection.
-    _set_rp2_with_tracker()
+    _set_hub_platform("rp2", "rp2_ble_tracker")
     with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
         bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
     # Values past even the loosest platform cap stop at the outer walkable
@@ -86,7 +86,7 @@ def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
 
 
 def test_rp2_rejects_esp32_only_keys_by_name() -> None:
-    _set_rp2_with_tracker()
+    _set_hub_platform("rp2", "rp2_ble_tracker")
     with pytest.raises(cv.Invalid, match="'cache_services' is esp32-only"):
         bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
     with pytest.raises(cv.Invalid, match="'connections' has no per-connection options"):
