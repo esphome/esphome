@@ -337,8 +337,11 @@ class ModbusServerHub : public Modbus {
   // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
   // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
   // writes (which silently drop invalid frames).
-  ResponseStatus parse_write_registers_(uint8_t function_code, const uint8_t *data, uint16_t &start_address,
-                                        RegisterValues &registers);
+  ResponseStatus parse_write_single_(const uint8_t *data, uint16_t &start_address, RegisterValues &registers);
+  ResponseStatus parse_write_multiple_(const uint8_t *data, uint16_t &start_address, RegisterValues &registers);
+  // Appends number_of_registers host-order values read from data starting at values_offset.
+  void assemble_registers_(const uint8_t *data, uint16_t values_offset, uint16_t number_of_registers,
+                           RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
   // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
   // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
