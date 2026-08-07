@@ -58,7 +58,7 @@ struct TargetSensors {
 #endif
 
 struct VersionPref {
-  char value[32];
+  char value[20];
 };
 
 class LD6002BComponent : public Component, public uart::UARTDevice {
@@ -155,6 +155,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void handle_version_report_(const uint8_t *data, uint16_t len);
   void update_work_mode_fallback_();
   void publish_work_mode_(bool low_power);
+#ifdef USE_NUMBER
+  void publish_number_clamped_(number::Number *number, float value);
+#endif
   void init_version_pref_();
   void save_version_pref_(const char *value);
 

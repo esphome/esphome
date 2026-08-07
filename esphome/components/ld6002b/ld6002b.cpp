@@ -636,9 +636,7 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
     return;
   uint32_t delay = read_u32_le(data);
 #ifdef USE_NUMBER
-  if (this->hold_delay_number_ != nullptr) {
-    this->hold_delay_number_->publish_state(delay);
-  }
+  this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
 
@@ -650,12 +648,8 @@ void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len)
   this->z_min_ = z_min;
   this->z_max_ = z_max;
 #ifdef USE_NUMBER
-  if (this->z_min_number_ != nullptr) {
-    this->z_min_number_->publish_state(z_min);
-  }
-  if (this->z_max_number_ != nullptr) {
-    this->z_max_number_->publish_state(z_max);
-  }
+  this->publish_number_clamped_(this->z_min_number_, z_min);
+  this->publish_number_clamped_(this->z_max_number_, z_max);
 #endif
 }
 
@@ -678,9 +672,7 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
     return;
   uint32_t sleep_ms = read_u32_le(data);
 #ifdef USE_NUMBER
-  if (this->low_power_sleep_number_ != nullptr) {
-    this->low_power_sleep_number_->publish_state(sleep_ms);
-  }
+  this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
 
@@ -722,6 +714,23 @@ void LD6002BComponent::publish_work_mode_(bool low_power) {
   this->last_work_mode_low_power_ = low_power;
 #endif
 }
+
+#ifdef USE_NUMBER
+void LD6002BComponent::publish_number_clamped_(number::Number *number, float value) {
+  if (number == nullptr)
+    return;
+  const float min_value = number->traits.get_min_value();
+  const float max_value = number->traits.get_max_value();
+  // Outside the declared range the user cannot write the value back, so publish
+  // what they can reach and say what the module actually sent.
+  if (value < min_value || value > max_value) {
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
+             max_value);
+    value = std::clamp(value, min_value, max_value);
+  }
+  number->publish_state(value);
+}
+#endif
 
 void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
@@ -928,6 +937,11 @@ void LD6002BComponent::send_z_range_() {
   // One frame carries both bounds, so half a range cannot be written.
   if (std::isnan(this->z_min_) || std::isnan(this->z_max_)) {
     ESP_LOGW(TAG, "Z range not written, other bound unknown");
+    return;
+  }
+  // Both bounds are known and crossed; the frame has no way to say that.
+  if (this->z_min_ > this->z_max_) {
+    ESP_LOGW(TAG, "Z range not written, min above max");
     return;
   }
   uint8_t data[8];
