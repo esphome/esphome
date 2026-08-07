@@ -104,7 +104,8 @@ class RP2040BLE final : public Component {
   /// Pause the physical scan for the duration of a GATT connect attempt
   /// (initiating and scanning contend for the radio). The desired scan state
   /// set through scan_start()/scan_stop() is remembered and reconciled by
-  /// release_scan_inhibit().
+  /// release_scan_inhibit(). Holders must guarantee the release on every
+  /// abort path (the GATT engine reclaims via its connect timeout).
   void inhibit_scan();
   void release_scan_inhibit();
 #endif
@@ -146,7 +147,7 @@ class RP2040BLE final : public Component {
   uint16_t scan_interval_{0};
   uint16_t scan_window_{0};
   uint8_t scan_inhibit_count_{0};
-  bool scan_active_{false};
+  bool scan_active_mode_{false};
   bool scan_desired_{false};
 #endif
 };

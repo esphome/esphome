@@ -229,11 +229,12 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
 #ifdef USE_BLE_GATT_CLIENT
   this->scan_interval_ = interval;
   this->scan_window_ = window;
-  this->scan_active_ = active;
+  this->scan_active_mode_ = active;
   this->scan_desired_ = true;
   if (this->scan_inhibit_count_ > 0) {
     // A connect attempt owns the radio; the scan starts physically when the
     // inhibit is released. Report success — the controller will run it.
+    ESP_LOGV(TAG, "Scan start deferred (connect in progress)");
     return true;
   }
 #endif
@@ -277,7 +278,7 @@ void RP2040BLE::release_scan_inhibit() {
   }
   if (this->scan_desired_) {
     // One physical-start path: scan_start re-applies the remembered params.
-    this->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_);
+    this->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_mode_);
   }
 }
 #endif  // USE_BLE_GATT_CLIENT
