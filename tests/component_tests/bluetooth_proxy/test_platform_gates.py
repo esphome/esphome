@@ -10,7 +10,7 @@ from esphome.const import CONF_ACTIVE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, KEY_CORE
 
 
-def _set_platform(platform: str) -> None:
+def _set_platform(platform: str | None) -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
 
 
@@ -56,3 +56,7 @@ def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
     assert "esp32_ble_client" in bluetooth_connection.AUTO_LOAD()
     _set_platform("rp2")
     assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
+    # No target platform (tooling resolving the manifest): the union, so
+    # dependency closures stay complete for build_codeowners and friends.
+    _set_platform(None)
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_client"]
