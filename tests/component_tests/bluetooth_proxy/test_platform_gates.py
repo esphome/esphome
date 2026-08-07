@@ -5,13 +5,21 @@ advertisement-only arm applies its own defaults."""
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import bluetooth_connection, bluetooth_proxy
+from esphome.components import ble_device_base, bluetooth_connection, bluetooth_proxy
 from esphome.const import CONF_ACTIVE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, KEY_CORE
 
 
 def _set_platform(platform: str | None) -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
+
+
+def _set_hub_platform(platform: str, tracker: str) -> None:
+    # The ble_hub_id guard needs a loaded tracker, normally registered as an
+    # import side effect of the tracker module.
+    _set_platform(platform)
+    ble_device_base.register_hub_provider(tracker)
+    CORE.loaded_integrations.add(tracker)
 
 
 def test_ble_less_platform_gets_the_real_reason() -> None:
@@ -29,7 +37,7 @@ def test_ble_less_platform_connection_keys_fall_through() -> None:
 
 
 def test_hub_platform_rejects_active() -> None:
-    _set_platform("ln882x")
+    _set_hub_platform("ln882x", "ln882h_ble_tracker")
     with pytest.raises(cv.Invalid, match="Active connections are not supported"):
         bluetooth_proxy.CONFIG_SCHEMA({"active": True})
 
@@ -43,7 +51,7 @@ def test_hub_platform_rejects_connection_keys_by_name() -> None:
 
 
 def test_hub_platform_accepts_the_advertisement_only_shape() -> None:
-    _set_platform("ln882x")
+    _set_hub_platform("ln882x", "ln882h_ble_tracker")
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is False
 
