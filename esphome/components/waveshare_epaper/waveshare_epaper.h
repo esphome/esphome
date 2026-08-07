@@ -216,7 +216,6 @@ class WaveshareEPaper2P66InB : public WaveshareEPaperBWR {
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void reset_cursor_();
   int get_width_internal() override;
   int get_height_internal() override;

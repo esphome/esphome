@@ -780,11 +780,6 @@ uint32_t WaveshareEPaperTypeA::idle_timeout_() {
 //  - https://files.waveshare.com/upload/e/ec/2.66inch-e-paper-b-specification.pdf
 //  - https://github.com/waveshareteam/Pico_ePaper_Code/blob/main/c/lib/e-Paper/EPD_2in66b.c
 
-void HOT WaveshareEPaper2P66InB::draw_absolute_pixel_internal(int x, int y, Color color) {
-  // this panel's source outputs run right-to-left with respect to the RAM bit order
-  WaveshareEPaperBWR::draw_absolute_pixel_internal(this->get_width_internal() - 1 - x, y, color);
-}
-
 void WaveshareEPaper2P66InB::reset_cursor_() {
   // SetCursor(0, 0)
   this->command(0x4E);  // SET_RAM_X_ADDRESS_COUNTER
@@ -802,8 +797,14 @@ void WaveshareEPaper2P66InB::initialize() {
   this->command(0x12);  // soft reset
   this->wait_until_idle_();
 
+  // driver output control: MUX = gate lines - 1 = 295 (0x0127), little endian
+  this->command(0x01);
+  this->data((this->get_height_internal() - 1) & 0xff);
+  this->data(((this->get_height_internal() - 1) >> 8) & 0x01);
+  this->data(0x00);
+
   this->command(0x11);  // data entry mode
-  this->data(0x03);
+  this->data(0x03);     // AM=0 (X first), Y increment, X increment
 
   // SetWindows(0, 0, width - 1, height - 1)
   uint32_t xend = this->get_width_controller() - 1;
@@ -819,9 +820,13 @@ void WaveshareEPaper2P66InB::initialize() {
   this->data(yend & 0xff);
   this->data((yend >> 8) & 0x01);
 
-  this->command(0x21);  // display update control
+  // POR selects the external temperature sensor; this module has none
+  this->command(0x18);  // temperature sensor control
+  this->data(0x80);     // use the built-in sensor
+
+  this->command(0x21);  // display update control 1
   this->data(0x00);
-  this->data(0x80);
+  this->data(0x80);  // source output mode: S8 to S167
 
   this->reset_cursor_();
   this->wait_until_idle_();
@@ -850,13 +855,18 @@ void HOT WaveshareEPaper2P66InB::display() {
   }
   delay(2);
 
+  // the update sequence 0x20 runs is the one selected here, so set it explicitly
+  this->command(0x22);  // display update control 2
+  this->data(0xf7);     // enable clock and analog, load temperature, display mode 1
+
   // COMMAND DISPLAY REFRESH
   this->command(0x20);
   this->wait_until_idle_();
 }
 int WaveshareEPaper2P66InB::get_width_internal() { return 152; }
 int WaveshareEPaper2P66InB::get_height_internal() { return 296; }
-uint32_t WaveshareEPaper2P66InB::idle_timeout_() { return 20000; }
+// a full tri-color refresh takes ~15s at 23C and slows down when cold
+uint32_t WaveshareEPaper2P66InB::idle_timeout_() { return 30000; }
 void WaveshareEPaper2P66InB::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.66in B");
