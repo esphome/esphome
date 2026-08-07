@@ -42,3 +42,6 @@ zigbee:
   on_join:
     then:
       - logger.log: "Joined network"
+  on_start:
+    then:
+      - logger.log: "Started zigbee stack"
