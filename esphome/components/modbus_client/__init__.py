@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
@@ -214,8 +217,10 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
 
 _REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
 
-_TYPED_RESPONSE_SCHEMA = _ACTION_BASE_SCHEMA.extend(
+# Every typed action addresses a register or coil range and reports through the same two reply handlers.
+_TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(
     {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
         # Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the
         # hub reuses once the handler returns, so a deferring action would resume on freed memory.
         cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
@@ -225,28 +230,38 @@ _TYPED_RESPONSE_SCHEMA = _ACTION_BASE_SCHEMA.extend(
     }
 )
 
-_READ_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Optional(CONF_COUNT, default=1): cv.templatable(
-            cv.int_range(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_READ)
-        ),
-    }
-)
 
-_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
-    }
+def _read_schema(max_count: int) -> cv.Schema:
+    """Read action schema. The spec sets the read ceiling per function code, so each one passes its own."""
+    return _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_COUNT, default=1): cv.templatable(
+                cv.int_range(min=1, max=max_count)
+            ),
+        }
+    )
+
+
+def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Schema:
+    """Multi-write action schema, differing only in the element type and the spec's per-function limit."""
+    return _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUES): cv.templatable(
+                cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
+            ),
+        }
+    )
+
+
+_READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
+
+_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
+    {cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t)}
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
-_WRITE_SINGLE_COIL_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
-    }
+_WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
+    {cv.Required(CONF_VALUE): cv.templatable(cv.boolean)}
 )
 
 
@@ -264,7 +279,7 @@ async def _read_registers_to_code(config, action_id, template_arg, args, holding
 @automation.register_action(
     "modbus_client.read_holding_registers",
     ReadRegistersAction,
-    _READ_SCHEMA,
+    _READ_REGISTERS_SCHEMA,
     synchronous=True,
 )
 async def read_holding_registers_to_code(config, action_id, template_arg, args):
@@ -274,7 +289,7 @@ async def read_holding_registers_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "modbus_client.read_input_registers",
     ReadRegistersAction,
-    _READ_SCHEMA,
+    _READ_REGISTERS_SCHEMA,
     synchronous=True,
 )
 async def read_input_registers_to_code(config, action_id, template_arg, args):
@@ -312,22 +327,8 @@ async def write_single_coil_to_code(config, action_id, template_arg, args):
     return await _write_single_to_code(config, action_id, template_arg, args, cg.bool_)
 
 
-def _read_bits_schema(max_count: int) -> cv.Schema:
-    # The spec sets the read ceiling per function code, so each action carries its own.
-    return _TYPED_RESPONSE_SCHEMA.extend(
-        {
-            cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-            cv.Optional(CONF_COUNT, default=1): cv.templatable(
-                cv.int_range(min=1, max=max_count)
-            ),
-        }
-    )
-
-
-_READ_COILS_SCHEMA = _read_bits_schema(modbus.MAX_NUM_OF_COILS_TO_READ)
-_READ_DISCRETE_INPUTS_SCHEMA = _read_bits_schema(
-    modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO_READ
-)
+_READ_COILS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_COILS_TO_READ)
+_READ_DISCRETE_INPUTS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO_READ)
 
 
 async def _read_bits_to_code(config, action_id, template_arg, args, coils):
@@ -361,28 +362,12 @@ async def read_discrete_inputs_to_code(config, action_id, template_arg, args):
     return await _read_bits_to_code(config, action_id, template_arg, args, False)
 
 
-_WRITE_MULTIPLE_REGISTERS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Required(CONF_VALUES): cv.templatable(
-            cv.All(
-                cv.ensure_list(cv.hex_uint16_t),
-                cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE),
-            )
-        ),
-    }
+_WRITE_MULTIPLE_REGISTERS_SCHEMA = _write_multiple_schema(
+    cv.hex_uint16_t, modbus.MAX_NUM_OF_REGISTERS_TO_WRITE
 )
 
-_WRITE_MULTIPLE_COILS_SCHEMA = _TYPED_RESPONSE_SCHEMA.extend(
-    {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        cv.Required(CONF_VALUES): cv.templatable(
-            cv.All(
-                cv.ensure_list(cv.boolean),
-                cv.Length(min=1, max=modbus.MAX_NUM_OF_COILS_TO_WRITE),
-            )
-        ),
-    }
+_WRITE_MULTIPLE_COILS_SCHEMA = _write_multiple_schema(
+    cv.boolean, modbus.MAX_NUM_OF_COILS_TO_WRITE
 )
 
 
