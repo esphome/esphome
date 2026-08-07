@@ -28,7 +28,6 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
       ESP_LOGW(TAG, "[%d] [%s] Service %d is too large (%u bytes) but sending anyway", connection_index, address_str,
                send_service, (unsigned) service_size);
       send_service++;
-      return BatchClose::SEND_FORCED;
     }
     return BatchClose::SEND;
   }
