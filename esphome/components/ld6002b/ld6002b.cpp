@@ -22,7 +22,10 @@ static constexpr uint16_t TYPE_SET_LOW_POWER_SLEEP = 0x0205;
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
 static constexpr uint16_t TYPE_REPORT_POINT_CLOUD = 0x0A08;
 static constexpr uint16_t TYPE_REPORT_DELAY = 0x0A0D;
+static constexpr uint16_t TYPE_REPORT_SENSITIVITY = 0x0A0E;
+static constexpr uint16_t TYPE_REPORT_TRIGGER = 0x0A0F;
 static constexpr uint16_t TYPE_REPORT_Z_RANGE = 0x0A10;
+static constexpr uint16_t TYPE_REPORT_INSTALLATION = 0x0A11;
 static constexpr uint16_t TYPE_REPORT_LOW_POWER = 0x0A12;
 static constexpr uint16_t TYPE_REPORT_LOW_POWER_SLEEP = 0x0A13;
 static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A14;
@@ -34,11 +37,23 @@ static constexpr uint32_t CMD_POINT_CLOUD_ON = 0x06;
 static constexpr uint32_t CMD_POINT_CLOUD_OFF = 0x07;
 static constexpr uint32_t CMD_TARGET_DISPLAY_ON = 0x08;
 static constexpr uint32_t CMD_TARGET_DISPLAY_OFF = 0x09;
+static constexpr uint32_t CMD_SENSITIVITY_LOW = 0x0A;
+static constexpr uint32_t CMD_SENSITIVITY_MEDIUM = 0x0B;
+static constexpr uint32_t CMD_SENSITIVITY_HIGH = 0x0C;
+static constexpr uint32_t CMD_GET_SENSITIVITY = 0x0D;
+static constexpr uint32_t CMD_TRIGGER_SLOW = 0x0E;
+static constexpr uint32_t CMD_TRIGGER_MEDIUM = 0x0F;
+static constexpr uint32_t CMD_TRIGGER_FAST = 0x10;
+static constexpr uint32_t CMD_GET_TRIGGER = 0x11;
 static constexpr uint32_t CMD_GET_Z_RANGE = 0x12;
+static constexpr uint32_t CMD_INSTALL_TOP = 0x13;
+static constexpr uint32_t CMD_INSTALL_SIDE = 0x14;
+static constexpr uint32_t CMD_GET_INSTALLATION = 0x15;
 static constexpr uint32_t CMD_LOW_POWER_ON = 0x16;
 static constexpr uint32_t CMD_LOW_POWER_OFF = 0x17;
 static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
 static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
+static constexpr uint32_t CMD_RESET_UNATTENDED = 0x1A;
 
 static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
 
@@ -57,8 +72,30 @@ static const char *control_command_name(uint32_t command) {
       return "target_display_on";
     case CMD_TARGET_DISPLAY_OFF:
       return "target_display_off";
+    case CMD_SENSITIVITY_LOW:
+      return "sensitivity_low";
+    case CMD_SENSITIVITY_MEDIUM:
+      return "sensitivity_medium";
+    case CMD_SENSITIVITY_HIGH:
+      return "sensitivity_high";
+    case CMD_GET_SENSITIVITY:
+      return "get_sensitivity";
+    case CMD_TRIGGER_SLOW:
+      return "trigger_slow";
+    case CMD_TRIGGER_MEDIUM:
+      return "trigger_medium";
+    case CMD_TRIGGER_FAST:
+      return "trigger_fast";
+    case CMD_GET_TRIGGER:
+      return "get_trigger";
     case CMD_GET_Z_RANGE:
       return "get_z_range";
+    case CMD_INSTALL_TOP:
+      return "install_top";
+    case CMD_INSTALL_SIDE:
+      return "install_side";
+    case CMD_GET_INSTALLATION:
+      return "get_installation";
     case CMD_LOW_POWER_ON:
       return "low_power_on";
     case CMD_LOW_POWER_OFF:
@@ -67,6 +104,8 @@ static const char *control_command_name(uint32_t command) {
       return "get_low_power";
     case CMD_GET_LOW_POWER_SLEEP:
       return "get_low_power_sleep";
+    case CMD_RESET_UNATTENDED:
+      return "reset_unattended";
     default:
       return "unknown";
   }
@@ -88,8 +127,14 @@ static const char *frame_type_name(uint16_t type) {
       return "report_point_cloud";
     case TYPE_REPORT_DELAY:
       return "report_delay";
+    case TYPE_REPORT_SENSITIVITY:
+      return "report_sensitivity";
+    case TYPE_REPORT_TRIGGER:
+      return "report_trigger";
     case TYPE_REPORT_Z_RANGE:
       return "report_z_range";
+    case TYPE_REPORT_INSTALLATION:
+      return "report_installation";
     case TYPE_REPORT_LOW_POWER:
       return "report_low_power";
     case TYPE_REPORT_LOW_POWER_SLEEP:
@@ -107,8 +152,14 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
   switch (command) {
     case CMD_GET_DELAY:
       return type == TYPE_REPORT_DELAY;
+    case CMD_GET_SENSITIVITY:
+      return type == TYPE_REPORT_SENSITIVITY;
+    case CMD_GET_TRIGGER:
+      return type == TYPE_REPORT_TRIGGER;
     case CMD_GET_Z_RANGE:
       return type == TYPE_REPORT_Z_RANGE;
+    case CMD_GET_INSTALLATION:
+      return type == TYPE_REPORT_INSTALLATION;
     case CMD_GET_LOW_POWER:
     case CMD_LOW_POWER_ON:
     case CMD_LOW_POWER_OFF:
@@ -259,6 +310,18 @@ void LD6002BComponent::setup() {
       this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
       this->point_cloud_enabled_ = want_point_cloud;
     }
+
+#ifdef USE_SELECT
+    if (this->sensitivity_select_ != nullptr) {
+      this->send_control_command_(CMD_GET_SENSITIVITY);
+    }
+    if (this->trigger_speed_select_ != nullptr) {
+      this->send_control_command_(CMD_GET_TRIGGER);
+    }
+    if (this->installation_select_ != nullptr) {
+      this->send_control_command_(CMD_GET_INSTALLATION);
+    }
+#endif
 #ifdef USE_NUMBER
     if (this->z_min_number_ != nullptr || this->z_max_number_ != nullptr) {
       this->send_control_command_(CMD_GET_Z_RANGE);
@@ -344,6 +407,11 @@ void LD6002BComponent::dump_config() {
   LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
   LOG_SWITCH("  ", "Point Cloud", this->point_cloud_switch_);
   LOG_SWITCH("  ", "Target Display", this->target_display_switch_);
+#endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Sensitivity", this->sensitivity_select_);
+  LOG_SELECT("  ", "Trigger Speed", this->trigger_speed_select_);
+  LOG_SELECT("  ", "Installation Mode", this->installation_select_);
 #endif
 }
 
@@ -492,8 +560,17 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     case TYPE_REPORT_DELAY:
       this->handle_delay_report_(data, len);
       break;
+    case TYPE_REPORT_SENSITIVITY:
+      this->handle_sensitivity_report_(data, len);
+      break;
+    case TYPE_REPORT_TRIGGER:
+      this->handle_trigger_speed_report_(data, len);
+      break;
     case TYPE_REPORT_Z_RANGE:
       this->handle_z_range_report_(data, len);
+      break;
+    case TYPE_REPORT_INSTALLATION:
+      this->handle_installation_report_(data, len);
       break;
     case TYPE_REPORT_LOW_POWER:
       this->handle_low_power_report_(data, len);
@@ -660,6 +737,32 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
 #endif
 }
 
+void LD6002BComponent::handle_sensitivity_report_(const uint8_t *data, uint16_t len) {
+  if (len < 1)
+    return;
+#ifdef USE_SELECT
+  if (this->sensitivity_select_ == nullptr)
+    return;
+  uint8_t value = data[0];
+  if (value <= 2) {
+    this->sensitivity_select_->publish_state(value);
+  }
+#endif
+}
+
+void LD6002BComponent::handle_trigger_speed_report_(const uint8_t *data, uint16_t len) {
+  if (len < 1)
+    return;
+#ifdef USE_SELECT
+  if (this->trigger_speed_select_ == nullptr)
+    return;
+  uint8_t value = data[0];
+  if (value <= 2) {
+    this->trigger_speed_select_->publish_state(value);
+  }
+#endif
+}
+
 void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len) {
   if (len < 8)
     return;
@@ -670,6 +773,19 @@ void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len)
 #ifdef USE_NUMBER
   this->publish_number_clamped_(this->z_min_number_, z_min);
   this->publish_number_clamped_(this->z_max_number_, z_max);
+#endif
+}
+
+void LD6002BComponent::handle_installation_report_(const uint8_t *data, uint16_t len) {
+  if (len < 1)
+    return;
+#ifdef USE_SELECT
+  if (this->installation_select_ == nullptr)
+    return;
+  uint8_t value = data[0];
+  if (value <= 1) {
+    this->installation_select_->publish_state(value);
+  }
 #endif
 }
 
@@ -889,6 +1005,8 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
     if (len > 0 && data != nullptr) {
       std::memcpy(this->wake_scratch_.data(), data, len);
     }
+    // A button pulse must not raise the pin in the middle of this one.
+    this->cancel_timeout(WAKE_BUTTON_TIMEOUT);
     this->wake_pulse_pending_ = true;
     this->wakeup_pin_->digital_write(false);
     const uint8_t generation = this->send_generation_;
@@ -972,6 +1090,16 @@ void LD6002BComponent::send_z_range_() {
   this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
 }
 
+void LD6002BComponent::wake_() {
+  // A command's own pulse raises the pin and writes after it, so ride along instead of
+  // claiming the flag: claiming it would send that command down the immediate-write path
+  // with the pin still low.
+  if (this->wakeup_pin_ == nullptr || this->wake_pulse_pending_)
+    return;
+  this->wakeup_pin_->digital_write(false);
+  this->set_timeout(WAKE_BUTTON_TIMEOUT, this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
+}
+
 void LD6002BComponent::set_number_value(NumberType type, float value) {
   switch (type) {
     case NumberType::HOLD_DELAY: {
@@ -996,6 +1124,36 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
       break;
     }
+  }
+}
+
+void LD6002BComponent::set_select_value(SelectType type, size_t index) {
+  switch (type) {
+    case SelectType::SENSITIVITY:
+      if (index == 0) {
+        this->send_control_command_(CMD_SENSITIVITY_LOW);
+      } else if (index == 1) {
+        this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+      } else if (index == 2) {
+        this->send_control_command_(CMD_SENSITIVITY_HIGH);
+      }
+      break;
+    case SelectType::TRIGGER_SPEED:
+      if (index == 0) {
+        this->send_control_command_(CMD_TRIGGER_SLOW);
+      } else if (index == 1) {
+        this->send_control_command_(CMD_TRIGGER_MEDIUM);
+      } else if (index == 2) {
+        this->send_control_command_(CMD_TRIGGER_FAST);
+      }
+      break;
+    case SelectType::INSTALLATION_MODE:
+      if (index == 0) {
+        this->send_control_command_(CMD_INSTALL_TOP);
+      } else if (index == 1) {
+        this->send_control_command_(CMD_INSTALL_SIDE);
+      }
+      break;
   }
 }
 
@@ -1120,6 +1278,38 @@ void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
         // Every target entity is fed by the reports this just stopped.
         this->clear_target_state_();
       }
+      break;
+  }
+}
+
+void LD6002BComponent::press_button(ButtonType type) {
+  switch (type) {
+    case ButtonType::GET_DELAY:
+      this->send_control_command_(CMD_GET_DELAY);
+      break;
+    case ButtonType::GET_SENSITIVITY:
+      this->send_control_command_(CMD_GET_SENSITIVITY);
+      break;
+    case ButtonType::GET_TRIGGER_SPEED:
+      this->send_control_command_(CMD_GET_TRIGGER);
+      break;
+    case ButtonType::GET_Z_RANGE:
+      this->send_control_command_(CMD_GET_Z_RANGE);
+      break;
+    case ButtonType::GET_INSTALLATION:
+      this->send_control_command_(CMD_GET_INSTALLATION);
+      break;
+    case ButtonType::GET_LOW_POWER_MODE:
+      this->send_control_command_(CMD_GET_LOW_POWER);
+      break;
+    case ButtonType::GET_LOW_POWER_SLEEP_TIME:
+      this->send_control_command_(CMD_GET_LOW_POWER_SLEEP);
+      break;
+    case ButtonType::RESET_UNATTENDED:
+      this->send_control_command_(CMD_RESET_UNATTENDED);
+      break;
+    case ButtonType::WAKE:
+      this->wake_();
       break;
   }
 }

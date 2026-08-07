@@ -71,6 +71,16 @@ number:
     low_power_sleep_time:
       name: Low Power Sleep
 
+select:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    sensitivity:
+      name: Sensitivity
+    trigger_speed:
+      name: Trigger Speed
+    installation_mode:
+      name: Installation
+
 switch:
   - platform: ld6002b
     ld6002b_id: ld6002b_radar
@@ -80,3 +90,25 @@ switch:
       name: Point Cloud
     target_display:
       name: Target Display
+
+button:
+  - platform: ld6002b
+    ld6002b_id: ld6002b_radar
+    get_delay:
+      name: Get Delay
+    get_sensitivity:
+      name: Get Sensitivity
+    get_trigger_speed:
+      name: Get Trigger Speed
+    get_z_range:
+      name: Get Z Range
+    get_installation:
+      name: Get Installation
+    get_low_power_mode:
+      name: Get Low Power Mode
+    get_low_power_sleep_time:
+      name: Get Low Power Sleep
+    reset_unattended:
+      name: Reset Unattended
+    wake:
+      name: Wake

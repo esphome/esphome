@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_SENSOR
@@ -12,11 +13,13 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_TEXT_SENSOR
-#include "esphome/core/preferences.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
 #endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
@@ -40,10 +43,28 @@ enum class NumberType : uint8_t {
   LOW_POWER_SLEEP,
 };
 
+enum class SelectType : uint8_t {
+  SENSITIVITY,
+  TRIGGER_SPEED,
+  INSTALLATION_MODE,
+};
+
 enum class SwitchType : uint8_t {
   LOW_POWER,
   POINT_CLOUD,
   TARGET_DISPLAY,
+};
+
+enum class ButtonType : uint8_t {
+  GET_DELAY,
+  GET_SENSITIVITY,
+  GET_TRIGGER_SPEED,
+  GET_Z_RANGE,
+  GET_INSTALLATION,
+  GET_LOW_POWER_MODE,
+  GET_LOW_POWER_SLEEP_TIME,
+  RESET_UNATTENDED,
+  WAKE,
 };
 
 #ifdef USE_SENSOR
@@ -124,6 +145,12 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_low_power_sleep_number(number::Number *number) { this->low_power_sleep_number_ = number; }
 #endif
 
+#ifdef USE_SELECT
+  void set_sensitivity_select(select::Select *select) { this->sensitivity_select_ = select; }
+  void set_trigger_speed_select(select::Select *select) { this->trigger_speed_select_ = select; }
+  void set_installation_select(select::Select *select) { this->installation_select_ = select; }
+#endif
+
 #ifdef USE_SWITCH
   void set_low_power_switch(switch_::Switch *sw) { this->low_power_switch_ = sw; }
   void set_point_cloud_switch(switch_::Switch *sw) { this->point_cloud_switch_ = sw; }
@@ -131,7 +158,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #endif
 
   void set_number_value(NumberType type, float value);
+  void set_select_value(SelectType type, size_t index);
   void set_switch_state(SwitchType type, bool state);
+  void press_button(ButtonType type);
 
  protected:
   enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
@@ -148,7 +177,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void handle_target_report_(const uint8_t *data, uint16_t len);
   void handle_point_cloud_(const uint8_t *data, uint16_t len);
   void handle_delay_report_(const uint8_t *data, uint16_t len);
+  void handle_sensitivity_report_(const uint8_t *data, uint16_t len);
+  void handle_trigger_speed_report_(const uint8_t *data, uint16_t len);
   void handle_z_range_report_(const uint8_t *data, uint16_t len);
+  void handle_installation_report_(const uint8_t *data, uint16_t len);
   void handle_low_power_report_(const uint8_t *data, uint16_t len);
   void handle_low_power_sleep_report_(const uint8_t *data, uint16_t len);
   void handle_work_mode_report_(const uint8_t *data, uint16_t len);
@@ -173,6 +205,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void send_control_command_(uint32_t command);
   void send_z_range_();
+  void wake_();
 
   static uint16_t read_u16_be(const uint8_t *data);
   static uint32_t read_u32_le(const uint8_t *data);
@@ -201,6 +234,11 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   number::Number *z_min_number_{nullptr};
   number::Number *z_max_number_{nullptr};
   number::Number *low_power_sleep_number_{nullptr};
+#endif
+#ifdef USE_SELECT
+  select::Select *sensitivity_select_{nullptr};
+  select::Select *trigger_speed_select_{nullptr};
+  select::Select *installation_select_{nullptr};
 #endif
 #ifdef USE_SWITCH
   switch_::Switch *low_power_switch_{nullptr};
@@ -235,6 +273,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
+  // Named so a repeated press replaces its own pending timeout instead of stacking
+  // another, and so the command path can cancel it when it takes the pin over.
+  static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
