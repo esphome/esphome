@@ -33,8 +33,41 @@ async function fetchPrFileContent(github, context, path) {
   }
 }
 
+// Check whether a pull request is part of a GitHub stack.
+//
+// GitHub's stacked pull request feature adds a `stack` object to the pull
+// request resource. It is present on every pull request in the stack -
+// including the bottom one, whose base is already `dev` - and is absent
+// entirely on standalone pull requests.
+//
+// The `pull_request_target` webhook payload is not guaranteed to carry this
+// field, so fall back to asking the API when it is missing. Guessing wrong
+// here is costly: a stacked pull request mistaken for a manually chained one
+// gets a label that blocks merging.
+async function isStackedPr(github, context) {
+  const pr = context.payload.pull_request;
+  if (pr.stack != null) {
+    return true;
+  }
+
+  try {
+    const { owner, repo } = context.repo;
+    const { data } = await github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: pr.number,
+    });
+    return data.stack != null;
+  } catch (error) {
+    // Treat an API failure as "not stacked" so a chained pull request still
+    // gets its blocking label rather than silently slipping through.
+    console.log('Failed to check stack membership:', error.message);
+    return false;
+  }
+}
+
 // Strategy: Merge branch detection
-async function detectMergeBranch(context) {
+async function detectMergeBranch(github, context) {
   const labels = new Set();
   const baseRef = context.payload.pull_request.base.ref;
 
@@ -42,7 +75,11 @@ async function detectMergeBranch(context) {
     labels.add('merging-to-release');
   } else if (baseRef === 'beta') {
     labels.add('merging-to-beta');
+  } else if (await isStackedPr(github, context)) {
+    // GitHub manages the merge order for a stack, so these are not blocked.
+    labels.add('stacked-pr');
   } else if (baseRef !== 'dev') {
+    // A chain built by hand: it must not merge until its base branch does.
     labels.add('chained-pr');
   }
 

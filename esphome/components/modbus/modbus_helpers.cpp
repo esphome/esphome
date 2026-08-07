@@ -7,6 +7,19 @@ namespace esphome::modbus::helpers {
 
 static const char *const TAG = "modbus_helpers";
 
+// A quantity/address pair is standard when the quantity is non-zero, within the per-table maximum,
+// and the range [start_address, start_address + quantity) stays inside the 16-bit address space
+// (the 32-bit promotion is the overflow guard - a 16-bit sum could wrap and pass).
+static bool quantity_in_range(uint16_t start_address, uint16_t quantity, uint16_t max_quantity) {
+  return quantity != 0 && quantity <= max_quantity && uint32_t(start_address) + quantity <= 0x10000u;
+}
+
+// The spec allows exactly ON (0xFF00) and OFF (0x0000) for a single-coil value, on the request and
+// on its echoed response alike.
+static bool is_canonical_coil_value(uint8_t high_byte, uint8_t low_byte) {
+  return (high_byte == 0xFF || high_byte == 0x00) && low_byte == 0x00;
+}
+
 uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
   if (size < MIN_PDU_SIZE)
     return MIN_PDU_SIZE;
@@ -82,11 +95,12 @@ bool is_server_pdu_standard(const uint8_t *pdu, size_t size) {
   if (server_pdu_length(pdu, size) != size)
     return false;
 
-  switch (static_cast<FunctionCode>(pdu[0])) {
+  const auto function_code = static_cast<FunctionCode>(pdu[0]);
+  switch (function_code) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
       // A conformant bit-read response carries at least one packed byte (up to 2000 bits = 250 bytes).
-      return pdu[1] != 0 && pdu[1] <= uint8_t((MAX_NUM_OF_COILS_TO_READ + 7) / 8);
+      return pdu[1] != 0 && pdu[1] <= uint8_t(packed_bit_bytes(MAX_NUM_OF_COILS_TO_READ));
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS:
       // Registers are 2 bytes each: the byte count must be a non-zero even count within the read maximum.
@@ -99,15 +113,15 @@ bool is_server_pdu_standard(const uint8_t *pdu, size_t size) {
     case FunctionCode::WRITE_MULTIPLE_COILS:
     case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
       // The response echoes start address and quantity: bound them like the request side does.
-      const bool bits = static_cast<FunctionCode>(pdu[0]) == FunctionCode::WRITE_MULTIPLE_COILS;
+      const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
       const uint16_t start_address = get_data<uint16_t>(pdu, 1);
       const uint16_t quantity = get_data<uint16_t>(pdu, 3);
       const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_WRITE : MAX_NUM_OF_REGISTERS_TO_WRITE;
-      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u;
+      return quantity_in_range(start_address, quantity, max_quantity);
     }
     case FunctionCode::WRITE_SINGLE_COIL:
       // The response echoes the request, so the same ON/OFF constraint applies.
-      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
+      return is_canonical_coil_value(pdu[3], pdu[4]);
     default:
       return true;  // All other function codes validated by length alone
   }
@@ -117,28 +131,28 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
   if (client_pdu_length(pdu, size) != size)
     return false;
 
-  switch (static_cast<FunctionCode>(pdu[0])) {
+  const auto function_code = static_cast<FunctionCode>(pdu[0]);
+  switch (function_code) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS: {
-      const bool bits = static_cast<FunctionCode>(pdu[0]) == FunctionCode::READ_COILS ||
-                        static_cast<FunctionCode>(pdu[0]) == FunctionCode::READ_DISCRETE_INPUTS;
+      const bool bits =
+          function_code == FunctionCode::READ_COILS || function_code == FunctionCode::READ_DISCRETE_INPUTS;
       const uint16_t start_address = get_data<uint16_t>(pdu, 1);
       const uint16_t quantity = get_data<uint16_t>(pdu, 3);
       const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_READ : MAX_NUM_OF_REGISTERS_TO_READ;
-      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u;
+      return quantity_in_range(start_address, quantity, max_quantity);
     }
     case FunctionCode::WRITE_MULTIPLE_COILS:
     case FunctionCode::WRITE_MULTIPLE_REGISTERS: {
-      const bool bits = static_cast<FunctionCode>(pdu[0]) == FunctionCode::WRITE_MULTIPLE_COILS;
+      const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
       const uint16_t start_address = get_data<uint16_t>(pdu, 1);
       const uint16_t quantity = get_data<uint16_t>(pdu, 3);
       const uint16_t max_quantity = bits ? MAX_NUM_OF_COILS_TO_WRITE : MAX_NUM_OF_REGISTERS_TO_WRITE;
       // Coils are packed 8 per data byte; registers are 2 bytes each.
-      const size_t expected_data_bytes = bits ? (static_cast<size_t>(quantity) + 7) / 8 : quantity * 2;
-      return quantity != 0 && quantity <= max_quantity && (uint32_t) start_address + quantity <= 0x10000u &&
-             pdu[5] == expected_data_bytes;
+      const size_t expected_data_bytes = bits ? packed_bit_bytes(quantity) : quantity * 2;
+      return quantity_in_range(start_address, quantity, max_quantity) && pdu[5] == expected_data_bytes;
     }
     case FunctionCode::READ_FILE_RECORD:
     case FunctionCode::WRITE_FILE_RECORD:
@@ -148,14 +162,13 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
       const uint16_t quantity_read = get_data<uint16_t>(pdu, 3);
       const uint16_t start_address_write = get_data<uint16_t>(pdu, 5);
       const uint16_t quantity_write = get_data<uint16_t>(pdu, 7);
-      return quantity_read != 0 && quantity_read <= MAX_NUM_OF_REGISTERS_TO_READ && quantity_write != 0 &&
-             quantity_write <= MAX_NUM_OF_REGISTERS_TO_WRITE_RW &&
-             (uint32_t) start_address_read + quantity_read <= 0x10000u &&
-             (uint32_t) start_address_write + quantity_write <= 0x10000u && pdu[9] == quantity_write * 2;
+      return quantity_in_range(start_address_read, quantity_read, MAX_NUM_OF_REGISTERS_TO_READ) &&
+             quantity_in_range(start_address_write, quantity_write, MAX_NUM_OF_REGISTERS_TO_WRITE_RW) &&
+             pdu[9] == quantity_write * 2;
     }
     case FunctionCode::WRITE_SINGLE_COIL:
       // The one variable field in an otherwise fixed-shape PDU: the spec allows exactly ON/OFF.
-      return (pdu[3] == 0xFF || pdu[3] == 0x00) && pdu[4] == 0x00;
+      return is_canonical_coil_value(pdu[3], pdu[4]);
     default:
       return true;  // All other function codes validated by length alone
   }
@@ -164,7 +177,9 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
 static size_t required_payload_size(SensorValueType sensor_value_type) {
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
+    case SensorValueType::U_WORD_S:
     case SensorValueType::S_WORD:
+    case SensorValueType::S_WORD_S:
       return 2;
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
@@ -215,6 +230,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::U_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(word, bitmask);
+      break;
+    }
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
       value = get_data<uint32_t>(data, offset);
@@ -229,6 +249,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::S_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(static_cast<int16_t>(word), bitmask);
+      break;
+    }
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
       break;
@@ -290,6 +315,16 @@ static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode func
   pdu.push_back(first >> 0);
   pdu.push_back(second >> 8);
   pdu.push_back(second >> 0);
+}
+
+// Zero the unused bits of a multi-coil write's final data byte, as the spec requires. Kept in one
+// place so the generic and typed coil builders produce identical wire bytes for the same write.
+// The caller must pass a span whose LAST byte is the final packed-bit byte - both builders pass the
+// whole PDU, which qualifies because the coil data is always the PDU's tail.
+static void mask_trailing_pad_bits(std::span<uint8_t> data, uint16_t bit_count) {
+  if (data.empty() || bit_count % 8 == 0)
+    return;
+  data.back() &= static_cast<uint8_t>((1 << (bit_count % 8)) - 1);
 }
 
 ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint16_t number_of_entities) {
@@ -394,8 +429,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
     }
     // The spec allows exactly ON (0xFF00) and OFF (0x0000) for a single-coil write - the same rule
     // is_client_pdu_standard() enforces, so a built frame cannot be misclassified on reply.
-    if (function_code == FunctionCode::WRITE_SINGLE_COIL &&
-        ((values[0] != 0xFF && values[0] != 0x00) || values[1] != 0x00)) {
+    if (function_code == FunctionCode::WRITE_SINGLE_COIL && !is_canonical_coil_value(values[0], values[1])) {
       ESP_LOGE(TAG, "Invalid single-coil value %02X%02X (must be FF00 or 0000), dropping request", values[0],
                values[1]);
       return pdu;
@@ -409,8 +443,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   // non-standard on reply, and the spec bound keeps the PDU within capacity by construction.
   // Checked before the header append: a failed check must return an empty PDU, not a 5-byte partial one.
   const bool bits = function_code == FunctionCode::WRITE_MULTIPLE_COILS;
-  const size_t expected_len =
-      bits ? (static_cast<size_t>(number_of_entities) + 7) / 8 : static_cast<size_t>(number_of_entities) * 2;
+  const size_t expected_len = bits ? packed_bit_bytes(number_of_entities) : static_cast<size_t>(number_of_entities) * 2;
   if (values_len != expected_len) {
     ESP_LOGE(TAG, "values_len %zu does not match %u entities (expected %zu) for function code %02X, dropping request",
              values_len, number_of_entities, expected_len, static_cast<uint8_t>(function_code));
@@ -420,11 +453,8 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   pdu.push_back(values_len);  // Byte count is required for write multiple
   for (size_t i = 0; i < values_len; i++)
     pdu.push_back(values[i]);
-  // Zero the unused bits of the final byte as the spec requires, matching the typed coil builder
-  // so both produce identical wire bytes for the same write.
-  if (bits && number_of_entities % 8 != 0) {
-    pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (number_of_entities % 8)) - 1);
-  }
+  if (bits)
+    mask_trailing_pad_bits(pdu, number_of_entities);
   return pdu;
 }
 
@@ -484,7 +514,7 @@ static void build_write_coils_pdu(PduBuffer &pdu, uint16_t start_address, Packed
     ESP_LOGE(TAG, "Write of %u coils at %u runs past the 16-bit address space, dropping request", count, start_address);
     return;
   }
-  const size_t byte_count = (count + 7) / 8;
+  const size_t byte_count = packed_bit_bytes(count);
   if (packed_bits.size() < byte_count) {
     ESP_LOGE(TAG, "packed_bits (%zu bytes) does not cover %u coils (%zu bytes), dropping request", packed_bits.size(),
              count, byte_count);
@@ -495,10 +525,7 @@ static void build_write_coils_pdu(PduBuffer &pdu, uint16_t start_address, Packed
   for (size_t i = 0; i != byte_count; i++) {
     pdu.push_back(packed_bits[i]);
   }
-  // Zero the unused bits of the final byte, as the spec requires
-  if (count % 8 != 0) {
-    pdu[pdu.size() - 1] &= static_cast<uint8_t>((1 << (count % 8)) - 1);
-  }
+  mask_trailing_pad_bits(pdu, count);
 }
 
 PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
@@ -515,7 +542,7 @@ PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> v
              MAX_NUM_OF_COILS_TO_WRITE);
     return pdu;
   }
-  StaticVector<uint8_t, (MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> packed;
+  StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)> packed;
   for (size_t i = 0; i != values.size(); i++) {
     if (i % 8 == 0)
       packed.push_back(0);
