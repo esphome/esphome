@@ -45,9 +45,9 @@ using ble_device_base::MEDIUM_MAX_CONN_INTERVAL;
 using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-RP2GattClient *RP2GattClient::instances_[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
-uint8_t RP2GattClient::instance_count_ = 0;
-btstack_packet_callback_registration_t RP2GattClient::hci_event_registration_ = {};
+RP2GattClient *RP2GattClient::instances[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
+uint8_t RP2GattClient::instance_count = 0;
+btstack_packet_callback_registration_t RP2GattClient::hci_event_registration = {};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static ESPBTUUID uuid_from_btstack(uint16_t uuid16, const uint8_t uuid128[16]) {
@@ -68,20 +68,20 @@ void RP2GattClient::setup() {
   }
 
   // Register this engine for IRQ-context event routing.
-  if (this->instance_count_ >= ESPHOME_BLE_GATT_CLIENT_COUNT) {
+  if (instance_count >= ESPHOME_BLE_GATT_CLIENT_COUNT) {
     // Cannot happen with codegen-sized storage; refuse loudly if it ever does.
     ESP_LOGE(TAG, "GATT client registry full");
     this->mark_failed();
     return;
   }
-  instances_[instance_count_++] = this;
+  instances[instance_count++] = this;
 
   // One HCI event handler for all engine instances (BTstack supports multiple
   // registrations, so rp2040_ble's own handler is unaffected).
-  if (hci_event_registration_.callback == nullptr) {
+  if (hci_event_registration.callback == nullptr) {
     BluetoothLock lock;
-    hci_event_registration_.callback = &RP2GattClient::hci_packet_handler;
-    hci_add_event_handler(&hci_event_registration_);
+    hci_event_registration.callback = &RP2GattClient::hci_packet_handler;
+    hci_add_event_handler(&hci_event_registration);
   }
 
   this->disable_loop();
@@ -93,10 +93,10 @@ void RP2GattClient::dump_config() { ESP_LOGCONFIG(TAG, "RP2 GATT client (BTstack
 
 // ---- IRQ-context handlers: copy-and-enqueue only ----
 
-RP2GattClient *RP2GattClient::instance_for_con_handle_(hci_con_handle_t con_handle) {
-  for (uint8_t i = 0; i < instance_count_; i++) {
-    if (instances_[i]->con_handle_ == con_handle) {
-      return instances_[i];
+RP2GattClient *RP2GattClient::instance_for_con_handle(hci_con_handle_t con_handle) {
+  for (uint8_t i = 0; i < instance_count; i++) {
+    if (instances[i]->con_handle_ == con_handle) {
+      return instances[i];
     }
   }
   return nullptr;
@@ -117,8 +117,8 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
       hci_con_handle_t con_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
       // Route to the engine that is waiting for this peer.
-      for (uint8_t i = 0; i < instance_count_; i++) {
-        RP2GattClient *inst = instances_[i];
+      for (uint8_t i = 0; i < instance_count; i++) {
+        RP2GattClient *inst = instances[i];
         if (inst->state_ == EngineState::CONNECTING && memcmp(inst->peer_addr_, peer, sizeof(bd_addr_t)) == 0) {
           inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
           break;
@@ -128,14 +128,14 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
     }
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
       hci_con_handle_t con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
-      RP2GattClient *inst = instance_for_con_handle_(con_handle);
-      if (inst == nullptr && instance_count_ == 1) {
+      RP2GattClient *inst = instance_for_con_handle(con_handle);
+      if (inst == nullptr && instance_count == 1) {
         // The main loop may not have recorded the handle yet (the CONNECTED
         // event is still queued); with a single engine the connecting
         // instance is unambiguous, so route there to close the
         // accept-then-drop window. With multiple engines the event has no
         // address to match on, so it must be dropped instead of guessed.
-        RP2GattClient *candidate = instances_[0];
+        RP2GattClient *candidate = instances[0];
         if (candidate->con_handle_ == HCI_CON_HANDLE_INVALID && candidate->state_ != EngineState::IDLE) {
           inst = candidate;
         }
@@ -189,7 +189,7 @@ void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t 
     default:
       return;
   }
-  RP2GattClient *inst = instance_for_con_handle_(con_handle);
+  RP2GattClient *inst = instance_for_con_handle(con_handle);
   if (inst != nullptr) {
     inst->handle_gatt_event_irq_(event_type, packet);
   }
@@ -329,7 +329,7 @@ void RP2GattClient::loop() {
 
   RP2GattNotifyEvent *notify;
   while ((notify = this->notify_queue_.pop()) != nullptr) {
-    if (this->listener_ != nullptr) {
+    if (this->listener_ != nullptr && this->notify_subscribed_(notify->handle)) {
       this->listener_->on_notify_data(notify->handle, notify->data, notify->len);
     }
     this->notify_pool_.release(notify);
@@ -448,9 +448,9 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   // exchange is kicked explicitly; GATT_EVENT_MTU completes it. Without the
   // explicit kick the MTU would only be exchanged on the first GATT query,
   // which never happens on a V3_WITH_CACHE connection.
-  // Both registration calls above return void in this BTstack; failures
-  // surface as a missing GATT_EVENT_MTU and are reclaimed by the connect
-  // timeout in loop().
+  // Both registration calls above return void (BTstack 075a078, arduino-pico
+  // 6.0.0); failures surface as a missing GATT_EVENT_MTU and are reclaimed by
+  // the connect timeout in loop().
   gatt_client_send_mtu_negotiation(&RP2GattClient::gatt_packet_handler, this->con_handle_);
 }
 
@@ -485,6 +485,7 @@ void RP2GattClient::cleanup_link_state_() {
     gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
   }
   this->con_handle_ = HCI_CON_HANDLE_INVALID;
+  this->notify_subscription_count_ = 0;
   this->cancel_requested_ = false;
   this->op_type_ = OpType::NONE;
   this->discovery_phase_ = DiscoveryPhase::NONE;
@@ -780,11 +781,14 @@ int RP2GattClient::disconnect() {
     status = gap_disconnect(this->con_handle_);
   }
   if (status != 0) {
-    // The stack refused (e.g. the handle is already gone): reclaim state now
-    // instead of waiting out the safety timeout.
+    // Refused (handle already gone): complete via the event queue so the
+    // listener cannot re-enter disconnect() mid-call. BluetoothLock stops
+    // the IRQ producer, so this main-loop push is SPSC-safe.
     ESP_LOGW(TAG, "gap_disconnect failed, status=0x%02x", status);
-    this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
-    return 0;
+    {
+      BluetoothLock lock;
+      this->enqueue_event_irq_(RP2GattEvent::DISCONNECTED, HCI_REASON_CONNECTION_TIMEOUT, 0);
+    }
   }
   this->state_ = EngineState::DISCONNECTING;
   this->disconnecting_started_ = millis();
@@ -907,15 +911,36 @@ int RP2GattClient::notify_characteristic(uint16_t handle, bool enable) {
   if (this->state_ != EngineState::READY) {
     return GATT_ERR_NOT_CONNECTED;
   }
-  // The per-connection wildcard listener is registered at connect time and
-  // covers every characteristic; the CCCD write arrives from the API client
-  // as a plain descriptor write (V3 semantics, same as esp32). Registration
-  // is therefore bookkeeping only — confirm it so the client gets its
-  // BluetoothGATTNotifyResponse.
+  // The CCCD write arrives separately as a descriptor write (V3 semantics);
+  // this call only gates local delivery via the subscription list.
+  if (enable) {
+    if (!this->notify_subscribed_(handle)) {
+      if (this->notify_subscription_count_ >= RP2_GATT_MAX_NOTIFY_SUBSCRIPTIONS) {
+        return GATT_ERR_NO_MEMORY;
+      }
+      this->notify_subscriptions_[this->notify_subscription_count_++] = handle;
+    }
+  } else {
+    for (uint8_t i = 0; i < this->notify_subscription_count_; i++) {
+      if (this->notify_subscriptions_[i] == handle) {
+        this->notify_subscriptions_[i] = this->notify_subscriptions_[--this->notify_subscription_count_];
+        break;
+      }
+    }
+  }
   if (this->listener_ != nullptr) {
     this->listener_->on_notify_state(handle, enable, 0);
   }
   return 0;
+}
+
+bool RP2GattClient::notify_subscribed_(uint16_t handle) const {
+  for (uint8_t i = 0; i < this->notify_subscription_count_; i++) {
+    if (this->notify_subscriptions_[i] == handle) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,

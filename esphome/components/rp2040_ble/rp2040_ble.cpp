@@ -268,7 +268,11 @@ void RP2040BLE::inhibit_scan() {
 }
 
 void RP2040BLE::release_scan_inhibit() {
-  if (this->scan_inhibit_count_ == 0 || --this->scan_inhibit_count_ != 0) {
+  if (this->scan_inhibit_count_ == 0) {
+    return;
+  }
+  this->scan_inhibit_count_--;
+  if (this->scan_inhibit_count_ != 0) {
     return;
   }
   if (this->scan_desired_) {
