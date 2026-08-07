@@ -1,10 +1,9 @@
-from collections.abc import Callable
 import functools
 import logging
-from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import ble_device_base, bluetooth_connection
+from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
 from esphome.core import CORE
@@ -61,7 +60,6 @@ _LOGGER = logging.getLogger(__name__)
 CONF_CONNECTION_SLOTS = "connection_slots"
 CONF_CACHE_SERVICES = "cache_services"
 CONF_CONNECTIONS = "connections"
-CONF_RP2040_BLE_ID = "rp2040_ble_id"
 CONF_BACKEND_ID = "backend_id"
 DEFAULT_CONNECTION_SLOTS = 3
 
@@ -152,15 +150,6 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
     return config
 
 
-# Platform schema builders for registered GATT hub platforms; every key of
-# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry (schemas carry
-# platform-specific keys, e.g. rp2040_ble_id).
-_GATT_HUB_SCHEMAS: dict[str, Callable[[], cv.All]] = {}
-
-# Per-platform connection codegen, keyed like _GATT_HUB_SCHEMAS.
-_GATT_HUB_TO_CODE: dict[str, Callable[..., Any]] = {}
-
-
 @functools.cache
 def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
@@ -224,19 +213,21 @@ def _rp2_config_schema() -> cv.All:
 
 async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     # One wrapper + backend pair per slot (the esp32 arm's pattern).
-    ble_parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
     for connection_conf in config[CONF_CONNECTIONS]:
         ble_device_base.request_gatt_client()
         backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
         await cg.register_component(backend, connection_conf)
-        cg.add(backend.set_parent(ble_parent))
+        await cg.register_parented(backend, config[CONF_RP2040_BLE_ID])
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))
 
 
-_GATT_HUB_SCHEMAS[PLATFORM_RP2] = _rp2_config_schema
-_GATT_HUB_TO_CODE[PLATFORM_RP2] = _rp2_connections_to_code
+# Per-platform schema builders and connection codegen; every key of
+# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry in both (pinned by
+# tests/component_tests/bluetooth_proxy/).
+_GATT_HUB_SCHEMAS = {PLATFORM_RP2: _rp2_config_schema}
+_GATT_HUB_TO_CODE = {PLATFORM_RP2: _rp2_connections_to_code}
 
 
 # Keys every platform arm declares identically; each arm spreads this dict so
@@ -291,14 +282,7 @@ def _validate_platform(config: ConfigType) -> ConfigType:
             "family (advertisement-only)."
         )
     if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
-        builder = _GATT_HUB_SCHEMAS.get(CORE.target_platform)
-        if builder is None:
-            raise cv.Invalid(
-                f"{CORE.target_platform} is registered in "
-                "bluetooth_connection.HUB_MAX_CONNECTIONS but has no schema in "
-                "_GATT_HUB_SCHEMAS; add its platform schema there"
-            )
-        return builder()(config)
+        return _GATT_HUB_SCHEMAS[CORE.target_platform]()(config)
     return _BLE_HUB_CONFIG_SCHEMA(config)
 
 
@@ -333,11 +317,9 @@ def _reject_unsupported_connection_keys(config: ConfigType) -> ConfigType:
             "requires active connection support; this platform runs the "
             "advertisement-only proxy and has no such option"
         )
-        rejected = {
-            CONF_CONNECTION_SLOTS: reason,
-            CONF_CACHE_SERVICES: reason,
-            CONF_CONNECTIONS: reason,
-        }
+        rejected = dict.fromkeys(
+            (CONF_CONNECTION_SLOTS, CONF_CACHE_SERVICES, CONF_CONNECTIONS), reason
+        )
     for key, reason in rejected.items():
         if key in config:
             raise cv.Invalid(f"'{key}' {reason}", path=[key])

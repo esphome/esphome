@@ -2,6 +2,9 @@
 real reason, hub platforms reject GATT-only options by name, and the
 advertisement-only arm applies its own defaults."""
 
+from pathlib import Path
+import re
+
 import pytest
 
 from esphome import config_validation as cv
@@ -125,10 +128,12 @@ def test_hub_platform_accepts_the_advertisement_only_shape(
     assert validated[CONF_ACTIVE] is False
 
 
-def test_rp2_defaults_to_the_full_proxy() -> None:
+def test_rp2_defaults_to_the_full_proxy(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     # esp32 parity: active defaults to true, with the platform's slot limit,
     # and one populated connection entry for the codegen to index.
-    _set_platform("rp2")
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     _register_tracker(PLATFORM_RP2)
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is True
@@ -136,17 +141,21 @@ def test_rp2_defaults_to_the_full_proxy() -> None:
     assert len(validated[bluetooth_proxy.CONF_CONNECTIONS]) == 1
 
 
-def test_rp2_accepts_explicit_passive() -> None:
-    _set_platform("rp2")
+def test_rp2_accepts_explicit_passive(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     _register_tracker(PLATFORM_RP2)
     validated = bluetooth_proxy.CONFIG_SCHEMA({CONF_ACTIVE: False})
     assert validated[CONF_ACTIVE] is False
     assert bluetooth_proxy.CONF_CONNECTIONS not in validated
 
 
-def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
+def test_rp2_rejects_slots_beyond_the_btstack_limit(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     # The prebuilt BTstack library allows exactly one GATT client connection.
-    _set_platform("rp2")
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     _register_tracker(PLATFORM_RP2)
     with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
         bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
@@ -157,8 +166,10 @@ def test_rp2_rejects_slots_beyond_the_btstack_limit() -> None:
         bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 12})
 
 
-def test_rp2_rejects_esp32_only_keys_by_name() -> None:
-    _set_platform("rp2")
+def test_rp2_rejects_esp32_only_keys_by_name(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     _register_tracker(PLATFORM_RP2)
     with pytest.raises(cv.Invalid, match="'cache_services' is esp32-only"):
         bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
@@ -193,3 +204,15 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
         max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())
         <= bluetooth_proxy._IDF_MAX_CONNECTIONS
     )
+
+
+def test_defines_h_mirrors_the_rp2_slot_cap() -> None:
+    # esphome/core/defines.h carries a literal BLUETOOTH_PROXY_MAX_CONNECTIONS
+    # for static analysis; pin it to the real rp2 cap.
+    defines = Path(__file__).parents[3] / "esphome" / "core" / "defines.h"
+    match = re.search(
+        r"#elif defined\(USE_RP2\)\s*\n#define BLUETOOTH_PROXY_MAX_CONNECTIONS (\d+)",
+        defines.read_text(),
+    )
+    assert match is not None
+    assert int(match.group(1)) == bluetooth_connection.RP2_MAX_CONNECTIONS
