@@ -16,7 +16,7 @@ from esphome.components.modbus_client import (
     CONFIG_SCHEMA,
     MODBUS_CLIENT_SEND_SCHEMA,
 )
-from esphome.const import CONF_ADDRESS, CONF_ON_ERROR, CONF_ON_RESPONSE
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_ON_ERROR, CONF_ON_RESPONSE
 from esphome.core import Lambda
 from esphome.types import ConfigType
 
@@ -126,19 +126,25 @@ def test_on_no_response_retry_lambda_accepted() -> None:
 def test_component_requires_an_address() -> None:
     """address identifies the device on the bus, so there is no sensible default."""
     with pytest.raises(cv.Invalid, match=CONF_ADDRESS):
-        CONFIG_SCHEMA({})
+        CONFIG_SCHEMA({CONF_ID: "bare_client"})
 
 
-def test_component_accepts_an_address_alone() -> None:
-    """modbus_id is optional: it resolves to the single hub when only one is declared."""
-    config = CONFIG_SCHEMA({CONF_ADDRESS: 0x01})
+def test_component_requires_an_id() -> None:
+    """The device is reachable only through id() in a lambda, so a generated id would be dead config."""
+    with pytest.raises(cv.Invalid, match=CONF_ID):
+        CONFIG_SCHEMA({CONF_ADDRESS: 0x01})
+
+
+def test_component_accepts_an_id_and_address() -> None:
+    """modbus_id stays optional: it resolves to the single hub when only one is declared."""
+    config = CONFIG_SCHEMA({CONF_ID: "bare_client", CONF_ADDRESS: 0x01})
     assert config[CONF_ADDRESS] == 0x01
 
 
 def test_component_rejects_an_out_of_range_address() -> None:
     """A Modbus device address is one byte."""
     with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({CONF_ADDRESS: 0x100})
+        CONFIG_SCHEMA({CONF_ID: "bare_client", CONF_ADDRESS: 0x100})
 
 
 def test_multi_conf_no_default_is_set() -> None:

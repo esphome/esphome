@@ -87,9 +87,11 @@ _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
 # non-standard, which warns once per device and logs at VERBOSE after that. So a lambda gets no feedback
 # on an ordinary failure - use the modbus_client.* actions whenever the outcome matters, since they carry
 # on_response/on_error/on_no_response/on_not_sent handlers.
+# The id is required, not generated: the device is reachable only through id() in a lambda, so an
+# entry without one builds something nothing can name. Better to say so than to accept dead config.
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(modbus.ModbusClientDevice),
+        cv.Required(CONF_ID): cv.declare_id(modbus.ModbusClientDevice),
     }
 ).extend(modbus.modbus_device_schema(None))
 
