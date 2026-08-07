@@ -27,6 +27,8 @@ void BluetoothConnection::set_address(uint64_t address) {
 }
 
 void BluetoothConnection::start_connect_() {
+  // No connect timeout here (esp32 parity): the client's own timeout or
+  // the api-gone sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
   int err = this->backend_->connect(this->address_, this->remote_addr_type_);
   if (err != 0) {
@@ -91,7 +93,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     // and the api-gone sweep or a new reservation owns the slot now.
     int err = this->backend_->disconnect();
     if (err != 0 && err != GATT_NOT_CONNECTED) {
-      // The slot no longer owns the link; surface the refused close.
+      // Log only: re-arming a freed slot could clobber a new reservation.
       ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
     }
     return;
