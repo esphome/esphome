@@ -125,6 +125,7 @@ class RP2GattClient final : public Component,
   void handle_gatt_event_irq_(uint8_t event_type, const uint8_t *packet);
   void enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value);
   void enqueue_notify_irq_(uint16_t handle, const uint8_t *data, uint16_t len);
+  void assemble_blob_irq_(uint16_t offset, const uint8_t *data, uint16_t len);
 
   // Main-loop state machine.
   void handle_event_(const RP2GattEvent &event);

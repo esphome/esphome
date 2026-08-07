@@ -24,7 +24,8 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
 static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
-static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 10000;
+// Can-send windows normally open within a connection interval (tens of ms).
+static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 500;
 
 // HCI "connection timeout" reason, reported when a teardown had to be forced.
 static constexpr uint8_t HCI_REASON_CONNECTION_TIMEOUT = 0x08;
@@ -264,38 +265,17 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       this->desc_count_++;
       break;
     }
-    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT: {
-      // One blob per event at value_offset; assemble into the op buffer.
-      uint16_t offset = gatt_event_long_characteristic_value_query_result_get_value_offset(packet);
-      uint16_t len = gatt_event_long_characteristic_value_query_result_get_value_length(packet);
-      if (offset >= RP2_GATT_MAX_ATTR_LEN) {
-        break;
-      }
-      if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
-        len = RP2_GATT_MAX_ATTR_LEN - offset;
-      }
-      memcpy(this->op_buffer_ + offset, gatt_event_long_characteristic_value_query_result_get_value(packet), len);
-      if (offset + len > this->op_len_) {
-        this->op_len_ = offset + len;
-      }
+    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
+      // One blob per event at the reported offset; assemble into the op buffer.
+      this->assemble_blob_irq_(gatt_event_long_characteristic_value_query_result_get_value_offset(packet),
+                               gatt_event_long_characteristic_value_query_result_get_value(packet),
+                               gatt_event_long_characteristic_value_query_result_get_value_length(packet));
       break;
-    }
-    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
-      uint16_t offset = gatt_event_long_characteristic_descriptor_query_result_get_descriptor_offset(packet);
-      uint16_t len = gatt_event_long_characteristic_descriptor_query_result_get_descriptor_length(packet);
-      if (offset >= RP2_GATT_MAX_ATTR_LEN) {
-        break;
-      }
-      if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
-        len = RP2_GATT_MAX_ATTR_LEN - offset;
-      }
-      memcpy(this->op_buffer_ + offset, gatt_event_long_characteristic_descriptor_query_result_get_descriptor(packet),
-             len);
-      if (offset + len > this->op_len_) {
-        this->op_len_ = offset + len;
-      }
+    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
+      this->assemble_blob_irq_(gatt_event_long_characteristic_descriptor_query_result_get_descriptor_offset(packet),
+                               gatt_event_long_characteristic_descriptor_query_result_get_descriptor(packet),
+                               gatt_event_long_characteristic_descriptor_query_result_get_descriptor_length(packet));
       break;
-    }
     case GATT_EVENT_NOTIFICATION:
       this->enqueue_notify_irq_(gatt_event_notification_get_value_handle(packet),
                                 gatt_event_notification_get_value(packet),
@@ -312,6 +292,19 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
 }
 
 // NOLINTBEGIN(clang-analyzer-unix.Malloc)
+void RP2GattClient::assemble_blob_irq_(uint16_t offset, const uint8_t *data, uint16_t len) {
+  if (offset >= RP2_GATT_MAX_ATTR_LEN) {
+    return;
+  }
+  if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
+    len = RP2_GATT_MAX_ATTR_LEN - offset;
+  }
+  memcpy(this->op_buffer_ + offset, data, len);
+  if (offset + len > this->op_len_) {
+    this->op_len_ = offset + len;
+  }
+}
+
 void RP2GattClient::enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value) {
   RP2GattEvent *event = this->event_pool_.allocate();
   if (event == nullptr) {
@@ -415,8 +408,11 @@ void RP2GattClient::loop() {
         timed_out = true;
       }
     }
-    if (timed_out && this->listener_ != nullptr) {
-      this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
+    if (timed_out) {
+      ESP_LOGW(TAG, "Deferred write timeout, handle=0x%04x", this->op_handle_);
+      if (this->listener_ != nullptr) {
+        this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
+      }
     }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
                                                    this->event_queue_.empty() && this->notify_queue_.empty())) {
