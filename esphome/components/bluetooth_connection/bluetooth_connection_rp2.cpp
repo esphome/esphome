@@ -1127,6 +1127,8 @@ conn_err_t unpair_device(uint64_t address) {
       return CONN_OK;
     }
   }
+  // No bond for this address; the shared error domain has no closer code
+  // (esp32 parity: its remove-bond call also errors for an unknown address).
   return GATT_NOT_CONNECTED;
 }
 
