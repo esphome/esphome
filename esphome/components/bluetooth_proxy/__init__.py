@@ -162,16 +162,14 @@ _BLE_HUB_CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             **_COMMON_SCHEMA_KEYS,
-            # Declared directly (BLE_DEVICE_SCHEMA-style): appending a validator
-            # after a strict schema rejects an explicit `ble_hub_id` before it
-            # runs, and that key is the documented way to disambiguate once a
-            # platform has two trackers.
-            cv.GenerateID(ble_device_base.CONF_BLE_HUB_ID): cv.use_id(
-                ble_device_base.BLEHub
-            ),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(
+        # ble_hub_id with the friendly no-tracker-configured guard.
+        ble_device_base.BLE_DEVICE_SCHEMA
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     _validate_no_active,
 )
 
