@@ -81,9 +81,12 @@ _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
 #
 #   - lambda: "id(my_client).write_single_register(0x10, 42);"
 #
-# Replies land on the device's own callbacks, which this component does not override, so the base's
-# default dispatch handles them (logging an unhandled reply once). Use the modbus_client.* actions
-# instead when the reply matters - they carry the on_response/on_error handlers.
+# Nothing here overrides the device callbacks, so every outcome takes the base class default, and those
+# are no-ops: a successful reply, a Modbus exception, a timeout, and a frame that never reached the wire
+# are all discarded without a log. The single exception is a reply the dispatch gate treats as
+# non-standard, which warns once per device and logs at VERBOSE after that. So a lambda gets no feedback
+# on an ordinary failure - use the modbus_client.* actions whenever the outcome matters, since they carry
+# on_response/on_error/on_no_response/on_not_sent handlers.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(modbus.ModbusClientDevice),
