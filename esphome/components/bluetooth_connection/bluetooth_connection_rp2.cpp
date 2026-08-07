@@ -668,7 +668,8 @@ void RP2GattClient::finish_discovery_(int error) {
   }
   if (error == 0) {
     // Discovery no longer needs the fast interval; settle into the shared
-    // steady-state parameters (same lifecycle place as esp32).
+    // steady-state parameters (same lifecycle place as esp32). Status
+    // discarded: BTstack fails this only for an already-gone handle.
     BluetoothLock lock;
     gap_update_connection_parameters(this->con_handle_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
                                      MEDIUM_CONN_TIMEOUT);
