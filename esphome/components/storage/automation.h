@@ -1,7 +1,7 @@
 #pragma once
 
-// defines.h MUST be the first include: the preferences action classes are
-// define-gated, and main.cpp placement-news them into sizeof()-sized static
+// defines.h MUST be the first include: define-gated action classes exist in
+// this header, and main.cpp placement-news them into sizeof()-sized static
 // buffers -- any TU parsing these class declarations with a different define
 // state gets a different class size (ODR violation, boot crash). Including
 // defines.h before everything else guarantees the gates are resolved from the
