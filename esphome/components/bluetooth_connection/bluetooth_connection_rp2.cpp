@@ -179,6 +179,12 @@ void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t 
     case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
       con_handle = gatt_event_characteristic_value_query_result_get_handle(packet);
       break;
+    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
+      con_handle = gatt_event_long_characteristic_value_query_result_get_handle(packet);
+      break;
+    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
+      con_handle = gatt_event_long_characteristic_descriptor_query_result_get_handle(packet);
+      break;
     case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
       con_handle = gatt_event_characteristic_descriptor_query_result_get_handle(packet);
       break;
@@ -272,6 +278,38 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       this->op_len_ = len;
       break;
     }
+    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT: {
+      // One blob per event at value_offset; assemble into the op buffer.
+      uint16_t offset = gatt_event_long_characteristic_value_query_result_get_value_offset(packet);
+      uint16_t len = gatt_event_long_characteristic_value_query_result_get_value_length(packet);
+      if (offset >= RP2_GATT_MAX_ATTR_LEN) {
+        break;
+      }
+      if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
+        len = RP2_GATT_MAX_ATTR_LEN - offset;
+      }
+      memcpy(this->op_buffer_ + offset, gatt_event_long_characteristic_value_query_result_get_value(packet), len);
+      if (offset + len > this->op_len_) {
+        this->op_len_ = offset + len;
+      }
+      break;
+    }
+    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
+      uint16_t offset = gatt_event_long_characteristic_descriptor_query_result_get_descriptor_offset(packet);
+      uint16_t len = gatt_event_long_characteristic_descriptor_query_result_get_descriptor_length(packet);
+      if (offset >= RP2_GATT_MAX_ATTR_LEN) {
+        break;
+      }
+      if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
+        len = RP2_GATT_MAX_ATTR_LEN - offset;
+      }
+      memcpy(this->op_buffer_ + offset, gatt_event_long_characteristic_descriptor_query_result_get_descriptor(packet),
+             len);
+      if (offset + len > this->op_len_) {
+        this->op_len_ = offset + len;
+      }
+      break;
+    }
     case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
       uint16_t len = gatt_event_characteristic_descriptor_query_result_get_descriptor_length(packet);
       if (len > RP2_GATT_MAX_ATTR_LEN) {
@@ -301,24 +339,28 @@ void RP2GattClient::enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, 
   RP2GattEvent *event = this->event_pool_.allocate();
   if (event == nullptr) {
     this->event_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
   event->type = type;
   event->status = status;
   event->value = value;
   this->event_queue_.push(event);
+  this->enable_loop_soon_any_context();
 }
 
 void RP2GattClient::enqueue_notify_irq_(uint16_t handle, const uint8_t *data, uint16_t len) {
   RP2GattNotifyEvent *event = this->notify_pool_.allocate();
   if (event == nullptr) {
     this->notify_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
   event->handle = handle;
   event->len = len > RP2_GATT_MAX_ATTR_LEN ? RP2_GATT_MAX_ATTR_LEN : len;
   memcpy(event->data, data, event->len);
   this->notify_queue_.push(event);
+  this->enable_loop_soon_any_context();
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
@@ -386,6 +428,11 @@ void RP2GattClient::loop() {
     }
   } else if (this->state_ == EngineState::IDLE) {
     this->disable_loop();
+  } else if (this->state_ == EngineState::READY && !this->op_in_flight_() && this->event_queue_.empty() &&
+             this->notify_queue_.empty()) {
+    // Idle established link: the enqueue path re-arms the loop from any
+    // context, so nothing is polled while nothing is pending.
+    this->disable_loop();
   }
 }
 
@@ -412,6 +459,35 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::QUERY_COMPLETE:
       this->handle_query_complete_(event.status);
       break;
+    case RP2GattEvent::CAN_WRITE_NO_RSP:
+      this->retry_write_no_rsp_();
+      break;
+  }
+}
+
+void RP2GattClient::can_write_no_rsp_trampoline(void *context) {
+  // BTstack context: enqueue only.
+  auto *self = static_cast<RP2GattClient *>(context);
+  self->enqueue_event_irq_(RP2GattEvent::CAN_WRITE_NO_RSP, 0, 0);
+}
+
+void RP2GattClient::retry_write_no_rsp_() {
+  if (this->op_type_ != OpType::WRITE_CHAR_NO_RSP || this->state_ != EngineState::READY) {
+    return;
+  }
+  uint8_t status;
+  {
+    BluetoothLock lock;
+    status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, this->op_handle_,
+                                                                        this->op_len_, this->op_buffer_);
+    if (status == GATT_CLIENT_BUSY) {
+      gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
+      return;
+    }
+  }
+  this->op_type_ = OpType::NONE;
+  if (this->listener_ != nullptr) {
+    this->listener_->on_write_result(this->op_handle_, status);
   }
 }
 
@@ -822,8 +898,9 @@ int RP2GattClient::read_characteristic(uint16_t handle) {
   this->op_handle_ = handle;
   this->op_len_ = 0;
   BluetoothLock lock;
-  uint8_t status = gatt_client_read_value_of_characteristic_using_value_handle(&RP2GattClient::gatt_packet_handler,
-                                                                               this->con_handle_, handle);
+  // Long variant: plain read first, blob continuations only past MTU - 1.
+  uint8_t status = gatt_client_read_long_value_of_characteristic_using_value_handle(&RP2GattClient::gatt_packet_handler,
+                                                                                    this->con_handle_, handle);
   if (status != 0) {
     this->op_type_ = OpType::NONE;
     return status;
@@ -842,11 +919,26 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
     // Synchronous in BTstack: the data is copied into the L2CAP buffer before
     // the call returns, and no completion event exists — synthesize one so
     // the wire behavior matches esp32 (which reports write-no-response too).
+    if (this->op_in_flight_()) {
+      return GATT_CLIENT_IN_WRONG_STATE;
+    }
     uint8_t status;
     {
       BluetoothLock lock;
       status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, handle, len,
                                                                           const_cast<uint8_t *>(data));
+      if (status == GATT_CLIENT_BUSY) {
+        // ATT cannot send right now: stash the payload and retry from the
+        // can-send callback instead of bouncing the error to the caller.
+        memcpy(this->op_buffer_, data, len);
+        this->op_type_ = OpType::WRITE_CHAR_NO_RSP;
+        this->op_handle_ = handle;
+        this->op_len_ = len;
+        this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
+        this->can_write_registration_.context = this;
+        gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
+        return 0;
+      }
     }
     if (status == 0 && this->listener_ != nullptr) {
       this->listener_->on_write_result(handle, 0);
@@ -888,7 +980,7 @@ int RP2GattClient::read_descriptor(uint16_t handle) {
   this->op_handle_ = handle;
   this->op_len_ = 0;
   BluetoothLock lock;
-  uint8_t status = gatt_client_read_characteristic_descriptor_using_descriptor_handle(
+  uint8_t status = gatt_client_read_long_characteristic_descriptor_using_descriptor_handle(
       &RP2GattClient::gatt_packet_handler, this->con_handle_, handle);
   if (status != 0) {
     this->op_type_ = OpType::NONE;

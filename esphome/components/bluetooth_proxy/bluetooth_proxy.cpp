@@ -380,6 +380,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         } else {
           this->send_device_pairing(msg.address, true);
         }
+      } else {
+        // Answer instead of leaving the client to time out.
+        this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
       }
 #else
       // Explicit pairing is not offered (FEATURE_PAIRING is not advertised);
