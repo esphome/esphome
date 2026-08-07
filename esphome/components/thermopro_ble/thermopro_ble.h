@@ -41,7 +41,7 @@ class ThermoProBLE final : public Component, public esp32_ble_tracker::ESPBTDevi
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
-  void update_device_type_(const std::string &device_name);
+  void update_device_type_(StringRef device_name);
 };
 
 }  // namespace esphome::thermopro_ble
