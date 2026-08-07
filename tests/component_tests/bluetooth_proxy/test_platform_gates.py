@@ -23,6 +23,13 @@ HUB_PLATFORM_FRAMEWORKS = [
 ]
 
 
+def test_hub_platform_list_covers_every_hub_platform() -> None:
+    # A platform added to _HUB_PLATFORMS (bk72xx is planned) would otherwise
+    # get no gate coverage at all.
+    covered = {pf.value[0] for pf in HUB_PLATFORM_FRAMEWORKS}
+    assert covered == set(bluetooth_proxy._HUB_PLATFORMS)
+
+
 def _set_platform(platform: str | None) -> None:
     # For arms set_core_config cannot express (bare platform, no framework).
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = platform
