@@ -1676,7 +1676,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-    this->save_fast_connect_settings_();
+    this->save_fast_connect_settings_(get_wifi_channel());
 #endif
 
     this->release_scan_results_();
@@ -2301,9 +2301,8 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
   return false;
 }
 
-void WiFiComponent::save_fast_connect_settings_() {
+void WiFiComponent::save_fast_connect_settings_(uint8_t channel) {
   bssid_t bssid = wifi_bssid();
-  uint8_t channel = get_wifi_channel();
   // selected_sta_index_ is always valid here (called only after successful connection)
   // Fallback to 0 is defensive programming for robustness
   int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
@@ -2417,16 +2416,18 @@ void WiFiComponent::clear_roaming_state_() {
 }
 
 #ifdef USE_ESP32
-void WiFiComponent::handle_driver_roam_() {
+void WiFiComponent::handle_driver_roam_(uint8_t channel) {
   // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
   // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
   // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
-  // untouched so an in-flight roaming scan is not orphaned.
+  // untouched so an in-flight roaming scan is not orphaned. The channel comes
+  // from the connected event because the radio may be off-channel during a
+  // roaming scan, making the driver's current channel unreliable.
   this->roaming_last_check_ = App.get_loop_component_start_time();
   this->roaming_attempts_ = 0;
   this->clear_all_bssid_priorities_();
 #ifdef USE_WIFI_FAST_CONNECT
-  this->save_fast_connect_settings_();
+  this->save_fast_connect_settings_(channel);
 #endif
 }
 #endif
