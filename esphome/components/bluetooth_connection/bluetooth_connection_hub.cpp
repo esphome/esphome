@@ -52,7 +52,9 @@ void BluetoothConnection::disconnect() {
   if (err != 0) {
     // Transient refusal: stay DISCONNECTING and let the safety timeout
     // arbitrate rather than freeing a slot whose teardown is unresolved.
+    // Latch the refusal so the timeout's report carries the real cause.
     ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
+    this->pending_error_ = err;
   }
   this->state_ = ClientState::DISCONNECTING;
   this->disconnecting_started_ = millis();
@@ -113,9 +115,14 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
       // discovery phase needs the fast interval, so settle straight into the
       // shared steady-state parameters (same lifecycle place as esp32).
       this->state_ = ClientState::ESTABLISHED;
-      this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
-                                               ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
-                                               ble_device_base::MEDIUM_CONN_TIMEOUT);
+      int param_err = this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
+                                                               ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
+                                                               ble_device_base::MEDIUM_CONN_TIMEOUT);
+      if (param_err != 0) {
+        // Survivable: the link just stays on the fast interval.
+        ESP_LOGW(TAG, "[%d] [%s] conn param update failed, err=%d", this->connection_index_, this->address_str_,
+                 param_err);
+      }
       this->proxy_->send_device_connection(this->address_, true, mtu);
       this->proxy_->send_connections_free();
       return;
@@ -264,6 +271,8 @@ conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
   return this->backend_->read_descriptor(handle);
 }
 
+// The neutral backend contract performs descriptor writes acknowledged, so
+// the response flag is intentionally ignored (esp32 maps it to RSP/NO_RSP).
 conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
                                                  bool /*response*/) {
   if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
@@ -337,18 +346,12 @@ void BluetoothConnection::send_service_for_discovery_() {
     service_resp.handle = service.start_handle;
 
     // Bounds-check the backend's index ranges against the table totals rather
-    // than trusting its discovery bookkeeping blindly (a miscounted range
-    // would otherwise be an out-of-bounds read here).
+    // than trusting its discovery bookkeeping blindly. A miscounted non-empty
+    // range must not stream a truncated database as authoritative (V3 clients
+    // cache it permanently): abort and tear the connection down; the client
+    // times out and retries. Empty ranges are tolerated regardless of index.
     uint16_t char_count = service.characteristic_count;
-    if (service.first_characteristic >= table.characteristic_count) {
-      char_count = 0;
-    } else if (service.first_characteristic + char_count > table.characteristic_count) {
-      char_count = table.characteristic_count - service.first_characteristic;
-    }
-    if (char_count != service.characteristic_count) {
-      // A miscounted backend range must not stream a truncated database as
-      // authoritative (V3 clients cache it permanently): abort and tear the
-      // connection down; the client times out and retries.
+    if (char_count != 0 && service.first_characteristic + char_count > table.characteristic_count) {
       ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), aborting stream",
                this->connection_index_, this->address_str_, this->send_service_);
       this->send_service_ = DONE_SENDING_SERVICES;
@@ -365,12 +368,7 @@ void BluetoothConnection::send_service_for_discovery_() {
         characteristic_resp.handle = chr.value_handle;
         characteristic_resp.properties = chr.properties;
         uint16_t desc_count = chr.descriptor_count;
-        if (chr.first_descriptor >= table.descriptor_count) {
-          desc_count = 0;
-        } else if (chr.first_descriptor + desc_count > table.descriptor_count) {
-          desc_count = table.descriptor_count - chr.first_descriptor;
-        }
-        if (desc_count != chr.descriptor_count) {
+        if (desc_count != 0 && chr.first_descriptor + desc_count > table.descriptor_count) {
           ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), aborting stream",
                    this->connection_index_, this->address_str_, this->send_service_);
           this->send_service_ = DONE_SENDING_SERVICES;
