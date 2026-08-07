@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_COUNT,
+    CONF_ID,
     CONF_ON_ERROR,
     CONF_ON_RESPONSE,
     CONF_VALUE,
@@ -17,6 +18,10 @@ from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
+MULTI_CONF = True
+# The modbus hub auto-loads this component to make the actions available. Without this, that auto-load
+# would try to create a device with no address.
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_ON_CUSTOM_RESPONSE = "on_custom_response"
 CONF_ON_NO_RESPONSE = "on_no_response"
@@ -66,6 +71,29 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 # The list form below is bounded by cv.Length; a lambda cannot be. PduBuffer drops bytes past
 # modbus.MAX_PDU_SIZE without reporting it, so an over-long lambda PDU is silently truncated.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
+
+# A bare modbus::ModbusClientDevice bound to a hub and a device address, and nothing else - no polling,
+# no entities, no automation wiring. It exists so a lambda can talk to a device directly:
+#
+#   modbus_client:
+#     - id: my_client
+#       address: 0x01
+#
+#   - lambda: "id(my_client).write_single_register(0x10, 42);"
+#
+# Replies land on the device's own callbacks, which this component does not override, so the base's
+# default dispatch handles them (logging an unhandled reply once). Use the modbus_client.* actions
+# instead when the reply matters - they carry the on_response/on_error handlers.
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(modbus.ModbusClientDevice),
+    }
+).extend(modbus.modbus_device_schema(None))
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await modbus.register_modbus_client_device(var, config)
 
 
 def _packed_bit_bytes(bits: int) -> int:
