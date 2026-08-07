@@ -15,29 +15,18 @@ static const char *const TAG = "rp2040_ble";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 RP2040BLE *global_ble = nullptr;
 
-// The analyzer cannot see that release() always retains the pointer here: the
-// pool's free list is sized SIZE + 1, so its push cannot hit the ring-full
-// drop branch for at most SIZE releases.
-// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void RP2040BLE::setup() {
   global_ble = this;
 
   // Pre-create every pool entry so the packet handler's allocate() is always a
-  // free-list pop — the IRQ path must never reach malloc() (heap allocation
-  // after setup is forbidden, and the newlib malloc lock is not IRQ-safe).
-  // Deliberately unconditional: warming lazily on the first scan would move
-  // the allocations after setup, and doing it here keeps the pool's RAM cost
-  // visible at startup instead of appearing once scanning begins.
-  BLEScanReport *warm[MAX_SCAN_REPORT_QUEUE_SIZE - 1];
-  size_t warmed = 0;
-  while (warmed < MAX_SCAN_REPORT_QUEUE_SIZE - 1 && (warm[warmed] = this->report_pool_.allocate()) != nullptr)
-    warmed++;
-  for (size_t i = 0; i < warmed; i++)
-    this->report_pool_.release(warm[i]);
-  if (warmed != MAX_SCAN_REPORT_QUEUE_SIZE - 1) {
-    // An incomplete warm would silently put malloc() back on the IRQ path once
-    // the free list runs dry; refuse to run instead (the stack is never
-    // enabled, so the packet handler cannot fire).
+  // free-list pop — the IRQ path must never reach malloc() (the newlib malloc
+  // lock is not IRQ-safe). Deliberately
+  // unconditional: warming lazily on the first scan would move the allocations
+  // after setup, and doing it here keeps the pool's RAM cost visible at
+  // startup instead of appearing once scanning begins. On an incomplete warm,
+  // refuse to run instead (the stack is never enabled, so the packet handler
+  // cannot fire).
+  if (!this->report_pool_.warm()) {
     ESP_LOGE(TAG, "Scan report pool warm-up failed");
     this->mark_failed();
     return;
@@ -49,7 +38,6 @@ void RP2040BLE::setup() {
     this->state_ = BLEComponentState::DISABLED;
   }
 }
-// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void RP2040BLE::enable() {
   if (this->state_ == BLEComponentState::ACTIVE || this->state_ == BLEComponentState::ENABLING) {
@@ -117,8 +105,10 @@ void RP2040BLE::loop() {
   if (report == nullptr)
     return;
   do {
+#ifdef RP2040_BLE_SCAN_LISTENER_COUNT
     for (auto *listener : this->scan_listeners_)
       listener->on_scan_report(*report);
+#endif
     this->report_pool_.release(report);
   } while ((report = this->report_queue_.pop()) != nullptr);
 
@@ -183,6 +173,7 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
       reverse_bd_addr(addr, mac_lsb);  // LSB-first, the BLE convention consumers expect
       global_ble->enqueue_scan_report_(mac_lsb, static_cast<int8_t>(gap_event_advertising_report_get_rssi(packet)),
                                        gap_event_advertising_report_get_address_type(packet),
+                                       gap_event_advertising_report_get_advertising_event_type(packet),
                                        gap_event_advertising_report_get_data(packet),
                                        gap_event_advertising_report_get_data_length(packet));
       break;
@@ -196,8 +187,8 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
 // pool is sized to the queue capacity (SIZE-1), so allocate() returns nullptr
 // before push() can find the ring full.
 // NOLINTBEGIN(clang-analyzer-unix.Malloc)
-void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                     uint16_t data_len) {
+void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, uint8_t addr_type,
+                                     uint8_t adv_event_type, const uint8_t *data, uint16_t data_len) {
   BLEScanReport *report = this->report_pool_.allocate();
   if (report == nullptr) {
     // Pool exhausted — the queue is full; count and drop.
@@ -207,6 +198,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
   memcpy(report->mac, mac_lsb_first, 6);
   report->rssi = rssi;
   report->addr_type = addr_type;
+  report->adv_event_type = adv_event_type;
   report->data_len =
       (data_len <= sizeof(report->data)) ? static_cast<uint8_t>(data_len) : static_cast<uint8_t>(sizeof(report->data));
   memcpy(report->data, data, report->data_len);
@@ -216,7 +208,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 
 void RP2040BLE::get_mac_msb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
 
-bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
+bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active()) {
     // Power control stays with the user (enable_on_boot or an explicit
     // enable() call) — auto-enabling here would defeat enable_on_boot: false
@@ -226,7 +218,7 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window) {
   // Serialize with the BTstack background worker (arduino-pico's BluetoothHCI
   // takes the same lock around its gap_* calls).
   BluetoothLock lock;
-  gap_set_scan_params(0 /* passive */, interval, window, 0 /* accept all */);
+  gap_set_scan_params(active ? 1 : 0, interval, window, 0 /* accept all */);
   gap_start_scan();
   return true;
 }
