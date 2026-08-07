@@ -46,11 +46,11 @@ static constexpr uint16_t RP2_GATT_MAX_ATTR_LEN = 512;
 // Control events from the BTstack handlers to loop().
 struct RP2GattEvent {
   enum Type : uint8_t {
-    CONNECTED,         // status + con_handle (value)
-    DISCONNECTED,      // status = HCI reason
-    MTU_EXCHANGED,     // value = negotiated MTU
-    QUERY_COMPLETE,    // status = ATT status of the finished query
-    CAN_WRITE_NO_RSP,  // ATT can send: retry the deferred write
+    CONNECTED,          // status + con_handle (value)
+    DISCONNECTED,       // status = HCI reason
+    MTU_EXCHANGED,      // value = negotiated MTU
+    QUERY_COMPLETE,     // status = ATT status of the finished query
+    WRITE_NO_RSP_DONE,  // status = result of the deferred write
   };
   Type type;
   uint8_t status;
@@ -139,7 +139,7 @@ class RP2GattClient final : public Component,
   void cleanup_link_state_();
   bool notify_subscribed_(uint16_t handle) const;
   static void can_write_no_rsp_trampoline(void *context);
-  void retry_write_no_rsp_();
+  void finish_write_no_rsp_(uint8_t status);
   void release_scan_inhibit_();
   bool op_in_flight_() const {
     return this->op_type_ != OpType::NONE || this->discovery_phase_ != DiscoveryPhase::NONE;

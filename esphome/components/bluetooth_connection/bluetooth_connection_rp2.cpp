@@ -456,31 +456,31 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::QUERY_COMPLETE:
       this->handle_query_complete_(event.status);
       break;
-    case RP2GattEvent::CAN_WRITE_NO_RSP:
-      this->retry_write_no_rsp_();
+    case RP2GattEvent::WRITE_NO_RSP_DONE:
+      this->finish_write_no_rsp_(event.status);
       break;
   }
 }
 
 void RP2GattClient::can_write_no_rsp_trampoline(void *context) {
-  // BTstack context: enqueue only.
+  // BTstack context: this callback IS the can-send window, so the deferred
+  // write happens here; only the result is enqueued for the main loop.
   auto *self = static_cast<RP2GattClient *>(context);
-  self->enqueue_event_irq_(RP2GattEvent::CAN_WRITE_NO_RSP, 0, 0);
-}
-
-void RP2GattClient::retry_write_no_rsp_() {
-  if (this->op_type_ != OpType::WRITE_CHAR_NO_RSP || this->state_ != EngineState::READY) {
+  if (self->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
     return;
   }
-  uint8_t status;
-  {
-    BluetoothLock lock;
-    status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, this->op_handle_,
-                                                                        this->op_len_, this->op_buffer_);
-    if (status == GATT_CLIENT_BUSY) {
-      gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
-      return;
-    }
+  uint8_t status = gatt_client_write_value_of_characteristic_without_response(self->con_handle_, self->op_handle_,
+                                                                              self->op_len_, self->op_buffer_);
+  if (status == GATT_CLIENT_BUSY &&
+      gatt_client_request_to_write_without_response(&self->can_write_registration_, self->con_handle_) == 0) {
+    return;  // next window retries; a failed re-arm falls through as an error
+  }
+  self->enqueue_event_irq_(RP2GattEvent::WRITE_NO_RSP_DONE, status, 0);
+}
+
+void RP2GattClient::finish_write_no_rsp_(uint8_t status) {
+  if (this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
+    return;
   }
   this->op_type_ = OpType::NONE;
   if (this->listener_ != nullptr) {
@@ -596,6 +596,12 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
     switch (op) {
       case OpType::READ_CHAR:
       case OpType::READ_DESC:
+        // A value that is an exact multiple of MTU - 1 ends with a trailing
+        // blob request some peers refuse with INVALID_OFFSET; the read is
+        // complete, not failed.
+        if (att_status == ATT_ERROR_INVALID_OFFSET && this->op_len_ > 0) {
+          att_status = 0;
+        }
         this->listener_->on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
                                         att_status);
         break;
@@ -916,24 +922,28 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
     // Synchronous in BTstack: the data is copied into the L2CAP buffer before
     // the call returns, and no completion event exists — synthesize one so
     // the wire behavior matches esp32 (which reports write-no-response too).
-    if (this->op_in_flight_()) {
-      return GATT_CLIENT_IN_WRONG_STATE;
-    }
     uint8_t status;
     {
       BluetoothLock lock;
       status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, handle, len,
                                                                           const_cast<uint8_t *>(data));
       if (status == GATT_CLIENT_BUSY) {
-        // ATT cannot send right now: stash the payload and retry from the
-        // can-send callback instead of bouncing the error to the caller.
+        if (this->op_in_flight_()) {
+          // The op buffer is owned; bounce the busy to the caller as before.
+          return status;
+        }
+        // Stash the payload and send from the can-send callback.
         memcpy(this->op_buffer_, data, len);
         this->op_type_ = OpType::WRITE_CHAR_NO_RSP;
         this->op_handle_ = handle;
         this->op_len_ = len;
         this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
         this->can_write_registration_.context = this;
-        gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
+        uint8_t req = gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
+        if (req != 0) {
+          this->op_type_ = OpType::NONE;
+          return req;
+        }
         return 0;
       }
     }
