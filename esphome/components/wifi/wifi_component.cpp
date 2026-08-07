@@ -2425,6 +2425,7 @@ void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
   // event may have moved the driver on again by the time this one is processed.
   this->roaming_last_check_ = App.get_loop_component_start_time();
   this->roaming_attempts_ = 0;
+  this->roaming_scan_end_ = 0;
   this->clear_all_bssid_priorities_();
 #ifdef USE_WIFI_FAST_CONNECT
   this->save_fast_connect_settings_(bssid, channel);
