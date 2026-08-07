@@ -81,6 +81,7 @@ class StringRef {
     return len_ >= prefix.len_ && std::memcmp(base_, prefix.base_, prefix.len_) == 0;
   }
   bool starts_with(const char *prefix) const { return this->starts_with(StringRef(prefix)); }
+  bool starts_with(const std::string &prefix) const { return this->starts_with(StringRef(prefix)); }
 
   /// Copy characters to destination buffer (std::string::copy-like, but returns 0 instead of throwing on out-of-range)
   size_type copy(char *dest, size_type count, size_type pos = 0) const {
