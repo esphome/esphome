@@ -1,3 +1,13 @@
+"""
+Storage component for ESPHome.
+
+WARNING: This component is EXPERIMENTAL. The API (both Python configuration
+and C++ interfaces) may change at any time without following the normal
+breaking changes policy. Use at your own risk.
+
+Once the API is considered stable, this warning will be removed.
+"""
+
 from dataclasses import dataclass
 import logging
 
