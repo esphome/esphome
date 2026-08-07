@@ -6362,6 +6362,26 @@ def test_run_esphome_skip_external_update_per_command(
     assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
 
 
+@pytest.mark.parametrize(
+    ("argv_extra", "expected"),
+    [(["--no-defaults"], True), ([], False)],
+)
+def test_run_esphome_snapshot_user_config_only_for_no_defaults(
+    tmp_path: Path, argv_extra: list[str], expected: bool
+) -> None:
+    """read_config is invoked with snapshot_user_config=True only when the
+    config command is run with --no-defaults; otherwise the expensive deep
+    copy is skipped."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.config.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", "config", str(yaml_file), *argv_extra])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["snapshot_user_config"] is expected
+
+
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
