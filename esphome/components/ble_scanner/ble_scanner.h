@@ -23,7 +23,7 @@ class BLEScanner final : public text_sensor::TextSensor,
     // Escape special characters in the device name for valid JSON. Control characters stay in the \u00XX form this
     // sensor has always published.
     char escaped_name[128];
-    json_escape_into_buffer(escaped_name, StringRef(device.get_name()), /*short_control_escapes=*/false);
+    json_escape_into_buffer(escaped_name, device.get_name(), /*short_control_escapes=*/false);
 
     char buf[256];
     snprintf(buf, sizeof(buf), "{\"timestamp\":%" PRId64 ",\"address\":\"%s\",\"rssi\":%d,\"name\":\"%s\"}",

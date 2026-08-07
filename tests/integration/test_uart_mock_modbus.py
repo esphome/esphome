@@ -342,6 +342,35 @@ async def test_uart_mock_modbus_server_controller_multiple(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_client_inline(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus_client.send actions: each action is its own hub device.
+
+    Start Scenario fires: a read of served address 1 decoded in its inline on_response -> inline_value; a
+    read of address 2, which no server answers, resolving via on_no_response -> timeout_flag. A parallel
+    script fires the same write action twice while its first frame is pending; the hub drops the duplicate
+    write, and the second firing resolves via its own on_not_sent -> skipped_flag. This exercises
+    per-action reply routing, the no-reply path, and the one-outcome guarantee under the hub's write
+    dedup.
+    """
+
+    tracker = SensorTracker(["inline_value", "timeout_flag", "skipped_flag"])
+    futures = tracker.expect_all(
+        {"inline_value": 1234, "timeout_flag": 1, "skipped_flag": 1}
+    )
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures, timeout=5.0)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_grouping(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
