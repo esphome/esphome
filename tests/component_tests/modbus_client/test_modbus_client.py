@@ -124,7 +124,7 @@ def test_on_no_response_retry_lambda_accepted() -> None:
 
 
 def test_component_requires_an_address() -> None:
-    """address identifies the device on the bus, so there is no sensible default."""
+    """The address identifies the device on the bus, so there is no sensible default."""
     with pytest.raises(cv.Invalid, match=CONF_ADDRESS):
         CONFIG_SCHEMA({CONF_ID: "bare_client"})
 
