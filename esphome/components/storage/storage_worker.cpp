@@ -257,6 +257,37 @@ bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
   return false;
 }
 
+bool StorageWorker::has_active_task_io(const storage::Storage *storage) const {
+  if (storage == nullptr)
+    return false;
+#if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
+  if (!this->task_running_)
+    return false;
+  for (size_t i = 0; i < this->pool_.size(); i++) {
+    const TransferRequest &req = this->pool_[i];
+    RequestState state = req.state.load();
+    // FREE/DONE own nothing; PENDING is loop-engine work and advances only on the caller's own
+    // thread -- only RUNNING/CANCELLED can be task-owned (a cancelled one still closes handles).
+    if (state != RequestState::RUNNING && state != RequestState::CANCELLED)
+      continue;
+    // The loop engine's current request is the one RUNNING slot that is NOT task-owned.
+    if (i == this->loop_active_index_)
+      continue;
+    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage)
+      return true;
+  }
+  for (const auto &sreq : this->stream_pool_) {
+    if (sreq.storage != storage)
+      continue;
+    // A step queued to or running on the worker task; pending_step_ marks the loop-sliced route
+    // (same thread as the caller), and IDLE holds only a handle, not an in-flight call.
+    if (stream_step_active(sreq.state.load()) && !sreq.pending_step_)
+      return true;
+  }
+#endif
+  return false;
+}
+
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
                                     const char *dst_path, CompletionCallback &&on_done, TransferJob *job_out,
                                     bool overwrite) {

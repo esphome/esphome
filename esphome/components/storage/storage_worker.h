@@ -531,6 +531,17 @@ class StorageWorker : public PollingComponent {
   // so they never ask.
   bool is_busy_with(const storage::Storage *storage) const;
 
+  // The contention twin of is_busy_with(): true while the BACKGROUND TASK may perform I/O on
+  // `storage` concurrently with the caller -- a task-owned transfer in RUNNING/CANCELLED (it
+  // chunks autonomously between main-loop ticks, and a cancelled one still closes handles), or
+  // a stream whose current step is dispatched to the task. PENDING and loop-sliced work never
+  // count (the loop engine advances only on the caller's own thread), nor do IDLE streams (an
+  // open handle is not an in-flight call). Main-loop-only. Meant for consumers that want to run
+  // a blocking helper (read_file()/write_file()/raw I/O) on the main loop: doing so while this
+  // returns true would put two threads into one medium -- the corruption class the worker's own
+  // cross-engine serialization exists to prevent. Always false on builds without the task.
+  bool has_active_task_io(const storage::Storage *storage) const;
+
   // Opens `path` for writing (create/truncate, like OpenMode::WRITE) and returns a handle
   // immediately if a slot was available -- StorageError::NOT_READY (pool full) or
   // StorageError::INVALID_ARGS (path too long) otherwise, in which case on_open is NOT
