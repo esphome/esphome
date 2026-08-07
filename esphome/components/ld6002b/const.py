@@ -1,8 +1,18 @@
 CONF_AUTO_WAKE = "auto_wake"
 CONF_CLUSTER_ID = "cluster_id"
 CONF_DOPPLER_INDEX = "doppler_index"
+CONF_HOLD_DELAY = "hold_delay"
 CONF_LD6002B_ID = "ld6002b_id"
+CONF_LOW_POWER = "low_power"
+CONF_LOW_POWER_SLEEP_TIME = "low_power_sleep_time"
+CONF_OTA_VERSION = "ota_version"
+CONF_POINT_CLOUD = "point_cloud"
+CONF_POINT_COUNT = "point_count"
+CONF_TARGET_DISPLAY = "target_display"
 CONF_WAKEUP_PULSE = "wakeup_pulse"
+CONF_WORK_MODE = "work_mode"
 CONF_Z = "z"
+CONF_Z_MAX = "z_max"
+CONF_Z_MIN = "z_min"
 
 MAX_TARGETS = 3
