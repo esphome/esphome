@@ -54,6 +54,7 @@ template<class T, uint8_t SIZE> class EventPool {
     T *event = this->free_list_.pop();
     if (event != nullptr)
       return event;
+    // Need to create a new event
     return this->create_();
   }
 
@@ -89,12 +90,14 @@ template<class T, uint8_t SIZE> class EventPool {
   // Returns nullptr at capacity or when the heap is exhausted.
   T *create_() {
     if (this->total_created_ >= SIZE) {
+      // Pool is at capacity
       return nullptr;
     }
     // Use internal RAM for better performance
     RAMAllocator<T> allocator(RAMAllocator<T>::ALLOC_INTERNAL);
     T *event = allocator.allocate(1);
     if (event == nullptr) {
+      // Memory allocation failed
       return nullptr;
     }
     // Placement new to construct the object
