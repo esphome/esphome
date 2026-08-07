@@ -69,6 +69,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_STM32,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -557,6 +558,12 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
+    elif zephyr_variant_family() == "stm32":
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
+        # zephyr_add_prj_conf("NEWLIB_LIBC", True)
+        # zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
@@ -582,7 +589,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    if zephyr_variant() is not None and zephyr_variant() not in (ZEPHYR_VARIANT_NATIVE_SIM, ZEPHYR_VARIANT_STM32):
         zephyr_add_prj_conf("WATCHDOG", True)
         zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
@@ -1106,6 +1113,9 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.efr32mg24 import config_schema as _efr32mg24_config_schema
 
         config = _efr32mg24_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32:
+        from .variants.stm32 import config_schema as _stm32_config_schema
+        config = _stm32_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -1200,6 +1210,10 @@ async def to_code(config: ConfigType) -> None:
         from .variants.efr32mg24 import to_code as _efr32mg24_to_code
 
         await _efr32mg24_to_code(config)
+    if variant == ZEPHYR_VARIANT_STM32:
+        from .variants.stm32 import to_code as _stm32_to_code
+
+        await _stm32_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 
