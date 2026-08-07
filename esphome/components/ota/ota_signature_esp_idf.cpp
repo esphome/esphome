@@ -162,6 +162,7 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
                             static_cast<uint8_t>(exponent_le >> 8), static_cast<uint8_t>(exponent_le)};
 
 #ifdef USE_OTA_SIG_PSA
+  static_assert(RSA_3072_BYTES == RSA_3072_MODULUS_BYTES, "signature block and DER encoder disagree on modulus size");
   uint8_t der[RSA_DER_PUBKEY_MAX];
   const size_t der_len = rsa_der_public_key(block + OFFSET_MODULUS, exponent_be, sizeof(exponent_be), der, sizeof(der));
   psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
