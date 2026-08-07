@@ -2,17 +2,17 @@
 #include "modbus_textsensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.text_sensor";
 
 void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Text Sensor", this); }
 
-void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusTextSensor::parse_and_publish(std::span<const uint8_t> data) {
   std::string output_str{};
   uint8_t items_left = this->response_bytes;
-  uint8_t index = this->offset;
+  const size_t start_offset = this->offset;
+  size_t index = start_offset;
   while ((items_left > 0) && index < data.size()) {
     uint8_t b = data[index];
     switch (this->encode_) {
@@ -26,7 +26,7 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
       case RawEncoding::COMMA: {
         // max 5: optional ','(1) + uint8(3) + null, for both ",%d" and "%d"
         char dec_buf[5];
-        snprintf(dec_buf, sizeof(dec_buf), index != this->offset ? ",%d" : "%d", b);
+        snprintf(dec_buf, sizeof(dec_buf), index != start_offset ? ",%d" : "%d", b);
         output_str += dec_buf;
         break;
       }
@@ -56,5 +56,4 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(output_str);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

@@ -17,8 +17,7 @@
 #include "mbedtls/ccm.h"
 #endif
 
-namespace esphome {
-namespace bthome_mithermometer {
+namespace esphome::bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
@@ -26,6 +25,9 @@ static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
 
+// Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
+// compile away and an ungated helper trips -Wunused-function.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer, uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
@@ -35,6 +37,7 @@ static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_
   format_mac_addr_upper(mac.data(), buffer.data());
   return buffer.data();
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 
 static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   switch (obj_type) {
@@ -223,6 +226,7 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   }
 
   size_t plaintext_length;
+  // NOLINTNEXTLINE(readability-suspicious-call-argument) - similarly named size args are not swapped
   psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE),
                                          nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
                                          payload.data(), ciphertext_size, &plaintext_length);
@@ -434,7 +438,6 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   return reported;
 }
 
-}  // namespace bthome_mithermometer
-}  // namespace esphome
+}  // namespace esphome::bthome_mithermometer
 
 #endif

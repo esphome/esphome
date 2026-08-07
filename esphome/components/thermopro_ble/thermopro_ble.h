@@ -17,7 +17,7 @@ struct ParseResult {
 
 using DeviceParser = optional<ParseResult> (*)(const uint8_t *data, std::size_t data_size);
 
-class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ThermoProBLE final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; };
 
@@ -41,7 +41,7 @@ class ThermoProBLE : public Component, public esp32_ble_tracker::ESPBTDeviceList
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
-  void update_device_type_(const std::string &device_name);
+  void update_device_type_(StringRef device_name);
 };
 
 }  // namespace esphome::thermopro_ble

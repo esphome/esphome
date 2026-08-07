@@ -10,8 +10,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens210 {
+namespace esphome::ens210 {
 
 static const char *const TAG = "ens210";
 
@@ -223,5 +222,4 @@ bool ENS210Component::set_low_power_(bool enable) {
   return result;
 }
 
-}  // namespace ens210
-}  // namespace esphome
+}  // namespace esphome::ens210

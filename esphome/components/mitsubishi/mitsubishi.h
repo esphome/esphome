@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mitsubishi {
+namespace esphome::mitsubishi {
 
 // Temperature
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
@@ -39,7 +38,7 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
-class MitsubishiClimate : public climate_ir::ClimateIR {
+class MitsubishiClimate final : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
       : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,
@@ -79,5 +78,4 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   climate::ClimateTraits traits() override;
 };
 
-}  // namespace mitsubishi
-}  // namespace esphome
+}  // namespace esphome::mitsubishi

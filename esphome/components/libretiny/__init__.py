@@ -26,9 +26,10 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
-from . import gpio  # noqa
+from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
@@ -37,6 +38,7 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
@@ -56,21 +58,31 @@ CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
-# BK7231N SDK options to disable unused features.
+# BLE 5.x BK SDK options to disable unused features.
 # Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
 # called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
 #
-# This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
-# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
-# where the BLE library still links and references undefined symbols when
-# CFG_SUPPORT_BLE=0.
+# This only works on BLE 5.x BK chips (BK7231N, BK7238). Other BK72XX chips
+# using BLE 4.2 (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family)
+# have a bug where the BLE library still links and references undefined symbols
+# when CFG_SUPPORT_BLE=0.
+#
+# On BK7238 the SDK also hangs at WiFi STA enable when BLE init runs, so
+# disabling it is required for reliable boot, not just an optimization.
 #
 # Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
 # CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
 # measurable benefit - the linker already strips unreferenced code via -gc-sections.
-_BK7231N_SYS_CONFIG_OPTIONS = [
+_BLE5_BK_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
 ]
+
+# Board ids upstream LibreTiny renamed; configs written against the old id
+# keep validating and building against the new one (with a warning).
+# generic-ln882hki -> generic-ln882h: LibreTiny v1.13.0.
+_RENAMED_BOARDS = {
+    "generic-ln882hki": "generic-ln882h",
+}
 
 
 def _detect_variant(value):
@@ -78,6 +90,14 @@ def _detect_variant(value):
         raise cv.Invalid("Family component didn't populate core data properly!")
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
+    if board not in component.boards and (renamed := _RENAMED_BOARDS.get(board)):
+        _LOGGER.warning(
+            "Board '%s' was renamed to '%s'; please update your configuration",
+            board,
+            renamed,
+        )
+        value = value.copy()
+        value[CONF_BOARD] = board = renamed
     # read board-default family if not specified
     if board not in component.boards:
         if CONF_FAMILY not in value:
@@ -152,6 +172,16 @@ def only_on_family(*, supported=None, unsupported=None):
 
 
 def get_download_types(storage_json: StorageJSON = None):
+    """Binary-download entries for a built LibreTiny firmware.
+
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
+    """
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -197,14 +227,14 @@ def _notify_old_style(config):
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 12, 1), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 13, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 12, 1),
-        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+        cv.Version(1, 13, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
     ),
     "recommended": (
-        cv.Version(1, 12, 1),
-        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+        cv.Version(1, 13, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
     ),
 }
 
@@ -243,7 +273,10 @@ FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
+            # Raw PlatformIO package source — build internal, not a UI field.
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
             cv.Optional(CONF_LOGLEVEL, default="warn"): (
                 cv.one_of(*LT_LOGLEVELS, upper=True)
             ),
@@ -428,6 +461,8 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
+    # FlashDB finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -474,6 +509,7 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
@@ -497,13 +533,13 @@ async def component_to_code(config):
 
     # apply LibreTiny options from framework: block
     # setup LT logger to work nicely with ESPHome logger
-    lt_options = dict(
-        LT_LOGLEVEL="LT_LEVEL_" + framework[CONF_LOGLEVEL],
-        LT_LOGGER_CALLER=0,
-        LT_LOGGER_TASK=0,
-        LT_LOGGER_COLOR=1,
-        LT_USE_TIME=1,
-    )
+    lt_options = {
+        "LT_LOGLEVEL": "LT_LEVEL_" + framework[CONF_LOGLEVEL],
+        "LT_LOGGER_CALLER": 0,
+        "LT_LOGGER_TASK": 0,
+        "LT_LOGGER_COLOR": 1,
+        "LT_USE_TIME": 1,
+    }
     # enable/disable per-module debugging
     for module in framework[CONF_DEBUG]:
         if module == "NONE":
@@ -548,10 +584,15 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
 
-    # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] == FAMILY_BK7231N:
+    # Apply chip-specific SDK options to save RAM/Flash.
+    # Skipped when bk72xx_ble is configured: add_platformio_option APPENDS list
+    # values (it never replaces), so emitting the disable here as well would put
+    # both CFG_SUPPORT_BLE=0 and =1 into the generated sys_config.h and rely on
+    # last-wins emission order. Skipping keeps it a single unambiguous define.
+    ble_requested = "bk72xx_ble" in CORE.config
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238) and not ble_requested:
         cg.add_platformio_option(
-            "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
+            "custom_options.sys_config#h", _BLE5_BK_SYS_CONFIG_OPTIONS
         )
 
     # Tune lwIP for ESPHome's actual needs.
@@ -573,3 +614,4 @@ def copy_files() -> None:
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
     )
+    copy_ccache_script()

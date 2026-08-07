@@ -11,9 +11,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     require_usb_serial_jtag_secondary,
@@ -51,7 +54,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -113,9 +116,12 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -148,7 +154,7 @@ HARDWARE_UART_TO_SERIAL = {
         UART2: cg.global_ns.Serial2,
         DEFAULT: cg.global_ns.Serial,
     },
-    PLATFORM_RP2040: {
+    PLATFORM_RP2: {
         UART0: cg.global_ns.Serial1,
         UART1: cg.global_ns.Serial2,
         USB_CDC: cg.global_ns.Serial,
@@ -165,7 +171,7 @@ def uart_selection(value):
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
         family = get_libretiny_family()
@@ -270,10 +276,13 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c6=USB_SERIAL_JTAG,
                 esp32_c61=USB_SERIAL_JTAG,
                 esp32_h2=USB_SERIAL_JTAG,
+                esp32_h4=USB_SERIAL_JTAG,
+                esp32_h21=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
-                rp2040=USB_CDC,
+                esp32_s31=USB_SERIAL_JTAG,
+                rp2=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -283,7 +292,7 @@ CONFIG_SCHEMA = cv.All(
                     [
                         PLATFORM_ESP8266,
                         PLATFORM_ESP32,
-                        PLATFORM_RP2040,
+                        PLATFORM_RP2,
                         PLATFORM_BK72XX,
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
@@ -401,18 +410,20 @@ async def _late_logger_init(config: ConfigType) -> None:
         from esphome.components.esp8266.const import enable_serial, enable_serial1
 
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
-        if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
+        if not has_serial_logging:
+            # No serial logging: stub out ROM ets_putc so stray output (newlib
+            # stdout, lwIP diagnostics) cannot block on a slow or shared UART0.
+            # ets_putc always writes to the physical UART and cannot be disabled
+            # through uart_set_debug(); see __wrap_ets_putc in logger_esp8266.cpp.
+            cg.add_build_flag("-Wl,--wrap=ets_putc")
+        elif hw_uart in (UART0, UART0_SWAP):
             cg.add_define("USE_ESP8266_LOGGER_SERIAL")
             enable_serial()
-        elif has_serial_logging and hw_uart == UART1:
+        elif hw_uart == UART1:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
             enable_serial1()
 
-    if (
-        (CORE.is_esp8266 or CORE.is_rp2040)
-        and has_serial_logging
-        and is_at_least_verbose
-    ):
+    if (CORE.is_esp8266 or CORE.is_rp2) and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[CORE.target_platform][
             config.get(CONF_HARDWARE_UART)
         ]
@@ -452,7 +463,11 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
         # USB Serial JTAG code is compiled when platform supports it.
         # Enable secondary USB serial JTAG console so the VFS functions are available.
-        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+        if (
+            CORE.is_esp32
+            and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG
+            and has_serial_logging
+        ):
             require_usb_serial_jtag_secondary()
             require_vfs_termios()
     except cv.Invalid:
@@ -506,15 +521,15 @@ async def _late_logger_init(config: ConfigType) -> None:
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    (?:[-+0 #]{0,5})                    # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
-    """  # noqa
+    """
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
@@ -592,7 +607,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "logger_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "logger_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "logger_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "logger_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "logger_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

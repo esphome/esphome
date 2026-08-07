@@ -13,8 +13,7 @@
 #include <esp_idf_version.h>
 #include <driver/rmt_tx.h>
 
-namespace esphome {
-namespace esp32_rmt_led_strip {
+namespace esphome::esp32_rmt_led_strip {
 
 enum RGBOrder : uint8_t {
   ORDER_RGB,
@@ -31,7 +30,7 @@ struct LedParams {
   rmt_symbol_word_t reset;
 };
 
-class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
+class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
   void write_state(light::LightState *state) override;
@@ -53,6 +52,11 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
   void set_is_rgbw(bool is_rgbw) { this->is_rgbw_ = is_rgbw; }
   void set_is_wrgb(bool is_wrgb) { this->is_wrgb_ = is_wrgb; }
+  void set_rgbw_order(uint8_t white_index) {
+    this->is_rgbw_ = true;
+    this->is_wrgb_ = false;
+    this->white_index_ = white_index;
+  }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
   void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
 
@@ -92,6 +96,8 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   uint16_t num_leds_;
   bool is_rgbw_{false};
   bool is_wrgb_{false};
+  // An index after the RGB channels makes offset adjustment a no-op for three-channel strips.
+  uint8_t white_index_{3};
   bool use_dma_{false};
   bool use_psram_{false};
   bool invert_out_{false};
@@ -102,7 +108,6 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   optional<uint32_t> max_refresh_rate_{};
 };
 
-}  // namespace esp32_rmt_led_strip
-}  // namespace esphome
+}  // namespace esphome::esp32_rmt_led_strip
 
 #endif  // USE_ESP32

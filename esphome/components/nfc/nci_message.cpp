@@ -4,8 +4,7 @@
 
 #include <cstdio>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "NciMessage";
 
@@ -162,5 +161,4 @@ void NciMessage::set_payload(const std::vector<uint8_t> &payload) {
   this->nci_message_ = message;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

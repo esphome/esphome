@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-class CopySensor : public sensor::Sensor, public Component {
+class CopySensor final : public sensor::Sensor, public Component {
  public:
   void set_source(sensor::Sensor *source) { source_ = source; }
   void setup() override;
@@ -16,5 +15,4 @@ class CopySensor : public sensor::Sensor, public Component {
   sensor::Sensor *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

@@ -28,10 +28,12 @@ class AnsiFore(Enum):
 
 
 class AnsiStyle(Enum):
+    # BOLD/BRIGHT and THIN/DIM are intentional ANSI synonyms; Enum treats the
+    # second name in each pair as an alias of the first.
     BRIGHT = "\033[1m"
-    BOLD = "\033[1m"
+    BOLD = "\033[1m"  # noqa: PIE796
     DIM = "\033[2m"
-    THIN = "\033[2m"
+    THIN = "\033[2m"  # noqa: PIE796
     NORMAL = "\033[22m"
     RESET_ALL = "\033[0m"
 

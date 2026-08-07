@@ -1,11 +1,10 @@
 import collections
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -94,13 +93,29 @@ def safe_print(message="", end="\n"):
     except UnicodeEncodeError:
         pass
 
+    # Fall back to the stream's actual encoding (e.g. cp1252 on Windows
+    # redirected pipes). Use "backslashreplace" so unencodable code points
+    # like the wifi signal-bar block characters (U+2582..U+2588) become
+    # readable ``\uXXXX`` escapes, and decode back to ``str`` so ``print``
+    # never receives a ``bytes`` object (which would render as a ``b'...'``
+    # repr).
+    encoding = sys.stdout.encoding or "ascii"
     try:
-        print(message.encode("utf-8", "backslashreplace"), end=end)
+        print(
+            message.encode(encoding, "backslashreplace").decode(encoding),
+            end=end,
+        )
+        return
     except UnicodeEncodeError:
-        try:
-            print(message.encode("ascii", "backslashreplace"), end=end)
-        except UnicodeEncodeError:
-            print("Cannot print line because of invalid locale!")
+        pass
+
+    try:
+        print(
+            message.encode("ascii", "backslashreplace").decode("ascii"),
+            end=end,
+        )
+    except UnicodeEncodeError:
+        print("Cannot print line because of invalid locale!")
 
 
 def safe_input(prompt=""):
@@ -255,7 +270,7 @@ def run_external_command(
         raise
     except SystemExit as err:
         return err.args[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
@@ -273,6 +288,9 @@ def run_external_command(
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
+    # Deferred: an OTA upload/logs run never spawns an external process.
+    import subprocess
+
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -298,11 +316,12 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
             encoding="utf-8",
             check=False,
             close_fds=False,
+            env=kwargs.get("env"),
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
@@ -310,13 +329,6 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
-
-
-def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 # Custom OrderedDict with nicer repr method for debugging
@@ -339,7 +351,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     return sorted(files)
 
 
-def filter_yaml_files(files: list[Path]) -> list[Path]:
+def filter_yaml_files(files: Iterable[Path]) -> list[Path]:
     return [
         f
         for f in files
@@ -433,6 +445,8 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     Returns a BootselResult with the number of devices found (by counting
     'type:' lines in output), and whether a permission error was detected.
     """
+    import subprocess
+
     try:
         result = subprocess.run(
             [str(picotool_path), "info", "-d"],
@@ -487,3 +501,9 @@ def get_esp32_arduino_flash_error_help() -> str | None:
             "https://esphome.io/guides/esp32_arduino_to_idf/\n\n",
         )
     )
+
+
+@dataclass
+class FlashImage:
+    path: Path
+    offset: str

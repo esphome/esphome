@@ -1,4 +1,5 @@
-import glob
+from collections import ChainMap
+from fnmatch import fnmatchcase
 import logging
 from pathlib import Path
 from typing import Any
@@ -106,7 +107,7 @@ REMOTES = {
 # Collect all input YAML files for test_substitutions_fixtures parametrized tests:
 HERE = Path(__file__).parent
 BASE_DIR = HERE / "fixtures" / "substitutions"
-SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+SOURCES = sorted(str(p) for p in BASE_DIR.glob("*.input.yaml"))
 assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
 
@@ -360,6 +361,73 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     # Verify substitutions are unchanged
     assert result[CONF_SUBSTITUTIONS]["var1"] == "value1"
     assert result[CONF_SUBSTITUTIONS]["var2"] == "value2"
+
+
+def test_validate_config_captures_user_config_snapshot(tmp_path: Path) -> None:
+    """validate_config stores a deep copy of the user's config -- with
+    substitutions re-added and no schema defaults applied -- on
+    ``result.user_config`` for ``esphome config --no-defaults``.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
+
+    # Snapshot is populated.
+    assert result.user_config is not None
+    # Substitutions are re-added and appear first.
+    assert list(result.user_config.keys())[0] == CONF_SUBSTITUTIONS
+    assert result.user_config[CONF_SUBSTITUTIONS]["var1"] == "value1"
+    # User-supplied keys are present without schema-default fields like
+    # ``build_path`` (which preload_core_config injects on the validated
+    # result's esphome section).
+    assert result.user_config["esphome"] == {"name": "test_device"}
+    assert "build_path" not in result.user_config["esphome"]
+    assert "min_version" not in result.user_config["esphome"]
+    assert result.user_config["esp32"] == {"board": "esp32dev"}
+
+
+def test_validate_config_user_config_snapshot_is_deep_copy(tmp_path: Path) -> None:
+    """The snapshot is independent of subsequent mutations to the result
+    config -- preload_core_config rewrites ``esphome:`` in place, but the
+    snapshot keeps the user's literal block.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
+
+    assert result.user_config is not None
+    # preload_core_config injected build_path onto the validated config.
+    assert "build_path" in result["esphome"]
+    # The snapshot was taken before that and is unaffected.
+    assert "build_path" not in result.user_config["esphome"]
+    # And the two are not aliased.
+    assert result["esphome"] is not result.user_config["esphome"]
+
+
+def test_validate_config_snapshot_without_substitutions(tmp_path: Path) -> None:
+    """The snapshot works for configs that have no substitutions block."""
+    test_config = _get_test_minimal_valid_config(tmp_path)
+    del test_config[CONF_SUBSTITUTIONS]
+
+    result = config_module.validate_config(test_config, None, snapshot_user_config=True)
+
+    assert result.user_config is not None
+    assert CONF_SUBSTITUTIONS not in result.user_config
+    assert result.user_config["esphome"] == {"name": "test_device"}
+
+
+def test_validate_config_skips_user_config_snapshot_by_default(
+    tmp_path: Path,
+) -> None:
+    """Without ``snapshot_user_config`` the deep copy is skipped entirely;
+    only ``esphome config --no-defaults`` needs the snapshot and the copy is
+    too expensive to take on every load.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None)
+
+    assert result.user_config is None
 
 
 def test_merge_config_preserves_ordered_dict() -> None:
@@ -818,3 +886,237 @@ def test_resolve_include_error_no_expanded_from_for_literal_filename(
         substitutions.resolve_include(include, [], substitutions.ContextVars())
 
     assert "expanded from" not in str(exc_info.value)
+
+
+def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
+    """!include vars: must substitute into a top-level !lambda value in the included file.
+
+    Regression test for the case where the included file's root is a Lambda;
+    add_context() previously only tagged dict/list/str, so the include's vars
+    never reached the substitution pass for Lambda content.
+    """
+    included = tmp_path / "lambda.yaml"
+    included.write_text('!lambda |-\n  return "${foo}";\n')
+
+    include = yaml_util.IncludeFile(
+        tmp_path / "main.yaml", "lambda.yaml", {"foo": "bar"}, yaml_util.load_yaml
+    )
+    config = OrderedDict({"value": include.load()})
+    result = substitutions.do_substitution_pass(config)
+
+    assert isinstance(result["value"], Lambda)
+    assert result["value"].value == 'return "bar";'
+
+
+@patch("esphome.git.resolve_symlink_stub")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_symlink_stub_is_followed(
+    mock_clone_or_update: MagicMock,
+    mock_resolve_symlink_stub: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When a package YAML is a scalar (symlink stub) and resolve_symlink_stub
+    returns a target, the loader follows the target and uses its content."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "static").mkdir()
+
+    # Stub file: content is the target path string (simulating Windows behavior).
+    stub = repo_dir / "file1.yaml"
+    stub.write_text("static/file1.yaml")
+
+    # Real target with valid YAML mapping.
+    target = repo_dir / "static" / "file1.yaml"
+    target.write_text("substitutions:\n  hello: world\n")
+
+    mock_clone_or_update.return_value = (repo_dir, None)
+    mock_resolve_symlink_stub.return_value = target
+
+    config: dict[str, Any] = {
+        "packages": {
+            "test_package": {
+                "url": "https://github.com/esphome/repo1",
+                "ref": "main",
+                "files": ["file1.yaml"],
+            }
+        }
+    }
+
+    # Must succeed (does not raise the helpful cv.Invalid) because the stub
+    # was followed and a valid mapping was loaded from the target.
+    do_packages_pass(config)
+    assert mock_resolve_symlink_stub.called
+
+
+@patch("esphome.git.clone_or_update")
+def test_remote_package_scalar_yaml_raises_helpful_error(
+    mock_clone_or_update: MagicMock, tmp_path: Path
+) -> None:
+    """A remote package YAML that is a top-level scalar (e.g. an unmaterialized
+    git symlink on Windows) raises a clear cv.Invalid, not AttributeError.
+
+    Regression test for the case where a repo containing a YAML symlink,
+    checked out on Windows without symlink privilege, lands as a short text
+    file containing the symlink target path. PyYAML parses that as a bare
+    string scalar; the package loader must reject it with a human-readable
+    error instead of dying inside ``.get()``.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    # Simulate the broken-symlink state: a YAML file whose entire content is
+    # the symlink target string. PyYAML parses this as a top-level scalar.
+    (repo_dir / "file1.yaml").write_text("static/file1.yaml")
+
+    mock_clone_or_update.return_value = (repo_dir, None)
+
+    config: dict[str, Any] = {
+        "packages": {
+            "test_package": {
+                "url": "https://github.com/esphome/repo1",
+                "ref": "main",
+                "files": ["file1.yaml"],
+            }
+        }
+    }
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        do_packages_pass(config)
+
+    msg = str(exc_info.value)
+    assert "mapping at the top level" in msg
+    assert "file1.yaml" in msg
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("wifi.yaml", ["wifi.yaml"], id="literal_passthrough"),
+        pytest.param(
+            "keys/${system_name}.yaml", ["keys/*.yaml"], id="embedded_substitution"
+        ),
+        pytest.param(
+            "network/${eth_model}/config.yaml",
+            ["network/*/config.yaml"],
+            id="directory_substitution",
+        ),
+        pytest.param(
+            "device-$platform.yaml", ["device-*.yaml"], id="unbraced_substitution"
+        ),
+        pytest.param("${a}${b}.yaml", ["*.yaml"], id="adjacent_wildcards_collapse"),
+        pytest.param(
+            '${ "a.yaml" if x else "../empty.yaml" }',
+            ["a.yaml", "../empty.yaml"],
+            id="conditional_literals",
+        ),
+        pytest.param(
+            'pre-${ "a" if c else "b" }.yaml',
+            ["pre-a.yaml", "pre-b.yaml"],
+            id="conditional_spliced",
+        ),
+        pytest.param(
+            '${ "x.yaml" if a else ("y.yaml" if b else "z.yaml") }',
+            ["x.yaml", "y.yaml", "z.yaml"],
+            id="nested_conditional",
+        ),
+        pytest.param(
+            '${ "same.yaml" if x else "same.yaml" }',
+            ["same.yaml"],
+            id="duplicate_literals_dedupe",
+        ),
+        pytest.param('${ "a.yaml" if x }', ["a.yaml"], id="conditional_no_else"),
+        pytest.param(
+            '${ "NO BLUETOOTH SUPPORT ON ESP8266.yaml"'
+            ' if enable_bluetooth_proxy else "../empty.yaml" }',
+            ["NO BLUETOOTH SUPPORT ON ESP8266.yaml", "../empty.yaml"],
+            id="issue_17650_verbatim",
+        ),
+        pytest.param(
+            '${ "" if x else "b.yaml" }', ["b.yaml"], id="empty_literal_dropped"
+        ),
+        pytest.param(
+            "keys\\${system_name}.yaml",
+            ["keys\\*.yaml"],
+            id="backslash_separator",
+        ),
+        pytest.param(
+            '${ "it\'s.yaml" if x else "b.yaml" }',
+            ["it's.yaml", "b.yaml"],
+            id="apostrophe_in_literal",
+        ),
+        pytest.param(
+            '${ "a-${x}.yaml" if c else "b.yaml" }',
+            ["a-*.yaml", "b.yaml"],
+            id="substitution_inside_literal",
+        ),
+        pytest.param("sensor [${x}].yaml", ["sensor [[]*].yaml"], id="bracket_escaped"),
+        pytest.param(
+            "config?${x}.yaml", ["config[?]*.yaml"], id="question_mark_escaped"
+        ),
+        pytest.param(
+            "../${x}/config.yaml", ["../*/config.yaml"], id="ascending_directory"
+        ),
+        pytest.param("${file}", [], id="bare_variable_dropped"),
+        pytest.param("../${file}", [], id="ascending_bare_variable_dropped"),
+        pytest.param(
+            '${ name ~ ".yaml" }', [".yaml"], id="dynamic_concat_extracts_literal"
+        ),
+        pytest.param("${ if }", [], id="no_literal_expression_dropped"),
+        pytest.param(
+            "<% if x %>a.yaml<% endif %>", ["*a.yaml*"], id="block_statement_globs"
+        ),
+    ],
+)
+def test_include_candidate_patterns(value: str, expected: list[str]) -> None:
+    """Templated include paths expand to glob patterns and branch literals."""
+    assert substitutions.include_candidate_patterns(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("template", "variables"),
+    [
+        pytest.param(
+            "keys/${system_name}.yaml", {"system_name": "esp-buero"}, id="embedded"
+        ),
+        pytest.param("device-$platform.yaml", {"platform": "esp32"}, id="unbraced"),
+        pytest.param(
+            "network/${eth_model}/config.yaml", {"eth_model": "eth01"}, id="directory"
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": True},
+            id="conditional_true",
+        ),
+        pytest.param(
+            '${ "NO BT.yaml" if bt else "../empty.yaml" }',
+            {"bt": False},
+            id="conditional_false",
+        ),
+        pytest.param('pre-${ "a" if c else "b" }.yaml', {"c": True}, id="spliced"),
+        pytest.param("${a}${b}.yaml", {"a": "x", "b": "y"}, id="adjacent"),
+        pytest.param("sensor [${x}].yaml", {"x": "a"}, id="bracket"),
+    ],
+)
+def test_include_candidate_patterns_cover_real_expansion(
+    template: str, variables: dict[str, Any]
+) -> None:
+    """
+    Lockstep pin against the real substitution machinery.
+
+    include_candidate_patterns mirrors _expand_substitutions without
+    variable values (the evaluator returns the one selected branch, so it
+    cannot enumerate candidates itself); this asserts every filename the
+    real pass resolves is covered by a candidate pattern, so a change to
+    reference syntax or expansion order breaks here instead of silently
+    dropping files from bundles.
+    """
+    resolved = str(
+        substitutions._expand_substitutions(
+            template, [], ChainMap(variables), True, None
+        )
+    )
+    patterns = substitutions.include_candidate_patterns(template)
+    assert any(fnmatchcase(resolved, p) or resolved == p for p in patterns)

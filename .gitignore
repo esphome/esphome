@@ -133,6 +133,8 @@ CTestTestfile.cmake
 .gcc-flags.json
 
 config/
+# Test fixture config/ directories are tracked (the rule above is the dashboard dir)
+!tests/component_tests/**/config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
@@ -141,10 +143,12 @@ tests/.esphome/
 
 sdkconfig.*
 !sdkconfig.defaults
+!sdkconfig.defaults.*
 
 .tests/
 
 /components
 /managed_components
+/dependencies.lock
 
 api-docs/

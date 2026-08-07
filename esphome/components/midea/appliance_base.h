@@ -1,10 +1,11 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 // MideaUART
 #include <Appliance/ApplianceBase.h>
 #include <Helpers/Logger.h>
+#include <Helpers/Platform.h>
 
 // Include global defines
 #include "esphome/core/defines.h"
@@ -15,8 +16,14 @@
 #include "esphome/components/climate/climate.h"
 #include "ir_transmitter.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
+
+// Mirrors the ARDUINO switch in MideaUART Helpers/Platform.h: these types
+// exist in the dudanov namespace exactly when the library is not on Arduino
+#ifndef ARDUINO
+using dudanov::Stream;
+using dudanov::String;
+#endif
 
 /* Stream from UART component */
 class UARTStream : public Stream {
@@ -98,7 +105,6 @@ template<typename T> class ApplianceBase : public Component {
 #endif
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

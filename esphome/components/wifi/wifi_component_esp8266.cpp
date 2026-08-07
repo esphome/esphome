@@ -218,9 +218,18 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     return {};
   network::IPAddresses addresses;
   uint8_t index = 0;
+  // addrList enumerates all lwIP netifs, including the SoftAP / fallback hotspot. Filter out
+  // the AP address so the STA address is reported as the device IP (see issue #17181).
+  struct ip_info ap_ip {};
+  wifi_get_ip_info(SOFTAP_IF, &ap_ip);
+  network::IPAddress ap_address(&ap_ip.ip);
+  bool filter_ap = ap_address.is_set();
   for (auto &addr : addrList) {
+    network::IPAddress ip(addr.ipFromNetifNum());
+    if (filter_ap && ip == ap_address)
+      continue;
     assert(index < addresses.size());
-    addresses[index++] = addr.ipFromNetifNum();
+    addresses[index++] = ip;
   }
   return addresses;
 }
@@ -313,10 +322,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = *eap_opt;
+    const EAPAuth &eap = *eap_opt;
     ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (ret) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed: %d", ret);
@@ -621,9 +630,24 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
     ESP_LOGV(TAG, "Disabling Auto-Connect failed");
   }
 
+#ifdef USE_WIFI_PHY_MODE
+  if (!this->wifi_apply_phy_mode_()) {
+    ESP_LOGV(TAG, "Setting PHY Mode failed");
+  }
+#endif
+
   delay(10);
   return true;
 }
+
+#ifdef USE_WIFI_PHY_MODE
+bool WiFiComponent::wifi_apply_phy_mode_() {
+  if (this->phy_mode_ == WIFI_8266_PHY_MODE_AUTO)
+    return true;
+  // Values of WiFi8266PhyMode are aligned with the SDK's phy_mode_t enum.
+  return wifi_set_phy_mode(static_cast<phy_mode_t>(this->phy_mode_));
+}
+#endif
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
@@ -709,6 +733,8 @@ void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
 }
 
 void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   this->scan_result_.clear();
 
   if (status != OK) {

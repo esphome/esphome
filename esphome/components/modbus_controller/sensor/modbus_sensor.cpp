@@ -2,15 +2,14 @@
 #include "modbus_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.sensor";
 
 void ModbusSensor::dump_config() { LOG_SENSOR(TAG, "Modbus Controller Sensor", this); }
 
-void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = payload_to_float(data, *this);
+void ModbusSensor::parse_and_publish(std::span<const uint8_t> data) {
+  float result = payload_to_float(data, *this, this->offset);
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
@@ -27,5 +26,4 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(result);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

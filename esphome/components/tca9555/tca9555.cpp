@@ -10,8 +10,7 @@ static const uint8_t TCA9555_POLARITY_REGISTER_1 = 0x05;
 static const uint8_t TCA9555_CONFIGURATION_PORT_0 = 0x06;
 static const uint8_t TCA9555_CONFIGURATION_PORT_1 = 0x07;
 
-namespace esphome {
-namespace tca9555 {
+namespace esphome::tca9555 {
 
 static const char *const TAG = "tca9555";
 
@@ -162,5 +161,4 @@ size_t TCA9555GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via TCA9555", this->pin_);
 }
 
-}  // namespace tca9555
-}  // namespace esphome
+}  // namespace esphome::tca9555

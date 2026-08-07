@@ -9,17 +9,16 @@
 #include <freertos/FreeRTOS.h>
 
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 namespace esphome::i2s_audio {
 
-// Shared constants for I2S audio speaker implementations
-static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
+// Shared constants used by both standard and SPDIF speaker implementations
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
 
@@ -35,14 +34,16 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  WARN_DROPPED_EVENT = (1 << 20),
+  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
+  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
+  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
 /// @brief Abstract base class for I2S audio speaker implementations.
 /// Provides shared infrastructure (event groups, ring buffer, volume control, task lifecycle)
-/// for derived I2S speaker classes.
+/// for derived standard I2S and SPDIF speaker classes.
 class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
@@ -133,7 +134,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
 
   /// @brief Swap adjacent 16-bit mono samples for ESP32 (non-variant) hardware quirk.
-  /// Only applies when running on original ESP32 with 16-bit mono audio.
+  /// Only applies when running on original ESP32 with 16-bit mono output. Operates on the data that is
+  /// handed to the I2S peripheral, so the check uses the output (post-narrowing) stream info.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read);
@@ -141,9 +143,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
+  // Lockstepped DMA buffer queues: i2s_event is outgoing, write_records is incoming
   QueueHandle_t i2s_event_queue_{nullptr};
+  QueueHandle_t write_records_queue_{nullptr};
 
-  std::weak_ptr<RingBuffer> audio_ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> audio_ring_buffer_;
 
   uint32_t buffer_duration_ms_;
 
@@ -151,9 +155,13 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool pause_state_{false};
 
-  int16_t q15_volume_factor_{INT16_MAX};
+  int32_t q31_volume_factor_{INT32_MAX};
 
-  audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
+  audio::AudioStreamInfo current_stream_info_;  // Format of the audio in the ring buffer (the I2S input)
+  // Format actually clocked out of the I2S peripheral. Same channel count and sample rate as
+  // current_stream_info_, but the bits per sample may be narrower when the incoming stream is wider than
+  // the speaker's configured slot bit width. Set by start_i2s_driver before the speaker task starts.
+  audio::AudioStreamInfo output_stream_info_;
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};
