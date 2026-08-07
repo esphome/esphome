@@ -204,6 +204,99 @@ async def test_uart_mock_modbus_server(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 (read/write multiple registers).
+
+    Injects raw 0x17 request frames and checks the round-trip through the
+    server's read_lambda/write_lambda, independent of how the hub dispatches
+    0x17 internally:
+      * one request writes reg 0x01 then reads regs 0x01+0x02 -- reg 0x01 reads
+        back the just-written value (the write happens before the read per
+        Modbus 6.17), and the second register is returned by the same
+        multi-register read;
+      * a second request writes and reads a different register block.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["rw_write_1", "rw_read_1", "rw_read_2", "rw_write_3", "rw_read_3"]
+    )
+    futures = tracker.expect_all(
+        {
+            "rw_write_1": 4660,  # 0x1234 written to reg 0x0001
+            "rw_read_1": 4660,  # reg 0x0001 reads back the just-written value
+            "rw_read_2": 170,  # 0x00AA read from reg 0x0002 in the same request
+            "rw_write_3": 22136,  # 0x5678 written to reg 0x0003
+            "rw_read_3": 22136,  # reg 0x0003 reads back the just-written value
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write_invalid(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 invalid-frame handling.
+
+    Injects a well-formed (valid CRC) 0x17 request whose write byte count (2)
+    does not match 2x the write quantity (2 registers need 4 bytes), so the hub
+    must reject it with ILLEGAL_DATA_VALUE before touching any register. A valid
+    read is injected right after as a processing marker.
+
+    The invalid frame is verified via bus-level signals rather than the reply
+    frame on the wire: the mock UART cannot observe the server's TX reliably on
+    the host platform (the server's transmission is gated by a millis()-based tx
+    delay), so instead we assert the request is rejected exactly once and never
+    applied to a register.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(["write_seen", "probe"])
+    probe_seen = tracker.expect("probe", 1)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        # The probe read is injected after the malformed frame, so once it fires
+        # the malformed frame has already been processed.
+        await tracker.await_change(probe_seen, "probe")
+
+    # Exactly one bus-level rejection for the malformed frame (no cascade)...
+    invalid_warnings = [
+        line for line in warning_log_lines if "Invalid number of registers" in line
+    ]
+    assert len(invalid_warnings) == 1, (
+        "Expected exactly one invalid-frame rejection, got warnings:\n"
+        + "\n".join(warning_log_lines)
+    )
+    assert len(error_log_lines) == 0, (
+        "Expected no modbus errors, but got:\n" + "\n".join(error_log_lines)
+    )
+    # ...and the rejected write is never applied to the target register.
+    assert not tracker.sensor_states["write_seen"], (
+        f"malformed 0x17 must not write, but write_seen fired: {tracker.sensor_states['write_seen']}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
     yaml_config: str,
     run_compiled: RunCompiledFunction,

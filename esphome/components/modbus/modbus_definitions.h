@@ -33,12 +33,12 @@ enum class FunctionCode : uint8_t {
   GET_COMM_EVENT_LOG = 0x0C,      // not implemented
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
+  REPORT_SERVER_ID = 0x11,     // not implemented
+  READ_FILE_RECORD = 0x14,     // not implemented
+  WRITE_FILE_RECORD = 0x15,    // not implemented
+  MASK_WRITE_REGISTER = 0x16,  // not implemented
+  READ_WRITE_MULTIPLE_REGISTERS = 0x17,
+  READ_FIFO_QUEUE = 0x18,  // not implemented
 };
 
 // Remove before 2027.2.0
