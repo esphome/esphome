@@ -99,7 +99,7 @@ TEST(FindMifareUltralightNdef, NoTlvTagIsRejected) {
 }
 
 /// End-to-end regression guard: builds a real 3-record NDEF message (URL, text, and a MIME
-/// record) padded past 255 bytes and wraps it in a Type 2 Tag TLV the way a real tag stores it, 
+/// record) padded past 255 bytes and wraps it in a Type 2 Tag TLV the way a real tag stores it,
 /// then runs the wrapper through find_mifare_ultralight_ndef_ to locate it, and feeds the located slice back
 /// into NdefMessage to confirm all three records survive the round trip.
 TEST(FindMifareUltralightNdef, LongFormMessageRoundTripsThroughNdefMessage) {
