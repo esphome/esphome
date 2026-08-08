@@ -4,7 +4,7 @@
 
 namespace esphome::modbus_server {
 
-using modbus::ModbusExceptionCode;
+using modbus::ExceptionCode;
 using modbus::RegisterValues;
 
 namespace {
@@ -31,6 +31,21 @@ TEST(ModbusServerWrite, SingleWordSucceeds) {
 
   auto status = server.on_write_registers(0x0000, make_registers({0x1234}));
   EXPECT_FALSE(status.has_value());  // nullopt == success
+  EXPECT_EQ(written, 0x1234);
+}
+
+TEST(ModbusServerWrite, SwappedWordSucceeds) {
+  ModbusServer server;
+  int64_t written = -1;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
+  reg.write_lambda = [&written](int64_t value) {
+    written = value;
+    return true;
+  };
+  server.add_server_register(&reg);
+
+  auto status = server.on_write_registers(0x0000, make_registers({0x3412}));
+  EXPECT_FALSE(status.has_value());
   EXPECT_EQ(written, 0x1234);
 }
 
@@ -73,7 +88,7 @@ TEST(ModbusServerWrite, UnderSuppliedValueAppliesNothing) {
   auto status = server.on_write_registers(0x0000, make_registers({0x1111, 0x2222}));
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_VALUE);
   EXPECT_FALSE(word_written);  // the writable WORD must NOT have been applied
   EXPECT_FALSE(dword_written);
 }
@@ -87,7 +102,7 @@ TEST(ModbusServerWrite, UnwritableRegisterRejected) {
   auto status = server.on_write_registers(0x0000, make_registers({0x1234}));
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // An address with no registered register yields ILLEGAL_DATA_ADDRESS.
@@ -96,7 +111,7 @@ TEST(ModbusServerWrite, UnmatchedAddressRejected) {
   auto status = server.on_write_registers(0x0005, make_registers({0x1234}));
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // A write_lambda failing at runtime is the one non-atomic case: the earlier register is already
@@ -117,7 +132,7 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
   auto status = server.on_write_registers(0x0000, make_registers({0xAAAA, 0xBBBB}));
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+    EXPECT_EQ(status.value(), ExceptionCode::SERVICE_DEVICE_FAILURE);
   EXPECT_TRUE(first_written);  // pre-validation passed, so the first write applied before the failure
 }
 
@@ -134,6 +149,19 @@ TEST(ModbusServerRead, SingleWordSucceeds) {
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(out.size(), 1u);
   EXPECT_EQ(out[0], 0x1234);
+}
+
+TEST(ModbusServerRead, SwappedWordReturnsByteSwappedRegister) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
+  reg.read_lambda = []() -> int64_t { return 0x1234; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_read_registers(0x0000, 1, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0], 0x3412);
 }
 
 TEST(ModbusServerRead, DwordReturnsTwoWordsHighFirst) {
@@ -168,7 +196,7 @@ TEST(ModbusServerRead, StartInsideValueRejected) {
   auto status = server.on_read_registers(0x0011, 1, out);  // the second cell of the DWORD
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_FALSE(read_called);
 }
 
@@ -187,7 +215,7 @@ TEST(ModbusServerRead, ClippedTailRejected) {
   auto status = server.on_read_registers(0x0000, 1, out);  // only 1 of the DWORD's 2 registers
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_FALSE(read_called);
 }
 
@@ -203,7 +231,7 @@ TEST(ModbusServerRead, WriteOnlyRegisterRejected) {
   auto status = server.on_read_registers(0x0000, 1, out);
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // An unregistered address with courtesy enabled returns the default value for each cell.
@@ -227,7 +255,7 @@ TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
   auto status = server.on_read_registers(0x0005, 1, out);
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
-    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // --- partial reads (opt-in) ----------------------------------------------------

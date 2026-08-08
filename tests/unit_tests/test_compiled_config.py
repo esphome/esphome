@@ -20,11 +20,13 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     KEY_CORE,
+    KEY_ESP32,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
 )
 from esphome.core import CORE
+from esphome.yaml_util import ESPHomeDataBase
 
 _VALIDATED_CONFIG_YAML = """\
 esphome:
@@ -74,13 +76,13 @@ def _write_storage(
         "framework": "arduino",
         "core_platform": core_platform,
     }
-    storage_path.write_text(json.dumps(data))
+    storage_path.write_text(json.dumps(data), encoding="utf-8")
 
 
 def _write_cache(cache_path: Path, body: str = _VALIDATED_CONFIG_YAML) -> Path:
     """Write the cache file and return it."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(body)
+    cache_path.write_text(body, encoding="utf-8")
     return cache_path
 
 
@@ -124,21 +126,21 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
+    # The fast path loads without per-node source ranges (the full
+    # contract lives in test_yaml_util; this checks the flag is wired up).
+    assert not isinstance(config[CONF_ESPHOME][CONF_NAME], ESPHomeDataBase)
+
     # apply_to_core populated exactly what upload/logs read off CORE.
     assert CORE.name == "lite_test"
     assert CORE.build_path == Path("/build/lite_test")
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
     # upload_using_esptool reads get_esp32_variant() off CORE.data[KEY_ESP32].
-    from esphome.components.esp32.const import KEY_ESP32
-
     assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32"
 
 
 def test_load_compiled_config_populates_esp32_variant(tmp_path: Path) -> None:
     """ESP32 variants survive the cache fast path so esptool gets the right --chip."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
@@ -156,8 +158,6 @@ def test_load_compiled_config_skips_esp32_block_for_other_platforms(
     tmp_path: Path,
 ) -> None:
     """Non-esp32 targets shouldn't fabricate an esp32 data block."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
@@ -220,7 +220,7 @@ def test_run_esphome_upload_and_logs_use_cache_when_fresh(
 
     with (
         caplog.at_level("INFO", logger="esphome.__main__"),
-        patch("esphome.__main__.read_config") as mock_read,
+        patch("esphome.config.read_config") as mock_read,
         patch.dict("esphome.__main__.POST_CONFIG_ACTIONS", {command: _stub}),
     ):
         assert run_esphome(["esphome", command, str(fresh_cache_files)]) == 0
@@ -242,7 +242,7 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     yaml_path.write_text("esphome:\n  name: lite_test\n")
 
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {command: lambda args, config: 0},
@@ -266,7 +266,7 @@ def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
 
     with (
         patch(
-            "esphome.__main__.read_config",
+            "esphome.config.read_config",
             return_value={"esphome": {"name": "lite_test"}},
         ),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
@@ -299,7 +299,7 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
     fresh_config = {"esphome": {"name": "lite_test"}, "logger": {}}
 
     with (
-        patch("esphome.__main__.read_config", return_value=fresh_config),
+        patch("esphome.config.read_config", return_value=fresh_config),
         patch(
             "esphome.compiled_config.save_compiled_config", wraps=save_compiled_config
         ) as mock_save,
@@ -322,7 +322,7 @@ def test_run_esphome_upload_with_substitution_does_not_refresh_cache(
     """`-s` substitutions skip the cache on both read and write -- saving
     here would clobber the cache with a substitution-specific config."""
     with (
-        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.config.read_config", return_value={"esphome": {}}),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
@@ -341,7 +341,7 @@ def test_run_esphome_compile_does_not_refresh_cache_via_fallback(
     upload/logs fallback path -- the fallback save would skip the
     storage_should_clean check."""
     with (
-        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.config.read_config", return_value={"esphome": {}}),
         patch("esphome.compiled_config.save_compiled_config") as mock_save,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
@@ -360,7 +360,7 @@ def test_run_esphome_upload_with_substitution_skips_cache(
     against the prior substitution set, so reusing it would silently
     ignore the override."""
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {"upload": lambda args, config: 0},
@@ -374,7 +374,7 @@ def test_run_esphome_upload_with_substitution_skips_cache(
 def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None:
     """The compile subcommand always re-validates -- it's what writes the cache."""
     with (
-        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {"compile": lambda args, config: 0},

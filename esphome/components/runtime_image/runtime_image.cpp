@@ -3,7 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
 #include "bmp_decoder.h"
@@ -18,6 +20,13 @@
 namespace esphome::runtime_image {
 
 static const char *const TAG = "runtime_image";
+
+// Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
+static constexpr int MAX_IMAGE_DIMENSION = 32767;
+static constexpr int MAX_IMAGE_BPP = 32;
+static_assert((static_cast<uint64_t>(MAX_IMAGE_BPP) * MAX_IMAGE_DIMENSION + 7) / 8 * MAX_IMAGE_DIMENSION <=
+                  std::numeric_limits<size_t>::max(),
+              "MAX_IMAGE_DIMENSION must keep the worst-case buffer size within size_t");
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
@@ -239,9 +248,15 @@ void RuntimeImage::release() {
 
 void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
-    ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
+    if (this->external_buffer_) {
+      // The caller owns this memory and goes on using it after the image lets go of it.
+      ESP_LOGV(TAG, "Letting go of the external %dx%d buffer", this->buffer_width_, this->buffer_height_);
+      this->external_buffer_ = false;
+    } else {
+      ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size(this->buffer_width_, this->buffer_height_));
+      RAMAllocator<uint8_t> allocator;
+      allocator.deallocate(this->buffer_, this->get_buffer_size(this->buffer_width_, this->buffer_height_));
+    }
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
     this->width_ = 0;
@@ -254,12 +269,44 @@ void RuntimeImage::release_buffer_() {
   }
 }
 
-size_t RuntimeImage::resize_buffer_(int width, int height) {
-  size_t new_size = this->get_buffer_size_(width, height);
+bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
+  this->release_buffer_();
+  if (buffer == nullptr || this->get_buffer_size(width, height) == 0) {
+    // Keep the released state rather than remembering a buffer that cannot be decoded into: an
+    // external buffer that is never handed back would otherwise block every later allocation.
+    ESP_LOGE(TAG, "Refusing an invalid external buffer for %dx%d", width, height);
+    return false;
+  }
+  this->buffer_ = buffer;
+  this->external_buffer_ = true;
+  this->buffer_width_ = width;
+  this->buffer_height_ = height;
+  return true;
+}
 
+size_t RuntimeImage::resize_buffer_(int width, int height) {
+  size_t new_size = this->get_buffer_size(width, height);
+
+  // A buffer only ever exists with dimensions the image can decode at, so a match here means
+  // new_size is non-zero. Checking it before the invalid dimension case below lets the external
+  // buffer be let go of for every decode it cannot serve, not just for valid other dimensions.
   if (this->buffer_ && this->buffer_width_ == width && this->buffer_height_ == height) {
     // Buffer already allocated with correct size
     return new_size;
+  }
+
+  if (this->external_buffer_) {
+    ESP_LOGE(TAG, "Image decoded to %dx%d, but the external buffer is %dx%d", width, height, this->buffer_width_,
+             this->buffer_height_);
+    // Let the buffer go rather than free memory that belongs to the caller. Dropping it also stops
+    // a decoder that ignores this failure from publishing a picture it never painted.
+    this->release_buffer_();
+    return 0;
+  }
+
+  if (new_size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
+    return 0;
   }
 
   // Release old buffer if dimensions changed
@@ -286,12 +333,16 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
   return new_size;
 }
 
-size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+size_t RuntimeImage::get_buffer_size(int width, int height) const {
+  // Dimensions come from a remote image header; reject absurd values so the size math cannot overflow
+  if (width <= 0 || height <= 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    return 0;
+  }
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    return width * height * 3;
+    return static_cast<size_t>(width) * height * 3;
   }
-  return (this->get_bpp() * width + 7u) / 8u * height;
+  return (static_cast<size_t>(this->get_bpp()) * width + 7u) / 8u * height;
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }

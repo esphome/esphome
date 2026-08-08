@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32_ble, ota
+from esphome.components import ble_device_base, esp32_ble, ota
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     request_bluetooth,
@@ -39,14 +39,13 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["esp32_ble"]
+AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
+ble_device_base.register_hub_provider("esp32_ble_tracker")
+
 CONF_ESP32_BLE_ID = "esp32_ble_id"
-CONF_SCAN_PARAMETERS = "scan_parameters"
-CONF_WINDOW = "window"
-CONF_ON_SCAN_END = "on_scan_end"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,16 +56,8 @@ class BLEFeatures(StrEnum):
     ESP_BT_DEVICE = "ESP_BT_DEVICE"
 
 
-# Dataclass for registration counts
-@dataclass
-class RegistrationCounts:
-    listeners: int = 0
-    clients: int = 0
-
-
-# CORE.data keys for state management
+# CORE.data key for state management
 ESP32_BLE_TRACKER_REQUIRED_FEATURES_KEY = "esp32_ble_tracker_required_features"
-ESP32_BLE_TRACKER_REGISTRATION_COUNTS_KEY = "esp32_ble_tracker_registration_counts"
 
 
 def _get_required_features() -> set[BLEFeatures]:
@@ -74,11 +65,13 @@ def _get_required_features() -> set[BLEFeatures]:
     return CORE.data.setdefault(ESP32_BLE_TRACKER_REQUIRED_FEATURES_KEY, set())
 
 
-def _get_registration_counts() -> RegistrationCounts:
-    """Get the registration counts from CORE.data."""
-    return CORE.data.setdefault(
-        ESP32_BLE_TRACKER_REGISTRATION_COUNTS_KEY, RegistrationCounts()
-    )
+# Slot counters sizing the tracker's StaticVector storage; one request per
+# registered listener, client, or scanner state listener.
+_request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
+_request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
+_request_scanner_state_listener_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT"
+)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -93,6 +86,7 @@ def register_ble_features(features: set[BLEFeatures]) -> None:
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
     "ESP32BLETracker",
+    ble_device_base.BLEHub,
     cg.Component,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
@@ -125,25 +119,6 @@ ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
 )
 
 
-def validate_scan_parameters(config):
-    duration = config[CONF_DURATION]
-    interval = config[CONF_INTERVAL]
-    window = config[CONF_WINDOW]
-
-    if window > interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
-        )
-
-    if interval.total_milliseconds * 3 > duration.total_milliseconds:
-        raise cv.Invalid(
-            "Scan duration needs to be at least three times the scan interval to"
-            "cover all BLE channels."
-        )
-
-    return config
-
-
 def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     if CONF_MAX_CONNECTIONS in config:
         _LOGGER.warning(
@@ -153,26 +128,18 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
-def as_hex(value):
-    return cg.RawExpression(f"0x{value}ULL")
+# 320 ms is the ESP-IDF reference scan interval; the shared schema also
+# tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
+# window/interval pairs that collapse to the same 0.625 ms unit count.
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "320ms", supports_active=True
+)
 
-
-def as_hex_array(value):
-    value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
-    return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
-
-
-def as_reversed_hex_array(value):
-    value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
-    return cg.RawExpression(
-        f"(uint8_t*)(const uint8_t[16]){{{','.join(reversed(cpp_array))}}}"
-    )
+# Codegen helpers are owned by ble_device_base; kept under the historical names
+# here for the components that import them from this module.
+as_hex = ble_device_base.as_hex
+as_hex_array = ble_device_base.as_hex_array
+as_reversed_hex_array = ble_device_base.as_reversed_hex_array
 
 
 CONFIG_SCHEMA = cv.All(
@@ -183,24 +150,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
                 cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
-            cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
-                cv.Schema(
-                    {
-                        cv.Optional(
-                            CONF_DURATION, default="5min"
-                        ): cv.positive_time_period_seconds,
-                        cv.Optional(
-                            CONF_INTERVAL, default="320ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_WINDOW, default="30ms"
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
-                        cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
-                    }
-                ),
-                validate_scan_parameters,
-            ),
+            cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
             cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -254,6 +204,10 @@ async def to_code(config):
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.BLE_SCAN)
 
+    # Behavior parity with the pre-split tracker: IRK resolution is always
+    # available on esp32 (sensors with irk: worked without opting in).
+    ble_device_base.request_irk_support()
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -266,8 +220,8 @@ async def to_code(config):
 
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
-    cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
-    cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
+    cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
+    cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 
@@ -279,17 +233,15 @@ async def to_code(config):
     ):
         register_ble_features({BLEFeatures.ESP_BT_DEVICE})
 
-    registration_counts = _get_registration_counts()
-
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
-        registration_counts.listeners += 1
+        _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
             addr_list = [it.as_hex for it in conf[CONF_MAC_ADDRESS]]
             cg.add(trigger.set_addresses(addr_list))
         await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
-        registration_counts.listeners += 1
+        _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_SERVICE_UUID]) == len(bt_uuid16_format):
             cg.add(trigger.set_service_uuid16(as_hex(conf[CONF_SERVICE_UUID])))
@@ -302,7 +254,7 @@ async def to_code(config):
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
-        registration_counts.listeners += 1
+        _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid16_format):
             cg.add(trigger.set_manufacturer_uuid16(as_hex(conf[CONF_MANUFACTURER_ID])))
@@ -315,7 +267,7 @@ async def to_code(config):
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_SCAN_END, []):
-        registration_counts.listeners += 1
+        _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
@@ -346,21 +298,15 @@ async def to_code(config):
 async def _add_ble_features():
     # Add feature-specific defines based on what's needed
     required_features = _get_required_features()
+    # Sensors registered through the neutral ble_device_base path (BLEHub) need
+    # the parsed-device pipeline compiled in, exactly like esp32-path listeners.
+    if cg.get_slot_count(ble_device_base.LISTENER_COUNT_DEFINE):
+        # The neutral (BLEHub) listener count define itself is emitted by
+        # ble_device_base's own job; only the feature coupling lives here.
+        required_features.add(BLEFeatures.ESP_BT_DEVICE)
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
-
-    # Add defines for StaticVector sizing based on registration counts
-    # Only define if count > 0 to avoid allocating unnecessary memory
-    registration_counts = _get_registration_counts()
-    if registration_counts.listeners > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT", registration_counts.listeners
-        )
-    if registration_counts.clients > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT", registration_counts.clients
-        )
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
@@ -414,7 +360,7 @@ async def register_ble_device(
     var: cg.SafeExpType, config: ConfigType
 ) -> cg.SafeExpType:
     register_ble_features({BLEFeatures.ESP_BT_DEVICE})
-    _get_registration_counts().listeners += 1
+    _request_listener_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
@@ -422,7 +368,7 @@ async def register_ble_device(
 
 async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExpType:
     register_ble_features({BLEFeatures.ESP_BT_DEVICE})
-    _get_registration_counts().clients += 1
+    _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
     return var
@@ -436,7 +382,7 @@ async def register_raw_ble_device(
     This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
     will not be compiled in if this is the only registration method used.
     """
-    _get_registration_counts().listeners += 1
+    _request_listener_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
@@ -450,7 +396,21 @@ async def register_raw_client(
     This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
     will not be compiled in if this is the only registration method used.
     """
-    _get_registration_counts().clients += 1
+    _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
+    return var
+
+
+async def register_scanner_state_listener(
+    var: cg.SafeExpType, config: ConfigType
+) -> cg.SafeExpType:
+    """Register a listener for scanner state changes.
+
+    The slot request here is what sizes the tracker's listener storage; a
+    build with no registrations compiles the storage out entirely.
+    """
+    _request_scanner_state_listener_slot()
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.add_scanner_state_listener(var))
     return var

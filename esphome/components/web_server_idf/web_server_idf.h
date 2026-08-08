@@ -129,7 +129,7 @@ class AsyncWebServerRequest {
 #ifdef USE_WEBSERVER_AUTH
   bool authenticate(const char *username, const char *password) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void requestAuthentication(const char *realm = nullptr) const;
+  void requestAuthentication() const;
 #endif
 
   void redirect(const std::string &url);

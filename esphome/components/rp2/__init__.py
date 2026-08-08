@@ -33,6 +33,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.types import ConfigType
 
 from . import boards
@@ -172,14 +173,9 @@ def get_download_types(storage_json):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # The most recent releases have not been uploaded to platformio so grabbing them directly from
-    # the GitHub release is one path forward for now.
+    # The framework-arduinopico package is no longer published to the PlatformIO
+    # registry, so install the framework straight from the GitHub release
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
-
-    # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
-    # a PIO earlephilhower/framework-arduinopico value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-    # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
 def _parse_platform_version(value):
@@ -197,19 +193,20 @@ def _parse_platform_version(value):
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
+# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
+# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 6, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 6, 1), None),
+        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 0, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -244,8 +241,12 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
+            cv.Optional(
+                CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+            ): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -334,7 +335,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -590,6 +591,7 @@ def copy_files():
         inject_lwip_file,
         CORE.relative_build_path("inject_lwip_include.py"),
     )
+    copy_ccache_script()
     _generate_lwipopts_h()
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
