@@ -140,7 +140,10 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (alerts & TWAI_ALERT_BUS_OFF) {
       events |= canbus::CAN_EVENT_BUS_OFF;
       // immediately initiate bus recovery, like MCP2515 does as well
-      twai_initiate_recovery_v2(this->twai_handle_);
+      if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
+        // if initiating recovery fails, bus is still bus off, so recovery will restart in the next iteration
+        ESP_LOGD(TAG, "failed to initiate recovery after bus off");
+      }
     }
     if (alerts & TWAI_ALERT_BUS_RECOVERED) {
       if (twai_start_v2(this->twai_handle_) == ESP_OK) {
@@ -154,6 +157,8 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
       events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
     }
+  } else {
+    ESP_LOGD(TAG, "failed to get CAN events");
   }
   return static_cast<canbus::CanEventFlags>(events);
 }
@@ -173,6 +178,8 @@ canbus::CanStatus ESP32Can::get_status() {
     status.rx_overrun_count = twai_status.rx_overrun_count;
     status.arb_lost_count = twai_status.arb_lost_count;
     status.bus_error_count = twai_status.bus_error_count;
+  } else {
+    ESP_LOGD(TAG, "failed to get CAN status");
   }
 
   return status;

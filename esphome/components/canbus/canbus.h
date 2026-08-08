@@ -72,14 +72,14 @@ enum CanEventFlags {
 };
 
 struct CanStatus {
-  bool bus_off;
-  uint8_t rx_error_counter;
-  uint8_t tx_error_counter;
-  esphome::optional<uint32_t> tx_failed_count;
-  esphome::optional<uint32_t> rx_missed_count;
-  esphome::optional<uint32_t> rx_overrun_count;
-  esphome::optional<uint32_t> arb_lost_count;
-  esphome::optional<uint32_t> bus_error_count;
+  bool bus_off{false};
+  uint8_t rx_error_counter{0};
+  uint8_t tx_error_counter{0};
+  esphome::optional<uint32_t> tx_failed_count{};
+  esphome::optional<uint32_t> rx_missed_count{};
+  esphome::optional<uint32_t> rx_overrun_count{};
+  esphome::optional<uint32_t> arb_lost_count{};
+  esphome::optional<uint32_t> bus_error_count{};
 };
 
 class Canbus : public Component {
@@ -131,8 +131,10 @@ class Canbus : public Component {
   uint32_t last_bus_off_time_{0};
   uint32_t last_event_log_time_{0};
 
+#ifdef ESPHOME_LOG_HAS_VERBOSE
   static constexpr uint32_t STATE_LOG_INTERVAL_MS = 1000;
   uint32_t last_state_log_time_{0};
+#endif
 
   void log_events_(CanEventFlags events);
   virtual bool setup_internal() = 0;
