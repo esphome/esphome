@@ -10,3 +10,7 @@ cover:
   - platform: hoermann
     name: Garage Door
     device_class: garage
+
+light:
+  - platform: hoermann
+    name: Garage Light

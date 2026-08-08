@@ -84,4 +84,12 @@ TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
   EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
 }
 
+// The low byte of broadcast register 6 carries the light state (0x10 and 0x14 mean on).
+TEST(HoermannWrite, BroadcastUpdatesLight) {
+  Hoermann door;
+  auto status = door.on_write_registers(BROADCAST_REG, make_registers({0, 0, 0, 0, 0, 0, 0x0010, 0, 0}));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_TRUE(door.is_light_on());
+}
+
 }  // namespace esphome::hoermann
