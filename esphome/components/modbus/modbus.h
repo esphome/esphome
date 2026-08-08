@@ -277,13 +277,14 @@ class ModbusClientHub : public Modbus {
   /// duplicate) and no callback of any kind will follow; the false return is the whole story.
   bool queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
                  CommandOptions options = {});
-  // Remove before 2027.2.0
-  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one. "
-                "Removed in 2027.2.0",
+  // Remove before 2027.2.0. Deliberately the signature 2026.7.4 shipped - void, and no CommandOptions:
+  // the bool return and the options argument arrived after that release, so nothing external can be
+  // relying on them under this name. Callers who want the queued/refused answer move to queue_pdu().
+  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one, and it "
+                "reports whether the request was accepted. Removed in 2027.2.0",
                 "2026.8.0")
-  bool send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
-                CommandOptions options = {}) {
-    return this->queue_pdu(address, pdu, device, options);
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
+    this->queue_pdu(address, pdu, device);
   }
   ESPDEPRECATED("Use queue_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
@@ -516,11 +517,11 @@ class ModbusClientDevice {
   bool queue_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
     return this->parent_->queue_pdu(this->address_, pdu, this, options);
   }
-  // Remove before 2027.2.0
-  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one. "
-                "Removed in 2027.2.0",
+  // Remove before 2027.2.0. As on the hub, this is the signature 2026.7.4 shipped: void, no options.
+  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one, and it "
+                "reports whether the request was accepted. Removed in 2027.2.0",
                 "2026.8.0")
-  bool send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) { return this->queue_pdu(pdu, options); }
+  void send_pdu(std::span<const uint8_t> pdu) { this->queue_pdu(pdu); }
   ESPDEPRECATED("Use queue_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
   bool send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty())

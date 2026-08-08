@@ -1509,8 +1509,8 @@ class LegacyNameDevice : public ModbusClientDevice {
 }  // namespace
 
 // send_pdu() was renamed queue_pdu() because the call queues a request rather than transmitting one.
-// The old spelling stays for the deprecation window and must behave identically: same queueing, same
-// refusal at the door, same routing back to the calling device.
+// The old spelling stays for the deprecation window with the signature 2026.7.4 shipped - void, no
+// CommandOptions - so a component built against a real release still compiles and still queues.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 TEST(ModbusClientHubCompat, DeprecatedSendPduStillQueues) {
@@ -1518,16 +1518,17 @@ TEST(ModbusClientHubCompat, DeprecatedSendPduStillQueues) {
   RetryingDevice device(&hub, 0x02, /*retry=*/false);
 
   const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x01};
-  EXPECT_TRUE(device.send_pdu(read));  // deprecated device spelling
+  device.send_pdu(read);  // deprecated device spelling: void, as 2026.7.4 shipped it
   EXPECT_EQ(hub.queued_frames(), 1u);
 
-  // Refusals still come back as a false return with no callback.
-  EXPECT_FALSE(device.send_pdu(std::span<const uint8_t>()));
+  // A refusal is invisible to this spelling - no return value and no callback - so the only evidence
+  // is that nothing was queued. Reporting the refusal is exactly what moving to queue_pdu() buys.
+  device.send_pdu(std::span<const uint8_t>());
   EXPECT_EQ(hub.queued_frames(), 1u);
 
   // The deprecated hub spelling queues the same way, addressed explicitly.
   const uint8_t other[] = {0x03, 0x00, 0x20, 0x00, 0x01};
-  EXPECT_TRUE(hub.send_pdu(0x03, other, &device));
+  hub.send_pdu(0x03, other, &device);
   EXPECT_EQ(hub.queued_frames(), 2u);
 
   // The frame queued through the old name still resolves to its owner.
