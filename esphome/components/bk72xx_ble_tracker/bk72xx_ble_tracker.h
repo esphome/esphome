@@ -131,7 +131,7 @@ class BK72xxBLETracker : public Component,
   void stop_scan_();
   void fire_scan_end_();
   /// Stamp-and-start for every controller scan attempt, so the retry rate
-  /// limit covers all callers; latches start_pending_ for the backoff gate.
+  /// limit covers all callers.
   bk72xx_ble::ScanStartResult controller_scan_start_();
   /// Attempt a rate-limited (re)start; returns true when the scan is running,
   /// which means the caller must not compare its cached millis() against the
@@ -142,9 +142,6 @@ class BK72xxBLETracker : public Component,
 
   bool scan_running_{false};
   bool scan_requested_{false};  // latched start_scan() request not yet running; loop() retries with backoff
-  // The last controller start reported PENDING (active-scan activity create in
-  // flight): retried on a short gate instead of the failure backoff.
-  bool start_pending_{false};
   // Defaults: the BK reference — 30 % duty cycle
   // (interval 100 ms / window 30 ms), in 0.625 ms BLE units.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms

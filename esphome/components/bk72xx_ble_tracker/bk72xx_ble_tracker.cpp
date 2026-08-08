@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -35,6 +36,8 @@ static constexpr uint32_t SCAN_START_PENDING_RETRY_MS = 100;
 
 // Radio-idle deadline for the bounded stop drain at OTA start.
 static constexpr uint32_t OTA_STOP_FLUSH_MS = 100;
+
+static constexpr float BLE_SCAN_UNIT_MS = 0.625f;
 
 // ---------------------------------------------------------------------------
 // Component lifecycle
@@ -88,6 +91,7 @@ void BK72xxBLETracker::loop() {
   // terminal failure while we report running is recovered through the normal
   // retry path.
   if (this->scan_running_ && this->parent_->last_scan_result() == bk72xx_ble::ScanStartResult::FAILED) {
+    ESP_LOGW(TAG, "Controller scan lost; retrying");
     this->scan_running_ = false;
     this->scan_requested_ = true;
     this->fire_scan_end_();
@@ -142,14 +146,15 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   // even user-initiated attempts respect the backoff, so a start_scan() action
   // on a short cadence cannot hammer a failing controller; the attempt stays
   // inside the failure accounting below either way.
-  const uint32_t gate = (this->start_pending_ && this->failed_start_count_ == 0)
+  const bool hub_pending = this->parent_->last_scan_result() == bk72xx_ble::ScanStartResult::PENDING;
+  const uint32_t gate = (hub_pending && this->failed_start_count_ == 0)
                             ? SCAN_START_PENDING_RETRY_MS
                             : (SCAN_START_RETRY_MS << this->failed_start_count_);
   if ((!force || this->failed_start_count_ != 0) && now - this->last_scan_start_attempt_ < gate)
     return false;
   this->start_scan_();
   if (!this->scan_running_) {
-    if (this->start_pending_)
+    if (this->parent_->last_scan_result() == bk72xx_ble::ScanStartResult::PENDING)
       return false;  // the controller is still bringing the scan up; not a failure
     if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
       ++this->failed_start_count_;
@@ -170,8 +175,8 @@ void BK72xxBLETracker::dump_config() {
                 "  Scan Window: %.0f ms (%" PRIu32 " BLE units)\n"
                 "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
-                this->scan_duration_ / 1000, this->scan_interval_ * 0.625f, this->scan_interval_,
-                this->scan_window_ * 0.625f, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
+                this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
                 YESNO(this->scan_continuous_));
 }
 
@@ -257,11 +262,9 @@ void BK72xxBLETracker::stop_scan() {
 // ---------------------------------------------------------------------------
 
 bk72xx_ble::ScanStartResult BK72xxBLETracker::controller_scan_start_() {
-  this->last_scan_start_attempt_ = millis();
-  const auto result = this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
-                                                static_cast<uint16_t>(this->scan_window_), this->scan_active_);
-  this->start_pending_ = (result == bk72xx_ble::ScanStartResult::PENDING);
-  return result;
+  this->last_scan_start_attempt_ = App.get_loop_component_start_time();
+  return this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
+                                   static_cast<uint16_t>(this->scan_window_), this->scan_active_);
 }
 
 void BK72xxBLETracker::start_scan_() {
@@ -280,7 +283,7 @@ void BK72xxBLETracker::start_scan_() {
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
   ESP_LOGD(TAG, "Scan started (%s, window=%.0fms, interval=%.0fms)", this->scan_active_ ? "active" : "passive",
-           this->scan_window_ * 0.625f, this->scan_interval_ * 0.625f);
+           this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
   // Re-anchor the on_scan_end period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
@@ -291,7 +294,6 @@ void BK72xxBLETracker::start_scan_() {
 }
 
 void BK72xxBLETracker::stop_scan_() {
-  this->start_pending_ = false;
   this->parent_->scan_stop();  // idempotent: releases whatever the hub holds
   if (!this->scan_running_)
     return;  // never ran: no on_scan_end
@@ -315,17 +317,12 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
   this->scan_active_ = active;
   ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
   // Re-request the CONTROLLER scan in the new mode; its reconciler restarts
-  // the scan itself. PENDING keeps the scan logically running: no flap in the
-  // reported scanner state, no on_scan_end; a re-arm that ultimately fails
-  // surfaces through loop()'s reconciliation. An idle scanner picks the mode
-  // up on its next start.
-  if (this->scan_running_ && this->controller_scan_start_() == bk72xx_ble::ScanStartResult::FAILED) {
-    // The controller really stopped: recover through the normal retry path.
-    ESP_LOGW(TAG, "Scan restart after mode change failed; retrying");
-    this->scan_running_ = false;
-    this->scan_requested_ = true;
-    this->fire_scan_end_();
-  }
+  // the scan itself. The scan stays logically running (no flap in the
+  // reported scanner state, no on_scan_end); a re-arm that fails is
+  // recovered by loop()'s reconciliation. An idle scanner picks the mode up
+  // on its next start.
+  if (this->scan_running_)
+    this->controller_scan_start_();
   return true;
 }
 

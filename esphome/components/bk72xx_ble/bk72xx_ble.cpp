@@ -22,9 +22,9 @@
 
 #ifdef USE_BK72XX_BLE
 
-#include <cinttypes>
 #include <cstring>
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"  // get_mac_address_raw()
 #include "esphome/core/log.h"
@@ -61,13 +61,8 @@ extern "C" {
 #include "ble_api.h"  // bk_ble_scan_start/stop, ble_entry, ble_set_notice_cb,
                       // app_ble_get_idle_actv_idx_handle, struct scan_param,
                       // recv_adv_t, ble_notice_t, BLE_5_REPORT_ADV, SCAN_ACTV
-// Active scanning: the BDK's scan API is passive-only (its start path
-// hardcodes the observer type with the active property bit commented out, in
-// both the 5.1 and 5.2 stacks), so send_active_start_() packs the
-// GAPM_ACTIVITY_START_CMD itself — identical to the SDK's
-// app_ble_start_scaning() except for that bit — armed through the SDK's own
-// operation bookkeeping so its state machine runs unchanged. These are the
-// real SDK headers; the component pins beken-bdk 3.0.78.
+// Real SDK headers for the packed active-scan start (see
+// send_active_start_()); the component pins beken-bdk 3.0.78.
 #include "app_ble.h"     // app_ble_env, app_ble_run, app_ble_actv_state_get,
                          // actv_state_t, BLE_OP_START_SCAN_POS, BLE_START_SCAN
 #include "kernel_msg.h"  // KERNEL_MSG_ALLOC, kernel_msg_send
@@ -201,7 +196,8 @@ void BK72xxBLE::loop() {
   // Keep reconciling toward the requested scan state (e.g. complete a stop
   // that arrived while a controller operation was in flight). Rate-limited so
   // a controller that keeps rejecting cannot be hammered at loop rate.
-  if (this->reconcile_pending_ && millis() - this->last_advance_ms_ >= RECONCILE_RETRY_MS)
+  if (this->last_result_ == ScanStartResult::PENDING &&
+      App.get_loop_component_start_time() - this->last_advance_ms_ >= RECONCILE_RETRY_MS)
     this->advance_();
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -292,23 +288,27 @@ static_assert(sizeof(struct gapm_scan_param) == 16 && sizeof(struct gapm_scan_wd
               "against the SDK's app_ble_start_scaning()");
 
 ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
+  // The BDK's own convention for "no activity", asserted against its symbol
+  // like the GAPM pins above.
+  static_assert(INVALID_ACTIVITY_IDX == UNKNOW_ACT_IDX,
+                "beken-bdk activity sentinel changed; revalidate the reconciler");
+
   if (!this->is_active())
     this->enable();
+
   const ScanIntent intent = active ? ScanIntent::ACTIVE : ScanIntent::PASSIVE;
-  if (intent != this->scan_intent_ || interval != this->scan_interval_ || window != this->scan_window_) {
+  const ScanParams params{active, interval, window};
+  if (intent != this->scan_intent_ || params != this->requested_) {
     // A genuinely new request gets a fresh retry budget; a re-call observing
     // an in-flight bring-up must not refill the ceiling.
     this->pending_attempts_ = 0;
   }
   this->scan_intent_ = intent;
-  this->scan_interval_ = interval;
-  this->scan_window_ = window;
+  this->requested_ = params;
   return this->advance_();
 }
 
 void BK72xxBLE::scan_stop() {
-  if (this->scan_intent_ != ScanIntent::STOPPED)
-    this->pending_attempts_ = 0;
   this->scan_intent_ = ScanIntent::STOPPED;
   this->advance_();
 }
@@ -316,11 +316,13 @@ void BK72xxBLE::scan_stop() {
 bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
   // Controller operations settle within a few ms; the bound is a safety net.
   const uint32_t start = millis();
-  while (this->scan_intent_ == ScanIntent::STOPPED && this->reconcile_pending_ && millis() - start < timeout_ms) {
+  while (this->scan_intent_ == ScanIntent::STOPPED && this->last_result_ == ScanStartResult::PENDING) {
+    if (millis() - start >= timeout_ms)
+      return false;
     delay(RECONCILE_RETRY_MS);
     this->advance_();
   }
-  return this->scan_intent_ != ScanIntent::STOPPED || !this->reconcile_pending_;
+  return true;
 }
 
 // Release the current scan activity: delete when it was never started (a
@@ -333,7 +335,7 @@ bool BK72xxBLE::release_activity_(bool created) {
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
     return true;
   }
-  if (!this->reconcile_pending_)
+  if (this->last_result_ != ScanStartResult::PENDING)
     ESP_LOGW(TAG, "Scan activity release rejected (err %d); retrying", static_cast<int>(ret));
   return false;
 }
@@ -342,114 +344,126 @@ bool BK72xxBLE::release_activity_(bool created) {
 // one SDK operation per call, reading the live controller state each time
 // (its transitions happen on the BLE task, so nothing is mirrored).
 ScanStartResult BK72xxBLE::advance_() {
+  if (this->scan_intent_ == ScanIntent::STOPPED && this->scan_activity_idx_ == INVALID_ACTIVITY_IDX)
+    return this->finish_advance_(ScanStartResult::STARTED);  // nothing to release
+
   const actv_state_t state =
       (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) ? ACTV_IDLE : app_ble_actv_state_get(this->scan_activity_idx_);
   const bool ready = app_ble_env_state_get() == APP_BLE_READY;
-  ScanStartResult result = ScanStartResult::PENDING;
+  const ScanStartResult result = (this->scan_intent_ == ScanIntent::STOPPED) ? this->advance_stop_(state, ready)
+                                                                             : this->advance_start_(state, ready);
+  return this->finish_advance_(result);
+}
 
-  if (this->scan_intent_ == ScanIntent::STOPPED) {
-    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
-      result = ScanStartResult::STARTED;  // nothing to release
-    } else if (!ready) {
-      // Acting while an operation is in flight could delete an activity whose
-      // start lands afterwards (leaking the slot with the radio on); wait.
-      if (!this->reconcile_pending_)
-        ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
-    } else if (state == ACTV_IDLE) {
-      // A create that failed at the GAPM level: nothing to stop.
-      this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-      result = ScanStartResult::STARTED;
-    } else {
-      // Settled, so ACTV_SCAN_CREATED unambiguously means "never started".
-      if (this->release_activity_(state == ACTV_SCAN_CREATED))
-        result = ScanStartResult::STARTED;
-    }
-    return this->finish_advance_(result);
+ScanStartResult BK72xxBLE::advance_stop_(uint8_t state, bool ready) {
+  if (!ready) {
+    // Acting while an operation is in flight could delete an activity whose
+    // start lands afterwards (leaking the slot with the radio on); wait.
+    if (this->last_result_ != ScanStartResult::PENDING)
+      ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
+    return ScanStartResult::PENDING;
   }
+  if (state == ACTV_IDLE) {
+    // A create that failed at the GAPM level: nothing to stop.
+    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+    return ScanStartResult::STARTED;
+  }
+  // Settled, so ACTV_SCAN_CREATED unambiguously means "never started".
+  return this->release_activity_(state == ACTV_SCAN_CREATED) ? ScanStartResult::STARTED : ScanStartResult::PENDING;
+}
 
-  const bool want_active = this->scan_intent_ == ScanIntent::ACTIVE;
+ScanStartResult BK72xxBLE::advance_start_(uint8_t state, bool ready) {
   if (state == ACTV_SCAN_STARTED) {
-    if (this->activity_mode_active_ == want_active && this->applied_interval_ == this->scan_interval_ &&
-        this->applied_window_ == this->scan_window_) {
-      result = ScanStartResult::STARTED;
-    } else if (ready) {
+    if (this->applied_ == this->requested_)
+      return ScanStartResult::STARTED;
+    if (ready) {
       // Running with different mode or parameters: tear down (the SDK stop
       // chain also deletes the activity) and recreate on a later advance.
       this->release_activity_(false);
     }
-  } else if (!ready) {
+    return ScanStartResult::PENDING;
+  }
+  if (!ready) {
     // A create/start/stop is in flight; observe again next call.
-    if (!this->reconcile_pending_)
+    if (this->last_result_ != ScanStartResult::PENDING)
       ESP_LOGD(TAG, "Scan start deferred (controller busy)");
-  } else if (state == ACTV_SCAN_CREATED) {
-    if (want_active) {
-      result = this->send_active_start_();
-    } else {
-      // Leftover from an active-scan attempt; the passive chain creates its
-      // own activity, so release this one first.
-      this->release_activity_(true);
-    }
-  } else {  // ACTV_IDLE, controller ready
-    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX &&
-        (this->scan_activity_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV)) == INVALID_ACTIVITY_IDX) {
-      ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
-      result = ScanStartResult::FAILED;
-    } else if (want_active) {
-      // Step 1 of the active sequence: create the activity through the public
-      // API; a later advance starts it once the creation is observed.
-      ble_err_t ret = bk_ble_create_scaning(this->scan_activity_idx_, nullptr);
-      if (ret != ERR_SUCCESS && ret != ERR_BLE_STATUS) {
-        ESP_LOGE(TAG, "Scan activity create failed (err %d)", static_cast<int>(ret));
-        this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-        result = ScanStartResult::FAILED;
-      }
-      // ERR_BLE_STATUS: raced the BLE task; keep the index so the retry
-      // resumes on the same slot instead of orphaning it.
-    } else {
-      // Passive: the SDK's own create+start chain, one call.
-      struct scan_param sp;
-      memset(&sp, 0, sizeof(sp));
-      sp.channel_map = 7;  // advertising channels 37/38/39
-      sp.interval = this->scan_interval_;
-      sp.window = this->scan_window_;
-      ble_err_t ret = bk_ble_scan_start(this->scan_activity_idx_, &sp, nullptr);
-      if (ret != ERR_SUCCESS) {
-        ESP_LOGE(TAG, "Scan start failed (err %d)", static_cast<int>(ret));
-        this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-        result = ScanStartResult::FAILED;
-      } else {
-        this->activity_mode_active_ = false;
-        this->applied_interval_ = this->scan_interval_;
-        this->applied_window_ = this->scan_window_;
-      }
-    }
+    return ScanStartResult::PENDING;
+  }
+  if (state == ACTV_SCAN_CREATED) {
+    if (this->requested_.active)
+      return this->send_active_start_();
+    // Leftover from an active-scan attempt; the passive chain creates its
+    // own activity, so release this one first.
+    this->release_activity_(true);
+    return ScanStartResult::PENDING;
   }
 
-  return this->finish_advance_(result);
+  // ACTV_IDLE with the controller ready: acquire and start.
+  if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
+    this->scan_activity_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
+    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
+      ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
+      return ScanStartResult::FAILED;
+    }
+  }
+  if (this->requested_.active) {
+    // Step 1 of the active sequence: create the activity through the public
+    // API; a later advance starts it once the creation is observed.
+    ble_err_t ret = bk_ble_create_scaning(this->scan_activity_idx_, nullptr);
+    if (ret == ERR_BLE_STATUS) {
+      // Raced the BLE task; keep the index so the retry resumes on the same
+      // slot instead of orphaning it.
+      return ScanStartResult::PENDING;
+    }
+    if (ret != ERR_SUCCESS) {
+      ESP_LOGE(TAG, "Scan activity create failed (err %d)", static_cast<int>(ret));
+      this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+      return ScanStartResult::FAILED;
+    }
+    return ScanStartResult::PENDING;
+  }
+  // Passive: the SDK's own create+start chain, one call.
+  struct scan_param sp;
+  memset(&sp, 0, sizeof(sp));
+  sp.channel_map = 7;  // advertising channels 37/38/39
+  sp.interval = this->requested_.interval;
+  sp.window = this->requested_.window;
+  ble_err_t ret = bk_ble_scan_start(this->scan_activity_idx_, &sp, nullptr);
+  if (ret != ERR_SUCCESS) {
+    ESP_LOGE(TAG, "Scan start failed (err %d)", static_cast<int>(ret));
+    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+    return ScanStartResult::FAILED;
+  }
+  this->applied_ = this->requested_;
+  return ScanStartResult::STARTED;
 }
 
-// Shared advance_() epilogue: pacing stamp, bounded pending for scan intents,
-// pump/result bookkeeping.
+// Shared advance_() epilogue: bounded pending for scan intents, pacing stamp,
+// result bookkeeping.
 ScanStartResult BK72xxBLE::finish_advance_(ScanStartResult result) {
-  this->last_advance_ms_ = millis();
   if (result == ScanStartResult::PENDING) {
+    this->last_advance_ms_ = App.get_loop_component_start_time();
     if (this->scan_intent_ != ScanIntent::STOPPED && ++this->pending_attempts_ >= RECONCILE_PENDING_LIMIT) {
       ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
       result = ScanStartResult::FAILED;
+      this->pending_attempts_ = 0;
     }
   } else {
     this->pending_attempts_ = 0;
   }
-  this->reconcile_pending_ = (result == ScanStartResult::PENDING);
   this->last_result_ = result;
   return result;
 }
 
+// The active-scan start the BDK does not offer: its start path hardcodes the
+// observer type with the active property bit commented out (identically in
+// the 5.1 and 5.2 stacks), so this packs the GAPM_ACTIVITY_START_CMD itself —
+// field-for-field the SDK's app_ble_start_scaning() except for that bit —
+// armed through the SDK's own operation bookkeeping so its state machine runs
+// unchanged. Fire-and-forget: STARTED is reported only once a later advance
+// observes the scan running, so a GAPM-rejected start is retried rather than
+// silently dead.
 ScanStartResult BK72xxBLE::send_active_start_() {
-  // Step 2 of the active sequence: the SDK's bk_ble_start_scaning()
-  // field-for-field, except prop adds the active bit. Fire-and-forget;
-  // STARTED is reported only once a later advance observes the scan running,
-  // so a GAPM-rejected start is retried rather than silently dead.
   app_ble_run(this->scan_activity_idx_, BLE_START_SCAN, 1 << BLE_OP_START_SCAN_POS, nullptr);
   struct gapm_activity_start_cmd *cmd =
       KERNEL_MSG_ALLOC(GAPM_ACTIVITY_START_CMD, TASK_BLE_GAPM, TASK_BLE_APP, gapm_activity_start_cmd);
@@ -464,8 +478,8 @@ ScanStartResult BK72xxBLE::send_active_start_() {
   cmd->actv_idx = app_ble_env.actvs[this->scan_activity_idx_].gap_advt_idx;
   cmd->u_param.scan_param.type = GAPM_SCAN_TYPE_OBSERVER;
   cmd->u_param.scan_param.prop = GAPM_SCAN_PROP_PHY_1M_BIT | GAPM_SCAN_PROP_ACTIVE_1M_BIT;
-  cmd->u_param.scan_param.scan_param_1m.scan_intv = this->scan_interval_;
-  cmd->u_param.scan_param.scan_param_1m.scan_wd = this->scan_window_;
+  cmd->u_param.scan_param.scan_param_1m.scan_intv = this->requested_.interval;
+  cmd->u_param.scan_param.scan_param_1m.scan_wd = this->requested_.window;
   cmd->u_param.scan_param.scan_param_coded.scan_intv = 0;
   cmd->u_param.scan_param.scan_param_coded.scan_wd = 0;
   cmd->u_param.scan_param.dup_filt_pol = 0;
@@ -473,9 +487,7 @@ ScanStartResult BK72xxBLE::send_active_start_() {
   cmd->u_param.scan_param.duration = 0;  // scan until stopped
   cmd->u_param.scan_param.period = 10;   // matches the SDK's passive start
   kernel_msg_send(cmd);
-  this->activity_mode_active_ = true;
-  this->applied_interval_ = this->scan_interval_;
-  this->applied_window_ = this->scan_window_;
+  this->applied_ = this->requested_;
   return ScanStartResult::PENDING;
 }
 

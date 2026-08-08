@@ -32,8 +32,13 @@ enum class ScanStartResult : uint8_t {
   FAILED,   ///< The controller rejected a step; retry later.
 };
 
-/// scan_activity_idx_ value marking "no scan activity", the BDK's own convention.
-static constexpr uint8_t INVALID_ACTIVITY_IDX = 0xFF;
+/// One scan request: mode plus timing, in BLE units (0.625 ms).
+struct ScanParams {
+  bool active;
+  uint16_t interval;
+  uint16_t window;
+  bool operator==(const ScanParams &) const = default;
+};
 
 /// One advertisement report from the controller.
 struct BLEScanReport {
@@ -108,8 +113,13 @@ class BK72xxBLE final : public Component {
   void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len);
 
  protected:
+  // scan_activity_idx_ value marking "no scan activity", the BDK's own convention.
+  static constexpr uint8_t INVALID_ACTIVITY_IDX = 0xFF;
+
   void resolve_mac_();
   ScanStartResult advance_();
+  ScanStartResult advance_stop_(uint8_t state, bool ready);
+  ScanStartResult advance_start_(uint8_t state, bool ready);
   ScanStartResult finish_advance_(ScanStartResult result);
   ScanStartResult send_active_start_();
   bool release_activity_(bool created);
@@ -130,17 +140,13 @@ class BK72xxBLE final : public Component {
   uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
   uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
   ScanIntent scan_intent_{ScanIntent::STOPPED};
-  uint16_t scan_interval_{0};  // BLE units; latched by scan_start()
-  uint16_t scan_window_{0};
-  // Mode and parameters the current activity was (or is being) started with —
-  // our own command history, which the controller state alone cannot answer;
-  // a mismatch with the latched request restarts the scan.
-  bool activity_mode_active_{false};
-  uint16_t applied_interval_{0};
-  uint16_t applied_window_{0};
-  // advance_() has more reconciling to do; loop() keeps driving it,
-  // rate-limited and bounded (see advance_()).
-  bool reconcile_pending_{false};
+  ScanParams requested_{};  // latched by scan_start()
+  // What the current activity was (or is being) started with — our own
+  // command history, which the controller state alone cannot answer; a
+  // mismatch with requested_ restarts the scan.
+  ScanParams applied_{};
+  // State of the current intent; PENDING means advance_() has more to do and
+  // loop() keeps driving it, rate-limited and bounded (see advance_()).
   ScanStartResult last_result_{ScanStartResult::STARTED};
   uint32_t last_advance_ms_{0};
   uint8_t pending_attempts_{0};  // consecutive PENDING advances this sequence
