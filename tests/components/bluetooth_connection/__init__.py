@@ -9,6 +9,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # These defines are global to the merged host test binary; safe
         # because no co-compiled test observes them.
         cg.add_define("USE_BLE_GATT_CLIENT")
+        cg.add_define("USE_BLE_GATT_CLIENT_STUB_BACKEND")
         cg.add_define("USE_BLUETOOTH_PROXY")
         cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
         cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", 1)
