@@ -73,9 +73,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 };
 
 #ifdef USE_ESP32
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
-                             public esp32_ble_tracker::BLEScannerStateListener,
-                             public Component {
+class BluetoothProxy final : public esp32_ble_tracker::BLEScannerStateListener, public Component {
 #else
 class BluetoothProxy final : public Component {
 #endif
@@ -86,11 +84,12 @@ class BluetoothProxy final : public Component {
  public:
   BluetoothProxy();
 #ifdef USE_ESP32
-#ifdef USE_ESP32_BLE_DEVICE
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-#endif
-  bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
-  esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
+  // Advertisements arrive through the hub's raw callback; the tracker is
+  // still typed for the esp32-only scan-mode and scanner-state calls.
+  void set_parent(esp32_ble_tracker::ESP32BLETracker *parent) {
+    this->parent_ = parent;
+    this->hub_ = parent;
+  }
 #endif  // USE_ESP32
   void dump_config() override;
   void setup() override;
@@ -221,8 +220,8 @@ class BluetoothProxy final : public Component {
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
 #else
   void send_bluetooth_scanner_state_();
-  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
 #endif
+  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
 
   /// Caller must ensure api_connection_ is non-null and API server is connected.
   void flush_pending_advertisements_() {
@@ -288,8 +287,9 @@ class BluetoothProxy final : public Component {
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
-#ifndef USE_ESP32
   ble_device_base::BLEHub *hub_{nullptr};
+#ifdef USE_ESP32
+  esp32_ble_tracker::ESP32BLETracker *parent_{nullptr};
 #endif
 
   // BLE advertisement batching
