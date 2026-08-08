@@ -50,7 +50,7 @@ void HoermannCover::update_from_state_() {
     case DoorState::MOVE_VENTING:
     case DoorState::MOVE_HALF:
       // These states carry no direction, so keep the current one until the position actually moves.
-      if (current_position != this->previous_position_) {
+      if (!std::isnan(this->previous_position_) && current_position != this->previous_position_) {
         this->current_operation = current_position > this->previous_position_ ? cover::COVER_OPERATION_OPENING
                                                                               : cover::COVER_OPERATION_CLOSING;
       }

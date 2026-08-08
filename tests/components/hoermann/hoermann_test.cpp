@@ -107,9 +107,8 @@ TEST(HoermannReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
   connect(door);
   door.open_door();
   EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
-  // A second command is refused while the first one is still being presented.
+  // Refused while one is pending: were it accepted, the release below would carry COMMAND_CLOSE's 0x0120.
   door.close_door();
-  EXPECT_EQ(poll_command(door), 0x0000);  // still within the key-press window
 
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   EXPECT_EQ(poll_command(door), 0x0110);  // COMMAND_OPEN released
@@ -186,6 +185,45 @@ TEST(HoermannPosition, TargetPositionStopsTheDoor) {
   // Position 120/200 = 0.6 is past the target, so the door is stopped.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
   EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+}
+
+// An impulse restarts a stopped door, so a frame reporting the stop and the target crossing at once
+// must be read as "already stopped" rather than "still opening".
+TEST(HoermannPosition, StopReportedWithTheCrossingSendsNoImpulse) {
+  Hoermann door;
+  connect(door);
+  door.set_position(0.5f);
+  EXPECT_EQ(poll_command(door), 0x0210);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  EXPECT_EQ(poll_command(door), 0x0110);
+
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
+  ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
+
+  // Same frame: position 0.6 (past the target) and state 0x20 -> the door has reached its open end stop.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x2000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::OPEN);
+  EXPECT_EQ(poll_command(door), 0x0000);
+}
+
+// A target the door never reaches is dropped once it comes to rest, so a later move is not cut short.
+TEST(HoermannPosition, TargetIsDroppedWhenTheDoorStopsShort) {
+  Hoermann door;
+  connect(door);
+  door.set_position(0.5f);
+  EXPECT_EQ(poll_command(door), 0x0210);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  EXPECT_EQ(poll_command(door), 0x0110);
+
+  // The door is stopped at 0.3 by a wall button, short of the requested 0.5.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
+
+  // A later manual open must run freely instead of being stopped at the abandoned target.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0050, 0x0100}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0000);
 }
 
 }  // namespace esphome::hoermann

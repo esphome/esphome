@@ -60,4 +60,17 @@ TEST(HoermannCoverTest, DirectionlessMoveHoldsTheOperationUntilThePositionMoves)
   EXPECT_FLOAT_EQ(cover.position, 0.6f);
 }
 
+// Booting while the door is already mid-move gives no baseline to compare against, so no direction
+// may be inferred from the first update.
+TEST(HoermannCoverTest, FirstDirectionlessMoveDoesNotGuessADirection) {
+  Hoermann door;
+  HoermannCover cover(&door);
+  cover.setup();
+
+  // The very first thing seen is a half-open move already at 100/200 = 0.5.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0500}));
+  door.update();
+  EXPECT_EQ(cover.current_operation, cover::COVER_OPERATION_IDLE);
+}
+
 }  // namespace esphome::hoermann

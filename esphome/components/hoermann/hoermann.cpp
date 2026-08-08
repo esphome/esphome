@@ -29,6 +29,19 @@ static void fill_with_zeros(uint16_t number_of_registers, modbus::RegisterValues
     registers.push_back(0x0000);
 }
 
+// True while the door is travelling. An impulse toggles the door, so it only stops one that is moving.
+static bool is_moving(DoorState state) {
+  switch (state) {
+    case DoorState::OPENING:
+    case DoorState::CLOSING:
+    case DoorState::MOVE_HALF:
+    case DoorState::MOVE_VENTING:
+      return true;
+    default:
+      return false;
+  }
+}
+
 void Hoermann::update() {
   // Time out the connection flag if the bus controller stopped polling.
   if (this->valid_ && millis() - this->last_response_ > CONNECTION_TIMEOUT_MS) {
@@ -113,14 +126,15 @@ modbus::ResponseStatus Hoermann::on_write_registers(uint16_t start_address, cons
   }
 
   // Door status broadcast. Each handler compares the previous register value with the new one to detect
-  // high/low byte changes, so the previous values are tracked between broadcasts.
-  if (registers.size() > 1) {
-    this->on_door_position_changed_(this->prev_position_reg_, registers[1]);
-    this->prev_position_reg_ = registers[1];
-  }
+  // high/low byte changes, so the previous values are tracked between broadcasts. The state is decoded first
+  // so that a frame reporting both a new state and a new position checks the target against the new state.
   if (registers.size() > 2) {
     this->on_current_state_changed_(this->prev_state_reg_, registers[2]);
     this->prev_state_reg_ = registers[2];
+  }
+  if (registers.size() > 1) {
+    this->on_door_position_changed_(this->prev_position_reg_, registers[1]);
+    this->prev_position_reg_ = registers[1];
   }
   return {};
 }
@@ -227,19 +241,12 @@ void Hoermann::close_door() { this->queue_command_(COMMAND_CLOSE); }
 void Hoermann::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
 
 void Hoermann::stop_door() {
-  // An impulse toggles the door, so it only stops one that is actually moving.
-  switch (this->door_state_) {
-    case DoorState::OPENING:
-    case DoorState::CLOSING:
-    case DoorState::MOVE_HALF:
-    case DoorState::MOVE_VENTING:
-      // On success queue_command_() clears the target; on refusal it stays armed so the next position retries.
-      this->queue_command_(COMMAND_IMPULSE);
-      break;
-    default:
-      this->goto_position_ = 0.0f;
-      break;
+  if (!is_moving(this->door_state_)) {
+    this->goto_position_ = 0.0f;
+    return;
   }
+  // On success queue_command_() clears the target; on refusal it stays armed so the next position retries.
+  this->queue_command_(COMMAND_IMPULSE);
 }
 
 void Hoermann::set_position(float position) {
@@ -286,10 +293,13 @@ void Hoermann::set_valid_(bool valid) {
 }
 
 void Hoermann::set_door_state_(DoorState state) {
-  if (this->door_state_ != state) {
-    this->door_state_ = state;
-    this->changed_ = true;
-  }
+  if (this->door_state_ == state)
+    return;
+  this->door_state_ = state;
+  this->changed_ = true;
+  // The door came to rest without reaching the target, so the request it belonged to is over.
+  if (!is_moving(state))
+    this->goto_position_ = 0.0f;
 }
 
 void Hoermann::set_current_position_(float position) {
