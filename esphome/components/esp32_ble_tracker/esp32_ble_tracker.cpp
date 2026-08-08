@@ -412,16 +412,14 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 #endif
 }
 
-// The neutral enum mirrors this tracker's wire-aligned values.
-static_assert(static_cast<int>(ScannerState::IDLE) == static_cast<int>(ble_device_base::ScannerState::IDLE));
-static_assert(static_cast<int>(ScannerState::STOPPING) == static_cast<int>(ble_device_base::ScannerState::STOPPING));
-
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
   this->state_version_++;
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
   if (this->scanner_state_callback_.is_set()) {
-    this->scanner_state_callback_.invoke(static_cast<ble_device_base::ScannerState>(state));
+    this->scanner_state_callback_.invoke(state);
   }
+#endif
 #ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
   for (auto *listener : this->scanner_state_listeners_) {
     listener->on_scanner_state(state);

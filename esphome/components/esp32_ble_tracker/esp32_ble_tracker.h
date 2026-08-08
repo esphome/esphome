@@ -89,18 +89,8 @@ using ClientState = ble_device_base::ClientState;
 using ConnectionType = ble_device_base::ConnectionType;
 using ble_device_base::client_state_to_string;
 
-enum class ScannerState {
-  // Scanner is idle, init state
-  IDLE,
-  // Scanner is starting
-  STARTING,
-  // Scanner is running
-  RUNNING,
-  // Scanner failed to start
-  FAILED,
-  // Scanner is stopping
-  STOPPING,
-};
+// Neutral scanner lifecycle re-exported for backward compatibility.
+using ScannerState = ble_device_base::ScannerState;
 
 /** Listener interface for BLE scanner state changes.
  *

@@ -61,8 +61,9 @@ enum class ScannerState : uint8_t {
 };
 
 /// Subscriber slot for scanner-state transitions; same shape as
-/// RawAdvertisementCallback. Hubs that cannot push simply never invoke it and
-/// the consumer falls back to polling scan_running().
+/// RawAdvertisementCallback, delivered on the ESPHome main loop. Hubs that
+/// cannot push drop the registration and the consumer falls back to polling
+/// scan_running().
 struct ScannerStateCallback {
   void *instance{nullptr};
   void (*fn)(void *instance, ScannerState state){nullptr};
@@ -99,9 +100,18 @@ class BLEHub {
   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
   virtual void set_raw_advertisement_callback(RawAdvertisementCallback callback) = 0;
 
-  /// Push subscriber for scanner-state transitions (stored here; hubs invoke
-  /// scanner_state_callback_ where their state changes, if they can push).
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  /// Push subscriber for scanner-state transitions; hubs that can push
+  /// invoke scanner_state_callback_ where their state changes. Compiled only
+  /// when a subscriber exists (bluetooth_proxy emits the define), so
+  /// subscriber-less builds carry no storage.
   void set_scanner_state_callback(ScannerStateCallback callback) { this->scanner_state_callback_ = callback; }
+
+ protected:
+  ScannerStateCallback scanner_state_callback_{};
+
+ public:
+#endif  // USE_BLE_SCANNER_STATE_CALLBACK
 
   virtual HubCapabilities get_capabilities() const = 0;
 
@@ -122,9 +132,6 @@ class BLEHub {
   /// HubCapabilities::scan_mode_switch, so consumers can gate features on the
   /// switch without probing.
   virtual bool request_scan_mode(bool active) { return false; }
-
- protected:
-  ScannerStateCallback scanner_state_callback_{};
 };
 
 }  // namespace esphome::ble_device_base

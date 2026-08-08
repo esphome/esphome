@@ -426,3 +426,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
 
     cg.add_define("USE_BLUETOOTH_PROXY")
+    # Compiles the scanner-state push slot into the hub (see ble_hub.h).
+    cg.add_define("USE_BLE_SCANNER_STATE_CALLBACK")
