@@ -75,9 +75,13 @@ void BluetoothProxy::setup() {
   this->hub_->set_raw_advertisement_callback({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
                                                 static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
                                               }});
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // Only hubs that push scanner-state transitions compile the slot (today:
+  // esp32); elsewhere loop() polls scan_running() instead.
   this->hub_->set_scanner_state_callback({this, [](void *self, ble_device_base::ScannerState state) {
                                             static_cast<BluetoothProxy *>(self)->send_bluetooth_scanner_state_(state);
                                           }});
+#endif
 }
 
 // The hub delivers raw advertisements on the ESPHome main loop.
@@ -465,13 +469,13 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->parent_()->get_scan_active() == active) {
+  if (this->hub_->get_scan_active() == active) {
     return;
   }
   ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-  this->parent_()->set_scan_active(active);
-  this->parent_()->stop_scan();
-  this->parent_()->set_scan_continuous(
+  this->hub_->set_scan_active(active);
+  this->hub_->stop_scan();
+  this->hub_->set_scan_continuous(
       true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
@@ -619,7 +623,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
 #ifdef USE_ESP32
-  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
+  this->send_bluetooth_scanner_state_(this->hub_->get_scanner_state());
 #else
   this->send_polled_scanner_state_();
 #endif

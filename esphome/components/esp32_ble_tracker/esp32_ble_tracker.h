@@ -161,7 +161,6 @@ class ESPBTClient : public ESPBTDeviceListener {
 };
 
 class ESP32BLETracker final : public Component,
-                              public ble_device_base::BLEHub,
 #ifdef USE_OTA_STATE_LISTENER
                               public ota::OTAGlobalStateListener,
 #endif
@@ -186,19 +185,27 @@ class ESP32BLETracker final : public Component,
   void register_client(ESPBTClient *client);
 
   // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
-  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener);
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
     this->raw_advertisement_callback_ = callback;
   }
-  ble_device_base::HubCapabilities get_capabilities() const override {
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  void set_scanner_state_callback(ble_device_base::ScannerStateCallback callback) {
+    this->scanner_state_callback_ = callback;
+  }
+#endif
+  static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // scan_mode_switch is false: the mode is driven through this tracker's own
     // API (set_scan_active + restart), not the neutral request_scan_mode().
     return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
             /* scan_mode_switch = */ false};
   }
-  void get_adapter_mac(uint8_t out[6]) override;
-  bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
-  bool scan_active() override { return this->scan_active_; }
+  void get_adapter_mac(uint8_t out[6]);
+  bool scan_running() { return this->scanner_state_ == ScannerState::RUNNING; }
+  bool scan_active() { return this->scan_active_; }
+  // The mode is driven through this tracker's own API (see get_capabilities);
+  // the neutral request refuses without changing any state.
+  bool request_scan_mode(bool active) { return false; }
 
 #ifdef USE_ESP32_BLE_DEVICE
   void print_bt_device_info(const ESPBTDevice &device);
@@ -288,6 +295,9 @@ class ESP32BLETracker final : public Component,
   StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> neutral_listeners_;
 #endif
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  ble_device_base::ScannerStateCallback scanner_state_callback_{};
+#endif
 #ifdef USE_ESP32_BLE_DEVICE
   /// Per-period "Found device" DEBUG log with MAC dedup (shared ble_device_base impl)
   ble_device_base::DiscoveredDeviceLog discovered_log_;

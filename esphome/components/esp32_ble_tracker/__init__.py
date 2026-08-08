@@ -205,6 +205,9 @@ async def to_code(config):
     # available on esp32 (sensors with irk: worked without opting in).
     ble_device_base.request_irk_support()
 
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_ESP32_BLE_TRACKER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

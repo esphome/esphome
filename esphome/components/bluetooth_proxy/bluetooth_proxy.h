@@ -15,17 +15,13 @@
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
+#include "esphome/components/ble_device_base/ble_hub_impl.h"
+
 #ifdef USE_ESP32
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
 #include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
-
-#else
-#include "esphome/components/ble_device_base/ble_hub.h"
-#ifdef USE_BLE_GATT_CLIENT
+#elif defined(USE_BLE_GATT_CLIENT)
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
 #endif
-#endif  // USE_ESP32
 
 namespace esphome::bluetooth_proxy {
 
@@ -75,11 +71,7 @@ class BluetoothProxy final : public Component {
 #endif
  public:
   BluetoothProxy();
-#ifdef USE_ESP32
-  // Advertisements arrive through the hub's raw callback; parent_() below
-  // recovers the tracker type for the esp32-only scan-mode calls.
-  void set_parent(esp32_ble_tracker::ESP32BLETracker *parent) { this->hub_ = parent; }
-#endif  // USE_ESP32
+  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   void dump_config() override;
   void setup() override;
   void loop() override;
@@ -88,7 +80,6 @@ class BluetoothProxy final : public Component {
   void register_connection(BluetoothConnection *connection);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
-  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
   // snapshots scan_active()/scan_running() and installs the raw callback, and
   // the BLEHub contract does not promise those are settled any earlier than
@@ -262,13 +253,6 @@ class BluetoothProxy final : public Component {
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
-#ifdef USE_ESP32
-  // set_parent() is the only writer of hub_ on esp32, so the downcast is
-  // exact; ESP32BLETracker derives from BLEHub non-virtually.
-  esp32_ble_tracker::ESP32BLETracker *parent_() {
-    return static_cast<esp32_ble_tracker::ESP32BLETracker *>(this->hub_);
-  }
-#endif
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;

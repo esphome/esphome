@@ -6,47 +6,45 @@
 
 namespace esphome::ble_device_base::testing {
 
-// Pins the request_scan_mode() contract: the base default refuses (so hubs
-// without a mode switch — and out-of-tree trackers — keep building and
-// callers report the real state), while an overriding hub both honors the
-// request and applies it.
+// Pins the request_scan_mode() contract documented in ble_hub.h: a hub
+// without a mode switch refuses without changing any state (so callers report
+// the real state back), while a switching hub both honors the request and
+// applies it. The contract is duck-typed (BLEHub is a per-platform alias),
+// so the shapes are pinned through minimal host hubs mirroring the in-tree
+// tracker stubs.
 namespace {
 
-class DefaultHub : public BLEHub {
+class RefusingHub {
  public:
-  void register_listener(ESPBTDeviceListener *listener) override {}
-  void set_raw_advertisement_callback(RawAdvertisementCallback callback) override {}
-  HubCapabilities get_capabilities() const override { return {false, false, false}; }
-  void get_adapter_mac(uint8_t out[6]) override {}
-  bool scan_running() override { return false; }
-  // Backed by real state so "changes nothing" is observable: a base default
-  // that silently mutated the hub would flip this and fail the assertion.
-  bool scan_active() override { return this->active_; }
+  static constexpr HubCapabilities get_capabilities() { return {false, false, false}; }
+  bool scan_active() { return this->active_; }
+  // The refusing shape every non-switching tracker provides: no state touched.
+  bool request_scan_mode(bool active) { return false; }
 
  protected:
   bool active_{true};
 };
 
-class SwitchingHub : public DefaultHub {
+class SwitchingHub : public RefusingHub {
  public:
-  HubCapabilities get_capabilities() const override { return {true, false, false, /* scan_mode_switch = */ true}; }
-  bool request_scan_mode(bool active) override {
+  static constexpr HubCapabilities get_capabilities() { return {true, false, false, /* scan_mode_switch = */ true}; }
+  bool request_scan_mode(bool active) {
     this->active_ = active;
     return true;
   }
 };
 
 // The esp32 shape: the controller supports active scanning but the hub keeps
-// the refusing default (mode is driven through its own tracker API).
-class CapableRefusingHub : public DefaultHub {
+// the refusing stub (mode is driven through its own tracker API).
+class CapableRefusingHub : public RefusingHub {
  public:
-  HubCapabilities get_capabilities() const override { return {true, false, false}; }
+  static constexpr HubCapabilities get_capabilities() { return {true, false, false}; }
 };
 
 }  // namespace
 
-TEST(BLEHubScanModeRequest, DefaultRefusesAndChangesNothing) {
-  DefaultHub hub;
+TEST(BLEHubScanModeRequest, RefusingHubChangesNothing) {
+  RefusingHub hub;
   EXPECT_TRUE(hub.scan_active());
   EXPECT_FALSE(hub.request_scan_mode(false));
   // Refused, not applied-and-reported-false: the state is untouched.
@@ -55,7 +53,7 @@ TEST(BLEHubScanModeRequest, DefaultRefusesAndChangesNothing) {
   EXPECT_TRUE(hub.scan_active());
 }
 
-TEST(BLEHubScanModeRequest, OverrideHonorsAndApplies) {
+TEST(BLEHubScanModeRequest, SwitchingHubHonorsAndApplies) {
   SwitchingHub hub;
   EXPECT_TRUE(hub.get_capabilities().scan_mode_switch);
   EXPECT_TRUE(hub.request_scan_mode(true));
