@@ -92,6 +92,9 @@ class APIConnection final : public APIServerConnectionBase {
     return this->schedule_message_(nullptr, ListEntitiesDoneResponse::MESSAGE_TYPE,
                                    ListEntitiesDoneResponse::ESTIMATED_SIZE);
   }
+#ifdef USE_DEVICES
+  bool send_device_state(Device *device);
+#endif
 #ifdef USE_BINARY_SENSOR
   bool send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor);
 #endif
@@ -591,6 +594,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_CAMERA
   static uint16_t try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
+#ifdef USE_DEVICES
+  static uint16_t try_send_device_state(Device *device, APIConnection *conn, uint32_t remaining_size);
+#endif
 
   // Method for ListEntitiesDone batching
   static uint16_t try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
@@ -820,6 +826,9 @@ class APIConnection final : public APIServerConnectionBase {
   // Falls back to batching if immediate send fails or isn't applicable
   bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
+#ifdef USE_DEVICES
+  bool send_device_message_smart_(Device *device, uint8_t message_type, uint8_t estimated_size);
+#endif
   bool send_message_smart_source_(void *source, uint8_t message_type, uint8_t estimated_size, uint8_t aux_data_index);
 
   // Helper function to schedule a deferred message with known message type

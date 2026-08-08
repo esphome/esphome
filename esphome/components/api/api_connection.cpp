@@ -502,6 +502,27 @@ uint16_t APIConnection::try_send_binary_sensor_info(EntityBase *entity, APIConne
 }
 #endif
 
+#ifdef USE_DEVICES
+bool APIConnection::send_device_state(Device *device) {
+  if (!this->client_supports_api_version(1, 15)) {
+    if (!device->is_available()) {
+      ESP_LOGW(TAG, "Cannot report sub-device '%s' as unavailable to client '%s': API 1.15+ required",
+               device->get_name(), this->get_name());
+    }
+    return true;
+  }
+  return this->send_device_message_smart_(device, DeviceStateResponse::MESSAGE_TYPE,
+                                          DeviceStateResponse::ESTIMATED_SIZE);
+}
+
+uint16_t APIConnection::try_send_device_state(Device *device, APIConnection *conn, uint32_t remaining_size) {
+  DeviceStateResponse resp;
+  resp.device_id = device->get_device_id();
+  resp.available = device->is_available();
+  return encode_message_to_buffer(resp, conn, remaining_size);
+}
+#endif
+
 #ifdef USE_COVER
 bool APIConnection::send_cover_state(cover::Cover *cover) {
   return this->send_message_smart_(cover, CoverStateResponse::MESSAGE_TYPE, CoverStateResponse::ESTIMATED_SIZE);
@@ -1735,7 +1756,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 14;
+  resp.api_version_minor = 15;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -2167,6 +2188,12 @@ bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type
   return this->send_message_smart_source_(entity, message_type, estimated_size, aux_data_index);
 }
 
+#ifdef USE_DEVICES
+bool APIConnection::send_device_message_smart_(Device *device, uint8_t message_type, uint8_t estimated_size) {
+  return this->send_message_smart_source_(device, message_type, estimated_size, DeferredBatch::AUX_DATA_UNUSED);
+}
+#endif
+
 bool APIConnection::send_message_smart_source_(void *source, uint8_t message_type, uint8_t estimated_size,
                                                uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
@@ -2356,6 +2383,12 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
     auto *event = static_cast<event::Event *>(static_cast<EntityBase *>(item.source));
     return try_send_event_response(event, StringRef::from_maybe_nullptr(event->get_event_type(item.aux_data_index)),
                                    this, remaining_size);
+  }
+#endif
+
+#ifdef USE_DEVICES
+  if (item.message_type == DeviceStateResponse::MESSAGE_TYPE) {
+    return try_send_device_state(static_cast<Device *>(item.source), this, remaining_size);
   }
 #endif
 
