@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace esphome {
 
 class Device {
@@ -10,11 +12,14 @@ class Device {
   const char *get_name() { return this->name_; }
   void set_area_id(uint32_t area_id) { this->area_id_ = area_id; }
   uint32_t get_area_id() { return this->area_id_; }
+  void set_available(bool available);
+  bool is_available() const { return this->available_; }
 
  protected:
   uint32_t device_id_{};
   uint32_t area_id_{};
   const char *name_ = "";
+  bool available_{true};
 };
 
 }  // namespace esphome

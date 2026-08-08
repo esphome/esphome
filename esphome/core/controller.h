@@ -4,8 +4,15 @@
 
 namespace esphome {
 
+#ifdef USE_DEVICES
+class Device;
+#endif
+
 class Controller {
  public:
+#ifdef USE_DEVICES
+  virtual void on_device_update(Device *obj) {}
+#endif
 // Controller virtual methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper)  // no controller callback

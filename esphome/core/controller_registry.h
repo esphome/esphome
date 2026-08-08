@@ -10,6 +10,9 @@
 namespace esphome {
 
 class Controller;
+#ifdef USE_DEVICES
+class Device;
+#endif
 
 /** Global registry for Controllers to receive entity state updates.
  *
@@ -35,6 +38,10 @@ class ControllerRegistry {
    * Typically only APIServer and WebServer register.
    */
   static void register_controller(Controller *controller) { controllers.push_back(controller); }
+
+#ifdef USE_DEVICES
+  static void notify_device_update(Device *obj);
+#endif
 
 // Notify method declarations (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
@@ -63,6 +70,14 @@ namespace esphome {
 // Defining them here (rather than in controller_registry.cpp) allows the
 // compiler to inline them into the single call site in each entity's
 // notify_frontend_(), eliminating an unnecessary function-call frame.
+
+#ifdef USE_DEVICES
+inline void ControllerRegistry::notify_device_update(Device *obj) {
+  for (auto *controller : controllers) {
+    controller->on_device_update(obj);
+  }
+}
+#endif
 
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper)  // no controller callback
