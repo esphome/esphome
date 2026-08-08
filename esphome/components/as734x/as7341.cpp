@@ -85,16 +85,23 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
 bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, bool &saturated) {
   constexpr uint8_t adc_channels = 6;
 
-  std::array<uint16_t, adc_channels> raw{};
-  RegAStatus astatus{};
-  this->read_byte_(AS7341_ASTATUS, &astatus.raw);
+  // Reading ASTATUS latches the spectral data to that read, and the datasheet ties the guarantee
+  // to one consecutive transaction over 0x94 to 0xA0, so status and data are fetched together.
+  std::array<uint8_t, 1 + 2 * adc_channels> frame{};
+  const bool ret = this->i2c_device_->read_register(AS7341_ASTATUS, frame.data(), frame.size()) == i2c::ERROR_OK;
+  if (!ret) {
+    ESP_LOGW(TAG, "Could not read spectral data");
+    return false;
+  }
+
+  const RegAStatus astatus{frame[0]};
   if (astatus.asat_status) {
     ESP_LOGVV(TAG, "AS7341 affected by analog or digital saturation. Readings are not reliable.");
   }
 
-  bool ret = this->i2c_device_->read_bytes_16(AS7341_DATA_0, raw.data(), adc_channels);  // big endian
-  for (auto &value : raw) {
-    value = this->swap_bytes_(value);
+  std::array<uint16_t, adc_channels> raw{};
+  for (uint8_t i = 0; i < adc_channels; i++) {
+    raw[i] = static_cast<uint16_t>(frame[1 + 2 * i] | (frame[2 + 2 * i] << 8));  // low byte first
   }
   if (smux_step == 0) {
     values[0] = raw[0];

@@ -148,16 +148,22 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &
       AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7, AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR,
       AS7343_CHANNEL_CLEAR_0};
 
-  std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data{};
-
   RegStatus status{0};
   this->read_byte_(AS7343_STATUS, &status.raw);
   ESP_LOGVV(TAG, "Status 0x%02x, sint %d, fint %d, aint %d, asat %d", status.raw, status.sint, status.fint, status.aint,
             status.asat);
   this->write_byte_(AS7343_STATUS, status.raw);
 
-  RegAStatus astatus{0};
-  this->read_byte_(AS7343_ASTATUS, &astatus.raw);
+  // Reading ASTATUS latches the spectral data to that read, and the datasheet ties the guarantee
+  // to one consecutive transaction over 0x94 to 0xB8, so status and data are fetched together.
+  std::array<uint8_t, 1 + 2 * AS7343_NUM_CHANNELS_MAX> frame{};
+  const bool ret = this->i2c_device_->read_register(AS7343_ASTATUS, frame.data(), frame.size()) == i2c::ERROR_OK;
+  if (!ret) {
+    ESP_LOGW(TAG, "Could not read spectral data");
+    return false;
+  }
+
+  const RegAStatus astatus{frame[0]};
   ESP_LOGVV(TAG, "AStatus 0x%02x, again_status %d, asat_status %d", astatus.raw, astatus.again_status,
             astatus.asat_status);
 
@@ -165,9 +171,9 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &
     ESP_LOGVV(TAG, "AS7343 affected by analog or digital saturation. Readings are not reliable.");
   }
 
-  auto ret = this->i2c_device_->read_bytes_16(AS7343_DATA_0, data.data(), AS7343_NUM_CHANNELS_MAX);  // big endian
-  for (auto &value : data) {
-    value = this->swap_bytes_(value);
+  std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data{};
+  for (uint8_t i = 0; i < AS7343_NUM_CHANNELS_MAX; i++) {
+    data[i] = static_cast<uint16_t>(frame[1 + 2 * i] | (frame[2 + 2 * i] << 8));  // low byte first
   }
 
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
