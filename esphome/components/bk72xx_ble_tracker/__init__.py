@@ -12,19 +12,30 @@ Scan modes:
                       Use this when the radio is dedicated to BLE.
   continuous: false — a started scan runs for `duration` ms, then stops. The
                       FIRST start is external too: nothing in this component
-                      starts a non-continuous scan on boot, so until the
-                      automation actions land (follow-up PR) the radio stays
-                      idle. start_scan() is called from code (e.g. an api
-                      client-connected automation) so the single-core radio
-                      can service WiFi in between scans.
+                      starts a non-continuous scan on boot — the radio stays
+                      idle until bk72xx_ble_tracker.start_scan fires (e.g.
+                      from an api client-connected automation), so the
+                      single-core radio can service WiFi in between scans.
 """
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import bk72xx_ble, ble_device_base, ota
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.ble_device_base import automation as ble_automation
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
-from esphome.const import CONF_CONTINUOUS, CONF_DURATION, CONF_ID, CONF_INTERVAL
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.const import (
+    CONF_CONTINUOUS,
+    CONF_DURATION,
+    CONF_ID,
+    CONF_INTERVAL,
+    CONF_MANUFACTURER_ID,
+    CONF_ON_BLE_ADVERTISE,
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+)
+from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
@@ -33,103 +44,103 @@ DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
 
+ble_device_base.register_hub_provider("bk72xx_ble_tracker")
+
 bk72xx_ble_tracker_ns = cg.esphome_ns.namespace("bk72xx_ble_tracker")
 BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
 )
 
+StartScanAction = bk72xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
+StopScanAction = bk72xx_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
-def to_ble_units(value: cv.TimePeriod) -> int:
-    """Convert a scan time to the controller's 0.625 ms units.
-
-    Used by both validation and codegen so what is validated is exactly what is
-    programmed — the truncation here is what makes the duty-cycle check below
-    meaningful.
-    """
-    return value.total_microseconds // 625
+ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
+BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
+BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
+BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
-def validate_scan_parameters(config: ConfigType) -> ConfigType:
-    """Reject impossible window/interval/duration combinations at config time.
-
-    Mirrors esp32_ble_tracker: the controller cannot scan for longer than the
-    interval, and a too-short duration would end the scan period almost
-    immediately. Catching it here gives a clear error instead of a runtime
-    controller failure and the 1/sec retry loop.
-    """
-    duration = config[CONF_DURATION]
-    interval = config[CONF_INTERVAL]
-    window = config[CONF_WINDOW]
-
-    if window > interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
-        )
-
-    # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
-    # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
-    # values here instead of letting the unit conversion silently overflow.
-    for name, value in (("interval", interval), ("window", window)):
-        if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
-            raise cv.Invalid(
-                f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
-            )
-
-    # Validate what actually reaches the controller: both values are truncated to
-    # whole 0.625 ms units, so a window/interval pair that differs by less than one
-    # unit collapses to the same value — silently programming a 100 % duty cycle
-    # (radio permanently on) from a config that asked for less.
-    interval_units = to_ble_units(interval)
-    window_units = to_ble_units(window)
-    if window_units == interval_units and window < interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) and interval ({interval}) both round to "
-            f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
-            f"cycle. Separate them by at least 0.625 ms."
-        )
-
-    if interval.total_microseconds * 3 > duration.total_microseconds:
-        raise cv.Invalid(
-            f"Scan duration ({duration}) must cover at least three scan intervals "
-            f"({interval}): the scanner listens on one of the three BLE advertising "
-            f"channels per interval, so a shorter duration can miss devices entirely."
-        )
-
-    return config
-
-
-SCAN_PARAMETERS_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
-            # interval/window default to the BK reference scan rate — 100 ms / 30 ms,
-            # a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
-            # to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
-            cv.Optional(CONF_INTERVAL, default="100ms"): cv.positive_time_period,
-            cv.Optional(CONF_WINDOW, default="30ms"): cv.positive_time_period,
-            cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
-        }
-    ),
-    validate_scan_parameters,
-)
+# interval defaults to the BK reference scan rate — 100 ms with the shared 30 ms
+# window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
+# to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BK72xxBLETracker),
         cv.GenerateID(CONF_BK72XX_BLE_ID): cv.use_id(bk72xx_ble.BK72xxBLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
+        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
+            ESPBTAdvertiseTrigger
+        ),
+        cv.Optional(
+            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEServiceDataAdvertiseTrigger,
+            {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEManufacturerDataAdvertiseTrigger,
+            {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Runs at FINAL priority so every BLE sensor has registered through
-# ble_device_base (and any tracker-owned listeners have been counted) before
-# the StaticVector size is emitted. Same pattern as esp32_ble_tracker.
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _emit_listener_count() -> None:
-    count = ble_device_base.get_listener_count()
-    if count > 0:
-        cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", count)
+@automation.register_action(
+    "bk72xx_ble_tracker.start_scan",
+    StartScanAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(BK72xxBLETracker),
+            # Optional with no default, unlike esp32_ble_tracker: omitting it
+            # keeps whatever scan_parameters.continuous configured, instead of
+            # silently forcing one-shot.
+            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
+        }
+    ),
+    synchronous=True,
+)
+async def start_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
+        template_ = await cg.templatable(continuous, args, cg.bool_)
+        cg.add(var.set_continuous(template_))
+    return var
+
+
+@automation.register_action(
+    "bk72xx_ble_tracker.stop_scan",
+    StopScanAction,
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(BK72xxBLETracker),
+            }
+        )
+    ),
+    synchronous=True,
+)
+async def stop_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -138,14 +149,34 @@ async def to_code(config: ConfigType) -> None:
 
     parent = await cg.get_variable(config[CONF_BK72XX_BLE_ID])
     cg.add(var.set_parent(parent))
+    # The tracker registers itself as a controller scan listener in setup();
+    # request the codegen-sized StaticVector slot for it.
+    bk72xx_ble.request_scan_listener_slot()
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
 
     scan = config[CONF_SCAN_PARAMETERS]
-    cg.add(var.set_scan_interval(to_ble_units(scan[CONF_INTERVAL])))
-    cg.add(var.set_scan_window(to_ble_units(scan[CONF_WINDOW])))
+    cg.add(var.set_scan_interval(ble_device_base.to_ble_units(scan[CONF_INTERVAL])))
+    cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
-    cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
 
-    CORE.add_job(_emit_listener_count)
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        await ble_automation.advertise_trigger_to_code(conf, var)
+
+    for trigger_key, uuid_key, setter_prefix in (
+        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+        (
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+            CONF_MANUFACTURER_ID,
+            "set_manufacturer_uuid",
+        ),
+    ):
+        for conf in config.get(trigger_key, []):
+            await ble_automation.uuid_trigger_to_code(
+                conf, var, uuid_key, setter_prefix
+            )
+
+    for conf in config.get(CONF_ON_SCAN_END, []):
+        await ble_automation.scan_end_trigger_to_code(conf, var)

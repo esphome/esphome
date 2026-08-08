@@ -15,6 +15,7 @@ from filelock import FileLock
 import pytest
 
 from esphome import git
+import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.git import GitCommandError
 
@@ -488,7 +489,7 @@ def test_clone_or_update_with_refresh_updates_old_repo(
 
 
 def test_clone_or_update_with_refresh_skips_fresh_repo(
-    tmp_path: Path, mock_run_git_command: Mock
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test that refresh doesn't update fresh repos."""
     # Set up CORE.config_path so data_dir uses tmp_path
@@ -513,19 +514,73 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Set modification time to 1 hour ago
     os.utime(fetch_head, (recent_time, recent_time))
 
+    # Freeze the clock at 1 hour (plus a margin larger than any filesystem
+    # mtime rounding) after the mtime so the logged countdown is deterministic
+    frozen_now = fetch_head.stat().st_mtime + 3600.5
+
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
-    result_dir, revert = git.clone_or_update(
-        url=url,
-        ref=ref,
-        refresh=refresh,
-        domain=domain,
-    )
+    with (
+        patch("esphome.git.time.time", return_value=frozen_now),
+        caplog.at_level(logging.INFO, logger="esphome.git"),
+    ):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
 
     # Should NOT call git fetch since repo is fresh
     mock_run_git_command.assert_not_called()
     assert result_dir == repo_dir
     assert revert is None
+
+    # Should tell the user the update was skipped and when the next refresh is
+    assert f"Skipping update for {url}@{ref}" in caplog.text
+    assert "will refresh on the next run after 22h 59min" in caplog.text
+    assert "(refresh: 1d)" in caplog.text
+
+
+def test_clone_or_update_with_refresh_never_logs_refresh_disabled(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that a config-level refresh: never skips without a countdown log."""
+    # Set up CORE.config_path so data_dir uses tmp_path
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = None
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    # Create the git repo directory structure
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+    _mark_clone_complete(repo_dir)
+
+    # Create FETCH_HEAD file with current timestamp
+    fetch_head = git_dir / "FETCH_HEAD"
+    fetch_head.write_text("test")
+
+    # refresh: never validates to 365250 days, not the NEVER_REFRESH sentinel
+    refresh = cv.source_refresh("never")
+    with caplog.at_level(logging.DEBUG, logger="esphome.git"):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    mock_run_git_command.assert_not_called()
+    assert result_dir == repo_dir
+    assert revert is None
+
+    # Should log refresh disabled at debug level, not a countdown
+    assert f"Skipping update for {url}@{ref} (refresh disabled)" in caplog.text
+    assert "will refresh on the next run" not in caplog.text
 
 
 def test_clone_or_update_clones_missing_repo(

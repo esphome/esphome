@@ -440,7 +440,7 @@ void APIConnection::on_disconnect_response() {
 uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
-  msg.key = entity->get_object_id_hash();
+  msg.key = entity->get_entity_key();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
@@ -451,7 +451,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
-  msg.key = entity->get_object_id_hash();
+  msg.key = entity->get_entity_key();
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1141,7 +1141,7 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = camera::Camera::instance()->get_entity_key();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
@@ -1543,8 +1543,8 @@ void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigure
              static_cast<uint32_t>(proxies.size()));
     return;
   }
-  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
-                                   msg.data_size);
+  proxies[msg.instance]->configure(this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity),
+                                   msg.stop_bits, msg.data_size);
 }
 
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
@@ -1553,7 +1553,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
+  proxies[msg.instance]->write_from_client(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
@@ -1562,7 +1562,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(msg.line_states);
+  proxies[msg.instance]->set_modem_pins(this, msg.line_states);
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
