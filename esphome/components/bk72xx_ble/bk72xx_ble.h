@@ -11,6 +11,8 @@
 
 #include <cstdint>
 
+#include "bdk_scan.h"
+
 namespace esphome::bk72xx_ble {
 
 enum class BLEComponentState : uint8_t {
@@ -113,16 +115,13 @@ class BK72xxBLE final : public Component {
   void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len);
 
  protected:
-  // scan_activity_idx_ value marking "no scan activity", the BDK's own convention.
-  static constexpr uint8_t INVALID_ACTIVITY_IDX = 0xFF;
-
   void resolve_mac_();
   ScanStartResult advance_();
-  ScanStartResult advance_stop_(uint8_t state, bool ready);
-  ScanStartResult advance_start_(uint8_t state, bool ready);
+  ScanStartResult advance_stop_(BdkActivityState state, bool ready);
+  ScanStartResult advance_start_(BdkActivityState state, bool ready);
   ScanStartResult finish_advance_(ScanStartResult result);
   ScanStartResult send_active_start_();
-  bool release_activity_(bool created);
+  void release_activity_(bool created);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —
@@ -150,6 +149,7 @@ class BK72xxBLE final : public Component {
   ScanStartResult last_result_{ScanStartResult::STARTED};
   uint32_t last_advance_ms_{0};
   uint8_t pending_attempts_{0};  // consecutive PENDING advances this sequence
+  bool release_warned_{false};   // once-per-episode gate for the release WARN
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

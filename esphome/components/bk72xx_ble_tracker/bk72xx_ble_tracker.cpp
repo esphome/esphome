@@ -95,6 +95,7 @@ void BK72xxBLETracker::loop() {
     this->scan_running_ = false;
     this->scan_requested_ = true;
     this->fire_scan_end_();
+    this->scan_period_start_ = now;  // re-anchor so the period timer cannot double-fire
   }
 
   if (this->scan_continuous_) {
