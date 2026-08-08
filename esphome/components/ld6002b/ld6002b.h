@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_SENSOR
@@ -11,15 +12,60 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <array>
+#include <cmath>
 
 namespace esphome::ld6002b {
 
 static constexpr uint8_t MAX_TARGETS = 3;
 static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
+static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
+
+enum class NumberType : uint8_t {
+  HOLD_DELAY,
+  Z_MIN,
+  Z_MAX,
+  LOW_POWER_SLEEP,
+};
+
+enum class SelectType : uint8_t {
+  SENSITIVITY,
+  TRIGGER_SPEED,
+  INSTALLATION_MODE,
+};
+
+enum class SwitchType : uint8_t {
+  LOW_POWER,
+  POINT_CLOUD,
+  TARGET_DISPLAY,
+};
+
+enum class ButtonType : uint8_t {
+  GET_DELAY,
+  GET_SENSITIVITY,
+  GET_TRIGGER_SPEED,
+  GET_Z_RANGE,
+  GET_INSTALLATION,
+  GET_LOW_POWER_MODE,
+  GET_LOW_POWER_SLEEP_TIME,
+  RESET_UNATTENDED,
+  WAKE,
+};
 
 #ifdef USE_SENSOR
 struct TargetSensors {
@@ -31,6 +77,10 @@ struct TargetSensors {
 };
 
 #endif
+
+struct VersionPref {
+  char value[20];
+};
 
 class LD6002BComponent : public Component, public uart::UARTDevice {
  public:
@@ -45,6 +95,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }
+  void set_point_count_sensor(sensor::Sensor *sensor) { this->point_count_sensor_ = sensor; }
 
   void set_target_x_sensor(uint8_t target, sensor::Sensor *sensor) {
     if (target >= MAX_TARGETS)
@@ -82,6 +133,35 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   }
 #endif
 
+#ifdef USE_TEXT_SENSOR
+  void set_work_mode_text_sensor(text_sensor::TextSensor *sensor) { this->work_mode_text_sensor_ = sensor; }
+  void set_ota_version_text_sensor(text_sensor::TextSensor *sensor) { this->ota_version_text_sensor_ = sensor; }
+#endif
+
+#ifdef USE_NUMBER
+  void set_hold_delay_number(number::Number *number) { this->hold_delay_number_ = number; }
+  void set_z_min_number(number::Number *number) { this->z_min_number_ = number; }
+  void set_z_max_number(number::Number *number) { this->z_max_number_ = number; }
+  void set_low_power_sleep_number(number::Number *number) { this->low_power_sleep_number_ = number; }
+#endif
+
+#ifdef USE_SELECT
+  void set_sensitivity_select(select::Select *select) { this->sensitivity_select_ = select; }
+  void set_trigger_speed_select(select::Select *select) { this->trigger_speed_select_ = select; }
+  void set_installation_select(select::Select *select) { this->installation_select_ = select; }
+#endif
+
+#ifdef USE_SWITCH
+  void set_low_power_switch(switch_::Switch *sw) { this->low_power_switch_ = sw; }
+  void set_point_cloud_switch(switch_::Switch *sw) { this->point_cloud_switch_ = sw; }
+  void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
+#endif
+
+  void set_number_value(NumberType type, float value);
+  void set_select_value(SelectType type, size_t index);
+  void set_switch_state(SwitchType type, bool state);
+  void press_button(ButtonType type);
+
  protected:
   enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
 
@@ -95,6 +175,28 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
+  void handle_point_cloud_(const uint8_t *data, uint16_t len);
+  void handle_delay_report_(const uint8_t *data, uint16_t len);
+  void handle_sensitivity_report_(const uint8_t *data, uint16_t len);
+  void handle_trigger_speed_report_(const uint8_t *data, uint16_t len);
+  void handle_z_range_report_(const uint8_t *data, uint16_t len);
+  void handle_installation_report_(const uint8_t *data, uint16_t len);
+  void handle_low_power_report_(const uint8_t *data, uint16_t len);
+  void handle_low_power_sleep_report_(const uint8_t *data, uint16_t len);
+  void handle_work_mode_report_(const uint8_t *data, uint16_t len);
+  void handle_version_report_(const uint8_t *data, uint16_t len);
+  void update_work_mode_fallback_();
+  void publish_work_mode_(bool low_power);
+  // Drops every target-derived reading and the slot table they are indexed by.
+  void clear_target_state_();
+#ifdef USE_SENSOR
+  void clear_target_slot_(uint8_t index);
+#endif
+#ifdef USE_NUMBER
+  void publish_number_clamped_(number::Number *number, float value);
+#endif
+  void init_version_pref_();
+  void save_version_pref_(const char *value);
 
   void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
@@ -102,20 +204,46 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void send_control_command_(uint32_t command);
+  void send_z_range_();
+  void wake_();
 
   static uint16_t read_u16_be(const uint8_t *data);
   static uint32_t read_u32_le(const uint8_t *data);
   static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
+  static void write_f32_le(uint8_t *data, float value);
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
   sensor::Sensor *target_count_sensor_{nullptr};
+  sensor::Sensor *point_count_sensor_{nullptr};
 #endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   std::array<binary_sensor::BinarySensor *, MAX_TARGETS> target_presence_{};
+#endif
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *work_mode_text_sensor_{nullptr};
+  text_sensor::TextSensor *ota_version_text_sensor_{nullptr};
+  ESPPreferenceObject version_pref_{};
+  bool version_pref_initialized_{false};
+#endif
+#ifdef USE_NUMBER
+  number::Number *hold_delay_number_{nullptr};
+  number::Number *z_min_number_{nullptr};
+  number::Number *z_max_number_{nullptr};
+  number::Number *low_power_sleep_number_{nullptr};
+#endif
+#ifdef USE_SELECT
+  select::Select *sensitivity_select_{nullptr};
+  select::Select *trigger_speed_select_{nullptr};
+  select::Select *installation_select_{nullptr};
+#endif
+#ifdef USE_SWITCH
+  switch_::Switch *low_power_switch_{nullptr};
+  switch_::Switch *point_cloud_switch_{nullptr};
+  switch_::Switch *target_display_switch_{nullptr};
 #endif
 
   GPIOPin *wakeup_pin_{nullptr};
@@ -132,6 +260,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t data_xor_{0};
   uint32_t discard_remaining_{0};
   bool frame_oversize_{false};
+  size_t max_data_len_{0};
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
@@ -144,6 +273,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
+  // Named so a repeated press replaces its own pending timeout instead of stacking
+  // another, and so the command path can cancel it when it takes the pin over.
+  static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
@@ -173,11 +305,24 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // Bumped whenever the active command changes, so a deferred send can tell it was retired.
   uint8_t send_generation_{0};
 
+  float z_min_{NAN};
+  float z_max_{NAN};
+
   // Which person owns each target_N slot, so a slot survives the module re-sorting its array.
   std::array<int32_t, MAX_TARGETS> slot_cluster_{};
   std::array<bool, MAX_TARGETS> slot_occupied_{};
 
   bool target_presence_any_{false};
+  // What the switches and setup asked the module for, which is not the same as
+  // what it is doing yet: a stream keeps sending until it acts on the command.
+  // The report handlers read these and drop anything a stopped stream still emits.
+  bool target_display_enabled_{false};
+  bool point_cloud_enabled_{false};
+  bool work_mode_reported_{false};
+  bool low_power_enabled_{false};
+  bool low_power_reported_{false};
+  bool last_work_mode_valid_{false};
+  bool last_work_mode_low_power_{false};
 
 #ifdef USE_SENSOR
   std::array<bool, MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
@@ -185,6 +330,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   std::array<int32_t, MAX_TARGETS> last_cluster_id_{};
   std::array<bool, MAX_TARGETS> last_cluster_id_valid_{};
   uint32_t last_target_count_{0xFFFFFFFF};
+  uint32_t last_point_count_{0xFFFFFFFF};
 #endif
 };
 

@@ -253,10 +253,13 @@
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
-// count (default 3), _to_code_ble_hub() emits 0 — so static analysis checks the
-// same std::array<uint64_t, N> instantiation a real build produces.
+// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
+// advertisement-only hubs) — so static analysis checks the same
+// std::array<uint64_t, N> instantiation a real build produces.
 #ifdef USE_ESP32
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#elif defined(USE_RP2)
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
