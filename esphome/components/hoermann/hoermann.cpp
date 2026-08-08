@@ -22,8 +22,11 @@ static constexpr HoermannCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x
 static constexpr HoermannCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
 
-void Hoermann::setup() {
-  ESP_LOGCONFIG(TAG, "Waiting for the bus controller to start polling Modbus address 0x%02X", this->get_address());
+// Answer a request we do not recognize with the number of registers it asked for: the hub rejects a handler
+// that returns a different count with a device failure, so padding with zeros is safer than a short reply.
+static void fill_with_zeros(uint16_t number_of_registers, modbus::RegisterValues &registers) {
+  for (uint16_t i = 0; i < number_of_registers; i++)
+    registers.push_back(0x0000);
 }
 
 void Hoermann::update() {
@@ -40,55 +43,56 @@ void Hoermann::update() {
 void Hoermann::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Hoermann HCP bridge:\n"
-                "  Modbus server address: 0x%02X\n"
-                "  Connection timeout: %ums",
-                this->get_address(), static_cast<unsigned>(CONNECTION_TIMEOUT_MS));
+                "  Modbus server address: 0x%02X",
+                this->get_address());
 }
 
 modbus::ResponseStatus Hoermann::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                            modbus::RegisterValues &registers) {
   this->record_response_();
 
+  if (start_address != STATE_REG) {
+    ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
+    fill_with_zeros(number_of_registers, registers);
+    return {};
+  }
+
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
   // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
-  if (start_address == STATE_REG) {
-    uint16_t counter = this->command_reg_value_ & 0xFF00;
-    uint16_t command = (this->command_reg_value_ & 0x00FF) << 8;
+  const uint16_t counter = this->command_reg_value_ & 0xFF00;
+  const uint16_t command = static_cast<uint16_t>((this->command_reg_value_ & 0x00FF) << 8);
 
-    if (number_of_registers == 8) {
+  switch (number_of_registers) {
+    case 8: {
       // Command request: return the internal state, injecting any pending command.
       uint16_t reg_plus2;
       uint16_t reg_plus3;
       this->get_command_values_to_read_(reg_plus2, reg_plus3);
-      registers.push_back(static_cast<uint16_t>(0x0000 | counter));
+      registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
       registers.push_back(reg_plus2);
       registers.push_back(reg_plus3);
-      registers.push_back(0x0000);
-      registers.push_back(0x0000);
-      registers.push_back(0x0000);
-      registers.push_back(0x0000);
-    } else if (number_of_registers == 2) {
+      fill_with_zeros(4, registers);
+      break;
+    }
+    case 2:
       // Empty command request.
       registers.push_back(static_cast<uint16_t>(0x0004 | counter));
-      registers.push_back(static_cast<uint16_t>(0x0000 | command));
-    } else if (number_of_registers == 5) {
+      registers.push_back(command);
+      break;
+    case 5:
       // Bus scan (the bus controller discovering us, typically at startup).
       ESP_LOGD(TAG, "Bus scan received from bus controller");
-      registers.push_back(static_cast<uint16_t>(0x0000 | counter));
+      registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x0005 | command));
       registers.push_back(0x0430);
-      registers.push_back(0x10ff);
-      registers.push_back(0xa845);
-    } else {
-      ESP_LOGW(TAG, "Unknown read request (read %u)", number_of_registers);
-      for (uint16_t i = 0; i < number_of_registers; i++)
-        registers.push_back(0x0000);
-    }
-  } else {
-    ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
-    for (uint16_t i = 0; i < number_of_registers; i++)
-      registers.push_back(0x0000);
+      registers.push_back(0x10FF);
+      registers.push_back(0xA845);
+      break;
+    default:
+      ESP_LOGW(TAG, "Unknown read request (read %u registers)", number_of_registers);
+      fill_with_zeros(number_of_registers, registers);
+      break;
   }
 
   return {};
@@ -147,24 +151,27 @@ void Hoermann::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_pl
 
 void Hoermann::on_door_position_changed_(uint16_t old_value, uint16_t new_value) {
   // Low byte: current position.
-  if ((old_value & 0x00FF) != (new_value & 0x00FF)) {
-    this->set_current_position_(static_cast<float>(new_value & 0x00FF) / 200.0f);
-    bool reached = (this->goto_position_ > 0.0f && this->door_state_ == DoorState::CLOSING &&
-                    this->goto_position_ >= this->current_position_) ||
-                   (this->goto_position_ > 0.0f && this->door_state_ == DoorState::OPENING &&
-                    this->goto_position_ <= this->current_position_);
-    if (reached) {
-      this->stop_door();
-      this->goto_position_ = 0.0f;
-    }
-  }
+  if ((old_value & 0x00FF) == (new_value & 0x00FF))
+    return;
+
+  this->set_current_position_(static_cast<float>(new_value & 0x00FF) / 200.0f);
+  if (this->goto_position_ == 0.0f)
+    return;
+
+  // The door only knows "open" and "close", so a half-open target is reached by stopping it on the way.
+  const bool reached = (this->door_state_ == DoorState::CLOSING && this->current_position_ <= this->goto_position_) ||
+                       (this->door_state_ == DoorState::OPENING && this->current_position_ >= this->goto_position_);
+  if (reached)
+    this->stop_door();
 }
 
 void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value) {
-  if ((old_value & 0xFF00) == (new_value & 0xFF00))
+  // The low byte is part of the state for 0x00, so the whole register has to be compared, not just the high byte.
+  if (old_value == new_value)
     return;
 
-  switch ((new_value & 0xFF00) >> 8) {
+  const uint8_t state = new_value >> 8;
+  switch (state) {
     case 0x01:
       this->set_door_state_(DoorState::OPENING);
       break;
@@ -190,45 +197,64 @@ void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value)
       this->set_door_state_(DoorState::VENT);
       break;
     case 0x00:
+      // Low byte 0x61 marks the door resting in the vent position, anything else a plain stop.
       this->set_door_state_((new_value & 0x00FF) == 0x61 ? DoorState::VENT : DoorState::STOPPED);
       break;
     default:
-      ESP_LOGW(TAG, "Unknown door state 0x%02X", (new_value & 0xFF00) >> 8);
+      // The low byte can change on its own, so only report a state we cannot decode once.
+      if (state != (old_value >> 8))
+        ESP_LOGW(TAG, "Unknown door state 0x%02X", state);
   }
 }
 
-void Hoermann::queue_command_(bool condition, const HoermannCommand &command) {
-  if (!condition)
-    return;
+bool Hoermann::queue_command_(const HoermannCommand &command) {
   if (this->next_command_ != nullptr) {
     ESP_LOGW(TAG, "Previous command not yet fetched by the bus controller");
-    return;
+    return false;
   }
+  // A new command supersedes any half-open target the door was still travelling to.
+  this->goto_position_ = 0.0f;
   this->next_command_ = &command;
+  return true;
 }
 
-void Hoermann::open_door() { this->queue_command_(true, COMMAND_OPEN); }
-void Hoermann::close_door() { this->queue_command_(true, COMMAND_CLOSE); }
-void Hoermann::impulse_door() { this->queue_command_(true, COMMAND_IMPULSE); }
+void Hoermann::open_door() { this->queue_command_(COMMAND_OPEN); }
+void Hoermann::close_door() { this->queue_command_(COMMAND_CLOSE); }
+void Hoermann::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
 
 void Hoermann::stop_door() {
-  // Only send an impulse if the door is actually moving.
-  this->queue_command_(this->door_state_ == DoorState::CLOSING || this->door_state_ == DoorState::OPENING ||
-                           this->door_state_ == DoorState::MOVE_HALF || this->door_state_ == DoorState::MOVE_VENTING,
-                       COMMAND_IMPULSE);
+  // A stop cancels a half-open target even when the door has already come to a halt by itself.
+  this->goto_position_ = 0.0f;
+  // An impulse toggles the door, so it only stops one that is actually moving.
+  switch (this->door_state_) {
+    case DoorState::OPENING:
+    case DoorState::CLOSING:
+    case DoorState::MOVE_HALF:
+    case DoorState::MOVE_VENTING:
+      this->queue_command_(COMMAND_IMPULSE);
+      break;
+    default:
+      break;
+  }
 }
 
-void Hoermann::set_position(int percent) {
+void Hoermann::set_position(float position) {
   // The first and last movement segments are inconsistent on some doors, so snap to fully open/closed.
-  if (percent <= 5) {
+  if (position <= 0.05f) {
     this->close_door();
-  } else if (percent >= 95) {
-    this->open_door();
-  } else {
-    this->goto_position_ = static_cast<float>(percent) / 100.0f;
-    this->queue_command_(this->current_position_ < this->goto_position_, COMMAND_OPEN);
-    this->queue_command_(this->current_position_ > this->goto_position_, COMMAND_CLOSE);
+    return;
   }
+  if (position >= 0.95f) {
+    this->open_door();
+    return;
+  }
+  if (position == this->current_position_)
+    return;
+
+  // The door itself has no notion of a target, so it is started in the right direction and stopped on the way.
+  const bool opening = position > this->current_position_;
+  if (this->queue_command_(opening ? COMMAND_OPEN : COMMAND_CLOSE))
+    this->goto_position_ = position;
 }
 
 void Hoermann::record_response_() {
@@ -244,16 +270,17 @@ void Hoermann::set_valid_(bool valid) {
   if (valid) {
     ESP_LOGI(TAG, "Bus controller connected");
   } else {
-    ESP_LOGW(TAG, "Bus controller connection lost (no request for %ums)",
-             static_cast<unsigned>(millis() - this->last_response_));
+    ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
   }
 }
+
 void Hoermann::set_door_state_(DoorState state) {
   if (this->door_state_ != state) {
     this->door_state_ = state;
     this->changed_ = true;
   }
 }
+
 void Hoermann::set_current_position_(float position) {
   if (this->current_position_ != position) {
     this->current_position_ = position;

@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import cover
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import CONF_HOERMANN_ID, Hoermann, hoermann_ns
 
@@ -15,8 +16,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = await cover.new_cover(config)
-    await cg.register_component(var, config)
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_HOERMANN_ID])
-    cg.add(var.set_parent(parent))
+    var = await cover.new_cover(config, parent)
+    await cg.register_component(var, config)

@@ -8,14 +8,16 @@ namespace esphome::hoermann {
 
 class HoermannCover : public cover::Cover, public Component {
  public:
+  explicit HoermannCover(Hoermann *parent) : parent_(parent) {}
+
   void setup() override;
-  void set_parent(Hoermann *parent) { this->parent_ = parent; }
+  void dump_config() override;
   cover::CoverTraits get_traits() override;
   void control(const cover::CoverCall &call) override;
 
  protected:
   void update_from_state_();
-  Hoermann *parent_{nullptr};
+  Hoermann *parent_;
   float previous_position_{0.0f};
   cover::CoverOperation previous_operation_{cover::COVER_OPERATION_IDLE};
 };

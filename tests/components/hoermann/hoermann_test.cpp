@@ -84,4 +84,36 @@ TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
   EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
 }
 
+// The vent position is reported as state 0x00 with low byte 0x61, so a change confined to the low byte of
+// the state register still has to be decoded.
+TEST(HoermannWrite, VentIsDecodedFromTheStateLowByte) {
+  Hoermann door;
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0100}));
+  ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0061}));
+  EXPECT_EQ(door.get_door_state(), DoorState::VENT);
+}
+
+// A position request below the lower snap threshold becomes a plain close command.
+TEST(HoermannPosition, NearlyClosedTargetClosesTheDoor) {
+  Hoermann door;
+  door.set_position(0.02f);
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[2], 0x0220);  // COMMAND_CLOSE "key pressed" value
+}
+
+// A half-open target starts the door moving towards the requested position.
+TEST(HoermannPosition, HalfOpenTargetOpensTheDoor) {
+  Hoermann door;  // starts out fully closed
+  door.set_position(0.5f);
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[2], 0x0210);  // COMMAND_OPEN "key pressed" value
+}
+
 }  // namespace esphome::hoermann
