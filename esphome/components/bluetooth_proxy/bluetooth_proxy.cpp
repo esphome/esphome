@@ -8,6 +8,7 @@
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <limits>
 
@@ -26,14 +27,6 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 #ifdef USE_ESP32
 
-void BluetoothProxy::setup() {
-  this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
-  this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
-
-  // Capture the configured scan mode from YAML before any API changes
-  this->configured_scan_active_ = this->parent_->get_scan_active();
-}
-
 void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
   if (this->api_connection_ != nullptr) {
     this->send_bluetooth_scanner_state_(state);
@@ -43,8 +36,8 @@ void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
 void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state) {
   api::BluetoothScannerStateResponse resp;
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
-  resp.mode = this->parent_->get_scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
-                                               : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
+  resp.mode = this->hub_->scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
+                                        : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
   resp.configured_mode = this->configured_scan_active_
                              ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
                              : api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_PASSIVE;
@@ -52,45 +45,6 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
 }
 
 #else  // !USE_ESP32
-
-void BluetoothProxy::setup() {
-  // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
-  this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
-  this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
-
-  // Capture the configured scan mode from YAML before any API changes
-  this->configured_scan_active_ = this->hub_->scan_active();
-
-  // The hub delivers raw advertisements on the ESPHome main loop:
-  // mac is least-significant octet first (BLE controller convention).
-  this->hub_->set_raw_advertisement_callback({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
-                                                static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
-                                              }});
-}
-
-void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw) {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
-    return;
-
-  auto &adv = this->response_.advertisements[this->response_.advertisements_len];
-  // raw.mac is LSB-first; this yields the same uint64 the esp32 proxy sends.
-  adv.address = ble_device_base::mac_lsb_first_to_uint64(raw.mac);
-  adv.rssi = raw.rssi;
-  adv.address_type = raw.addr_type;
-  uint8_t length = raw.data_len > sizeof(adv.data) ? sizeof(adv.data) : static_cast<uint8_t>(raw.data_len);
-  adv.data_len = length;
-  std::memcpy(adv.data, raw.data, length);
-
-  this->response_.advertisements_len++;
-
-  ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", raw.mac[5], raw.mac[4],
-           raw.mac[3], raw.mac[2], raw.mac[1], raw.mac[0], length, raw.rssi);
-
-  // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
-  if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-    this->flush_pending_advertisements_();
-  }
-}
 
 void BluetoothProxy::send_bluetooth_scanner_state_() {
   // One read feeds both the frame and the change detector; the detector only
@@ -112,6 +66,42 @@ void BluetoothProxy::send_bluetooth_scanner_state_() {
 
 #endif  // USE_ESP32
 
+void BluetoothProxy::setup() {
+  // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
+  this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
+  this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
+
+  // Capture the configured scan mode from YAML before any API changes
+  this->configured_scan_active_ = this->hub_->scan_active();
+
+  this->hub_->set_raw_advertisement_callback({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
+                                                static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
+                                              }});
+}
+
+// The hub delivers raw advertisements on the ESPHome main loop.
+void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw) {
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
+    return;
+
+  auto &adv = this->response_.advertisements[this->response_.advertisements_len];
+  adv.address = raw.address;
+  adv.rssi = raw.rssi;
+  adv.address_type = raw.addr_type;
+  uint8_t length = raw.data_len > sizeof(adv.data) ? sizeof(adv.data) : static_cast<uint8_t>(raw.data_len);
+  adv.data_len = length;
+  std::memcpy(adv.data, raw.data, length);
+
+  this->response_.advertisements_len++;
+
+  ESP_LOGV(TAG, "Queuing raw packet from %012" PRIX64 ", length %d. RSSI: %d dB", raw.address, length, raw.rssi);
+
+  // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
+  if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
+    this->flush_pending_advertisements_();
+  }
+}
+
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connection, ClientState state) {
   ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, state: %s", connection->get_connection_index(),
@@ -132,50 +122,6 @@ void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handl
   this->log_not_connected_gatt_(action, type);
   this->send_gatt_error(address, handle, GATT_NOT_CONNECTED);
 }
-
-#ifdef USE_ESP32
-
-#ifdef USE_ESP32_BLE_DEVICE
-bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  // This method should never be called since bluetooth_proxy always uses raw advertisements
-  // but we need to provide an implementation to satisfy the virtual method requirement
-  return false;
-}
-#endif
-
-bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
-    return false;
-
-  auto &advertisements = this->response_.advertisements;
-
-  for (size_t i = 0; i < count; i++) {
-    auto &result = scan_results[i];
-    uint8_t length = result.adv_data_len + result.scan_rsp_len;
-
-    // Fill in the data directly at current position
-    auto &adv = advertisements[this->response_.advertisements_len];
-    adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
-    adv.rssi = result.rssi;
-    adv.address_type = result.ble_addr_type;
-    adv.data_len = length;
-    std::memcpy(adv.data, result.ble_adv, length);
-
-    this->response_.advertisements_len++;
-
-    ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
-             result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
-
-    // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
-    if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-      this->flush_pending_advertisements_();
-    }
-  }
-
-  return true;
-}
-
-#endif  // USE_ESP32
 
 void BluetoothProxy::log_advertisement_flush_() {
   ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
@@ -234,10 +180,6 @@ void BluetoothProxy::loop() {
       connection->disconnect();
     }
   }
-}
-
-esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
-  return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
 }
 
 #endif  // USE_ESP32
@@ -522,13 +464,13 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->parent_->get_scan_active() == active) {
+  if (this->parent_()->get_scan_active() == active) {
     return;
   }
   ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-  this->parent_->set_scan_active(active);
-  this->parent_->stop_scan();
-  this->parent_->set_scan_continuous(
+  this->parent_()->set_scan_active(active);
+  this->parent_()->stop_scan();
+  this->parent_()->set_scan_continuous(
       true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
@@ -675,8 +617,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
 #ifdef USE_ESP32
-  this->parent_->recalculate_advertisement_parser_types();
-  this->send_bluetooth_scanner_state_(this->parent_->get_scanner_state());
+  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
 #else
   this->send_bluetooth_scanner_state_();
 #endif
@@ -688,9 +629,6 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
-#ifdef USE_ESP32
-  this->parent_->recalculate_advertisement_parser_types();
-#endif
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
