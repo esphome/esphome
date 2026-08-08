@@ -271,7 +271,9 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
   // Safe because ESP32BLETracker (singleton) outlives all registered clients.
   client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
-  this->recalculate_parse_advertisements_();
+  // Registration is add-only, so the flag is a monotonic OR.
+  if (client->wants_parsed_advertisements())
+    this->parse_advertisements_ = true;
 #endif
 }
 
@@ -294,30 +296,7 @@ void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   listener->set_parent(this);
   this->listeners_.push_back(listener);
-  this->recalculate_parse_advertisements_();
-#endif
-}
-
-void ESP32BLETracker::recalculate_parse_advertisements_() {
-  this->parse_advertisements_ = false;
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Neutral (BLEHub) listeners are parsed-advertisement consumers and are not in
-  // listeners_; without this, any later esp32-path registration (e.g. the proxy's
-  // GATT clients) would recompute the flag and silently drop parsed dispatch.
-  if (!this->neutral_listeners_.empty())
-    this->parse_advertisements_ = true;
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    if (listener->wants_parsed_advertisements())
-      this->parse_advertisements_ = true;
-  }
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  for (auto *client : this->clients_) {
-    if (client->wants_parsed_advertisements())
-      this->parse_advertisements_ = true;
-  }
+  this->parse_advertisements_ = true;
 #endif
 }
 

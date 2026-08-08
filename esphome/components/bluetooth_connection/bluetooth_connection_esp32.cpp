@@ -479,11 +479,6 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
   return this->check_and_log_error_("esp_ble_gattc_unregister_for_notify", err);
 }
 
-bool BluetoothConnection::wants_parsed_advertisements() {
-  // The proxy's connections never consume parsed ESPBTDevice objects.
-  return false;
-}
-
 }  // namespace esphome::bluetooth_connection
 
 #endif  // USE_ESP32
