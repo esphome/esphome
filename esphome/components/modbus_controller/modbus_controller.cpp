@@ -428,10 +428,9 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  // Packed straight into the exact-size payload. A transient CoilPackBuffer would cost 246 bytes of
-  // stack to pack the single coil the in-tree callers send, and its capacity would silently truncate a
-  // longer set while the quantity field still claimed all of it. Built at its true byte count, an
-  // over-long set instead produces an oversize frame the hub refuses and logs.
+  // Packed straight into an exact-size payload: no fixed staging buffer to burn stack on the single
+  // coil in-tree callers send, and an over-long set makes an oversize frame the hub rejects and logs
+  // rather than being silently truncated while the quantity field still claims every coil.
   const size_t byte_count = modbus::packed_bit_bytes(values.size());
   uint8_t *p = cmd.payload.init(byte_count);
   memset(p, 0, byte_count);

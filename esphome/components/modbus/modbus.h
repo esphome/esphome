@@ -355,13 +355,15 @@ class ModbusServerHub : public Modbus {
   ResponseStatus parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities, const LogString *entity_name,
                                      uint16_t &start_address, uint16_t &count);
 
-  // Parses a coil write PDU (FC 0x05 or 0x0F) into a packed-bit view, shared by the addressed and
-  // broadcast paths so both validate identically. single_bit_storage belongs to the caller and must
-  // outlive packed_bytes: a single-coil write carries a 2-byte value rather than packed bytes, so it is
-  // normalized into that byte and packed_bytes points at it.
-  ResponseStatus parse_write_coils_(uint8_t function_code, std::span<const uint8_t> data, uint16_t &start_address,
-                                    uint16_t &count, std::span<const uint8_t> &packed_bytes,
-                                    uint8_t &single_bit_storage);
+  // Parses a single-coil write PDU (FC 0x05), which carries a 2-byte on/off value rather than packed
+  // bytes. The caller packs value into a byte it owns to build the PackedBits view the handlers take.
+  ResponseStatus parse_write_single_coil_(std::span<const uint8_t> data, uint16_t &start_address, bool &value);
+
+  // Parses a multiple-coil write PDU (FC 0x0F) into a packed-bit view pointing straight into the receive
+  // buffer, so the coil values are never copied. Both coil parsers are shared by the addressed and
+  // broadcast paths so the two validate identically.
+  ResponseStatus parse_write_multiple_coils_(std::span<const uint8_t> data, uint16_t &start_address, uint16_t &count,
+                                             std::span<const uint8_t> &packed_bytes);
 
   // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays

@@ -145,11 +145,8 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         }
         return true;
       })) {
-    // VERBOSE, and unconditionally so: the device cannot tell a broadcast from an addressed write (the hub
-    // calls one handler for both), and on a broadcast every device that does not map these registers
-    // rejects, which is the normal case. The hub reports the outcome with the transaction context this
-    // handler lacks: per-device V plus an aggregated warn for broadcasts, a logged exception reply for
-    // addressed requests.
+    // Only VERBOSE: one handler serves both addressed and broadcast writes, and rejecting a broadcast for
+    // registers this device does not map is routine. The hub logs the outcome with the context it has.
     ESP_LOGV(TAG, "Write request rejected before applying any register.");
     return precheck;
   }

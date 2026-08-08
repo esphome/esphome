@@ -436,26 +436,22 @@ ResponseStatus ModbusServerHub::parse_read_request_(std::span<const uint8_t> dat
   return this->check_address_range_(start_address, count);
 }
 
-ResponseStatus ModbusServerHub::parse_write_coils_(uint8_t function_code, std::span<const uint8_t> data,
-                                                   uint16_t &start_address, uint16_t &count,
-                                                   std::span<const uint8_t> &packed_bytes,
-                                                   uint8_t &single_bit_storage) {
-  // single_bit_storage belongs to the caller and must outlive packed_bytes: a single-coil write carries a
-  // 2-byte value rather than packed bytes, so it is normalized into that byte and packed_bytes points at
-  // it. A multiple-coil write points straight into the receive buffer, so neither form copies the values.
+ResponseStatus ModbusServerHub::parse_write_single_coil_(std::span<const uint8_t> data, uint16_t &start_address,
+                                                         bool &value) {
   start_address = helpers::get_data<uint16_t>(data.data(), 0);
-  if (static_cast<FunctionCode>(function_code) == FunctionCode::WRITE_SINGLE_COIL) {
-    const uint16_t value = helpers::get_data<uint16_t>(data.data(), WRITE_SINGLE_VALUES_OFFSET);
-    if (value != 0xFF00 && value != 0x0000) {
-      ESP_LOGW(TAG, "Invalid coil value 0x%04X", value);
-      return ExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    // No range check needed: one coil can never push start_address + 1 past the address space.
-    single_bit_storage = value == 0xFF00 ? 0x01 : 0x00;
-    count = 1;
-    packed_bytes = std::span<const uint8_t>(&single_bit_storage, 1);
-    return std::nullopt;
+  const uint16_t raw_value = helpers::get_data<uint16_t>(data.data(), WRITE_SINGLE_VALUES_OFFSET);
+  if (raw_value != 0xFF00 && raw_value != 0x0000) {
+    ESP_LOGW(TAG, "Invalid coil value 0x%04X", raw_value);
+    return ExceptionCode::ILLEGAL_DATA_VALUE;
   }
+  // No range check needed: one coil can never push start_address + 1 past the address space.
+  value = raw_value == 0xFF00;
+  return std::nullopt;
+}
+
+ResponseStatus ModbusServerHub::parse_write_multiple_coils_(std::span<const uint8_t> data, uint16_t &start_address,
+                                                            uint16_t &count, std::span<const uint8_t> &packed_bytes) {
+  start_address = helpers::get_data<uint16_t>(data.data(), 0);
   const uint16_t number_of_bits = helpers::get_data<uint16_t>(data.data(), 2);
   const uint8_t number_of_bytes = helpers::get_data<uint8_t>(data.data(), 4);
   if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_WRITE ||
@@ -487,7 +483,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   RegisterValues registers;
   uint16_t coil_count = 0;
   std::span<const uint8_t> packed_bytes;
-  uint8_t single_bit = 0;  // storage for the normalized single-coil value; packed_bytes may point at it
+  uint8_t single_bit = 0;  // backs packed_bytes for a single-coil write, so it must outlive the loop below
   bool coils = false;
   ResponseStatus status;
   switch (static_cast<FunctionCode>(function_code)) {
@@ -497,10 +493,18 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       status = this->parse_write_multiple_(data, start_address, registers);
       break;
-    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_COIL: {
+      coils = true;
+      bool value = false;
+      status = this->parse_write_single_coil_(data, start_address, value);
+      single_bit = value ? 0x01 : 0x00;
+      coil_count = 1;
+      packed_bytes = std::span<const uint8_t>(&single_bit, 1);
+      break;
+    }
     case FunctionCode::WRITE_MULTIPLE_COILS:
       coils = true;
-      status = this->parse_write_coils_(function_code, data, start_address, coil_count, packed_bytes, single_bit);
+      status = this->parse_write_multiple_coils_(data, start_address, coil_count, packed_bytes);
       break;
     default:
       // Reads and read/write require a reply, so they are not valid as broadcasts.
@@ -646,31 +650,19 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     case FunctionCode::READ_DISCRETE_INPUTS: {
       uint16_t start_address;
       uint16_t number_of_bits;
-      // The spec sets the ceiling per function code; both are 2000 today, but they are distinct limits.
-      const bool coils_read = static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS;
       status =
-          this->parse_read_request_(data, coils_read ? MAX_NUM_OF_COILS_TO_READ : MAX_NUM_OF_DISCRETE_INPUTS_TO_READ,
-                                    LOG_STR("bits"), start_address, number_of_bits);
+          this->parse_read_request_(data, MAX_NUM_OF_COILS_TO_READ, LOG_STR("bits"), start_address, number_of_bits);
       if (this->rejected_(address, function_code, status)) {
         return;
       }
-      // Response: byte count(1) + packed bytes. The handler sets its bits directly in the response buffer
-      // via the pre-zeroed span, so there is no intermediate container or repack. Bounds-checked before
-      // writing for the same reason the register path is: the bound travels with the write, so a future
-      // caller entering at a non-zero response_len is rejected instead of overrunning the buffer. The
-      // static_assert beside MAX_NUM_OF_COILS_TO_READ covers the other direction - raising that ceiling.
+      // Response: byte count(1) + packed bytes, written straight into the pre-zeroed response buffer. It
+      // always fits: the parse above caps the count, and a static_assert bounds that against MAX_RAW_SIZE.
       const uint8_t byte_count = static_cast<uint8_t>(packed_bit_bytes(number_of_bits));
-      const size_t required = static_cast<size_t>(response_len) + 1 + byte_count;
-      if (required > sizeof(response_buffer)) {
-        ESP_LOGE(TAG, "Read response needs %zu bytes but only %zu are available", required, sizeof(response_buffer));
-        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
-        return;
-      }
       response_buffer[response_len++] = byte_count;
       std::span<uint8_t> packed_out(response_buffer + response_len, byte_count);
       std::fill(packed_out.begin(), packed_out.end(), 0);
       MutablePackedBits bits(packed_out, number_of_bits);
-      if (coils_read) {
+      if (static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS) {
         status = device->on_read_coils(start_address, bits);
       } else {
         status = device->on_read_discrete_inputs(start_address, bits);
@@ -681,14 +673,27 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       response_len += byte_count;
       break;
     }
-    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_COIL: {
+      // A single coil is handed to the device as a one-bit packed view, the same form a multiple-coil
+      // write takes, so a device only ever implements one coil write handler.
+      uint16_t start_address;
+      bool value = false;
+      status = this->parse_write_single_coil_(data, start_address, value);
+      if (this->rejected_(address, function_code, status)) {
+        return;
+      }
+      const uint8_t single_bit = value ? 0x01 : 0x00;
+      status = device->on_write_coils(start_address, PackedBits(std::span<const uint8_t>(&single_bit, 1), 1));
+      response_data = data.data();  // echo the request header per Modbus 6.5, 6.11
+      response_len = 4;
+      break;
+    }
     case FunctionCode::WRITE_MULTIPLE_COILS: {
       // Parse and validate the coil write PDU into a packed-bit view; reply with an exception on failure.
       uint16_t start_address;
       uint16_t count;
       std::span<const uint8_t> packed_bytes;
-      uint8_t single_bit = 0;  // storage for the normalized single-coil value; packed_bytes may point at it
-      status = this->parse_write_coils_(function_code, data, start_address, count, packed_bytes, single_bit);
+      status = this->parse_write_multiple_coils_(data, start_address, count, packed_bytes);
       if (this->rejected_(address, function_code, status)) {
         return;
       }
