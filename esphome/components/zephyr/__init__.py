@@ -562,8 +562,6 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
-        # zephyr_add_prj_conf("NEWLIB_LIBC", True)
-        # zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
