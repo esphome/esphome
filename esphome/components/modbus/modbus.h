@@ -330,12 +330,22 @@ class ModbusServerHub : public Modbus {
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
+  // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
+  void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
+  // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the host-order register
+  // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
+  // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
+  // writes (which silently drop invalid frames).
+  ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
+  ResponseStatus parse_write_multiple_(std::span<const uint8_t> data, uint16_t &start_address,
+                                       RegisterValues &registers);
+  // Appends the big-endian register values in values to registers, in host byte order.
+  void assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
-  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
-  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                             uint16_t number_of_registers);
+  // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
+  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
+  ResponseStatus check_register_range_(uint16_t start_address, uint16_t number_of_registers);
 
   // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays
@@ -603,9 +613,18 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
+  // Hub entry point for broadcast (address 0) writes, which are never answered.
+  ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    this->broadcast_write_ = true;
+    ResponseStatus status = this->on_write_registers(start_address, registers);
+    this->broadcast_write_ = false;
+    return status;
+  }
 
  protected:
   uint8_t address_{0};
+  // Set while handling a broadcast write: the caller sends no reply, so a rejection has no wire consequence.
+  bool broadcast_write_{false};
 };
 
 }  // namespace esphome::modbus
