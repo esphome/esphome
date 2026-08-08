@@ -13,6 +13,7 @@
 
 #include "ble_device.h"
 
+#include <concepts>
 #include <cstdint>
 
 namespace esphome::ble_device_base {
@@ -102,11 +103,11 @@ concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdver
                                   uint8_t *mac) {
   hub.register_listener(listener);
   hub.set_raw_advertisement_callback(raw_callback);
-  T::get_capabilities();
+  { T::get_capabilities() } -> std::same_as<HubCapabilities>;
   hub.get_adapter_mac(mac);
-  hub.scan_running();
-  hub.scan_active();
-  hub.request_scan_mode(true);
+  { hub.scan_running() } -> std::same_as<bool>;
+  { hub.scan_active() } -> std::same_as<bool>;
+  { hub.request_scan_mode(true) } -> std::same_as<bool>;
 };
 
 }  // namespace esphome::ble_device_base
