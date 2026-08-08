@@ -14,9 +14,16 @@ namespace esphome::ble_device_base::testing {
 struct RecordingSink {
   void on_connection_state(bool connected, uint16_t mtu, int error) { this->connected_ = connected; }
   void on_service_discovery_done(int error) { this->discovery_error_ = error; }
+  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
+  void on_write_result(uint16_t handle, int error) {}
+  void on_notify_state(uint16_t handle, bool enabled, int error) {}
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {}
+  void on_pairing_result(int status) {}
   bool connected_{false};
   int discovery_error_{0};
 };
+
+static_assert(GattClientEventSinkContract<RecordingSink>, "the recording sink must cover the full event-sink surface");
 
 class MinimalConnection {
  public:
@@ -49,7 +56,7 @@ class MinimalConnection {
   RecordingSink *listener_{nullptr};
 };
 
-static_assert(BLEGattConnectionContract<MinimalConnection>,
+static_assert(BLEGattConnectionContract<MinimalConnection, RecordingSink>,
               "a minimal backend must satisfy the contract the alias asserts");
 
 TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {

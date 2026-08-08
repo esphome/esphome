@@ -128,6 +128,9 @@ class BluetoothConnection final {
   bool services_discovered_{false};
 };
 
+static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
+              "The hub wrapper is missing part of the event-sink surface (ble_gatt_client.h)");
+
 }  // namespace esphome::bluetooth_connection
 
 #endif  // !USE_ESP32 && USE_BLE_GATT_CLIENT

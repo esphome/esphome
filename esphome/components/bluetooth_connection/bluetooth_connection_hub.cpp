@@ -96,7 +96,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->proxy_->reset_connection_slot_(this, reason);
 }
 
-// ---- GattClientEventListener ----
+// ---- backend event sink ----
 
 void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int error) {
   if (connected && this->address_ == 0) {

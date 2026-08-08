@@ -88,12 +88,9 @@ struct GattServiceTable {
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
 //   released after streaming (release is idempotent).
-// Backends also provide set_listener(BluetoothConnection *) and call the
-// wrapper's sink methods directly: on_connection_state (MTU + HCI status),
-// on_service_discovery_done, on_read_result, on_write_result,
-// on_notify_state, on_notify_data, on_pairing_result.
-template<typename T>
-concept BLEGattConnectionContract = requires(T conn, const uint8_t *data) {
+template<typename T, typename Sink>
+concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *data) {
+  conn.set_listener(sink);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
   { conn.disconnect() } -> std::same_as<int>;
   { conn.discover_services() } -> std::same_as<int>;
@@ -105,7 +102,21 @@ concept BLEGattConnectionContract = requires(T conn, const uint8_t *data) {
   { conn.pair() } -> std::same_as<int>;
   { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
   { conn.get_service_table() } -> std::same_as<GattServiceTable>;
-  conn.release_services();
+  { conn.release_services() } -> std::same_as<void>;
+};
+
+// The event sink the backend calls directly (the hub BluetoothConnection
+// wrapper), asserted where the wrapper is defined: on_connection_state
+// carries the negotiated MTU and an HCI status/disconnect reason.
+template<typename S>
+concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
+  { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_service_discovery_done(int{}) } -> std::same_as<void>;
+  { sink.on_read_result(uint16_t{}, data, uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_write_result(uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_notify_state(uint16_t{}, true, int{}) } -> std::same_as<void>;
+  { sink.on_notify_data(uint16_t{}, data, uint16_t{}) } -> std::same_as<void>;
+  { sink.on_pairing_result(int{}) } -> std::same_as<void>;
 };
 
 }  // namespace esphome::ble_device_base

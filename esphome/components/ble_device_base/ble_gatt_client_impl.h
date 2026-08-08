@@ -15,6 +15,9 @@
 #if defined(USE_RP2040_BLE)
 #include "esphome/components/bluetooth_connection/bluetooth_connection_rp2.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::RP2GattClient
+namespace esphome::bluetooth_connection {
+class BluetoothConnection;
+}  // namespace esphome::bluetooth_connection
 #else
 // No platform engine in this build: host unit tests compile the hub wrapper
 // standalone, so bind a do-nothing backend. Real builds cannot land here
@@ -52,7 +55,7 @@ class StubGattBackend {
 namespace esphome::ble_device_base {
 
 using BLEGattConnection = ESPHOME_BLE_GATT_CONNECTION_TYPE;
-static_assert(BLEGattConnectionContract<BLEGattConnection>,
+static_assert(BLEGattConnectionContract<BLEGattConnection, bluetooth_connection::BluetoothConnection>,
               "The build's GATT backend is missing part of the BLEGattConnection surface (ble_gatt_client.h)");
 #undef ESPHOME_BLE_GATT_CONNECTION_TYPE
 
