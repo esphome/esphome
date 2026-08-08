@@ -122,7 +122,9 @@ bool ESP32Can::setup_internal() {
 canbus::CanEventFlags ESP32Can::get_events() {
   uint32_t events = 0;
   uint32_t alerts;
-  if (twai_read_alerts_v2(this->twai_handle_, &alerts, 0) == ESP_OK) {
+
+  esp_err_t err = twai_read_alerts_v2(this->twai_handle_, &alerts, 0);
+  if (err == ESP_OK) {
     if (alerts & TWAI_ALERT_ABOVE_ERR_WARN) {
       events |= canbus::CAN_EVENT_ABOVE_WARNING;
     }
@@ -157,7 +159,7 @@ canbus::CanEventFlags ESP32Can::get_events() {
     if (alerts & TWAI_ALERT_RX_QUEUE_FULL) {
       events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
     }
-  } else {
+  } else if (err != ESP_ERR_TIMEOUT) {
     ESP_LOGD(TAG, "failed to get CAN events");
   }
   return static_cast<canbus::CanEventFlags>(events);
