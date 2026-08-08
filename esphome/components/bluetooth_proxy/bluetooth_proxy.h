@@ -204,7 +204,6 @@ class BluetoothProxy final : public Component {
   }
 
  protected:
-  void on_scanner_state_(ble_device_base::ScannerState state);
   bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
 #ifndef USE_ESP32
   void send_polled_scanner_state_();
