@@ -98,6 +98,21 @@ TEST(FindMifareUltralightNdef, NoTlvTagIsRejected) {
   EXPECT_FALSE(pn532.find_mifare_ultralight_ndef_(data, message_length, message_start_index));
 }
 
+// Regression test: the entry size guard (page_3_to_6.size() > p4_offset + 6) is loose enough to admit
+// buffers that are too short to hold the two long-form length bytes once the TLV is offset by leading
+// padding (tlv_offset == 5). Before this fix, that case silently fell through to the short-form branch
+// and reported a bogus 255-byte message instead of failing.
+TEST(FindMifareUltralightNdef, LongFormMarkerWithMissingLengthBytesIsRejected) {
+  TestablePN532 pn532;
+  // Padding pushes the TLV to offset 5; 0x03 FF present, but the two length bytes are missing (size 11).
+  std::vector<uint8_t> data = {0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0xFF};
+  ASSERT_EQ(data.size(), 11u);
+
+  uint32_t message_length = 0;
+  uint8_t message_start_index = 0;
+  EXPECT_FALSE(pn532.find_mifare_ultralight_ndef_(data, message_length, message_start_index));
+}
+
 /// End-to-end regression guard: builds a real 3-record NDEF message (URL, text, and a MIME
 /// record) padded past 255 bytes and wraps it in a Type 2 Tag TLV the way a real tag stores it,
 /// then runs the wrapper through find_mifare_ultralight_ndef_ to locate it, and feeds the located slice back

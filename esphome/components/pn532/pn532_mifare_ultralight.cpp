@@ -33,8 +33,15 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
   if (message_length == 0) {
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
-  // we already read pages 3-6 earlier -- pick up where we left off so we're not re-reading pages
+
+  // data[2] is the CC byte read earlier as part of pages 3-6, same value used by read_mifare_ultralight_capacity_()
+  const uint32_t capacity = data[2] * 8U;
   const uint32_t total_length = message_length + message_start_index;
+  if (total_length > capacity) {
+    ESP_LOGW(TAG, "NDEF message length %" PRIu32 " exceeds tag capacity %" PRIu32, message_length, capacity);
+    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+  }
+  // we already read pages 3-6 earlier -- pick up where we left off so we're not re-reading pages
   const uint16_t read_length = total_length > 12 ? static_cast<uint16_t>(total_length - 12) : 0;
   if (read_length) {
     if (!read_mifare_ultralight_bytes_(nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE + 3, read_length, data)) {
@@ -115,7 +122,12 @@ bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6
 
   // Long-form TLV length: 0x03 0xFF LEN_HI LEN_LO, used whenever the message is >= 255 bytes.
   // Short-form is just 0x03 LEN. See NFC Forum Type 2 Tag Operation spec section 2.3.
-  if (page_3_to_6[p4_offset + tlv_offset + 1] == 0xFF && page_3_to_6.size() > p4_offset + tlv_offset + 3) {
+  if (page_3_to_6[p4_offset + tlv_offset + 1] == 0xFF) {
+    if (page_3_to_6.size() <= p4_offset + tlv_offset + 3) {
+      // long-form marker present but the length bytes weren't read -- fail explicitly instead of
+      // misreporting a 255-byte short-form message
+      return false;
+    }
     message_length =
         (static_cast<uint32_t>(page_3_to_6[p4_offset + tlv_offset + 2]) << 8) | page_3_to_6[p4_offset + tlv_offset + 3];
     message_start_index = tlv_offset + 4;
