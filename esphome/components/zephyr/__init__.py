@@ -587,7 +587,10 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() not in (ZEPHYR_VARIANT_NATIVE_SIM, ZEPHYR_VARIANT_STM32):
+    # temporarily skip watchdog setup on stm32
+    if zephyr_variant() is not None and zephyr_variant() not in (
+        ZEPHYR_VARIANT_NATIVE_SIM, ZEPHYR_VARIANT_STM32
+    ):
         zephyr_add_prj_conf("WATCHDOG", True)
         zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
