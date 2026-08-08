@@ -27,16 +27,20 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 // The neutral enum's values are the wire values.
 static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::IDLE) == api::enums::BLUETOOTH_SCANNER_STATE_IDLE);
+static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::STARTING) ==
+              api::enums::BLUETOOTH_SCANNER_STATE_STARTING);
+static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::RUNNING) ==
+              api::enums::BLUETOOTH_SCANNER_STATE_RUNNING);
+static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::FAILED) ==
+              api::enums::BLUETOOTH_SCANNER_STATE_FAILED);
+static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::STOPPING) ==
+              api::enums::BLUETOOTH_SCANNER_STATE_STOPPING);
 static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::STOPPED) ==
               api::enums::BLUETOOTH_SCANNER_STATE_STOPPED);
 
-void BluetoothProxy::on_scanner_state_(ble_device_base::ScannerState state) {
-  if (this->api_connection_ != nullptr) {
-    this->send_bluetooth_scanner_state_(state);
-  }
-}
-
 bool BluetoothProxy::send_bluetooth_scanner_state_(ble_device_base::ScannerState state) {
+  if (this->api_connection_ == nullptr)
+    return false;
   api::BluetoothScannerStateResponse resp;
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
   resp.mode = this->hub_->scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
@@ -72,7 +76,7 @@ void BluetoothProxy::setup() {
                                                 static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
                                               }});
   this->hub_->set_scanner_state_callback({this, [](void *self, ble_device_base::ScannerState state) {
-                                            static_cast<BluetoothProxy *>(self)->on_scanner_state_(state);
+                                            static_cast<BluetoothProxy *>(self)->send_bluetooth_scanner_state_(state);
                                           }});
 }
 
@@ -503,7 +507,8 @@ void BluetoothProxy::loop() {
     return;
   }
 
-  // The hub has no scanner-state listener interface; poll and report on change.
+  // This hub doesn't push scanner-state transitions; poll and report on
+  // change. A hub gaining push must also refresh last_scan_running_ here.
   if (this->hub_->scan_running() != this->last_scan_running_) {
     this->send_polled_scanner_state_();
   }
@@ -614,7 +619,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
 #ifdef USE_ESP32
-  this->send_bluetooth_scanner_state_(static_cast<ble_device_base::ScannerState>(this->parent_()->get_scanner_state()));
+  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
 #else
   this->send_polled_scanner_state_();
 #endif
