@@ -24,6 +24,17 @@ namespace {
 float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
 float gain_multiplier(Gain gain) { return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1)); }
 
+const char *model_name(Model model) {
+  switch (model) {
+    case Model::AS7341:
+      return "AS7341";
+    case Model::TCS3448:
+      return "TCS3448";
+    default:
+      return "AS7343";
+  }
+}
+
 }  // namespace
 
 void AS734XComponent::setup_model(Model model) {
@@ -37,6 +48,7 @@ void AS734XComponent::setup_model(Model model) {
 #endif
 #ifdef USE_AS7343
     case Model::AS7343:
+    case Model::TCS3448:
       this->device_ = new AS7343(this);  // NOLINT(cppcoreguidelines-owning-memory)
       break;
 #endif
@@ -89,8 +101,7 @@ void AS734XComponent::dump_config() {
                 "  Gain: %gx\n"
                 "  ATIME: %u\n"
                 "  ASTEP: %u",
-                this->model_ == Model::AS7341 ? "AS7341" : "AS7343", gain_multiplier(this->gain_), this->atime_,
-                this->astep_);
+                model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
 }
 
 void AS734XComponent::update() {

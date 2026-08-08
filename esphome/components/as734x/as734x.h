@@ -12,6 +12,7 @@ namespace esphome::as734x {
 enum class Model : uint8_t {
   AS7341 = 41,
   AS7343 = 43,
+  TCS3448 = 48,  // AS7343 register map and calibration, different I2C address
 };
 
 enum Gain : uint8_t {

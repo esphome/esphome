@@ -37,6 +37,7 @@ ICON_COUNTS = "mdi:counter"
 
 MODEL_AS7341 = "AS7341"
 MODEL_AS7343 = "AS7343"
+MODEL_TCS3448 = "TCS3448"
 
 as734x_ns = cg.esphome_ns.namespace("as734x")
 AS734XComponent = as734x_ns.class_(
@@ -47,7 +48,11 @@ AS734X_Models = as734x_ns.enum("Model", True)
 AS734X_MODELS = {
     MODEL_AS7341: AS734X_Models.AS7341,
     MODEL_AS7343: AS734X_Models.AS7343,
+    MODEL_TCS3448: AS734X_Models.TCS3448,
 }
+
+# The TCS3448 shares the AS7343 register map and calibration, but answers on a different address.
+TCS3448_ADDRESS = 0x59
 
 Gain = as734x_ns.enum("Gain")
 GAIN_OPTIONS_41 = {
@@ -129,6 +134,13 @@ _COMMON_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x39))
 )
 
+_AS7343_SCHEMA = _COMMON_SCHEMA.extend(
+    {
+        cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_43),
+        cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_43,
+    }
+)
+
 
 def _validate_exposure(config: ConfigType) -> ConfigType:
     if config[CONF_ATIME] == 0 and config[CONF_ASTEP] == 0:
@@ -145,11 +157,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_41,
                 }
             ),
-            MODEL_AS7343: _COMMON_SCHEMA.extend(
-                {
-                    cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS_43),
-                    cv.Optional(CONF_COUNTS): COUNTS_SCHEMA_43,
-                }
+            MODEL_AS7343: _AS7343_SCHEMA,
+            MODEL_TCS3448: _AS7343_SCHEMA.extend(
+                i2c.i2c_device_schema(TCS3448_ADDRESS)
             ),
         },
         upper=True,
@@ -161,7 +171,8 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     model = config[CONF_TYPE]
-    cg.add_build_flag("-DUSE_" + str(model))
+    driver = MODEL_AS7343 if model == MODEL_TCS3448 else model
+    cg.add_build_flag("-DUSE_" + str(driver))
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
