@@ -690,10 +690,7 @@ float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 void ESP32BLE::dump_config() {
   uint8_t mac_address[6];
   this->get_mac_msb_first(mac_address);
-  bool mac_known = false;
-  for (uint8_t b : mac_address)
-    mac_known |= b != 0;
-  if (mac_known) {
+  if (mac_address_is_valid(mac_address)) {
     const char *io_capability_s;
     switch (this->io_cap_) {
       case ESP_IO_CAP_OUT:
