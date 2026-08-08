@@ -71,6 +71,21 @@ def test_rejects_uart_shared_with_another_component(
         _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
 
 
+def test_rejects_cdc_interface_shared_with_another_component(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The CDC instance is itself a uart::UARTComponent, so other components can bind
+    # it as a plain UART via uart_id -- that must be rejected just like UART sharing.
+    _set_esp32_s3(
+        set_core_config,
+        full_config={
+            "sensor": [{"platform": "pzemac", CONF_UART_ID: ID("cdc_acm_1")}],
+        },
+    )
+    with pytest.raises(cv.Invalid, match="exclusive"):
+        _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
+
+
 def test_rejects_uart_referenced_from_nested_config(
     set_core_config: SetCoreConfigCallable,
 ) -> None:

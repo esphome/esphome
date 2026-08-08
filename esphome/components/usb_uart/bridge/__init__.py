@@ -4,7 +4,6 @@ from esphome.components import esp32, uart, usb_cdc_acm
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID
-from esphome.core import CORE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kbx81"]
@@ -60,7 +59,7 @@ def _final_validate(config):
     # bridges shared either, their RX/TX tasks would contend on the same ring buffers
     # (and the second setup() would silently overwrite the first's line callbacks),
     # corrupting both streams with no runtime error. Reject duplicates at config time.
-    data = CORE.data.setdefault(DOMAIN, {})
+    data = fv.full_config.get().data.setdefault(DOMAIN, {})
     for conf_key, label in (
         (CONF_UART_ID, "UART"),
         (CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface"),
@@ -76,21 +75,27 @@ def _final_validate(config):
         used.add(key)
 
     # The same exclusivity applies to regular UART devices: the bridge's worker tasks
-    # own the UART driver, so any other consumer would read/write it from the main
-    # loop and race them, garbling both streams. Scan the rest of the config for
-    # anything else referencing this bus via uart_id. (References through a bare
-    # `id:`, such as a uart.write action, cannot be distinguished and aren't caught.)
-    uart_id = str(config[CONF_UART_ID])
-    for domain, domain_conf in fv.full_config.get().items():
-        # Bridge-vs-bridge sharing is already rejected above.
-        if domain == "bridge":
-            continue
-        if _subtree_references_uart(domain_conf, uart_id):
-            raise cv.Invalid(
-                f"The UART '{uart_id}' is also used by '{domain}'; a bridge requires "
-                f"exclusive use of its UART.",
-                [CONF_UART_ID],
-            )
+    # own the UART driver and the CDC interface's ring buffers, so any other consumer
+    # would read/write them from the main loop and race the tasks, garbling both
+    # streams. The CDC instance is itself a uart::UARTComponent, so other components
+    # bind either one through the same uart_id key -- scan the rest of the config for
+    # anything referencing them. (References through a bare `id:`, such as a
+    # uart.write action, cannot be distinguished and aren't caught.)
+    for conf_key, label in (
+        (CONF_UART_ID, "UART"),
+        (CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface"),
+    ):
+        owned_id = str(config[conf_key])
+        for domain, domain_conf in fv.full_config.get().items():
+            # Bridge-vs-bridge sharing is already rejected above.
+            if domain == "bridge":
+                continue
+            if _subtree_references_uart(domain_conf, owned_id):
+                raise cv.Invalid(
+                    f"The {label} '{owned_id}' is also used by '{domain}'; a bridge "
+                    f"requires exclusive use of its {label}.",
+                    [conf_key],
+                )
     return config
 
 

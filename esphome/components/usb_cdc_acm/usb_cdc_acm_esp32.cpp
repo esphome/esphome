@@ -104,30 +104,6 @@ static void tinyusb_cdc_line_coding_changed_callback(int itf, cdcacm_event_t *ev
   instance->queue_line_coding_event(bit_rate, stop_bits, parity, data_bits);
 }
 
-static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t x_ticks_to_wait) {
-  size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
-
-  if (buf == nullptr) {
-    return ESP_FAIL;
-  }
-
-  memcpy(out_buf, buf, read_sz);
-  vRingbufferReturnItem(ring_buf, (void *) buf);
-  *rx_data_size = read_sz;
-
-  // Buffer's data can be wrapped, in which case we should perform another read
-  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
-  if (buf != nullptr) {
-    memcpy(out_buf + *rx_data_size, buf, read_sz);
-    vRingbufferReturnItem(ring_buf, (void *) buf);
-    *rx_data_size += read_sz;
-  }
-
-  return ESP_OK;
-}
-
 //==============================================================================
 // USBCDCACMInstance Implementation
 //==============================================================================

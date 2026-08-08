@@ -15,13 +15,18 @@
 
 namespace esphome::usb_uart_bridge {
 
-static constexpr const char *TAG = "usb_uart_bridge";
+static const char *const TAG = "usb_uart_bridge";
 
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
+// Host-requested baud rates outside this range are ignored: the ESP32 UART peripheral
+// supports up to 5 Mbps, and dwDTERate = 0 (the CDC "B0"/hang-up encoding) would reach
+// the UART clock-divider computation as a divide by zero.
+static constexpr uint32_t MIN_BAUD_RATE = 300;
+static constexpr uint32_t MAX_BAUD_RATE = 5000000;
 // Priority for the RX/TX worker tasks; above the default but below the USB/Wi-Fi
 // system tasks so the bridge stays responsive without starving the stack.
 static constexpr UBaseType_t TASK_PRIORITY = 4;
@@ -56,30 +61,6 @@ static bool ringbuf_send_with_retry(RingbufHandle_t ringbuf, const uint8_t *data
     offset += chunk;
   }
   return true;
-}
-
-static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t x_ticks_to_wait) {
-  size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
-
-  if (buf == nullptr) {
-    return ESP_FAIL;
-  }
-
-  memcpy(out_buf, buf, read_sz);
-  vRingbufferReturnItem(ring_buf, (void *) buf);
-  *rx_data_size = read_sz;
-
-  // Buffer's data can be wrapped, in which case we should perform another read
-  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
-  if (buf != nullptr) {
-    memcpy(out_buf + *rx_data_size, buf, read_sz);
-    vRingbufferReturnItem(ring_buf, (void *) buf);
-    *rx_data_size += read_sz;
-  }
-
-  return ESP_OK;
 }
 
 void USBUARTBridge::setup() {
@@ -213,8 +194,10 @@ void USBUARTBridge::set_line_coding() {
   // the earlier parity/stop-bit mapping bugs crept in).
   bool changed = false;
 
+  // The baud rate arrives unvalidated from the wire; ignore values the hardware
+  // cannot do (see MIN/MAX_BAUD_RATE above).
   const uint32_t baud = this->usb_cdc_parent_->get_baud_rate();
-  if (this->uart_parent_->get_baud_rate() != baud) {
+  if (baud >= MIN_BAUD_RATE && baud <= MAX_BAUD_RATE && this->uart_parent_->get_baud_rate() != baud) {
     this->uart_parent_->set_baud_rate(baud);
     changed = true;
   }
@@ -323,7 +306,7 @@ void USBUARTBridge::uart_tx_task_() {
 
   while (true) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");
-    esp_err_t ret = ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, buf_size, &rx_size, portMAX_DELAY);
+    esp_err_t ret = usb_cdc_acm::ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, buf_size, &rx_size, portMAX_DELAY);
 
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "USB RX RingBuf read failed");
