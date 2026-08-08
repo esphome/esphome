@@ -51,6 +51,7 @@ struct RP2GattEvent {
     MTU_EXCHANGED,      // value = negotiated MTU
     QUERY_COMPLETE,     // status = ATT status of the finished query
     WRITE_NO_RSP_DONE,  // status = result of the deferred write
+    PAIRING_RESULT,     // status = SM pairing status (0 = bonded)
   };
   Type type;
   uint8_t status;
@@ -89,6 +90,7 @@ class RP2GattClient final : public Component,
   int read_descriptor(uint16_t handle) override;
   int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) override;
   int notify_characteristic(uint16_t handle, bool enable) override;
+  int pair() override;
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                uint16_t timeout) override;
   ble_device_base::GattServiceTable get_service_table() override;
@@ -120,6 +122,7 @@ class RP2GattClient final : public Component,
   // BTstack packet handlers (IRQ context: copy-and-enqueue only).
   static void hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
   static void gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
+  static void sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
   static RP2GattClient *instance_for_con_handle(hci_con_handle_t con_handle);
 
   void handle_gatt_event_irq_(uint8_t event_type, const uint8_t *packet);
@@ -205,6 +208,8 @@ class RP2GattClient final : public Component,
   static uint8_t instance_count;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static btstack_packet_callback_registration_t hci_event_registration;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static btstack_packet_callback_registration_t sm_event_registration;
 };
 
 }  // namespace esphome::bluetooth_connection
