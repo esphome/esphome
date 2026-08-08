@@ -12,6 +12,7 @@ Scan modes:
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
 from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -22,11 +23,11 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-CONF_RP2040_BLE_ID = "rp2040_ble_id"
-
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
+
+ble_device_base.register_hub_provider("rp2_ble_tracker")
 
 rp2_ble_tracker_ns = cg.esphome_ns.namespace("rp2_ble_tracker")
 RP2BLETracker = rp2_ble_tracker_ns.class_(
