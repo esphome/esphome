@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import ZEPHYR_VARIANT_RP2040
+from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_RP2040
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -32,7 +32,7 @@ VARIANT = ZephyrVariant(
     toolchain="arm-zephyr-eabi",
     transports=frozenset(),
     soc="rp2040",
-    swap_methods=frozenset(),
+    swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
     pwm_node_labels=["pwm"],
 )
@@ -50,7 +50,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        "",
+        BOOTLOADER_MCUBOOT,
         framework_ver,
         config,
         framework_type=sdk_name,
@@ -63,6 +63,7 @@ async def to_code(config: ConfigType) -> None:
     from .. import (
         zephyr_add_overlay,
         zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
         zephyr_setup_preferences,
         zephyr_to_code,
     )
@@ -77,32 +78,77 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("HWINFO", True)
     zephyr_add_prj_conf("TEST_RANDOM_GENERATOR", True)
 
-    # Reserve space for NVS storage partition at end of flash.
-    # Layout targets 2 MB flash (standard on most RP2040 boards including
-    # rpi_pico, rp2040_zero, and waveshare variants). Boards with 4 MB or
-    # 8 MB flash must provide their own partition table via zephyr: overlays:
-    # in the ESPHome YAML config.
-    zephyr_add_overlay(
-        """
-        /delete-node/ &code_partition;
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
+    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+
+    # RP2040 boards ship with a flat code_partition layout in their DTS, not
+    # MCUboot's boot / slot0 / slot1 / storage structure.  Provide a default
+    # 2 MB overlay that both the app and MCUboot can see.  Boards with 4 MB or
+    # 8 MB flash must override the entire partition table via zephyr: overlays:
+    # in their ESPHome YAML.
+    _partition_overlay = """
+        &code_partition {
+            reg = <0x0 0x0>;
+        };
 
         &flash0 {
             partitions {
-                code_partition: partition@100 {
-                    reg = <0x100 0x1f0000>;
+                boot_partition: partition@100 {
+                    label = "mcuboot";
+                    reg = <0x100 0xFF00>;
                     read-only;
                 };
-                storage_partition: partition@1f0100 {
+                slot0_partition: partition@10000 {
+                    label = "image-0";
+                    reg = <0x10000 0xF0000>;
+                };
+                slot1_partition: partition@100000 {
+                    label = "image-1";
+                    reg = <0x100000 0xF0000>;
+                };
+                storage_partition: partition@1F0000 {
                     compatible = "zephyr,mapped-partition";
-                    reg = <0x1f0100 0xff00>;
+                    label = "storage";
+                    reg = <0x1F0000 0x10000>;
                 };
             };
         };
 
         / {
             chosen {
-                zephyr,code-partition = &code_partition;
+                zephyr,code-partition = &slot0_partition;
             };
         };
-        """
-    )
+    """
+    zephyr_add_overlay(_partition_overlay)
+
+    _mcuboot_partition_overlay = """
+        &code_partition {
+            reg = <0x0 0x0>;
+        };
+
+        &flash0 {
+            partitions {
+                boot_partition: partition@100 {
+                    label = "mcuboot";
+                    reg = <0x100 0xFF00>;
+                    read-only;
+                };
+                slot0_partition: partition@10000 {
+                    label = "image-0";
+                    reg = <0x10000 0xF0000>;
+                };
+                slot1_partition: partition@100000 {
+                    label = "image-1";
+                    reg = <0x100000 0xF0000>;
+                };
+                storage_partition: partition@1F0000 {
+                    compatible = "zephyr,mapped-partition";
+                    label = "storage";
+                    reg = <0x1F0000 0x10000>;
+                };
+            };
+        };
+    """
+    zephyr_add_overlay(_mcuboot_partition_overlay, image="mcuboot")
