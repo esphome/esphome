@@ -46,7 +46,7 @@ struct CapturingSubscriber {
   }
 };
 
-// Device AA:BB:CC:DD:EE:FF — controller order delivers FF first.
+// Device AA:BB:CC:DD:EE:FF, packed the way the API speaks it.
 constexpr uint64_t TEST_ADDRESS = 0xAABBCCDDEEFFULL;
 const uint8_t ADV_DATA[4] = {0x02, 0x01, 0x06, 0x00};
 

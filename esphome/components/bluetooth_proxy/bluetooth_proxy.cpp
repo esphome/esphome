@@ -8,6 +8,7 @@
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <limits>
 
@@ -93,7 +94,7 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
 
   this->response_.advertisements_len++;
 
-  ESP_LOGV(TAG, "Queuing raw packet from %012llX, length %d. RSSI: %d dB", raw.address, length, raw.rssi);
+  ESP_LOGV(TAG, "Queuing raw packet from %012" PRIX64 ", length %d. RSSI: %d dB", raw.address, length, raw.rssi);
 
   // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
   if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
@@ -463,13 +464,13 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->parent_->get_scan_active() == active) {
+  if (this->parent_()->get_scan_active() == active) {
     return;
   }
   ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-  this->parent_->set_scan_active(active);
-  this->parent_->stop_scan();
-  this->parent_->set_scan_continuous(
+  this->parent_()->set_scan_active(active);
+  this->parent_()->stop_scan();
+  this->parent_()->set_scan_continuous(
       true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
@@ -616,7 +617,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
 #ifdef USE_ESP32
-  this->send_bluetooth_scanner_state_(this->parent_->get_scanner_state());
+  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
 #else
   this->send_bluetooth_scanner_state_();
 #endif
