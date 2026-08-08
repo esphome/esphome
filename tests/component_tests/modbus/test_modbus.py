@@ -33,6 +33,7 @@ def test_server_schema_rejects_address_zero() -> None:
 
 
 def test_client_schema_still_accepts_address_zero() -> None:
-    # The default client-role schema keeps hex_uint8_t, so address 0 remains valid for clients.
+    # Not rejected for clients today, but not supported either: a client broadcast gets no reply and
+    # stalls the hub for the full send-wait.
     schema = modbus.modbus_device_schema(0x01)
     assert schema({CONF_MODBUS_ID: "hub", CONF_ADDRESS: 0})[CONF_ADDRESS] == 0
