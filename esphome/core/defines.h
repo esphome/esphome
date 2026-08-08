@@ -52,7 +52,10 @@
 #define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #define USE_API_HOMEASSISTANT_SERVICES
 #define USE_API_HOMEASSISTANT_STATES
+// nrf52-tidy's lib_deps doesn't declare esphome/noise-c, so noise/protocol.h isn't found.
+#ifndef USE_NRF52
 #define USE_API_NOISE
+#endif
 #define USE_API_VARINT64
 #define USE_API_PLAINTEXT
 #define USE_API_USER_DEFINED_ACTIONS
@@ -146,7 +149,10 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
+// md5.h has no MD5_CTX_TYPE branch for USE_NRF52
+#ifndef USE_NRF52
 #define USE_MD5
+#endif
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
 #define MDNS_SERVICE_COUNT 3
@@ -248,6 +254,30 @@
 #define USE_NATIVE_64BIT_TIME
 #endif
 
+// bluetooth_proxy runs on any platform with a BLE hub (advertisement-only off
+// esp32). Declared here per analysis ENVIRONMENT, not per hub platform —
+// USE_LIBRETINY also covers chips with no hub, e.g. rtl87xx (the authoritative
+// gate is _HUB_PLATFORMS in bluetooth_proxy/__init__.py) — so the neutral
+// declarations in bluetooth_proxy.h are parsed under LibreTiny static analysis
+// (the header is included by api_connection.cpp, which the tidy filter selects;
+// the proxy's own .cpp is not a selected translation unit). Not declared for
+// platforms whose API/network types the proxy header cannot assume.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
+#define USE_BLUETOOTH_PROXY
+// Mirror the codegen values per platform: _to_code_esp32() emits the connection
+// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
+// advertisement-only hubs) — so static analysis checks the same
+// std::array<uint64_t, N> instantiation a real build produces.
+#ifdef USE_ESP32
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#elif defined(USE_RP2)
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
+#else
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
+#endif
+#define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
+#endif
+
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESP32_CRASH_HANDLER
@@ -256,6 +286,13 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
 #define USE_OTA_SIGNED_VERIFICATION
+#define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+// Stub values for tooling; a real build's codegen emits these from verification_keys.
+#define OTA_TRUSTED_KEY_COUNT 1
+#define OTA_TRUSTED_KEY_DIGESTS \
+  { \
+    { 0 } \
+  }
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
@@ -263,9 +300,6 @@
 #define USE_ESPNOW
 #define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
-#define USE_BLUETOOTH_PROXY
-#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
-#define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_ESP32_BLE
@@ -284,6 +318,7 @@
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
+#define ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT 1
@@ -435,14 +470,17 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define RP2040_BLE_SCAN_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_GATT_CLIENT
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
@@ -463,6 +501,7 @@
 #define BK72XX_BLE_SCAN_LISTENER_COUNT 1
 #define USE_LN882H_BLE
 #define LN882H_BLE_SCAN_LISTENER_COUNT 1
+#define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
@@ -489,6 +528,8 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
 #define USE_OTA_ROLLBACK
+// All USE_ZEPHYR variants default to BSD sockets.
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 // Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the
 // channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
 // real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.

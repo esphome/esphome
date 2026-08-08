@@ -14,6 +14,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 #include <cstdint>
 #include <cstring>
@@ -85,14 +86,17 @@ class ESPBTUUID {
   bool operator==(const ESPBTUUID &other) const;
   bool operator!=(const ESPBTUUID &other) const { return !(*this == other); }
 
-  /// Write "0xABCD" / "0xABCDEF01" / the dashed 128-bit form into buf
-  /// (>= UUID_STR_LEN bytes) and return buf.
+  /// Write "0xABCD" / "0xABCDEF01" / the dashed 128-bit form, or "None" for an
+  /// unset UUID, into buf (>= UUID_STR_LEN bytes) and return buf.
   const char *to_str(char *buf) const;
 #if defined(__cpp_lib_span)
   const char *to_str(std::span<char, UUID_STR_LEN> output) const { return this->to_str(output.data()); }
 #endif
-  enum class Type : uint8_t { UUID16, UUID32, UUID128 };
+  // UNSET is the default-constructed state; get_uuid() reports it as len 0 (the historical sentinel).
+  enum class Type : uint8_t { UNSET, UUID16, UUID32, UUID128 };
   Type type() const { return this->type_; }
+  /// True if a UUID has been configured (not default-constructed).
+  bool is_set() const { return this->type_ != Type::UNSET; }
   uint16_t uuid16() const { return this->uuid_.uuid16; }
   uint32_t uuid32() const { return this->uuid_.uuid32; }
   const uint8_t *uuid128() const { return this->uuid_.uuid128; }
@@ -101,7 +105,7 @@ class ESPBTUUID {
   // Expand to the 128-bit Bluetooth Base UUID byte form (out is 16 bytes, little-endian).
   void to_128bit_(uint8_t out[16]) const;
 
-  Type type_{Type::UUID16};
+  Type type_{Type::UNSET};
   union {
     uint16_t uuid16;
     uint32_t uuid32;
@@ -126,7 +130,12 @@ class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
   explicit ESPBLEiBeacon(const uint8_t *data);
-  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
+  /// prefix_rejected: caller must initialise to false; set to true ONLY when a
+  /// 23-byte Apple frame was refused for lacking the 0x02/0x15 iBeacon prefix —
+  /// the case the legacy esp32 parser accepted. Never written on accept or on
+  /// the non-Apple/wrong-size rejects. The caller with the device address does
+  /// the logging (see ESPBTDevice::get_ibeacon()).
+  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data, bool *prefix_rejected = nullptr);
 
   uint16_t get_major() const { return byteswap(this->beacon_data_.major); }
   uint16_t get_minor() const { return byteswap(this->beacon_data_.minor); }
@@ -158,6 +167,13 @@ inline uint64_t mac_lsb_first_to_uint64(const uint8_t *mac) {
   return addr;
 }
 
+/// Unpack a uint64 BLE address into printable (MSB-first) byte order —
+/// the order bd_addr_t / esp_bd_addr_t style APIs expect.
+inline void uint64_to_mac_msb_first(uint64_t address, uint8_t out[6]) {
+  for (int i = 0; i < 6; i++)
+    out[i] = (address >> ((5 - i) * 8)) & 0xFF;
+}
+
 // ---------------------------------------------------------------------------
 // ESPBTDevice — parsed BLE advertisement
 // ---------------------------------------------------------------------------
@@ -172,8 +188,9 @@ class ESPBTDevice {
   static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = esphome::MAC_ADDRESS_PRETTY_BUFFER_SIZE;
 
   /// Return MAC as "XX:XX:XX:XX:XX:XX" string.
+  ESPDEPRECATED("Use address_str_to() instead. Removed in 2027.2.0.", "2026.8.0")
   std::string address_str() const;
-  /// Buffer overload: writes "XX:XX:XX:XX:XX:XX\0" into buf (>= 18 bytes), returns buf.
+  /// Writes "XX:XX:XX:XX:XX:XX\0" into buf (>= MAC_ADDRESS_PRETTY_BUFFER_SIZE bytes), returns buf.
   const char *address_str_to(char *buf) const;
 #if defined(__cpp_lib_span)
   const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
@@ -189,6 +206,8 @@ class ESPBTDevice {
   // Historical esp32 signature: consumers assign the result to esp_ble_addr_type_t.
   esp_ble_addr_type_t get_address_type() const { return static_cast<esp_ble_addr_type_t>(this->address_type_); }
   /// Historical esp32 ingest (esp32 builds only): parse an ESP-IDF scan result.
+  /// Prefer ESPBTDevice::from_scan_result(); deprecation is a follow-up pending
+  /// consumer feedback on the raw scan-result fields.
   void parse_scan_rst(const esp32_ble::BLEScanResult &scan_result);
   // Exposed through a function for use in lambdas
   const esp32_ble::BLEScanResult &get_scan_result() const { return *scan_result_; }
@@ -200,7 +219,9 @@ class ESPBTDevice {
   const char *address_type_str() const;
 
   int get_rssi() const { return rssi_; }
-  const std::string &get_name() const { return name_; }
+  /// Advertised name as a view into the fixed buffer (always NUL-terminated,
+  /// so c_str() is safe); converts implicitly to std::string where needed.
+  StringRef get_name() const { return StringRef(this->name_, this->name_len_); }
 
   const std::vector<ESPBTUUID> &get_service_uuids() const { return service_uuids_; }
   const std::vector<ServiceData> &get_manufacturer_datas() const { return manufacturer_datas_; }
@@ -214,22 +235,22 @@ class ESPBTDevice {
   /// decryptor; compiled only when a sensor configures irk: (request_irk_support).
   bool resolve_irk(const uint8_t *irk) const;
 
-  optional<ESPBLEiBeacon> get_ibeacon() const {
-    for (const auto &it : this->manufacturer_datas_) {
-      auto res = ESPBLEiBeacon::from_manufacturer_data(it);
-      if (res.has_value())
-        return res;
-    }
-    return {};
-  }
+  optional<ESPBLEiBeacon> get_ibeacon() const;
 
  protected:
   void parse_adv_(const uint8_t *payload, uint16_t len);
 
+  // Max name bytes in a legacy advertisement AD element (31-byte PDU minus
+  // the 2-byte element header); every in-tree tracker scans legacy PDUs only.
+  static constexpr uint8_t MAX_ADV_NAME_LEN = 29;
+
   uint8_t address_[6]{0};
   uint8_t address_type_{0};
   int rssi_{0};
-  std::string name_{};
+  // Fixed buffer instead of std::string: no per-advertisement heap churn on
+  // the scan path, and no libstdc++ string/exception machinery in the image.
+  char name_[MAX_ADV_NAME_LEN + 1]{};
+  uint8_t name_len_{0};
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};

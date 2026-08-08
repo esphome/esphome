@@ -5,7 +5,6 @@ import io
 import logging
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -289,6 +288,9 @@ def run_external_command(
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
+    # Deferred: an OTA upload/logs run never spawns an external process.
+    import subprocess
+
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -327,13 +329,6 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
-
-
-def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 # Custom OrderedDict with nicer repr method for debugging
@@ -450,6 +445,8 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     Returns a BootselResult with the number of devices found (by counting
     'type:' lines in output), and whether a permission error was detected.
     """
+    import subprocess
+
     try:
         result = subprocess.run(
             [str(picotool_path), "info", "-d"],

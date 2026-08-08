@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
@@ -364,18 +364,24 @@ def run_compile(config, verbose):
 def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    if not isinstance(stdout, str):
+        # run_external_process returns 1 instead of captured output when
+        # launching platformio raised; see the error it logged above.
+        raise EsphomeError("Could not launch platformio to get idedata")
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
-        _LOGGER.error("Could not match idedata, please report this error")
+        # A run that launches but fails emits its build error instead of
+        # idedata; the logged stdout is the useful part, not a bug report.
+        _LOGGER.error("Could not find idedata in the platformio output")
         _LOGGER.error("Stdout: %s", stdout)
-        raise EsphomeError
+        raise EsphomeError("PlatformIO did not report idedata")
 
     try:
         return json.loads(match.group())
-    except ValueError:
+    except ValueError as err:
         _LOGGER.exception("Could not parse idedata")
         _LOGGER.error("Stdout: %s", stdout)
-        raise
+        raise EsphomeError("Could not parse idedata from platformio") from err
 
 
 def _load_idedata(config):
@@ -419,9 +425,27 @@ class IDEData:
     def __init__(self, raw):
         self.raw = raw
 
+    def _require(self, *keys: str) -> Any:
+        """Read a nested key, classifying a miss as an environment error.
+
+        A stale or truncated cached idedata JSON is the user's build
+        tree, not a bug; recompiling regenerates it. The message names
+        the key so a platformio schema change stays diagnosable.
+        """
+        value = self.raw
+        # TypeError covers a key that is null instead of absent.
+        try:
+            for key in keys:
+                value = value[key]
+        except (KeyError, TypeError) as err:
+            raise EsphomeError(
+                f"Cached idedata is incomplete (missing {'.'.join(keys)})"
+            ) from err
+        return value
+
     @property
     def firmware_elf_path(self) -> Path:
-        return Path(self.raw["prog_path"])
+        return Path(self._require("prog_path"))
 
     @property
     def firmware_bin_path(self) -> Path:
@@ -429,15 +453,22 @@ class IDEData:
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
-        return [
-            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
-            for entry in self.raw["extra"]["flash_images"]
-        ]
+        try:
+            return [
+                FlashImage(path=Path(entry["path"]), offset=entry["offset"])
+                for entry in self._require("extra", "flash_images")
+            ]
+        except (KeyError, TypeError) as err:
+            # Covers entries missing path/offset and a null or non-list
+            # flash_images value alike.
+            raise EsphomeError(
+                "Cached idedata is incomplete (malformed extra.flash_images)"
+            ) from err
 
     @property
     def cc_path(self) -> str:
         # For example /Users/<USER>/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc
-        return self.raw["cc_path"]
+        return self._require("cc_path")
 
     @property
     def addr2line_path(self) -> str:

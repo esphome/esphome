@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::modbus_controller {
 
