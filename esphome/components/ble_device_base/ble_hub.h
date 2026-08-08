@@ -97,7 +97,8 @@ struct HubCapabilities {
 //   reports the real state back); true = applied immediately, restarting a
 //   running scan. Honoring is advertised by HubCapabilities::scan_mode_switch.
 // Push hubs additionally provide set_scanner_state_callback(ScannerStateCallback)
-// under USE_BLE_SCANNER_STATE_CALLBACK, deliberately outside the concept.
+// under USE_BLE_SCANNER_STATE_CALLBACK; the concept requires it exactly when
+// that define is set.
 template<typename T>
 concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback,
                                   uint8_t *mac) {
@@ -108,6 +109,9 @@ concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdver
   { hub.scan_running() } -> std::same_as<bool>;
   { hub.scan_active() } -> std::same_as<bool>;
   { hub.request_scan_mode(true) } -> std::same_as<bool>;
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  hub.set_scanner_state_callback(ScannerStateCallback{});
+#endif
 };
 
 }  // namespace esphome::ble_device_base
