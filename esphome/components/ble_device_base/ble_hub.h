@@ -12,6 +12,7 @@
 #pragma once
 
 #include "ble_device.h"
+#include "esphome/core/defines.h"
 
 #include <concepts>
 #include <cstdint>
