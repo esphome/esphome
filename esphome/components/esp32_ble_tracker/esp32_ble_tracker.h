@@ -196,7 +196,7 @@ class ESP32BLETracker final : public Component,
     return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
             /* scan_mode_switch = */ false};
   }
-  void get_adapter_mac(uint8_t out[6]) override;
+  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
   bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
   bool scan_active() override { return this->scan_active_; }
 
