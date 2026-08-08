@@ -20,12 +20,15 @@ ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 _PORT_BANKED_FAMILIES = {"nordic"}
 
 _LETTERED_PIN_RE = re.compile(r"P([A-Za-z])(\d+)")
+_DOTTED_PIN_RE = re.compile(r"P(\d+)\.(\d+)")
 
 
 def _validate_gpio_pin(value):
-    # Accept a flat integer, GPIO<N> notation, or -- for variants with lettered GPIO
-    # ports (gpio_port_labels set, e.g. Silicon Labs' PA/PB/PC/PD) -- that vendor's own
-    # pin nomenclature (e.g. "PA4"), the same string dump_summary() prints back in logs.
+    # Accept a flat integer, GPIO<N> notation, or the variant's own vendor pin
+    # nomenclature -- for variants with lettered GPIO ports (gpio_port_labels set,
+    # e.g. Silicon Labs' PA/PB/PC/PD) that's "PA4"; for port-banked families without
+    # letters (gpio.py's own _PORT_BANKED_FAMILIES, e.g. Nordic) that's the "P0.02"
+    # style dump_summary() already prints back in logs.
     if isinstance(value, int):
         return value
     if isinstance(value, str):
@@ -39,7 +42,9 @@ def _validate_gpio_pin(value):
             from .variants import VARIANTS
 
             variant_info = VARIANTS.get(zephyr_data().get("variant"))
-            port_labels = variant_info.gpio_port_labels if variant_info is not None else None
+            port_labels = (
+                variant_info.gpio_port_labels if variant_info is not None else None
+            )
             if port_labels is None:
                 raise cv.Invalid(
                     f"'{value}' is not a valid pin: this variant uses flat pin "
@@ -47,8 +52,29 @@ def _validate_gpio_pin(value):
                 )
             letter = m.group(1).lower()
             if letter not in port_labels:
-                raise cv.Invalid(f"'{value}' is not a valid pin: unknown port '{letter.upper()}'")
-            return port_labels.index(letter) * variant_info.gpio_port_width + int(m.group(2))
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: unknown port '{letter.upper()}'"
+                )
+            return port_labels.index(letter) * variant_info.gpio_port_width + int(
+                m.group(2)
+            )
+        if (m := _DOTTED_PIN_RE.fullmatch(value)) is not None:
+            from . import zephyr_data
+            from .variants import VARIANTS
+
+            variant_info = VARIANTS.get(zephyr_data().get("variant"))
+            if variant_info is None or variant_info.family not in _PORT_BANKED_FAMILIES:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: this variant does not use "
+                    f"'P<port>.<pin>' notation."
+                )
+            port, pin = int(m.group(1)), int(m.group(2))
+            if pin >= variant_info.gpio_port_width:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: port {port} only has pins "
+                    f"0-{variant_info.gpio_port_width - 1}."
+                )
+            return port * variant_info.gpio_port_width + pin
         try:
             return int(value)
         except ValueError:
