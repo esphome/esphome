@@ -80,15 +80,15 @@ namespace esphome::bk72xx_ble {
 
 static const char *const TAG = "bk72xx_ble";
 
-// Pump pacing floor, the widened gate while a rejected release retries (a
-// stop never gives up; the slot must be freed), the bring-up budget before
-// FAILED hands recovery to the tracker's backoff, the settled liveness cadence
-// and the rejected-release count (~30 s) that escalates to ERROR.
+// Pump pacing floor, the widened gate while a stalled stop retries (a stop
+// never gives up; the slot must be freed), the bring-up budget before FAILED
+// hands recovery to the tracker's backoff, the settled liveness cadence and
+// the stall count (~30 s) that escalates to ERROR.
 static constexpr uint32_t RECONCILE_RETRY_MS = 10;
 static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;
 static constexpr uint32_t RECONCILE_PENDING_TIMEOUT_MS = 2000;
 static constexpr uint32_t SCAN_LIVENESS_CHECK_MS = 1000;
-static constexpr uint8_t RELEASE_REJECTS_ERROR_THRESHOLD = 60;
+static constexpr uint8_t STALL_ERROR_THRESHOLD = 60;
 
 // The BDK notice callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
@@ -193,10 +193,14 @@ void BK72xxBLE::loop() {
   // bring-up, and the budget's FAILED feeds the tracker's recovery.
   const uint32_t pump_now = App.get_loop_component_start_time();
   if (this->last_result_ == ScanOpResult::PENDING) {
-    const uint32_t gate = this->release_rejects_ != 0 ? RECONCILE_REJECTED_RETRY_MS : RECONCILE_RETRY_MS;
+    const uint32_t gate = this->stall_count_ != 0 ? RECONCILE_REJECTED_RETRY_MS : RECONCILE_RETRY_MS;
     if (pump_now - this->last_advance_ms_ >= gate)
       this->advance_();
-  } else if (this->scan_wanted_ && pump_now - this->last_advance_ms_ >= SCAN_LIVENESS_CHECK_MS) {
+  } else if (this->scan_wanted_ && this->last_result_ == ScanOpResult::SETTLED &&
+             pump_now - this->last_advance_ms_ >= SCAN_LIVENESS_CHECK_MS) {
+    // SETTLED only: a FAILED request belongs to the tracker's backoff, not a
+    // 1 Hz re-drive. A re-arm after a drop gets a fresh budget.
+    this->pending_since_ms_ = pump_now;
     if (this->advance_() != ScanOpResult::SETTLED)
       ESP_LOGW(TAG, "Controller dropped the scan; restarting");
   }
@@ -315,14 +319,12 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
 // to ERROR when the teardown looks stuck.
 void BK72xxBLE::release_activity_(bool created) {
   if (bdk_scan_release(this->scan_activity_idx_, created) == BdkOpResult::OK) {
-    this->release_rejects_ = 0;
+    this->stall_count_ = 0;
     return;
   }
-  if (this->release_rejects_ == 0)
+  if (this->stall_count_ == 0)
     ESP_LOGW(TAG, "Scan activity release rejected; retrying");
-  if (this->release_rejects_ != UINT8_MAX)
-    ++this->release_rejects_;
-  if (this->release_rejects_ == RELEASE_REJECTS_ERROR_THRESHOLD)
+  if (this->stall_count_ != UINT8_MAX && ++this->stall_count_ == STALL_ERROR_THRESHOLD)
     ESP_LOGE(TAG, "Scan activity release keeps being rejected; scanner is stuck");
 }
 
@@ -342,7 +344,7 @@ ScanOpResult BK72xxBLE::advance_() {
   }
   const BdkActivityState state = bdk_scan_state(this->scan_activity_idx_);
   if (state == BdkActivityState::IDLE)
-    this->release_rejects_ = 0;  // any release episode is over
+    this->stall_count_ = 0;  // any release episode is over
   const bool ready = bdk_scan_ready();
   ScanOpResult result = this->scan_wanted_ ? this->advance_start_(state, ready) : this->advance_stop_(state, ready);
 
@@ -367,6 +369,8 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
+    if (this->stall_count_ != UINT8_MAX && ++this->stall_count_ == STALL_ERROR_THRESHOLD)
+      ESP_LOGE(TAG, "Scan stop cannot proceed; scanner is stuck");
     return this->defer_("stop");
   }
   // Settled, so CREATED unambiguously means "never started".
