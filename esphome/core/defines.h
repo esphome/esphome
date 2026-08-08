@@ -252,6 +252,7 @@
 // platforms whose API/network types the proxy header cannot assume.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
+#define USE_BLE_SCANNER_STATE_CALLBACK
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
 // count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
 // the slot count (1 on rp2, 0 on advertisement-only hubs) — so static analysis
