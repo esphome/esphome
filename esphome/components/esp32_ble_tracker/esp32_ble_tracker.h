@@ -35,11 +35,6 @@ using namespace esp32_ble;
 
 using adv_data_t = ble_device_base::adv_data_t;
 
-enum AdvertisementParserType {
-  PARSED_ADVERTISEMENTS,
-  RAW_ADVERTISEMENTS,
-};
-
 #ifdef USE_ESP32_BLE_UUID
 using ServiceData = ble_device_base::ServiceData;
 #endif
@@ -63,10 +58,9 @@ class ESPBTDeviceListener : public ble_device_base::ESPBTDeviceListener {
   // Raw-only build: no parsed-device support is compiled in.
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 #endif
-  virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
-  virtual AdvertisementParserType get_advertisement_parser_type() {
-    return AdvertisementParserType::PARSED_ADVERTISEMENTS;
-  };
+  /// False keeps the tracker from building parsed ESPBTDevice objects on
+  /// this registrant's account (raw consumers use the hub callback).
+  virtual bool wants_parsed_advertisements() { return true; }
   void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
@@ -199,7 +193,6 @@ class ESP32BLETracker final : public Component,
   // esp32-flavored path (unmigrated esp32 sensors; sets the tracker back-pointer).
   void register_listener(ESPBTDeviceListener *listener);
   void register_client(ESPBTClient *client);
-  void recalculate_advertisement_parser_types();
 
   // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
@@ -257,6 +250,7 @@ class ESP32BLETracker final : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
+  void recalculate_parse_advertisements_();
   /// Common cleanup logic when transitioning scanner to IDLE state
   void cleanup_scan_state_(bool is_stop_complete);
   /// Process a single scan result immediately
@@ -355,7 +349,6 @@ class ESP32BLETracker final : public Component,
   bool scan_continuous_before_ota_{false};
 #endif
   bool ble_was_disabled_{true};
-  bool raw_advertisements_{false};
   bool parse_advertisements_{false};
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
