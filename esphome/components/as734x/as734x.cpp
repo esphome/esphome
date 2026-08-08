@@ -140,7 +140,10 @@ void AS734XComponent::loop() {
       ESP_LOGVV(TAG, "CONFIGURE_SMUX");
       this->device_->enable_spectral_measurement(false);
       delay(5);
-      this->device_->prepare_for_smux_step(this->readings_.smux_step);
+      if (!this->device_->prepare_for_smux_step(this->readings_.smux_step)) {
+        this->abort_measurement_("Failed to configure SMUX");
+        break;
+      }
       this->state_ = State::WAIT_SMUX;
       break;
 

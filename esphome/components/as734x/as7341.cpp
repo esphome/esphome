@@ -70,16 +70,17 @@ bool AS7341::prepare_for_smux_step(uint8_t step) {
                                               0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06};
 
   // Set SMUX command to write
-  this->write_byte_(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
+  bool ok = this->write_byte_(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
 
   // Write SMUX configuration based on step
   const uint8_t *config = (step == 0) ? SMUX_CONFIG_STEP0 : SMUX_CONFIG_STEP1;
   for (uint8_t i = 0; i < 20; ++i) {
-    this->write_byte_(i, config[i]);
+    ok = this->write_byte_(i, config[i]) && ok;
   }
-  this->enable_smux();
 
-  return true;
+  // A failed enable leaves SMUX_EN clear, which is what is_smux_busy() reads, so the state machine
+  // would take an unconfigured multiplexer for a finished one and publish the previous step's light.
+  return this->enable_smux() && ok;
 }
 
 bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, bool &saturated) {
