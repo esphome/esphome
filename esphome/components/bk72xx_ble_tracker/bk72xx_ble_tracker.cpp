@@ -302,7 +302,8 @@ void BK72xxBLETracker::start_scan_() {
 }
 
 void BK72xxBLETracker::stop_scan_() {
-  this->parent_->scan_stop();  // idempotent: releases whatever the hub holds
+  this->start_attempt_open_ = false;  // an abandoned bring-up is not charged
+  this->parent_->scan_stop();         // idempotent: releases whatever the hub holds
   if (!this->scan_running_)
     return;  // never ran: no on_scan_end
   ESP_LOGD(TAG, "Scan stopped");

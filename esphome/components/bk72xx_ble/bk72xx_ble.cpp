@@ -311,7 +311,7 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
     delay(RECONCILE_RETRY_MS);
     this->advance_();
   }
-  return true;
+  return this->last_result_ == ScanOpResult::SETTLED;
 }
 
 // Teardown is asynchronous: the handle is kept until an IDLE observation
@@ -334,6 +334,24 @@ ScanOpResult BK72xxBLE::defer_(const char *what) {
   return ScanOpResult::PENDING;
 }
 
+// Deadline shared by the teardown paths (a stop, or a mode change needing
+// one): stamps the episode on first use, logs once when it exceeds
+// STOP_STUCK_ERROR_MS, and reports stuck from then on. Cleared on IDLE.
+bool BK72xxBLE::teardown_stuck_(const char *message) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->teardown_since_ms_ == 0) {
+    this->teardown_since_ms_ = now;
+    return false;
+  }
+  if (now - this->teardown_since_ms_ < STOP_STUCK_ERROR_MS)
+    return false;
+  if (!this->teardown_stuck_logged_) {
+    ESP_LOGE(TAG, "%s", message);
+    this->teardown_stuck_logged_ = true;
+  }
+  return true;
+}
+
 // One SDK operation per call toward the latched request; controller state is
 // read live each time (it changes on the BLE task, so nothing is mirrored).
 ScanOpResult BK72xxBLE::advance_() {
@@ -346,8 +364,8 @@ ScanOpResult BK72xxBLE::advance_() {
   if (state == BdkActivityState::IDLE) {
     // Any release or stalled-stop episode is over.
     this->release_warned_ = false;
-    this->stop_pending_since_ms_ = 0;
-    this->stop_stuck_logged_ = false;
+    this->teardown_since_ms_ = 0;
+    this->teardown_stuck_logged_ = false;
   }
   const bool ready = bdk_scan_ready();
   ScanOpResult result = this->scan_wanted_ ? this->advance_start_(state, ready) : this->advance_stop_(state, ready);
@@ -374,14 +392,11 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
     return ScanOpResult::SETTLED;
   }
-  // A stop still unfinished after the deadline is stuck, whatever the cause.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->stop_pending_since_ms_ == 0) {
-    this->stop_pending_since_ms_ = now;
-  } else if (!this->stop_stuck_logged_ && now - this->stop_pending_since_ms_ >= STOP_STUCK_ERROR_MS) {
-    ESP_LOGE(TAG, "Scan stop cannot proceed; scanner is stuck");
-    this->stop_stuck_logged_ = true;
-  }
+  // A stop still unfinished after the deadline is stuck, whatever the cause;
+  // report it terminal so the consumer's retry policy owns recovery (the next
+  // request re-enters the reconciler).
+  if (this->teardown_stuck_("Scan stop cannot proceed; scanner is stuck"))
+    return ScanOpResult::FAILED;
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
@@ -396,11 +411,12 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
   if (state == BdkActivityState::STARTED) {
     if (this->applied_ == this->requested_)
       return ScanOpResult::SETTLED;
-    if (ready) {
-      // Running with different mode or parameters: tear down (the SDK stop
-      // chain also deletes the activity) and recreate on a later advance.
+    // Running with different mode or parameters: tear down (the SDK stop
+    // chain also deletes the activity) and recreate on a later advance. Not
+    // FAILED when stuck — the radio still scans in the old mode.
+    this->teardown_stuck_("Scan restart cannot proceed; scanner is stuck in the previous mode");
+    if (ready)
       this->release_activity_(false);
-    }
     return ScanOpResult::PENDING;
   }
   if (!ready)
@@ -418,8 +434,10 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
   if (state == BdkActivityState::OTHER)
     return ScanOpResult::PENDING;  // transitional; settles on a later read
 
-  // IDLE and ready: acquire a slot and create. A kept index (create race
-  // or post-teardown) is safe to reuse; create validates the slot is idle.
+  // IDLE and ready: acquire a slot and create. A kept index is deliberately
+  // reused: SDK delete returns the slot to idle and create requires an idle
+  // slot, so it equals a fresh acquire — while clearing here would orphan a
+  // create still in flight (the BUSY race below).
   if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
     this->scan_activity_idx_ = bdk_scan_acquire_activity();
     if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX)

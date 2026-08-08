@@ -112,6 +112,7 @@ class BK72xxBLE final : public Component {
   ScanOpResult advance_stop_(BdkActivityState state, bool ready);
   ScanOpResult advance_start_(BdkActivityState state, bool ready);
   ScanOpResult defer_(const char *what);
+  bool teardown_stuck_(const char *message);
   void release_activity_(bool created);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
@@ -137,9 +138,9 @@ class BK72xxBLE final : public Component {
   ScanOpResult last_result_{ScanOpResult::SETTLED};
   uint32_t last_advance_ms_{0};
   uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
-  uint32_t stop_pending_since_ms_{0};  // unfinished-stop episode start; 0 = none
+  uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
   bool release_warned_{false};         // gates the release WARN; widens the pump gate
-  bool stop_stuck_logged_{false};      // the stuck-stop ERROR fired this episode
+  bool teardown_stuck_logged_{false};  // the stuck-teardown ERROR fired this episode
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };
