@@ -422,6 +422,42 @@ ResponseStatus ModbusServerHub::parse_write_multiple_(std::span<const uint8_t> d
   return std::nullopt;
 }
 
+ResponseStatus ModbusServerHub::parse_write_coils_(uint8_t function_code, std::span<const uint8_t> data,
+                                                   uint16_t &start_address, uint16_t &count,
+                                                   std::span<const uint8_t> &packed_bytes,
+                                                   uint8_t &single_bit_storage) {
+  // single_bit_storage belongs to the caller and must outlive packed_bytes: a single-coil write carries a
+  // 2-byte value rather than packed bytes, so it is normalized into that byte and packed_bytes points at
+  // it. A multiple-coil write points straight into the receive buffer, so neither form copies the values.
+  start_address = helpers::get_data<uint16_t>(data.data(), 0);
+  if (static_cast<FunctionCode>(function_code) == FunctionCode::WRITE_SINGLE_COIL) {
+    const uint16_t value = helpers::get_data<uint16_t>(data.data(), WRITE_SINGLE_VALUES_OFFSET);
+    if (value != 0xFF00 && value != 0x0000) {
+      ESP_LOGW(TAG, "Invalid coil value 0x%04X", value);
+      return ExceptionCode::ILLEGAL_DATA_VALUE;
+    }
+    // No range check needed: one coil can never push start_address + 1 past the address space.
+    single_bit_storage = value == 0xFF00 ? 0x01 : 0x00;
+    count = 1;
+    packed_bytes = std::span<const uint8_t>(&single_bit_storage, 1);
+    return std::nullopt;
+  }
+  const uint16_t number_of_bits = helpers::get_data<uint16_t>(data.data(), 2);
+  const uint8_t number_of_bytes = helpers::get_data<uint8_t>(data.data(), 4);
+  if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_WRITE ||
+      packed_bit_bytes(number_of_bits) != number_of_bytes) {
+    ESP_LOGW(TAG, "Invalid number of coils %" PRIu16 " or bytes %" PRIu8, number_of_bits, number_of_bytes);
+    return ExceptionCode::ILLEGAL_DATA_VALUE;
+  }
+  if (ResponseStatus status = this->check_address_range_(start_address, number_of_bits); status.has_value()) {
+    return status;
+  }
+  count = number_of_bits;
+  // coil values follow start(2) + quantity(2) + byte count(1)
+  packed_bytes = data.subspan(WRITE_MULTIPLE_VALUES_OFFSET, number_of_bytes);
+  return std::nullopt;
+}
+
 void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers) {
   for (size_t offset = 0; offset + 1 < values.size(); offset += 2) {
     registers.push_back(helpers::get_data<uint16_t>(values.data(), offset));
@@ -429,13 +465,16 @@ void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, Regis
 }
 
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
-  // Broadcasts are only meaningful for register writes and are never answered (Modbus 4.1 / 6.12), so an
-  // unsupported function code or a validation failure is silently dropped instead of replying with an exception.
-  // Coil writes (FC 0x05/0x0F) are also broadcastable by spec. on_write_coils() now exists, but this path
-  // still only routes register writes: the broadcast parse helpers are register-shaped, so wiring coils
-  // through is its own change rather than a side effect of adding the handler.
+  // Broadcasts are only meaningful for writes and are never answered (Modbus 4.1 / 6.12), so an unsupported
+  // function code or a validation failure is silently dropped instead of replying with an exception. Both
+  // register writes (FC 0x06/0x10) and coil writes (FC 0x05/0x0F) are broadcastable by spec, and each shares
+  // its parser with the addressed path so a broadcast is validated exactly as the unicast form would be.
   uint16_t start_address;
   RegisterValues registers;
+  uint16_t coil_count = 0;
+  std::span<const uint8_t> packed_bytes;
+  uint8_t single_bit = 0;  // storage for the normalized single-coil value; packed_bytes may point at it
+  bool coils = false;
   ResponseStatus status;
   switch (static_cast<FunctionCode>(function_code)) {
     case FunctionCode::WRITE_SINGLE_REGISTER:
@@ -443,6 +482,11 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
       break;
     case FunctionCode::WRITE_MULTIPLE_REGISTERS:
       status = this->parse_write_multiple_(data, start_address, registers);
+      break;
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+      coils = true;
+      status = this->parse_write_coils_(function_code, data, start_address, coil_count, packed_bytes, single_bit);
       break;
     default:
       // Reads and read/write require a reply, so they are not valid as broadcasts.
@@ -456,8 +500,10 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   // per-device outcome at V, and warn if the write reached nobody at all.
   bool accepted = false;
   for (auto *device : this->devices_) {
-    if (ResponseStatus device_status = device->on_broadcast_write_registers(start_address, registers);
-        device_status.has_value()) {
+    const ResponseStatus device_status =
+        coils ? device->on_broadcast_write_coils(start_address, PackedBits(packed_bytes, coil_count))
+              : device->on_broadcast_write_registers(start_address, registers);
+    if (device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
     } else {
@@ -465,15 +511,19 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     }
   }
   if (!accepted && !this->devices_.empty()) {
+    const uint16_t entity_count = coils ? coil_count : static_cast<uint16_t>(registers.size());
+    const char *const entity_name = coils ? "coils" : "registers";
     // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
     // repeats forever, so warning per frame would flood the log.
     const uint32_t now = millis();
     if (this->last_unaccepted_broadcast_warn_ == 0 ||
         now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
       this->last_unaccepted_broadcast_warn_ = now;
-      ESP_LOGW(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
+      ESP_LOGW(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count, entity_name,
+               start_address);
     } else {
-      ESP_LOGV(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
+      ESP_LOGV(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count, entity_name,
+               start_address);
     }
   }
 }
@@ -620,41 +670,15 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     }
     case FunctionCode::WRITE_SINGLE_COIL:
     case FunctionCode::WRITE_MULTIPLE_COILS: {
-      // PDU data: start address(2) [+ quantity(2) + byte count(1)] + coil values.
-      // A single-coil write carries a 2-byte value (0xFF00 = ON, 0x0000 = OFF), normalized here to a
-      // one-bit packed buffer; a multiple-coil write's packed bytes are passed to the handler as a
-      // span into the receive buffer, so neither form copies or unpacks the values.
-      uint16_t start_address = helpers::get_data<uint16_t>(data.data(), 0);
+      // Parse and validate the coil write PDU into a packed-bit view; reply with an exception on failure.
+      uint16_t start_address;
       uint16_t count;
       std::span<const uint8_t> packed_bytes;
-      uint8_t single_bit = 0;
-      if (static_cast<FunctionCode>(function_code) == FunctionCode::WRITE_SINGLE_COIL) {
-        uint16_t value = helpers::get_data<uint16_t>(data.data(), 2);
-        if (value != 0xFF00 && value != 0x0000) {
-          ESP_LOGW(TAG, "Invalid coil value 0x%04X", value);
-          this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
-          return;
-        }
-        single_bit = value == 0xFF00 ? 0x01 : 0x00;
-        count = 1;
-        packed_bytes = std::span<const uint8_t>(&single_bit, 1);
-      } else {
-        uint16_t number_of_bits = helpers::get_data<uint16_t>(data.data(), 2);
-        uint8_t number_of_bytes = helpers::get_data<uint8_t>(data.data(), 4);
-        if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_WRITE ||
-            (number_of_bits + 7) / 8 != number_of_bytes) {
-          ESP_LOGW(TAG, "Invalid number of coils %" PRIu16 " or bytes %" PRIu8, number_of_bits, number_of_bytes);
-          this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
-          return;
-        }
-        status = this->check_address_range_(start_address, number_of_bits);
-        if (status.has_value()) {
-          this->send_exception_(address, function_code, status.value());
-          return;
-        }
-        count = number_of_bits;
-        // coil values follow start(2) + quantity(2) + count(1)
-        packed_bytes = data.subspan(WRITE_MULTIPLE_VALUES_OFFSET, number_of_bytes);
+      uint8_t single_bit = 0;  // storage for the normalized single-coil value; packed_bytes may point at it
+      status = this->parse_write_coils_(function_code, data, start_address, count, packed_bytes, single_bit);
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
       }
       status = device->on_write_coils(start_address, PackedBits(packed_bytes, count));
       response_data = data.data();  // echo the request header per Modbus 6.5, 6.11

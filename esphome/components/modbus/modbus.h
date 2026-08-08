@@ -349,6 +349,14 @@ class ModbusServerHub : public Modbus {
   // coil/discrete-input handlers, which all address the same 16-bit space.
   ResponseStatus check_address_range_(uint16_t start_address, uint16_t count);
 
+  // Parses a coil write PDU (FC 0x05 or 0x0F) into a packed-bit view, shared by the addressed and
+  // broadcast paths so both validate identically. single_bit_storage belongs to the caller and must
+  // outlive packed_bytes: a single-coil write carries a 2-byte value rather than packed bytes, so it is
+  // normalized into that byte and packed_bytes points at it.
+  ResponseStatus parse_write_coils_(uint8_t function_code, std::span<const uint8_t> data, uint16_t &start_address,
+                                    uint16_t &count, std::span<const uint8_t> &packed_bytes,
+                                    uint8_t &single_bit_storage);
+
   // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays
   // identical across them. Returns false once an exception has been sent: the one the handler reported via
@@ -636,10 +644,16 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_coils(uint16_t start_address, PackedBits bits) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
-  // Hub entry point for broadcast (address 0) writes, which are never answered.
+  // Hub entry points for broadcast (address 0) writes, which are never answered.
   ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
     this->broadcast_write_ = true;
     ResponseStatus status = this->on_write_registers(start_address, registers);
+    this->broadcast_write_ = false;
+    return status;
+  }
+  ResponseStatus on_broadcast_write_coils(uint16_t start_address, PackedBits bits) {
+    this->broadcast_write_ = true;
+    ResponseStatus status = this->on_write_coils(start_address, bits);
     this->broadcast_write_ = false;
     return status;
   }
