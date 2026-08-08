@@ -330,18 +330,18 @@ class ModbusServerHub : public Modbus {
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
-  void process_broadcast_frame_(uint8_t function_code, const uint8_t *data);
+  void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the host-order register
   // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
   // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
   // writes (which silently drop invalid frames).
-  ResponseStatus parse_write_single_(const uint8_t *data, uint16_t &start_address, RegisterValues &registers);
-  ResponseStatus parse_write_multiple_(const uint8_t *data, uint16_t &start_address, RegisterValues &registers);
-  // Appends number_of_registers host-order values read from data starting at values_offset.
-  void assemble_registers_(const uint8_t *data, uint16_t values_offset, uint16_t number_of_registers,
-                           RegisterValues &registers);
+  ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
+  ResponseStatus parse_write_multiple_(std::span<const uint8_t> data, uint16_t &start_address,
+                                       RegisterValues &registers);
+  // Appends the big-endian register values in values to registers, in host byte order.
+  void assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
   // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
   // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.

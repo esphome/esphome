@@ -281,8 +281,9 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // This requires copying the frame data to a local buffer beforehand.
   uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
   uint16_t data_len = frame_length - 2 - data_offset;
-  uint8_t data[MAX_FRAME_SIZE] = {};
-  std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
+  uint8_t data_buffer[MAX_FRAME_SIZE] = {};
+  std::memcpy(data_buffer, this->rx_buffer_.data() + data_offset, data_len);
+  std::span<const uint8_t> data(data_buffer, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
   if (address == BROADCAST_ADDRESS) {
@@ -384,24 +385,26 @@ ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, ui
 }
 
 // Write PDU layout after the function code: start address(2) [+ quantity(2) + byte count(1)] + register values.
-static constexpr uint16_t WRITE_SINGLE_VALUES_OFFSET = 2;
-static constexpr uint16_t WRITE_MULTIPLE_VALUES_OFFSET = 5;
+// The value subspans taken at these offsets stay in range because client_pdu_length() clamps the byte count to the
+// same maximum the callers' number_of_registers * 2 == number_of_bytes guard enforces.
+static constexpr size_t WRITE_SINGLE_VALUES_OFFSET = 2;
+static constexpr size_t WRITE_MULTIPLE_VALUES_OFFSET = 5;
 // FC 0x17 writes follow read start(2) + read quantity(2) + write start(2) + write quantity(2) + byte count(1).
-static constexpr uint16_t READ_WRITE_VALUES_OFFSET = 9;
+static constexpr size_t READ_WRITE_VALUES_OFFSET = 9;
 
-ResponseStatus ModbusServerHub::parse_write_single_(const uint8_t *data, uint16_t &start_address,
+ResponseStatus ModbusServerHub::parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address,
                                                     RegisterValues &registers) {
-  start_address = helpers::get_data<uint16_t>(data, 0);
+  start_address = helpers::get_data<uint16_t>(data.data(), 0);
   // No range check needed: one register can never push start_address + 1 past the address space.
-  this->assemble_registers_(data, WRITE_SINGLE_VALUES_OFFSET, 1, registers);
+  this->assemble_registers_(data.subspan(WRITE_SINGLE_VALUES_OFFSET, sizeof(uint16_t)), registers);
   return std::nullopt;
 }
 
-ResponseStatus ModbusServerHub::parse_write_multiple_(const uint8_t *data, uint16_t &start_address,
+ResponseStatus ModbusServerHub::parse_write_multiple_(std::span<const uint8_t> data, uint16_t &start_address,
                                                       RegisterValues &registers) {
-  start_address = helpers::get_data<uint16_t>(data, 0);
-  uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
-  uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
+  start_address = helpers::get_data<uint16_t>(data.data(), 0);
+  uint16_t number_of_registers = helpers::get_data<uint16_t>(data.data(), 2);
+  uint8_t number_of_bytes = helpers::get_data<uint8_t>(data.data(), 4);
   if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
       number_of_registers * 2 != number_of_bytes) {
     ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers, number_of_bytes);
@@ -410,22 +413,17 @@ ResponseStatus ModbusServerHub::parse_write_multiple_(const uint8_t *data, uint1
   if (ResponseStatus status = this->check_register_range_(start_address, number_of_registers); status.has_value()) {
     return status;
   }
-  this->assemble_registers_(data, WRITE_MULTIPLE_VALUES_OFFSET, number_of_registers, registers);
+  this->assemble_registers_(data.subspan(WRITE_MULTIPLE_VALUES_OFFSET, number_of_bytes), registers);
   return std::nullopt;
 }
 
-// Bounds contract, enforced by the callers rather than locally: data must point at the whole write PDU payload
-// (the bytes after the function code). Every caller hands it parse_modbus_client_frame_'s zero-initialised
-// 256-byte data buffer, and client_pdu_length()'s byte-count clamp together with the caller's
-// number_of_registers * 2 == number_of_bytes guard keep every read inside it.
-void ModbusServerHub::assemble_registers_(const uint8_t *data, uint16_t values_offset, uint16_t number_of_registers,
-                                          RegisterValues &registers) {
-  for (uint16_t i = 0; i < number_of_registers; i++) {
-    registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
+void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers) {
+  for (size_t offset = 0; offset + 1 < values.size(); offset += 2) {
+    registers.push_back(helpers::get_data<uint16_t>(values.data(), offset));
   }
 }
 
-void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint8_t *data) {
+void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
   // Broadcasts are only meaningful for register writes and are never answered (Modbus 4.1 / 6.12), so an
   // unsupported function code or a validation failure is silently dropped instead of replying with an exception.
   // Coil writes (FC 0x05/0x0F) are also broadcastable by spec, but server coil handlers are not implemented yet.
@@ -502,7 +500,8 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
+                                                   std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
@@ -519,8 +518,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS: {
       // PDU data: start address(2) + quantity(2).
-      uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
-      uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
+      uint16_t start_address = helpers::get_data<uint16_t>(data.data(), 0);
+      uint16_t number_of_registers = helpers::get_data<uint16_t>(data.data(), 2);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
         ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
         this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
@@ -559,18 +558,18 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         return;
       }
       status = device->on_write_registers(start_address, registers);
-      response_data = data;  // echo the request header per Modbus 6.6, 6.12
+      response_data = data.data();  // echo the request header per Modbus 6.6, 6.12
       response_len = 4;
       break;
     }
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       // PDU data: read start address(2) + read quantity(2) + write start address(2) + write quantity(2) +
       // write byte count(1) + write register values. Per Modbus 6.17 the write is performed before the read.
-      uint16_t read_start_address = helpers::get_data<uint16_t>(data, 0);
-      uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
-      uint16_t write_start_address = helpers::get_data<uint16_t>(data, 4);
-      uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data, 6);
-      uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 8);
+      uint16_t read_start_address = helpers::get_data<uint16_t>(data.data(), 0);
+      uint16_t number_of_registers = helpers::get_data<uint16_t>(data.data(), 2);
+      uint16_t write_start_address = helpers::get_data<uint16_t>(data.data(), 4);
+      uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data.data(), 6);
+      uint8_t number_of_bytes = helpers::get_data<uint8_t>(data.data(), 8);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ ||
           number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE_RW ||
           number_of_write_registers * 2 != number_of_bytes) {
@@ -591,7 +590,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       // values are allocated, keeping only one RegisterValues buffer live at a time.
       {
         RegisterValues write_registers;
-        this->assemble_registers_(data, READ_WRITE_VALUES_OFFSET, number_of_write_registers, write_registers);
+        this->assemble_registers_(data.subspan(READ_WRITE_VALUES_OFFSET, number_of_bytes), write_registers);
         // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
         // without a dedicated handler; a device that maps registers by address reconstructs the read response
         // from the values it just stored.
