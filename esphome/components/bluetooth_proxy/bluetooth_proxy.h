@@ -80,12 +80,9 @@ class BluetoothProxy final : public Component {
  public:
   BluetoothProxy();
 #ifdef USE_ESP32
-  // Advertisements arrive through the hub's raw callback; the tracker is
-  // still typed for the esp32-only scan-mode and scanner-state calls.
-  void set_parent(esp32_ble_tracker::ESP32BLETracker *parent) {
-    this->parent_ = parent;
-    this->hub_ = parent;
-  }
+  // Advertisements arrive through the hub's raw callback; parent_() below
+  // recovers the tracker type for the esp32-only scan-mode calls.
+  void set_parent(esp32_ble_tracker::ESP32BLETracker *parent) { this->hub_ = parent; }
 #endif  // USE_ESP32
   void dump_config() override;
   void setup() override;
@@ -280,7 +277,11 @@ class BluetoothProxy final : public Component {
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
 #ifdef USE_ESP32
-  esp32_ble_tracker::ESP32BLETracker *parent_{nullptr};
+  // set_parent() is the only writer of hub_ on esp32, so the downcast is
+  // exact; ESP32BLETracker derives from BLEHub non-virtually.
+  esp32_ble_tracker::ESP32BLETracker *parent_() {
+    return static_cast<esp32_ble_tracker::ESP32BLETracker *>(this->hub_);
+  }
 #endif
 
   // BLE advertisement batching
