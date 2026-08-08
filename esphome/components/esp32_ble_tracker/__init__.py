@@ -66,7 +66,7 @@ def _get_required_features() -> set[BLEFeatures]:
 
 
 # Slot counters sizing the tracker's StaticVector storage; one request per
-# registered listener, client, or scanner state listener.
+# registered listener or client.
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
 _request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
 
