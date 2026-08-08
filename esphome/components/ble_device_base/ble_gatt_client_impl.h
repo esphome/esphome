@@ -15,14 +15,8 @@
 #if defined(USE_RP2040_BLE)
 #include "esphome/components/bluetooth_connection/bluetooth_connection_rp2.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::RP2GattClient
-namespace esphome::bluetooth_connection {
-class BluetoothConnection;
-}  // namespace esphome::bluetooth_connection
-#else
-// No platform engine in this build: host unit tests compile the hub wrapper
-// standalone, so bind a do-nothing backend. Real builds cannot land here
-// silently; codegen emits USE_BLE_GATT_CLIENT only while wiring a platform
-// engine, whose type would then mismatch set_backend().
+#elif defined(USE_HOST)
+// Host unit tests compile the hub wrapper standalone; bind a do-nothing backend.
 namespace esphome::bluetooth_connection {
 class BluetoothConnection;
 }  // namespace esphome::bluetooth_connection
@@ -50,6 +44,8 @@ class StubGattBackend {
 };
 }  // namespace esphome::ble_device_base
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE StubGattBackend
+#else
+#error "USE_BLE_GATT_CLIENT is set but this build has no GATT backend; add an alias arm here"
 #endif
 
 namespace esphome::ble_device_base {
