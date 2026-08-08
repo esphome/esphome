@@ -2164,10 +2164,15 @@ bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_
 
 bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
+  return this->send_message_smart_source_(entity, message_type, estimated_size, aux_data_index);
+}
+
+bool APIConnection::send_message_smart_source_(void *source, uint8_t message_type, uint8_t estimated_size,
+                                               uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
     auto &shared_buf = this->parent_->get_shared_buffer_ref();
     this->prepare_first_message_buffer(shared_buf, estimated_size);
-    DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
+    DeferredBatch::BatchItem item{source, message_type, estimated_size, aux_data_index};
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
         this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2176,7 +2181,8 @@ bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type
       return true;
     }
   }
-  return this->schedule_message_(entity, message_type, estimated_size, aux_data_index);
+  this->deferred_batch_.add_item(source, message_type, estimated_size, aux_data_index);
+  return this->schedule_batch_();
 }
 
 bool APIConnection::schedule_batch_() {
@@ -2347,7 +2353,7 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
     // Skip if aux_data_index is invalid (should never happen in normal operation)
     if (item.aux_data_index == DeferredBatch::AUX_DATA_UNUSED)
       return 0;
-    auto *event = static_cast<event::Event *>(item.entity);
+    auto *event = static_cast<event::Event *>(static_cast<EntityBase *>(item.source));
     return try_send_event_response(event, StringRef::from_maybe_nullptr(event->get_event_type(item.aux_data_index)),
                                    this, remaining_size);
   }
@@ -2462,7 +2468,7 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
 #undef CASE_STATE_INFO
 #undef CASE_INFO_ONLY
 
-  return func(item.entity, this, remaining_size);
+  return func(static_cast<EntityBase *>(item.source), this, remaining_size);
 }
 
 uint16_t APIConnection::try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {

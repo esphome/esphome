@@ -654,7 +654,7 @@ class APIConnection final : public APIServerConnectionBase {
     static constexpr uint8_t AUX_DATA_UNUSED = std::numeric_limits<uint8_t>::max();
 
     struct BatchItem {
-      EntityBase *entity;                       // 4 bytes - Entity pointer
+      void *source;                             // 4 bytes - Entity or device pointer
       uint8_t message_type;                     // 1 byte - Message type for protocol and dispatch
       uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
       uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
@@ -668,7 +668,7 @@ class APIConnection final : public APIServerConnectionBase {
     // connections that do, buffers are released after initial sync anyway
 
     // Add item to the batch (with deduplication)
-    void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+    void add_item(void *source, uint8_t message_type, uint8_t estimated_size,
                   uint8_t aux_data_index = AUX_DATA_UNUSED) {
       // Dedup: O(n) scan but optimized for RAM over performance
       // Skip deduplication for events - they are edge-triggered, every occurrence matters
@@ -677,16 +677,16 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
       {
         for (const auto &item : this->items) {
-          if (item.entity == entity && item.message_type == message_type)
+          if (item.source == source && item.message_type == message_type)
             return;  // Already queued
         }
       }
-      this->items.push_back({entity, message_type, estimated_size, aux_data_index});
+      this->items.push_back({source, message_type, estimated_size, aux_data_index});
     }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+    void add_item_front(void *source, uint8_t message_type, uint8_t estimated_size) {
       // Swap to front avoids expensive vector::insert which shifts all elements
-      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+      this->items.push_back({source, message_type, estimated_size, AUX_DATA_UNUSED});
       if (this->items.size() > 1) {
         std::swap(this->items.front(), this->items.back());
       }
@@ -820,6 +820,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Falls back to batching if immediate send fails or isn't applicable
   bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
+  bool send_message_smart_source_(void *source, uint8_t message_type, uint8_t estimated_size, uint8_t aux_data_index);
 
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
