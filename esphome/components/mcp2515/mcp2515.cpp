@@ -58,7 +58,7 @@ canbus::CanEventFlags MCP2515::get_events() {
     }
   }
   if (changed_flags & EFLG_TXBO) {
-    events |= (error_flags & EFLG_TXBO) ? canbus::CAN_EVENT_BUS_OFF : canbus::CAN_EVENT_BUS_RECOVERED;
+    events |= canbus::CAN_EVENT_BUS_OFF;
   }
 
   // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set

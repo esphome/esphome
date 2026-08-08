@@ -67,8 +67,7 @@ enum CanEventFlags {
   CAN_EVENT_PASSIVE = 1 << 0,
   CAN_EVENT_ACTIVE = 1 << 1,
   CAN_EVENT_BUS_OFF = 1 << 2,
-  CAN_EVENT_BUS_RECOVERED = 1 << 3,
-  CAN_EVENT_RX_QUEUE_FULL = 1 << 4,
+  CAN_EVENT_RX_QUEUE_FULL = 1 << 3,
 };
 
 struct CanStatus {

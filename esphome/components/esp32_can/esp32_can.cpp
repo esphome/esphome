@@ -140,14 +140,15 @@ canbus::CanEventFlags ESP32Can::get_events() {
       events |= canbus::CAN_EVENT_BUS_OFF;
       // immediately initiate bus recovery, like MCP2515 does as well
       if (twai_initiate_recovery_v2(this->twai_handle_) != ESP_OK) {
+        // should never happen as this only fails with an invalid handle (which is checked above)
+        // or when the state is not "bus off", which is a permanent state until recovery is initiated.
         this->mark_failed(LOG_STR("Recovery after bus off failed"));
       }
     }
     if (alerts & TWAI_ALERT_BUS_RECOVERED) {
-      if (twai_start_v2(this->twai_handle_) == ESP_OK) {
-        events |= canbus::CAN_EVENT_BUS_RECOVERED;
-        events |= canbus::CAN_EVENT_ACTIVE;
-      } else {
+      if (twai_start_v2(this->twai_handle_) != ESP_OK) {
+        // should never happen as this only fails with an invalid handle (which is checked above)
+        // or when the state is not "stopped", which is a permanent state once recovery is finished.
         this->mark_failed(LOG_STR("Restart after bus off failed"));
       }
     }
