@@ -361,6 +361,11 @@ class ModbusServerHub : public Modbus {
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
+  // Start addresses whose broadcast reached no device and already warned, so each warns once instead of
+  // once per frame. Bounded because a shared bus can carry broadcasts for arbitrarily many addresses.
+  static constexpr size_t MAX_UNACCEPTED_BROADCAST_WARNINGS = 8;
+  StaticVector<uint16_t, MAX_UNACCEPTED_BROADCAST_WARNINGS> unaccepted_broadcast_warned_;
+
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;

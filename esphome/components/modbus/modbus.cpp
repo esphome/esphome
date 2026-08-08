@@ -445,8 +445,8 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   if (status.has_value()) {
     return;
   }
-  // A broadcast is never answered, so a rejecting device has no other feedback channel. With several
-  // devices only one is expected to accept, but nobody accepting is always a misconfiguration.
+  // A broadcast is never answered, so a rejecting device has no other feedback channel: report the
+  // per-device outcome at V, and warn once if the write reached nobody at all.
   bool accepted = false;
   for (auto *device : this->devices_) {
     if (ResponseStatus device_status = device->on_broadcast_write_registers(start_address, registers);
@@ -458,7 +458,16 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     }
   }
   if (!accepted && !this->devices_.empty()) {
-    ESP_LOGW(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
+    // Warn once per start address, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
+    // repeats forever, so warning per frame would flood the log. Addresses past the tracked set stay at VERBOSE.
+    auto &warned = this->unaccepted_broadcast_warned_;
+    if (std::find(warned.begin(), warned.end(), start_address) == warned.end() &&
+        warned.size() < MAX_UNACCEPTED_BROADCAST_WARNINGS) {
+      warned.push_back(start_address);
+      ESP_LOGW(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
+    } else {
+      ESP_LOGV(TAG, "No device accepted broadcast write at 0x%04X (repeat)", start_address);
+    }
   }
 }
 
