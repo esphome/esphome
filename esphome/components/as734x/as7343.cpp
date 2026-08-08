@@ -221,8 +221,12 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &
     data[i] = static_cast<uint16_t>(frame[1 + 2 * i] | (frame[2 + 2 * i] << 8));  // low byte first
   }
 
+  this->peak_raw_count_ = data[AS7343_CHANNEL_CLEAR_1];
   for (uint8_t i = 0; i < NUM_CHANNELS; i++) {
     values[i] = data[SMUX_CHANNEL_MAP[i]];
+    if (values[i] > this->peak_raw_count_) {
+      this->peak_raw_count_ = values[i];
+    }
   }
 
   ESP_LOGVV(TAG, "Clear channels: cycle1 %u, cycle2 %u, cycle3 %u (unused)", data[AS7343_CHANNEL_CLEAR_1],

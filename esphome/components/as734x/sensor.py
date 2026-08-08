@@ -159,7 +159,7 @@ BASIC_COUNTS_SCHEMA_43 = cv.Schema(
 )
 
 
-def _float_list(length: int):
+def _float_list(length: int) -> cv.All:
     """One float per channel, so the list length has to match the model."""
     return cv.All(cv.ensure_list(cv.float_), cv.Length(min=length, max=length))
 
@@ -264,7 +264,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = config[CONF_TYPE]
     driver = MODEL_AS7343 if model == MODEL_TCS3448 else model
     cg.add_build_flag("-DUSE_" + str(driver))

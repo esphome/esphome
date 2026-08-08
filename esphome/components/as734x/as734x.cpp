@@ -147,9 +147,11 @@ void AS734XComponent::loop() {
                    static_cast<uint32_t>(COLLECTION_TIMEOUT_MARGIN * this->device_->get_number_of_smux_steps() *
                                          this->device_->get_integration_cycles() *
                                          integration_time_ms(this->atime_, this->astep_)));
-      this->device_->write_atime(this->atime_);
-      this->device_->write_astep(this->astep_);
-      this->device_->write_gain(this->gain_);
+      if (!this->device_->write_atime(this->atime_) || !this->device_->write_astep(this->astep_) ||
+          !this->device_->write_gain(this->gain_)) {
+        this->abort_measurement_("Failed to apply measurement settings");
+        break;
+      }
       // Remember what the measurement ran with, so the maths below matches the data even if the
       // configuration is changed while a measurement is in flight.
       this->readings_.gain = this->gain_;
@@ -229,7 +231,11 @@ void AS734XComponent::abort_measurement_(const char *reason) {
   this->disable_loop();
 }
 
-void AS734XComponent::enable_led(bool enable) { this->device_->enable_led(enable); }
+void AS734XComponent::enable_led(bool enable) {
+  if (this->device_ != nullptr) {
+    this->device_->enable_led(enable);
+  }
+}
 
 // A basic count is the raw count scaled to one unit of gain and one millisecond of integration
 // time, which makes readings taken with different settings comparable. The manufacturer's
@@ -289,8 +295,11 @@ float AS734XComponent::normalization_divisor_() const {
 
 void AS734XComponent::calculate_saturation_level_() {
   const uint16_t max_adc = maximum_spectral_adc(this->readings_.atime, this->readings_.astep);
-  const uint16_t highest = *std::max_element(
+  const uint16_t scanned = *std::max_element(
       this->readings_.raw_counts.begin(), this->readings_.raw_counts.begin() + this->device_->get_number_of_channels());
+  // The AS7343 publishes the mean of its two clear cycles, which can only sit below a saturated
+  // reading, so the peak the device saw is taken into account as well.
+  const uint16_t highest = std::max(scanned, this->device_->get_peak_raw_count());
   this->calculated_.saturation_level = (max_adc == 0) ? 0.0f : 100.0f * highest / max_adc;
   ESP_LOGV(TAG, "Highest ADC count %u of %u (%.1f%%)", highest, max_adc, this->calculated_.saturation_level);
 }

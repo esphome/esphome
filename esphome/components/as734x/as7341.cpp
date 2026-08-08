@@ -134,9 +134,14 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, bool 
   }
 
   std::array<uint16_t, adc_channels> raw{};
+  this->peak_raw_count_ = 0;
   for (uint8_t i = 0; i < adc_channels; i++) {
     raw[i] = static_cast<uint16_t>(frame[1 + 2 * i] | (frame[2 + 2 * i] << 8));  // low byte first
+    if (raw[i] > this->peak_raw_count_) {
+      this->peak_raw_count_ = raw[i];
+    }
   }
+
   if (smux_step == 0) {
     values[0] = raw[0];
     values[1] = raw[1];

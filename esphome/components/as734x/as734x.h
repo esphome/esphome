@@ -118,9 +118,13 @@ class AS734xBase {
 
   virtual bool read_channels(uint8_t step, ChannelValuesUint16 &values, bool &saturated) = 0;
 
+  // Highest ADC value of the last read, taken before the AS7343 averages its two clear cycles.
+  uint16_t get_peak_raw_count() const { return this->peak_raw_count_; }
+
  protected:
   virtual const RegisterMap &registers() const = 0;
 
+  uint16_t peak_raw_count_{0};
   i2c::I2CDevice *i2c_device_ = nullptr;
   uint8_t number_of_channels_;
 
@@ -227,10 +231,10 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 
   struct {
     ChannelValuesFloat basic_counts{};
-    float max_basic_count;       // largest of every channel
-    float max_band_basic_count;  // largest of the visible bands only
-    float clear_basic_count;     // the wideband clear channel
-    float saturation_level;
+    float max_basic_count{0.0f};       // largest of every channel
+    float max_band_basic_count{0.0f};  // largest of the visible bands only
+    float clear_basic_count{0.0f};     // the wideband clear channel
+    float saturation_level{0.0f};
   } calculated_;
 
   void calculate_basic_counts_();
