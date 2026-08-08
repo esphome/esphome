@@ -9,6 +9,7 @@
 #include "freertos/ringbuf.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
+#include "soc/soc_caps.h"
 #include "esp_log.h"
 
 #include "tinyusb_cdc_acm.h"
@@ -22,11 +23,6 @@ static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
-// Host-requested baud rates outside this range are ignored: the ESP32 UART peripheral
-// supports up to 5 Mbps, and dwDTERate = 0 (the CDC "B0"/hang-up encoding) would reach
-// the UART clock-divider computation as a divide by zero.
-static constexpr uint32_t MIN_BAUD_RATE = 300;
-static constexpr uint32_t MAX_BAUD_RATE = 5000000;
 // Priority for the RX/TX worker tasks; above the default but below the USB/Wi-Fi
 // system tasks so the bridge stays responsive without starving the stack.
 static constexpr UBaseType_t TASK_PRIORITY = 4;
@@ -207,11 +203,14 @@ void USBUARTBridge::set_line_coding() {
   // the earlier parity/stop-bit mapping bugs crept in).
   bool changed = false;
 
-  // The baud rate arrives unvalidated from the wire; ignore values the hardware
-  // cannot do (see MIN/MAX_BAUD_RATE above), but say so -- a silently kept rate
-  // would otherwise read as the bridge ignoring the host.
+  // The baud rate arrives unvalidated from the wire. Reject dwDTERate = 0 (the CDC
+  // "B0"/hang-up encoding) here -- older IDF revisions divide by the requested rate
+  // in the clock-divider computation -- and anything above the SoC's ceiling. Rates
+  // in between are the driver's call: it cleanly refuses rates its dividers cannot
+  // reach (logged when the reload runs), so legacy low rates that the hardware can
+  // do are passed through just like a YAML-configured UART would accept them.
   const uint32_t baud = this->usb_cdc_parent_->get_baud_rate();
-  if (baud < MIN_BAUD_RATE || baud > MAX_BAUD_RATE) {
+  if (baud == 0 || baud > SOC_UART_BITRATE_MAX) {
     ESP_LOGW(TAG, "Ignoring unsupported baud rate %" PRIu32 " from host; keeping %" PRIu32, baud,
              this->uart_parent_->get_baud_rate());
   } else if (this->uart_parent_->get_baud_rate() != baud) {

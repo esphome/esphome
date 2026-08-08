@@ -189,6 +189,15 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
+  // Inversion must be in effect before the pins are attached to the peripheral, so
+  // an inverted TX line never presents the non-inverted idle level to the device.
+  err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_pin failed: %s", esp_err_to_name(err));
@@ -214,11 +223,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 }
 
-esp_err_t IDFUARTComponent::apply_line_settings_() {
-  // Everything here is reset by uart_param_config(): its internal uart_hal_init()
-  // restores the default port mode (dropping RS485 half-duplex), and future IDF
-  // versions may reset more. This must therefore run after every uart_param_config()
-  // call — at driver install and on live reconfiguration alike.
+uint32_t IDFUARTComponent::line_inversion_mask_() {
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_TXD_INV;
@@ -229,8 +234,15 @@ esp_err_t IDFUARTComponent::apply_line_settings_() {
   if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RTS_INV;
   }
+  return invert;
+}
 
-  esp_err_t err = uart_set_line_inverse(this->uart_num_, invert);
+esp_err_t IDFUARTComponent::apply_line_settings_() {
+  // Everything here is reset by uart_param_config(): its internal uart_hal_init()
+  // restores the default port mode (dropping RS485 half-duplex), and future IDF
+  // versions may reset more. This must therefore run after every uart_param_config()
+  // call — at driver install and on live reconfiguration alike.
+  esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
     return err;
@@ -279,8 +291,10 @@ void IDFUARTComponent::apply_settings_live() {
   uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
+    // Not fatal (an unachievable baud rate lands here); the internal uart_hal_init()
+    // has already reset the line settings by this point, so fall through and
+    // re-apply them regardless.
     ESP_LOGW(TAG, "uart_param_config (live) failed: %s", esp_err_to_name(err));
-    return;
   }
   // Re-apply what uart_param_config() clobbered. Errors are logged inside and are
   // non-fatal here: the driver stays usable with the previous settings.
