@@ -5,7 +5,8 @@
 // talks to the Beken BDK BLE stack:
 //   - one-time stack bring-up (ble_set_notice_cb() + ble_entry()),
 //   - the controller BLE address,
-//   - the raw controller scan primitives (bk_ble_scan_start/stop),
+//   - the scan reconciler (request, pacing, bring-up budget) over the
+//     bdk_scan surface,
 //   - the scan-report ring: the BDK notice callback (BLE task) takes a report
 //     from a fixed pool and pushes it on a lock-free SPSC queue; loop() drains,
 //     dispatches on the main task and returns reports to the pool — the same
@@ -79,14 +80,13 @@ namespace esphome::bk72xx_ble {
 
 static const char *const TAG = "bk72xx_ble";
 
-// Reconciliation pacing. The main loop period (typically 16-24 ms) is the
-// usual spacing between loop()-driven retries; RECONCILE_RETRY_MS is only a
-// floor for faster loops. A scan bring-up still PENDING after
-// RECONCILE_PENDING_LIMIT attempts (~2 s at the typical loop rate) reports
-// FAILED so the tracker's exponential backoff owns recovery; a stop keeps
-// retrying, the slot must be freed.
+// Pump pacing: a floor for loops faster than the usual 16-24 ms period, and
+// a widened gate while a rejected release is being retried (the slot must be
+// freed, so a stop never gives up). A bring-up still PENDING past its budget
+// reports FAILED so the tracker's backoff owns recovery.
 static constexpr uint32_t RECONCILE_RETRY_MS = 10;
-static constexpr uint8_t RECONCILE_PENDING_LIMIT = 100;
+static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;
+static constexpr uint32_t RECONCILE_PENDING_TIMEOUT_MS = 2000;
 
 // The BDK notice callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
@@ -186,11 +186,12 @@ void BK72xxBLE::enable() {
 
 void BK72xxBLE::loop() {
   // Keep reconciling toward the requested scan state (e.g. complete a stop
-  // that arrived while a controller operation was in flight). Rate-limited so
-  // a controller that keeps rejecting cannot be hammered at loop rate.
-  if (this->last_result_ == ScanStartResult::PENDING &&
-      App.get_loop_component_start_time() - this->last_advance_ms_ >= RECONCILE_RETRY_MS)
-    this->advance_();
+  // that arrived while a controller operation was in flight).
+  if (this->last_result_ == ScanOpResult::PENDING) {
+    const uint32_t gate = this->release_warned_ ? RECONCILE_REJECTED_RETRY_MS : RECONCILE_RETRY_MS;
+    if (App.get_loop_component_start_time() - this->last_advance_ms_ >= gate)
+      this->advance_();
+  }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
   // here on the main task, then the report returns to the pool.
@@ -270,31 +271,32 @@ void BK72xxBLE::resolve_mac_() {
 // Controller scan primitives
 // ---------------------------------------------------------------------------
 
-ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
+ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active())
     this->enable();
 
-  const ScanIntent intent = active ? ScanIntent::ACTIVE : ScanIntent::PASSIVE;
   const ScanParams params{active, interval, window};
-  if (intent != this->scan_intent_ || params != this->requested_) {
-    // A genuinely new request gets a fresh retry budget; a re-call observing
-    // an in-flight bring-up must not refill the ceiling.
-    this->pending_attempts_ = 0;
+  if (!this->scan_wanted_ || params != this->requested_) {
+    // A genuinely new request gets a fresh bring-up budget; a re-call
+    // observing an in-flight bring-up must not refill it.
+    this->pending_since_ms_ = App.get_loop_component_start_time();
   }
-  this->scan_intent_ = intent;
+  this->scan_wanted_ = true;
   this->requested_ = params;
   return this->advance_();
 }
 
 void BK72xxBLE::scan_stop() {
-  this->scan_intent_ = ScanIntent::STOPPED;
+  this->scan_wanted_ = false;
   this->advance_();
 }
 
 bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
   // Controller operations settle within a few ms; the bound is a safety net.
+  // Self-contained millis() timing: the loop clock is frozen while this
+  // blocks, and both sides of the comparison use the same source.
   const uint32_t start = millis();
-  while (this->scan_intent_ == ScanIntent::STOPPED && this->last_result_ == ScanStartResult::PENDING) {
+  while (!this->scan_wanted_ && this->last_result_ == ScanOpResult::PENDING) {
     if (millis() - start >= timeout_ms)
       return false;
     delay(RECONCILE_RETRY_MS);
@@ -304,145 +306,111 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
 }
 
 // Ask the SDK to release the activity. Teardown is asynchronous: the handle
-// is kept and the caller confirms via an IDLE observation, which is also what
-// makes a settled stop mean "radio idle" rather than "release accepted". A
-// rejection logs once per episode.
+// is kept until an IDLE observation confirms the radio is idle. A rejection
+// logs once per episode and widens the pump gate.
 void BK72xxBLE::release_activity_(bool created) {
-  int err = bdk_scan_release(this->scan_activity_idx_, created);
-  if (err == 0) {
+  if (bdk_scan_release(this->scan_activity_idx_, created) == BdkOpResult::OK) {
     this->release_warned_ = false;
     return;
   }
   if (!this->release_warned_) {
-    ESP_LOGW(TAG, "Scan activity release rejected (err %d); retrying", err);
+    ESP_LOGW(TAG, "Scan activity release rejected; retrying");
     this->release_warned_ = true;
   }
 }
 
-// The single reconciler: moves the controller toward scan_intent_, at most
-// one SDK operation per call, reading the live controller state each time
-// (its transitions happen on the BLE task, so nothing is mirrored).
-ScanStartResult BK72xxBLE::advance_() {
-  if (this->scan_intent_ == ScanIntent::STOPPED && this->scan_activity_idx_ == INVALID_ACTIVITY_IDX)
-    return this->finish_advance_(ScanStartResult::STARTED);  // nothing to release
+ScanOpResult BK72xxBLE::defer_(const char *what) {
+  if (this->last_result_ != ScanOpResult::PENDING)
+    ESP_LOGD(TAG, "Scan %s deferred (controller busy)", what);
+  return ScanOpResult::PENDING;
+}
 
+// The single reconciler: moves the controller toward the latched request, at
+// most one SDK operation per call, reading the live controller state each
+// time (its transitions happen on the BLE task, so nothing is mirrored).
+ScanOpResult BK72xxBLE::advance_() {
   const BdkActivityState state = bdk_scan_state(this->scan_activity_idx_);
   const bool ready = bdk_scan_ready();
-  const ScanStartResult result = (this->scan_intent_ == ScanIntent::STOPPED) ? this->advance_stop_(state, ready)
-                                                                             : this->advance_start_(state, ready);
-  return this->finish_advance_(result);
-}
+  ScanOpResult result = this->scan_wanted_ ? this->advance_start_(state, ready) : this->advance_stop_(state, ready);
 
-ScanStartResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
-  if (state == BdkActivityState::IDLE) {
-    // Fully torn down (or a create that failed at the GAPM level): the radio
-    // is idle, release the handle.
-    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-    this->release_warned_ = false;
-    return ScanStartResult::STARTED;
-  }
-  if (!ready) {
-    // Acting while an operation is in flight could delete an activity whose
-    // start lands afterwards (leaking the slot with the radio on); wait.
-    // Also covers our own release settling.
-    if (this->last_result_ != ScanStartResult::PENDING)
-      ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
-    return ScanStartResult::PENDING;
-  }
-  // Settled, so CREATED unambiguously means "never started".
-  this->release_activity_(state == BdkActivityState::CREATED);
-  return ScanStartResult::PENDING;  // confirmed once IDLE is observed
-}
-
-ScanStartResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
-  if (state == BdkActivityState::STARTED) {
-    if (this->applied_ == this->requested_)
-      return ScanStartResult::STARTED;
-    if (ready) {
-      // Running with different mode or parameters: tear down (the SDK stop
-      // chain also deletes the activity) and recreate on a later advance.
-      this->release_activity_(false);
-    }
-    return ScanStartResult::PENDING;
-  }
-  if (!ready) {
-    // A create/start/stop is in flight; observe again next call.
-    if (this->last_result_ != ScanStartResult::PENDING)
-      ESP_LOGD(TAG, "Scan start deferred (controller busy)");
-    return ScanStartResult::PENDING;
-  }
-  if (state == BdkActivityState::CREATED) {
-    if (this->requested_.active)
-      return this->send_active_start_();
-    // Leftover from an active-scan attempt; the passive chain creates its
-    // own activity, so release this one first.
-    this->release_activity_(true);
-    return ScanStartResult::PENDING;
-  }
-  if (state == BdkActivityState::OTHER) {
-    // A transitional state; settles on a later read.
-    return ScanStartResult::PENDING;
-  }
-
-  // IDLE with the controller ready: acquire (or reuse) a slot and start.
-  if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
-    this->scan_activity_idx_ = bdk_scan_acquire_activity();
-    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX)
-      return ScanStartResult::FAILED;
-  }
-  if (this->requested_.active) {
-    // Step 1 of the active sequence: create the activity through the public
-    // API; a later advance starts it once the creation is observed.
-    switch (bdk_scan_create(this->scan_activity_idx_)) {
-      case BdkOpResult::BUSY:
-        // Raced the BLE task; keep the index so the retry resumes on the
-        // same slot instead of orphaning it.
-      case BdkOpResult::OK:
-        return ScanStartResult::PENDING;
-      case BdkOpResult::FAILED:
-        break;
-    }
-    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-    return ScanStartResult::FAILED;
-  }
-  // Passive: the SDK's own create+start chain, one call.
-  if (!bdk_scan_start_passive(this->scan_activity_idx_, this->requested_.interval, this->requested_.window)) {
-    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-    return ScanStartResult::FAILED;
-  }
-  this->applied_ = this->requested_;
-  return ScanStartResult::STARTED;
-}
-
-// Shared advance_() epilogue: bounded pending for scan intents, pacing stamp,
-// result bookkeeping.
-ScanStartResult BK72xxBLE::finish_advance_(ScanStartResult result) {
-  if (result == ScanStartResult::PENDING) {
-    this->last_advance_ms_ = App.get_loop_component_start_time();
-    if (this->scan_intent_ != ScanIntent::STOPPED && ++this->pending_attempts_ >= RECONCILE_PENDING_LIMIT) {
+  if (result == ScanOpResult::PENDING) {
+    const uint32_t now = App.get_loop_component_start_time();
+    this->last_advance_ms_ = now;
+    if (this->scan_wanted_ && now - this->pending_since_ms_ >= RECONCILE_PENDING_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
-      result = ScanStartResult::FAILED;
-      this->pending_attempts_ = 0;
+      result = ScanOpResult::FAILED;
+      this->pending_since_ms_ = now;  // a fresh budget for the next episode
     }
-  } else {
-    this->pending_attempts_ = 0;
   }
   this->last_result_ = result;
   return result;
 }
 
-// Step 2 of the active sequence: the packed GAPM start the BDK does not
-// offer (see bdk_scan.cpp). Fire-and-forget: STARTED is reported only once a
-// later advance observes the scan running, so a GAPM-rejected start is
-// retried rather than silently dead.
-ScanStartResult BK72xxBLE::send_active_start_() {
-  if (!bdk_scan_start_active(this->scan_activity_idx_, this->requested_.interval, this->requested_.window)) {
-    // The created activity is intact; keep the handle so the next attempt
-    // reuses it instead of orphaning the slot.
-    return ScanStartResult::FAILED;
+ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
+  if (state == BdkActivityState::IDLE) {
+    // Fully torn down (or never created): the radio is idle.
+    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+    this->release_warned_ = false;
+    return ScanOpResult::SETTLED;
   }
-  this->applied_ = this->requested_;
-  return ScanStartResult::PENDING;
+  if (!ready) {
+    // Acting while an operation is in flight could delete an activity whose
+    // start lands afterwards (leaking the slot with the radio on); wait.
+    // Also covers our own release settling.
+    return this->defer_("stop");
+  }
+  // Settled, so CREATED unambiguously means "never started".
+  this->release_activity_(state == BdkActivityState::CREATED);
+  return ScanOpResult::PENDING;  // confirmed once IDLE is observed
+}
+
+ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
+  if (state == BdkActivityState::STARTED) {
+    if (this->applied_ == this->requested_)
+      return ScanOpResult::SETTLED;
+    if (ready) {
+      // Running with different mode or parameters: tear down (the SDK stop
+      // chain also deletes the activity) and recreate on a later advance.
+      this->release_activity_(false);
+    }
+    return ScanOpResult::PENDING;
+  }
+  if (!ready)
+    return this->defer_("start");
+  if (state == BdkActivityState::CREATED) {
+    // Fire-and-forget start (see bdk_scan.cpp): SETTLED only once a later
+    // advance observes the scan running, so a GAPM-rejected start is retried
+    // rather than silently dead. On allocation failure the created activity
+    // is intact; keep the handle for the next attempt.
+    if (!bdk_scan_start(this->scan_activity_idx_, this->requested_.interval, this->requested_.window,
+                        this->requested_.active))
+      return ScanOpResult::FAILED;
+    this->applied_ = this->requested_;
+    return ScanOpResult::PENDING;
+  }
+  if (state == BdkActivityState::OTHER) {
+    // A transitional state; settles on a later read.
+    return ScanOpResult::PENDING;
+  }
+
+  // IDLE with the controller ready: acquire (or reuse) a slot and create; a
+  // later advance starts it once the creation is observed.
+  if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
+    this->scan_activity_idx_ = bdk_scan_acquire_activity();
+    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX)
+      return ScanOpResult::FAILED;
+  }
+  switch (bdk_scan_create(this->scan_activity_idx_)) {
+    case BdkOpResult::BUSY:
+      // Raced the BLE task; keep the index so the retry resumes on the same
+      // slot instead of orphaning it.
+    case BdkOpResult::OK:
+      return ScanOpResult::PENDING;
+    case BdkOpResult::FAILED:
+      break;
+  }
+  this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+  return ScanOpResult::FAILED;
 }
 
 }  // namespace esphome::bk72xx_ble

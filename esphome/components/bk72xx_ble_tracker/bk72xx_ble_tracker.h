@@ -130,9 +130,10 @@ class BK72xxBLETracker : public Component,
   void start_scan_();
   void stop_scan_();
   void fire_scan_end_();
+  void mark_scan_ended_(uint32_t now);
   /// Stamp-and-start for every controller scan attempt, so the retry rate
   /// limit covers all callers.
-  bk72xx_ble::ScanStartResult controller_scan_start_();
+  bk72xx_ble::ScanOpResult controller_scan_start_();
   /// Attempt a rate-limited (re)start; returns true when the scan is running,
   /// which means the caller must not compare its cached millis() against the
   /// timestamps start_scan_() just refreshed. force bypasses the rate gate for
