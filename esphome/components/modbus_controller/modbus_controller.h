@@ -279,18 +279,20 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   EntityType register_type() const { return this->register_type_; }
 
   /// Write helpers: set the metadata and queue the PDU routed back to this item. Own the item; it must
-  /// outlive the transaction. Transitional shadows: they exist only so the reporting callbacks have
-  /// metadata, and go away once reporting decodes from request_pdu (writer-entity rework).
-  void write_single_register(uint16_t start_address, uint16_t value);
-  void write_single_coil(uint16_t address, bool value);
-  void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values);
-  void write_multiple_coils(uint16_t start_address, std::span<const bool> values);
+  /// outlive the transaction. Each returns the hub's verdict: true = queued, and exactly one callback
+  /// will follow; false = refused at the door, and nothing further happens. Transitional shadows: they
+  /// exist only so the reporting callbacks have metadata, and go away once reporting decodes from
+  /// request_pdu (writer-entity rework).
+  bool write_single_register(uint16_t start_address, uint16_t value);
+  bool write_single_coil(uint16_t address, bool value);
+  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values);
+  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values);
   /// Send a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
-  /// handle the response.
-  void send_pdu(std::span<const uint8_t> pdu);
+  /// handle the response. Returns the hub's verdict like the write helpers above.
+  bool send_pdu(std::span<const uint8_t> pdu);
   /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
   /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
-  void send_raw_frame_deprecated(std::span<const uint8_t> frame);
+  bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   /// The item is the hub device, so it must stay alive until its terminal callback; a destroyed item's
@@ -453,7 +455,9 @@ class ModbusController final : public PollingComponent {
   uint8_t device_address() const { return this->address_; }
 
   /// Empty command on this controller's hub/address: own it, call a write helper / send_pdu(), keep it alive
-  /// until the reply.
+  /// until the reply. Re-using one slot supersedes: emplacing a new command destroys the previous item, and
+  /// any frame it still had queued is dropped with a warning - last write wins. Writes that must all reach
+  /// the wire each need their own live item.
   ModbusCommandItem create_command() { return ModbusCommandItem(*this, this->hub_, this->address_); }
   /// Build a polling command for a register range bound to this controller's hub and address.
   ModbusCommandItem create_command(RegisterRange &&range) {

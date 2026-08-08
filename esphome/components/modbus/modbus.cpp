@@ -963,10 +963,16 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address) {
 
 void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   // Silent teardown (supersede semantics): the caller's own frames vanish without callbacks; see
-  // the lifecycle note on ModbusClientDevice.
+  // the lifecycle note on ModbusClientDevice. One exception to the silence: a frame that never reached
+  // the wire is warned about, because the sender saw it accepted - the usual way here is a write slot
+  // emplacing a new command while the previous one was still queued (last write wins).
   for (auto &cmd : this->tx_buffer_) {
     if (cmd.device != device)
       continue;
+    if (cmd.state == FrameState::READY) {
+      ESP_LOGW(TAG, "Dropping queued frame for %" PRIu8 " (function 0x%X): superseded before transmission",
+               cmd.frame.address(), cmd.frame.pdu()[0]);
+    }
     cmd.silent_retire();
     this->sweep_needed_ = true;
   }

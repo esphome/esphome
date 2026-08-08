@@ -673,9 +673,8 @@ async def test_uart_mock_modbus_offline(
     publishes. This pins the pooled non-response counter, can_send() gating, the
     offline retry cadence, and recovery - none of which the responding-path tests touch.
 
-    The fixture gives offline_skip_updates and the sensor's skip_updates the same period
-    on purpose: offline probing must follow the offline cadence alone, since requiring
-    both cadences to coincide leaves phase combinations where no probe ever goes out.
+    Offline probing follows the offline cadence alone; regular every-update polling
+    resumes once the device answers again.
     """
 
     tracker = SensorTracker(["link_state", "reg"])
