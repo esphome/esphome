@@ -62,15 +62,6 @@ class RejectingDevice : public ModbusServerDevice {
   int write_count{0};
 };
 
-// A UART that records every byte written so the test can assert the hub sends no reply.
-class RecordingUART : public testing::NullUART {
- public:
-  void write_array(const uint8_t *data, size_t len) override {
-    this->written.insert(this->written.end(), data, data + len);
-  }
-  std::vector<uint8_t> written;
-};
-
 // Drives full frames through the server hub's receive path in tests.
 class TestServerHub : public ModbusServerHub {
  public:
@@ -95,6 +86,8 @@ class TestServerHub : public ModbusServerHub {
 };
 
 }  // namespace
+
+using testing::RecordingUART;
 
 // A broadcast (address 0) single-register write reaches every registered device and is not answered.
 // Driven through the full receive parser (parse_modbus_frames) so the address-0 routing -- frame length,

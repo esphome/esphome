@@ -1,26 +1,16 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <new>
 #include <span>
 #include <vector>
 
 #include "common.h"
 #include "esphome/components/modbus/modbus.h"
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::modbus {
 
 namespace {
-
-void ensure_test_app_constructed() {
-  static bool app_constructed = false;
-  if (!app_constructed) {
-    new (&App) Application();
-    app_constructed = true;
-  }
-}
 
 // A server device backed by a small coil array: reads deliver the stored bits, writes apply them.
 class CoilDevice : public ModbusServerDevice {
@@ -104,7 +94,6 @@ class TestServerHub : public ModbusServerHub {
 
 struct CoilFixture {
   CoilFixture() {
-    ensure_test_app_constructed();
     hub.set_uart_parent(&uart);
     hub.prime_send_timestamps_for_test();
     hub.register_device(&device);
@@ -241,7 +230,6 @@ TEST(ModbusServerCoils, ZeroRegisterReadQuantityRejectedByTheSameParser) {
 
 // A device without bit handlers rejects coil requests with ILLEGAL_FUNCTION via the defaults.
 TEST(ModbusServerCoils, UnhandledCoilReadIsIllegalFunction) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -282,7 +270,6 @@ TEST(ModbusServerCoils, PackedBitsViewContractsEnforced) {
 // FC 0x02 must dispatch to on_read_discrete_inputs, not on_read_coils: the two handlers fill different
 // patterns, so a swapped dispatch would fail on both the counters and the wire bytes.
 TEST(ModbusServerCoils, ReadDiscreteInputsDispatchesToItsOwnHandler) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);
@@ -312,7 +299,6 @@ TEST(ModbusServerCoils, ReadDiscreteInputsDispatchesToItsOwnHandler) {
 // The write-side ILLEGAL_FUNCTION defaults: a device without bit handlers rejects coil writes too
 // (single and multiple), mirroring the read-side default already covered above.
 TEST(ModbusServerCoils, UnhandledCoilWriteIsIllegalFunction) {
-  ensure_test_app_constructed();
   TestServerHub hub;
   RecordingUART uart;
   hub.set_uart_parent(&uart);

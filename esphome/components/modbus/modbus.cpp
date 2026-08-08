@@ -645,7 +645,11 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     case FunctionCode::READ_DISCRETE_INPUTS: {
       uint16_t start_address;
       uint16_t number_of_bits;
-      status = this->parse_read_request_(data, MAX_NUM_OF_COILS_TO_READ, "bits", start_address, number_of_bits);
+      // The spec sets the ceiling per function code; both are 2000 today, but they are distinct limits.
+      const bool coils_read = static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS;
+      status =
+          this->parse_read_request_(data, coils_read ? MAX_NUM_OF_COILS_TO_READ : MAX_NUM_OF_DISCRETE_INPUTS_TO_READ,
+                                    "bits", start_address, number_of_bits);
       if (this->rejected_(address, function_code, status)) {
         return;
       }
@@ -665,7 +669,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       std::span<uint8_t> packed_out(response_buffer + response_len, byte_count);
       std::fill(packed_out.begin(), packed_out.end(), 0);
       MutablePackedBits bits(packed_out, number_of_bits);
-      if (static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS) {
+      if (coils_read) {
         status = device->on_read_coils(start_address, bits);
       } else {
         status = device->on_read_discrete_inputs(start_address, bits);

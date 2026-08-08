@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
@@ -426,11 +428,18 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  // pack_bits() is push_back-based and SmallInlineBuffer is not, so pack into the shared coil buffer
-  // and copy the packed bytes across in one go.
-  modbus::helpers::CoilPackBuffer packed;
-  modbus::helpers::pack_bits(packed, values);
-  cmd.payload.set(packed.data(), packed.size());
+  // Packed straight into the exact-size payload. A transient CoilPackBuffer would cost 246 bytes of
+  // stack to pack the single coil the in-tree callers send, and its capacity would silently truncate a
+  // longer set while the quantity field still claimed all of it. Built at its true byte count, an
+  // over-long set instead produces an oversize frame the hub refuses and logs.
+  const size_t byte_count = modbus::packed_bit_bytes(values.size());
+  uint8_t *p = cmd.payload.init(byte_count);
+  memset(p, 0, byte_count);
+  modbus::MutablePackedBits bits(std::span<uint8_t>(p, byte_count), static_cast<uint16_t>(values.size()));
+  for (size_t i = 0; i != values.size(); i++) {
+    if (values[i])
+      bits.set(i, true);
+  }
   return cmd;
 }
 
