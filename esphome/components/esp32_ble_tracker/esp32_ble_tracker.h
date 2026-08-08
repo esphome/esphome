@@ -58,9 +58,6 @@ class ESPBTDeviceListener : public ble_device_base::ESPBTDeviceListener {
   // Raw-only build: no parsed-device support is compiled in.
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 #endif
-  /// False keeps the tracker from building parsed ESPBTDevice objects on
-  /// this registrant's account (raw consumers use the hub callback).
-  virtual bool wants_parsed_advertisements() { return true; }
   void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
@@ -116,6 +113,11 @@ class BLEScannerStateListener {
 /// increment the counter through this pointer when their state changes.
 /// The pointer may be null if the client is not registered with a tracker.
 class ESPBTClient : public ESPBTDeviceListener {
+ public:
+  /// False keeps the tracker from building parsed ESPBTDevice objects on
+  /// this client's account (raw consumers use the hub callback).
+  virtual bool wants_parsed_advertisements() { return true; }
+
  public:
   virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
@@ -250,7 +252,6 @@ class ESP32BLETracker final : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
-  void recalculate_parse_advertisements_();
   /// Common cleanup logic when transitioning scanner to IDLE state
   void cleanup_scan_state_(bool is_stop_complete);
   /// Process a single scan result immediately

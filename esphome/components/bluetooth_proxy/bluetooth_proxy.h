@@ -20,9 +20,6 @@
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
 #else
 #include "esphome/components/ble_device_base/ble_hub.h"
 #ifdef USE_BLE_GATT_CLIENT
