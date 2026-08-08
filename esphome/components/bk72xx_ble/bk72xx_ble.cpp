@@ -275,8 +275,9 @@ ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool acti
     this->enable();
 
   const ScanParams params{active, interval, window};
-  // Only a new request refills the budget; an observing re-call must not.
-  if (!this->scan_wanted_ || params != this->requested_)
+  // A new episode refills the budget; a re-call observing an in-flight
+  // bring-up (last result PENDING) must not.
+  if (this->last_result_ != ScanOpResult::PENDING || !this->scan_wanted_ || params != this->requested_)
     this->pending_since_ms_ = App.get_loop_component_start_time();
   this->scan_wanted_ = true;
   this->requested_ = params;
@@ -322,7 +323,14 @@ ScanOpResult BK72xxBLE::defer_(const char *what) {
 // One SDK operation per call toward the latched request; controller state is
 // read live each time (it changes on the BLE task, so nothing is mirrored).
 ScanOpResult BK72xxBLE::advance_() {
+  if (!this->scan_wanted_ && this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
+    // Nothing to do; also keeps SDK reads off the pre-enable() path.
+    this->last_result_ = ScanOpResult::SETTLED;
+    return ScanOpResult::SETTLED;
+  }
   const BdkActivityState state = bdk_scan_state(this->scan_activity_idx_);
+  if (state == BdkActivityState::IDLE)
+    this->release_warned_ = false;  // any release episode is over
   const bool ready = bdk_scan_ready();
   ScanOpResult result = this->scan_wanted_ ? this->advance_start_(state, ready) : this->advance_stop_(state, ready);
 
@@ -332,7 +340,6 @@ ScanOpResult BK72xxBLE::advance_() {
     if (this->scan_wanted_ && now - this->pending_since_ms_ >= RECONCILE_PENDING_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
       result = ScanOpResult::FAILED;
-      this->pending_since_ms_ = now;  // a fresh budget for the next episode
     }
   }
   this->last_result_ = result;
@@ -343,7 +350,6 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
   if (state == BdkActivityState::IDLE) {
     // Fully torn down (or never created): the radio is idle.
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
-    this->release_warned_ = false;
     return ScanOpResult::SETTLED;
   }
   if (!ready) {
