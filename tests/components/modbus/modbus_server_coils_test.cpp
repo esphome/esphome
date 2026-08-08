@@ -194,6 +194,51 @@ TEST(ModbusServerCoils, InvalidSingleCoilValueRejected) {
   EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_VALUE));
 }
 
+// Read quantity validation lives in the shared read-request parser, so the register and bit reads cannot
+// drift apart. These pin both ends of the range for coils; the register case below pins that the same
+// parser is on that path too.
+TEST(ModbusServerCoils, ZeroCoilReadQuantityRejected) {
+  CoilFixture f;
+
+  // FC 0x01: start 0x0000, quantity 0 - a read of nothing is out of spec.
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x00};
+  ASSERT_TRUE(f.hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(FunctionCode::READ_COILS), pdu_data,
+                                                       sizeof(pdu_data)));
+
+  EXPECT_EQ(f.device.read_count, 0);
+  ASSERT_EQ(f.uart.written.size(), 5u);  // one exception frame
+  EXPECT_EQ(f.uart.written[1], static_cast<uint8_t>(FunctionCode::READ_COILS) | 0x80);
+  EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_VALUE));
+}
+
+TEST(ModbusServerCoils, OverLimitCoilReadQuantityRejected) {
+  CoilFixture f;
+
+  // One past MAX_NUM_OF_COILS_TO_READ (2000 = 0x07D0), which no frame could carry anyway.
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x07, 0xD1};
+  ASSERT_TRUE(f.hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(FunctionCode::READ_COILS), pdu_data,
+                                                       sizeof(pdu_data)));
+
+  EXPECT_EQ(f.device.read_count, 0);
+  ASSERT_EQ(f.uart.written.size(), 5u);
+  EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_VALUE));
+}
+
+// The register read path shares that parser, so a zero quantity is rejected there identically. Lives
+// beside the coil cases deliberately: together they are what stops the shared parser being bypassed on
+// one side without the other noticing.
+TEST(ModbusServerCoils, ZeroRegisterReadQuantityRejectedByTheSameParser) {
+  CoilFixture f;
+
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x00};
+  ASSERT_TRUE(f.hub.process_full_client_frame_for_test(0x02, static_cast<uint8_t>(FunctionCode::READ_HOLDING_REGISTERS),
+                                                       pdu_data, sizeof(pdu_data)));
+
+  ASSERT_EQ(f.uart.written.size(), 5u);
+  EXPECT_EQ(f.uart.written[1], static_cast<uint8_t>(FunctionCode::READ_HOLDING_REGISTERS) | 0x80);
+  EXPECT_EQ(f.uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_VALUE));
+}
+
 // A device without bit handlers rejects coil requests with ILLEGAL_FUNCTION via the defaults.
 TEST(ModbusServerCoils, UnhandledCoilReadIsIllegalFunction) {
   ensure_test_app_constructed();

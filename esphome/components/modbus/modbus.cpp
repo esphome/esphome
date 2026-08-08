@@ -422,6 +422,19 @@ ResponseStatus ModbusServerHub::parse_write_multiple_(std::span<const uint8_t> d
   return std::nullopt;
 }
 
+ResponseStatus ModbusServerHub::parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities,
+                                                    const char *entity_name, uint16_t &start_address, uint16_t &count) {
+  // Every read request is start address(2) + quantity(2); only the protocol ceiling differs per function
+  // code, so registers and coils/discrete inputs validate through here and cannot drift apart.
+  start_address = helpers::get_data<uint16_t>(data.data(), 0);
+  count = helpers::get_data<uint16_t>(data.data(), 2);
+  if (count == 0 || count > max_entities) {
+    ESP_LOGW(TAG, "Invalid number of %s %" PRIu16, entity_name, count);
+    return ExceptionCode::ILLEGAL_DATA_VALUE;
+  }
+  return this->check_address_range_(start_address, count);
+}
+
 ResponseStatus ModbusServerHub::parse_write_coils_(uint8_t function_code, std::span<const uint8_t> data,
                                                    uint16_t &start_address, uint16_t &count,
                                                    std::span<const uint8_t> &packed_bytes,
@@ -589,15 +602,10 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   switch (static_cast<FunctionCode>(function_code)) {
     case FunctionCode::READ_HOLDING_REGISTERS:
     case FunctionCode::READ_INPUT_REGISTERS: {
-      // PDU data: start address(2) + quantity(2).
-      uint16_t start_address = helpers::get_data<uint16_t>(data.data(), 0);
-      uint16_t number_of_registers = helpers::get_data<uint16_t>(data.data(), 2);
-      if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
-        ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
-        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
-        return;
-      }
-      status = this->check_address_range_(start_address, number_of_registers);
+      uint16_t start_address;
+      uint16_t number_of_registers;
+      status = this->parse_read_request_(data, MAX_NUM_OF_REGISTERS_TO_READ, "registers", start_address,
+                                         number_of_registers);
       if (status.has_value()) {
         this->send_exception_(address, function_code, status.value());
         return;
@@ -636,22 +644,25 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     }
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS: {
-      // PDU data: start address(2) + quantity(2).
-      uint16_t start_address = helpers::get_data<uint16_t>(data.data(), 0);
-      uint16_t number_of_bits = helpers::get_data<uint16_t>(data.data(), 2);
-      if (number_of_bits == 0 || number_of_bits > MAX_NUM_OF_COILS_TO_READ) {
-        ESP_LOGW(TAG, "Invalid number of bits %" PRIu16, number_of_bits);
-        this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_DATA_VALUE);
-        return;
-      }
-      status = this->check_address_range_(start_address, number_of_bits);
+      uint16_t start_address;
+      uint16_t number_of_bits;
+      status = this->parse_read_request_(data, MAX_NUM_OF_COILS_TO_READ, "bits", start_address, number_of_bits);
       if (status.has_value()) {
         this->send_exception_(address, function_code, status.value());
         return;
       }
-      // Response: byte count(1) + ceil(N/8) packed bytes. The handler sets its bits directly in the
-      // response buffer via the pre-zeroed span, so there is no intermediate container or repack.
-      const uint8_t byte_count = static_cast<uint8_t>((number_of_bits + 7) / 8);
+      // Response: byte count(1) + packed bytes. The handler sets its bits directly in the response buffer
+      // via the pre-zeroed span, so there is no intermediate container or repack. Bounds-checked before
+      // writing for the same reason the register path is: the bound travels with the write, so a future
+      // caller entering at a non-zero response_len is rejected instead of overrunning the buffer. The
+      // static_assert beside MAX_NUM_OF_COILS_TO_READ covers the other direction - raising that ceiling.
+      const uint8_t byte_count = static_cast<uint8_t>(packed_bit_bytes(number_of_bits));
+      const size_t required = static_cast<size_t>(response_len) + 1 + byte_count;
+      if (required > sizeof(response_buffer)) {
+        ESP_LOGE(TAG, "Read response needs %zu bytes but only %zu are available", required, sizeof(response_buffer));
+        this->send_exception_(address, function_code, ExceptionCode::SERVICE_DEVICE_FAILURE);
+        return;
+      }
       response_buffer[response_len++] = byte_count;
       std::span<uint8_t> packed_out(response_buffer + response_len, byte_count);
       std::fill(packed_out.begin(), packed_out.end(), 0);
