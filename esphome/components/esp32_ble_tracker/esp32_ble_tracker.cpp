@@ -11,6 +11,7 @@
 #include <esp_bt.h>
 #include <esp_mac.h>
 #endif
+#include <esp_bt_device.h>
 #include <esp_bt_defs.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
@@ -19,6 +20,7 @@
 #include <freertos/task.h>
 #include <nvs_flash.h>
 #include <cinttypes>
+#include <cstring>
 
 #ifdef USE_OTA
 #include "esphome/components/ota/ota_backend.h"
@@ -287,9 +289,21 @@ void ESP32BLETracker::register_listener(ble_device_base::ESPBTDeviceListener *li
 }
 
 void ESP32BLETracker::get_adapter_mac(uint8_t out[6]) {
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  // Hosted controller (esp32-p4): the adapter MAC lives in the remote chip's
+  // efuse, so only the running stack knows it; ESP_MAC_BT does not exist
+  // here. Null before init becomes all-zero, the proxy's unavailable state.
+  const uint8_t *mac = esp_bt_dev_get_address();
+  if (mac != nullptr) {
+    memcpy(out, mac, 6);
+  } else {
+    memset(out, 0, 6);
+  }
+#else
   // IDF owns the BT-offset derivation (base + 2 with four universal MACs,
   // base + 1 with two); works before the BT stack is up.
   esp_read_mac(out, ESP_MAC_BT);
+#endif
 }
 
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
