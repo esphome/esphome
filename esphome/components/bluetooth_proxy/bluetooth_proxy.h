@@ -179,10 +179,7 @@ class BluetoothProxy final : public Component {
     this->hub_->get_adapter_mac(mac);
     // Unavailable -> empty string: some hubs (rp2040's BTstack) only learn
     // the address once the link layer is up, and report all-zero until then.
-    bool nonzero = false;
-    for (uint8_t b : mac)
-      nonzero |= b != 0;
-    if (nonzero) {
+    if (mac_address_is_valid(mac)) {
       format_mac_addr_upper(mac, output.data());
     } else {
       output[0] = '\0';
