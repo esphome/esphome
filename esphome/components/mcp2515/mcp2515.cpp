@@ -48,9 +48,6 @@ canbus::CanEventFlags MCP2515::get_events() {
   uint8_t error_flags = this->get_error_flags_();
 
   uint8_t changed_flags = this->last_error_flags_ ^ error_flags;
-  if (changed_flags & EFLG_EWARN) {
-    events |= (error_flags & EFLG_EWARN) ? canbus::CAN_EVENT_ABOVE_WARNING : canbus::CAN_EVENT_BELOW_WARNING;
-  }
   if (changed_flags & (EFLG_RXEP | EFLG_TXEP)) {
     bool was_passive = this->last_error_flags_ & (EFLG_RXEP | EFLG_TXEP);
     bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);

@@ -48,6 +48,8 @@ template<typename... Ts> class CanbusSendAction;
 /* CAN payload length definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
+static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
@@ -62,13 +64,11 @@ struct CanFrame {
 };
 
 enum CanEventFlags {
-  CAN_EVENT_ABOVE_WARNING = 1 << 0,
-  CAN_EVENT_BELOW_WARNING = 1 << 1,
-  CAN_EVENT_PASSIVE = 1 << 2,
-  CAN_EVENT_ACTIVE = 1 << 3,
-  CAN_EVENT_BUS_OFF = 1 << 4,
-  CAN_EVENT_BUS_RECOVERED = 1 << 5,
-  CAN_EVENT_RX_QUEUE_FULL = 1 << 6,
+  CAN_EVENT_PASSIVE = 1 << 0,
+  CAN_EVENT_ACTIVE = 1 << 1,
+  CAN_EVENT_BUS_OFF = 1 << 2,
+  CAN_EVENT_BUS_RECOVERED = 1 << 3,
+  CAN_EVENT_RX_QUEUE_FULL = 1 << 4,
 };
 
 struct CanStatus {
@@ -123,13 +123,20 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  static constexpr uint32_t EVENT_LOG_THROTTLE_MS = 1000;
   uint32_t events_to_log_{0};
-
-  static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
   bool bus_off_{false};
-  uint32_t last_bus_off_time_{0};
+
+  // interval in which to check for new can bus events (bus-off, passive, active)
+  static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
+  uint32_t last_event_check_time_{0};
+
+  // time to wait after logging an event before logging the next event(s)
+  static constexpr uint32_t EVENT_LOG_THROTTLE_MS = 1000;
   uint32_t last_event_log_time_{0};
+
+  // time span without bus-off events before the bus is declared recovered
+  static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
+  uint32_t last_bus_off_time_{0};
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   static constexpr uint32_t STATE_LOG_INTERVAL_MS = 1000;

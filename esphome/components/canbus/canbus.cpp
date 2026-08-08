@@ -67,9 +67,13 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 };
 
 void Canbus::loop() {
-  enum CanEventFlags events = this->get_events();
+  uint32_t now = millis();
+  if ((now - this->last_event_check_time_) >= EVENT_CHECK_INTERVAL_MS) {
+    enum CanEventFlags events = this->get_events();
+    this->log_events_(events);
 
-  this->log_events_(events);
+    this->last_event_check_time_ = now;
+  }
 
   struct CanFrame can_message;
   // read all messages until queue is empty
@@ -138,13 +142,31 @@ void Canbus::log_events_(CanEventFlags events) {
     if ((now - this->last_event_log_time_) >= EVENT_LOG_THROTTLE_MS) {
       bool logged_event = false;
 
-      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) {
-        ESP_LOGW(TAG, "entered error-passive");
+      if ((this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) &&
+          (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE)) {
+        // got both active and passive events at the same time
+        // -> check counters to determine current status and log both in right order
+        auto status = this->get_status();
+        bool error_passive = status.rx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD ||
+                             status.tx_error_counter >= CAN_ERROR_PASSIVE_THRESHOLD;
+
+        if (error_passive) {
+          ESP_LOGW(TAG, "entered error-active");
+          ESP_LOGW(TAG, "entered error-passive");
+        } else {
+          ESP_LOGW(TAG, "entered error-passive");
+          ESP_LOGW(TAG, "entered error-active");
+        }
         logged_event = true;
-      }
-      if (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE) {
-        ESP_LOGW(TAG, "entered error-active");
-        logged_event = true;
+      } else {
+        if (this->events_to_log_ & CanEventFlags::CAN_EVENT_PASSIVE) {
+          ESP_LOGW(TAG, "entered error-passive");
+          logged_event = true;
+        }
+        if (this->events_to_log_ & CanEventFlags::CAN_EVENT_ACTIVE) {
+          ESP_LOGW(TAG, "entered error-active");
+          logged_event = true;
+        }
       }
       if (this->events_to_log_ & CanEventFlags::CAN_EVENT_RX_QUEUE_FULL) {
         ESP_LOGD(TAG, "receive buffer overrun");
