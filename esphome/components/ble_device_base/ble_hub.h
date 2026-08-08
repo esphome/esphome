@@ -49,6 +49,27 @@ struct RawAdvertisementCallback {
   void invoke(const RawAdvertisement &adv) const { this->fn(this->instance, adv); }
 };
 
+/// Scanner lifecycle, wire-value aligned with the api enum so consumers cast
+/// directly (pinned by static_asserts at the cast sites).
+enum class ScannerState : uint8_t {
+  IDLE = 0,
+  STARTING = 1,
+  RUNNING = 2,
+  FAILED = 3,
+  STOPPING = 4,
+  STOPPED = 5,
+};
+
+/// Subscriber slot for scanner-state transitions; same shape as
+/// RawAdvertisementCallback. Hubs that cannot push simply never invoke it and
+/// the consumer falls back to polling scan_running().
+struct ScannerStateCallback {
+  void *instance{nullptr};
+  void (*fn)(void *instance, ScannerState state){nullptr};
+  bool is_set() const { return this->fn != nullptr; }
+  void invoke(ScannerState state) const { this->fn(this->instance, state); }
+};
+
 /// What a tracker's controller/SDK can do — consumers branch on data, not #ifdefs.
 struct HubCapabilities {
   /// Controller can send scan requests (active scanning).
@@ -78,6 +99,10 @@ class BLEHub {
   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
   virtual void set_raw_advertisement_callback(RawAdvertisementCallback callback) = 0;
 
+  /// Push subscriber for scanner-state transitions (stored here; hubs invoke
+  /// scanner_state_callback_ where their state changes, if they can push).
+  void set_scanner_state_callback(ScannerStateCallback callback) { this->scanner_state_callback_ = callback; }
+
   virtual HubCapabilities get_capabilities() const = 0;
 
   /// Adapter MAC in printable (MSB-first) order, out[0] = MSB.
@@ -97,6 +122,9 @@ class BLEHub {
   /// HubCapabilities::scan_mode_switch, so consumers can gate features on the
   /// switch without probing.
   virtual bool request_scan_mode(bool active) { return false; }
+
+ protected:
+  ScannerStateCallback scanner_state_callback_{};
 };
 
 }  // namespace esphome::ble_device_base
