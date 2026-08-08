@@ -613,9 +613,18 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
+  // Hub entry point for broadcast (address 0) writes, which are never answered.
+  ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    this->broadcast_write_ = true;
+    ResponseStatus status = this->on_write_registers(start_address, registers);
+    this->broadcast_write_ = false;
+    return status;
+  }
 
  protected:
   uint8_t address_{0};
+  // Set while handling a broadcast write: the caller sends no reply, so a rejection has no wire consequence.
+  bool broadcast_write_{false};
 };
 
 }  // namespace esphome::modbus

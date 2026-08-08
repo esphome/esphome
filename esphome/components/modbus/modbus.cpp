@@ -448,7 +448,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   for (auto *device : this->devices_) {
     // A broadcast is never answered, so a rejecting device has no other feedback channel; log it so a
     // misconfigured register map is diagnosable instead of looking identical to a successful write.
-    if (ResponseStatus device_status = device->on_write_registers(start_address, registers);
+    if (ResponseStatus device_status = device->on_broadcast_write_registers(start_address, registers);
         device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
