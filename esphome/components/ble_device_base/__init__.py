@@ -8,8 +8,10 @@ on every platform.
 
 BLE consumers (sensor components, bluetooth_proxy) bind to whichever tracker the
 configuration declares via `cv.use_id(BLEHub)` — ESPHome resolves any declared
-subclass, so there is no platform table here and no dependency in either
-direction. A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
+subclass, so there is no Python platform table here and no dependency in
+either direction (C++-side, the compile-time alias header ble_hub_impl.h and
+the defines.h mirror are the deliberate exceptions: a new chip's tracker adds
+its alias arm and define alongside register_hub_provider()). A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
 explicit ble_hub_id: is a declared key even on strict schemas) and calls
 register_ble_device() in to_code; a tracker component declares BLEHub as its
 codegen-class parent and MUST call register_hub_provider() at import time —
