@@ -9,6 +9,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
@@ -83,7 +84,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
 

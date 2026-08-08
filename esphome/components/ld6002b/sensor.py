@@ -116,6 +116,16 @@ AREA_SCHEMA = cv.Schema(
     }
 )
 
+# (config key, C++ setter axis) for the six bounds every area sensor block carries.
+_AREA_AXES = (
+    (KEY_X_MIN, "x_min"),
+    (KEY_X_MAX, "x_max"),
+    (KEY_Y_MIN, "y_min"),
+    (KEY_Y_MAX, "y_max"),
+    (CONF_Z_MIN, "z_min"),
+    (CONF_Z_MAX, "z_max"),
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -169,44 +179,10 @@ async def to_code(config):
                 sens = await sensor.new_sensor(cluster_id_config)
                 cg.add(hub.set_target_cluster_id_sensor(i, sens))
 
-    for i in range(AREA_COUNT):
-        if area_config := config.get(f"interference_area_{i}"):
-            if x_min_config := area_config.get(KEY_X_MIN):
-                sens = await sensor.new_sensor(x_min_config)
-                cg.add(hub.set_interference_area_x_min_sensor(i, sens))
-            if x_max_config := area_config.get(KEY_X_MAX):
-                sens = await sensor.new_sensor(x_max_config)
-                cg.add(hub.set_interference_area_x_max_sensor(i, sens))
-            if y_min_config := area_config.get(KEY_Y_MIN):
-                sens = await sensor.new_sensor(y_min_config)
-                cg.add(hub.set_interference_area_y_min_sensor(i, sens))
-            if y_max_config := area_config.get(KEY_Y_MAX):
-                sens = await sensor.new_sensor(y_max_config)
-                cg.add(hub.set_interference_area_y_max_sensor(i, sens))
-            if z_min_config := area_config.get(CONF_Z_MIN):
-                sens = await sensor.new_sensor(z_min_config)
-                cg.add(hub.set_interference_area_z_min_sensor(i, sens))
-            if z_max_config := area_config.get(CONF_Z_MAX):
-                sens = await sensor.new_sensor(z_max_config)
-                cg.add(hub.set_interference_area_z_max_sensor(i, sens))
-
-    for i in range(AREA_COUNT):
-        if area_config := config.get(f"detection_area_{i}"):
-            if x_min_config := area_config.get(KEY_X_MIN):
-                sens = await sensor.new_sensor(x_min_config)
-                cg.add(hub.set_detection_area_x_min_sensor(i, sens))
-            if x_max_config := area_config.get(KEY_X_MAX):
-                sens = await sensor.new_sensor(x_max_config)
-                cg.add(hub.set_detection_area_x_max_sensor(i, sens))
-            if y_min_config := area_config.get(KEY_Y_MIN):
-                sens = await sensor.new_sensor(y_min_config)
-                cg.add(hub.set_detection_area_y_min_sensor(i, sens))
-            if y_max_config := area_config.get(KEY_Y_MAX):
-                sens = await sensor.new_sensor(y_max_config)
-                cg.add(hub.set_detection_area_y_max_sensor(i, sens))
-            if z_min_config := area_config.get(CONF_Z_MIN):
-                sens = await sensor.new_sensor(z_min_config)
-                cg.add(hub.set_detection_area_z_min_sensor(i, sens))
-            if z_max_config := area_config.get(CONF_Z_MAX):
-                sens = await sensor.new_sensor(z_max_config)
-                cg.add(hub.set_detection_area_z_max_sensor(i, sens))
+    for kind in ("interference", "detection"):
+        for i in range(AREA_COUNT):
+            if area_config := config.get(f"{kind}_area_{i}"):
+                for key, axis in _AREA_AXES:
+                    if axis_config := area_config.get(key):
+                        sens = await sensor.new_sensor(axis_config)
+                        cg.add(getattr(hub, f"set_{kind}_area_{axis}_sensor")(i, sens))

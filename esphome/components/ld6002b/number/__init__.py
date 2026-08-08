@@ -12,6 +12,7 @@ from esphome.const import (
     UNIT_SECOND,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import (
@@ -104,7 +105,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType) -> ConfigType:
     if config.get(CONF_AREA_CONFIG) is None:
         return config
 

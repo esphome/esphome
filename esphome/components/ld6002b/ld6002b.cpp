@@ -631,7 +631,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->process_command_queue_();
     if (refresh_areas) {
       this->area_write_in_flight_ = false;
-      this->set_timeout(50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
+      this->set_timeout(AREA_REFRESH_TIMEOUT, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
     }
     return;
   }
@@ -1054,6 +1054,16 @@ void LD6002BComponent::publish_work_mode_(bool low_power) {
 void LD6002BComponent::publish_number_clamped_(number::Number *number, float value) {
   if (number == nullptr)
     return;
+  if (std::isnan(value)) {
+    // NAN is this component's "the module has not told us yet".  Publishing it on an
+    // entity that has never had a state would report a nan where unknown is the
+    // truth; on one that already shows a value it is the only way to say that value
+    // no longer describes the selected area.
+    if (number->has_state()) {
+      number->publish_state(value);
+    }
+    return;
+  }
   const float min_value = number->traits.get_min_value();
   const float max_value = number->traits.get_max_value();
   // Outside the declared range the user cannot write the value back, so publish
@@ -1088,14 +1098,14 @@ void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len)
 #endif
 }
 
-void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
+bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
-    return;
+    return false;
   }
   if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
-    return;
+    return false;
   }
 
   PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
@@ -1108,6 +1118,7 @@ void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
   this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
   this->cmd_count_++;
   this->process_command_queue_();
+  return true;
 }
 
 void LD6002BComponent::process_command_queue_() {
@@ -1151,6 +1162,7 @@ void LD6002BComponent::process_command_queue_() {
         // an unrelated area report later, writing bounds the user has moved on from.
         if (active_control_command == CMD_GET_AREAS && this->deferred_apply_pending_) {
           this->deferred_apply_pending_ = false;
+          this->restore_deferred_edits_();
           ESP_LOGW(TAG, "Area read timed out, dropping deferred area apply");
         }
         // A reply may still be in flight for the attempt we just gave up on, so carry one over as
@@ -1275,10 +1287,10 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->last_traffic_ms_ = now;
 }
 
-void LD6002BComponent::send_control_command_(uint32_t command) {
+bool LD6002BComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
   write_u32_le(data, command);
-  this->queue_command_(TYPE_CONTROL, data, sizeof(data));
+  return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
 void LD6002BComponent::send_z_range_() {
@@ -1326,21 +1338,28 @@ void LD6002BComponent::apply_area_config_() {
 
   if (std::isnan(desired.x_min) || std::isnan(desired.x_max) || std::isnan(desired.y_min) ||
       std::isnan(desired.y_max) || std::isnan(desired.z_min) || std::isnan(desired.z_max)) {
+    // Ask first: a read that never reached the queue would leave a deferral waiting
+    // on a report nobody requested, with the user's values already retired for it.
+    if (!this->send_control_command_(CMD_GET_AREAS)) {
+      ESP_LOGW(TAG, "Area read not queued; area config left unapplied");
+      return;
+    }
     this->deferred_apply_pending_ = true;
     this->pending_area_id_ = this->area_id_;
-    this->pending_area_updates_ = AreaConfig{};
-    this->pending_area_updates_.x_min = this->area_x_min_;
-    this->pending_area_updates_.x_max = this->area_x_max_;
-    this->pending_area_updates_.y_min = this->area_y_min_;
-    this->pending_area_updates_.y_max = this->area_y_max_;
-    this->pending_area_updates_.z_min = this->area_z_min_;
-    this->pending_area_updates_.z_max = this->area_z_max_;
-    // Copied above, so they are the deferred apply's values now rather than an
+    // The ledger, not the mirror: the mirror also carries whatever the module last
+    // reported for the axes the user never touched, and staging those would hand them
+    // back later wearing the user's badge -- a module value the next report is then
+    // kept away from.  Staging only what was actually typed is also what makes the
+    // replay's overlay right: the untouched axes come from the fresh report.  An
+    // empty ledger is a meaning rather than a gap, then: an apply with nothing
+    // staged rewrites the area exactly as the report just described it, which is
+    // what a direct apply with nothing staged already does.
+    this->pending_area_updates_ = this->area_edits_;
+    // Staged above, so they are the deferred apply's values now rather than an
     // unsent edit.  Anything typed from here belongs to whatever the user does
     // next, which may well be a different area.
     this->area_edits_ = AreaConfig{};
     ESP_LOGI(TAG, "Area config incomplete; requesting current areas before applying");
-    this->send_control_command_(CMD_GET_AREAS);
     return;
   }
   // Only a write the module will actually see retires them.
@@ -1463,9 +1482,13 @@ void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
     this->area_z_min_ = area.z_min;
   if (std::isnan(edits.z_max))
     this->area_z_max_ = area.z_max;
+  this->publish_area_numbers_();
+}
+
+// The mirror, not the report: an axis a report was kept away from has to keep its
+// displayed value too, or the entity and the value the next apply sends disagree.
+void LD6002BComponent::publish_area_numbers_() {
 #ifdef USE_NUMBER
-  // The mirror, not the report: an axis kept above has to keep its displayed value
-  // too, or the entity and the value the next apply sends would disagree.
   this->publish_number_clamped_(this->area_x_min_number_, this->area_x_min_);
   this->publish_number_clamped_(this->area_x_max_number_, this->area_x_max_);
   this->publish_number_clamped_(this->area_y_min_number_, this->area_y_min_);
@@ -1505,7 +1528,12 @@ bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
   write_f32_le(data + 20, desired.z_min);
   write_f32_le(data + 24, desired.z_max);
 
-  this->queue_command_(TYPE_SET_AREA, data, sizeof(data));
+  if (!this->queue_command_(TYPE_SET_AREA, data, sizeof(data))) {
+    // Nothing is on its way, so the cache must not claim these bounds, the ack
+    // refresh must not be armed for an ack that cannot come, and the values stay
+    // the user's unsent edit.
+    return false;
+  }
   this->area_write_in_flight_ = true;
 
   const bool interference = area_id < AREA_COUNT;
@@ -1555,6 +1583,7 @@ void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
     // nothing further is coming and waiting means waiting forever.
     if (reported_interference == interference) {
       this->deferred_apply_pending_ = false;
+      this->restore_deferred_edits_();
       ESP_LOGW(TAG, "Dropping deferred area apply, area report incomplete");
     }
     return;
@@ -1562,7 +1591,11 @@ void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
 
   const uint8_t area_id = this->pending_area_id_;
   this->deferred_apply_pending_ = false;
-  this->queue_area_config_(area_id, desired);
+  if (!this->queue_area_config_(area_id, desired)) {
+    // Nothing was queued, so this is a drop like the other two: hand the staged
+    // values back rather than leaving them with no ledger to protect them.
+    this->restore_deferred_edits_();
+  }
 }
 
 void LD6002BComponent::init_area_id_pref_() {
@@ -1649,6 +1682,53 @@ void LD6002BComponent::clear_target_slot_(uint8_t index) {
   this->last_cluster_id_valid_[index] = false;
 }
 #endif
+
+void LD6002BComponent::restore_deferred_edits_() {
+  // The staged values become an unsent edit again, but only for the user who is
+  // still looking at the area they were staged for; anyone else's ledger belongs to
+  // the area they are on now.
+  const uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
+  if (this->pending_area_id_ != selected_id) {
+    return;
+  }
+  // Axis by axis rather than a whole-struct assignment: the user can have edited
+  // another bound while the deferral was in flight, and that edit is newer than
+  // anything the deferral staged.  Assigning over the ledger would drop it back to
+  // NaN and let the next report take the value away.  A live edit wins; only an axis
+  // with nothing in the ledger takes its staged value back.
+  //
+  // The mirror moves with the ledger, because on the report path handle_area_report_
+  // ran update_area_numbers_ before the replay, with the ledger still empty -- so the
+  // mirror already holds the module's bounds and both the entities and the next apply
+  // would build on them.  On the timeout path no report arrived, the mirror still
+  // holds the staged values, and this is an identity.
+  const AreaConfig &staged = this->pending_area_updates_;
+  if (std::isnan(this->area_edits_.x_min) && !std::isnan(staged.x_min)) {
+    this->area_edits_.x_min = staged.x_min;
+    this->area_x_min_ = staged.x_min;
+  }
+  if (std::isnan(this->area_edits_.x_max) && !std::isnan(staged.x_max)) {
+    this->area_edits_.x_max = staged.x_max;
+    this->area_x_max_ = staged.x_max;
+  }
+  if (std::isnan(this->area_edits_.y_min) && !std::isnan(staged.y_min)) {
+    this->area_edits_.y_min = staged.y_min;
+    this->area_y_min_ = staged.y_min;
+  }
+  if (std::isnan(this->area_edits_.y_max) && !std::isnan(staged.y_max)) {
+    this->area_edits_.y_max = staged.y_max;
+    this->area_y_max_ = staged.y_max;
+  }
+  if (std::isnan(this->area_edits_.z_min) && !std::isnan(staged.z_min)) {
+    this->area_edits_.z_min = staged.z_min;
+    this->area_z_min_ = staged.z_min;
+  }
+  if (std::isnan(this->area_edits_.z_max) && !std::isnan(staged.z_max)) {
+    this->area_edits_.z_max = staged.z_max;
+    this->area_z_max_ = staged.z_max;
+  }
+  this->publish_area_numbers_();
+}
 
 void LD6002BComponent::clear_area_presence_() {
   if (!this->area_presence_any_) {

@@ -299,6 +299,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // Drops every target-derived reading and the slot table they are indexed by.
   void clear_target_state_();
   void clear_area_presence_();
+  void restore_deferred_edits_();
+  void publish_area_numbers_();
 #ifdef USE_SENSOR
   void clear_target_slot_(uint8_t index);
 #endif
@@ -314,12 +316,15 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void init_version_pref_();
   void save_version_pref_(const char *value);
 
-  void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
+  // Returns whether the command was queued: it is dropped, with a log line, when
+  // the payload is too long or the ring is full.
+  bool queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
   void send_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
-  void send_control_command_(uint32_t command);
+  // Returns whether the command reached the queue; see queue_command_.
+  bool send_control_command_(uint32_t command);
   void send_z_range_();
   void apply_area_config_();
   void wake_();
@@ -411,6 +416,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // Named so a repeated press replaces its own pending timeout instead of stacking
   // another, and so the command path can cancel it when it takes the pin over.
   static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
+  // Named so a burst of writes collapses to one read once they settle, rather than
+  // one read per write.
+  static constexpr const char *AREA_REFRESH_TIMEOUT = "area_refresh";
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
@@ -452,8 +460,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // mine here, take the module's value".  Same sentinel shape as
   // pending_area_updates_.  Exactly two things empty it: the area_id select moving
   // to another area, and an apply that was accepted.  A write the bounds guard
-  // refused and anything the module resets on its own leave it alone -- those
-  // values are still the user's to fix.
+  // refused leaves it alone, and a deferred apply that had to be dropped hands its
+  // staged values back here -- but only while the user is still on the area they
+  // were staged for.  Either way the values stay the user's to fix.
   AreaConfig area_edits_{};
   std::array<AreaConfig, AREA_COUNT> interference_area_values_{};
   std::array<AreaConfig, AREA_COUNT> detection_area_values_{};
