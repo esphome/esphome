@@ -107,7 +107,9 @@ concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *
 
 // The event sink the backend calls directly (the hub BluetoothConnection
 // wrapper), asserted where the wrapper is defined: on_connection_state
-// carries the negotiated MTU and an HCI status/disconnect reason.
+// carries the negotiated MTU and an HCI status/disconnect reason. The
+// requirements check call validity, not exact parameter types; keep sink
+// parameters at the documented widths (uint16_t handles and lengths).
 template<typename S>
 concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
   { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
