@@ -9,6 +9,7 @@
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#include <esp_mac.h>
 #endif
 #include <esp_bt_defs.h>
 #include <esp_bt_main.h>
@@ -286,10 +287,9 @@ void ESP32BLETracker::register_listener(ble_device_base::ESPBTDeviceListener *li
 }
 
 void ESP32BLETracker::get_adapter_mac(uint8_t out[6]) {
-  get_mac_address_raw(out);  // WiFi base MAC, MSB-first
-  // BT MAC = base MAC + 2 on the last octet only, wrapping without carry —
-  // exactly ESP-IDF's esp_read_mac(ESP_MAC_BT): mac[5] += MAC_ADDR_UNIVERSE_BT_OFFSET.
-  out[5] += 2;
+  // IDF owns the BT-offset derivation (base + 2 with four universal MACs,
+  // base + 1 with two); works before the BT stack is up.
+  esp_read_mac(out, ESP_MAC_BT);
 }
 
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
