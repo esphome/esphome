@@ -513,9 +513,11 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   // per-device outcome at V, and warn if the write reached nobody at all.
   bool accepted = false;
   for (auto *device : this->devices_) {
+    // Same handlers as an addressed write - a device cannot tell a broadcast apart, and does not need
+    // to: the hub owns the difference, which is only that no reply is ever sent.
     const ResponseStatus device_status =
-        coils ? device->on_broadcast_write_coils(start_address, PackedBits(packed_bytes, coil_count))
-              : device->on_broadcast_write_registers(start_address, registers);
+        coils ? device->on_write_coils(start_address, PackedBits(packed_bytes, coil_count))
+              : device->on_write_registers(start_address, registers);
     if (device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
@@ -546,8 +548,7 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
                                                      std::span<uint8_t> response_buffer, uint16_t &response_len) {
   // A handler that returns an exception leaves registers partially filled, so check the exception
   // first and forward it before validating the register count on the success path.
-  if (status.has_value()) {
-    this->send_exception_(address, function_code, status.value());
+  if (this->rejected_(address, function_code, status)) {
     return false;
   }
 
@@ -606,8 +607,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint16_t number_of_registers;
       status = this->parse_read_request_(data, MAX_NUM_OF_REGISTERS_TO_READ, "registers", start_address,
                                          number_of_registers);
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       RegisterValues registers;
@@ -633,8 +633,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       } else {
         status = this->parse_write_multiple_(data, start_address, registers);
       }
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       status = device->on_write_registers(start_address, registers);
@@ -647,8 +646,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint16_t start_address;
       uint16_t number_of_bits;
       status = this->parse_read_request_(data, MAX_NUM_OF_COILS_TO_READ, "bits", start_address, number_of_bits);
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       // Response: byte count(1) + packed bytes. The handler sets its bits directly in the response buffer
@@ -672,8 +670,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       } else {
         status = device->on_read_discrete_inputs(start_address, bits);
       }
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       response_len += byte_count;
@@ -687,8 +684,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       std::span<const uint8_t> packed_bytes;
       uint8_t single_bit = 0;  // storage for the normalized single-coil value; packed_bytes may point at it
       status = this->parse_write_coils_(function_code, data, start_address, count, packed_bytes, single_bit);
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       status = device->on_write_coils(start_address, PackedBits(packed_bytes, count));
@@ -716,8 +712,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       if (!status.has_value()) {
         status = this->check_address_range_(write_start_address, number_of_write_registers);
       }
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       // Perform the write first (Modbus 6.17). Scoped so the write values are off the stack before the read
@@ -730,8 +725,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         // from the values it just stored.
         status = device->on_write_registers(write_start_address, write_registers);
       }
-      if (status.has_value()) {
-        this->send_exception_(address, function_code, status.value());
+      if (this->rejected_(address, function_code, status)) {
         return;
       }
       RegisterValues registers;
@@ -748,9 +742,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       this->send_exception_(address, function_code, ExceptionCode::ILLEGAL_FUNCTION);
       return;
   }
-  if (status.has_value()) {
-    this->send_exception_(address, function_code, status.value());
-  } else {
+  if (!this->rejected_(address, function_code, status)) {
     this->send_response_(address, function_code, response_data, response_len);
   }
 }
@@ -847,6 +839,19 @@ void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, con
   raw_frame[1] = function_code;
   std::memcpy(raw_frame + 2, payload, payload_len);
   this->send_raw_(raw_frame, payload_len + 2);
+}
+
+bool ModbusServerHub::rejected_(uint8_t address, uint8_t function_code, ResponseStatus status) {
+  if (!status.has_value())
+    return false;
+  // The one place a rejection becomes an exception reply, so the log carries the transaction context a
+  // device handler never has: which client-facing address and function code drew which exception. DEBUG
+  // rather than WARN because an exception reply is a normal protocol outcome and arrives per frame - a
+  // probing or broken client would otherwise flood the log. The parse helpers still WARN with specifics.
+  ESP_LOGD(TAG, "Exception %" PRIu8 " replied to function 0x%02X for address %" PRIu8,
+           static_cast<uint8_t>(status.value()), function_code, address);
+  this->send_exception_(address, function_code, status.value());
+  return true;
 }
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code) {

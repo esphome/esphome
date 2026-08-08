@@ -145,12 +145,12 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         }
         return true;
       })) {
-    // On a broadcast every device that does not map these registers rejects them, which is the normal case.
-    if (this->broadcast_write_) {
-      ESP_LOGV(TAG, "Write request rejected before applying any register.");
-    } else {
-      ESP_LOGW(TAG, "Write request rejected before applying any register.");
-    }
+    // VERBOSE, and unconditionally so: the device cannot tell a broadcast from an addressed write (the hub
+    // calls one handler for both), and on a broadcast every device that does not map these registers
+    // rejects, which is the normal case. The hub reports the outcome with the transaction context this
+    // handler lacks: per-device V plus an aggregated warn for broadcasts, a logged exception reply for
+    // addressed requests.
+    ESP_LOGV(TAG, "Write request rejected before applying any register.");
     return precheck;
   }
 

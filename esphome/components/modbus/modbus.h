@@ -372,6 +372,9 @@ class ModbusServerHub : public Modbus {
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  // Sends and logs the exception reply when status holds one; returns true if the request was rejected.
+  // Every parse and handler rejection funnels through here, so the reply and its log cannot drift apart.
+  bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
@@ -650,24 +653,9 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_coils(uint16_t start_address, PackedBits bits) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
-  // Hub entry points for broadcast (address 0) writes, which are never answered.
-  ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
-    this->broadcast_write_ = true;
-    ResponseStatus status = this->on_write_registers(start_address, registers);
-    this->broadcast_write_ = false;
-    return status;
-  }
-  ResponseStatus on_broadcast_write_coils(uint16_t start_address, PackedBits bits) {
-    this->broadcast_write_ = true;
-    ResponseStatus status = this->on_write_coils(start_address, bits);
-    this->broadcast_write_ = false;
-    return status;
-  }
 
  protected:
   uint8_t address_{0};
-  // Set while handling a broadcast write: the caller sends no reply, so a rejection has no wire consequence.
-  bool broadcast_write_{false};
 };
 
 }  // namespace esphome::modbus
