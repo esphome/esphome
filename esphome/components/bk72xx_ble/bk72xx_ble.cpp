@@ -92,12 +92,14 @@ namespace esphome::bk72xx_ble {
 
 static const char *const TAG = "bk72xx_ble";
 
-// Reconciliation pacing: loop()-driven retries are spaced RECONCILE_RETRY_MS
-// apart, and a scan bring-up still PENDING after RECONCILE_PENDING_LIMIT
-// attempts is reported FAILED so the tracker's exponential backoff owns
-// recovery (a stop keeps retrying at the paced rate; the slot must be freed).
+// Reconciliation pacing. The main loop period (typically 16-24 ms) is the
+// usual spacing between loop()-driven retries; RECONCILE_RETRY_MS is only a
+// floor for faster loops. A scan bring-up still PENDING after
+// RECONCILE_PENDING_LIMIT attempts (~2 s at the typical loop rate) reports
+// FAILED so the tracker's exponential backoff owns recovery; a stop keeps
+// retrying, the slot must be freed.
 static constexpr uint32_t RECONCILE_RETRY_MS = 10;
-static constexpr uint8_t RECONCILE_PENDING_LIMIT = 100;  // ~1 s at the paced rate
+static constexpr uint8_t RECONCILE_PENDING_LIMIT = 100;
 
 // The BDK notice callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
