@@ -49,17 +49,21 @@ void HoermannCover::update_from_state_() {
       break;
     case DoorState::MOVE_VENTING:
     case DoorState::MOVE_HALF:
-      // These states carry no direction, so derive it from how the position is trending.
-      this->current_operation =
-          current_position > this->previous_position_ ? cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING;
+      // These states carry no direction, so keep the current one until the position actually moves.
+      if (current_position != this->previous_position_) {
+        this->current_operation = current_position > this->previous_position_ ? cover::COVER_OPERATION_OPENING
+                                                                              : cover::COVER_OPERATION_CLOSING;
+      }
       break;
     default:
       this->current_operation = cover::COVER_OPERATION_IDLE;
       break;
   }
-  this->position = current_position;
+  this->previous_position_ = current_position;
 
-  const bool position_changed = this->previous_position_ != this->position;
+  // Compare against the position last published, which starts at COVER_OPEN rather than at zero.
+  const bool position_changed = this->position != current_position;
+  this->position = current_position;
   if (this->previous_operation_ != this->current_operation) {
     this->previous_operation_ = this->current_operation;
     this->publish_state();
@@ -67,7 +71,6 @@ void HoermannCover::update_from_state_() {
     // Position updates arrive continuously while the door travels, so keep them out of flash.
     this->publish_state(false);
   }
-  this->previous_position_ = this->position;
 }
 
 }  // namespace esphome::hoermann

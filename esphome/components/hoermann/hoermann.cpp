@@ -22,8 +22,8 @@ static constexpr HoermannCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x
 static constexpr HoermannCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
 
-// Answer a request we do not recognize with the number of registers it asked for: the hub rejects a handler
-// that returns a different count with a device failure, so padding with zeros is safer than a short reply.
+// The hub rejects a reply whose register count does not match the request, so an unrecognized block length
+// is padded with zeros rather than answered with an exception that would fail the controller's whole poll.
 static void fill_with_zeros(uint16_t number_of_registers, modbus::RegisterValues &registers) {
   for (uint16_t i = 0; i < number_of_registers; i++)
     registers.push_back(0x0000);
@@ -53,8 +53,7 @@ modbus::ResponseStatus Hoermann::on_read_holding_registers(uint16_t start_addres
 
   if (start_address != STATE_REG) {
     ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
-    fill_with_zeros(number_of_registers, registers);
-    return {};
+    return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
 
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
@@ -110,7 +109,7 @@ modbus::ResponseStatus Hoermann::on_write_registers(uint16_t start_address, cons
 
   if (start_address != BROADCAST_REG) {
     ESP_LOGW(TAG, "Unknown write address 0x%04X", start_address);
-    return {};
+    return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
 
   // Door status broadcast. Each handler compares the previous register value with the new one to detect
@@ -208,6 +207,11 @@ void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value)
 }
 
 bool Hoermann::queue_command_(const HoermannCommand &command) {
+  if (!this->valid_) {
+    // Queueing now would fire the command whenever the controller comes back, which may be much later.
+    ESP_LOGW(TAG, "Not connected to the bus controller, dropping '%s' command", command.name);
+    return false;
+  }
   if (this->next_command_ != nullptr) {
     ESP_LOGW(TAG, "Previous command not yet fetched by the bus controller");
     return false;
@@ -223,17 +227,17 @@ void Hoermann::close_door() { this->queue_command_(COMMAND_CLOSE); }
 void Hoermann::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
 
 void Hoermann::stop_door() {
-  // A stop cancels a half-open target even when the door has already come to a halt by itself.
-  this->goto_position_ = 0.0f;
   // An impulse toggles the door, so it only stops one that is actually moving.
   switch (this->door_state_) {
     case DoorState::OPENING:
     case DoorState::CLOSING:
     case DoorState::MOVE_HALF:
     case DoorState::MOVE_VENTING:
+      // On success queue_command_() clears the target; on refusal it stays armed so the next position retries.
       this->queue_command_(COMMAND_IMPULSE);
       break;
     default:
+      this->goto_position_ = 0.0f;
       break;
   }
 }
@@ -248,8 +252,11 @@ void Hoermann::set_position(float position) {
     this->open_door();
     return;
   }
-  if (position == this->current_position_)
+  if (position == this->current_position_) {
+    // Asking the door to travel to where it already is means stopping it.
+    this->stop_door();
     return;
+  }
 
   // The door itself has no notion of a target, so it is started in the right direction and stopped on the way.
   const bool opening = position > this->current_position_;
@@ -269,9 +276,13 @@ void Hoermann::set_valid_(bool valid) {
   this->changed_ = true;
   if (valid) {
     ESP_LOGI(TAG, "Bus controller connected");
-  } else {
-    ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
+    return;
   }
+  ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
+  // Drop what the controller never fetched, so it neither blocks later commands nor fires on reconnect.
+  this->next_command_ = nullptr;
+  this->command_written_at_ = 0;
+  this->goto_position_ = 0.0f;
 }
 
 void Hoermann::set_door_state_(DoorState state) {

@@ -1,11 +1,6 @@
-modbus:
-  - id: modbus_hoermann
-    uart_id: uart_bus
-    role: server
-
 hoermann:
   id: hoermann_hcp
-  modbus_id: modbus_hoermann
+  modbus_id: modbus_server_bus
 
 cover:
   - platform: hoermann
