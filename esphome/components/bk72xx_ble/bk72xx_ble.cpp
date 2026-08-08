@@ -203,6 +203,12 @@ void BK72xxBLE::loop() {
     this->pending_since_ms_ = pump_now;
     if (this->advance_() != ScanOpResult::SETTLED)
       ESP_LOGW(TAG, "Controller dropped the scan; restarting");
+  } else if (!this->scan_wanted_ && this->last_result_ == ScanOpResult::FAILED &&
+             this->scan_activity_idx_ != INVALID_ACTIVITY_IDX &&
+             pump_now - this->last_advance_ms_ >= RECONCILE_REJECTED_RETRY_MS) {
+    // A terminal stop stays terminal for consumers, but the slot must still
+    // be freed; keep re-driving the release until IDLE.
+    this->advance_();
   }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -374,9 +380,11 @@ ScanOpResult BK72xxBLE::advance_() {
   this->last_advance_ms_ = now;
   if (result == ScanOpResult::SETTLED) {
     // No teardown is pending (covers a mode flip that settled back without
-    // ever reaching IDLE); a stale stamp must not make a later stop terminal.
+    // ever reaching IDLE); stale episode state must not make a later stop
+    // terminal, keep the pump widened or swallow the next release WARN.
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_logged_ = false;
+    this->release_warned_ = false;
   }
   if (result == ScanOpResult::PENDING) {
     if (state == BdkActivityState::STARTED) {
@@ -398,19 +406,18 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
     return ScanOpResult::SETTLED;
   }
-  // A stop still unfinished after the deadline is stuck, whatever the cause;
-  // report it terminal so the consumer's retry policy owns recovery (the next
-  // request re-enters the reconciler).
-  if (this->teardown_stuck_("Scan stop cannot proceed; scanner is stuck"))
-    return ScanOpResult::FAILED;
+  // A stop still unfinished after the deadline reports terminal FAILED so
+  // waiting consumers move on, but the release itself is never abandoned:
+  // loop() keeps re-driving it at the widened gate until IDLE.
+  const bool stuck = this->teardown_stuck_("Scan stop cannot proceed; scanner is stuck");
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
-    return this->defer_("stop");
+    return stuck ? ScanOpResult::FAILED : this->defer_("stop");
   }
   // Settled, so CREATED unambiguously means "never started".
   this->release_activity_(state == BdkActivityState::CREATED);
-  return ScanOpResult::PENDING;  // confirmed once IDLE is observed
+  return stuck ? ScanOpResult::FAILED : ScanOpResult::PENDING;  // confirmed once IDLE is observed
 }
 
 ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
