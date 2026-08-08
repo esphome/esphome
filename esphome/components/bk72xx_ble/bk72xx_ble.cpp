@@ -372,6 +372,12 @@ ScanOpResult BK72xxBLE::advance_() {
 
   const uint32_t now = App.get_loop_component_start_time();
   this->last_advance_ms_ = now;
+  if (result == ScanOpResult::SETTLED) {
+    // No teardown is pending (covers a mode flip that settled back without
+    // ever reaching IDLE); a stale stamp must not make a later stop terminal.
+    this->teardown_since_ms_ = 0;
+    this->teardown_stuck_logged_ = false;
+  }
   if (result == ScanOpResult::PENDING) {
     if (state == BdkActivityState::STARTED) {
       // Radio still up (e.g. a mode-change teardown waiting on a busy
