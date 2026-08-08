@@ -423,13 +423,14 @@ ResponseStatus ModbusServerHub::parse_write_multiple_(std::span<const uint8_t> d
 }
 
 ResponseStatus ModbusServerHub::parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities,
-                                                    const char *entity_name, uint16_t &start_address, uint16_t &count) {
+                                                    const LogString *entity_name, uint16_t &start_address,
+                                                    uint16_t &count) {
   // Every read request is start address(2) + quantity(2); only the protocol ceiling differs per function
   // code, so registers and coils/discrete inputs validate through here and cannot drift apart.
   start_address = helpers::get_data<uint16_t>(data.data(), 0);
   count = helpers::get_data<uint16_t>(data.data(), 2);
   if (count == 0 || count > max_entities) {
-    ESP_LOGW(TAG, "Invalid number of %s %" PRIu16, entity_name, count);
+    ESP_LOGW(TAG, "Invalid number of %s %" PRIu16, LOG_STR_ARG(entity_name), count);
     return ExceptionCode::ILLEGAL_DATA_VALUE;
   }
   return this->check_address_range_(start_address, count);
@@ -527,18 +528,18 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   }
   if (!accepted && !this->devices_.empty()) {
     const uint16_t entity_count = coils ? coil_count : static_cast<uint16_t>(registers.size());
-    const char *const entity_name = coils ? "coils" : "registers";
+    const LogString *const entity_name = coils ? LOG_STR("coils") : LOG_STR("registers");
     // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
     // repeats forever, so warning per frame would flood the log.
     const uint32_t now = millis();
     if (this->last_unaccepted_broadcast_warn_ == 0 ||
         now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
       this->last_unaccepted_broadcast_warn_ = now;
-      ESP_LOGW(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count, entity_name,
-               start_address);
+      ESP_LOGW(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
+               LOG_STR_ARG(entity_name), start_address);
     } else {
-      ESP_LOGV(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count, entity_name,
-               start_address);
+      ESP_LOGV(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
+               LOG_STR_ARG(entity_name), start_address);
     }
   }
 }
@@ -605,7 +606,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     case FunctionCode::READ_INPUT_REGISTERS: {
       uint16_t start_address;
       uint16_t number_of_registers;
-      status = this->parse_read_request_(data, MAX_NUM_OF_REGISTERS_TO_READ, "registers", start_address,
+      status = this->parse_read_request_(data, MAX_NUM_OF_REGISTERS_TO_READ, LOG_STR("registers"), start_address,
                                          number_of_registers);
       if (this->rejected_(address, function_code, status)) {
         return;
@@ -649,7 +650,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       const bool coils_read = static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS;
       status =
           this->parse_read_request_(data, coils_read ? MAX_NUM_OF_COILS_TO_READ : MAX_NUM_OF_DISCRETE_INPUTS_TO_READ,
-                                    "bits", start_address, number_of_bits);
+                                    LOG_STR("bits"), start_address, number_of_bits);
       if (this->rejected_(address, function_code, status)) {
         return;
       }

@@ -352,7 +352,7 @@ class ModbusServerHub : public Modbus {
   // Parses a read request PDU (start address(2) + quantity(2)), shared by the register and
   // coil/discrete-input reads so the two cannot drift apart. max_entities is the protocol ceiling for the
   // function code; entity_name only labels the rejection log.
-  ResponseStatus parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities, const char *entity_name,
+  ResponseStatus parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities, const LogString *entity_name,
                                      uint16_t &start_address, uint16_t &count);
 
   // Parses a coil write PDU (FC 0x05 or 0x0F) into a packed-bit view, shared by the addressed and
