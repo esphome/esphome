@@ -52,7 +52,10 @@
 #define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #define USE_API_HOMEASSISTANT_SERVICES
 #define USE_API_HOMEASSISTANT_STATES
+// nrf52-tidy's lib_deps doesn't declare esphome/noise-c, so noise/protocol.h isn't found.
+#ifndef USE_NRF52
 #define USE_API_NOISE
+#endif
 #define USE_API_VARINT64
 #define USE_API_PLAINTEXT
 #define USE_API_USER_DEFINED_ACTIONS
@@ -146,7 +149,10 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
+// md5.h has no MD5_CTX_TYPE branch for USE_NRF52
+#ifndef USE_NRF52
 #define USE_MD5
+#endif
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
 #define MDNS_SERVICE_COUNT 3
@@ -522,6 +528,8 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
 #define USE_OTA_ROLLBACK
+// All USE_ZEPHYR variants default to BSD sockets.
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 // Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the
 // channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
 // real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.
