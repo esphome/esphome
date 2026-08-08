@@ -6,6 +6,8 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 CODEOWNERS = ["@bdraco"]
 
+CONF_RP2040_BLE_ID = "rp2040_ble_id"
+
 rp2040_ble_ns = cg.esphome_ns.namespace("rp2040_ble")
 RP2040BLE = rp2040_ble_ns.class_("RP2040BLE", cg.Component)
 
@@ -29,6 +31,11 @@ def _validate_board(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = _validate_board
+
+
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = cg.slot_counter("RP2040_BLE_SCAN_LISTENER_COUNT")
 
 
 async def to_code(config: ConfigType) -> None:

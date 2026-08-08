@@ -33,12 +33,12 @@ enum class FunctionCode : uint8_t {
   GET_COMM_EVENT_LOG = 0x0C,      // not implemented
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
+  REPORT_SERVER_ID = 0x11,     // not implemented
+  READ_FILE_RECORD = 0x14,     // not implemented
+  WRITE_FILE_RECORD = 0x15,    // not implemented
+  MASK_WRITE_REGISTER = 0x16,  // not implemented
+  READ_WRITE_MULTIPLE_REGISTERS = 0x17,
+  READ_FIFO_QUEUE = 0x18,  // not implemented
 };
 
 // Remove before 2027.2.0
@@ -116,6 +116,10 @@ static constexpr uint16_t READ_PDU_SIZE = 5;
 // A single-write PDU is always function code(1) + address(2) + value(2)
 static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+
+// 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
+static constexpr uint8_t BROADCAST_ADDRESS = 0;
+
 // Both send paths bound their payload so the framed result lands exactly on the RTU limit: a client
 // PDU gains an address byte and a CRC, a raw server frame gains a CRC. send_frame_() therefore never
 // has to check the framed size - it cannot be exceeded.

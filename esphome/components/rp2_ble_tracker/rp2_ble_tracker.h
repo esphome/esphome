@@ -63,8 +63,14 @@ class RP2BLETracker : public Component,
     // BTstack delivers scan responses as separate advertisement reports rather
     // than merging them into the advertisement — consumers relying on
     // scan-response fields (device names) get them only where the receiver
-    // merges per address (Home Assistant does). No GATT path yet.
-    return {.active_scan = true, .merges_scan_response = false, .gatt = false};
+    // merges per address (Home Assistant does). GATT is available when the
+    // BTstack connection backend is compiled in (bluetooth_proxy active).
+#ifdef USE_BLE_GATT_CLIENT
+    constexpr bool has_gatt = true;
+#else
+    constexpr bool has_gatt = false;
+#endif
+    return {.active_scan = true, .merges_scan_response = false, .gatt = has_gatt, .scan_mode_switch = true};
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
@@ -80,6 +86,7 @@ class RP2BLETracker : public Component,
 
  protected:
   void start_scan_();
+  bool controller_scan_start_();
   void stop_scan_();
   void fire_scan_end_();
 
