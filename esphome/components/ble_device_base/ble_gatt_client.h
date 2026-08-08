@@ -2,12 +2,12 @@
 //
 // Platform-neutral GATT client connection contract.
 //
-// A platform's GATT client backend (bluetooth_connection/esp32,
-// bluetooth_connection/rp2) implements BLEGattConnection; consumers
-// (bluetooth_proxy) drive it through this interface and receive
-// completions through GattClientEventListener. All listener callbacks are
-// delivered on the ESPHome main loop; borrowed data pointers are valid only
-// for the duration of the call.
+// Exactly one GATT backend exists per build, so BLEGattConnection is a
+// compile-time alias (ble_gatt_client_impl.h), not an abstract interface.
+// The hub BluetoothConnection wrapper drives it and receives completions
+// through its event-sink methods, which the backend calls directly. All sink
+// calls are delivered on the ESPHome main loop; borrowed data pointers are
+// valid only for the duration of the call.
 //
 // Error domain (plain int, forwarded to the API without translation):
 //   0            success
@@ -76,67 +76,35 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
-/// Completion/event sink for a GATT connection. Implemented by the consumer
-/// (bluetooth_proxy's connection wrapper). Every callback runs on the main loop.
-class GattClientEventListener {
- public:
-  virtual ~GattClientEventListener() = default;
-
-  /// Connected (with negotiated MTU) or disconnected/connect-failed
-  /// (error = HCI status or disconnect reason).
-  virtual void on_connection_state(bool connected, uint16_t mtu, int error) = 0;
-  /// Service discovery finished; on success the service table is populated.
-  virtual void on_service_discovery_done(int error) = 0;
-  /// Characteristic or descriptor read finished. data/len valid during the call.
-  virtual void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) = 0;
-  /// Characteristic write-with-response or descriptor write finished.
-  virtual void on_write_result(uint16_t handle, int error) = 0;
-  /// Notification/indication registration state changed.
-  virtual void on_notify_state(uint16_t handle, bool enabled, int error) = 0;
-  /// Notification/indication data from the peer. data/len valid during the call.
-  virtual void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) = 0;
-  virtual void on_pairing_result(int status) {}
-};
-
-/// One GATT client connection slot. Operations return 0 when accepted
-/// (completion arrives via the listener) or a synchronous error code
-/// (busy, not connected, stack rejection). One operation may be outstanding
-/// at a time; callers see a synchronous error otherwise.
-class BLEGattConnection {
- public:
-  virtual ~BLEGattConnection() = default;
-
-  void set_listener(GattClientEventListener *listener) { this->listener_ = listener; }
-
-  /// Start connecting to a peer. addr_type is a BLE_ADDR_TYPE_* constant
-  /// (ble_device.h). Completion: on_connection_state().
-  virtual int connect(uint64_t address, uint8_t addr_type) = 0;
-  /// Disconnect (or cancel a connect in progress). Completion: on_connection_state().
-  virtual int disconnect() = 0;
-  /// Discover the peer's services/characteristics/descriptors into the
-  /// service table. Completion: on_service_discovery_done().
-  virtual int discover_services() = 0;
-  virtual int read_characteristic(uint16_t handle) = 0;
-  virtual int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) = 0;
-  virtual int read_descriptor(uint16_t handle) = 0;
-  virtual int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) = 0;
-  /// Enable/disable delivery of on_notify_data() for a characteristic value
-  /// handle. Local registration only — the CCCD write is the API client's
-  /// responsibility (it arrives as a plain write_descriptor).
-  virtual int notify_characteristic(uint16_t handle, bool enable) = 0;
-  /// Initiate pairing on the live link. Completion: on_pairing_result().
-  virtual int pair() { return GATT_ERR_NOT_CONNECTED; }
-  virtual int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                                       uint16_t timeout) = 0;
-
-  /// Backend-owned service table (see GattServiceTable lifetime).
-  virtual GattServiceTable get_service_table() = 0;
-  /// Free the transient service table storage. Call after streaming;
-  /// idempotent (a call with no table held is a no-op).
-  virtual void release_services() = 0;
-
- protected:
-  GattClientEventListener *listener_{nullptr};
+// The BLEGattConnection op surface, asserted where ble_gatt_client_impl.h
+// binds the alias. Operations return 0 when accepted (completion arrives
+// through the sink) or a synchronous error (busy, not connected, stack
+// rejection); one operation may be outstanding at a time. Semantics beyond
+// the signatures:
+// - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
+// - disconnect: also cancels a connect in progress.
+// - notify_characteristic: local registration only; the CCCD write is the
+//   API client's responsibility (a plain write_descriptor).
+// - get_service_table/release_services: backend-owned transient storage,
+//   released after streaming (release is idempotent).
+// Backends also provide set_listener(BluetoothConnection *) and call the
+// wrapper's sink methods directly: on_connection_state (MTU + HCI status),
+// on_service_discovery_done, on_read_result, on_write_result,
+// on_notify_state, on_notify_data, on_pairing_result.
+template<typename T>
+concept BLEGattConnectionContract = requires(T conn, const uint8_t *data) {
+  conn.connect(uint64_t{}, uint8_t{});
+  conn.disconnect();
+  conn.discover_services();
+  conn.read_characteristic(uint16_t{});
+  conn.write_characteristic(uint16_t{}, data, uint16_t{}, true);
+  conn.read_descriptor(uint16_t{});
+  conn.write_descriptor(uint16_t{}, data, uint16_t{});
+  conn.notify_characteristic(uint16_t{}, true);
+  conn.pair();
+  conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{});
+  conn.get_service_table();
+  conn.release_services();
 };
 
 }  // namespace esphome::ble_device_base
