@@ -88,6 +88,10 @@ struct GattServiceTable {
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
 //   released after streaming (release is idempotent).
+// - completions: connect and disconnect land in on_connection_state,
+//   discover_services in on_service_discovery_done, pair in
+//   on_pairing_result, reads in on_read_result, characteristic writes with
+//   response and descriptor writes in on_write_result.
 template<typename T, typename Sink>
 concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *data) {
   conn.set_listener(sink);
