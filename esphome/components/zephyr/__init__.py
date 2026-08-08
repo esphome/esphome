@@ -1210,6 +1210,7 @@ async def to_code(config: ConfigType) -> None:
         from .variants.efr32mg24 import to_code as _efr32mg24_to_code
 
         await _efr32mg24_to_code(config)
+        return
     if variant == ZEPHYR_VARIANT_STM32:
         from .variants.stm32 import to_code as _stm32_to_code
 
