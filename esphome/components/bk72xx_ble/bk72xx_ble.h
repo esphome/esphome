@@ -27,9 +27,8 @@ enum class ScanIntent : uint8_t { STOPPED, PASSIVE, ACTIVE };
 enum class ScanStartResult : uint8_t {
   STARTED,  ///< The intent is reached: scan observed running (or, for a stop,
             ///< the activity fully released).
-  PENDING,  ///< A step is in flight (asynchronous create/start/stop, or
-            ///< another BLE operation); loop() keeps advancing, and calling
-            ///< scan_start() again reports the current outcome.
+  PENDING,  ///< A step is in flight; loop() keeps advancing — call
+            ///< scan_start() again to learn the outcome.
   FAILED,   ///< The controller rejected a step; retry later.
 };
 
@@ -97,8 +96,12 @@ class BK72xxBLE final : public Component {
   void scan_stop();
   /// Drive a requested stop to completion synchronously, bounded by
   /// timeout_ms — for callers that must have the radio idle before loop()
-  /// runs again (OTA).
-  void flush_pending_stop(uint32_t timeout_ms);
+  /// runs again (OTA). Returns false if the stop still has not settled.
+  bool flush_pending_stop(uint32_t timeout_ms);
+  /// Last reconciliation outcome. FAILED means the reconciler gave up on the
+  /// current intent (bounded retries exhausted); the consumer's retry policy
+  /// owns recovery from there.
+  ScanStartResult last_scan_result() const { return this->last_result_; }
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
   /// context — bounded copy under the scheduler lock, nothing else).
@@ -107,8 +110,9 @@ class BK72xxBLE final : public Component {
  protected:
   void resolve_mac_();
   ScanStartResult advance_();
+  ScanStartResult finish_advance_(ScanStartResult result);
   ScanStartResult send_active_start_();
-  bool acquire_scan_activity_();
+  bool release_activity_(bool created);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —
@@ -131,8 +135,12 @@ class BK72xxBLE final : public Component {
   // Mode the current activity was (or is being) started with — our own
   // command history, which the controller state alone cannot answer.
   bool activity_mode_active_{false};
-  // advance_() has more reconciling to do; loop() keeps driving it.
+  // advance_() has more reconciling to do; loop() keeps driving it,
+  // rate-limited and bounded (see advance_()).
   bool reconcile_pending_{false};
+  ScanStartResult last_result_{ScanStartResult::STARTED};
+  uint32_t last_advance_ms_{0};
+  uint8_t pending_attempts_{0};  // consecutive PENDING advances this sequence
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

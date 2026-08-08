@@ -9,7 +9,6 @@
 
 #include "bk72xx_ble_tracker.h"
 
-#include <algorithm>
 #include <cinttypes>
 
 #include "esphome/core/hal.h"
@@ -28,12 +27,14 @@ static const char *const TAG = "bk72xx_ble_tracker";
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
 
-// A PENDING start (the asynchronous active-scan create/start sequence, a few
-// ms per step) is retried on this short gate and not charged to the failure
-// backoff; a sequence still pending after a full streak of attempts is
-// counted as one failure, so a wedged controller escalates into the backoff.
+// A PENDING start (the asynchronous active-scan create/start sequence) is
+// observed on this short gate and not charged to the failure backoff: the
+// controller reconciler bounds its own retries and reports FAILED when it
+// gives up.
 static constexpr uint32_t SCAN_START_PENDING_RETRY_MS = 100;
-static constexpr uint8_t SCAN_START_PENDING_STREAK_LIMIT = 10;
+
+// Radio-idle deadline for the bounded stop drain at OTA start.
+static constexpr uint32_t OTA_STOP_FLUSH_MS = 100;
 
 // ---------------------------------------------------------------------------
 // Component lifecycle
@@ -60,7 +61,8 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     // The OTA transfer starves the main loop, so a stop deferred behind an
     // in-flight controller operation would leave the radio scanning for the
     // whole update — drain it here, bounded.
-    this->parent_->flush_pending_stop(100);
+    if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS))
+      ESP_LOGE(TAG, "Scan still stopping at OTA start; the radio may contend with the update");
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop() restarts the scan on its next iteration (continuous idle branch).
@@ -80,6 +82,17 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
 
 void BK72xxBLETracker::loop() {
   const uint32_t now = millis();
+
+  // Reconcile with the controller: its reconciler completes deferred work on
+  // its own (e.g. a mode-switch re-arm) and gives up after bounded retries; a
+  // terminal failure while we report running is recovered through the normal
+  // retry path.
+  if (this->scan_running_ && this->parent_->last_scan_result() == bk72xx_ble::ScanStartResult::FAILED) {
+    this->scan_running_ = false;
+    this->scan_requested_ = true;
+    this->fire_scan_end_();
+  }
+
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
       // A start that succeeded re-anchored the period timer from a later millis(),
@@ -129,17 +142,15 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   // even user-initiated attempts respect the backoff, so a start_scan() action
   // on a short cadence cannot hammer a failing controller; the attempt stays
   // inside the failure accounting below either way.
-  const uint8_t doublings = std::min<uint8_t>(this->failed_start_count_, SCAN_START_RETRY_MAX_DOUBLINGS);
-  uint32_t gate = SCAN_START_RETRY_MS << doublings;
-  if (this->start_pending_ && this->failed_start_count_ == 0)
-    gate = SCAN_START_PENDING_RETRY_MS;
+  const uint32_t gate = (this->start_pending_ && this->failed_start_count_ == 0)
+                            ? SCAN_START_PENDING_RETRY_MS
+                            : (SCAN_START_RETRY_MS << this->failed_start_count_);
   if ((!force || this->failed_start_count_ != 0) && now - this->last_scan_start_attempt_ < gate)
     return false;
   this->start_scan_();
   if (!this->scan_running_) {
-    if (this->start_pending_ && ++this->pending_streak_ < SCAN_START_PENDING_STREAK_LIMIT)
-      return false;  // an in-progress bring-up is not a failure
-    this->pending_streak_ = 0;
+    if (this->start_pending_)
+      return false;  // the controller is still bringing the scan up; not a failure
     if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
       ++this->failed_start_count_;
       if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
@@ -264,7 +275,6 @@ void BK72xxBLETracker::start_scan_() {
   this->scan_running_ = true;
   this->scan_requested_ = false;  // the latched one-shot request is satisfied
   this->failed_start_count_ = 0;  // reset here so direct starts clear the backoff too
-  this->pending_streak_ = 0;
   this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
@@ -281,16 +291,10 @@ void BK72xxBLETracker::start_scan_() {
 }
 
 void BK72xxBLETracker::stop_scan_() {
-  if (!this->scan_running_) {
-    if (this->start_pending_) {
-      // Abandon an in-flight bring-up and release its created activity; no
-      // on_scan_end, the scan never ran.
-      this->start_pending_ = false;
-      this->parent_->scan_stop();
-    }
-    return;
-  }
-  this->parent_->scan_stop();
+  this->start_pending_ = false;
+  this->parent_->scan_stop();  // idempotent: releases whatever the hub holds
+  if (!this->scan_running_)
+    return;  // never ran: no on_scan_end
   this->scan_running_ = false;
   ESP_LOGD(TAG, "Scan stopped");
   this->fire_scan_end_();
@@ -310,32 +314,17 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
     return true;
   this->scan_active_ = active;
   ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
-  // Apply to a running scan by re-requesting the CONTROLLER scan in the new
-  // mode (its reconciler restarts a scan running in the wrong mode),
-  // bypassing the tracker's stop/start bookkeeping: no on_scan_end (the scan
-  // logically continues, only the request mode changes), no period reset. An
-  // idle scanner picks the mode up on its next start (rp2_ble_tracker
-  // parity).
-  if (this->scan_running_) {
-    switch (this->controller_scan_start_()) {
-      case bk72xx_ble::ScanStartResult::STARTED:
-        break;
-      case bk72xx_ble::ScanStartResult::PENDING:
-        // The scan logically continues while loop()'s retry finishes the
-        // asynchronous bring-up, so no on_scan_end; re-latch so the retry
-        // also covers a one-shot scan.
-        this->scan_running_ = false;
-        this->scan_requested_ = true;
-        break;
-      case bk72xx_ble::ScanStartResult::FAILED:
-        // The controller really stopped: behave exactly like loop()'s
-        // reconciliation branch — notify listeners and let its retry recover.
-        ESP_LOGW(TAG, "Scan restart after mode change failed; retrying");
-        this->scan_running_ = false;
-        this->scan_requested_ = true;
-        this->fire_scan_end_();
-        break;
-    }
+  // Re-request the CONTROLLER scan in the new mode; its reconciler restarts
+  // the scan itself. PENDING keeps the scan logically running: no flap in the
+  // reported scanner state, no on_scan_end; a re-arm that ultimately fails
+  // surfaces through loop()'s reconciliation. An idle scanner picks the mode
+  // up on its next start.
+  if (this->scan_running_ && this->controller_scan_start_() == bk72xx_ble::ScanStartResult::FAILED) {
+    // The controller really stopped: recover through the normal retry path.
+    ESP_LOGW(TAG, "Scan restart after mode change failed; retrying");
+    this->scan_running_ = false;
+    this->scan_requested_ = true;
+    this->fire_scan_end_();
   }
   return true;
 }

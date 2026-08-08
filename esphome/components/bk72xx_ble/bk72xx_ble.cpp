@@ -92,6 +92,13 @@ namespace esphome::bk72xx_ble {
 
 static const char *const TAG = "bk72xx_ble";
 
+// Reconciliation pacing: loop()-driven retries are spaced RECONCILE_RETRY_MS
+// apart, and a scan bring-up still PENDING after RECONCILE_PENDING_LIMIT
+// attempts is reported FAILED so the tracker's exponential backoff owns
+// recovery (a stop keeps retrying at the paced rate; the slot must be freed).
+static constexpr uint32_t RECONCILE_RETRY_MS = 10;
+static constexpr uint8_t RECONCILE_PENDING_LIMIT = 100;  // ~1 s at the paced rate
+
 // The BDK notice callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
 static BK72xxBLE *s_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -190,8 +197,9 @@ void BK72xxBLE::enable() {
 
 void BK72xxBLE::loop() {
   // Keep reconciling toward the requested scan state (e.g. complete a stop
-  // that arrived while a controller operation was in flight).
-  if (this->reconcile_pending_)
+  // that arrived while a controller operation was in flight). Rate-limited so
+  // a controller that keeps rejecting cannot be hammered at loop rate.
+  if (this->reconcile_pending_ && millis() - this->last_advance_ms_ >= RECONCILE_RETRY_MS)
     this->advance_();
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -287,32 +295,39 @@ ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool a
   this->scan_intent_ = active ? ScanIntent::ACTIVE : ScanIntent::PASSIVE;
   this->scan_interval_ = interval;
   this->scan_window_ = window;
+  this->pending_attempts_ = 0;  // new sequence, fresh retry budget
   return this->advance_();
 }
 
 void BK72xxBLE::scan_stop() {
   this->scan_intent_ = ScanIntent::STOPPED;
+  this->pending_attempts_ = 0;
   this->advance_();
 }
 
-void BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
+bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
   // Controller operations settle within a few ms; the bound is a safety net.
   const uint32_t start = millis();
   while (this->scan_intent_ == ScanIntent::STOPPED && this->reconcile_pending_ && millis() - start < timeout_ms) {
-    delay(1);
+    delay(RECONCILE_RETRY_MS);
     this->advance_();
   }
-  if (this->scan_intent_ == ScanIntent::STOPPED && this->reconcile_pending_)
-    ESP_LOGW(TAG, "Scan stop still pending after %" PRIu32 " ms", timeout_ms);
+  return this->scan_intent_ != ScanIntent::STOPPED || !this->reconcile_pending_;
 }
 
-bool BK72xxBLE::acquire_scan_activity_() {
-  this->scan_activity_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV);
-  if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
-    ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
-    return false;
+// Release the current scan activity: delete when it was never started (a
+// stop would be rejected), stop otherwise. Clears the handle on success; on
+// rejection keeps it and logs once per episode (the paced retry stays quiet).
+bool BK72xxBLE::release_activity_(bool created) {
+  ble_err_t ret = created ? bk_ble_delete_scaning(this->scan_activity_idx_, nullptr)
+                          : bk_ble_scan_stop(this->scan_activity_idx_, nullptr);
+  if (ret == ERR_SUCCESS) {
+    this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+    return true;
   }
-  return true;
+  if (!this->reconcile_pending_)
+    ESP_LOGW(TAG, "Scan activity release rejected (err %d); retrying", static_cast<int>(ret));
+  return false;
 }
 
 // The single reconciler: moves the controller toward scan_intent_, at most
@@ -350,8 +365,7 @@ ScanStartResult BK72xxBLE::advance_() {
         ESP_LOGW(TAG, "Scan stop rejected (err %d); retrying", static_cast<int>(ret));
       }
     }
-    this->reconcile_pending_ = (result == ScanStartResult::PENDING);
-    return result;
+    return this->finish_advance_(result);
   }
 
   const bool want_active = this->scan_intent_ == ScanIntent::ACTIVE;
@@ -361,8 +375,7 @@ ScanStartResult BK72xxBLE::advance_() {
     } else if (ready) {
       // Running in the other mode: tear down (the SDK stop chain also deletes
       // the activity) and recreate on a later advance.
-      if (bk_ble_scan_stop(this->scan_activity_idx_, nullptr) == ERR_SUCCESS)
-        this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+      this->release_activity_(false);
     }
   } else if (!ready) {
     // A create/start/stop is in flight; observe again next call.
@@ -374,11 +387,12 @@ ScanStartResult BK72xxBLE::advance_() {
     } else {
       // Leftover from an active-scan attempt; the passive chain creates its
       // own activity, so release this one first.
-      if (bk_ble_delete_scaning(this->scan_activity_idx_, nullptr) == ERR_SUCCESS)
-        this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+      this->release_activity_(true);
     }
   } else {  // ACTV_IDLE, controller ready
-    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX && !this->acquire_scan_activity_()) {
+    if (this->scan_activity_idx_ == INVALID_ACTIVITY_IDX &&
+        (this->scan_activity_idx_ = app_ble_get_idle_actv_idx_handle(SCAN_ACTV)) == INVALID_ACTIVITY_IDX) {
+      ESP_LOGE(TAG, "Scan start failed: no idle activity handle");
       result = ScanStartResult::FAILED;
     } else if (want_active) {
       // Step 1 of the active sequence: create the activity through the public
@@ -389,9 +403,8 @@ ScanStartResult BK72xxBLE::advance_() {
         this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
         result = ScanStartResult::FAILED;
       }
-      // ERR_BLE_STATUS: busy — possibly the create for this very slot, whose
-      // completion stamps it CREATED. Keep the index so the retry resumes
-      // against the same slot instead of orphaning it.
+      // ERR_BLE_STATUS: raced the BLE task; keep the index so the retry
+      // resumes on the same slot instead of orphaning it.
     } else {
       // Passive: the SDK's own create+start chain, one call.
       struct scan_param sp;
@@ -410,7 +423,23 @@ ScanStartResult BK72xxBLE::advance_() {
     }
   }
 
+  return this->finish_advance_(result);
+}
+
+// Shared advance_() epilogue: pacing stamp, bounded pending for scan intents,
+// pump/result bookkeeping.
+ScanStartResult BK72xxBLE::finish_advance_(ScanStartResult result) {
+  this->last_advance_ms_ = millis();
+  if (result == ScanStartResult::PENDING) {
+    if (this->scan_intent_ != ScanIntent::STOPPED && ++this->pending_attempts_ >= RECONCILE_PENDING_LIMIT) {
+      ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
+      result = ScanStartResult::FAILED;
+    }
+  } else {
+    this->pending_attempts_ = 0;
+  }
   this->reconcile_pending_ = (result == ScanStartResult::PENDING);
+  this->last_result_ = result;
   return result;
 }
 
