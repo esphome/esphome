@@ -112,6 +112,19 @@ void AS734XComponent::dump_config() {
                 "  ATIME: %u\n"
                 "  ASTEP: %u",
                 model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
+  ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %.3f", this->glass_attenuation_factor_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Irradiance", this->irradiance_sensor_);
+  LOG_SENSOR("  ", "Irradiance photopic", this->irradiance_photopic_sensor_);
+  LOG_SENSOR("  ", "Irradiance PAR", this->irradiance_par_sensor_);
+  LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
+  LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
+#endif
 }
 
 void AS734XComponent::update() {
@@ -349,7 +362,7 @@ void AS734XComponent::calculate_color_() {
   // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
   // Absolute tristimulus values clamp to white under anything but dim light.
   const float sum = tri_x + tri_y + tri_z;
-  if (sum > 0.0f) {
+  if (sum > MIN_TRISTIMULUS_SUM) {
     uint8_t r, g, b;
     tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, r, g, b);
     snprintf(this->rgb_hex_, sizeof(this->rgb_hex_), "%02x%02x%02x", r, g, b);

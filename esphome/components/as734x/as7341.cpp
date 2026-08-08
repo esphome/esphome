@@ -79,7 +79,6 @@ const std::array<uint16_t, AS7341::NUM_CHANNELS> AS7341::WAVELENGTHS_NM = {415, 
 //  F1   F2   F3   F4   F5   F6   F7   F8   NIR  CLEAR
 
 uint16_t AS7341::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
-// Golden-device contribution of one basic count per channel, in band order.
 const std::array<ChannelContribution, AS7341::NUM_CHANNELS> AS7341::CONTRIBUTIONS = {{
     {8.110691277f, 0.005261294f, 5.936230324f, 0.020518273f},
     {0.988166817f, 0.242615252f, 3.572528495f, 0.01352549f},

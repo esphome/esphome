@@ -142,8 +142,6 @@ const std::array<uint16_t, AS7343::NUM_CHANNELS> AS7343::WAVELENGTHS_NM = {405, 
 //  F1   F2   FZ   F3   F4   FY   F5   FXL  F6   F7   F8   NIR  CLEAR
 
 uint16_t AS7343::get_channel_wavelength(uint8_t channel) const { return WAVELENGTHS_NM[channel]; }
-// Golden-device contribution of one basic count per channel, in band order. F5, NIR and CLEAR
-// are outside the reconstructed spectrum, so their entries are zero.
 const std::array<ChannelContribution, AS7343::NUM_CHANNELS> AS7343::CONTRIBUTIONS = {{
     {15.24248081f, -0.028559089f, 0.450293995f, 0.001266925f},
     {3.761606341f, -0.042150948f, 3.566379984f, 0.012515925f},

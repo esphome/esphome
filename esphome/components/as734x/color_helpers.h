@@ -3,8 +3,12 @@
 
 namespace esphome::as734x {
 
+// Smallest tristimulus sum that still carries a usable hue.
+constexpr float MIN_TRISTIMULUS_SUM = 0.001f;
+
 // Correlated colour temperature in kelvin from CIE 1931 tristimulus values, using McCamy's
-// approximation. Returns 0 when the tristimulus values are too small to give a meaningful hue.
+// approximation. Returns NAN when the input carries no usable hue, or when the result falls
+// outside the range the approximation holds over.
 float tristimulus_to_cct(float x, float y, float z);
 
 // sRGB components for CIE 1931 tristimulus values. Pass chromaticity (x + y + z == 1) rather than
