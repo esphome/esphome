@@ -39,6 +39,12 @@ KEY_NETWORK_PRIORITY = "network_priority"
 # NETWORK_PLAN.md for the full multi-interface roadmap.
 VALID_NETWORK_TYPES = ["ethernet", "wifi"]
 
+# Interfaces NetworkComponent::loop() knows how to arbitrate the default route
+# for. Deliberately NOT derived from VALID_NETWORK_TYPES: extending that list
+# without extending the C++ arbitration (and then this set) is caught in
+# _final_validate() as a config error instead of a silently mis-routed interface.
+ARBITRATED_NETWORK_TYPES = frozenset({"ethernet", "wifi"})
+
 # Setup priority base values — first in list gets the highest priority.
 #
 # The base equals the historical setup_priority::WIFI / ::ETHERNET default
@@ -328,7 +334,7 @@ def _final_validate(config: ConfigType) -> None:
         len(priority_list) > 1
         and (
             unsupported := {e["interface"] for e in priority_list}
-            - {"ethernet", "wifi"}
+            - ARBITRATED_NETWORK_TYPES
         )
         and CORE.is_esp32
     ):

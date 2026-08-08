@@ -104,8 +104,15 @@ void NetworkComponent::loop() {
     if (route_is_ours)
       return;
   }
-  if (esp_netif_set_default_netif(best) != ESP_OK)
-    return;  // cache unchanged so the next iteration retries
+  if (esp_netif_set_default_netif(best) != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to set default interface");
+    // Cache the intent anyway: subsequent passes take the same-winner branch
+    // above, so retries are throttled to ROUTE_CHECK_INTERVAL_MS and the lwIP
+    // verification keeps re-attempting until the route is actually ours.
+    this->default_netif_ = best;
+    this->last_route_check_ = App.get_loop_component_start_time();
+    return;
+  }
   this->default_netif_ = best;
   ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
 }
