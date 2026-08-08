@@ -674,7 +674,7 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 }
 #endif
 
-void ESP32BLE::get_mac_msb_first(uint8_t out[6]) {
+void ESP32BLE::get_mac_msb_first(uint8_t out[6]) const {
   // The running stack owns the address (on hosted controllers it lives in
   // the remote chip's efuse); null before init becomes all-zero.
   const uint8_t *mac = esp_bt_dev_get_address();
