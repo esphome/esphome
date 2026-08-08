@@ -54,7 +54,7 @@ CONF_NIR = "nir"
 
 UNIT_COUNTS = "#"
 UNIT_IRRADIANCE = "W/m²"
-UNIT_PPFD = "µmol/s⋅m²"
+UNIT_PPFD = "µmol/m²/s"
 
 ICON_COUNTS = "mdi:counter"
 ICON_SATURATION = "mdi:weather-sunny-alert"
