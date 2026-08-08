@@ -357,9 +357,11 @@ ScanOpResult BK72xxBLE::advance_() {
 
   const uint32_t now = App.get_loop_component_start_time();
   this->last_advance_ms_ = now;
-  if (state == BdkActivityState::IDLE || result == ScanOpResult::SETTLED) {
-    // Any teardown episode is over (IDLE observed, or e.g. a mode flip that
-    // settled back without ever reaching IDLE).
+  if (result == ScanOpResult::SETTLED || (state == BdkActivityState::IDLE && ready)) {
+    // Any teardown episode is over (IDLE observed with the controller
+    // settled, or e.g. a mode flip that settled back without ever reaching
+    // IDLE). An IDLE read while an operation is in flight proves nothing —
+    // a stop deferred there must keep its episode running.
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_logged_ = false;
     this->release_warned_ = false;
@@ -397,8 +399,11 @@ ScanOpResult BK72xxBLE::advance_() {
 }
 
 ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
-  if (state == BdkActivityState::IDLE) {
-    // Fully torn down (or never created): the radio is idle.
+  if (state == BdkActivityState::IDLE && ready) {
+    // Fully torn down (or never created): the radio is idle. IDLE is trusted
+    // only when the controller is settled — mid-create the slot still reads
+    // IDLE, and dropping the handle then would leak the activity once the
+    // create lands.
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
     return ScanOpResult::SETTLED;
   }

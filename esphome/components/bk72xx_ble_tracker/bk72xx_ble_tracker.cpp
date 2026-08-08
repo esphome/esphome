@@ -299,6 +299,9 @@ void BK72xxBLETracker::start_scan_() {
   this->scan_started_once_ = true;
 }
 
+// Deliberate logical/physical split: on_scan_end() reports the tracker's
+// intent while the hub winds the radio down asynchronously; OTA is the one
+// path that must wait, and it flushes explicitly.
 void BK72xxBLETracker::stop_scan_() {
   this->start_attempt_open_ = false;  // an abandoned bring-up is not charged
   this->parent_->scan_stop();         // idempotent: releases whatever the hub holds

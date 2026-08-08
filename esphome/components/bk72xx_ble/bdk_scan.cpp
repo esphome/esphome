@@ -101,8 +101,12 @@ BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t win
 
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
   ble_err_t ret = created ? bk_ble_delete_scaning(activity_idx, nullptr) : bk_ble_scan_stop(activity_idx, nullptr);
-  // A rejection is retryable (the reconciler paces and narrates it): BUSY.
-  return ret == ERR_SUCCESS ? BdkOpResult::OK : BdkOpResult::BUSY;
+  if (ret == ERR_SUCCESS)
+    return BdkOpResult::OK;
+  // Retryable (the reconciler paces and narrates it); keep the SDK's reason
+  // on record for a later stuck-teardown ERROR.
+  ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
+  return BdkOpResult::BUSY;
 }
 
 }  // namespace esphome::bk72xx_ble
