@@ -107,7 +107,7 @@ TEST(FindMifareUltralightNdef, LongFormMessageRoundTripsThroughNdefMessage) {
   message.add_uri_record("https://esphome.io/");
   message.add_text_record("Hello, ESPHome!");
 
-  std::string json_payload = "{\"key\":\"value\",\"pad\":\"" + std::string(255, 'x') + "\"}";
+  std::string json_payload = R"({"key":"value","pad":")" + std::string(255, 'x') + R"("})";
   auto json_record = make_unique<nfc::NdefRecord>();
   json_record->set_tnf(nfc::TNF_MIME_MEDIA);
   json_record->set_type("application/json");
