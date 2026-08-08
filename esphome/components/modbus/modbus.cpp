@@ -15,6 +15,9 @@ static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 // Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
 
+// Shortest gap between two "no device accepted broadcast" warnings
+static constexpr uint32_t UNACCEPTED_BROADCAST_WARN_INTERVAL_MS = 60 * MS_PER_SEC;
+
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -445,13 +448,28 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
   if (status.has_value()) {
     return;
   }
+  // A broadcast is never answered, so a rejecting device has no other feedback channel: report the
+  // per-device outcome at V, and warn if the write reached nobody at all.
+  bool accepted = false;
   for (auto *device : this->devices_) {
-    // A broadcast is never answered, so a rejecting device has no other feedback channel; log it so a
-    // misconfigured register map is diagnosable instead of looking identical to a successful write.
     if (ResponseStatus device_status = device->on_broadcast_write_registers(start_address, registers);
         device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
+    } else {
+      accepted = true;
+    }
+  }
+  if (!accepted && !this->devices_.empty()) {
+    // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
+    // repeats forever, so warning per frame would flood the log.
+    const uint32_t now = millis();
+    if (this->last_unaccepted_broadcast_warn_ == 0 ||
+        now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
+      this->last_unaccepted_broadcast_warn_ = now;
+      ESP_LOGW(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
+    } else {
+      ESP_LOGV(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
     }
   }
 }

@@ -23,8 +23,9 @@ namespace esphome::ble_device_base {
 /// One raw advertisement as delivered by the controller — a borrowed view,
 /// valid only for the duration of the invoke() callback.
 struct RawAdvertisement {
-  /// Least-significant octet first (BLE controller convention).
-  const uint8_t *mac;
+  /// Producers convert their native byte order at the emit site, so no
+  /// byte-order convention crosses this contract.
+  uint64_t address;
   const uint8_t *data;
   uint16_t data_len;
   int8_t rssi;  // signed dBm

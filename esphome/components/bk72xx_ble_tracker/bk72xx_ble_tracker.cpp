@@ -159,7 +159,7 @@ void BK72xxBLETracker::dump_config() {
 void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
   // Raw callback (the raw-advertisement path).
   if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{.mac = report.mac,
+    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(report.mac),
                                                 .data = report.data,
                                                 .data_len = report.data_len,
                                                 .rssi = report.rssi,

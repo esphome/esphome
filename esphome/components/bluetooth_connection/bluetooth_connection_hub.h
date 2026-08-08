@@ -49,6 +49,9 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
     this->start_connect_();
   }
   void disconnect();
+  bool is_paired() const { return this->paired_; }
+  void set_unpaired() { this->paired_ = false; }
+  conn_err_t pair() { return this->backend_->pair(); }
   // A backend disconnect() is a single call that also cancels an in-progress
   // connect; there is no deferred-disconnect state to track.
   bool disconnect_pending() const { return false; }
@@ -87,6 +90,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   void on_write_result(uint16_t handle, int error) override;
   void on_notify_state(uint16_t handle, bool enabled, int error) override;
   void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) override;
+  void on_pairing_result(int status) override;
 
  protected:
   friend class bluetooth_proxy::BluetoothProxy;
@@ -118,6 +122,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
 
   // Group 5: 1-byte types
   ClientState state_{ClientState::IDLE};
+  bool paired_{false};
   ConnectionType connection_type_{ConnectionType::V1};
   uint8_t remote_addr_type_{0};
   uint8_t connection_index_{0};
