@@ -10,5 +10,7 @@ bridge:
   - platform: usb_uart
     uart_id: uart_1
     usb_cdc_acm_id: cdc_acm_2
-    dtr_pin: 20
-    rts_pin: 21
+    # GPIO19/20 are USB D-/D+ on the S3 (which the CDC side itself uses); use
+    # unrelated free pins here.
+    dtr_pin: 17
+    rts_pin: 18

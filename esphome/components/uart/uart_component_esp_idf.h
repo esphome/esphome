@@ -64,6 +64,9 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
+  // (Re)apply the settings that uart_param_config() resets: line inversion, RX full
+  // threshold, RX timeout, and port mode. Returns the first error, already logged.
+  esp_err_t apply_line_settings_();
   uart_port_t uart_num_;
   uart_config_t get_config_();
 

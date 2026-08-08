@@ -5,6 +5,7 @@ from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_E
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
@@ -35,13 +36,16 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    # Narrower than usb_cdc_acm's variant list on purpose: S31/H4 have the USB
+    # peripheral but no hardware available to exercise the bridge's task/DTR/RTS
+    # paths yet; extend once tested.
     esp32.only_on_variant(
         supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
     ),
 )
 
 
-def _subtree_references_uart(node, uart_id: str) -> bool:
+def _subtree_references_uart(node: object, uart_id: str) -> bool:
     """Return True if any dict in the subtree has a uart_id entry naming this bus."""
     if isinstance(node, dict):
         return any(
@@ -54,7 +58,7 @@ def _subtree_references_uart(node, uart_id: str) -> bool:
     return False
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     # Each bridge must own its UART and USB CDC-ACM interface exclusively. If two
     # bridges shared either, their RX/TX tasks would contend on the same ring buffers
     # (and the second setup() would silently overwrite the first's line callbacks),
@@ -102,7 +106,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

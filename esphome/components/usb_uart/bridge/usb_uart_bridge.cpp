@@ -85,6 +85,14 @@ void USBUARTBridge::setup() {
     return;
   }
 
+  // A failed UART never assigned its port number, so the worker tasks would run
+  // against an indeterminate port -- possibly a valid one owned by someone else.
+  if (this->uart_parent_->is_failed()) {
+    ESP_LOGE(TAG, "UART parent failed; aborting");
+    this->mark_failed();
+    return;
+  }
+
   if (this->usb_cdc_parent_ == nullptr) {
     ESP_LOGE(TAG, "USB CDC ACM parent not set");
     this->mark_failed();
@@ -156,6 +164,10 @@ void USBUARTBridge::setup() {
   this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
   this->usb_cdc_parent_->set_line_coding_callback(
       [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
+
+  // loop() only services pending line-coding reloads; stay off the main loop until
+  // set_line_coding() schedules one.
+  this->disable_loop();
 }
 
 void USBUARTBridge::dump_config() {
@@ -180,6 +192,7 @@ void USBUARTBridge::loop() {
 
   this->reload_pending_ = false;
   this->uart_settings_reload_();
+  this->disable_loop();
 }
 
 void USBUARTBridge::set_line_coding() {
@@ -195,9 +208,13 @@ void USBUARTBridge::set_line_coding() {
   bool changed = false;
 
   // The baud rate arrives unvalidated from the wire; ignore values the hardware
-  // cannot do (see MIN/MAX_BAUD_RATE above).
+  // cannot do (see MIN/MAX_BAUD_RATE above), but say so -- a silently kept rate
+  // would otherwise read as the bridge ignoring the host.
   const uint32_t baud = this->usb_cdc_parent_->get_baud_rate();
-  if (baud >= MIN_BAUD_RATE && baud <= MAX_BAUD_RATE && this->uart_parent_->get_baud_rate() != baud) {
+  if (baud < MIN_BAUD_RATE || baud > MAX_BAUD_RATE) {
+    ESP_LOGW(TAG, "Ignoring unsupported baud rate %" PRIu32 " from host; keeping %" PRIu32, baud,
+             this->uart_parent_->get_baud_rate());
+  } else if (this->uart_parent_->get_baud_rate() != baud) {
     this->uart_parent_->set_baud_rate(baud);
     changed = true;
   }
@@ -217,7 +234,10 @@ void USBUARTBridge::set_line_coding() {
   // data_bits is stored raw on the CDC instance and may be a value the UART cannot
   // represent (USB CDC permits 16); only 5-8 are valid, so ignore anything else.
   const uint8_t data_bits = this->usb_cdc_parent_->get_data_bits();
-  if (data_bits >= 5 && data_bits <= 8 && this->uart_parent_->get_data_bits() != data_bits) {
+  if (data_bits < 5 || data_bits > 8) {
+    ESP_LOGW(TAG, "Ignoring unsupported data bits %u from host; keeping %u", data_bits,
+             this->uart_parent_->get_data_bits());
+  } else if (this->uart_parent_->get_data_bits() != data_bits) {
     this->uart_parent_->set_data_bits(data_bits);
     changed = true;
   }
@@ -229,6 +249,9 @@ void USBUARTBridge::set_line_coding() {
     // Coalesce rapid line-coding updates from host.
     this->reload_requested_at_ = millis();
     this->reload_pending_ = true;
+    // Runs on the main loop (via USBCDCACMInstance::process_events_), so the plain
+    // enable is correct here.
+    this->enable_loop();
   }
 }
 
@@ -257,6 +280,7 @@ void USBUARTBridge::uart_rx_task_() {
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
   uint32_t tx_full_log_ms = 0;
+  uint32_t err_log_ms = 0;
 
   uint8_t *data = this->uart_rx_buffer_.get();
   const size_t buf_size = this->uart_rx_buffer_size_;
@@ -265,7 +289,10 @@ void USBUARTBridge::uart_rx_task_() {
     // Block until at least one byte is available from UART.
     int total_rx_size = uart_read_bytes(uart_num, data, 1, portMAX_DELAY);
     if (total_rx_size < 0) {
-      ESP_LOGE(TAG, "UART read failed: %d", total_rx_size);
+      // Throttled: a persistently failing driver would otherwise flood at 100 Hz.
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "UART read failed: %d", total_rx_size);
+      }
       vTaskDelay(pdMS_TO_TICKS(10));
       continue;
     }
@@ -281,7 +308,9 @@ void USBUARTBridge::uart_rx_task_() {
         break;
       }
       if (rx_data_size < 0) {
-        ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
+        if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+          ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
+        }
         break;
       }
       total_rx_size += rx_data_size;
@@ -303,13 +332,17 @@ void USBUARTBridge::uart_tx_task_() {
   uint8_t *data_to_uart = this->uart_tx_buffer_.get();
   const size_t buf_size = this->uart_tx_buffer_size_;
   size_t rx_size;
+  uint32_t err_log_ms = 0;
 
   while (true) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");
     esp_err_t ret = usb_cdc_acm::ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, buf_size, &rx_size, portMAX_DELAY);
 
     if (ret != ESP_OK) {
-      ESP_LOGE(TAG, "USB RX RingBuf read failed");
+      // Throttled: a broken ring buffer would otherwise make this a hot error loop.
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "USB RX RingBuf read failed");
+      }
       continue;
     }
 
@@ -319,7 +352,9 @@ void USBUARTBridge::uart_tx_task_() {
     int xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
 
     if (xfer_size < 0) {
-      ESP_LOGE(TAG, "UART write failed: %d", xfer_size);
+      if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGE(TAG, "UART write failed: %d", xfer_size);
+      }
     } else if (static_cast<size_t>(xfer_size) != rx_size) {
       ESP_LOGW(TAG, "UART write incomplete (%d/%zu bytes)", xfer_size, rx_size);
     }
