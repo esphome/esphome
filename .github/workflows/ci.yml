@@ -65,7 +65,7 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
+          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
 
   determine-jobs:
@@ -208,69 +208,34 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
-  pre-commit-ci-lite:
-    name: pre-commit.ci lite
+  lint-format:
+    name: Check lint and formatting
     runs-on: ubuntu-latest
     needs:
-      - common
       - determine-jobs
     if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
+      - name: Run prek
+        uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      # Inlined from esphome/pre-commit-action with a restore-only cache
-      # step: the pre-commit-seed-cache job owns saving this cache, so
-      # pull request runs never write per-PR copies.
-      - name: Restore pre-commit cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/pre-commit
-          # Must match the key pre-commit-seed-cache saves
-          # yamllint disable-line rule:line-length
-          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
-      - name: Run pre-commit
+          # Keep in sync with requirements_test.txt.
+          prek-version: "0.4.11"
+          # This job only runs on pull requests, so nothing ever populates
+          # the cache on dev. Every run would miss and then write a per-pull
+          # request copy, which is what the old seed-cache job existed to
+          # avoid. Building the hooks from scratch takes seconds, so skip it.
+          cache: false
         env:
-          SKIP: pylint,ci-custom
-        run: |
-          python -m pip install pre-commit
-          pre-commit run --show-diff-on-failure --color=always --all-files
+          PREK_SKIP: pylint,ci-custom
+      # Pushes any fixes the hooks made back to the pull request. This step
+      # must keep its default name: the GitHub App that performs the push
+      # locates the workflow run by that name.
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
-
-  pre-commit-seed-cache:
-    name: Seed pre-commit cache
-    runs-on: ubuntu-latest
-    needs:
-      - common
-    # Saves a dev-scoped pre-commit cache that pull request runs can
-    # restore, since pre-commit.ci lite itself never runs on dev pushes.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Cache pre-commit environments
-        id: cache-pre-commit
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/pre-commit
-          # Must match the restore key in pre-commit-ci-lite
-          # yamllint disable-line rule:line-length
-          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
-      - name: Install pre-commit hook environments
-        if: steps.cache-pre-commit.outputs.cache-hit != 'true'
-        run: |
-          python -m pip install pre-commit
-          pre-commit install-hooks
+          msg: apply automatic formatting fixes
 
   pytest:
     name: Run pytest
@@ -501,7 +466,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@88472375d0a4572cf70a9f1fe3a4e0ab8da1b924 # v5.0.1
+        uses: CodSpeedHQ/action@0ca9cbbf4623b599a6c3ed4fc8a922942705d9f1 # v5.0.2
         with:
           run: |
             . venv/bin/activate
@@ -551,7 +516,6 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         include:
           - id: clang-tidy
@@ -742,7 +706,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -822,7 +785,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -909,7 +871,7 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
+      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 32 || 16 }}
       matrix:
         batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
@@ -1456,16 +1418,15 @@ jobs:
   ci-status:
     name: CI Status
     runs-on: ubuntu-24.04
-    # Listed in the same order the jobs are defined above. Two jobs are
+    # Listed in the same order the jobs are defined above. One job is
     # deliberately left out: "benchmarks" reports through CodSpeed rather than
-    # this check, and "pre-commit-seed-cache" only populates a cache on pushes
-    # to dev.
+    # this check.
     needs:
       - common
       - determine-jobs
       - ci-custom
       - pylint
-      - pre-commit-ci-lite
+      - lint-format
       - pytest
       - codecov-empty-upload
       - integration-tests

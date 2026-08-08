@@ -177,7 +177,9 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
 static size_t required_payload_size(SensorValueType sensor_value_type) {
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
+    case SensorValueType::U_WORD_S:
     case SensorValueType::S_WORD:
+    case SensorValueType::S_WORD_S:
       return 2;
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
@@ -228,6 +230,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::U_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(word, bitmask);
+      break;
+    }
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
       value = get_data<uint32_t>(data, offset);
@@ -242,6 +249,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::S_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(static_cast<int16_t>(word), bitmask);
+      break;
+    }
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
       break;
@@ -522,23 +534,33 @@ PduBuffer create_write_coils_pdu(uint16_t start_address, PackedBits bits) {
   return pdu;
 }
 
-PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+// Shared by the two bool-container overloads: both index the same way, so the packing is written once.
+template<typename BoolContainer>
+static PduBuffer create_write_coils_pdu_from_bools(uint16_t start_address, const BoolContainer &values) {
   PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  const size_t count = values.size();
   // Bound before packing so the transient buffer below cannot overflow; the shared core validates the rest.
-  if (values.size() > MAX_NUM_OF_COILS_TO_WRITE) {
-    ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", values.size(),
+  if (count > MAX_NUM_OF_COILS_TO_WRITE) {
+    ESP_LOGE(TAG, "values.size() %zu exceeds maximum coils to write %u, dropping request", count,
              MAX_NUM_OF_COILS_TO_WRITE);
     return pdu;
   }
-  StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)> packed;
-  for (size_t i = 0; i != values.size(); i++) {
+  CoilPackBuffer packed;
+  for (size_t i = 0; i != count; i++) {
     if (i % 8 == 0)
       packed.push_back(0);
     if (values[i])
       packed[i / 8] |= (1 << (i % 8));
   }
-  build_write_coils_pdu(pdu, start_address,
-                        PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
+  build_write_coils_pdu(pdu, start_address, PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), count));
   return pdu;
+}
+
+PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values) {
+  return create_write_coils_pdu_from_bools(start_address, values);
+}
+
+PduBuffer create_write_coils_pdu(uint16_t start_address, const std::vector<bool> &values) {
+  return create_write_coils_pdu_from_bools(start_address, values);
 }
 }  // namespace esphome::modbus::helpers

@@ -119,11 +119,18 @@ enum class SensorValueType : uint8_t {
   U_QWORD_R = 0xA,
   S_QWORD_R = 0xB,
   FP32 = 0xC,
-  FP32_R = 0xD
+  FP32_R = 0xD,
+  U_WORD_S = 0xE,  // 1 Register unsigned, bytes swapped
+  S_WORD_S = 0xF,  // 1 Register signed, bytes swapped
 };
 
 inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
+}
+
+/// Coils and discrete inputs are the bit-addressed entity tables; the other types are 16-bit registers.
+inline bool is_entity_type_binary(EntityType type) {
+  return type == EntityType::COIL || type == EntityType::DISCRETE_INPUT;
 }
 
 inline FunctionCode modbus_register_read_function(EntityType reg_type) {
@@ -284,6 +291,10 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
     case SensorValueType::S_WORD:
       data.push_back(value & 0xFFFF);
       break;
+    case SensorValueType::U_WORD_S:
+    case SensorValueType::S_WORD_S:
+      data.push_back(byteswap(static_cast<uint16_t>(value & 0xFFFF)));
+      break;
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
     case SensorValueType::FP32:
@@ -355,6 +366,8 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
+/// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
+using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
 /** Create a modbus read request PDU.
  * @param function_code one of READ_COILS, READ_DISCRETE_INPUTS, READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS
@@ -416,11 +429,21 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value);
  *  Function 0x0F Write Multiple Coils
  * @param start_address modbus address of the first coil to write
  * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
- *               over-long set is rejected and an empty PDU is returned). Note std::vector<bool> is bit-packed and
- *               does not convert to a span; pass a std::array<bool, N> or other contiguous bool container.
+ *               over-long set is rejected and an empty PDU is returned)
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
+
+/** Create modbus write multiple coils command (function 0x0F) from a std::vector<bool>.
+ * Prefer the span overload above whenever the coils are already in contiguous storage - a std::array<bool, N>
+ * or any other contiguous bool container converts to it. This overload exists only because std::vector<bool>
+ * is bit-packed and so cannot convert to a span; without it every caller holding one re-implements the packing.
+ * @param start_address modbus address of the first coil to write
+ * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
+ *               over-long set is rejected and an empty PDU is returned)
+ * @return PDU (function code + data, no address, no CRC)
+ */
+PduBuffer create_write_coils_pdu(uint16_t start_address, const std::vector<bool> &values);
 
 /** Create modbus write multiple coils command (function 0x0F) from bits packed as on the wire.
  * @param start_address modbus address of the first coil to write
