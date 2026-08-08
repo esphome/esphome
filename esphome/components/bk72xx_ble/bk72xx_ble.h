@@ -136,8 +136,10 @@ class BK72xxBLE final : public Component {
   // (for a bring-up) bounded.
   ScanOpResult last_result_{ScanOpResult::SETTLED};
   uint32_t last_advance_ms_{0};
-  uint32_t pending_since_ms_{0};  // bring-up budget anchor; refilled on request change
-  uint8_t stall_count_{0};        // per-episode stop stalls; gates the WARN, widens the pump, ERRORs when stuck
+  uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
+  uint32_t stop_pending_since_ms_{0};  // unfinished-stop episode start; 0 = none
+  bool release_warned_{false};         // gates the release WARN; widens the pump gate
+  bool stop_stuck_logged_{false};      // the stuck-stop ERROR fired this episode
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };
