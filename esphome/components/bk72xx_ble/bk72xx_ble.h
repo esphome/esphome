@@ -137,7 +137,7 @@ class BK72xxBLE final : public Component {
   ScanOpResult last_result_{ScanOpResult::SETTLED};
   uint32_t last_advance_ms_{0};
   uint32_t pending_since_ms_{0};  // bring-up budget anchor; refilled on request change
-  bool release_warned_{false};    // gates the release WARN per episode; widens the pump gate
+  uint8_t release_rejects_{0};    // per-episode; gates the WARN, widens the pump gate, escalates when stuck
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };
