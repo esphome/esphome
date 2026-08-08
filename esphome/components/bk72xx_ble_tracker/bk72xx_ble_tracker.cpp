@@ -148,23 +148,35 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   const auto hub = this->parent_->last_scan_result();
   if (hub == bk72xx_ble::ScanOpResult::PENDING)
     return false;
+  if (hub == bk72xx_ble::ScanOpResult::FAILED && this->start_attempt_open_) {
+    // The bring-up we issued gave up asynchronously; charge it to the
+    // backoff so a stalled controller escalates instead of cycling forever.
+    this->start_attempt_open_ = false;
+    this->count_failed_start_();
+  }
   const uint32_t gate = SCAN_START_RETRY_MS << this->failed_start_count_;
   if (hub == bk72xx_ble::ScanOpResult::FAILED && (!force || this->failed_start_count_ != 0) &&
       now - this->last_scan_start_attempt_ < gate)
     return false;
   this->start_scan_();
   if (!this->scan_running_) {
-    if (this->parent_->last_scan_result() == bk72xx_ble::ScanOpResult::PENDING)
+    if (this->parent_->last_scan_result() == bk72xx_ble::ScanOpResult::PENDING) {
+      this->start_attempt_open_ = true;
       return false;  // the controller is still bringing the scan up; not a failure
-    if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
-      ++this->failed_start_count_;
-      if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
-        ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
-                 (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
-      }
     }
+    this->count_failed_start_();
   }
   return this->scan_running_;
+}
+
+void BK72xxBLETracker::count_failed_start_() {
+  if (this->failed_start_count_ < SCAN_START_RETRY_MAX_DOUBLINGS) {
+    ++this->failed_start_count_;
+    if (this->failed_start_count_ == SCAN_START_RETRY_MAX_DOUBLINGS) {
+      ESP_LOGW(TAG, "Scan start keeps failing; retrying every %" PRIu32 " s",
+               (SCAN_START_RETRY_MS << SCAN_START_RETRY_MAX_DOUBLINGS) / 1000);
+    }
+  }
 }
 
 void BK72xxBLETracker::dump_config() {
@@ -277,6 +289,7 @@ void BK72xxBLETracker::start_scan_() {
   const uint32_t now = App.get_loop_component_start_time();
   this->scan_running_ = true;
   this->scan_requested_ = false;  // the latched one-shot request is satisfied
+  this->start_attempt_open_ = false;
   this->failed_start_count_ = 0;  // reset here so direct starts clear the backoff too
   this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
