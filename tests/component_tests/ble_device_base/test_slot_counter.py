@@ -103,7 +103,7 @@ def test_esp32_tracker_handler_counts(
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") is None
 
 
-def test_esp32_bluetooth_proxy_requests_scanner_state_slot(
+def test_esp32_bluetooth_proxy_requests_client_slots_only(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
