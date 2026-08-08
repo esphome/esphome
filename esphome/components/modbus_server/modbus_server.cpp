@@ -145,7 +145,12 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         }
         return true;
       })) {
-    ESP_LOGW(TAG, "Write request rejected before applying any register. Sending exception response.");
+    // On a broadcast every device that does not map these registers rejects them, which is the normal case.
+    if (this->broadcast_write_) {
+      ESP_LOGV(TAG, "Write request rejected before applying any register.");
+    } else {
+      ESP_LOGW(TAG, "Write request rejected before applying any register.");
+    }
     return precheck;
   }
 
