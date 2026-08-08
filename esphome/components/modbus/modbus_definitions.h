@@ -116,6 +116,10 @@ static constexpr uint16_t READ_PDU_SIZE = 5;
 // A single-write PDU is always function code(1) + address(2) + value(2)
 static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+
+// 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
+static constexpr uint8_t BROADCAST_ADDRESS = 0;
+
 // Both send paths bound their payload so the framed result lands exactly on the RTU limit: a client
 // PDU gains an address byte and a CRC, a raw server frame gains a CRC. send_frame_() therefore never
 // has to check the framed size - it cannot be exceeded.
