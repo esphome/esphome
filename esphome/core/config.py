@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_AREA,
     CONF_AREA_ID,
     CONF_AREAS,
+    CONF_AVAILABLE,
     CONF_BUILD_FLAGS,
     CONF_BUILD_PATH,
     CONF_COMMENT,
@@ -50,6 +51,7 @@ from esphome.core import (
     CoroPriority,
     coroutine_with_priority,
 )
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -106,6 +108,9 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 Device = cg.esphome_ns.class_("Device")
+DeviceSetAvailableAction = cg.esphome_ns.class_(
+    "DeviceSetAvailableAction", automation.Action
+)
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -266,6 +271,33 @@ DEVICE_SCHEMA = cv.Schema(
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
 )
+
+
+DEVICE_SET_AVAILABLE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Device),
+        cv.Required(CONF_AVAILABLE): cv.templatable(cv.boolean),
+    }
+)
+
+
+@automation.register_action(
+    "device.set_available",
+    DeviceSetAvailableAction,
+    DEVICE_SET_AVAILABLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def device_set_available_to_code(
+    config: ConfigType,
+    action_id: core.ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    device = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, device)
+    available = await cg.templatable(config[CONF_AVAILABLE], args, cg.bool_)
+    cg.add(var.set_available(available))
+    return var
 
 
 def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:

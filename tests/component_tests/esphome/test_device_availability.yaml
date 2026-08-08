@@ -1,0 +1,15 @@
+esphome:
+  name: test-device-availability
+  devices:
+    - id: child_device
+      name: Child Device
+  on_boot:
+    then:
+      - device.set_available:
+          id: child_device
+          available: false
+      - device.set_available:
+          id: child_device
+          available: !lambda return true;
+
+host:
