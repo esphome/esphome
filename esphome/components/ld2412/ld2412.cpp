@@ -597,7 +597,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_MOTION_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_move_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+      for (size_t i = 0; i < this->gate_move_thresholds_.size() && (10 + i) < this->buffer_pos_; i++) {
+        this->gate_move_thresholds_[i] = this->buffer_data_[10 + i];
         set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
@@ -606,7 +607,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+      for (size_t i = 0; i < this->gate_still_thresholds_.size() && (10 + i) < this->buffer_pos_; i++) {
+        this->gate_still_thresholds_[i] = this->buffer_data_[10 + i];
         set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
@@ -805,24 +807,30 @@ void LD2412Component::set_basic_config() {
 }
 
 #ifdef USE_NUMBER
+void LD2412Component::send_gate_thresholds_(uint8_t command, const std::array<number::Number *, TOTAL_GATES> &numbers,
+                                            const std::array<uint8_t, TOTAL_GATES> &last_read) {
+  uint8_t value[TOTAL_GATES];
+  bool any_configured = false;
+  for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+    number::Number *n = numbers[i];
+    if (n != nullptr && n->has_state()) {
+      value[i] = lowbyte(static_cast<int>(n->state));
+      any_configured = true;
+    } else {
+      // Gates the configuration left out, and gates still waiting for their first read back, keep the module value
+      value[i] = last_read[i];
+    }
+  }
+  if (!any_configured) {
+    return;  // Nothing to change in this group
+  }
+  this->send_command_(command, value, sizeof(value));
+}
+
 void LD2412Component::set_gate_threshold() {
-  if (this->gate_move_threshold_numbers_.empty() && this->gate_still_threshold_numbers_.empty()) {
-    return;  // No gate threshold numbers set; nothing to do here
-  }
-  uint8_t value[TOTAL_GATES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   this->set_config_mode_(true);
-  if (!this->gate_move_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_move_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_move_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_MOTION_GATE_SENS, value, sizeof(value));
-  }
-  if (!this->gate_still_threshold_numbers_.empty()) {
-    for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-      value[i] = lowbyte(static_cast<int>(this->gate_still_threshold_numbers_[i]->state));
-    }
-    this->send_command_(CMD_STATIC_GATE_SENS, value, sizeof(value));
-  }
+  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_threshold_numbers_, this->gate_move_thresholds_);
+  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_threshold_numbers_, this->gate_still_thresholds_);
   this->set_config_mode_(false);
 }
 

@@ -20,6 +20,11 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
   2. Truncated engineering frame (24 bytes) is rejected — gate/light sensors
      must not receive garbage from stale buffer data or frame footer bytes
   3. Recovery frame with different values proves the component survived
+
+test_uart_mock_ld2412_gate_thresholds (partial gate threshold config):
+  1. Threshold queries are answered, so every gate has a known module value
+  2. Writing one threshold does not crash when most gates have no number
+  3. Gates without a number are written back with the module value, not a zero
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import ButtonInfo
+from aioesphomeapi import ButtonInfo, EntityState, NumberInfo
 import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
@@ -397,3 +402,106 @@ async def test_uart_mock_ld2412_engineering_truncated(
                 f"truncated frame likely leaked stale buffer data. "
                 f"All values: {collector.sensor_states['gate_0_move_energy']}"
             )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_gate_thresholds(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test writing a threshold when only 2 of the 14 gates have numbers configured.
+
+    The threshold commands carry all 14 gates, so the component has to produce a value for every gate.
+    It used to dereference the numbers of gates that were never configured, which crashed on the first
+    write. The gates without a number must be written back with the value read from the module.
+    """
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Payloads the component is expected to write, as the mock logs them
+    # Motion: gate 0 becomes 77 (0x4D), every other gate keeps the module value (11 to 23)
+    expected_motion = "4D:0B:0C:0D:0E:0F:10:11:12:13:14:15:16:17"
+    # Still: nothing was changed, so every gate keeps the module value (40 to 53)
+    expected_still = "28:29:2A:2B:2C:2D:2E:2F:30:31:32:33:34:35"
+    motion_written = loop.create_future()
+    still_written = loop.create_future()
+
+    def line_callback(line: str) -> None:
+        if "uart_mock" not in line or "TX " not in line:
+            return
+        if expected_motion in line and not motion_written.done():
+            motion_written.set_result(True)
+        if expected_still in line and not still_written.done():
+            still_written.set_result(True)
+
+    states: dict[int, float] = {}
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        initial_state_helper = InitialStateHelper(entities)
+
+        def on_state(state: EntityState) -> None:
+            states[state.key] = state.state
+
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        numbers = {
+            name: find_entity(entities, name, NumberInfo)
+            for name in (
+                "gate_0_move_threshold",
+                "gate_0_still_threshold",
+                "gate_5_move_threshold",
+                "gate_5_still_threshold",
+            )
+        }
+        for name, entity in numbers.items():
+            assert entity is not None, f"{name} number not found"
+
+        # The setup queries were answered, so the 2 configured gates show the module values
+        initial_states = initial_state_helper.initial_states
+        assert initial_states[numbers["gate_0_move_threshold"].key].state == (
+            pytest.approx(10.0)
+        )
+        assert initial_states[numbers["gate_5_move_threshold"].key].state == (
+            pytest.approx(15.0)
+        )
+        assert initial_states[numbers["gate_0_still_threshold"].key].state == (
+            pytest.approx(40.0)
+        )
+        assert initial_states[numbers["gate_5_still_threshold"].key].state == (
+            pytest.approx(45.0)
+        )
+
+        # Write one threshold; this is what used to crash the device
+        client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(motion_written, still_written), timeout=5.0
+            )
+        except TimeoutError:
+            pytest.fail(
+                "Timeout waiting for the threshold commands.\n"
+                f"  expected motion payload: {expected_motion}\n"
+                f"  expected still payload:  {expected_still}"
+            )
+
+        # A round trip proves the device is still running after the write
+        entities_after, _ = await client.list_entities_services()
+        assert len(entities_after) == len(entities)

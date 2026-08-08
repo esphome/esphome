@@ -118,6 +118,10 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
   void query_dynamic_background_correction_();
+#ifdef USE_NUMBER
+  void send_gate_thresholds_(uint8_t command, const std::array<number::Number *, TOTAL_GATES> &numbers,
+                             const std::array<uint8_t, TOTAL_GATES> &last_read);
+#endif
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -131,6 +135,11 @@ class LD2412Component final : public Component, public uart::UARTDevice {
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
+  // Thresholds last read back from the module, one per gate
+  // A threshold command carries all of the gates at once, so a gate with no configured number still needs a value
+  // Sending back what the module reported leaves that gate alone, where a zero would mean maximum sensitivity
+  std::array<uint8_t, TOTAL_GATES> gate_move_thresholds_{};
+  std::array<uint8_t, TOTAL_GATES> gate_still_thresholds_{};
 #endif
 #ifdef USE_SENSOR
   std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
