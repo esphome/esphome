@@ -29,6 +29,7 @@
 #include "ble_client_state.h"
 #include "ble_device.h"
 
+#include <concepts>
 #include <cstdint>
 
 namespace esphome::ble_device_base {
@@ -93,17 +94,17 @@ struct GattServiceTable {
 // on_notify_state, on_notify_data, on_pairing_result.
 template<typename T>
 concept BLEGattConnectionContract = requires(T conn, const uint8_t *data) {
-  conn.connect(uint64_t{}, uint8_t{});
-  conn.disconnect();
-  conn.discover_services();
-  conn.read_characteristic(uint16_t{});
-  conn.write_characteristic(uint16_t{}, data, uint16_t{}, true);
-  conn.read_descriptor(uint16_t{});
-  conn.write_descriptor(uint16_t{}, data, uint16_t{});
-  conn.notify_characteristic(uint16_t{}, true);
-  conn.pair();
-  conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{});
-  conn.get_service_table();
+  { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
+  { conn.disconnect() } -> std::same_as<int>;
+  { conn.discover_services() } -> std::same_as<int>;
+  { conn.read_characteristic(uint16_t{}) } -> std::same_as<int>;
+  { conn.write_characteristic(uint16_t{}, data, uint16_t{}, true) } -> std::same_as<int>;
+  { conn.read_descriptor(uint16_t{}) } -> std::same_as<int>;
+  { conn.write_descriptor(uint16_t{}, data, uint16_t{}) } -> std::same_as<int>;
+  { conn.notify_characteristic(uint16_t{}, true) } -> std::same_as<int>;
+  { conn.pair() } -> std::same_as<int>;
+  { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
+  { conn.get_service_table() } -> std::same_as<GattServiceTable>;
   conn.release_services();
 };
 
