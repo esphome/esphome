@@ -294,16 +294,22 @@ static_assert(sizeof(struct gapm_scan_param) == 16 && sizeof(struct gapm_scan_wd
 ScanStartResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active())
     this->enable();
-  this->scan_intent_ = active ? ScanIntent::ACTIVE : ScanIntent::PASSIVE;
+  const ScanIntent intent = active ? ScanIntent::ACTIVE : ScanIntent::PASSIVE;
+  if (intent != this->scan_intent_ || interval != this->scan_interval_ || window != this->scan_window_) {
+    // A genuinely new request gets a fresh retry budget; a re-call observing
+    // an in-flight bring-up must not refill the ceiling.
+    this->pending_attempts_ = 0;
+  }
+  this->scan_intent_ = intent;
   this->scan_interval_ = interval;
   this->scan_window_ = window;
-  this->pending_attempts_ = 0;  // new sequence, fresh retry budget
   return this->advance_();
 }
 
 void BK72xxBLE::scan_stop() {
+  if (this->scan_intent_ != ScanIntent::STOPPED)
+    this->pending_attempts_ = 0;
   this->scan_intent_ = ScanIntent::STOPPED;
-  this->pending_attempts_ = 0;
   this->advance_();
 }
 
@@ -354,29 +360,21 @@ ScanStartResult BK72xxBLE::advance_() {
       this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
       result = ScanStartResult::STARTED;
     } else {
-      // Settled, so ACTV_SCAN_CREATED unambiguously means "never started",
-      // where a stop would be rejected — delete the activity instead.
-      ble_err_t ret = (state == ACTV_SCAN_CREATED) ? bk_ble_delete_scaning(this->scan_activity_idx_, nullptr)
-                                                   : bk_ble_scan_stop(this->scan_activity_idx_, nullptr);
-      if (ret == ERR_SUCCESS) {
-        this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
+      // Settled, so ACTV_SCAN_CREATED unambiguously means "never started".
+      if (this->release_activity_(state == ACTV_SCAN_CREATED))
         result = ScanStartResult::STARTED;
-      } else if (!this->reconcile_pending_) {
-        // Keep the handle and retry from loop() so a rejected release cannot
-        // leak the slot; log once per episode.
-        ESP_LOGW(TAG, "Scan stop rejected (err %d); retrying", static_cast<int>(ret));
-      }
     }
     return this->finish_advance_(result);
   }
 
   const bool want_active = this->scan_intent_ == ScanIntent::ACTIVE;
   if (state == ACTV_SCAN_STARTED) {
-    if (this->activity_mode_active_ == want_active) {
+    if (this->activity_mode_active_ == want_active && this->applied_interval_ == this->scan_interval_ &&
+        this->applied_window_ == this->scan_window_) {
       result = ScanStartResult::STARTED;
     } else if (ready) {
-      // Running in the other mode: tear down (the SDK stop chain also deletes
-      // the activity) and recreate on a later advance.
+      // Running with different mode or parameters: tear down (the SDK stop
+      // chain also deletes the activity) and recreate on a later advance.
       this->release_activity_(false);
     }
   } else if (!ready) {
@@ -421,6 +419,8 @@ ScanStartResult BK72xxBLE::advance_() {
         result = ScanStartResult::FAILED;
       } else {
         this->activity_mode_active_ = false;
+        this->applied_interval_ = this->scan_interval_;
+        this->applied_window_ = this->scan_window_;
       }
     }
   }
@@ -456,6 +456,8 @@ ScanStartResult BK72xxBLE::send_active_start_() {
   if (cmd == nullptr) {
     app_ble_reset();  // the SDK's own failure path for an unsent operation
     ESP_LOGE(TAG, "Scan start failed: kernel message allocation");
+    // The created activity is intact; keep the handle so the next attempt
+    // reuses it instead of orphaning the slot.
     return ScanStartResult::FAILED;
   }
   cmd->operation = GAPM_START_ACTIVITY;
@@ -472,6 +474,8 @@ ScanStartResult BK72xxBLE::send_active_start_() {
   cmd->u_param.scan_param.period = 10;   // matches the SDK's passive start
   kernel_msg_send(cmd);
   this->activity_mode_active_ = true;
+  this->applied_interval_ = this->scan_interval_;
+  this->applied_window_ = this->scan_window_;
   return ScanStartResult::PENDING;
 }
 

@@ -132,9 +132,12 @@ class BK72xxBLE final : public Component {
   ScanIntent scan_intent_{ScanIntent::STOPPED};
   uint16_t scan_interval_{0};  // BLE units; latched by scan_start()
   uint16_t scan_window_{0};
-  // Mode the current activity was (or is being) started with — our own
-  // command history, which the controller state alone cannot answer.
+  // Mode and parameters the current activity was (or is being) started with —
+  // our own command history, which the controller state alone cannot answer;
+  // a mismatch with the latched request restarts the scan.
   bool activity_mode_active_{false};
+  uint16_t applied_interval_{0};
+  uint16_t applied_window_{0};
   // advance_() has more reconciling to do; loop() keeps driving it,
   // rate-limited and bounded (see advance_()).
   bool reconcile_pending_{false};
