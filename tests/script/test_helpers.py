@@ -12,9 +12,7 @@ import pytest
 from pytest import MonkeyPatch
 
 # Add the script directory to Python path so we can import helpers
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "script"))
-)
+sys.path.insert(0, str((Path(__file__).parent / ".." / ".." / "script").resolve()))
 
 import helpers  # noqa: E402
 
@@ -37,6 +35,8 @@ def clear_helpers_cache() -> None:
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
     helpers.get_components_per_integration_fixture.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -77,6 +77,22 @@ def test_get_pr_number_from_github_env_event_file(
     result = _get_pr_number_from_github_env()
 
     assert result == "5678"
+
+
+def test_get_github_event_data_decodes_utf8_regardless_of_locale(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """The event payload is UTF-8; parsing must not depend on the platform
+    default encoding. On Windows the default is cp1252, which raised
+    UnicodeDecodeError as soon as a commit title carried non ASCII text."""
+    event_file = tmp_path / "event.json"
+    event_data = {"head_commit": {"message": "Answer UNPAIR with Response… é"}}
+    event_file.write_bytes(json.dumps(event_data, ensure_ascii=False).encode("utf-8"))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    result = helpers._get_github_event_data()
+
+    assert result == event_data
 
 
 def test_get_pr_number_from_github_env_no_pr(
@@ -1506,6 +1522,8 @@ def fake_components(tmp_path: Path) -> Path:
     write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
     write("broken", "this is not valid python !!!")
     helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
     return tmp_path
 
 
@@ -1624,3 +1642,233 @@ def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
     platform, signature = next(iter(extra))
     assert platform == "esp32"
     assert signature.startswith("i2c__conflict")
+
+
+def test_split_conflicting_groups_seeds_from_test_config(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A conflict reachable only via a component's test config splits the group.
+
+    ``host_user`` declares no static conflict with ``beta``, but its
+    ``test.<platform>.yaml`` pulls in ``beta_variant`` (which AUTO_LOADs
+    ``beta``). On that platform the group must split; on another platform
+    (no such test config) it must stay together.
+    """
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+
+    # host_user has no static metadata, but its esp32 test config references
+    # beta_variant -> AUTO_LOAD beta, which conflicts with alpha.
+    tests_dir = fake_components / "tests" / "components" / "host_user"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test.esp32.yaml").write_text("beta_variant:\n")
+    (fake_components / "esphome" / "components" / "host_user").mkdir()
+    (
+        fake_components / "esphome" / "components" / "host_user" / "__init__.py"
+    ).write_text("")
+
+    helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
+
+    # On esp32, host_user pulls in beta (via its test config) -> conflicts with alpha.
+    result = helpers.split_conflicting_groups(
+        {("esp32", "no_buses"): ["alpha", "host_user"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "host_user"} <= set(bucket))
+
+    # On a platform without that test config, they stay grouped together.
+    result_other = helpers.split_conflicting_groups(
+        {("rp2040", "no_buses"): ["alpha", "host_user"]}
+    )
+    assert result_other == {("rp2040", "no_buses"): ["alpha", "host_user"]}
+
+
+# ---------------------------------------------------------------------------
+# get_component_test_files / is_validate_only_file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_component_tests(tmp_path: Path) -> Path:
+    """Create a fake tests/components/ tree and return the repo root.
+
+    Layout for component "demo":
+        test.esp32-idf.yaml
+        test.esp8266-ard.yaml
+        test-variant.esp32-idf.yaml
+        validate.esp32-idf.yaml
+        validate-legacy.esp32-idf.yaml
+
+    Layout for component "validate_only":
+        validate.esp32-idf.yaml      (only validate files)
+
+    Layout for component "no_tests":
+        common.yaml                  (no test/validate files at all)
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    demo = tests_dir / "demo"
+    demo.mkdir(parents=True)
+    (demo / "test.esp32-idf.yaml").write_text("")
+    (demo / "test.esp8266-ard.yaml").write_text("")
+    (demo / "test-variant.esp32-idf.yaml").write_text("")
+    (demo / "validate.esp32-idf.yaml").write_text("")
+    (demo / "validate-legacy.esp32-idf.yaml").write_text("")
+
+    validate_only = tests_dir / "validate_only"
+    validate_only.mkdir(parents=True)
+    (validate_only / "validate.esp32-idf.yaml").write_text("")
+
+    no_tests = tests_dir / "no_tests"
+    no_tests.mkdir(parents=True)
+    (no_tests / "common.yaml").write_text("")
+
+    return tmp_path
+
+
+def _names(paths: list[Path]) -> set[str]:
+    return {p.name for p in paths}
+
+
+def test_get_component_test_files_default_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Default behaviour: only base test.*.yaml; no variants, no validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo")
+
+    assert _names(files) == {"test.esp32-idf.yaml", "test.esp8266-ard.yaml"}
+
+
+def test_get_component_test_files_all_variants_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """all_variants=True picks up test variants but still skips validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", all_variants=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_base_only(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with base-only adds validate.*.yaml only."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", include_validate=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "validate.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_all_variants(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with all_variants adds validate variants too."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files(
+        "demo", all_variants=True, include_validate=True
+    )
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+        "validate.esp32-idf.yaml",
+        "validate-legacy.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_validate_only_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only validate files is invisible without the flag."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert helpers.get_component_test_files("validate_only") == []
+    assert helpers.get_component_test_files("validate_only", all_variants=True) == []
+
+    files = helpers.get_component_test_files(
+        "validate_only", all_variants=True, include_validate=True
+    )
+    assert _names(files) == {"validate.esp32-idf.yaml"}
+
+
+def test_get_component_test_files_missing_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Unknown components return an empty list, regardless of flags."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "does_not_exist", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+def test_get_component_test_files_component_without_tests(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only common.yaml and no test/validate files returns []."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "no_tests", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("validate.esp32-idf.yaml", True),
+        ("validate-legacy.esp32-idf.yaml", True),
+        ("validate.host.yaml", True),
+        ("test.esp32-idf.yaml", False),
+        ("test-variant.esp32-idf.yaml", False),
+        ("common.yaml", False),
+        # Defensive: a hypothetical name starting with "validate" but not
+        # following the grammar must not be classified as a validate file.
+        ("validatesomething.yaml", False),
+    ],
+)
+def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
+    assert helpers.is_validate_only_file(tmp_path / filename) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/config.py"], True),
+        (["esphome/yaml_util.py"], True),
+        (["esphome/__main__.py"], True),
+        (["esphome/const.pyi"], True),
+        (["README.md", "esphome/helpers.py"], True),
+        (["esphome/core/config.py"], False),
+        (["esphome/components/sensor/__init__.py"], False),
+        (["esphome/dashboard/web_server.py"], False),
+        (["esphome/idf_component.yml"], False),
+        (["tests/unit_tests/test_config.py"], False),
+        ([], False),
+    ],
+)
+def test_base_python_changed(files: list[str], expected: bool) -> None:
+    """Only Python modules directly in esphome/ count as base Python changes."""
+    assert helpers.base_python_changed(files) is expected

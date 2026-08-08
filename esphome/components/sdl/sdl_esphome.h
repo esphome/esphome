@@ -13,7 +13,7 @@ namespace esphome::sdl {
 
 constexpr static const char *const TAG = "sdl";
 
-class Sdl : public display::Display {
+class Sdl final : public display::Display {
  public:
   display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
   void update() override;
@@ -28,7 +28,7 @@ class Sdl : public display::Display {
     this->height_ = height;
   }
   void set_window_options(uint32_t window_options) { this->window_options_ = window_options; }
-  void set_position(uint16_t pos_x, uint16_t pos_y) {
+  void set_position(int32_t pos_x, int32_t pos_y) {
     this->pos_x_ = pos_x;
     this->pos_y_ = pos_y;
   }
@@ -54,8 +54,8 @@ class Sdl : public display::Display {
   int width_{};
   int height_{};
   uint32_t window_options_{0};
-  int pos_x_{SDL_WINDOWPOS_UNDEFINED};
-  int pos_y_{SDL_WINDOWPOS_UNDEFINED};
+  int32_t pos_x_{SDL_WINDOWPOS_UNDEFINED};
+  int32_t pos_y_{SDL_WINDOWPOS_UNDEFINED};
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};

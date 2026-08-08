@@ -29,5 +29,5 @@ def load_config_from_fixture(
 ) -> Config | None:
     """Load configuration from a fixture file."""
     fixture_path = fixtures_dir / fixture_name
-    yaml_content = fixture_path.read_text()
+    yaml_content = fixture_path.read_text(encoding="utf-8")
     return load_config_from_yaml(yaml_file, yaml_content)

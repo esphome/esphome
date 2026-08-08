@@ -52,6 +52,7 @@ RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
 RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
+RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -118,7 +119,8 @@ _ERROR_MESSAGES: dict[int, str] = {
     ),
     RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE: (
         "The OTA partition on the ESP is too small. ESPHome needs to resize "
-        "this partition, please flash over USB."
+        "this partition. Please flash over USB or update the partition table "
+        "over the air."
     ),
     RESPONSE_ERROR_NO_UPDATE_PARTITION: (
         "The OTA partition on the ESP couldn't be found. ESPHome needs to "
@@ -155,6 +157,11 @@ _ERROR_MESSAGES: dict[int, str] = {
         "in a degraded state and may not be able to boot. Open the logs and retry "
         "the bootloader update without rebooting the device. If the device "
         "fails to boot, recover it via a serial flash."
+    ),
+    RESPONSE_ERROR_VERSION_DOWNGRADE: (
+        "The device rejected the update because it has OTA downgrade protection "
+        "enabled: the new firmware's version must be newer than the version the "
+        "device is currently running."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
@@ -202,19 +209,19 @@ def receive_exactly(
     try:
         data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
-        raise OTAError(f"Error receiving acknowledge {msg}: {err}") from err
+        raise OTAError(f"receiving {msg} response: {err}") from err
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError(f"Error {msg}: {err}") from err
+        raise OTAError(f"receiving {msg}: {err}") from err
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
         except OSError as err:
-            raise OTAError(f"Error receiving {msg}: {err}") from err
+            raise OTAError(f"receiving {msg}: {err}") from err
     return data
 
 
@@ -231,14 +238,14 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     # silently passed through and surface later as cryptic decode/timeout failures.
     if not data:
         raise OTAError(
-            "Error: Device closed connection without responding. "
+            "Device closed connection without responding. "
             "This may indicate the device ran out of memory, "
             "a network issue, or the connection was interrupted."
         )
     dat = data[0]
     error_msg = _ERROR_MESSAGES.get(dat)
     if error_msg is not None:
-        raise OTAError(f"Error: {error_msg}")
+        raise OTAError(error_msg)
     if expect is None:
         return
     if not isinstance(expect, (list, tuple)):
@@ -267,7 +274,7 @@ def send_check(
 
         sock.sendall(data)
     except OSError as err:
-        raise OTAError(f"Error sending {msg}: {err}") from err
+        raise OTAError(f"sending {msg}: {err}") from err
 
 
 def perform_ota(
@@ -376,7 +383,7 @@ def perform_ota(
             raise OTAError("ESP requests password, but no password given!")
 
         nonce_bytes = receive_exactly(
-            sock, nonce_size, f"{hash_name} authentication nonce", None, decode=False
+            sock, nonce_size, f"{hash_name} auth nonce", None, decode=False
         )
         assert isinstance(nonce_bytes, bytes)
         nonce = nonce_bytes.decode()
@@ -424,13 +431,13 @@ def perform_ota(
         (upload_size >> 0) & 0xFF,
     ]
     send_check(sock, upload_size_encoded, "binary size")
-    receive_exactly(sock, 1, "binary size", RESPONSE_UPDATE_PREPARE_OK)
+    receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
 
     upload_md5 = hashlib.md5(upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
     send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum", RESPONSE_BIN_MD5_OK)
+    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
@@ -441,7 +448,7 @@ def perform_ota(
     start_time = time.perf_counter()
 
     offset = 0
-    progress = ProgressBar()
+    progress = ProgressBar("Uploading")
     while True:
         chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
         if not chunk:
@@ -451,10 +458,10 @@ def perform_ota(
         try:
             sock.sendall(chunk)
             if version >= OTA_VERSION_2_0:
-                receive_exactly(sock, 1, "chunk OK", RESPONSE_CHUNK_OK)
+                receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
         except OSError as err:
             sys.stderr.write("\n")
-            raise OTAError(f"Error sending data: {err}") from err
+            raise OTAError(f"sending data: {err}") from err
 
         progress.update(offset / upload_size)
     progress.done()
@@ -465,8 +472,8 @@ def perform_ota(
 
     _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
-    receive_exactly(sock, 1, "receive OK", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "Update end", RESPONSE_UPDATE_END_OK)
+    receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
+    receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
     send_check(sock, RESPONSE_OK, "end acknowledgement")
 
     _LOGGER.info("OTA successful")
@@ -516,7 +523,7 @@ def run_ota_impl_(
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
-        with open(filename, "rb") as file_handle:
+        with Path(filename).open("rb") as file_handle:
             try:
                 perform_ota(sock, password, file_handle, filename, ota_type)
             except OTAError as err:

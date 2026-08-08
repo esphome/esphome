@@ -17,9 +17,9 @@ namespace esphome::sendspin_ {
 /// Implements PlayerRoleListener to receive audio data from the sendspin-cpp library's
 /// SyncTask and bridges it to ESPHome's MediaSource output pipeline. Also forwards
 /// transport commands to the hub's controller role.
-class SendspinMediaSource : public SendspinChild,
-                            public media_source::MediaSource,
-                            public sendspin::PlayerRoleListener {
+class SendspinMediaSource final : public SendspinChild,
+                                  public media_source::MediaSource,
+                                  public sendspin::PlayerRoleListener {
  public:
   void setup() override;
   void dump_config() override;
@@ -48,9 +48,6 @@ class SendspinMediaSource : public SendspinChild,
 
   /// @brief Called when the audio stream ends (main loop thread).
   void on_stream_end() override;
-
-  /// @brief Called when the audio stream is cleared (main loop thread).
-  void on_stream_clear() override;
 
   /// @brief Called when volume changes (main loop thread).
   void on_volume_changed(uint8_t volume) override;

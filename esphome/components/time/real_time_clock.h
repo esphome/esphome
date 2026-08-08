@@ -72,7 +72,7 @@ class RealTimeClock : public PollingComponent {
   LazyCallbackManager<void()> time_sync_callback_;
 };
 
-template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
+template<typename... Ts> class TimeHasTimeCondition final : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
   bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
