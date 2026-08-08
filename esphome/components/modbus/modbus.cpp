@@ -15,6 +15,9 @@ static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 // Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
 
+// Shortest gap between two "no device accepted broadcast" warnings
+static constexpr uint32_t UNACCEPTED_BROADCAST_WARN_INTERVAL_MS = 60 * MS_PER_SEC;
+
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -446,7 +449,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     return;
   }
   // A broadcast is never answered, so a rejecting device has no other feedback channel: report the
-  // per-device outcome at V, and warn once if the write reached nobody at all.
+  // per-device outcome at V, and warn if the write reached nobody at all.
   bool accepted = false;
   for (auto *device : this->devices_) {
     if (ResponseStatus device_status = device->on_broadcast_write_registers(start_address, registers);
@@ -458,15 +461,15 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     }
   }
   if (!accepted && !this->devices_.empty()) {
-    // Warn once per start address, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
-    // repeats forever, so warning per frame would flood the log. Addresses past the tracked set stay at VERBOSE.
-    auto &warned = this->unaccepted_broadcast_warned_;
-    if (std::find(warned.begin(), warned.end(), start_address) == warned.end() &&
-        warned.size() < MAX_UNACCEPTED_BROADCAST_WARNINGS) {
-      warned.push_back(start_address);
+    // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
+    // repeats forever, so warning per frame would flood the log.
+    const uint32_t now = millis();
+    if (this->last_unaccepted_broadcast_warn_ == 0 ||
+        now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
+      this->last_unaccepted_broadcast_warn_ = now;
       ESP_LOGW(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
     } else {
-      ESP_LOGV(TAG, "No device accepted broadcast write at 0x%04X (repeat)", start_address);
+      ESP_LOGV(TAG, "No device accepted broadcast write of %zu registers at 0x%04X", registers.size(), start_address);
     }
   }
 }
