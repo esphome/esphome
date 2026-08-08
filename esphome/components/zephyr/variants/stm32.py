@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_STM32
+from ..const import ZEPHYR_VARIANT_STM32
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -46,7 +46,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        BOOTLOADER_MCUBOOT,
+        "",
         framework_ver,
         config,
         framework_type=sdk_name,
