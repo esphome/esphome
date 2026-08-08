@@ -179,11 +179,11 @@ void BK72xxBLETracker::dump_config() {
                 "  Scan Duration: %" PRIu32 " s\n"
                 "  Scan Interval: %" PRIu32 " ms (%" PRIu32 " BLE units)\n"
                 "  Scan Window: %" PRIu32 " ms (%" PRIu32 " BLE units)\n"
-                "  Scan Type: %s\n"
+                "  Scan Type: %s (configured %s)\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_ / 1000, ble_units_to_ms(this->scan_interval_), this->scan_interval_,
                 ble_units_to_ms(this->scan_window_), this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
-                YESNO(this->scan_continuous_));
+                this->scan_active_configured_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
 }
 
 // ---------------------------------------------------------------------------
