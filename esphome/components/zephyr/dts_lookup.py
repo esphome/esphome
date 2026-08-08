@@ -276,7 +276,9 @@ def _get_edt(board: str):
         cache[board] = _NOT_FOUND
         return None
 
-    with tempfile.NamedTemporaryFile(suffix=".dts", mode="w", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        suffix=".dts", mode="w", delete=False, encoding="utf-8"
+    ) as f:
         f.write(preprocessed)
         tmp_path = Path(f.name)
 

@@ -48,20 +48,17 @@
 #define USE_API
 #define USE_API_CLIENT_CONNECTED_TRIGGER
 #define USE_API_CLIENT_DISCONNECTED_TRIGGER
+#define USE_API_CUSTOM_SERVICES
 #define USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #define USE_API_HOMEASSISTANT_SERVICES
 #define USE_API_HOMEASSISTANT_STATES
-// nrf52-tidy's lib_deps doesn't declare esphome/noise-c, so noise/protocol.h isn't found.
-#ifndef USE_NRF52
 #define USE_API_NOISE
-#endif
-#define USE_API_VARINT64
 #define USE_API_PLAINTEXT
-#define USE_API_USER_DEFINED_ACTIONS
-#define USE_API_CUSTOM_SERVICES
 #define USE_API_USER_DEFINED_ACTION_RESPONSES
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#define USE_API_USER_DEFINED_ACTIONS
+#define USE_API_VARINT64
 #define API_MAX_SEND_QUEUE 8
 #define MAX_API_CONNECTIONS 6
 #define USE_AREAS
@@ -164,11 +161,6 @@
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
-#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
-#define USE_MQTT
-#define USE_MQTT_COVER_JSON
-#define USE_WIREGUARD
-#endif
 #define USE_NETWORK
 #define USE_NETWORK_IPV4 true
 #define USE_NETWORK_IPV6 false
@@ -223,9 +215,11 @@
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
+#ifndef USE_NRF52
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_WIFI_MANUAL_IP
+#endif
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -236,6 +230,11 @@
 #define USE_AUDIO_MP3_SUPPORT
 #define USE_AUDIO_OPUS_SUPPORT
 #define USE_AUDIO_WAV_SUPPORT
+#ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
+#define USE_MQTT
+#define USE_MQTT_COVER_JSON
+#define USE_WIREGUARD
+#endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
 #define USE_RUNTIME_IMAGE_PNG
@@ -570,6 +569,8 @@
 #define USE_NRF52_DFU
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
+#define USE_OPENTHREAD
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
 #endif
