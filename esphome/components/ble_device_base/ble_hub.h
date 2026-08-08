@@ -86,40 +86,17 @@ struct HubCapabilities {
   bool scan_mode_switch;
 };
 
-// The BLEHub method surface, enforced by the BLEHubContract concept below
-// (asserted where ble_hub_impl.h binds the alias).
-//
-//   /// Register a parsed-advertisement consumer (BLE sensors, automation triggers).
-//   void register_listener(ESPBTDeviceListener *listener);
-//
-//   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
-//   void set_raw_advertisement_callback(RawAdvertisementCallback callback);
-//
-//   /// Push hubs only (today: esp32), gated on USE_BLE_SCANNER_STATE_CALLBACK
-//   /// (emitted by the subscriber's codegen) so other builds carry no storage.
-//   void set_scanner_state_callback(ScannerStateCallback callback);
-//
-//   static constexpr HubCapabilities get_capabilities();
-//
-//   /// Adapter MAC in printable (MSB-first) order, out[0] = MSB.
-//   void get_adapter_mac(uint8_t out[6]);
-//
-//   bool scan_running();
-//   /// True when the current/configured scan mode is active (scan requests sent).
-//   bool scan_active();
-//   /// Request a scan-mode change (active = send scan requests). Returns false
-//   /// when the hub cannot honor the request; the caller reports the real state
-//   /// back to its subscriber. A hub that returns true applies the mode
-//   /// immediately: a running scan is restarted with the new mode, an idle one
-//   /// picks it up on its next start. A hub without a mode switch refuses
-//   /// without changing any state. Independent of HubCapabilities::active_scan:
-//   /// that bit describes what the CONTROLLER can do; whether this method
-//   /// honors requests is advertised by HubCapabilities::scan_mode_switch, so
-//   /// consumers can gate features on the switch without probing.
-//   bool request_scan_mode(bool active);
-
-// set_scanner_state_callback is deliberately absent: it exists only on push
-// hubs under USE_BLE_SCANNER_STATE_CALLBACK.
+// The BLEHub method surface, asserted where ble_hub_impl.h binds the alias.
+// Semantics beyond the signatures:
+// - register_listener: parsed-advertisement consumers (sensors, triggers).
+// - set_raw_advertisement_callback: raw stream, one consumer at a time.
+// - get_adapter_mac: printable order, out[0] = MSB.
+// - scan_active: the current/configured mode sends scan requests.
+// - request_scan_mode: false = cannot honor, state untouched (the caller
+//   reports the real state back); true = applied immediately, restarting a
+//   running scan. Honoring is advertised by HubCapabilities::scan_mode_switch.
+// Push hubs additionally provide set_scanner_state_callback(ScannerStateCallback)
+// under USE_BLE_SCANNER_STATE_CALLBACK, deliberately outside the concept.
 template<typename T>
 concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback,
                                   uint8_t *mac) {
