@@ -143,10 +143,8 @@ class BK72xxBLETracker : public Component,
   void count_failed_start_();
 
   bool scan_running_{false};
-  bool scan_requested_{false};  // latched start_scan() request not yet running; loop() retries with backoff
-  // A start we issued is still bringing up; a later FAILED observation is
-  // charged to the backoff exactly once.
-  bool start_attempt_open_{false};
+  bool scan_requested_{false};      // latched start_scan() request not yet running; loop() retries with backoff
+  bool start_attempt_open_{false};  // charge a later FAILED observation to the backoff exactly once
   // Defaults: the BK reference — 30 % duty cycle
   // (interval 100 ms / window 30 ms), in 0.625 ms BLE units.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms

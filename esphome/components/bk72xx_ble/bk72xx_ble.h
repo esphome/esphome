@@ -88,22 +88,18 @@ class BK72xxBLE final : public Component {
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 #endif
 
-  /// Request a scan. Interval/window are in BLE units (0.625 ms); enables the
-  /// stack first if needed. Latches the request and advances the reconciler:
-  /// PENDING until the scan is observed running (loop() keeps advancing in
-  /// between), so call again to learn the outcome.
+  /// Request a scan (interval/window in 0.625 ms BLE units); enables the
+  /// stack first if needed. PENDING until the scan is observed running —
+  /// loop() keeps advancing, call again to learn the outcome.
   ScanOpResult scan_start(uint16_t interval, uint16_t window, bool active);
-  /// Request the scanner stopped and any scan activity released; steps that
-  /// cannot run yet (a controller operation in flight) are completed from
-  /// loop().
+  /// Request the scanner stopped and the activity released; steps that
+  /// cannot run yet are completed from loop().
   void scan_stop();
   /// Drive a requested stop until the radio is observed idle, bounded by
-  /// timeout_ms — for callers that must have it idle before loop() runs
-  /// again (OTA). Returns false if the stop still has not settled.
+  /// timeout_ms (for OTA). Returns false if it still has not settled.
   bool flush_pending_stop(uint32_t timeout_ms);
-  /// Last reconciliation outcome. FAILED means the reconciler gave up on the
-  /// current request (bring-up budget exhausted); the consumer's retry policy
-  /// owns recovery from there.
+  /// Last reconciliation outcome; on FAILED the consumer's retry policy owns
+  /// recovery.
   ScanOpResult last_scan_result() const { return this->last_result_; }
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
@@ -136,12 +132,12 @@ class BK72xxBLE final : public Component {
   bool scan_wanted_{false};  // the latched request is to scan (vs stopped)
   ScanParams requested_{};   // latched by scan_start()
   ScanParams applied_{};     // last params we commanded; mismatch with requested_ restarts
-  // State of the current request; PENDING means advance_() has more to do and
-  // loop() keeps driving it, paced and (for a bring-up) bounded.
+  // PENDING means advance_() has more to do; loop() drives it, paced and
+  // (for a bring-up) bounded.
   ScanOpResult last_result_{ScanOpResult::SETTLED};
   uint32_t last_advance_ms_{0};
   uint32_t pending_since_ms_{0};  // bring-up budget anchor; refilled on request change
-  bool release_warned_{false};    // once-per-episode gate for the release WARN; also widens the pump gate
+  bool release_warned_{false};    // gates the release WARN per episode; widens the pump gate
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
 };

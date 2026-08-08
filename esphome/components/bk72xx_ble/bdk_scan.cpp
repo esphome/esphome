@@ -1,12 +1,9 @@
-// The raw BDK scan surface, kept in one file: every SDK call the scan
-// reconciler makes goes through here. Of note is bdk_scan_start() — the BDK's
-// own start path hardcodes passive scanning (the active property bit is
-// commented out, identically in the 5.1 and 5.2 stacks), so both modes start
-// through a packed GAPM_ACTIVITY_START_CMD, field-for-field the SDK's
-// app_ble_start_scaning() except that prop takes the mode, armed through the
-// SDK's own operation bookkeeping so its state machine runs unchanged. The
-// static asserts pin the SDK layout this depends on; the component pins
-// beken-bdk 3.0.78.
+// Every SDK call the scan reconciler makes. The BDK's own start hardcodes
+// passive (the active bit is commented out in both stacks), so
+// bdk_scan_start() packs the GAPM_ACTIVITY_START_CMD itself, field-for-field
+// the SDK's app_ble_start_scaning() except that prop takes the mode, armed
+// through the SDK's own operation bookkeeping. The component pins
+// beken-bdk 3.0.78; the static asserts catch a layout change on a bump.
 
 #include "bdk_scan.h"
 

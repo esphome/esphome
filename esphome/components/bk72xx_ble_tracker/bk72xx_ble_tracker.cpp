@@ -31,8 +31,7 @@ static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
 // Radio-idle deadline for the bounded stop drain at OTA start.
 static constexpr uint32_t OTA_STOP_FLUSH_MS = 100;
 
-// BLE units are 0.625 ms; integer scaling avoids soft-float on this FPU-less
-// part, exact for the multiples-of-8 values the schema produces.
+// 0.625 ms BLE units; integer math avoids soft-float on this FPU-less part.
 constexpr uint32_t ble_units_to_ms(uint32_t units) { return units * 5 / 8; }
 
 // ---------------------------------------------------------------------------
@@ -57,9 +56,8 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->scan_requested_before_ota_ = this->scan_requested_;
     this->stop_scan();
-    // The OTA transfer starves the main loop, so a stop deferred behind an
-    // in-flight controller operation would leave the radio scanning for the
-    // whole update — drain it here, bounded.
+    // The transfer starves the loop; a deferred stop would leave the radio
+    // scanning for the whole update, so drain it here, bounded.
     if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS))
       ESP_LOGE(TAG, "Scan still stopping at OTA start; the radio may contend with the update");
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
@@ -82,10 +80,8 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
 void BK72xxBLETracker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
-  // Reconcile with the controller: its reconciler completes deferred work on
-  // its own (e.g. a mode-switch re-arm) and gives up after bounded retries; a
-  // terminal failure while we report running is recovered through the normal
-  // retry path.
+  // The controller self-completes deferred work; a terminal failure while we
+  // report running is recovered through the normal retry path.
   if (this->scan_running_ && this->parent_->last_scan_result() == bk72xx_ble::ScanOpResult::FAILED) {
     ESP_LOGW(TAG, "Controller scan lost; retrying");
     this->scan_requested_ = true;
@@ -141,16 +137,14 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   // even user-initiated attempts respect the backoff, so a start_scan() action
   // on a short cadence cannot hammer a failing controller; the attempt stays
   // inside the failure accounting below either way.
-  // While the controller reconciler is mid bring-up, observe instead of
-  // re-issuing: it self-advances at loop rate and latches the outcome. A
-  // SETTLED outcome completes immediately (that call issues no SDK ops); only
-  // fresh attempts after a FAILED outcome are rate-limited.
+  // Mid bring-up, observe instead of re-issuing (the hub self-advances). A
+  // SETTLED outcome completes immediately; only fresh attempts after FAILED
+  // are rate-limited.
   const auto hub = this->parent_->last_scan_result();
   if (hub == bk72xx_ble::ScanOpResult::PENDING)
     return false;
   if (hub == bk72xx_ble::ScanOpResult::FAILED && this->start_attempt_open_) {
-    // The bring-up we issued gave up asynchronously; charge it to the
-    // backoff so a stalled controller escalates instead of cycling forever.
+    // Our bring-up gave up asynchronously; charge it to the backoff.
     this->start_attempt_open_ = false;
     this->count_failed_start_();
   }
@@ -315,8 +309,7 @@ void BK72xxBLETracker::stop_scan_() {
   this->mark_scan_ended_(App.get_loop_component_start_time());
 }
 
-// The one definition of a scan period ending; the period re-anchor keeps
-// on_scan_end from double-firing in the same iteration.
+// The period re-anchor keeps on_scan_end from double-firing in one iteration.
 void BK72xxBLETracker::mark_scan_ended_(uint32_t now) {
   this->scan_running_ = false;
   this->fire_scan_end_();
