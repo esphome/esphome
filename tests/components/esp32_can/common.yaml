@@ -50,7 +50,7 @@ interval:
     then:
       - lambda: |-
           auto status = id(esp32_can_esp32_internal_can).get_status();
-          ESP_LOGD("canbus_status", "bus_off: %d, bus_err: %d, arb_lost: %d, tx_err: %d, rx_err: %d, tx_failed: %d, rx_miss: %d",
+          ESP_LOGD("canbus_status", "bus_off: %d, bus_err: %" PRIu32 ", arb_lost: %" PRIu32 ", tx_err: %d, rx_err: %d, tx_failed: %" PRIu32 ", rx_miss: %" PRIu32,
             status.bus_off,
             status.bus_error_count.value_or(-1),
             status.arb_lost_count.value_or(-1),
