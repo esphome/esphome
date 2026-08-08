@@ -47,12 +47,12 @@ struct CapturingSubscriber {
 };
 
 // Device AA:BB:CC:DD:EE:FF — controller order delivers FF first.
-const uint8_t MAC_LSB_FIRST[6] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa};
+constexpr uint64_t TEST_ADDRESS = 0xAABBCCDDEEFFULL;
 const uint8_t ADV_DATA[4] = {0x02, 0x01, 0x06, 0x00};
 
 RawAdvertisement make_test_adv() {
   return RawAdvertisement{
-      .mac = MAC_LSB_FIRST, .data = ADV_DATA, .data_len = sizeof(ADV_DATA), .rssi = -63, .addr_type = 1};
+      .address = TEST_ADDRESS, .data = ADV_DATA, .data_len = sizeof(ADV_DATA), .rssi = -63, .addr_type = 1};
 }
 
 }  // namespace
@@ -70,7 +70,7 @@ TEST(RawAdvertisementCallback, SubscriberSeesFieldsUnchanged) {
   hub.emit(make_test_adv());
 
   ASSERT_EQ(subscriber.calls, 1);
-  EXPECT_EQ(subscriber.last.mac, MAC_LSB_FIRST);
+  EXPECT_EQ(subscriber.last.address, TEST_ADDRESS);
   EXPECT_EQ(subscriber.last.data, ADV_DATA);
   EXPECT_EQ(subscriber.last.data_len, sizeof(ADV_DATA));
   EXPECT_EQ(subscriber.last.rssi, -63);
