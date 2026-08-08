@@ -1,8 +1,8 @@
-// ble_gatt_client_impl.h
+// bluetooth_connection_gatt_backend.h
 //
 // Binds ble_device_base::BLEGattConnection to the build's one GATT backend.
-// Consumers include this header; backends include ble_gatt_client.h (the
-// contract).
+// Backend and consumer both live in this component, so the ladder does too;
+// backends implement ble_gatt_client.h (the neutral contract).
 
 #pragma once
 
@@ -10,10 +10,10 @@
 
 #ifdef USE_BLE_GATT_CLIENT
 
-#include "ble_gatt_client.h"
+#include "esphome/components/ble_device_base/ble_gatt_client.h"
 
 #if defined(USE_RP2040_BLE)
-#include "esphome/components/bluetooth_connection/bluetooth_connection_rp2.h"
+#include "bluetooth_connection_rp2.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::RP2GattClient
 #elif defined(USE_HOST)
 // Host unit tests compile the hub wrapper standalone; bind a do-nothing backend.

@@ -13,7 +13,7 @@
 #include "bluetooth_connection.h"
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
-#include "esphome/components/ble_device_base/ble_gatt_client_impl.h"
+#include "bluetooth_connection_gatt_backend.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bluetooth_proxy {

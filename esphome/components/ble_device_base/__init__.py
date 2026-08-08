@@ -8,9 +8,7 @@ ESPBLEiBeacon / ESPBTDeviceListener, in ble_device.h) and the tracker contract
 BLE consumers (sensor components, bluetooth_proxy) bind to whichever tracker the
 configuration declares via `cv.use_id(BLEHub)` — ESPHome resolves any declared
 subclass, so there is no platform table here and no dependency in either
-direction (the compile-time alias header ble_gatt_client_impl.h is the one
-deliberate exception: it maps the build's platform define to the concrete
-backend). A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
+direction. A sensor extends BLE_DEVICE_SCHEMA in its CONFIG_SCHEMA (so an
 explicit ble_hub_id: is a declared key even on strict schemas) and calls
 register_ble_device() in to_code; a tracker component subclasses BLEHub (C++
 and codegen class) and MUST call register_hub_provider() at import time —

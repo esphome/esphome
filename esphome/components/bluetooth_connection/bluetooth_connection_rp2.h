@@ -1,10 +1,10 @@
 // RP2 (Pico W / Pico 2 W) GATT client backend over BTstack.
 //
 // The build's ble_device_base::BLEGattConnection backend (bound by alias in
-// ble_gatt_client_impl.h) for the hub BluetoothConnection wrapper. BTstack packet handlers run in the CYW43
-// async-context low-priority IRQ (or on the main-loop stack during BluetoothLock release), so handlers only copy into
-// per-instance lock-free queues/storage; loop() drains them and drives the state machine. Every BTstack call issued
-// from the main loop is wrapped in BluetoothLock.
+// bluetooth_connection_gatt_backend.h) for the hub BluetoothConnection wrapper. BTstack packet handlers run in the
+// CYW43 async-context low-priority IRQ (or on the main-loop stack during BluetoothLock release), so handlers only copy
+// into per-instance lock-free queues/storage; loop() drains them and drives the state machine. Every BTstack call
+// issued from the main loop is wrapped in BluetoothLock.
 
 #pragma once
 

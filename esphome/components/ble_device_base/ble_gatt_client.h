@@ -3,7 +3,8 @@
 // Platform-neutral GATT client connection contract.
 //
 // Exactly one GATT backend exists per build, so BLEGattConnection is a
-// compile-time alias (ble_gatt_client_impl.h), not an abstract interface.
+// compile-time alias (bluetooth_connection_gatt_backend.h), not an abstract
+// interface.
 // The hub BluetoothConnection wrapper drives it and receives completions
 // through its event-sink methods, which the backend calls directly. All sink
 // calls are delivered on the ESPHome main loop; borrowed data pointers are
@@ -77,8 +78,8 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
-// The BLEGattConnection op surface, asserted where ble_gatt_client_impl.h
-// binds the alias. Operations return 0 when accepted (completion arrives
+// The BLEGattConnection op surface, asserted where the alias binds
+// (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
 // through the sink) or a synchronous error (busy, not connected, stack
 // rejection); one operation may be outstanding at a time. Semantics beyond
 // the signatures:
