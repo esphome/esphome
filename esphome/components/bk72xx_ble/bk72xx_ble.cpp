@@ -80,15 +80,11 @@ namespace esphome::bk72xx_ble {
 
 static const char *const TAG = "bk72xx_ble";
 
-// Pump pacing floor, the widened gate while a rejected release retries (a
-// stop never gives up; the slot must be freed), the bring-up budget before
-// FAILED hands recovery to the tracker's backoff, the settled liveness
-// cadence and the stuck-stop deadline that escalates to ERROR.
-static constexpr uint32_t RECONCILE_RETRY_MS = 10;
-static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;
-static constexpr uint32_t RECONCILE_PENDING_TIMEOUT_MS = 2000;
-static constexpr uint32_t SCAN_LIVENESS_CHECK_MS = 1000;
-static constexpr uint32_t STOP_STUCK_ERROR_MS = 30000;
+static constexpr uint32_t RECONCILE_RETRY_MS = 10;              // pump floor for fast loops
+static constexpr uint32_t RECONCILE_REJECTED_RETRY_MS = 500;    // retry gate after a rejected release
+static constexpr uint32_t RECONCILE_PENDING_TIMEOUT_MS = 2000;  // bring-up budget before FAILED
+static constexpr uint32_t SCAN_LIVENESS_CHECK_MS = 1000;        // settled-scan re-check cadence
+static constexpr uint32_t TEARDOWN_STUCK_ERROR_MS = 30000;      // stuck-teardown ERROR (stop also goes FAILED)
 
 // The BDK notice callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
@@ -137,6 +133,9 @@ void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t add
 
 void BK72xxBLE::setup() {
   s_ble = this;
+  // The report pool grows lazily on purpose: the BDK notice callback runs in
+  // task context (malloc-safe, unlike rp2040's IRQ path), and typical traffic
+  // stays far below the pool cap, so not warming contains RAM.
   // Resolve the MAC early so get_mac_lsb_first() is valid for consumers before
   // the stack is up (it is re-read once ble_entry() has run).
   this->resolve_mac_();
@@ -191,24 +190,24 @@ void BK72xxBLE::loop() {
   // that arrived while a controller operation was in flight), and re-check a
   // settled scan at low frequency: a controller-side drop re-enters the
   // bring-up, and the budget's FAILED feeds the tracker's recovery.
+  // Keep driving until settled: any PENDING, plus a terminal stop whose slot
+  // must still be freed. A FAILED scan request is the one combination not
+  // re-driven here — that belongs to the tracker's backoff.
   const uint32_t pump_now = App.get_loop_component_start_time();
-  if (this->last_result_ == ScanOpResult::PENDING) {
-    const uint32_t gate = this->release_warned_ ? RECONCILE_REJECTED_RETRY_MS : RECONCILE_RETRY_MS;
+  if (this->last_result_ == ScanOpResult::PENDING ||
+      (!this->scan_wanted_ && this->last_result_ == ScanOpResult::FAILED)) {
+    const uint32_t gate = (this->release_warned_ || this->last_result_ == ScanOpResult::FAILED)
+                              ? RECONCILE_REJECTED_RETRY_MS
+                              : RECONCILE_RETRY_MS;
     if (pump_now - this->last_advance_ms_ >= gate)
       this->advance_();
   } else if (this->scan_wanted_ && this->last_result_ == ScanOpResult::SETTLED &&
              pump_now - this->last_advance_ms_ >= SCAN_LIVENESS_CHECK_MS) {
-    // SETTLED only: a FAILED request belongs to the tracker's backoff, not a
-    // 1 Hz re-drive. A re-arm after a drop gets a fresh budget.
-    this->pending_since_ms_ = pump_now;
-    if (this->advance_() != ScanOpResult::SETTLED)
-      ESP_LOGW(TAG, "Controller dropped the scan; restarting");
-  } else if (!this->scan_wanted_ && this->last_result_ == ScanOpResult::FAILED &&
-             this->scan_activity_idx_ != INVALID_ACTIVITY_IDX &&
-             pump_now - this->last_advance_ms_ >= RECONCILE_REJECTED_RETRY_MS) {
-    // A terminal stop stays terminal for consumers, but the slot must still
-    // be freed; keep re-driving the release until IDLE.
-    this->advance_();
+    // Re-check a settled scan; re-requesting through scan_start() refills the
+    // bring-up budget exactly like any new episode.
+    if (this->scan_start(this->requested_.interval, this->requested_.window, this->requested_.active) !=
+        ScanOpResult::SETTLED)
+      ESP_LOGD(TAG, "Controller dropped the scan; restarting");
   }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -322,9 +321,9 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
 
 // Teardown is asynchronous: the handle is kept until an IDLE observation
 // confirms the radio is idle. A rejection WARNs once per episode and widens
-// the pump gate; advance_stop_() owns the stuck-stop ERROR.
-void BK72xxBLE::release_activity_(bool created) {
-  if (bdk_scan_release(this->scan_activity_idx_, created) == BdkOpResult::OK) {
+// the pump gate; the epilogue owns the stuck-teardown deadline.
+void BK72xxBLE::release_activity_(BdkActivityState state) {
+  if (bdk_scan_release(this->scan_activity_idx_, state == BdkActivityState::CREATED) == BdkOpResult::OK) {
     this->release_warned_ = false;
     return;
   }
@@ -334,32 +333,18 @@ void BK72xxBLE::release_activity_(bool created) {
   }
 }
 
-ScanOpResult BK72xxBLE::defer_(const char *what) {
-  if (this->last_result_ != ScanOpResult::PENDING)
-    ESP_LOGD(TAG, "Scan %s deferred (controller busy)", what);
-  return ScanOpResult::PENDING;
-}
-
-// Deadline shared by the teardown paths (a stop, or a mode change needing
-// one): stamps the episode on first use, logs once when it exceeds
-// STOP_STUCK_ERROR_MS, and reports stuck from then on. Cleared on IDLE.
-bool BK72xxBLE::teardown_stuck_(const char *message) {
-  const uint32_t now = App.get_loop_component_start_time();
+// Stamp/track the teardown episode; true once it exceeds the deadline.
+bool BK72xxBLE::teardown_overdue_(uint32_t now) {
   if (this->teardown_since_ms_ == 0) {
     this->teardown_since_ms_ = now;
     return false;
   }
-  if (now - this->teardown_since_ms_ < STOP_STUCK_ERROR_MS)
-    return false;
-  if (!this->teardown_stuck_logged_) {
-    ESP_LOGE(TAG, "%s", message);
-    this->teardown_stuck_logged_ = true;
-  }
-  return true;
+  return now - this->teardown_since_ms_ >= TEARDOWN_STUCK_ERROR_MS;
 }
 
 // One SDK operation per call toward the latched request; controller state is
 // read live each time (it changes on the BLE task, so nothing is mirrored).
+// The epilogue owns all deadlines and episode bookkeeping.
 ScanOpResult BK72xxBLE::advance_() {
   if (!this->scan_wanted_ && this->scan_activity_idx_ == INVALID_ACTIVITY_IDX) {
     // Nothing to do; also keeps SDK reads off the pre-enable() path.
@@ -367,33 +352,44 @@ ScanOpResult BK72xxBLE::advance_() {
     return ScanOpResult::SETTLED;
   }
   const BdkActivityState state = bdk_scan_state(this->scan_activity_idx_);
-  if (state == BdkActivityState::IDLE) {
-    // Any release or stalled-stop episode is over.
-    this->release_warned_ = false;
-    this->teardown_since_ms_ = 0;
-    this->teardown_stuck_logged_ = false;
-  }
   const bool ready = bdk_scan_ready();
   ScanOpResult result = this->scan_wanted_ ? this->advance_start_(state, ready) : this->advance_stop_(state, ready);
 
   const uint32_t now = App.get_loop_component_start_time();
   this->last_advance_ms_ = now;
-  if (result == ScanOpResult::SETTLED) {
-    // No teardown is pending (covers a mode flip that settled back without
-    // ever reaching IDLE); stale episode state must not make a later stop
-    // terminal, keep the pump widened or swallow the next release WARN.
+  if (state == BdkActivityState::IDLE || result == ScanOpResult::SETTLED) {
+    // Any teardown episode is over (IDLE observed, or e.g. a mode flip that
+    // settled back without ever reaching IDLE).
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_logged_ = false;
     this->release_warned_ = false;
   }
+  // Not chained to the clear above: a bring-up waiting at IDLE (create still
+  // in flight) must keep spending its budget.
   if (result == ScanOpResult::PENDING) {
-    if (state == BdkActivityState::STARTED) {
-      // Radio still up (e.g. a mode-change teardown waiting on a busy
-      // controller); the bring-up budget starts once it actually goes down.
-      this->pending_since_ms_ = now;
-    } else if (this->scan_wanted_ && now - this->pending_since_ms_ >= RECONCILE_PENDING_TIMEOUT_MS) {
-      ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
-      result = ScanOpResult::FAILED;
+    if (this->scan_wanted_ && state != BdkActivityState::STARTED) {
+      // A downed radio spends the bring-up budget; exhausting it hands
+      // recovery to the tracker's backoff.
+      if (now - this->pending_since_ms_ >= RECONCILE_PENDING_TIMEOUT_MS) {
+        ESP_LOGE(TAG, "Scan bring-up did not settle; giving up until the next start");
+        result = ScanOpResult::FAILED;
+      }
+    } else {
+      // A teardown is pending: a stop, or a mode change waiting to restart a
+      // radio that is still up (which also re-anchors the bring-up budget).
+      if (this->scan_wanted_)
+        this->pending_since_ms_ = now;
+      if (this->teardown_overdue_(now)) {
+        if (!this->teardown_stuck_logged_) {
+          ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck");
+          this->teardown_stuck_logged_ = true;
+        }
+        // A stuck stop is terminal for waiting consumers (the release keeps
+        // re-driving from loop()); a stuck restart stays PENDING — the radio
+        // still scans in the old mode.
+        if (!this->scan_wanted_)
+          result = ScanOpResult::FAILED;
+      }
     }
   }
   this->last_result_ = result;
@@ -406,18 +402,16 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
     this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
     return ScanOpResult::SETTLED;
   }
-  // A stop still unfinished after the deadline reports terminal FAILED so
-  // waiting consumers move on, but the release itself is never abandoned:
-  // loop() keeps re-driving it at the widened gate until IDLE.
-  const bool stuck = this->teardown_stuck_("Scan stop cannot proceed; scanner is stuck");
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
-    return stuck ? ScanOpResult::FAILED : this->defer_("stop");
+    if (this->last_result_ == ScanOpResult::SETTLED)
+      ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
+    return ScanOpResult::PENDING;
   }
   // Settled, so CREATED unambiguously means "never started".
-  this->release_activity_(state == BdkActivityState::CREATED);
-  return stuck ? ScanOpResult::FAILED : ScanOpResult::PENDING;  // confirmed once IDLE is observed
+  this->release_activity_(state);
+  return ScanOpResult::PENDING;  // confirmed once IDLE is observed
 }
 
 ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
@@ -425,21 +419,22 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
     if (this->applied_ == this->requested_)
       return ScanOpResult::SETTLED;
     // Running with different mode or parameters: tear down (the SDK stop
-    // chain also deletes the activity) and recreate on a later advance. Not
-    // FAILED when stuck — the radio still scans in the old mode.
-    this->teardown_stuck_("Scan restart cannot proceed; scanner is stuck in the previous mode");
+    // chain also deletes the activity) and recreate on a later advance.
     if (ready)
-      this->release_activity_(false);
+      this->release_activity_(state);
     return ScanOpResult::PENDING;
   }
-  if (!ready)
-    return this->defer_("start");
+  if (!ready) {
+    if (this->last_result_ == ScanOpResult::SETTLED)
+      ESP_LOGD(TAG, "Scan start deferred (controller busy)");
+    return ScanOpResult::PENDING;
+  }
   if (state == BdkActivityState::CREATED) {
     // Fire-and-forget: SETTLED only once a later advance observes the scan
     // running, so a rejected start is retried rather than silently dead. On
     // failure the created activity is intact; keep the handle.
-    if (!bdk_scan_start(this->scan_activity_idx_, this->requested_.interval, this->requested_.window,
-                        this->requested_.active))
+    if (bdk_scan_start(this->scan_activity_idx_, this->requested_.interval, this->requested_.window,
+                       this->requested_.active) != BdkOpResult::OK)
       return ScanOpResult::FAILED;
     this->applied_ = this->requested_;
     return ScanOpResult::PENDING;

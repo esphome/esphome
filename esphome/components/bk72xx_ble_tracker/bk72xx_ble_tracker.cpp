@@ -12,7 +12,6 @@
 #include <cinttypes>
 
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bk72xx_ble_tracker {
@@ -148,9 +147,8 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
     this->start_attempt_open_ = false;
     this->count_failed_start_();
   }
-  const uint32_t gate = SCAN_START_RETRY_MS << this->failed_start_count_;
   if (hub == bk72xx_ble::ScanOpResult::FAILED && (!force || this->failed_start_count_ != 0) &&
-      now - this->last_scan_start_attempt_ < gate)
+      now - this->last_scan_start_attempt_ < (SCAN_START_RETRY_MS << this->failed_start_count_))
     return false;
   this->start_scan_();
   if (!this->scan_running_) {

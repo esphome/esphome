@@ -111,9 +111,8 @@ class BK72xxBLE final : public Component {
   ScanOpResult advance_();
   ScanOpResult advance_stop_(BdkActivityState state, bool ready);
   ScanOpResult advance_start_(BdkActivityState state, bool ready);
-  ScanOpResult defer_(const char *what);
-  bool teardown_stuck_(const char *message);
-  void release_activity_(bool created);
+  bool teardown_overdue_(uint32_t now);
+  void release_activity_(BdkActivityState state);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —

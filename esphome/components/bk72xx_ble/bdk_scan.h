@@ -36,13 +36,13 @@ uint8_t bdk_scan_acquire_activity();
 /// Create the scan activity (asynchronous); started once CREATED is observed.
 BdkOpResult bdk_scan_create(uint8_t activity_idx);
 /// Start a created activity: the packed GAPM start, taking the scan mode the
-/// BDK's own start path hardcodes away. Fire-and-forget; false when the
+/// BDK's own start path hardcodes away. Fire-and-forget; FAILED when the
 /// kernel message could not be allocated (the armed SDK operation is rolled
 /// back).
-bool bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bool active);
+BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bool active);
 /// Release the activity: delete when never started (a stop would be
-/// rejected), stop otherwise. Teardown is asynchronous — observe IDLE to
-/// confirm.
+/// rejected), stop otherwise. BUSY when rejected (retry); teardown is
+/// asynchronous — observe IDLE to confirm.
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created);
 
 }  // namespace esphome::bk72xx_ble

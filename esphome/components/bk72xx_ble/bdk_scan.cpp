@@ -33,11 +33,9 @@ static const char *const TAG = "bk72xx_ble";
 
 // Pin the SDK surface this file depends on: a beken-bdk bump that moves these
 // must fail the build, not corrupt the kernel message.
-static_assert(GAPM_SCAN_PROP_PHY_1M_BIT == (1 << 0) && GAPM_SCAN_PROP_ACTIVE_1M_BIT == (1 << 2),
-              "beken-bdk GAPM scan property bits changed; revalidate bdk_scan_start() "
-              "against the SDK's app_ble_start_scaning()");
-static_assert(sizeof(struct gapm_scan_param) == 16 && sizeof(struct gapm_scan_wd_op_param) == 4,
-              "beken-bdk gapm_scan_param layout changed; revalidate bdk_scan_start() "
+static_assert(GAPM_SCAN_PROP_PHY_1M_BIT == (1 << 0) && GAPM_SCAN_PROP_ACTIVE_1M_BIT == (1 << 2) &&
+                  sizeof(struct gapm_scan_param) == 16 && sizeof(struct gapm_scan_wd_op_param) == 4,
+              "beken-bdk GAPM scan layout changed; revalidate bdk_scan_start() "
               "against the SDK's app_ble_start_scaning()");
 static_assert(INVALID_ACTIVITY_IDX == UNKNOW_ACT_IDX,
               "beken-bdk activity sentinel changed; revalidate the scan reconciler");
@@ -76,14 +74,14 @@ BdkOpResult bdk_scan_create(uint8_t activity_idx) {
   return BdkOpResult::FAILED;
 }
 
-bool bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bool active) {
+BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bool active) {
   app_ble_run(activity_idx, BLE_START_SCAN, 1 << BLE_OP_START_SCAN_POS, nullptr);
   struct gapm_activity_start_cmd *cmd =
       KERNEL_MSG_ALLOC(GAPM_ACTIVITY_START_CMD, TASK_BLE_GAPM, TASK_BLE_APP, gapm_activity_start_cmd);
   if (cmd == nullptr) {
     app_ble_reset();  // the SDK's own failure path for an unsent operation
     ESP_LOGE(TAG, "Scan start failed: kernel message allocation");
-    return false;
+    return BdkOpResult::FAILED;
   }
   cmd->operation = GAPM_START_ACTIVITY;
   cmd->actv_idx = app_ble_env.actvs[activity_idx].gap_advt_idx;
@@ -98,15 +96,13 @@ bool bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bo
   cmd->u_param.scan_param.duration = 0;  // scan until stopped
   cmd->u_param.scan_param.period = 10;   // matches the SDK's passive start
   kernel_msg_send(cmd);
-  return true;
+  return BdkOpResult::OK;
 }
 
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
   ble_err_t ret = created ? bk_ble_delete_scaning(activity_idx, nullptr) : bk_ble_scan_stop(activity_idx, nullptr);
-  if (ret == ERR_SUCCESS)
-    return BdkOpResult::OK;
-  ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
-  return BdkOpResult::FAILED;
+  // A rejection is retryable (the reconciler paces and narrates it): BUSY.
+  return ret == ERR_SUCCESS ? BdkOpResult::OK : BdkOpResult::BUSY;
 }
 
 }  // namespace esphome::bk72xx_ble

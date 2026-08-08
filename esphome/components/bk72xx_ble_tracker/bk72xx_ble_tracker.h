@@ -139,11 +139,9 @@ class BK72xxBLETracker : public Component,
   /// Stamp-and-start for every controller scan attempt, so the retry rate
   /// limit covers all callers.
   bk72xx_ble::ScanOpResult controller_scan_start_();
-  /// Attempt a rate-limited (re)start; returns true when the scan is running,
-  /// which means the caller must not compare its cached millis() against the
-  /// timestamps start_scan_() just refreshed. force bypasses the rate gate for
-  /// an explicit user start only while the failure streak is clean; a failing
-  /// controller rate-limits forced attempts too. Failure accounting always runs.
+  /// Rate-limited (re)start; true when the scan is running (the caller must
+  /// not reuse a `now` older than the stamps this refreshed). Force and
+  /// backoff rules are documented at the definition.
   bool try_start_with_backoff_(uint32_t now, bool force = false);
   void count_failed_start_();
 
@@ -167,7 +165,7 @@ class BK72xxBLETracker : public Component,
 
   uint32_t last_scan_start_attempt_{0};  // last controller start attempt, any caller; rate-limits retries
   uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
-  uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
+  uint32_t scan_period_start_{0};        // loop-clock start of the scan period; rate-limits on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
   ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
