@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_AS734X_RGB
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
@@ -221,7 +221,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   }
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_AS734X_RGB
  protected:
   text_sensor::TextSensor *rgb_hex_sensor_{nullptr};
   char rgb_hex_[7]{"000000"};  // valid before the first measurement completes

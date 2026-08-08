@@ -11,6 +11,7 @@ namespace {
 constexpr float CCT_MIN_K = 1000.0f;
 constexpr float CCT_MAX_K = 25000.0f;
 
+#ifdef USE_AS734X_RGB
 // sRGB transfer function.
 float gamma_correct(float channel) {
   if (channel <= 0.0031308f) {
@@ -20,6 +21,7 @@ float gamma_correct(float channel) {
 }
 
 uint8_t to_byte(float channel) { return static_cast<uint8_t>(std::clamp(channel, 0.0f, 1.0f) * 255.0f); }
+#endif
 
 }  // namespace
 
@@ -46,6 +48,7 @@ float tristimulus_to_cct(float x, float y, float z) {
   return (cct >= CCT_MIN_K && cct <= CCT_MAX_K) ? cct : NAN;
 }
 
+#ifdef USE_AS734X_RGB
 void tristimulus_to_rgb(float x, float y, float z, uint8_t &r, uint8_t &g, uint8_t &b) {
   const float r_linear = 3.2406f * x - 1.5372f * y - 0.4986f * z;
   const float g_linear = -0.9689f * x + 1.8758f * y + 0.0415f * z;
@@ -55,5 +58,6 @@ void tristimulus_to_rgb(float x, float y, float z, uint8_t &r, uint8_t &g, uint8
   g = to_byte(gamma_correct(g_linear));
   b = to_byte(gamma_correct(b_linear));
 }
+#endif
 
 }  // namespace esphome::as734x

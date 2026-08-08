@@ -122,7 +122,7 @@ void AS734XComponent::dump_config() {
   LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
   LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_AS734X_RGB
   LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
 #endif
 }
@@ -358,7 +358,7 @@ void AS734XComponent::calculate_color_() {
   this->calculated_.color_temperature = tristimulus_to_cct(tri_x, tri_y, tri_z);
   ESP_LOGV(TAG, "XYZ %.4f, %.4f, %.4f -> CCT %.0f K", tri_x, tri_y, tri_z, this->calculated_.color_temperature);
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_AS734X_RGB
   // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
   // Absolute tristimulus values clamp to white under anything but dim light.
   const float sum = tri_x + tri_y + tri_z;
@@ -434,7 +434,7 @@ void AS734XComponent::publish_light_metrics_() {
     this->color_temperature_sensor_->publish_state(this->calculated_.color_temperature);
   }
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_AS734X_RGB
   if (this->rgb_hex_sensor_ != nullptr) {
     this->rgb_hex_sensor_->publish_state(this->rgb_hex_);
   }
