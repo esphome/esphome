@@ -1,11 +1,10 @@
 // RP2 (Pico W / Pico 2 W) GATT client backend over BTstack.
 //
-// Implements ble_device_base::BLEGattConnection for the hub BluetoothConnection
-// wrapper. BTstack packet handlers run in the CYW43 async-context low-priority
-// IRQ (or on the main-loop stack during BluetoothLock release), so handlers
-// only copy into per-instance lock-free queues/storage; loop() drains them and
-// drives the state machine. Every BTstack call issued from the main loop is
-// wrapped in BluetoothLock.
+// The build's ble_device_base::BLEGattConnection backend (bound by alias in
+// bluetooth_connection_gatt_backend.h) for the hub BluetoothConnection wrapper. BTstack packet handlers run in the
+// CYW43 async-context low-priority IRQ (or on the main-loop stack during BluetoothLock release), so handlers only copy
+// into per-instance lock-free queues/storage; loop() drains them and drives the state machine. Every BTstack call
+// issued from the main loop is wrapped in BluetoothLock.
 
 #pragma once
 
@@ -26,6 +25,8 @@
 #include <cstdint>
 
 namespace esphome::bluetooth_connection {
+
+class BluetoothConnection;
 
 // Caps for the transient service table. Sized generously for real devices
 // (typical peripherals expose < 8 services / < 30 characteristics); a peer
@@ -72,29 +73,28 @@ static constexpr uint8_t RP2_GATT_EVENT_QUEUE_SIZE = 8;
 // full 512 B ATT payload, so depth buys burst tolerance at ~516 B per slot.
 static constexpr uint8_t RP2_GATT_NOTIFY_QUEUE_SIZE = 4;
 
-class RP2GattClient final : public Component,
-                            public ble_device_base::BLEGattConnection,
-                            public Parented<rp2040_ble::RP2040BLE> {
+class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040BLE> {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
-  // ---- ble_device_base::BLEGattConnection ----
-  int connect(uint64_t address, uint8_t addr_type) override;
-  int disconnect() override;
-  int discover_services() override;
-  int read_characteristic(uint16_t handle) override;
-  int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) override;
-  int read_descriptor(uint16_t handle) override;
-  int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) override;
-  int notify_characteristic(uint16_t handle, bool enable) override;
-  int pair() override;
-  int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                               uint16_t timeout) override;
-  ble_device_base::GattServiceTable get_service_table() override;
-  void release_services() override;
+  void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
+
+  // ---- ble_device_base::BLEGattConnection contract ----
+  int connect(uint64_t address, uint8_t addr_type);
+  int disconnect();
+  int discover_services();
+  int read_characteristic(uint16_t handle);
+  int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
+  int read_descriptor(uint16_t handle);
+  int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len);
+  int notify_characteristic(uint16_t handle, bool enable);
+  int pair();
+  int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
+  ble_device_base::GattServiceTable get_service_table();
+  void release_services();
 
  protected:
   // Link/engine state. Discovery and GATT ops have their own cursors below —
@@ -150,6 +150,7 @@ class RP2GattClient final : public Component,
   }
 
   // Group 1: containers / large storage
+  BluetoothConnection *listener_{nullptr};
   ServiceArena *arena_{nullptr};
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;

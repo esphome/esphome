@@ -1,4 +1,6 @@
 #include "bluetooth_connection_rp2.h"
+
+#include "bluetooth_connection_hub.h"
 #include "bluetooth_connection.h"
 
 #if defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
