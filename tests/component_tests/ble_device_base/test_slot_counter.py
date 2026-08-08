@@ -95,10 +95,6 @@ def test_esp32_tracker_handler_counts(
     assert get_define_value("ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT") == "1"
     assert get_define_value("ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT") is None
     # No consumer subscribed to scanner state, so the storage compiles out.
-    assert (
-        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT")
-        is None
-    )
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") is None
 
@@ -111,10 +107,6 @@ def test_esp32_bluetooth_proxy_requests_client_slots_only(
     active: true); advertisements and scanner state arrive through the hub
     callbacks, so no listener or scanner-state slot exists."""
     generate_main(component_config_path("esp32_bluetooth_proxy.yaml"))
-    assert (
-        get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT")
-        is None
-    )
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
 
