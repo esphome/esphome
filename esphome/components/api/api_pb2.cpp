@@ -96,6 +96,18 @@ uint32_t DeviceInfo::calculate_size() const {
   size += ProtoSize::calc_uint32(1, this->area_id);
   return size;
 }
+uint8_t *DeviceStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->available);
+  return pos;
+}
+uint32_t DeviceStateResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, this->device_id);
+  size += ProtoSize::calc_bool(1, this->available);
+  return size;
+}
 #endif
 #ifdef USE_SERIAL_PROXY
 uint8_t *SerialProxyInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
