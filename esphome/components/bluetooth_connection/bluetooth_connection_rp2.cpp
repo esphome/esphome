@@ -1117,15 +1117,21 @@ int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_
 conn_err_t unpair_device(uint64_t address) {
   uint8_t mac[6];
   ble_device_base::uint64_to_mac_msb_first(address, mac);
+  bool found = false;
   BluetoothLock lock;
+  // Exhaustive: the db keys on (type, address), so stale entries can share
+  // the same address bytes under different types.
   for (int i = 0; i < le_device_db_max_count(); i++) {
     int addr_type = 0;
     bd_addr_t addr;
     le_device_db_info(i, &addr_type, addr, nullptr);
     if (addr_type != BD_ADDR_TYPE_UNKNOWN && memcmp(addr, mac, sizeof(bd_addr_t)) == 0) {
       le_device_db_remove(i);
-      return CONN_OK;
+      found = true;
     }
+  }
+  if (found) {
+    return CONN_OK;
   }
   // No bond for this address; the shared error domain has no closer code
   // (esp32 parity: its remove-bond call also errors for an unknown address).
