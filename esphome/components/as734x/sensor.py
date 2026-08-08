@@ -398,5 +398,6 @@ async def to_code(config: ConfigType) -> None:
             cg.add(getattr(var, f"set_{key}_sensor")(sens))
 
     if rgb_config := config.get(CONF_RGB_HEX):
+        cg.add_build_flag("-DUSE_AS734X_RGB")
         sens = await text_sensor.new_text_sensor(rgb_config)
         cg.add(var.set_rgb_hex_sensor(sens))
