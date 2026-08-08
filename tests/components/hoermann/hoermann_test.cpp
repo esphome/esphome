@@ -97,12 +97,8 @@ TEST(HoermannReadWrite, QueuedCommandIsInjectedIntoPoll) {
 TEST(HoermannReadWrite, UnknownAddressIsRejected) {
   Hoermann door;
   RegisterValues response;
-  auto read_status = door.on_read_holding_registers(0x1234, 2, response);
-  ASSERT_TRUE(read_status.has_value());
-  EXPECT_EQ(read_status.value(), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
-  auto write_status = door.on_write_registers(0x1234, make_registers({0x0000}));
-  ASSERT_TRUE(write_status.has_value());
-  EXPECT_EQ(write_status.value(), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(door.on_read_holding_registers(0x1234, 2, response), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_EQ(door.on_write_registers(0x1234, make_registers({0x0000})), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // A command is held for the key-press duration, then released, and only then can the next one be queued.
