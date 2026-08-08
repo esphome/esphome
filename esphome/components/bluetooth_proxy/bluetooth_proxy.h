@@ -143,7 +143,7 @@ class BluetoothProxy final : public Component {
     // scan_mode_switch is the capability bit for exactly that (#18079) —
     // active_scan alone is not enough, a hub may support active scanning yet
     // refuse the runtime switch.
-    if (this->hub_->get_capabilities().scan_mode_switch) {
+    if (ble_device_base::BLEHub::get_capabilities().scan_mode_switch) {
       flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
     }
 #endif
