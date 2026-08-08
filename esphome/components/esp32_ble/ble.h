@@ -108,6 +108,9 @@ class ESP32BLE final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  /// Adapter MAC in printable (MSB-first) order. Hosted controllers only
+  /// know it once the stack is up; all-zero means unavailable.
+  void get_mac_msb_first(uint8_t out[6]);
   float get_setup_priority() const override;
   void set_name(const char *name) { this->name_ = name; }
 

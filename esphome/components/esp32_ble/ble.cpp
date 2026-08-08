@@ -8,6 +8,7 @@
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#include <esp_mac.h>
 #else
 #include "esphome/components/watchdog/watchdog.h"
 #include <cinttypes>
@@ -673,6 +674,23 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
   App.wake_loop_threadsafe();
 }
 #endif
+
+void ESP32BLE::get_mac_msb_first(uint8_t out[6]) {
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  // The adapter MAC lives in the remote chip's efuse, so only the running
+  // stack knows it.
+  const uint8_t *mac = esp_bt_dev_get_address();
+  if (mac != nullptr) {
+    memcpy(out, mac, 6);
+  } else {
+    memset(out, 0, 6);
+  }
+#else
+  // IDF owns the BT-offset derivation (base + 2 with four universal MACs,
+  // base + 1 with two); works before the BT stack is up.
+  esp_read_mac(out, ESP_MAC_BT);
+#endif
+}
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
