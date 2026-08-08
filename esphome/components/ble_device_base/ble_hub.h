@@ -86,8 +86,8 @@ struct HubCapabilities {
   bool scan_mode_switch;
 };
 
-// The BLEHub method surface. Duck-typed: a tracker that misses one of these
-// fails to compile at the consumer's call site, not at a class definition.
+// The BLEHub method surface, enforced by the BLEHubContract concept below
+// (asserted where ble_hub_impl.h binds the alias).
 //
 //   /// Register a parsed-advertisement consumer (BLE sensors, automation triggers).
 //   void register_listener(ESPBTDeviceListener *listener);
@@ -117,5 +117,19 @@ struct HubCapabilities {
 //   /// honors requests is advertised by HubCapabilities::scan_mode_switch, so
 //   /// consumers can gate features on the switch without probing.
 //   bool request_scan_mode(bool active);
+
+// set_scanner_state_callback is deliberately absent: it exists only on push
+// hubs under USE_BLE_SCANNER_STATE_CALLBACK.
+template<typename T>
+concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback,
+                                  uint8_t *mac) {
+  hub.register_listener(listener);
+  hub.set_raw_advertisement_callback(raw_callback);
+  T::get_capabilities();
+  hub.get_adapter_mac(mac);
+  hub.scan_running();
+  hub.scan_active();
+  hub.request_scan_mode(true);
+};
 
 }  // namespace esphome::ble_device_base
