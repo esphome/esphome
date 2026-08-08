@@ -97,6 +97,8 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+  // True while TX bytes are still in the ring buffer or held by the TX task
+  bool tx_pending_();
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};

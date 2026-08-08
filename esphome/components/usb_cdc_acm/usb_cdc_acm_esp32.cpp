@@ -5,7 +5,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include <algorithm>
 #include <cstring>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
@@ -396,8 +395,17 @@ size_t USBCDCACMInstance::available() {
   return waiting + (this->has_peek_ ? 1 : 0);
 }
 
+// True while TX bytes have not yet reached TinyUSB's FIFO: still counted in the ring
+// buffer, or held by the TX task (usb_tx_busy_) between pulling them from the ring
+// buffer and handing them to TinyUSB -- there they are in neither the ring buffer
+// count nor TinyUSB's FIFO.
+bool USBCDCACMInstance::tx_pending_() {
+  UBaseType_t waiting = 0;
+  vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
+  return waiting != 0 || this->usb_tx_busy_ != 0;
+}
+
 uart::UARTFlushResult USBCDCACMInstance::flush() {
-  // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
@@ -405,21 +413,16 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   // Bound the wait: when the host stalls or disconnects, the TX task holds on to
   // pending data rather than discarding it, so the ring buffer may not drain for as
   // long as the host stays away. flush() runs on the caller's (typically the main
-  // loop) task and must not block indefinitely.
-  const TickType_t start = xTaskGetTickCount();
-  while (true) {
-    UBaseType_t waiting = 0;
-    vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
-    // The busy flag covers bytes the TX task has pulled from the ring buffer but not
-    // yet handed to TinyUSB (it holds them while the host applies backpressure);
-    // those are in neither the ring buffer count nor TinyUSB's FIFO.
-    if (waiting == 0 && this->usb_tx_busy_ == 0) {
-      break;
-    }
-    if ((xTaskGetTickCount() - start) >= pdMS_TO_TICKS(FLUSH_TIMEOUT_MS)) {
+  // loop) task and must not block indefinitely. Signed tick differences keep the
+  // deadline arithmetic wrap-safe.
+  TickType_t now = xTaskGetTickCount();
+  const TickType_t deadline = now + pdMS_TO_TICKS(FLUSH_TIMEOUT_MS);
+  while (this->tx_pending_()) {
+    if (static_cast<int32_t>(now - deadline) >= 0) {
       return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     vTaskDelay(pdMS_TO_TICKS(1));
+    now = xTaskGetTickCount();
   }
 
   // Also wait for USB to finish transmitting, within whatever remains of the budget.
@@ -427,17 +430,19 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   // whose return contract is that library's internal detail and may differ between
   // releases. One tick keeps the call on the blocking branch (ESP_OK/ESP_ERR_TIMEOUT)
   // at the cost of at most one tick over budget.
-  const uint32_t elapsed_ms = pdTICKS_TO_MS(xTaskGetTickCount() - start);
-  const uint32_t remaining_ms = FLUSH_TIMEOUT_MS - std::min(elapsed_ms, FLUSH_TIMEOUT_MS);
-  const TickType_t flush_ticks = std::max(pdMS_TO_TICKS(remaining_ms), (TickType_t) 1);
-  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), flush_ticks);
-  if (err == ESP_OK)
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  // ESP_ERR_NOT_FINISHED is the non-blocking branch's "still draining" result; map it
-  // like a timeout in case a future esp_tinyusb release returns it here.
-  if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_NOT_FINISHED)
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  const int32_t remaining = static_cast<int32_t>(deadline - now);
+  const TickType_t flush_ticks = remaining > 0 ? static_cast<TickType_t>(remaining) : 1;
+  switch (tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), flush_ticks)) {
+    case ESP_OK:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+    case ESP_ERR_TIMEOUT:
+    // ESP_ERR_NOT_FINISHED is the non-blocking branch's "still draining" result;
+    // mapped like a timeout in case a future esp_tinyusb release returns it here.
+    case ESP_ERR_NOT_FINISHED:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+    default:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}
