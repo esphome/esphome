@@ -51,8 +51,7 @@ ble_device_base_ns = cg.esphome_ns.namespace("ble_device_base")
 
 # The neutral tracker contract. Every tracker's codegen class declares this as
 # a parent, which is what lets cv.use_id(BLEHub) resolve any of them. Python
-# only: the C++ name is a per-platform alias for the build's tracker class
-# (ble_hub_impl.h), so generated code never names ble_device_base::BLEHub.
+# only: C++-side the name is a per-platform alias (ble_hub_impl.h).
 BLEHub = ble_device_base_ns.class_("BLEHub")
 
 # The neutral listener base (C++: ble_device_base::ESPBTDeviceListener).

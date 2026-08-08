@@ -7,11 +7,8 @@
 namespace esphome::ble_device_base::testing {
 
 // Pins the request_scan_mode() contract documented in ble_hub.h: a hub
-// without a mode switch refuses without changing any state (so callers report
-// the real state back), while a switching hub both honors the request and
-// applies it. The contract is duck-typed (BLEHub is a per-platform alias),
-// so the shapes are pinned through minimal host hubs mirroring the in-tree
-// tracker stubs.
+// without a mode switch refuses without changing any state, a switching hub
+// honors and applies. Minimal host hubs mirror the in-tree tracker stubs.
 namespace {
 
 class RefusingHub {

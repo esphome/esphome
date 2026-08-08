@@ -76,8 +76,7 @@ void BluetoothProxy::setup() {
                                                 static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
                                               }});
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  // Only hubs that push scanner-state transitions compile the slot (today:
-  // esp32); elsewhere loop() polls scan_running() instead.
+  // Only push hubs compile the slot; elsewhere loop() polls scan_running().
   this->hub_->set_scanner_state_callback({this, [](void *self, ble_device_base::ScannerState state) {
                                             static_cast<BluetoothProxy *>(self)->send_bluetooth_scanner_state_(state);
                                           }});

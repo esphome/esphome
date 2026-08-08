@@ -13,9 +13,7 @@ namespace esphome::ble_device_base::testing {
 //
 // The in-tree emit site (BK72xxBLETracker::on_scan_report) compiles against
 // the Beken SDK and cannot run host-side, so the guard-and-fire semantics are
-// pinned here through a minimal host hub instead. The contract is duck-typed
-// (BLEHub is a per-platform alias, not a base class), so the fake carries
-// only the slot surface under test.
+// pinned here through a minimal host hub carrying only the slot under test.
 namespace {
 
 class FakeHub {

@@ -1,9 +1,8 @@
 // Platform-neutral BLE advertisement triggers: ESPBTDeviceListener subclasses
 // registered on a BLEHub, exposed by each tracker under its own automation
 // names. parse_device()'s return feeds the "Found device" suppression.
-// The constructors are templated on the hub type instead of naming BLEHub:
-// the contract is duck-typed and this header must also build with no tracker
-// present (host unit tests).
+// Constructors are templated on the hub type so this header also builds with
+// no tracker present (host unit tests).
 
 #pragma once
 

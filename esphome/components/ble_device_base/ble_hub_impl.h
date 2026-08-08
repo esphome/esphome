@@ -1,11 +1,8 @@
 // ble_hub_impl.h
 //
-// Binds ble_device_base::BLEHub to the build's tracker. Exactly one tracker
-// component exists per build, so the hub is a compile-time alias rather than
-// an abstract interface: every hub call is a direct, inlinable member call
-// and trackers carry no vtable for the contract. Consumers include this
-// header; trackers include ble_hub.h (the contract types and the documented
-// method surface). Each tracker's codegen emits its USE_*_BLE_TRACKER define.
+// Binds ble_device_base::BLEHub to the build's one tracker; each tracker's
+// codegen emits its USE_*_BLE_TRACKER define. Consumers include this header,
+// trackers include ble_hub.h (the contract).
 
 #pragma once
 

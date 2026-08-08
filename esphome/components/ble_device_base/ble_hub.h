@@ -1,17 +1,10 @@
 // ble_hub.h
 //
-// The platform-neutral BLE tracker contract: the types every tracker and
-// consumer share, plus (below) the method surface every tracker provides.
-//
-// Exactly one tracker component exists per build (one chip, one controller),
-// so BLEHub is not an abstract interface: ble_hub_impl.h binds the name to
-// the build's tracker with a `using` alias, and every hub call is a direct,
-// inlinable member call — no vtable, no virtual dispatch. Trackers include
-// this header and implement the documented surface; consumers include
-// ble_hub_impl.h and bind in YAML via `cv.use_id(BLEHub)` (the Python-side
-// class, which resolves whichever tracker the config declares). Adding a new
-// BLE chip requires only a new tracker component that provides the surface
-// and an alias arm in ble_hub_impl.h.
+// The platform-neutral BLE tracker contract: shared types plus the method
+// surface every tracker provides (documented below). Exactly one tracker
+// exists per build, so BLEHub is a compile-time alias (ble_hub_impl.h), not
+// an abstract interface — no vtable, every hub call inlinable. Consumers
+// include ble_hub_impl.h and bind in YAML via cv.use_id(BLEHub).
 //
 // Chip differences are expressed as data (HubCapabilities), never as
 // platform conditionals in consumers.
@@ -65,9 +58,8 @@ enum class ScannerState : uint8_t {
 };
 
 /// Subscriber slot for scanner-state transitions; same shape as
-/// RawAdvertisementCallback, delivered on the ESPHome main loop. Hubs that
-/// cannot push drop the registration and the consumer falls back to polling
-/// scan_running().
+/// RawAdvertisementCallback, delivered on the ESPHome main loop. Only hubs
+/// that push provide the setter; consumers of the rest poll scan_running().
 struct ScannerStateCallback {
   void *instance{nullptr};
   void (*fn)(void *instance, ScannerState state){nullptr};
@@ -103,11 +95,8 @@ struct HubCapabilities {
 //   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
 //   void set_raw_advertisement_callback(RawAdvertisementCallback callback);
 //
-//   /// Push subscriber for scanner-state transitions, invoked where the hub's
-//   /// state changes. Provided only by hubs that push (today: esp32), gated on
-//   /// USE_BLE_SCANNER_STATE_CALLBACK (bluetooth_proxy emits the define), so
-//   /// subscriber-less builds carry no storage. Consumers of a hub without it
-//   /// fall back to polling scan_running().
+//   /// Push hubs only (today: esp32), gated on USE_BLE_SCANNER_STATE_CALLBACK
+//   /// (emitted by the subscriber's codegen) so other builds carry no storage.
 //   void set_scanner_state_callback(ScannerStateCallback callback);
 //
 //   static constexpr HubCapabilities get_capabilities();
