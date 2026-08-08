@@ -45,6 +45,12 @@ extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-no
 }  // namespace esphome
 #endif
 
+namespace esphome {
+static_assert(PreferencesContract<ESPPreferences>,
+              "The platform's preferences manager is missing part of the ESPPreferences surface "
+              "(esphome/core/preference_backend.h)");
+}  // namespace esphome
+
 #ifdef USE_PREFERENCE_KEY_LOOKUP
 namespace esphome {
 /// Copy preference data stored under old_key into new_pref (created for new_key) if the keys

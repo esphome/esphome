@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 
 #include "esphome/core/defines.h"
@@ -30,6 +31,15 @@
 
 namespace esphome {
 
+// The PreferenceBackend method surface, asserted on the alias each platform
+// header binds. save() persists len bytes; load() fills dest only when the
+// stored data exists and matches len. Both report success as their return.
+template<typename T>
+concept PreferenceBackendContract = requires(T backend, const uint8_t *src, uint8_t *dest, size_t len) {
+  { backend.save(src, len) } -> std::same_as<bool>;
+  { backend.load(dest, len) } -> std::same_as<bool>;
+};
+
 #if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2) && !defined(USE_LIBRETINY) && \
     !defined(USE_HOST) && !(defined(USE_ZEPHYR) && defined(CONFIG_SETTINGS))
 // Stub for static analysis when no platform is defined.
@@ -40,6 +50,8 @@ struct PreferenceBackend {
 #endif
 
 using ESPPreferenceBackend = PreferenceBackend;
+static_assert(PreferenceBackendContract<PreferenceBackend>,
+              "The platform's preference backend is missing part of the PreferenceBackend surface");
 
 class ESPPreferenceObject {
  public:
@@ -66,6 +78,25 @@ class ESPPreferenceObject {
 
  protected:
   PreferenceBackend *backend_{nullptr};
+};
+
+// The preferences manager method surface, asserted in esphome/core/preferences.h
+// on the ESPPreferences alias each platform's preferences.h binds through
+// DECLARE_PREFERENCE_ALIASES. Semantics beyond the signatures:
+// - make_preference: the two-argument form applies the platform's historic
+//   default storage; in_flash=false may fall back to flash where the platform
+//   has no faster storage.
+// - sync: commit pending writes to flash, true on success.
+// - reset: forget unsaved changes and re-initialize the permanent storage
+//   (usually followed by a restart), true on success.
+// Key-lookup platforms additionally provide load_from_key(), which is not part
+// of the neutral surface (slot-based backends cannot implement it).
+template<typename T>
+concept PreferencesContract = requires(T prefs, size_t len, uint32_t type, bool in_flash) {
+  { prefs.make_preference(len, type, in_flash) } -> std::same_as<ESPPreferenceObject>;
+  { prefs.make_preference(len, type) } -> std::same_as<ESPPreferenceObject>;
+  { prefs.sync() } -> std::same_as<bool>;
+  { prefs.reset() } -> std::same_as<bool>;
 };
 
 /// CRTP mixin providing type-safe template make_preference<T>() helpers.
