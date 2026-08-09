@@ -177,6 +177,10 @@ def _validate_slot_totals(config: ConfigType) -> ConfigType:
     # esp32 has its own controller budget (esp32_ble); the hub platforms cap
     # at the prebuilt stack's client count, and nothing else counts claims
     # across components (e.g. a proxy plus a radon_eye_rd200 on rp2).
+    # Skipped in testing mode so grouped component builds can co-exist
+    # (mirrors esp32_ble.validate_connection_slots).
+    if CORE.testing_mode:
+        return config
     if (cap := HUB_MAX_CONNECTIONS.get(CORE.target_platform)) is None:
         return config
     claimed = _ledger().consumers

@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
     CONF_VALUE,
+    PLATFORM_ESP32,
     PlatformFramework,
 )
 from esphome.core import CORE, ID
@@ -56,9 +57,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        # Every framework of every bluetooth_connection.GATT_CLIENT_PLATFORMS
-        # entry except esp32; extend when the registry gains a platform.
-        "ble_client_gatt.cpp": {PlatformFramework.RP2_ARDUINO},
+        # Every framework of every non-esp32 registry platform: a platform
+        # that validates the neutral arm must also compile the neutral engine.
+        "ble_client_gatt.cpp": {
+            pf
+            for pf in PlatformFramework
+            if pf.value[0] in bluetooth_connection.GATT_CLIENT_PLATFORMS
+            and pf.value[0] != PLATFORM_ESP32
+        },
     }
 )
 
@@ -227,8 +233,8 @@ def _gatt_config_schema(platform: str) -> cv.All:
 @schema_extractor("schema")
 def _validate_platform(config: ConfigType) -> ConfigType:
     if config is SCHEMA_EXTRACT:
-        # The language-schema dumper runs without a platform; expose the esp32
-        # shape (the superset).
+        # The language-schema dumper runs without a platform; expose the
+        # esp32 (legacy-engine) shape.
         return _esp32_config_schema()
     if CORE.is_esp32:
         return _esp32_config_schema()(config)

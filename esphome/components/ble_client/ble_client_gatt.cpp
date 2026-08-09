@@ -95,9 +95,10 @@ void BLEClient::register_failure_() {
 void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
   if (connected) {
     this->state_ = State::DISCOVERING;
-    if (this->backend_->discover_services() != 0) {
+    int discover_err = this->backend_->discover_services();
+    if (discover_err != 0) {
       // Synchronous refusal: no discovery completion will follow.
-      ESP_LOGW(TAG, "[%s] Service discovery refused", this->address_str_);
+      ESP_LOGW(TAG, "[%s] Service discovery refused, err=%d", this->address_str_, discover_err);
       this->register_failure_();
       // Deliberate teardown: its report must not charge the backoff again.
       this->disconnect();
@@ -117,7 +118,9 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     this->defer([this]() { this->disconnect_callbacks_.call(); });
   } else {
     if (cancelled) {
-      ESP_LOGD(TAG, "[%s] Connect attempt cancelled", this->address_str_);
+      // status carries the refusal code when the teardown settled
+      // synchronously; 0 on a backend-completed cancel.
+      ESP_LOGD(TAG, "[%s] Connect attempt cancelled, status=%d", this->address_str_, error);
     } else {
       ESP_LOGW(TAG, "[%s] Connect failed, status=%d", this->address_str_, error);
       this->register_failure_();
@@ -160,6 +163,10 @@ void BLEClient::on_write_result(uint16_t handle, int error) {
 }
 
 void BLEClient::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
+  if (error != 0) {
+    // Breadcrumb even when no node claims the handle.
+    ESP_LOGD(TAG, "[%s] Read on handle 0x%04x completed with status %d", this->address_str_, handle, error);
+  }
   for (auto *node : this->nodes_) {
     node->on_read_result(handle, data, len, error);
   }
