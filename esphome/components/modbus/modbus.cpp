@@ -918,7 +918,8 @@ bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, Mo
       continue;
     if (device == nullptr) {
       // A dropped read is routine (DEBUG); a dropped write/custom warns (unobservable without a device).
-      const bool requeueable = !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read(pdu[0]);
+      const bool requeueable =
+          !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read_only(pdu[0]);
       if (requeueable) {
         ESP_LOGD(TAG, "Anonymous duplicate of active frame for %" PRIu8 " (function 0x%X), dropped", address, pdu[0]);
       } else {
@@ -1098,7 +1099,8 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
 
   switch (function_code) {
     case FunctionCode::READ_HOLDING_REGISTERS:
-    case FunctionCode::READ_INPUT_REGISTERS: {
+    case FunctionCode::READ_INPUT_REGISTERS:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       // Decode the big-endian register words into host byte order. The gate guarantees a success response
       // carries exactly count_or_value registers (and count_or_value <= MAX_NUM_OF_REGISTERS_TO_READ, the
       // capacity of RegisterValues); a mismatch was diverted to on_custom_response(), never clamped. On
@@ -1110,10 +1112,10 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
         }
       }
       std::span<const uint16_t> register_span(registers.data(), registers.size());
-      if (function_code == FunctionCode::READ_HOLDING_REGISTERS) {
-        this->on_read_holding_registers(start_address, register_span, status);
-      } else {
+      if (function_code == FunctionCode::READ_INPUT_REGISTERS) {
         this->on_read_input_registers(start_address, register_span, status);
+      } else {
+        this->on_read_holding_registers(start_address, register_span, status);
       }
       break;
     }

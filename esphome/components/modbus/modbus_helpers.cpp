@@ -305,16 +305,20 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
+// Append a 16-bit value to a PDU in big-endian (wire) byte order.
+template<size_t CAP> static void append_pdu_word(StaticVector<uint8_t, CAP> &pdu, uint16_t value) {
+  pdu.push_back(value >> 8);
+  pdu.push_back(value >> 0);
+}
+
 // Every request PDU opens with the same 5-byte layout: function code, then two big-endian 16-bit
 // fields (start address + quantity for reads and multi-writes, address + value for single writes).
 template<size_t CAP>
 static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode function_code, uint16_t first,
                               uint16_t second) {
   pdu.push_back(static_cast<uint8_t>(function_code));
-  pdu.push_back(first >> 8);
-  pdu.push_back(first >> 0);
-  pdu.push_back(second >> 8);
-  pdu.push_back(second >> 0);
+  append_pdu_word(pdu, first);
+  append_pdu_word(pdu, second);
 }
 
 // Zero the unused bits of a multi-coil write's final data byte, as the spec requires. Kept in one
@@ -376,7 +380,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
   // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
   // create_write_registers_pdu(), etc.) which bound their inputs per spec.
-  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
+  if (is_function_code_read_only(static_cast<uint8_t>(function_code))) {
     if (values != nullptr || values_len > 0) {
       ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
                static_cast<uint8_t>(function_code));
@@ -478,9 +482,45 @@ PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uin
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
   pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
   for (auto v : values) {
-    auto decoded_value = decode_value(v);
-    pdu.push_back(decoded_value[0]);
-    pdu.push_back(decoded_value[1]);
+    append_pdu_word(pdu, v);
+  }
+  return pdu;
+}
+
+PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,
+                                                   uint16_t write_start_address,
+                                                   std::span<const uint16_t> write_values) {
+  PduBuffer pdu;
+  if (read_count == 0 || read_count > MAX_NUM_OF_REGISTERS_TO_READ) {
+    ESP_LOGE(TAG, "Read count %u out of range [1, %u] for read/write multiple registers, dropping request", read_count,
+             MAX_NUM_OF_REGISTERS_TO_READ);
+    return pdu;
+  }
+  if (write_values.empty() || write_values.size() > MAX_NUM_OF_REGISTERS_TO_WRITE_RW) {
+    ESP_LOGE(TAG, "Write count %zu out of range [1, %u] for read/write multiple registers, dropping request",
+             write_values.size(), MAX_NUM_OF_REGISTERS_TO_WRITE_RW);
+    return pdu;
+  }
+  if (uint32_t(read_start_address) + read_count > 0x10000u) {
+    ESP_LOGE(TAG, "Read of %u registers at %u runs past the 16-bit address space, dropping request", read_count,
+             read_start_address);
+    return pdu;
+  }
+  if (uint32_t(write_start_address) + write_values.size() > 0x10000u) {
+    ESP_LOGE(TAG, "Write of %zu registers at %u runs past the 16-bit address space, dropping request",
+             write_values.size(), write_start_address);
+    return pdu;
+  }
+  // fc + read start(2) + read qty(2) + write start(2) + write qty(2) + write byte count(1) + write values.
+  const auto write_count = static_cast<uint16_t>(write_values.size());
+  pdu.push_back(static_cast<uint8_t>(FunctionCode::READ_WRITE_MULTIPLE_REGISTERS));
+  append_pdu_word(pdu, read_start_address);
+  append_pdu_word(pdu, read_count);
+  append_pdu_word(pdu, write_start_address);
+  append_pdu_word(pdu, write_count);
+  pdu.push_back(static_cast<uint8_t>(write_count * 2));  // byte count
+  for (auto v : write_values) {
+    append_pdu_word(pdu, v);
   }
   return pdu;
 }

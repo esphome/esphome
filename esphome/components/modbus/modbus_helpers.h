@@ -11,7 +11,8 @@
 
 namespace esphome::modbus::helpers {
 
-inline bool is_function_code_read(uint8_t function_code) {
+// Pure read codes (0x01-0x04): they only read, so they are idempotent and safe to retry.
+inline bool is_function_code_read_only(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::READ_COILS ||
          masked_function_code == FunctionCode::READ_DISCRETE_INPUTS ||
@@ -19,12 +20,21 @@ inline bool is_function_code_read(uint8_t function_code) {
          masked_function_code == FunctionCode::READ_INPUT_REGISTERS;
 }
 
+// Codes whose response carries read-back data: the pure reads plus 0x17, which reads and writes at once.
+inline bool is_function_code_read(uint8_t function_code) {
+  return is_function_code_read_only(function_code) ||
+         static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK) == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+}
+
+// Codes that mutate registers or coils: the pure writes, 0x16 mask-write, and 0x17 read/write multiple.
 inline bool is_function_code_write(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::WRITE_SINGLE_COIL ||
          masked_function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
          masked_function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
+         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS ||
+         masked_function_code == FunctionCode::MASK_WRITE_REGISTER ||
+         masked_function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
 }
 
 inline bool is_function_code_exception(uint8_t function_code) {
@@ -90,8 +100,8 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
 }
 
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
- * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
- * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
+ * read responses (0x01-0x04 and 0x17) also after the byte-count byte. Response 0x14 also carries a
+ * byte-count byte, but that code is not implemented and its count byte is left in the payload. For
  * an exception PDU the payload is the exception code byte (the read check must not see the masked
  * function code, or an exception-of-read would classify as a read and return an empty span). Returns an
  * empty span if the PDU is too short.
@@ -408,6 +418,21 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
+
+/** Create modbus read/write multiple registers command
+ *  Function 0x17 Read/Write Multiple Registers
+ * Writes write_values then reads read_count registers in one transaction (write first, per Modbus 6.17);
+ * the response carries only the read registers.
+ * @param read_start_address modbus address of the first register to read back
+ * @param read_count number of registers to read (at most MAX_NUM_OF_REGISTERS_TO_READ)
+ * @param write_start_address modbus address of the first register to write
+ * @param write_values register values to write; the register count is write_values.size() (at most
+ *               MAX_NUM_OF_REGISTERS_TO_WRITE_RW). Any contiguous uint16_t container converts.
+ * @return PDU (function code + data, no address, no CRC); an empty PDU on any out-of-range input
+ */
+PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,
+                                                   uint16_t write_start_address,
+                                                   std::span<const uint16_t> write_values);
 
 /** Create modbus write single register command
  *  Function 0x06 Write Single Register
