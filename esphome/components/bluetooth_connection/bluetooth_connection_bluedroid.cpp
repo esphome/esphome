@@ -49,7 +49,10 @@ void BluedroidGattClient::loop() {
     // frees its slot, then re-register the app on the next enable.
     auto down_st = this->state();
     if (down_st != ClientState::IDLE && down_st != ClientState::INIT) {
-      this->release_services();
+      // The dying stack invalidates its own cache; a cache_clean would just
+      // warn against a disabled stack. Reset the stream latches directly.
+      this->service_total_ = 0;
+      this->services_released_ = true;
       this->set_idle_();
       this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
     }

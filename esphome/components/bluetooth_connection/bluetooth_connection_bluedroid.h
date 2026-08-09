@@ -131,6 +131,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   bool mtu_failed_ : 1 {false};
   // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
   // completes from it. Reset by set_idle_().
+  static_assert(static_cast<uint8_t>(SearchState::REPORT_PENDING) < (1 << 4), "search_state_ bitfield too narrow");
   SearchState search_state_ : 4 {SearchState::NONE};
   // esp_gatt_status_t of the completed search, held until claimed.
   uint8_t search_status_{0};
