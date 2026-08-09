@@ -1,6 +1,6 @@
 """Tests for the BLE hub provider registry and the missing-hub diagnostics."""
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from importlib import import_module
 from pathlib import Path
 
@@ -214,8 +214,8 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -
     ],
 )
 def test_every_tracker_emits_its_alias_define(
-    generate_main,
-    component_config_path,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
     config_name: str,
     define: str,
 ) -> None:
@@ -225,6 +225,5 @@ def test_every_tracker_emits_its_alias_define(
     mirror, are compile-enforced: a missing arm fails every consumer build on
     that platform and clang-tidy compiles each arm's static_assert)."""
     generate_main(component_config_path(config_name))
-    from tests.component_tests.helpers import get_define_value
 
-    assert get_define_value(define) is not None, f"{define} not emitted by codegen"
+    assert define in {d.name for d in CORE.defines}, f"{define} not emitted by codegen"

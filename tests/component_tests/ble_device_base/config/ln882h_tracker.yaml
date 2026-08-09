@@ -2,6 +2,6 @@ esphome:
   name: slotcount-ln882h-tracker
 
 ln882x:
-  board: generic-ln882hki
+  board: generic-ln882h
 
 ln882h_ble_tracker:
