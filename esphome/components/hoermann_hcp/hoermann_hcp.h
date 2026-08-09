@@ -6,7 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
 // Door state as reported by the Hoermann bus controller.
 enum class DoorState : uint8_t {
@@ -23,7 +23,7 @@ enum class DoorState : uint8_t {
 
 // A HCP command is a simulated key press: the "start" values are presented to the bus controller, then after a
 // short delay the "end" values, mimicking a button being pressed and released.
-struct HoermannCommand {
+struct HoermannHcpCommand {
   const char *name;
   uint16_t reg_plus2_start;
   uint16_t reg_plus2_end;
@@ -31,7 +31,7 @@ struct HoermannCommand {
   uint16_t reg_plus3_end;
 };
 
-class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
+class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
  public:
   void update() override;
   void dump_config() override;
@@ -66,7 +66,7 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
  protected:
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
-  bool queue_command_(const HoermannCommand &command);
+  bool queue_command_(const HoermannHcpCommand &command);
   void get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3);
   void on_door_position_changed_(uint16_t old_value, uint16_t new_value);
   void on_current_state_changed_(uint16_t old_value, uint16_t new_value);
@@ -92,7 +92,7 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   bool changed_{false};
 
   // Pending command / key-press state machine.
-  const HoermannCommand *next_command_{nullptr};
+  const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
 
@@ -106,4 +106,4 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   uint16_t command_reg_value_{0};
 };
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp

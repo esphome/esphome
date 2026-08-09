@@ -1,18 +1,18 @@
-#include "hoermann_light.h"
+#include "hoermann_hcp_light.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
-light::LightTraits HoermannLight::get_traits() {
+light::LightTraits HoermannHcpLight::get_traits() {
   auto traits = light::LightTraits();
   traits.set_supported_color_modes({light::ColorMode::ON_OFF});
   return traits;
 }
 
-void HoermannLight::setup() {
+void HoermannHcpLight::setup() {
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
-void HoermannLight::write_state(light::LightState *state) {
+void HoermannHcpLight::write_state(light::LightState *state) {
   this->light_state_ = state;
   bool binary;
   state->current_values_as_binary(&binary);
@@ -20,7 +20,7 @@ void HoermannLight::write_state(light::LightState *state) {
   this->parent_->turn_light(binary);
 }
 
-void HoermannLight::update_from_state_() {
+void HoermannHcpLight::update_from_state_() {
   if (this->light_state_ == nullptr || !this->parent_->is_valid())
     return;
   bool light_on = this->parent_->is_light_on();
@@ -32,4 +32,4 @@ void HoermannLight::update_from_state_() {
   }
 }
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp
