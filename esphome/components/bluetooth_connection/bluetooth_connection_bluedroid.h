@@ -11,7 +11,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -40,7 +40,6 @@ class BluedroidTrackerShim final : public esp32_ble_tracker::ESPBTClient {
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 
   void schedule_disconnect() { this->want_disconnect_ = true; }
-  bool disconnect_scheduled() const { return this->want_disconnect_; }
 
  protected:
   BluedroidGattClient *engine_;
@@ -71,7 +70,7 @@ class BluedroidGattClient final : public Component {
   void release_services();
 
   void set_connection_type(esp32_ble_tracker::ConnectionType ct) { this->connection_type_ = ct; }
-  bool disconnect_pending() const { return this->shim_.disconnect_scheduled(); }
+  bool disconnect_pending() const { return this->shim_.disconnect_pending(); }
   void cancel_pending_disconnect() { this->shim_.cancel_pending_disconnect(); }
 
  protected:
@@ -81,7 +80,6 @@ class BluedroidGattClient final : public Component {
   void set_state_(esp32_ble_tracker::ClientState st) { this->shim_.set_state(st); }
   bool check_addr_(const esp_bd_addr_t &addr) const;
   void tracker_connect_();
-  void tracker_disconnect_() { this->disconnect(); }
   bool handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
   void handle_gap_event_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
@@ -105,25 +103,22 @@ class BluedroidGattClient final : public Component {
   uint8_t *arena_{nullptr};
   ble_device_base::GattServiceTable table_{};
 
-  // Group 2: 8-byte types
-  uint64_t address_{0};
-
-  // Group 3: 4-byte types
+  // Group 2: 4-byte types
   int gattc_if_{ESP_GATT_IF_NONE};
   uint32_t disconnecting_started_{0};
 
-  // Group 4: arrays
+  // Group 3: arrays
   esp_bd_addr_t remote_bda_{};
 
-  // Group 5: 2-byte types
-  uint16_t conn_id_;
+  // Group 4: 2-byte types
+  uint16_t conn_id_{0xFFFF};
   uint16_t mtu_{23};
 
-  // Group 6: 1-byte types
-  esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
+  // Group 5: 1-byte types
+  // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.
+  uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
   uint8_t connection_index_;
-  uint8_t service_count_{0};
   // Set only when release_services() cleans the stack's GATT cache, which no
   // walk may then touch (Bluedroid asserts rather than erroring).
   bool services_released_{false};
@@ -134,4 +129,4 @@ class BluedroidGattClient final : public Component {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_ESP32 && USE_BLE_GATT_CLIENT
+#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT
