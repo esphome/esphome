@@ -41,6 +41,14 @@ void BK72xxBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // BLE task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
+  // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
+  // devices are logged only on one-shot scans (continuous would spam).
+  this->merger_.set_sink({this, [](void *self, const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
+                                   uint8_t data_len, bool raw_only) {
+                            auto *tracker = static_cast<BK72xxBLETracker *>(self);
+                            tracker->dispatcher_.dispatch(mac, rssi, addr_type, data, data_len, raw_only,
+                                                          tracker->scan_continuous_ ? nullptr : TAG);
+                          }});
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — on the single-core BK72xx the
   // BLE scan competes with the OTA flash writes. Mirrors esp32_ble_tracker.
@@ -78,6 +86,11 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
 
 void BK72xxBLETracker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+
+  // Deliver held scannable advertisements whose scan response never arrived —
+  // unmerged after the merger's timeout.
+  if (!this->merger_.empty())
+    this->merger_.sweep(now);
 
   // The controller self-completes deferred work; a terminal failure while we
   // report running is recovered through the normal retry path.
@@ -190,31 +203,33 @@ void BK72xxBLETracker::dump_config() {
 // listener dispatch run in main-loop context with no cross-task handling here.
 // ---------------------------------------------------------------------------
 
-void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
-  // Raw callback (the raw-advertisement path).
-  if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(report.mac),
-                                                .data = report.data,
-                                                .data_len = report.data_len,
-                                                .rssi = report.rssi,
-                                                .addr_type = report.addr_type};
-    this->raw_advertisement_callback_.invoke(adv);
-  }
+// GAPM report info byte (BLEScanReport::evt_type): bits 0-2 report type,
+// bit 5 scannable advertisement. Verified against both BDK stacks (5.1 and
+// 5.2 fill it from gapm_ext_adv_report_ind.info).
+static constexpr uint8_t GAPM_REPORT_TYPE_MASK = 0x07;
+static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_EXT = 2;
+static constexpr uint8_t GAPM_REPORT_TYPE_SCAN_RSP_LEG = 3;
+static constexpr uint8_t GAPM_REPORT_INFO_SCAN_ADV_BIT = 1 << 5;
 
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  ble_device_base::ESPBTDevice device;
-  device.from_scan_result(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
-  bool found = false;
-  for (auto *listener : this->listeners_) {
-    if (listener->parse_device(device)) {
-      found = true;
-    }
+// Demux advertisements vs scan responses into the shared merger: the BDK
+// delivers the pair as separate reports; a scannable advertisement is held
+// until its scan response arrives and delivered as one merged frame.
+void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
+  const uint8_t rtype = report.evt_type & GAPM_REPORT_TYPE_MASK;
+  if (rtype == GAPM_REPORT_TYPE_SCAN_RSP_LEG || rtype == GAPM_REPORT_TYPE_SCAN_RSP_EXT) {
+    this->merger_.submit_scan_rsp(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
+    return;
   }
-  // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
-  // it and the scan is one-shot (continuous scans would spam).
-  if (!found && !this->scan_continuous_)
-    this->discovered_log_.log_device(TAG, device);
-#endif  // ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  // Stash only while an active scan runs: a passive scan never gets a
+  // response, and after a stop nothing would sweep the merger, so a late
+  // report would surface minutes later as a fresh advertisement.
+  if (this->scan_running_ && this->scan_active_ && (report.evt_type & GAPM_REPORT_INFO_SCAN_ADV_BIT)) {
+    this->merger_.stash_adv(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
+                            App.get_loop_component_start_time());
+    return;
+  }
+  this->dispatcher_.dispatch(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
+                             /*raw_only=*/false, this->scan_continuous_ ? nullptr : TAG);
 }
 
 // ---------------------------------------------------------------------------
@@ -319,11 +334,10 @@ void BK72xxBLETracker::mark_scan_ended_(uint32_t now) {
 }
 
 void BK72xxBLETracker::fire_scan_end_() {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  for (auto *listener : this->listeners_)
-    listener->on_scan_end();
-  this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
-#endif
+  // Deliver held advertisements whose scan response never came (unmerged)
+  // BEFORE on_scan_end fires.
+  this->merger_.flush();
+  this->dispatcher_.on_scan_end();
 }
 
 bool BK72xxBLETracker::request_scan_mode(bool active) {

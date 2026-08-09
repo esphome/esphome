@@ -105,12 +105,12 @@ static void ble_notice_callback(ble_notice_t notice, void *param) {
   const recv_adv_t *info = reinterpret_cast<const recv_adv_t *>(param);
   // rssi is a signed dBm carried in a uint8_t; cast through int8_t (standard for
   // a signed dBm value packed in a uint8_t).
-  s_ble->enqueue_scan_report(info->adv_addr, static_cast<int8_t>(info->rssi), info->adv_addr_type, info->data,
-                             info->data_len);
+  s_ble->enqueue_scan_report(info->adv_addr, static_cast<int8_t>(info->rssi), info->adv_addr_type,
+                             static_cast<uint8_t>(info->evt_type), info->data, info->data_len);
 }
 
-void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                    uint16_t data_len) {
+void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, uint8_t evt_type,
+                                    const uint8_t *data, uint16_t data_len) {
   BLEScanReport *report = this->report_pool_.allocate();
   if (report == nullptr) {
     // Pool exhausted — the queue is full; count and drop.
@@ -120,6 +120,7 @@ void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t add
   memcpy(report->mac, mac, 6);
   report->rssi = rssi;
   report->addr_type = addr_type;
+  report->evt_type = evt_type;
   report->data_len =
       (data_len <= sizeof(report->data)) ? static_cast<uint8_t>(data_len) : static_cast<uint8_t>(sizeof(report->data));
   memcpy(report->data, data, report->data_len);

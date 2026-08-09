@@ -43,6 +43,10 @@ struct BLEScanReport {
   uint8_t mac[6];  // LSB-first, as the controller delivers it
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
+  // GAPM report info byte (recv_adv_t.evt_type): bits 0-2 report type
+  // (1 = legacy adv, 3 = legacy scan response), bit 5 scannable — lets the
+  // tracker's merger tell the two frames apart.
+  uint8_t evt_type;
   uint8_t data_len;  // bytes valid in data[]
   uint8_t data[62];  // legacy advertisement (31) + scan response (31)
 
@@ -104,7 +108,8 @@ class BK72xxBLE final : public Component {
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
   /// context — bounded copy under the scheduler lock, nothing else).
-  void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len);
+  void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, uint8_t evt_type, const uint8_t *data,
+                           uint16_t data_len);
 
  protected:
   void resolve_mac_();

@@ -30,6 +30,7 @@
 #include "esphome/components/bk72xx_ble/bk72xx_ble.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
+#include "esphome/components/ble_device_base/scan_response_merger.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -100,18 +101,17 @@ class BK72xxBLETracker : public Component,
 
   // ---- ble_device_base::BLEHub contract ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    this->listeners_.push_back(listener);
-#endif
+    this->dispatcher_.register_listener(listener);
   }
   void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
-    this->raw_advertisement_callback_ = callback;
+    this->dispatcher_.set_raw_advertisement_callback(callback);
   }
   static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // Active scanning is driven through bk72xx_ble's reconciler because the BDK
-    // API itself is passive-only. Scan responses still arrive as separate
-    // reports, never merged. No GATT client.
-    return {.active_scan = true, .merges_scan_response = false, .gatt = false, .scan_mode_switch = true};
+    // API itself is passive-only. The controller delivers scan responses as
+    // separate reports; this tracker merges the pair before delivery (shared
+    // ScanResponseMerger, Bluedroid semantics). No GATT client.
+    return {.active_scan = true, .merges_scan_response = true, .gatt = false, .scan_mode_switch = true};
   }
   bool request_scan_mode(bool active);
   // The controller stores the address LSB-first (BLE convention); the contract
@@ -167,19 +167,12 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_period_start_{0};        // loop-clock start of the scan period; rate-limits on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Parsed-advertisement consumers registered through ble_device_base.
-  // Codegen-sized: no heap allocation, no std::vector template instantiations.
-  StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-#endif
-
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
-  // in ble_device_base, identical output on every tracker backend. Guarded like
-  // its only writer so a no-listener build does not carry an unused vector.
-  ble_device_base::DiscoveredDeviceLog discovered_log_{};
-#endif
+  // Shared adv + scan-response merge and frame dispatch (ble_device_base).
+  // All calls run on the main task (the controller queue already crossed
+  // tasks); the merger is clocked by App.get_loop_component_start_time()
+  // throughout this tracker.
+  ble_device_base::ScanResponseMerger merger_;
+  ble_device_base::AdvDispatcher dispatcher_;
 };
 
 }  // namespace esphome::bk72xx_ble_tracker
