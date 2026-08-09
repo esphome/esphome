@@ -25,7 +25,7 @@ namespace esphome::radon_eye_rd200 {
 
 class RadonEyeRD200 final : public PollingComponent {
  public:
-  RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address) : address_(address), backend_(backend) {
+  RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address) : backend_(backend), address_(address) {
     backend->set_sink(ble_device_base::make_gatt_sink(this));
   }
 
@@ -47,15 +47,15 @@ class RadonEyeRD200 final : public PollingComponent {
  protected:
   bool resolve_handles_();
   void read_sensors_(const uint8_t *value, uint16_t value_len);
-  void abort_connection_();
 
-  // Group 1: 8-byte types
-  uint64_t address_;
-
-  // Group 2: pointers
+  // Group 1: pointers first - PollingComponent's size is 4 mod 8, so three
+  // pointers bring the 8-byte address to a naturally aligned offset.
   ble_device_base::BLEGattConnection *backend_;
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};
+
+  // Group 2: 8-byte types
+  uint64_t address_;
 
   // Group 3: 2-byte types
   uint16_t read_handle_{0};
@@ -64,9 +64,6 @@ class RadonEyeRD200 final : public PollingComponent {
 
   // Group 4: 1-byte types
   uint8_t write_command_{0};
-  // A connect was accepted and the link is not torn down yet; cleared by
-  // on_connection_state(false).
-  bool busy_{false};
 };
 
 }  // namespace esphome::radon_eye_rd200

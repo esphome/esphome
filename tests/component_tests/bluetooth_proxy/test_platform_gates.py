@@ -177,7 +177,7 @@ def test_rp2_rejects_esp32_only_keys_by_name(
         bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
 
 
-def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
+def test_bluetooth_connection_auto_load_matches_the_platform_stack() -> None:
     # The backend registers with its platform BLE stack, so that dependency
     # lives here and consumers (proxy, radon_eye_rd200) stay platform-blind;
     # the platform-less arm is the union for manifest-resolving tooling.

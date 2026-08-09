@@ -1,6 +1,5 @@
 #include "bluetooth_connection_rp2.h"
 
-#include "bluetooth_connection_hub.h"
 #include "bluetooth_connection.h"
 
 #if defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
@@ -621,8 +620,7 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
             this->op_len_ > 0) {
           att_status = 0;
         }
-        this->sink_.on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
-                                        att_status);
+        this->sink_.on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0, att_status);
         break;
       case OpType::WRITE_CHAR:
       case OpType::WRITE_DESC:

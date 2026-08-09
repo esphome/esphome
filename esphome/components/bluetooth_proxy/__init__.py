@@ -84,17 +84,7 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    CONNECTION_SCHEMA = (
-        bluetooth_connection.gatt_client_schema()
-        .extend(
-            {
-                cv.GenerateID(): cv.declare_id(
-                    bluetooth_connection.HubBluetoothConnection
-                )
-            }
-        )
-        .extend(cv.COMPONENT_SCHEMA)
-    )
+    CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema()
 
     def validate_connections(config):
         if CONF_CONNECTIONS in config:
@@ -157,15 +147,15 @@ def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
     GATT client backend in bluetooth_connection. The slot limit comes from the
     prebuilt BTstack library (one connection today); the code is built for N."""
-    connection_schema = bluetooth_connection.gatt_client_schema().extend(
-        {cv.GenerateID(): cv.declare_id(bluetooth_connection.HubBluetoothConnection)}
-    )
+    connection_schema = bluetooth_connection.hub_connection_schema()
 
     def populate_connections(config: ConfigType) -> ConfigType:
         # One wrapper + backend pair per slot, declared during validation so
         # their ids exist for codegen (the esp32 arm's `connections` pattern).
         if not config[CONF_ACTIVE]:
             return config
+        for _ in range(config[CONF_CONNECTION_SLOTS]):
+            bluetooth_connection.consume_gatt_slot("bluetooth_proxy")(config)
         return {
             **config,
             CONF_CONNECTIONS: [

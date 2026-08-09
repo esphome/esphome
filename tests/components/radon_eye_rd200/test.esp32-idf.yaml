@@ -1,3 +1,4 @@
+# The tracker and the Bluedroid backend are auto-loaded through
+# bluetooth_connection; no bus package or hub config is needed.
 packages:
-  ble: !include ../../test_build_components/common/ble/esp32-idf.yaml
   radon_eye_rd200: !include common.yaml

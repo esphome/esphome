@@ -13,6 +13,8 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
@@ -23,7 +25,7 @@
 namespace esphome::bluetooth_connection {
 
 class BluedroidGattClient;
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 class BluetoothConnection;
 #endif
 
@@ -77,7 +79,7 @@ class BluedroidGattClient final : public Component {
   ble_device_base::GattServiceTable get_service_table();
   void release_services();
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   /// In-place service streamer (the proxy wrapper detects and prefers it):
   /// builds one api response batch directly from Bluedroid's cached database,
   /// so the streaming peak is the response itself - the old esp32 model.
@@ -108,6 +110,8 @@ class BluedroidGattClient final : public Component {
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
   void log_gattc_warning_(const char *operation, int code);
+  template<typename ServiceFn, typename CharFn, typename DescFn>
+  bool walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc);
   bool build_service_table_();
   void free_service_table_();
   ble_device_base::GattServiceTable table_view_() const;

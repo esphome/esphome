@@ -2,10 +2,11 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+
 // The in-place streamer serves the proxy's service-discovery API; backend-only
 // builds compile without the proxy headers or the streamer.
-#ifdef USE_BLUETOOTH_PROXY
-#include "bluetooth_connection.h"
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 #include "bluetooth_connection_hub.h"
 
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -273,17 +274,19 @@ void BluedroidGattClient::free_service_table_() {
   this->table_desc_total_ = 0;
 }
 
-bool BluedroidGattClient::build_service_table_() {
-  // Pass 1: count characteristics and descriptors so one exact-size block
-  // holds the whole table (descriptor counts need the characteristic handles,
-  // so this pass already enumerates characteristics).
-  uint16_t char_total = 0;
-  uint16_t desc_total = 0;
+template<typename ServiceFn, typename CharFn, typename DescFn>
+bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc) {
+  // Shared enumeration for both table-build passes: an identical walk order
+  // is what lets the counting pass size the block the filling pass fills.
+  // INVALID_OFFSET/NOT_FOUND mean end-of-range; anything else is a failure.
   for (uint16_t s = 0; s < this->service_total_; s++) {
     esp_gattc_service_elem_t svc;
     uint16_t svc_count = 1;
     if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
         svc_count == 0) {
+      return false;
+    }
+    if (!on_service(s, svc)) {
       return false;
     }
     uint16_t svc_chars = 0;
@@ -302,12 +305,44 @@ bool BluedroidGattClient::build_service_table_() {
       if (status != ESP_GATT_OK || char_count == 0) {
         return false;
       }
-      char_total++;
-      uint16_t chr_descs = 0;
-      esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, chr.char_handle,
-                                   &chr_descs);
-      desc_total += chr_descs;
+      if (!on_char(svc, chr)) {
+        return false;
+      }
+      for (uint16_t d = 0;; d++) {
+        esp_gattc_descr_elem_t desc;
+        uint16_t desc_count = 1;
+        auto desc_status =
+            esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, chr.char_handle, &desc, &desc_count, d);
+        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (desc_status != ESP_GATT_OK || desc_count == 0) {
+          return false;
+        }
+        if (!on_desc(chr, desc)) {
+          return false;
+        }
+      }
     }
+  }
+  return true;
+}
+
+bool BluedroidGattClient::build_service_table_() {
+  // Pass 1: count, so one exact-size block holds the whole table.
+  uint16_t char_total = 0;
+  uint16_t desc_total = 0;
+  bool counted = this->walk_database_([](uint16_t, const esp_gattc_service_elem_t &) { return true; },
+                                      [&](const esp_gattc_service_elem_t &, const esp_gattc_char_elem_t &) {
+                                        char_total++;
+                                        return true;
+                                      },
+                                      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &) {
+                                        desc_total++;
+                                        return true;
+                                      });
+  if (!counted) {
+    return false;
   }
 
   // The arrays share one block; carving stays aligned because each struct's
@@ -327,74 +362,55 @@ bool BluedroidGattClient::build_service_table_() {
   auto *descriptors =
       reinterpret_cast<ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes);
 
-  // Pass 2: fill. Every write is bounded by the pass-1 totals, so a
-  // misbehaving peripheral returning extra entries cannot overrun the block.
+  // Pass 2: fill, bounded by the pass-1 totals. A bound trip or a shortfall
+  // means the cached database changed between the passes; fail the build
+  // rather than serve an inconsistent table (the consumer retries).
   uint16_t char_index = 0;
   uint16_t desc_index = 0;
-  for (uint16_t s = 0; s < this->service_total_; s++) {
-    esp_gattc_service_elem_t svc;
-    uint16_t svc_count = 1;
-    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
-        svc_count == 0) {
-      this->free_service_table_();
-      return false;
-    }
-    auto &service = services[s];
-    service.uuid = ble_device_base::ESPBTUUID::from_uuid(svc.uuid);
-    service.start_handle = svc.start_handle;
-    service.end_handle = svc.end_handle;
-    service.first_characteristic = char_index;
-    for (uint16_t c = 0; char_index < char_total; c++) {
-      esp_gattc_char_elem_t chr;
-      uint16_t char_count = 1;
-      auto status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
-                                               &char_count, c);
-      if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
-        break;
-      }
-      if (status != ESP_GATT_OK || char_count == 0) {
-        this->free_service_table_();
-        return false;
-      }
-      auto &characteristic = characteristics[char_index];
-      characteristic.uuid = ble_device_base::ESPBTUUID::from_uuid(chr.uuid);
-      characteristic.value_handle = chr.char_handle;
-      // Bluedroid addresses descriptors by characteristic handle, so the
-      // table's end_handle only needs the service-bounded upper bound.
-      characteristic.end_handle = svc.end_handle;
-      characteristic.properties = chr.properties;
-      characteristic.first_descriptor = desc_index;
-      uint16_t chr_descs = 0;
-      esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, chr.char_handle,
-                                   &chr_descs);
-      for (uint16_t d = 0; d < chr_descs && desc_index < desc_total; d++) {
-        esp_gattc_descr_elem_t desc;
-        uint16_t desc_count = 1;
-        auto desc_status =
-            esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, chr.char_handle, &desc, &desc_count, d);
-        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-          break;
+  ble_device_base::GattService *cur_service = nullptr;
+  ble_device_base::GattCharacteristic *cur_char = nullptr;
+  bool filled = this->walk_database_(
+      [&](uint16_t s, const esp_gattc_service_elem_t &svc) {
+        cur_service = &services[s];
+        cur_service->uuid = ble_device_base::ESPBTUUID::from_uuid(svc.uuid);
+        cur_service->start_handle = svc.start_handle;
+        cur_service->end_handle = svc.end_handle;
+        cur_service->first_characteristic = char_index;
+        cur_service->characteristic_count = 0;
+        return true;
+      },
+      [&](const esp_gattc_service_elem_t &svc, const esp_gattc_char_elem_t &chr) {
+        if (char_index >= char_total) {
+          return false;
         }
-        if (desc_status != ESP_GATT_OK || desc_count == 0) {
-          this->free_service_table_();
+        cur_char = &characteristics[char_index++];
+        cur_char->uuid = ble_device_base::ESPBTUUID::from_uuid(chr.uuid);
+        cur_char->value_handle = chr.char_handle;
+        // Bluedroid addresses descriptors by characteristic handle, so the
+        // table's end_handle only needs the service-bounded upper bound.
+        cur_char->end_handle = svc.end_handle;
+        cur_char->properties = chr.properties;
+        cur_char->first_descriptor = desc_index;
+        cur_char->descriptor_count = 0;
+        cur_service->characteristic_count++;
+        return true;
+      },
+      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &desc) {
+        if (desc_index >= desc_total) {
           return false;
         }
         descriptors[desc_index].uuid = ble_device_base::ESPBTUUID::from_uuid(desc.uuid);
         descriptors[desc_index].handle = desc.handle;
         desc_index++;
-      }
-      characteristic.descriptor_count = desc_index - characteristic.first_descriptor;
-      char_index++;
-    }
-    service.characteristic_count = char_index - service.first_characteristic;
+        cur_char->descriptor_count++;
+        return true;
+      });
+  if (!filled || char_index != char_total || desc_index != desc_total) {
+    this->free_service_table_();
+    return false;
   }
-  if (char_index < char_total) {
-    // Fewer characteristics enumerated than counted: close the gap so the
-    // view's descriptor offset can be derived from the filled count alone.
-    memmove(characteristics + char_index, descriptors, desc_index * sizeof(ble_device_base::GattDescriptor));
-  }
-  this->table_char_total_ = char_index;
-  this->table_desc_total_ = desc_index;
+  this->table_char_total_ = char_total;
+  this->table_desc_total_ = desc_total;
   return true;
 }
 
@@ -459,16 +475,14 @@ void BluedroidGattClient::handle_search_cmpl_() {
     // clients cache the streamed result permanently.
     auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
     this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
-    if (this->listener_ != nullptr) {
-      this->listener_->on_service_discovery_done(status);
-    }
+    this->sink_.on_service_discovery_done(status);
     return;
   }
   this->service_total_ = primary + secondary;
   this->sink_.on_service_discovery_done(0);
 }
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_ || conn.send_service_ >= this->service_total_) {
     conn.send_service_ = DONE_SENDING_SERVICES;
@@ -607,7 +621,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     conn.send_service_ = batch_start;
   }
 }
-#endif  // USE_BLUETOOTH_PROXY
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 // ---- events ----
 
