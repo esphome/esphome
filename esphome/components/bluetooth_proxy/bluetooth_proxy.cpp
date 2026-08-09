@@ -647,7 +647,8 @@ void BluetoothProxy::send_connections_free() {
 }
 
 void BluetoothProxy::send_connections_free(api::APIConnection *api_connection) {
-  if (!api_connection->send_message(this->connections_free_response_)) {
+  // Latch only for the current subscriber: loop() resends to api_connection_.
+  if (!api_connection->send_message(this->connections_free_response_) && api_connection == this->api_connection_) {
     // V like the api layer's own buffer-full log: a D would ride the same
     // full connection.
     ESP_LOGV(TAG, "Connections-free update deferred, TCP buffer full");
