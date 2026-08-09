@@ -86,7 +86,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void tracker_connect_();
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param);
-  void handle_search_cmpl_();
+  int handle_search_cmpl_();
+  bool deliver_pending_search_();
   void unconditional_disconnect_();
   void set_idle_();
   void set_disconnecting_();
@@ -132,10 +133,20 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   uint8_t connection_index_;
   // Terminates an in-flight stream (never send a partial list as authoritative)
   // and marks a cleaned cache unsafe to walk (Bluedroid asserts).
-  bool services_released_{false};
+  bool services_released_ : 1 {false};
   // The connected report waits for the MTU exchange; OPEN_EVT alone would
   // hand HA the default 23.
-  bool seen_mtu_{false};
+  bool seen_mtu_ : 1 {false};
+  // Pre-started discovery latch: the search is issued at OPEN_EVT so it
+  // overlaps the MTU exchange (the replaced class's timing) and the
+  // consumer's discover_services() completes from it instead of paying a
+  // serialized ATT round trip. requested/done meet in
+  // deliver_pending_search_().
+  bool search_prestarted_ : 1 {false};
+  bool search_done_ : 1 {false};
+  bool search_requested_ : 1 {false};
+  // esp_gatt_status_t of the completed search, held until requested.
+  uint8_t search_status_{0};
 };
 
 }  // namespace esphome::bluetooth_connection

@@ -65,10 +65,18 @@ void BluedroidGattClient::loop() {
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
     this->set_state(ClientState::IDLE);
   } else if (st == ClientState::IDLE) {
-    // The loop only drives the bootstrap and the disconnect safety timeout.
+    // The loop only drives the bootstrap, the disconnect safety timeout and
+    // the pre-started-search flush.
     this->disable_loop();
-  } else if (st == ClientState::DISCONNECTING &&
-             millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
+  } else if (st != ClientState::DISCONNECTING) {
+    // Only the pre-started-search flush can need the loop here (a consumer
+    // requesting the finished search outside an event drain). Settle again -
+    // unless delivering it just started a teardown that needs the timer.
+    this->deliver_pending_search_();
+    if (this->state() != ClientState::DISCONNECTING) {
+      this->disable_loop();
+    }
+  } else if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
     ESP_LOGE(TAG, "[%d] Timeout waiting for CLOSE_EVT, forcing IDLE", this->connection_index_);
     // Release before idling: unconditional disconnect does not release, and a
     // lost CLOSE/DISCONNECT would otherwise leak the table and the cache.
@@ -177,8 +185,22 @@ int BluedroidGattClient::discover_services() {
   if (this->conn_id_ == UNSET_CONN_ID) {
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
-  return this->check_and_log_error_("esp_ble_gattc_search_service",
-                                    esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr));
+  this->search_requested_ = true;
+  if (this->search_prestarted_) {
+    // Completion comes from the pre-started search: the pending SEARCH_CMPL,
+    // or - when it already landed - the flush after the connected report
+    // (loop() covers a request made outside that event drain).
+    if (this->search_done_) {
+      this->enable_loop();
+    }
+    return 0;
+  }
+  int err = this->check_and_log_error_("esp_ble_gattc_search_service",
+                                       esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr));
+  if (err != 0) {
+    this->search_requested_ = false;
+  }
+  return err;
 }
 
 int BluedroidGattClient::read_characteristic(uint16_t handle) {
@@ -420,6 +442,10 @@ bool BluedroidGattClient::check_addr_(const esp_bd_addr_t &addr) const {
 void BluedroidGattClient::set_idle_() {
   this->set_state(ClientState::IDLE);
   this->conn_id_ = UNSET_CONN_ID;
+  this->search_prestarted_ = false;
+  this->search_done_ = false;
+  this->search_requested_ = false;
+  this->search_status_ = 0;
 }
 
 void BluedroidGattClient::set_disconnecting_() {
@@ -454,7 +480,12 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 
 // ---- service streaming ----
 
-void BluedroidGattClient::handle_search_cmpl_() {
+int BluedroidGattClient::handle_search_cmpl_() {
+#ifdef USE_BLE_GATT_SERVICE_TABLE
+  // A completed re-discovery moves the counts table_view_() derives its
+  // offsets from; a table built from the old ones must not survive it.
+  this->free_service_table_();
+#endif
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   uint16_t primary = 0;
@@ -467,11 +498,20 @@ void BluedroidGattClient::handle_search_cmpl_() {
     // A failed count must not become an authoritative empty database.
     auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
     this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
-    this->listener_->on_service_discovery_done(status);
-    return;
+    return status;
   }
   this->service_total_ = primary + secondary;
-  this->listener_->on_service_discovery_done(0);
+  return 0;
+}
+
+// Reports a completed search once its consumer has asked for it; the
+// pre-started search must stay silent until then.
+bool BluedroidGattClient::deliver_pending_search_() {
+  if (!this->search_requested_ || !this->search_done_)
+    return false;
+  this->search_requested_ = false;
+  this->listener_->on_service_discovery_done(this->search_status_);
+  return true;
 }
 
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
@@ -509,11 +549,13 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   while (conn.send_service_ < this->service_total_) {
     esp_gattc_service_elem_t service_result;
     uint16_t svc_count = 1;
-    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &service_result, &svc_count,
-                                  conn.send_service_) != ESP_GATT_OK ||
-        svc_count == 0) {
+    esp_gatt_status_t svc_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &service_result,
+                                                             &svc_count, conn.send_service_);
+    if (svc_status != ESP_GATT_OK || svc_count == 0) {
       ESP_LOGE(TAG, "[%d] [%s] Service walk failed (service %d), aborting stream", conn.connection_index_,
                conn.address_str_, conn.send_service_);
+      // Latch the real cause for the disconnect report.
+      conn.pending_error_ = svc_status != ESP_GATT_OK ? svc_status : ESP_GATT_NOT_FOUND;
       conn.send_service_ = DONE_SENDING_SERVICES;
       conn.disconnect();
       return;
@@ -524,6 +566,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
                                      service_result.start_handle, service_result.end_handle, 0, &total_char_count);
     if (char_count_status != ESP_GATT_OK) {
       this->log_gattc_warning_("esp_ble_gattc_get_attr_count", char_count_status);
+      conn.pending_error_ = char_count_status;
       conn.send_service_ = DONE_SENDING_SERVICES;
       conn.disconnect();
       return;
@@ -557,6 +600,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         if (char_status != ESP_GATT_OK || cc == 0) {
           if (char_status != ESP_GATT_OK) {
             this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
+            conn.pending_error_ = char_status;
             conn.send_service_ = DONE_SENDING_SERVICES;
             conn.disconnect();
             return;
@@ -577,6 +621,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
           // Abort rather than stream the characteristic descriptor-less: a
           // missing CCCD in a cached database breaks notifications for good.
           this->log_gattc_warning_("esp_ble_gattc_get_attr_count", desc_count_status);
+          conn.pending_error_ = desc_count_status;
           conn.send_service_ = DONE_SENDING_SERVICES;
           conn.disconnect();
           return;
@@ -595,6 +640,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             if (desc_status != ESP_GATT_OK || dc == 0) {
               if (desc_status != ESP_GATT_OK) {
                 this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
+                conn.pending_error_ = desc_status;
                 conn.send_service_ = DONE_SENDING_SERVICES;
                 conn.disconnect();
                 return;
@@ -667,6 +713,16 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
       // Settled; set_disconnecting_() re-enables the loop for the net.
       this->disable_loop();
     }
+  } else {
+    // Discovery-bound connection: start the search now so it overlaps the
+    // MTU exchange. On a refusal fall back to the serialized path - the
+    // consumer's own discover_services() call retries the real search.
+    auto ret = esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr);
+    if (ret == ESP_OK) {
+      this->search_prestarted_ = true;
+    } else {
+      this->log_gattc_warning_("esp_ble_gattc_search_service", ret);
+    }
   }
 }
 
@@ -734,6 +790,9 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         // The connected report waited for the MTU; forwarded, not stored.
         this->listener_->on_connection_state(
             true, param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : ble_device_base::DEFAULT_ATT_MTU, 0);
+        // The consumer requests discovery from inside that report; when the
+        // pre-started search already finished, complete it in the same drain.
+        this->deliver_pending_search_();
       }
       break;
     }
@@ -757,8 +816,15 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       if (this->conn_id_ != param->search_cmpl.conn_id)
         return false;
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
+      this->search_done_ = true;
+      this->search_status_ = this->handle_search_cmpl_();
+      if (this->state() == ClientState::DISCONNECTING) {
+        // Teardown already owns the link: keep its state and safety timer;
+        // the terminal connected=false report settles the consumer.
+        break;
+      }
       this->set_state(ClientState::ESTABLISHED);
-      this->handle_search_cmpl_();
+      this->deliver_pending_search_();
       if (this->state() != ClientState::DISCONNECTING) {
         // Settled; a failed count started a teardown that needs the loop.
         this->disable_loop();
