@@ -54,10 +54,7 @@ void BluedroidGattClient::loop() {
     // frees its slot, then re-register the app on the next enable.
     auto down_st = this->state();
     if (down_st != ClientState::IDLE && down_st != ClientState::INIT) {
-      // The dying stack invalidates its own cache; a cache_clean would just
-      // warn against a disabled stack. Reset the stream latches directly.
-      this->service_total_ = 0;
-      this->services_released_ = true;
+      this->release_services();
       this->set_idle_();
       this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
     }
@@ -313,8 +310,11 @@ void BluedroidGattClient::release_services() {
   this->services_released_ = true;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // A failed clean leaves a stale database the next connection could serve
-  // as authoritative; make it visible like every other IDF call here.
-  this->check_and_log_error_("esp_ble_gattc_cache_clean", esp_ble_gattc_cache_clean(this->remote_bda_));
+  // as authoritative. A disabled stack invalidates its own cache; skip the
+  // meaningless call instead of warning on every OTA/ble.disable teardown.
+  if (esp32_ble::global_ble->is_active()) {
+    this->check_and_log_error_("esp_ble_gattc_cache_clean", esp_ble_gattc_cache_clean(this->remote_bda_));
+  }
 #endif
 }
 
