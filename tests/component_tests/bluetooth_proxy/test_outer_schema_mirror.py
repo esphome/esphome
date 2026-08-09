@@ -14,6 +14,17 @@ import voluptuous as vol
 
 from esphome import config_validation as cv
 from esphome.components.bluetooth_proxy import CONFIG_SCHEMA, _esp32_config_schema
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP32
+from esphome.core import CORE
+
+
+def _esp32_schema_keys() -> dict[str, object]:
+    # The builder resolves the backend schema through the platform-dispatched
+    # bluetooth_connection.gatt_client_schema(), so the platform must be set
+    # (conftest's autouse reset restores CORE after each test).
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP32
+    return _keys(_schema_of(_esp32_config_schema()))
+
 
 # esp32-schema keys with no place in the outer schema: COMPONENT_SCHEMA
 # plumbing (derived, so a future core key does not fail this component's test),
@@ -38,7 +49,7 @@ def _keys(schema: vol.Schema) -> dict[str, object]:
 
 def test_outer_scalar_keys_exist_in_esp32_schema() -> None:
     outer = _keys(_schema_of(CONFIG_SCHEMA))
-    esp32 = _keys(_schema_of(_esp32_config_schema()))
+    esp32 = _esp32_schema_keys()
     missing = set(outer) - set(esp32)
     assert not missing, (
         f"outer CONFIG_SCHEMA declares {sorted(missing)} which the esp32 schema "
@@ -51,7 +62,7 @@ def test_esp32_scalars_all_walkable() -> None:
     """Every non-generated esp32 scalar option must appear in the outer schema
     (connections is deliberately excluded — it must validate exactly once)."""
     outer = _keys(_schema_of(CONFIG_SCHEMA))
-    esp32 = _keys(_schema_of(_esp32_config_schema()))
+    esp32 = _esp32_schema_keys()
     scalar = {
         name
         for name, key in esp32.items()

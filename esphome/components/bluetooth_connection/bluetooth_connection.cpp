@@ -1,5 +1,10 @@
 #include "bluetooth_connection.h"
 
+#ifdef USE_ESP32
+#include <esp_bt_device.h>
+#include <esp_gattc_api.h>
+#endif
+
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
 #include "esphome/components/api/api_pb2.h"
@@ -36,6 +41,23 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
   send_service++;
   return BatchClose::CONTINUE;
 }
+
+#ifdef USE_ESP32
+// Address-scoped Bluedroid maintenance shared by every esp32 proxy build,
+// including advertisement-only ones where no GATT backend is compiled.
+
+conn_err_t unpair_device(uint64_t address) {
+  esp_bd_addr_t bda;
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
+  return esp_ble_remove_bond_device(bda);
+}
+
+conn_err_t clear_gatt_cache(uint64_t address) {
+  esp_bd_addr_t bda;
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
+  return esp_ble_gattc_cache_clean(bda);
+}
+#endif  // USE_ESP32
 
 }  // namespace esphome::bluetooth_connection
 

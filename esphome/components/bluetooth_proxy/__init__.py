@@ -9,12 +9,12 @@ from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
-# The esp32 BLE stack (esp32_ble, esp32_ble_client, esp32_ble_tracker) is
-# imported lazily inside _esp32_config_schema()/_to_code_esp32(): importing
-# those modules registers esp32-only automations (ble.enable, ble.disable, ...)
-# as a side effect, and a module-scope import would leak them into every
-# platform's registry the moment a config declares `bluetooth_proxy:` —
-# degrading "Unable to find action" config errors into C++ compile failures.
+# The esp32 BLE stack (esp32_ble, esp32_ble_tracker) is imported lazily
+# inside _esp32_config_schema()/_to_code_esp32(): importing those modules
+# registers esp32-only automations (ble.enable, ble.disable, ...) as a side
+# effect, and a module-scope import would leak them into every platform's
+# registry the moment a config declares `bluetooth_proxy:` — degrading
+# "Unable to find action" config errors into C++ compile failures.
 
 
 def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
@@ -58,7 +58,6 @@ _LOGGER = logging.getLogger(__name__)
 CONF_CONNECTION_SLOTS = "connection_slots"
 CONF_CACHE_SERVICES = "cache_services"
 CONF_CONNECTIONS = "connections"
-CONF_BACKEND_ID = "backend_id"
 DEFAULT_CONNECTION_SLOTS = 3
 
 bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
@@ -85,14 +84,7 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    CONNECTION_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(bluetooth_connection.HubBluetoothConnection),
-            cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(
-                bluetooth_connection.BluedroidGattClient
-            ),
-        }
-    ).extend(cv.COMPONENT_SCHEMA)
+    CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema()
 
     def validate_connections(config):
         if CONF_CONNECTIONS in config:
@@ -155,16 +147,7 @@ def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
     GATT client backend in bluetooth_connection. The slot limit comes from the
     prebuilt BTstack library (one connection today); the code is built for N."""
-    from esphome.components import rp2040_ble
-
-    connection_schema = cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(bluetooth_connection.HubBluetoothConnection),
-            cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(
-                bluetooth_connection.RP2GattClient
-            ),
-        }
-    )
+    connection_schema = bluetooth_connection.hub_connection_schema()
 
     def populate_connections(config: ConfigType) -> ConfigType:
         # One wrapper + backend pair per slot, declared during validation so
@@ -183,11 +166,6 @@ def _rp2_config_schema() -> cv.All:
         cv.Schema(
             {
                 **_COMMON_SCHEMA_KEYS,
-                # The GATT backend drives the controller directly (connect, GATT
-                # ops), not through the tracker hub.
-                cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(
-                    rp2040_ble.RP2040BLE
-                ),
                 cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
                 cv.Optional(
                     CONF_CONNECTION_SLOTS,
@@ -213,36 +191,20 @@ def _rp2_config_schema() -> cv.All:
     return cv.All(schema, populate_connections)
 
 
-async def _connections_to_code(
-    var: cg.MockObj, config: ConfigType, register_backend
-) -> None:
-    """One wrapper + backend pair per slot; register_backend supplies the
-    platform's backend registration (tracker client on esp32, controller
-    parent on rp2)."""
+async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    """One wrapper + backend pair per slot; the platform-specific backend
+    registration lives in bluetooth_connection.new_gatt_backend()."""
     for connection_conf in config.get(CONF_CONNECTIONS, []):
-        ble_device_base.request_gatt_client()
-        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
-        await cg.register_component(backend, connection_conf)
-        await register_backend(backend, connection_conf, config)
+        backend = await bluetooth_connection.new_gatt_backend(connection_conf)
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))
 
 
-async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
-    from esphome.components import rp2040_ble
-
-    async def register_backend(backend, connection_conf, config):
-        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
-
-    await _connections_to_code(var, config, register_backend)
-
-
-# Per-platform schema builders and connection codegen; every key of
-# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry in both (pinned by
-# tests/component_tests/bluetooth_proxy/).
+# Per-platform schema builders; every key of
+# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry here (pinned by
+# tests/component_tests/bluetooth_proxy/). Connection codegen is shared.
 _GATT_HUB_SCHEMAS = {PLATFORM_RP2: _rp2_config_schema}
-_GATT_HUB_TO_CODE = {PLATFORM_RP2: _rp2_connections_to_code}
 
 
 # Keys every platform arm declares identically; each arm spreads this dict so
@@ -397,13 +359,7 @@ async def _to_code_esp32(config: ConfigType) -> None:
     connection_count = len(config.get(CONF_CONNECTIONS, []))
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
 
-    async def register_backend(backend, connection_conf, _config):
-        # The tracker promote loop drives connect timing through the shim.
-        await esp32_ble_tracker.register_raw_client(
-            backend.tracker_client(), connection_conf
-        )
-
-    await _connections_to_code(var, config, register_backend)
+    await _connections_to_code(var, config)
 
     if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)
@@ -423,10 +379,7 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     # from the loop below (the define sizes fixed storage in the proxy).
     slots = len(config.get(CONF_CONNECTIONS, ()))
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", slots)
-    if not slots:
-        return
-
-    await _GATT_HUB_TO_CODE[CORE.target_platform](var, config)
+    await _connections_to_code(var, config)
 
 
 async def to_code(config: ConfigType) -> None:

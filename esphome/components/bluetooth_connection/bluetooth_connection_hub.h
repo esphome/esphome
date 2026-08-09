@@ -5,11 +5,12 @@
 
 #pragma once
 
-#include "esphome/core/defines.h"
-
-#ifdef USE_BLE_GATT_CLIENT
-
 #include "bluetooth_connection.h"
+
+// The wrapper exists to serve the proxy's API surface; direct consumers
+// drive the backend themselves, so backend-only builds compile this header
+// empty.
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "bluetooth_connection_gatt_backend.h"
@@ -51,8 +52,6 @@ class BluetoothConnection final {
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
-  bool disconnect_pending() const { return this->backend_->disconnect_pending(); }
-  void cancel_pending_disconnect() { this->backend_->cancel_pending_disconnect(); }
 
   void set_address(uint64_t address);
   uint64_t get_address() const { return this->address_; }
@@ -151,4 +150,4 @@ static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_BLE_GATT_CLIENT
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT

@@ -15,9 +15,7 @@
 
 #include "esphome/components/ble_device_base/ble_hub_impl.h"
 
-#ifdef USE_BLE_GATT_CLIENT
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
-#endif
 
 namespace esphome::bluetooth_proxy {
 
