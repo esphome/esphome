@@ -598,31 +598,22 @@ bool LD2412Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Handled set light control command");
       break;
 
-    case CMD_QUERY_MOTION_GATE_SENS: {
+    case CMD_QUERY_MOTION_GATE_SENS:
+    case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
       // buffer_pos_ counts the footer, so a frame that stops short of the full size is not a complete answer
       if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
         return false;
       }
-      for (size_t i = 0; i < this->gate_move_thresholds_.size(); i++) {
-        this->gate_move_thresholds_[i] = this->buffer_data_[ACK_PAYLOAD + i];
-        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[ACK_PAYLOAD + i]);
+      const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
+      auto &thresholds = motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+      const auto &numbers = motion ? this->gate_move_threshold_numbers_ : this->gate_still_threshold_numbers_;
+      bool &thresholds_read = motion ? this->gate_move_thresholds_read_ : this->gate_still_thresholds_read_;
+      for (size_t i = 0; i < thresholds.size(); i++) {
+        thresholds[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        set_number_value(numbers[i], this->buffer_data_[ACK_PAYLOAD + i]);
       }
-      this->gate_move_thresholds_read_ = true;
-#endif
-      break;
-    }
-
-    case CMD_QUERY_STATIC_GATE_SENS: {
-#ifdef USE_NUMBER
-      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
-        return false;
-      }
-      for (size_t i = 0; i < this->gate_still_thresholds_.size(); i++) {
-        this->gate_still_thresholds_[i] = this->buffer_data_[ACK_PAYLOAD + i];
-        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[ACK_PAYLOAD + i]);
-      }
-      this->gate_still_thresholds_read_ = true;
+      thresholds_read = true;
 #endif
       break;
     }
