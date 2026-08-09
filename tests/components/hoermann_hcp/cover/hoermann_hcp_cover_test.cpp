@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include "esphome/components/hoermann/cover/hoermann_cover.h"
+#include "esphome/components/hoermann_hcp/cover/hoermann_hcp_cover.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
 using modbus::RegisterValues;
 
@@ -21,9 +21,9 @@ RegisterValues make_registers(std::initializer_list<uint16_t> values) {
 }  // namespace
 
 // Cover::position starts at COVER_OPEN, so a door that is already closed still has a state to publish.
-TEST(HoermannCoverTest, ClosedDoorPublishesItsInitialPosition) {
-  Hoermann door;
-  HoermannCover cover(&door);
+TEST(HoermannHcpCoverTest, ClosedDoorPublishesItsInitialPosition) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
   cover.setup();
   int publishes = 0;
   cover.add_on_state_callback([&publishes]() { publishes++; });
@@ -38,9 +38,9 @@ TEST(HoermannCoverTest, ClosedDoorPublishesItsInitialPosition) {
 }
 
 // Venting and half-open moves report no direction, so one is only derived once the position has moved.
-TEST(HoermannCoverTest, DirectionlessMoveHoldsTheOperationUntilThePositionMoves) {
-  Hoermann door;
-  HoermannCover cover(&door);
+TEST(HoermannHcpCoverTest, DirectionlessMoveHoldsTheOperationUntilThePositionMoves) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
   cover.setup();
 
   // Position 100/200 = 0.5, state 0x80 -> resting half open.
@@ -62,9 +62,9 @@ TEST(HoermannCoverTest, DirectionlessMoveHoldsTheOperationUntilThePositionMoves)
 
 // Booting while the door is already mid-move gives no baseline to compare against, so no direction
 // may be inferred from the first update.
-TEST(HoermannCoverTest, FirstDirectionlessMoveDoesNotGuessADirection) {
-  Hoermann door;
-  HoermannCover cover(&door);
+TEST(HoermannHcpCoverTest, FirstDirectionlessMoveDoesNotGuessADirection) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
   cover.setup();
 
   // The very first thing seen is a half-open move already at 100/200 = 0.5.
@@ -73,4 +73,4 @@ TEST(HoermannCoverTest, FirstDirectionlessMoveDoesNotGuessADirection) {
   EXPECT_EQ(cover.current_operation, cover::COVER_OPERATION_IDLE);
 }
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp
