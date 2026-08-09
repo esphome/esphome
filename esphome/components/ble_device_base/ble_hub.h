@@ -23,8 +23,9 @@ namespace esphome::ble_device_base {
 /// One raw advertisement as delivered by the controller — a borrowed view,
 /// valid only for the duration of the invoke() callback.
 struct RawAdvertisement {
-  /// Least-significant octet first (BLE controller convention).
-  const uint8_t *mac;
+  /// Producers convert their native byte order at the emit site, so no
+  /// byte-order convention crosses this contract.
+  uint64_t address;
   const uint8_t *data;
   uint16_t data_len;
   int8_t rssi;  // signed dBm
@@ -48,6 +49,28 @@ struct RawAdvertisementCallback {
   void invoke(const RawAdvertisement &adv) const { this->fn(this->instance, adv); }
 };
 
+/// Scanner lifecycle, wire-value aligned with the api enum so consumers cast
+/// directly (pinned by static_asserts at the cast sites).
+enum class ScannerState : uint8_t {
+  IDLE = 0,
+  STARTING = 1,
+  RUNNING = 2,
+  FAILED = 3,
+  STOPPING = 4,
+  STOPPED = 5,
+};
+
+/// Subscriber slot for scanner-state transitions; same shape as
+/// RawAdvertisementCallback, delivered on the ESPHome main loop. Hubs that
+/// cannot push drop the registration and the consumer falls back to polling
+/// scan_running().
+struct ScannerStateCallback {
+  void *instance{nullptr};
+  void (*fn)(void *instance, ScannerState state){nullptr};
+  bool is_set() const { return this->fn != nullptr; }
+  void invoke(ScannerState state) const { this->fn(this->instance, state); }
+};
+
 /// What a tracker's controller/SDK can do — consumers branch on data, not #ifdefs.
 struct HubCapabilities {
   /// Controller can send scan requests (active scanning).
@@ -57,8 +80,9 @@ struct HubCapabilities {
   /// may only see them where the receiver merges per address (Home Assistant does).
   bool merges_scan_response;
   /// GATT client connections are available: the platform has a
-  /// bluetooth_connection backend implementing ble_device_base::BLEGattConnection
-  /// (ble_gatt_client.h). Today: esp32; rp2 follows with its BTstack backend.
+  /// bluetooth_connection backend (rp2 binds the BLEGattConnection alias in
+  /// bluetooth_connection_gatt_backend.h; esp32 uses its Bluedroid client).
+  /// Today: esp32 and rp2.
   bool gatt;
   /// request_scan_mode() is honored at runtime. Distinct from active_scan:
   /// a passive-only controller (bk72xx) can never switch, and a hub may
@@ -76,6 +100,19 @@ class BLEHub {
 
   /// Wire the raw-advertisement stream (bluetooth_proxy). One consumer at a time.
   virtual void set_raw_advertisement_callback(RawAdvertisementCallback callback) = 0;
+
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  /// Push subscriber for scanner-state transitions; hubs that can push
+  /// invoke scanner_state_callback_ where their state changes. Compiled only
+  /// when a subscriber exists (bluetooth_proxy emits the define), so
+  /// subscriber-less builds carry no storage.
+  void set_scanner_state_callback(ScannerStateCallback callback) { this->scanner_state_callback_ = callback; }
+
+ protected:
+  ScannerStateCallback scanner_state_callback_{};
+
+ public:
+#endif  // USE_BLE_SCANNER_STATE_CALLBACK
 
   virtual HubCapabilities get_capabilities() const = 0;
 

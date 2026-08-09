@@ -252,11 +252,15 @@
 // platforms whose API/network types the proxy header cannot assume.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
+#define USE_BLE_SCANNER_STATE_CALLBACK
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
-// count (default 3), _to_code_ble_hub() emits 0 — so static analysis checks the
-// same std::array<uint64_t, N> instantiation a real build produces.
+// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
+// advertisement-only hubs) — so static analysis checks the same
+// std::array<uint64_t, N> instantiation a real build produces.
 #ifdef USE_ESP32
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#elif defined(USE_RP2)
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
@@ -303,7 +307,6 @@
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
-#define ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT 1

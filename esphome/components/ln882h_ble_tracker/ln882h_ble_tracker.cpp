@@ -240,8 +240,11 @@ void LN882HBLETracker::process_adv_(const uint8_t *mac, int8_t rssi, uint8_t add
   // Raw callback (the raw-advertisement path). Both full advertisements and
   // unmatched scan responses (raw_only) are forwarded.
   if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{
-        .mac = mac, .data = data, .data_len = data_len, .rssi = rssi, .addr_type = addr_type};
+    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(mac),
+                                                .data = data,
+                                                .data_len = data_len,
+                                                .rssi = rssi,
+                                                .addr_type = addr_type};
     this->raw_advertisement_callback_.invoke(adv);
   }
 
