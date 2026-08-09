@@ -41,9 +41,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   conn_err_t notify_characteristic(uint16_t handle, bool enable);
   conn_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
 
-  /// Streamer abort: latch the GATT cause for the disconnect report (first
-  /// cause wins, matching disconnect()), park the stream cursor, and tear
-  /// the connection down.
+  /// Streamer abort: latch the GATT cause (first wins), park the cursor,
+  /// tear down.
   void abort_service_stream(conn_err_t err) {
     if (this->pending_error_ == 0) {
       this->pending_error_ = err;
@@ -81,9 +80,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // an authoritative empty database).
   bool has_gatt_services() const { return this->services_discovered_; }
 
-  /// Stream any pending service-discovery batch. Called from the proxy's
-  /// loop — the wrapper has no Component loop of its own. The disconnect
-  /// safety timer lives in the backend, which owns every teardown path.
+  /// Stream any pending service-discovery batch (proxy loop; the backend
+  /// owns the disconnect safety timer).
   void process_pending_services() {
     if (this->send_service_ >= 0) {
       this->stream_pending_(this->backend_);
@@ -137,8 +135,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
 
-  // Group 5: bit-packed tail. address_ makes the object 8-aligned, so this
-  // group must stay within 2 bytes to keep the wrapper at 48 (dev parity).
+  // Group 5: bit-packed tail; within 2 bytes the 8-aligned object stays 48.
   ClientState state_ : 3 {ClientState::IDLE};
   bool paired_ : 1 {false};
   ConnectionType connection_type_ : 2 {ConnectionType::V1};
