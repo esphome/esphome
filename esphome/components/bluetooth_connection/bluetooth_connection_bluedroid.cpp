@@ -51,7 +51,15 @@ void BluedroidGattClient::setup() {
 
 void BluedroidGattClient::loop() {
   if (!esp32_ble::global_ble->is_active()) {
-    // Stack down: re-register the app on the next enable.
+    // Stack down: no CLOSE_EVT will ever come. Settle a link that was past
+    // IDLE so the consumer frees its slot instead of holding a phantom
+    // connection, then re-register the app on the next enable.
+    auto down_st = this->state();
+    if (down_st != ClientState::IDLE && down_st != ClientState::INIT) {
+      this->release_services();
+      this->set_idle_();
+      this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
+    }
     this->set_state(ClientState::INIT);
     return;
   }
@@ -120,6 +128,7 @@ void BluedroidGattClient::tracker_connect_() {
   ESP_LOGI(TAG, "[%d] 0x%02x Connecting", this->connection_index_, this->remote_addr_type_);
   this->services_released_ = false;
   this->seen_mtu_ = false;
+  this->mtu_failed_ = false;
   // Per-attempt reset: the stack-down path in loop() reaches IDLE through
   // set_state() without set_idle_(), and a stale completed search would
   // satisfy this connection's discovery with the previous one's result.
@@ -433,6 +442,9 @@ bool BluedroidGattClient::build_service_table_() {
         return true;
       });
   if (!filled || char_index != char_total || desc_index != desc_total) {
+    // A walk error or a database that changed between the two passes; the
+    // consumer sees an empty table rather than a corrupt one.
+    ESP_LOGW(TAG, "[%d] Service table walk mismatch, discarding", this->connection_index_);
     this->free_service_table_();
     return false;
   }
@@ -718,6 +730,13 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
                                    esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr)) == 0) {
       this->search_state_ = SearchState::PRESTARTED;
     }
+    if (this->mtu_failed_ && !this->seen_mtu_) {
+      // The MTU request was refused at CONNECT_EVT: report here with the
+      // default so the consumer proceeds instead of waiting forever.
+      this->seen_mtu_ = true;
+      this->listener_->on_connection_state(true, ble_device_base::DEFAULT_ATT_MTU, 0);
+      this->deliver_pending_search_();
+    }
   }
 }
 
@@ -764,6 +783,9 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
       if (ret) {
         this->log_gattc_warning_("esp_ble_gattc_send_mtu_req", ret);
+        // No CFG_MTU_EVT will follow: OPEN_EVT reports with the default MTU
+        // so the connection still reaches a reported state.
+        this->mtu_failed_ = true;
       }
       break;
     }
@@ -875,8 +897,14 @@ void BluedroidGattClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
     case ESP_GAP_BLE_SEC_REQ_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))
         break;
-      // Always accept a server-initiated security request.
-      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
+      // Always accept a server-initiated security request. A refused
+      // response means no AUTH_CMPL will follow, so answer the pairing
+      // request with the failure instead of hanging it.
+      int sec_err = this->check_and_log_error_("esp_ble_gap_security_rsp",
+                                               esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true));
+      if (sec_err != 0) {
+        this->listener_->on_pairing_result(sec_err);
+      }
       break;
     }
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
