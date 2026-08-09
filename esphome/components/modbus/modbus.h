@@ -547,10 +547,9 @@ class ModbusClientDevice {
   /// FC 0x17: the read-back is delivered through on_read_holding_registers() (the response carries only the
   /// read registers, the same wire shape as a holding-register read).
   bool read_write_multiple_registers(uint16_t read_start_address, uint16_t read_count, uint16_t write_start_address,
-                                     std::span<const uint16_t> write_values, CommandOptions options = {}) {
+                                     std::span<const uint16_t> write_values) {
     return this->send_pdu(helpers::create_read_write_multiple_registers_pdu(read_start_address, read_count,
-                                                                            write_start_address, write_values),
-                          options);
+                                                                            write_start_address, write_values));
   }
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }

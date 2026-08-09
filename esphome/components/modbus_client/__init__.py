@@ -261,16 +261,23 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
 
 _REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
 
-# Every typed action addresses a register or coil range and reports through the same two reply handlers.
-_TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(
+# The reply-handler pair every typed-dispatch action reports through. Kept in one place so the
+# read/write-multiple schema (which cannot require start_address) shares it instead of drifting.
+# Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the hub
+# reuses once the handler returns, so a deferring action would resume on freed memory. A reply the
+# dispatch gate diverts (not a standard-conformant transaction) arrives at on_custom_response with the
+# raw request/response PDUs; real device exceptions still arrive via on_error.
+_REPLY_HANDLERS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
+        cv.Optional(CONF_ON_CUSTOM_RESPONSE): _handler_schema(),
+    }
+)
+
+# Every typed action addresses a register or coil range and reports through the shared reply handlers.
+_TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(_REPLY_HANDLERS_SCHEMA).extend(
     {
         cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        # Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the
-        # hub reuses once the handler returns, so a deferring action would resume on freed memory.
-        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-        # A reply the dispatch gate diverts (not a standard-conformant transaction) arrives here with the
-        # raw request/response PDUs; real device exceptions still arrive via on_error.
-        cv.Optional(CONF_ON_CUSTOM_RESPONSE): _handler_schema(),
     }
 )
 
@@ -480,9 +487,13 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
 
 # Read/write multiple registers (FC 0x17): writes one register block and reads another in a single
 # transaction. It has two address ranges, so it uses read_address/write_address instead of start_address;
-# on_response delivers the read-back words as `values`, the same shape as read_holding_registers.
+# Read/write multiple registers (FC 0x17) writes one register block and reads another in a single
+# transaction, so it has two address ranges and uses read_address/write_address instead of start_address.
+# Note the two meanings of `values`: here it is the block being WRITTEN, while in on_response the lambda
+# argument `values` is the block that was READ BACK (host-order words, the same shape as
+# read_holding_registers, so a caller can feed it through the same handler).
 _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
-    _ACTION_BASE_SCHEMA.extend(
+    _ACTION_BASE_SCHEMA.extend(_REPLY_HANDLERS_SCHEMA).extend(
         {
             cv.Required(CONF_READ_ADDRESS): cv.templatable(cv.hex_uint16_t),
             cv.Optional(CONF_READ_COUNT, default=1): cv.templatable(
@@ -495,8 +506,6 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
             ),
-            cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-            cv.Optional(CONF_ON_CUSTOM_RESPONSE): _handler_schema(),
         }
     ),
     _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
