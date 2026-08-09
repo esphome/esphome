@@ -13,6 +13,8 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
@@ -23,7 +25,7 @@
 namespace esphome::bluetooth_connection {
 
 class BluedroidGattClient;
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 class BluetoothConnection;
 #endif
 
@@ -82,7 +84,7 @@ class BluedroidGattClient final : public Component {
 #endif
   void release_services();
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   /// In-place service streamer (the proxy wrapper detects and prefers it):
   /// builds one api response batch directly from Bluedroid's cached database,
   /// so the streaming peak is the response itself - the old esp32 model.
@@ -90,8 +92,6 @@ class BluedroidGattClient final : public Component {
 #endif
 
   void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
-  bool disconnect_pending() const { return this->shim_.disconnect_pending(); }
-  void cancel_pending_disconnect() { this->shim_.cancel_pending_disconnect(); }
 
  protected:
   friend class BluedroidTrackerShim;

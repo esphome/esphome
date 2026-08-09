@@ -1,12 +1,14 @@
 """Per-platform GATT connection backends and the helpers to embed one.
 
-Backends: esp32 Bluedroid, rp2 BTstack. No user-facing configuration; the
-Bluetooth proxy's codegen declares and registers the backend instances
-through gatt_client_schema()/hub_connection_schema() + new_gatt_backend().
+Backends: esp32 Bluedroid, rp2 BTstack. No user-facing configuration; a
+consumer's codegen declares and registers the backend instances — the
+Bluetooth proxy through its per-slot connection wrappers (a streaming
+consumer), and the neutral ble_client through gatt_client_schema() +
+new_gatt_backend().
 """
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
@@ -19,6 +21,15 @@ DOMAIN = "bluetooth_connection"
 
 
 def AUTO_LOAD() -> list[str]:
+    """ble_device_base plus the platform BLE stack the build's backend
+    registers with, so consumers stay platform-blind. The platform-less arm
+    serves tooling that resolves the manifest without a target."""
+    if CORE.is_esp32:
+        return ["ble_device_base", "esp32_ble_tracker"]
+    if CORE.is_rp2:
+        return ["ble_device_base", "rp2040_ble"]
+    if CORE.target_platform is None:
+        return ["ble_device_base", "esp32_ble_tracker", "rp2040_ble"]
     return ["ble_device_base"]
 
 
@@ -92,6 +103,9 @@ _PLATFORM_BACKENDS: dict[str, _PlatformBackend] = {
     PLATFORM_RP2: _PlatformBackend(RP2GattClient, _rp2_schema_fragment, _rp2_register),
 }
 
+# Gates dedicated-backend consumers (cv.only_on).
+GATT_CLIENT_PLATFORMS = list(_PLATFORM_BACKENDS)
+
 
 def _backend_entry(platform: str | None = None) -> _PlatformBackend:
     key = platform if platform is not None else CORE.target_platform
@@ -122,14 +136,70 @@ def hub_connection_schema(platform: str | None = None) -> cv.Schema:
     )
 
 
-async def new_gatt_backend(config: ConfigType) -> cg.MockObj:
+@dataclass
+class _SlotLedger:
+    """GATT connection slots claimed this run, for the platform cap check."""
+
+    consumers: list[str] = field(default_factory=list)
+
+
+def _ledger() -> _SlotLedger:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _SlotLedger()
+    return CORE.data[DOMAIN]
+
+
+def consume_gatt_slot(consumer: str, count: int = 1):
+    """Validator claiming GATT connection slots — the one spelling for every
+    claimant (the proxy per configured slot, dedicated backends once). The
+    neutral ledger feeds the platform cap check in FINAL_VALIDATE_SCHEMA;
+    esp32 additionally charges the controller's connection budget."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        _ledger().consumers.extend([consumer] * count)
+        if CORE.is_esp32:
+            from esphome.components import esp32_ble
+
+            esp32_ble.consume_connection_slots(count, consumer)(config)
+        return config
+
+    return validator
+
+
+def _validate_slot_totals(config: ConfigType) -> ConfigType:
+    # esp32 has its own controller budget (esp32_ble); the hub platforms cap
+    # at the prebuilt stack's client count, and nothing else counts claims
+    # across components (e.g. a proxy plus a radon_eye_rd200 on rp2).
+    if (cap := HUB_MAX_CONNECTIONS.get(CORE.target_platform)) is None:
+        return config
+    claimed = _ledger().consumers
+    if len(claimed) > cap:
+        raise cv.Invalid(
+            f"{CORE.target_platform} supports at most {cap} GATT client "
+            f"connection(s); {len(claimed)} requested by: {', '.join(claimed)}"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_slot_totals
+
+
+async def new_gatt_backend(
+    config: ConfigType, *, service_table: bool = True
+) -> cg.MockObj:
     """Instantiate the backend declared by gatt_client_schema() and register
     it with its platform stack. The connection slot is claimed at validation
-    (the proxy's slot validators), not here.
+    (the consume_gatt_slot validators), not here.
+
+    service_table compiles the on-demand service-table materializer into the
+    backend; direct consumers need it, the streaming proxy does not, so
+    proxy-only builds keep the smaller footprint.
     """
     from esphome.components import ble_device_base
 
     ble_device_base.request_gatt_client()
+    if service_table:
+        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
     # The backend has no user-facing component options; an empty config keeps
     # the consumer's own keys (update_interval, ...) off it.

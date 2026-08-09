@@ -5,7 +5,7 @@
 #include <esp_gattc_api.h>
 #endif
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/log.h"
@@ -44,7 +44,7 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #ifdef USE_ESP32
 namespace esphome::bluetooth_connection {

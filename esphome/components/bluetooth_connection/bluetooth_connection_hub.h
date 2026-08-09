@@ -10,7 +10,7 @@
 // The wrapper exists to serve the proxy's API surface; direct consumers
 // drive the backend themselves, so backend-only builds compile this header
 // empty.
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "bluetooth_connection_gatt_backend.h"
@@ -147,4 +147,4 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
