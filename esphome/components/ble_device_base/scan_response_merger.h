@@ -1,6 +1,6 @@
 // Shared support for trackers whose controller delivers advertisement and
-// scan response as SEPARATE reports (ln882h, rp2; ESP-IDF concatenates both
-// into one result before ESPHome sees it):
+// scan response as SEPARATE reports (ln882h, rp2, bk72xx; ESP-IDF concatenates
+// both into one result before ESPHome sees it):
 //
 //   ScanResponseMerger — Bluedroid-style merge: a scannable advertisement is
 //   held briefly, its scan response is appended on arrival and the pair is
@@ -11,12 +11,13 @@
 //
 //   AdvDispatcher — the delivery half every such tracker repeats: raw
 //   callback, listener parsing, discovered-device log. Trackers delegate
-//   their BLEHub register_listener / set_raw_advertisement_callback here and
-//   wire the merger's sink to dispatch().
+//   their BLEHub register_listener / set_raw_advertisement_callback here.
 //
-// Single-task use only (every tracker calls this on the ESPHome main task).
-// The clock is caller-provided: pass the same clock to stash_adv() and
-// sweep() (millis() or App.get_loop_component_start_time(), never mixed).
+// The merger delivers straight into the tracker's AdvDispatcher — bind() wires
+// the pair once in setup(). Single-task use only (every tracker calls this on
+// the ESPHome main task). The clock is caller-provided: pass the same clock to
+// stash_adv() and sweep() (millis() or App.get_loop_component_start_time(),
+// never mixed).
 
 #pragma once
 
@@ -34,24 +35,54 @@
 
 namespace esphome::ble_device_base {
 
-/// Delivery sink for merger output — same shape as RawAdvertisementCallback
-/// (instance pointer + plain function pointer). raw_only marks unmatched
-/// scan-response frames: forwarded on the raw callback only, never parsed for
-/// local sensors/triggers (Home Assistant merges per address).
-struct MergedFrameSink {
-  void *instance{nullptr};
-  void (*fn)(void *instance, const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
-             bool raw_only){nullptr};
-  void invoke(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
-              bool raw_only) const {
-    this->fn(this->instance, mac, rssi, addr_type, data, data_len, raw_only);
+/// The delivery half of a split-report tracker, shared so the dispatch
+/// contract (raw-callback ordering, raw_only gate, discovered-log policy)
+/// lives in one place. Owns the members every tracker otherwise duplicates;
+/// the tracker's BLEHub methods delegate here.
+class AdvDispatcher {
+ public:
+  void register_listener(ESPBTDeviceListener *listener) {
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+    this->listeners_.push_back(listener);
+#endif
   }
+  void set_raw_advertisement_callback(RawAdvertisementCallback callback) { this->raw_callback_ = callback; }
+  /// Dispatch one (possibly merged) advertisement: the raw callback, and —
+  /// unless raw_only — parsing for listeners/triggers. raw_only marks
+  /// unmatched scan-response frames: forwarded on the raw callback only, never
+  /// parsed for local sensors/triggers (Home Assistant merges per address).
+  /// log_unclaimed_tag: when non-null, a device no listener claimed is logged
+  /// under this tag (esp32_ble_tracker parity: pass the tracker TAG on
+  /// one-shot scans, nullptr on continuous scans, which would spam).
+  void dispatch(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
+                bool raw_only, const char *log_unclaimed_tag);
+  /// Fire listeners' on_scan_end and reset the per-scan discovered-log dedup.
+  void on_scan_end();
+
+ protected:
+  RawAdvertisementCallback raw_callback_{};
+#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  // Parsed-advertisement consumers registered through ble_device_base.
+  // Codegen-sized: no heap allocation, no std::vector template instantiations.
+  StaticVector<ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
+  // Per-period "Found device" DEBUG log with MAC dedup. Guarded like its only
+  // writer so a no-listener build does not carry an unused vector.
+  DiscoveredDeviceLog discovered_log_{};
+#endif
 };
 
 class ScanResponseMerger {
  public:
-  /// Where delivered frames go; set once in the tracker's setup().
-  void set_sink(const MergedFrameSink &sink) { this->sink_ = sink; }
+  /// Wire the merger's output; call once in the tracker's setup(). Every
+  /// delivered frame goes to dispatcher->dispatch(); scan_continuous is read
+  /// at each delivery (runtime continuous flips are honored) to decide the
+  /// unclaimed-device log tag, so both pointers must outlive the merger —
+  /// tracker members always do.
+  void bind(AdvDispatcher *dispatcher, const bool *scan_continuous, const char *log_tag) {
+    this->dispatcher_ = dispatcher;
+    this->scan_continuous_ = scan_continuous;
+    this->log_tag_ = log_tag;
+  }
   /// Hold a scannable advertisement, waiting for its scan response. The
   /// tracker calls this only when it wants the merge (scannable advertisement
   /// while an active scan runs) and delivers everything else directly. A
@@ -79,6 +110,12 @@ class ScanResponseMerger {
   bool empty() const { return this->pending_count_ == 0; }
 
  private:
+  /// All delivery funnels through here: an unbound merger (bind() not called)
+  /// drops the frame instead of jumping through a null pointer, mirroring the
+  /// guard-before-invoke convention of the ble_hub.h callback slots.
+  void deliver_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
+                bool raw_only);
+
   // 62 bytes = legacy adv (31) + scan response (31), the same merged maximum
   // as ESP-IDF delivers on ESP32.
   struct PendingAdv {
@@ -101,45 +138,13 @@ class ScanResponseMerger {
   // measured on-device (ln882h) at up to ~136 ms. 300 ms = >2x that margin,
   // while staying below any device's re-advertising period.
   static constexpr uint32_t PENDING_ADV_TIMEOUT_MS = 300;
-  MergedFrameSink sink_{};
+  AdvDispatcher *dispatcher_{nullptr};
+  const bool *scan_continuous_{nullptr};  // read at delivery; see bind()
+  const char *log_tag_{nullptr};
   // pending_count_ mirrors the number of set `used` flags; both are updated
   // together on every transition.
   PendingAdv pending_adv_[MAX_PENDING_ADV];
   uint8_t pending_count_{0};
-};
-
-/// The delivery half of a split-report tracker, shared so the dispatch
-/// contract (raw-callback ordering, raw_only gate, discovered-log policy)
-/// lives in one place. Owns the members every tracker otherwise duplicates;
-/// the tracker's BLEHub methods delegate here.
-class AdvDispatcher {
- public:
-  void register_listener(ESPBTDeviceListener *listener) {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    this->listeners_.push_back(listener);
-#endif
-  }
-  void set_raw_advertisement_callback(RawAdvertisementCallback callback) { this->raw_callback_ = callback; }
-  /// Dispatch one (possibly merged) advertisement: the raw callback, and —
-  /// unless raw_only — parsing for listeners/triggers. log_unclaimed_tag:
-  /// when non-null, a device no listener claimed is logged under this tag
-  /// (esp32_ble_tracker parity: pass the tracker TAG on one-shot scans,
-  /// nullptr on continuous scans, which would spam).
-  void dispatch(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,
-                bool raw_only, const char *log_unclaimed_tag);
-  /// Fire listeners' on_scan_end and reset the per-scan discovered-log dedup.
-  void on_scan_end();
-
- protected:
-  RawAdvertisementCallback raw_callback_{};
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Parsed-advertisement consumers registered through ble_device_base.
-  // Codegen-sized: no heap allocation, no std::vector template instantiations.
-  StaticVector<ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-  // Per-period "Found device" DEBUG log with MAC dedup. Guarded like its only
-  // writer so a no-listener build does not carry an unused vector.
-  DiscoveredDeviceLog discovered_log_{};
-#endif
 };
 
 }  // namespace esphome::ble_device_base
