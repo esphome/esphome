@@ -29,6 +29,13 @@ _DEFAULT_BOARD = "rpi_pico"
 CONF_BOOTLOADER = "bootloader"
 BOOTLOADER_NONE = "none"
 
+# bootloader: mcuboot only controls the sysbuild/signing confs below -- it never rewrites
+# board:. Auto-appending /mcuboot onto a bare board name would target a west board that
+# may not exist (only rpi_pico/rpi_pico_rp2040_w have an upstream vendor .../mcuboot DTS;
+# a custom board has no such sibling at all). Anyone choosing mcuboot must supply the
+# fully qualified board themselves, e.g. board: rpi_pico/rp2040/mcuboot, same as they'd
+# supply their own MCUboot-shaped partitions via overlays: for a board without one.
+
 _ADVANCED_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
@@ -58,11 +65,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
-    config[CONF_BOARD] = qualify_board(
-        VARIANT,
-        config[CONF_BOARD],
-        qualifier=BOOTLOADER_MCUBOOT if bootloader == BOOTLOADER_MCUBOOT else None,
-    )
+    config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "rp2040", config, "RP2040 support"
     )
