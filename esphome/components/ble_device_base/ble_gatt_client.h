@@ -155,6 +155,14 @@ concept BLEGattConnectionContract = requires(T conn, GattClientListener *listene
 /// Client Characteristic Configuration descriptor UUID (Bluetooth spec).
 static constexpr uint16_t CCCD_UUID = 0x2902;
 
+// Characteristic property bits (the Bluetooth-spec declaration byte carried
+// in GattCharacteristic::properties; the ESP-IDF macros for these do not
+// exist on the other platforms).
+static constexpr uint8_t GATT_CHAR_PROP_WRITE_NO_RSP = 0x04;
+static constexpr uint8_t GATT_CHAR_PROP_WRITE = 0x08;
+static constexpr uint8_t GATT_CHAR_PROP_NOTIFY = 0x10;
+static constexpr uint8_t GATT_CHAR_PROP_INDICATE = 0x20;
+
 inline const GattService *find_service(const GattServiceTable &table, const ESPBTUUID &uuid) {
   for (uint16_t i = 0; i < table.service_count; i++) {
     if (table.services[i].uuid == uuid)

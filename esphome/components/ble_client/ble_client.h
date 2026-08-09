@@ -1,11 +1,13 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-
-#ifdef USE_ESP32
 
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>

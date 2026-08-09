@@ -1,0 +1,244 @@
+// Neutral twins of the shared ble_client automations. Class names, namespace,
+// and codegen-visible signatures are IDENTICAL to automation.h so generated
+// main.cpp compiles against whichever engine the build gates in; only the
+// internals differ (client callbacks and the neutral node interface instead
+// of raw gattc events). The Bluedroid-security automations (passkey, numeric
+// comparison, remove bond) have no neutral equivalent and stay esp32-only.
+
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
+
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "ble_client_gatt.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::ble_client {
+
+// placeholder class for static TAG (shared with automation.cpp).
+class Automation {
+ public:
+  static const char *const TAG;
+};
+
+class BLEClientConnectTrigger final : public Trigger<> {
+ public:
+  explicit BLEClientConnectTrigger(BLEClient *parent) {
+    parent->add_on_connect_callback([this]() { this->trigger(); });
+  }
+};
+
+class BLEClientDisconnectTrigger final : public Trigger<> {
+ public:
+  explicit BLEClientDisconnectTrigger(BLEClient *parent) {
+    // Fires only after a completed connection (never for failed attempts),
+    // matching the legacy CLOSE_EVT semantics.
+    parent->add_on_disconnect_callback([this]() { this->trigger(); });
+  }
+};
+
+template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>, public BLEClientNode {
+ public:
+  BLEClientWriteAction(BLEClient *ble_client) {
+    ble_client->register_ble_node(this);
+    ble_client_ = ble_client;
+  }
+
+  void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = ble_device_base::ESPBTUUID::from_uint16(uuid); }
+  void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = ble_device_base::ESPBTUUID::from_uint32(uuid); }
+  void set_service_uuid128(uint8_t *uuid) { this->service_uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid); }
+
+  void set_char_uuid16(uint16_t uuid) { this->char_uuid_ = ble_device_base::ESPBTUUID::from_uint16(uuid); }
+  void set_char_uuid32(uint32_t uuid) { this->char_uuid_ = ble_device_base::ESPBTUUID::from_uint32(uuid); }
+  void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = ble_device_base::ESPBTUUID::from_raw(uuid); }
+
+  void set_value_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->value_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
+  }
+
+  // Store pointer to static data in flash (no RAM copy)
+  void set_value_simple(const uint8_t *data, size_t len) {
+    this->value_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
+  }
+
+  void play(const Ts &...x) override {}
+
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->var_ = std::make_tuple(x...);
+
+    bool result;
+    if (this->len_ >= 0) {
+      result = this->write(this->value_.data, this->len_);
+    } else {
+      std::vector<uint8_t> value = this->value_.func(x...);
+      result = this->write(value.data(), value.size());
+    }
+
+    // on write failure, continue the automation chain rather than stopping so
+    // that e.g. disconnect can work.
+    if (!result)
+      this->play_next_(x...);
+  }
+
+  // Initiate the write; the completion arrives in on_write_result. The
+  // response-less path can complete synchronously inside the call, so the
+  // handle is armed before the backend is touched.
+  bool write(const uint8_t *data, size_t len) {
+    if (!this->resolved_ || !this->ble_client_->connected()) {
+      esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
+      return false;
+    }
+    int err = this->ble_client_->write_characteristic(this->char_handle_, data, len, this->write_response_);
+    if (err != 0) {
+      esph_log_e(Automation::TAG, "Error writing to characteristic: %d!", err);
+      return false;
+    }
+    return true;
+  }
+
+  void on_connected(const ble_device_base::GattServiceTable &table) override {
+    const auto *service = ble_device_base::find_service(table, this->service_uuid_);
+    const auto *chr =
+        service == nullptr ? nullptr : ble_device_base::find_characteristic(table, *service, this->char_uuid_);
+    if (chr == nullptr) {
+      char char_buf[ble_device_base::UUID_STR_LEN];
+      char service_buf[ble_device_base::UUID_STR_LEN];
+      esph_log_w("ble_write_action", "Characteristic %s was not found in service %s", this->char_uuid_.to_str(char_buf),
+                 this->service_uuid_.to_str(service_buf));
+      return;
+    }
+    if (chr->properties & ble_device_base::GATT_CHAR_PROP_WRITE) {
+      this->write_response_ = true;
+    } else if (chr->properties & ble_device_base::GATT_CHAR_PROP_WRITE_NO_RSP) {
+      this->write_response_ = false;
+    } else {
+      char char_buf[ble_device_base::UUID_STR_LEN];
+      esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
+      return;
+    }
+    this->char_handle_ = chr->value_handle;
+    this->resolved_ = true;
+    char char_buf[ble_device_base::UUID_STR_LEN];
+    esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
+               this->ble_client_->address_str());
+  }
+
+  void on_disconnected() override {
+    this->resolved_ = false;
+    if (this->num_running_ != 0)
+      this->stop_complex();
+  }
+
+  void on_write_result(uint16_t handle, int error) override {
+    if (handle == this->char_handle_ && this->num_running_ != 0) {
+      this->ble_client_->run_later([this]() { this->play_next_tuple_(this->var_); });
+    }
+  }
+
+ private:
+  BLEClient *ble_client_;
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Value {
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
+  } value_;
+  ble_device_base::ESPBTUUID service_uuid_;
+  ble_device_base::ESPBTUUID char_uuid_;
+  std::tuple<Ts...> var_{};
+  uint16_t char_handle_{};
+  bool write_response_{false};
+  bool resolved_{false};
+};
+
+template<typename... Ts> class BLEClientConnectAction final : public Action<Ts...> {
+ public:
+  BLEClientConnectAction(BLEClient *ble_client) {
+    ble_client_ = ble_client;
+    ble_client->add_on_connect_callback([this]() {
+      if (this->num_running_ != 0)
+        this->play_next_tuple_(this->var_);
+    });
+    // A connect attempt that dies (or a later disconnect) terminates the
+    // chain, mirroring the legacy DISCONNECT_EVT handling.
+    ble_client->add_on_connect_failed_callback([this]() {
+      if (this->num_running_ != 0)
+        this->stop_complex();
+    });
+    ble_client->add_on_disconnect_callback([this]() {
+      if (this->num_running_ != 0)
+        this->stop_complex();
+    });
+  }
+
+  // not used since we override play_complex_
+  void play(const Ts &...x) override {}
+
+  void play_complex(const Ts &...x) override {
+    // it makes no sense to have multiple instances of this running at the
+    // same time; cancel a re-trigger while still running.
+    if (this->num_running_ != 0) {
+      this->stop_complex();
+      return;
+    }
+    this->num_running_++;
+    if (this->ble_client_->connected()) {
+      this->play_next_(x...);
+    } else {
+      this->var_ = std::make_tuple(x...);
+      // No-op while already connecting; the callback resolves the wait.
+      this->ble_client_->connect();
+    }
+  }
+
+ private:
+  BLEClient *ble_client_;
+  std::tuple<Ts...> var_{};
+};
+
+template<typename... Ts> class BLEClientDisconnectAction final : public Action<Ts...> {
+ public:
+  BLEClientDisconnectAction(BLEClient *ble_client) {
+    ble_client_ = ble_client;
+    // Both terminal outcomes resolve the wait: a completed teardown and a
+    // connect attempt that died on the way down.
+    ble_client->add_on_disconnect_callback([this]() {
+      if (this->num_running_ != 0)
+        this->play_next_tuple_(this->var_);
+    });
+    ble_client->add_on_connect_failed_callback([this]() {
+      if (this->num_running_ != 0)
+        this->play_next_tuple_(this->var_);
+    });
+  }
+
+  // not used since we override play_complex_
+  void play(const Ts &...x) override {}
+
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    if (this->ble_client_->idle()) {
+      this->play_next_(x...);
+    } else {
+      this->var_ = std::make_tuple(x...);
+      this->ble_client_->disconnect();
+    }
+  }
+
+ private:
+  BLEClient *ble_client_;
+  std::tuple<Ts...> var_{};
+};
+
+}  // namespace esphome::ble_client
+
+#endif  // USE_BLE_GATT_CLIENT && !USE_ESP32
