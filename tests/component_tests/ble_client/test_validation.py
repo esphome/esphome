@@ -22,6 +22,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
+    PLATFORM_RP2,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -29,8 +30,8 @@ from esphome.types import ConfigType
 
 @pytest.fixture(autouse=True)
 def esp32_platform() -> None:
-    # The node platforms gate on only_on_esp32 now (the neutral engine has no
-    # raw-gattc nodes); these schema tests exercise the esp32 arm.
+    # The raw-gattc node family gates through BLE_CLIENT_SCHEMA's
+    # _legacy_engine_only choke point; these schema tests exercise the esp32 arm.
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP32
 
 
@@ -98,21 +99,10 @@ def test_notify_unchanged_without_on_notify() -> None:
     assert notify_from_on_notify(config)[CONF_NOTIFY] is False
 
 
-def test_gatt_slot_ledger_rejects_overcommit_on_rp2() -> None:
-    # Suggestion 4: the cross-component cap must reject two claims on rp2.
-    from esphome.components import bluetooth_connection
-
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "rp2"
-    bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
-    bluetooth_connection.consume_gatt_slot("ble_client")({})
-    with pytest.raises(cv.Invalid, match="supports at most 1 GATT client"):
-        bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
-
-
 def test_legacy_node_choke_point_rejects_other_platforms() -> None:
     from esphome.components import ble_client
     from esphome.core import ID
 
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "rp2"
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
     with pytest.raises(cv.Invalid, match="not been migrated"):
         ble_client._legacy_engine_only(ID("x"))

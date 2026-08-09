@@ -151,7 +151,6 @@ _COMMON_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEClient),
         cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-        cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_AUTO_CONNECT, default=True): cv.boolean,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
             {
@@ -178,6 +177,9 @@ def _esp32_config_schema() -> cv.All:
     return cv.All(
         _COMMON_SCHEMA.extend(
             {
+                # Accepted-but-unused legacy key; not propagated to the
+                # neutral schema.
+                cv.Optional(CONF_NAME): cv.string,
                 cv.Optional(CONF_ON_PASSKEY_REQUEST): automation.validate_automation(
                     {
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(

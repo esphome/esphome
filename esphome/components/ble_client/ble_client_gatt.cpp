@@ -99,6 +99,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
       // Synchronous refusal: no discovery completion will follow.
       ESP_LOGW(TAG, "[%s] Service discovery refused", this->address_str_);
       this->register_failure_();
+      // Deliberate teardown: its report must not charge the backoff again.
       this->disconnect();
     }
     return;

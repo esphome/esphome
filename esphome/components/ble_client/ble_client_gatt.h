@@ -15,7 +15,6 @@
 
 #if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
 
-#include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/bluetooth_connection/bluetooth_connection_gatt_backend.h"
@@ -84,7 +83,8 @@ class BLEClient : public Component,
   /// continuations must leave that stack first.
   void run_later(std::function<void()> &&f) { this->defer(std::move(f)); }  // NOLINT
 
-  // Backend ops for nodes and actions.
+  // Backend ops for nodes and actions. read/write_descriptor have no caller
+  // yet; kept as the frozen node-facing surface (like on_notify/on_read_result).
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
     return this->backend_->write_characteristic(handle, data, len, response);
   }

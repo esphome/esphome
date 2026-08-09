@@ -22,9 +22,8 @@
 // request handlers, and the Bluedroid in-place streamer all gate on it.
 // Builds without a compiled backend get the clean-error handlers (a
 // passive proxy alongside a backend consumer compiles the real ones);
-// address-scoped
-// maintenance (unpair, cache clear) still works there through the
-// per-platform free functions below. Backend-only builds (a dedicated-backend
+// address-scoped maintenance (unpair, cache clear) still works there through
+// the per-platform free functions below. Backend-only builds (a dedicated-backend
 // consumer without bluetooth_proxy) compile none of this API surface.
 #if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 #define BLUETOOTH_CONNECTION_SERVES_PROXY

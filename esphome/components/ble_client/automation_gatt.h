@@ -12,7 +12,6 @@
 #if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
 
 #include <tuple>
-#include <utility>
 #include <vector>
 
 #include "ble_client_gatt.h"
