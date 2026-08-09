@@ -110,21 +110,19 @@ void HitachiClimate::set_fan_(uint8_t speed) {
 }
 
 void HitachiClimate::set_swing_v_toggle_(bool on) {
-  uint8_t button = get_button_();  // Get the current button value.
-  if (on) {
-    button = HITACHI_AC344_BUTTON_SWINGV;              // Set the button to SwingV.
-  } else if (button == HITACHI_AC344_BUTTON_SWINGV) {  // Asked to unset it
-    // It was set previous, so use Power as a default
-    button = HITACHI_AC344_BUTTON_POWER;
+  if (on != prev_swingv_on_) {  // Only initiate a swing v change if the state is different than the previous state.
+    set_button_(HITACHI_AC344_BUTTON_SWINGV);  // Set the button to SwingV.
+  } else {
+    // Set to default button
+    set_button_(HITACHI_AC344_BUTTON_POWER);
   }
-  set_button_(button);
+  prev_swingv_on_ = on;  // Remember the state for next time.
 }
 
-bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC344_BUTTON_SWINGV; }
-
 void HitachiClimate::set_swing_v_(bool on) {
-  set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET, on);
+  set_swing_v_toggle_(on);  // The toggle relied on the previous state.
+  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET,
+          on);  // The remote state may be inconsistent with the air conditioner state
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -136,6 +134,8 @@ void HitachiClimate::set_swing_h_(uint8_t position) {
     set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
     return;
   }
+  if (position == get_swing_h_())
+    return;
   set_bits(&remote_state_[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE, position);
   set_button_(HITACHI_AC344_BUTTON_SWINGH);
 }
@@ -175,6 +175,9 @@ void HitachiClimate::transmit_state() {
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
+    case climate::CLIMATE_FAN_QUIET:
+      set_fan_(HITACHI_AC344_FAN_MIN);
+      break;
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;
@@ -191,26 +194,24 @@ void HitachiClimate::transmit_state() {
   }
 
   switch (this->swing_mode) {
+    // set_swing_v has to be the last call in all state settings as it relies on the button type to initiate an action.
     case climate::CLIMATE_SWING_BOTH:
-      set_swing_v_(true);
       set_swing_h_(HITACHI_AC344_SWINGH_AUTO);
+      set_swing_v_(true);
       break;
     case climate::CLIMATE_SWING_VERTICAL:
-      set_swing_v_(true);
       set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
+      set_swing_v_(true);
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      set_swing_v_(false);
       set_swing_h_(HITACHI_AC344_SWINGH_AUTO);
+      set_swing_v_(false);
       break;
     case climate::CLIMATE_SWING_OFF:
-      set_swing_v_(false);
       set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
+      set_swing_v_(false);
       break;
   }
-
-  // TODO: find change value to set button, now always set to power button
-  set_button_(HITACHI_AC344_BUTTON_POWER);
 
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
@@ -281,6 +282,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
   ESP_LOGV(TAG, "Fan: %02X %02X", remote_state[HITACHI_AC344_FAN_BYTE], fan_mode);
   switch (fan_mode) {
     case HITACHI_AC344_FAN_MIN:
+      this->fan_mode = climate::CLIMATE_FAN_QUIET;
+      break;
     case HITACHI_AC344_FAN_LOW:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
@@ -302,12 +305,16 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
   uint8_t swing_modeh =
       GETBITS8(remote_state[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE);
   ESP_LOGV(TAG, "SwingH: %02X %02X", remote_state[HITACHI_AC344_SWINGH_BYTE], swing_modeh);
+  bool swing_v = GETBIT8(remote_state[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET);
+  ESP_LOGV(TAG, "SwingV: %02X %s", remote_state[HITACHI_AC344_SWINGV_BYTE], ONOFF(swing_v));
 
-  if ((swing_modeh & 0x3) == 0x3) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  if (swing_modeh != HITACHI_AC344_SWINGH_AUTO) {
+    this->swing_mode = swing_v ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+    this->swing_mode = swing_v ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_HORIZONTAL;
   }
+
+  prev_swingv_on_ = swing_v;  // Save the previous state of the swing v for future reference.
 
   return true;
 }
