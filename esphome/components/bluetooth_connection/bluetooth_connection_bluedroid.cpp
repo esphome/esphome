@@ -2,10 +2,11 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+
 // The in-place streamer serves the proxy's service-discovery API; backend-only
 // builds compile without the proxy headers or the streamer.
-#ifdef USE_BLUETOOTH_PROXY
-#include "bluetooth_connection.h"
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 #include "bluetooth_connection_hub.h"
 
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -485,7 +486,7 @@ void BluedroidGattClient::handle_search_cmpl_() {
   this->sink_.on_service_discovery_done(0);
 }
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_ || conn.send_service_ >= this->service_total_) {
     conn.send_service_ = DONE_SENDING_SERVICES;
@@ -624,7 +625,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     conn.send_service_ = batch_start;
   }
 }
-#endif  // USE_BLUETOOTH_PROXY
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 // ---- events ----
 

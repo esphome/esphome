@@ -16,14 +16,16 @@
 #include <esp_err.h>
 #endif
 
-// The connection-aware API request handlers are compiled: a GATT backend is
-// wired by codegen (one slot per connection). This is the single spelling of
-// that predicate - the hub wrapper and the API request handlers gate on it.
+// The proxy-serving surface is compiled: a proxy is present and a GATT
+// backend is wired by codegen (one slot per connection). This is the single
+// spelling of that predicate - the hub wrapper, the connection-aware API
+// request handlers, and the Bluedroid in-place streamer all gate on it.
 // Advertisement-only builds get the clean-error handlers; address-scoped
 // maintenance (unpair, cache clear) still works there through the
-// per-platform free functions below.
-#ifdef USE_BLE_GATT_CLIENT
-#define BLUETOOTH_CONNECTION_HAS_GATT
+// per-platform free functions below. Backend-only builds (a dedicated-backend
+// consumer without bluetooth_proxy) compile none of this API surface.
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
+#define BLUETOOTH_CONNECTION_SERVES_PROXY
 #endif
 
 namespace esphome::api {
@@ -139,7 +141,7 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
   }
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 /// Result of close_service_batch: keep filling the batch or send it now.
 /// An oversized service is packed alone; a failed (backpressured) send is
 /// retried from the batch start, so no service is silently skipped.
@@ -151,6 +153,6 @@ enum class BatchClose : uint8_t { CONTINUE, SEND };
 /// cannot drift.
 BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
                                uint8_t connection_index, const char *address_str);
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 }  // namespace esphome::bluetooth_connection

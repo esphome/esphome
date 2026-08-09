@@ -1,7 +1,7 @@
 // The proxy's per-slot connection wrapper, shared by every platform.
 #include "bluetooth_connection_hub.h"
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -436,4 +436,4 @@ void BluetoothConnection::send_service_for_discovery_() {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY

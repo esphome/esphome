@@ -94,7 +94,7 @@ def _esp32_config_schema() -> cv.All:
                 )
         elif config[CONF_ACTIVE]:
             connection_slots: int = config[CONF_CONNECTION_SLOTS]
-            esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(
+            bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(
                 config
             )
 
@@ -154,6 +154,9 @@ def _rp2_config_schema() -> cv.All:
         # their ids exist for codegen (the esp32 arm's `connections` pattern).
         if not config[CONF_ACTIVE]:
             return config
+        bluetooth_connection.consume_gatt_slot(
+            "bluetooth_proxy", config[CONF_CONNECTION_SLOTS]
+        )(config)
         return {
             **config,
             CONF_CONNECTIONS: [
@@ -195,7 +198,9 @@ async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     """One wrapper + backend pair per slot; the platform-specific backend
     registration lives in bluetooth_connection.new_gatt_backend()."""
     for connection_conf in config.get(CONF_CONNECTIONS, []):
-        backend = await bluetooth_connection.new_gatt_backend(connection_conf)
+        backend = await bluetooth_connection.new_gatt_backend(
+            connection_conf, service_table=False
+        )
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))

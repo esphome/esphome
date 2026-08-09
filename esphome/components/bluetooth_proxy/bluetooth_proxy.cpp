@@ -106,7 +106,7 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
   }
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connection, ClientState state) {
   ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, state: %s", connection->get_connection_index(),
            connection->address_str(), ble_device_base::client_state_to_string(state));
@@ -115,7 +115,7 @@ void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connec
 void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const char *message) {
   ESP_LOGI(TAG, "[%d] [%s] Connecting %s", connection->get_connection_index(), connection->address_str(), message);
 }
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
   ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
@@ -139,7 +139,7 @@ void BluetoothProxy::dump_config() {
   this->get_bluetooth_mac_address_pretty(mac_str);
   const char *mac_out = mac_str[0] != '\0' ? mac_str : "unavailable (adapter not up yet)";
   const char *scan_mode = this->configured_scan_active_ ? "active" : "passive";
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   ESP_LOGCONFIG(TAG,
                 "Bluetooth Proxy:\n"
                 "  Active: %s\n"
@@ -157,7 +157,7 @@ void BluetoothProxy::dump_config() {
 #endif
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 // maybe_unused: in a passive proxy (active: false) MAX is 0, the body is removed, and connection is unused.
 void BluetoothProxy::register_connection([[maybe_unused]] BluetoothConnection *connection) {
@@ -427,7 +427,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
   this->api_connection_->send_message(resp);
 }
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #ifdef USE_ESP32
 
@@ -470,7 +470,7 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
 #endif  // USE_ESP32
 
 void BluetoothProxy::loop() {
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   // Stream pending service-discovery batches every iteration; the streamer
   // handles a vanished API connection itself.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -485,7 +485,7 @@ void BluetoothProxy::loop() {
   this->last_advertisement_flush_time_ = now;
 
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
     // The API subscriber is gone: tear down any connections it left behind
     // (disconnect() on an already-disconnecting slot is a no-op).
     for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -509,7 +509,7 @@ void BluetoothProxy::loop() {
   this->flush_pending_advertisements_();
 }
 
-#ifndef BLUETOOTH_CONNECTION_HAS_GATT
+#ifndef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 // Advertisement-only proxy. GATT client connections are excluded at compile
 // time (no connection backend on this platform, or active: false), so every
@@ -581,7 +581,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
   this->api_connection_->send_message(resp);
 }
 
-#endif  // !BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // !BLUETOOTH_CONNECTION_SERVES_PROXY
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
