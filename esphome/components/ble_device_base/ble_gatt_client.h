@@ -5,14 +5,11 @@
 // Exactly one GATT backend exists per build, so BLEGattConnection is a
 // compile-time alias (bluetooth_connection_gatt_backend.h), not an abstract
 // interface.
-// A consumer - a streaming consumer that forwards the raw database (the hub
-// BluetoothConnection wrapper) or a direct consumer owning a dedicated
-// backend and resolving handles by UUID - drives it and receives
-// completions through the GattClientListener interface (one build can hold
-// several consumer types while the backend stays a single non-virtual
-// class). All listener
-// calls are delivered on the ESPHome main loop; borrowed data pointers are
-// valid only for the duration of the call.
+// A consumer - the hub wrapper streaming the raw database, or a direct
+// consumer owning a dedicated backend and resolving handles by UUID -
+// drives it and receives completions through the GattClientListener
+// interface. All listener calls are delivered on the ESPHome main loop;
+// borrowed data pointers are valid only for the duration of the call.
 //
 // Error domain (plain int, forwarded to the API without translation):
 //   0            success

@@ -27,8 +27,8 @@ void BluetoothConnection::set_address(uint64_t address) {
 }
 
 void BluetoothConnection::initiate_connection(uint8_t address_type) {
-  // No connect timeout here: the API client's own timeout or
-  // the api-gone sweep drives disconnect().
+  // No connect timeout here: the API client's own timeout or the api-gone
+  // sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
   int err = this->backend_->connect(this->address_, address_type);
   if (err != 0) {
@@ -309,9 +309,9 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // The subscriber vanished mid-stream: park the cursor at done WITHOUT
-  // sending services-done (a resubscribing client gets silence and its
-  // 30 s timeout, never an authoritative partial list) and
-  // free the table; the api-gone sweep tears the connection down anyway.
+  // sending services-done (a resubscribing client gets silence and its 30 s
+  // timeout, never an authoritative partial list) and free the table; the
+  // api-gone sweep tears the connection down anyway.
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
