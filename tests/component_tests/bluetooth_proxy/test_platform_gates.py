@@ -261,9 +261,14 @@ def test_defines_h_mirrors_the_rp2_slot_cap() -> None:
     assert int(match.group(1)) == cap, (
         f"defines.h rp2 arm carries {match.group(1)}, expected {cap}"
     )
-    # The static-analysis client count scales with the same cap.
-    match = re.search(r"#define ESPHOME_BLE_GATT_CLIENT_COUNT (\d+)", defines)
-    assert match is not None, "ESPHOME_BLE_GATT_CLIENT_COUNT missing from defines.h"
+    # The static-analysis client count scales with the same cap. Scoped to
+    # the USE_RP2 block: the esp32 arm carries its own count.
+    rp2_block = re.search(r"#ifdef USE_RP2\n((?:#define [^\n]*\n)+)", defines)
+    assert rp2_block is not None, "no USE_RP2 platform block in defines.h"
+    match = re.search(
+        r"#define ESPHOME_BLE_GATT_CLIENT_COUNT (\d+)", rp2_block.group(1)
+    )
+    assert match is not None, "ESPHOME_BLE_GATT_CLIENT_COUNT missing from rp2 block"
     assert int(match.group(1)) == cap, (
-        f"ESPHOME_BLE_GATT_CLIENT_COUNT is {match.group(1)}, expected {cap}"
+        f"rp2 ESPHOME_BLE_GATT_CLIENT_COUNT is {match.group(1)}, expected {cap}"
     )
