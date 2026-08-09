@@ -57,7 +57,7 @@ class BluedroidGattClient final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
   // Wired by codegen before setup and invariant for the device lifetime.
-  void set_sink(ble_device_base::GattEventSink sink) { this->sink_ = sink; }
+  void set_listener(ble_device_base::GattClientListener *listener) { this->listener_ = listener; }
   esp32_ble_tracker::ESPBTClient *tracker_client() { return &this->shim_; }
 
   // ---- ble_device_base::BLEGattConnection contract ----
@@ -123,7 +123,7 @@ class BluedroidGattClient final : public Component {
 
   // Group 1: pointers / composed objects
   BluedroidTrackerShim shim_{this};
-  ble_device_base::GattEventSink sink_;
+  ble_device_base::GattClientListener *listener_{nullptr};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // One exact-size block carved into the table's three arrays; owned here,
   // freed by release_services(). Null when no table is materialized. The

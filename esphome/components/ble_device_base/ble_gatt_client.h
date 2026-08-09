@@ -8,9 +8,9 @@
 // A consumer - a streaming consumer that forwards the raw database (the hub
 // BluetoothConnection wrapper) or a direct consumer owning a dedicated
 // backend and resolving handles by UUID - drives it and receives
-// completions through a GattEventSink — a pointer-sized-entry function table
-// rather than a concrete consumer type, because one build can hold several
-// consumer types while the backend stays a single non-virtual class. All sink
+// completions through the GattClientListener interface (one build can hold
+// several consumer types while the backend stays a single non-virtual
+// class). All listener
 // calls are delivered on the ESPHome main loop; borrowed data pointers are
 // valid only for the duration of the call.
 //
@@ -82,90 +82,31 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
-// The event sink the backend calls directly, asserted where each consumer is
-// defined: on_connection_state carries the negotiated MTU and an HCI
-// status/disconnect reason. The requirements check call validity, not exact
-// parameter types; keep sink parameters at the documented widths (uint16_t
-// handles and lengths).
-template<typename S>
-concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
-  { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_service_discovery_done(int{}) } -> std::same_as<void>;
-  { sink.on_read_result(uint16_t{}, data, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_write_result(uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_notify_state(uint16_t{}, true, int{}) } -> std::same_as<void>;
-  { sink.on_notify_data(uint16_t{}, data, uint16_t{}) } -> std::same_as<void>;
-  { sink.on_pairing_result(int{}) } -> std::same_as<void>;
-};
-
-/// One trampoline per event, shared by every instance of a consumer type.
-struct GattEventVTable {
-  void (*connection_state)(void *, bool, uint16_t, int);
-  void (*service_discovery_done)(void *, int);
-  void (*read_result)(void *, uint16_t, const uint8_t *, uint16_t, int);
-  void (*write_result)(void *, uint16_t, int);
-  void (*notify_state)(void *, uint16_t, bool, int);
-  void (*notify_data)(void *, uint16_t, const uint8_t *, uint16_t);
-  void (*pairing_result)(void *, int);
-};
-
-// The per-consumer-type table lives in flash (constexpr), so a sink costs
-// two pointers of RAM regardless of how many events the surface carries.
-template<typename T>
-inline constexpr GattEventVTable GATT_EVENT_VTABLE{
-    [](void *p, bool connected, uint16_t mtu, int error) {
-      static_cast<T *>(p)->on_connection_state(connected, mtu, error);
-    },
-    [](void *p, int error) { static_cast<T *>(p)->on_service_discovery_done(error); },
-    [](void *p, uint16_t handle, const uint8_t *data, uint16_t len, int error) {
-      static_cast<T *>(p)->on_read_result(handle, data, len, error);
-    },
-    [](void *p, uint16_t handle, int error) { static_cast<T *>(p)->on_write_result(handle, error); },
-    [](void *p, uint16_t handle, bool enabled, int error) {
-      static_cast<T *>(p)->on_notify_state(handle, enabled, error);
-    },
-    [](void *p, uint16_t handle, const uint8_t *data, uint16_t len) {
-      static_cast<T *>(p)->on_notify_data(handle, data, len);
-    },
-    [](void *p, int status) { static_cast<T *>(p)->on_pairing_result(status); },
-};
-
-/// Type-erased consumer handle a backend delivers events through: an
-/// instance pointer plus the consumer type's trampoline table. Built with
-/// make_gatt_sink() from any type satisfying GattClientEventSinkContract;
-/// call sites read the same as a direct listener call. No virtuals, no heap —
-/// the cost of supporting several consumer types in one build is one
-/// indirect call per event. Codegen wires the sink before setup(), so
+/// The event surface a backend delivers completions through. Genuine runtime
+/// polymorphism lives here - one build can hold several consumer types (the
+/// proxy's connection wrapper, dedicated-backend components) against the one
+/// non-virtual backend class - so this is a plain virtual interface: every
+/// method defaults to a no-op, consumers override what they consume (override
+/// makes a misspelled name a compile error), and adding an event touches no
+/// existing consumer. No destructor: components are never destroyed, and
+/// nothing deletes through this base.
+/// on_connection_state carries the negotiated MTU and an HCI
+/// status/disconnect reason. Codegen wires the listener before setup(), so
 /// backends may call without a null check.
-struct GattEventSink {
-  void *instance{nullptr};
-  const GattEventVTable *vtable{nullptr};
-
-  void on_connection_state(bool connected, uint16_t mtu, int error) const {
-    this->vtable->connection_state(this->instance, connected, mtu, error);
-  }
-  void on_service_discovery_done(int error) const { this->vtable->service_discovery_done(this->instance, error); }
-  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) const {
-    this->vtable->read_result(this->instance, handle, data, len, error);
-  }
-  void on_write_result(uint16_t handle, int error) const { this->vtable->write_result(this->instance, handle, error); }
-  void on_notify_state(uint16_t handle, bool enabled, int error) const {
-    this->vtable->notify_state(this->instance, handle, enabled, error);
-  }
-  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) const {
-    this->vtable->notify_data(this->instance, handle, data, len);
-  }
-  void on_pairing_result(int status) const { this->vtable->pairing_result(this->instance, status); }
+class GattClientListener {
+ public:
+  virtual void on_connection_state(bool connected, uint16_t mtu, int error) {}
+  virtual void on_service_discovery_done(int error) {}
+  virtual void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
+  virtual void on_write_result(uint16_t handle, int error) {}
+  virtual void on_notify_state(uint16_t handle, bool enabled, int error) {}
+  virtual void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {}
+  virtual void on_pairing_result(int status) {}
 };
-
-template<typename T> GattEventSink make_gatt_sink(T *consumer) {
-  static_assert(GattClientEventSinkContract<T>, "the consumer is missing part of the event-sink surface");
-  return {consumer, &GATT_EVENT_VTABLE<T>};
-}
 
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
-// through the sink) or a synchronous error (busy, not connected, stack
+// through the listener) or a synchronous error (busy, not connected, stack
 // rejection); one operation may be outstanding at a time. Semantics beyond
 // the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
@@ -184,8 +125,8 @@ template<typename T> GattEventSink make_gatt_sink(T *consumer) {
 //   on_notify_state, characteristic writes with response and descriptor
 //   writes in on_write_result.
 template<typename T>
-concept BLEGattConnectionContract = requires(T conn, GattEventSink sink, const uint8_t *data) {
-  conn.set_sink(sink);
+concept BLEGattConnectionContract = requires(T conn, GattClientListener *listener, const uint8_t *data) {
+  conn.set_listener(listener);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
   { conn.disconnect() } -> std::same_as<int>;
   { conn.discover_services() } -> std::same_as<int>;

@@ -26,7 +26,7 @@ namespace esphome::bluetooth_connection {
 
 class StubGattBackend {
  public:
-  void set_sink(ble_device_base::GattEventSink sink) {}
+  void set_listener(ble_device_base::GattClientListener *listener) {}
   int connect(uint64_t address, uint8_t addr_type) { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int disconnect() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int discover_services() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
