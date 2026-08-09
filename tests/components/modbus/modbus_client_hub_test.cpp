@@ -717,7 +717,7 @@ TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
   BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
 
   const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
-  ASSERT_TRUE(device.send_pdu(write));
+  ASSERT_TRUE(device.queue_pdu(write));
   EXPECT_EQ(hub.queued_frames(), 1u);
 
   hub.send_next_for_test();  // transmit + sweep
@@ -762,7 +762,7 @@ TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
   BroadcastTypedProbeDevice device(&hub, BROADCAST_ADDRESS);
 
   const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
-  ASSERT_TRUE(device.send_pdu(write));
+  ASSERT_TRUE(device.queue_pdu(write));
 
   hub.send_next_for_test();  // transmit + sweep
 
@@ -771,6 +771,25 @@ TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
   EXPECT_EQ(device.custom_count_, 0);        // and it is NOT diverted to the catch-all (no false warning)
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
+}
+
+// A broadcast is only meaningful for a command that changes state; a broadcast READ could never be
+// answered, so the hub refuses it at the door (false return, no entry queued) rather than silently
+// retiring it. Writes, 0x17, and custom codes still go through (covered above).
+TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x02};  // read holding registers 0x0010, count 2
+  EXPECT_FALSE(device.queue_pdu(read));                   // refused: a broadcast read is never answered
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
 }
 
 namespace {

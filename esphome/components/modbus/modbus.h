@@ -174,11 +174,13 @@ struct ModbusDeviceCommand {
     this->device = nullptr;
   }
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
-  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with NO terminal
+  // fired), but a broadcast is never answered (Modbus 4.1), so this request retires with NO terminal
   // callback and the sweep erases it. Unlike response()/error()/timed_out(), it delivers nothing.
+  // Only one request is resolved here (writes cap pending at 1); any absorbed duplicate stays owed and
+  // drains through the RETIRED sweep as on_not_sent(), rather than being silently dropped.
   void complete_broadcast() {
     this->state = FrameState::RETIRED;
-    this->pending = 0;
+    this->decrement_pending();
   }
   // Re-ready for another transmission, restamped to the tail of its class (hub passes next_seq_++).
   void requeue(uint16_t seq) {
