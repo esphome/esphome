@@ -63,6 +63,8 @@ void BluedroidGattClient::loop() {
   }
   auto st = this->state();
   if (st == ClientState::INIT) {
+    // Parity with BLEClientBase: a failed registration marks the slot
+    // failed and idles it without retry.
     auto ret = esp_ble_gattc_app_register(this->app_id);
     if (ret) {
       ESP_LOGE(TAG, "gattc app register failed: app_id=%d code=%d", this->app_id, ret);

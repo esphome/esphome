@@ -620,6 +620,9 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
              api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
              this->api_connection_->get_peername_to(old_peername));
   }
+  // Stale retry latches belong to the previous subscriber's session.
+  this->connections_free_pending_ = false;
+  this->pending_disconnection_address_ = 0;
   this->api_connection_ = api_connection;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
@@ -635,6 +638,8 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
+  this->connections_free_pending_ = false;
+  this->pending_disconnection_address_ = 0;
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
