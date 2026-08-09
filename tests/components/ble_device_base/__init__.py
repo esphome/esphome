@@ -8,5 +8,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # no sensors, so emit the define here to put the real IRK path under test.
     async def to_code_testing(config):
         cg.add_define("USE_BLE_DEVICE_IRK")
+        # The gatt contract test exercises the gated lookup helpers; compile
+        # their definitions (ble_gatt_client.cpp) into the test build.
+        cg.add_define("USE_BLE_GATT_CLIENT")
 
     manifest.to_code = to_code_testing
