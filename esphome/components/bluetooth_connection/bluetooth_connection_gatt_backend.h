@@ -15,6 +15,9 @@
 #if defined(USE_RP2040_BLE)
 #include "bluetooth_connection_rp2.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::RP2GattClient
+#elif defined(USE_ESP32)
+#include "bluetooth_connection_bluedroid.h"
+#define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::BluedroidGattClient
 #elif defined(USE_BLE_GATT_CLIENT_STUB_BACKEND)
 // Emitted only by the host unit-test manifest: the tests compile the hub
 // wrapper standalone, so bind a do-nothing backend. Every other backend-less

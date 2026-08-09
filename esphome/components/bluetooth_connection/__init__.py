@@ -36,6 +36,9 @@ HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
 # The hub-platform wrapper and the rp2 BTstack backend codegen classes.
 HubBluetoothConnection = bluetooth_connection_ns.class_("BluetoothConnection")
 RP2GattClient = bluetooth_connection_ns.class_("RP2GattClient", cg.Component)
+BluedroidGattClient = bluetooth_connection_ns.class_(
+    "BluedroidGattClient", cg.Component
+)
 
 
 @functools.cache
@@ -51,6 +54,10 @@ def esp32_connection_class() -> cg.MockObjClass:
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
+        "bluetooth_connection_bluedroid.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
         "bluetooth_connection_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
