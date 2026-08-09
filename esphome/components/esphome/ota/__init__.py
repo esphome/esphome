@@ -2,6 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.zephyr import mcuboot
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,7 +23,6 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
-CONF_SWAP_METHOD = "swap_method"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -118,25 +118,6 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_swap_method(config: ConfigType) -> ConfigType:
-    if not CORE.is_zephyr:
-        return config
-    from esphome.components.zephyr import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant
-    from esphome.components.zephyr.variants import VARIANTS
-
-    variant = zephyr_variant()
-    if variant is None or variant == ZEPHYR_VARIANT_NATIVE_SIM:
-        return config
-    allowed = VARIANTS[variant].swap_methods
-    method = config[CONF_SWAP_METHOD]
-    if method not in allowed:
-        raise cv.Invalid(
-            f"'{CONF_SWAP_METHOD}: {method}' is not supported on this variant; "
-            f"choose one of {sorted(allowed)}"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -154,18 +135,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr=4232,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
-            cv.SplitDefault(
-                CONF_SWAP_METHOD,
-                zephyr="scratch",
-                zephyr_nrf52="offset",
-                zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
-                zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
-                # No scratch partition in this board's flash layout (boot/image-0/
-                # image-1/storage only) -- the generic zephyr="scratch" default above
-                # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
-                zephyr_efr32mg24="move",
-                zephyr_rp2040="offset",
-            ): cv.one_of("scratch", "move", "offset", lower=True),
+            **mcuboot.SWAP_METHOD_SCHEMA,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
@@ -181,7 +151,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _consume_ota_sockets,
-    _validate_swap_method,
+    mcuboot.validate_swap_method,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
@@ -208,23 +178,7 @@ async def to_code(config: ConfigType) -> None:
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
     cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
 
-    if CORE.is_zephyr:
-        from esphome.components.zephyr import (
-            ZEPHYR_VARIANT_NATIVE_SIM,
-            zephyr_add_sysbuild_conf,
-            zephyr_variant,
-        )
-
-        if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-            # A sysbuild-level choice, not per-image prj.conf: the default MCUBOOT_MODE
-            # is OVERWRITE_ONLY for the whole family, which silently defeats
-            # boot_request_upgrade(BOOT_UPGRADE_TEST) (no image survives to revert to).
-            sysbuild_mode = {
-                "scratch": "MCUBOOT_MODE_SWAP_SCRATCH",
-                "move": "MCUBOOT_MODE_SWAP_USING_MOVE",
-                "offset": "MCUBOOT_MODE_SWAP_USING_OFFSET",
-            }[config[CONF_SWAP_METHOD]]
-            zephyr_add_sysbuild_conf(sysbuild_mode, True)
+    mcuboot.apply_swap_method(config)
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)
