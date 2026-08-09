@@ -149,6 +149,10 @@ void BLEClient::on_service_discovery_done(int error) {
 }
 
 void BLEClient::on_write_result(uint16_t handle, int error) {
+  if (error != 0) {
+    // Breadcrumb even when no node claims the handle.
+    ESP_LOGD(TAG, "[%s] Write on handle 0x%04x completed with status %d", this->address_str_, handle, error);
+  }
   for (auto *node : this->nodes_) {
     node->on_write_result(handle, error);
   }

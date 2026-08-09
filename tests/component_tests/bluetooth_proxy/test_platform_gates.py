@@ -207,6 +207,12 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
     # Hub platforms must also be in the backend registry the shared codegen
     # helpers dispatch on.
     assert registered <= set(bluetooth_connection._PLATFORM_BACKENDS)
+    # Every non-esp32 backend platform must carry a slot cap: without one the
+    # ledger's FINAL_VALIDATE accepts unlimited claims silently (esp32's cap
+    # is the controller budget in esp32_ble).
+    assert set(bluetooth_connection._PLATFORM_BACKENDS) - {"esp32"} <= set(
+        bluetooth_connection.HUB_MAX_CONNECTIONS
+    )
     # The outer walkable schema's bound must stay the loosest platform cap.
     assert (
         max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())

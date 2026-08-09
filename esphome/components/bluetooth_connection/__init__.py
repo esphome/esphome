@@ -157,10 +157,10 @@ def _ledger() -> _SlotLedger:
 def consume_gatt_slot(
     consumer: str, count: int = 1
 ) -> Callable[[ConfigType], ConfigType]:
-    """Validator claiming GATT connection slots for the neutral ledger (the
-    platform cap check in FINAL_VALIDATE_SCHEMA); esp32 additionally charges
-    the controller's connection budget. The proxy's esp32 arm still charges
-    the controller directly - route it through here when it migrates."""
+    """Validator claiming GATT connection slots - the one spelling for every
+    claimant. The neutral ledger feeds the hub-platform cap check in
+    FINAL_VALIDATE_SCHEMA; esp32 additionally charges the controller's
+    connection budget (its cap lives there, not in HUB_MAX_CONNECTIONS)."""
 
     def validator(config: ConfigType) -> ConfigType:
         _ledger().consumers.extend([consumer] * count)
