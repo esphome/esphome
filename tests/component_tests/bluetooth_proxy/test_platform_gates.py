@@ -9,11 +9,13 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import ble_device_base, bluetooth_connection, bluetooth_proxy
+from esphome.config_helpers import frameworks_for_platforms
 from esphome.const import (
     CONF_ACTIVE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PlatformFramework,
@@ -175,6 +177,19 @@ def test_rp2_rejects_esp32_only_keys_by_name(
         bluetooth_proxy.CONFIG_SCHEMA({"cache_services": True})
     with pytest.raises(cv.Invalid, match="'connections' has no per-connection options"):
         bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
+
+
+def test_hub_source_filter_covers_every_hub_platform() -> None:
+    # bluetooth_connection cannot import this module to derive the hub.cpp
+    # framework set, so pin it here: a platform admitted to the proxy but
+    # missing from the filter would validate, then fail at link.
+    expected = frameworks_for_platforms(
+        [*bluetooth_proxy._HUB_PLATFORMS, PLATFORM_ESP32]
+    )
+    hub_frameworks = bluetooth_connection.SOURCE_FILE_FRAMEWORKS[
+        "bluetooth_connection_hub.cpp"
+    ]
+    assert expected <= hub_frameworks
 
 
 def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
