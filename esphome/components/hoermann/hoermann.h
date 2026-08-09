@@ -33,7 +33,6 @@ struct HoermannCommand {
 
 class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
  public:
-  void setup() override;
   void update() override;
   void dump_config() override;
 
@@ -49,12 +48,12 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   modbus::ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                    modbus::RegisterValues &registers) override;
 
-  // Control functions.
+  // Control functions. Positions follow the cover convention: 0.0 is fully closed, 1.0 fully open.
   void open_door();
   void close_door();
   void impulse_door();
   void stop_door();
-  void set_position(int percent);
+  void set_position(float position);
 
   // State accessors used by child entities.
   DoorState get_door_state() const { return this->door_state_; }
@@ -63,7 +62,8 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
 
  protected:
   void record_response_();
-  void queue_command_(bool condition, const HoermannCommand &command);
+  // Returns false when the bus controller has not fetched the previous command yet.
+  bool queue_command_(const HoermannCommand &command);
   void get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3);
   void on_door_position_changed_(uint16_t old_value, uint16_t new_value);
   void on_current_state_changed_(uint16_t old_value, uint16_t new_value);
@@ -71,11 +71,16 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
   void set_current_position_(float position);
+  // Recomputes the reported position from position_raw_ and the current door state.
+  void update_current_position_();
 
   CallbackManager<void()> state_callback_;
 
   DoorState door_state_{DoorState::CLOSED};
   float current_position_{0.0f};
+  // Position as reported by the bus controller, 0..200 across the full travel.
+  uint8_t position_raw_{0};
+  // Position the door was told to travel to; 0.0 means no target is armed.
   float goto_position_{0.0f};
   bool valid_{false};
   bool changed_{false};

@@ -361,6 +361,10 @@ class ModbusServerHub : public Modbus {
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
+  // Stamp of the last "broadcast reached no device" warning, 0 until the first one is logged. Rate limiting
+  // on time rather than on address keeps the log bounded no matter how many addresses a shared bus carries.
+  uint32_t last_unaccepted_broadcast_warn_{0};
+
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;

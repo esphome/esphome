@@ -374,20 +374,6 @@ async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExp
     return var
 
 
-async def register_raw_ble_device(
-    var: cg.SafeExpType, config: ConfigType
-) -> cg.SafeExpType:
-    """Register a BLE device listener that only needs raw advertisement data.
-
-    This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
-    will not be compiled in if this is the only registration method used.
-    """
-    _request_listener_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.register_listener(var))
-    return var
-
-
 async def register_raw_client(
     var: cg.SafeExpType, config: ConfigType
 ) -> cg.SafeExpType:

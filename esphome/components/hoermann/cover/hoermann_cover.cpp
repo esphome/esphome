@@ -1,12 +1,14 @@
 #include "hoermann_cover.h"
 
+#include "esphome/core/log.h"
+
 namespace esphome::hoermann {
+
+static const char *const TAG = "hoermann.cover";
 
 cover::CoverTraits HoermannCover::get_traits() {
   auto traits = cover::CoverTraits();
-  traits.set_is_assumed_state(false);
   traits.set_supports_position(true);
-  traits.set_supports_tilt(false);
   traits.set_supports_stop(true);
   traits.set_supports_toggle(true);
   return traits;
@@ -16,6 +18,8 @@ void HoermannCover::setup() {
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
+void HoermannCover::dump_config() { LOG_COVER("", "Hoermann Cover", this); }
+
 void HoermannCover::control(const cover::CoverCall &call) {
   if (call.get_stop()) {
     this->parent_->stop_door();
@@ -24,14 +28,7 @@ void HoermannCover::control(const cover::CoverCall &call) {
     this->parent_->impulse_door();
   }
   if (call.get_position().has_value()) {
-    float pos = call.get_position().value();
-    if (pos >= 1.0f) {
-      this->parent_->open_door();
-    } else if (pos <= 0.0f) {
-      this->parent_->close_door();
-    } else {
-      this->parent_->set_position(static_cast<int>(pos * 100.0f));
-    }
+    this->parent_->set_position(call.get_position().value());
   }
 }
 
@@ -52,25 +49,27 @@ void HoermannCover::update_from_state_() {
       break;
     case DoorState::MOVE_VENTING:
     case DoorState::MOVE_HALF:
-      this->current_operation =
-          this->previous_position_ > current_position ? cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING;
+      // These states carry no direction, so keep the current one until the position actually moves.
+      if (!std::isnan(this->previous_position_) && current_position != this->previous_position_) {
+        this->current_operation = current_position > this->previous_position_ ? cover::COVER_OPERATION_OPENING
+                                                                              : cover::COVER_OPERATION_CLOSING;
+      }
       break;
     default:
       this->current_operation = cover::COVER_OPERATION_IDLE;
       break;
   }
-  this->position = current_position;
+  this->previous_position_ = current_position;
 
-  bool operation_changed = this->previous_operation_ != this->current_operation;
-  bool position_changed = this->previous_position_ != this->position;
-  if (operation_changed) {
-    this->publish_state();
+  // Compare against the position last published, which starts at COVER_OPEN rather than at zero.
+  const bool position_changed = this->position != current_position;
+  this->position = current_position;
+  if (this->previous_operation_ != this->current_operation) {
     this->previous_operation_ = this->current_operation;
+    this->publish_state();
   } else if (position_changed) {
+    // Position updates arrive continuously while the door travels, so keep them out of flash.
     this->publish_state(false);
-  }
-  if (position_changed) {
-    this->previous_position_ = this->position;
   }
 }
 

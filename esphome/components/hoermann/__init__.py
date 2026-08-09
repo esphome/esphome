@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@zweckj"]
 DEPENDENCIES = ["modbus"]
@@ -23,7 +24,7 @@ CONFIG_SCHEMA = (
 FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device("hoermann", role="server")
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_server_device(var, config)

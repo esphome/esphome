@@ -480,7 +480,9 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
 }
 
 esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisement_parser_type() {
-  return this->proxy_->get_advertisement_parser_type();
+  // RAW keeps the tracker from building parsed ESPBTDevice objects for the
+  // proxy's connections (the proxy itself consumes the hub raw callback).
+  return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
 }
 
 }  // namespace esphome::bluetooth_connection
