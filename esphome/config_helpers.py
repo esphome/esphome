@@ -105,6 +105,9 @@ def frameworks_for_platforms(platforms: Collection[str]) -> set[PlatformFramewor
     registry: deriving the framework set here means a platform added to the
     registry cannot validate and then fail at link on a filtered-out file.
     """
+    known = {pf.value[0].value for pf in PlatformFramework}
+    if unknown := set(platforms) - known:
+        raise ValueError(f"unknown platform(s): {sorted(unknown)}")
     return {pf for pf in PlatformFramework if pf.value[0].value in platforms}
 
 
