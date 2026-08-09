@@ -32,7 +32,7 @@ def AUTO_LOAD() -> list[str]:
     serves tooling that resolves the manifest without a target."""
     if CORE.is_esp32:
         return ["ble_device_base", "esp32_ble_tracker"]
-    if CORE.target_platform == PLATFORM_RP2:
+    if CORE.is_rp2:
         return ["ble_device_base", "rp2040_ble"]
     if CORE.target_platform is None:
         return ["ble_device_base", "esp32_ble_tracker", "rp2040_ble"]
