@@ -67,8 +67,8 @@ void BluetoothConnection::disconnect() {
 void BluetoothConnection::check_disconnect_timeout_() {
   // Safety net mirroring the esp32 base class: if the backend's disconnect
   // completion is lost, force the slot free instead of leaking it.
-  static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
-  if (this->state_ == ClientState::DISCONNECTING && millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
+  if (this->state_ == ClientState::DISCONNECTING &&
+      millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
     ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
     this->reset_connection_(GATT_NOT_CONNECTED);
   }
@@ -130,7 +130,10 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
       // The API client has the services cached; never discover them. No
       // discovery phase needs the fast interval, so settle straight into the
-      // shared steady-state parameters (same lifecycle place as esp32).
+      // shared steady-state parameters. On esp32 the backend already set the
+      // same values as prefer-params before opening, so this request is
+      // usually redundant there - kept because rp2 has no prefer-params and
+      // the explicit update is its only path to the steady-state interval.
       this->state_ = ClientState::ESTABLISHED;
       int param_err = this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
                                                                ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,

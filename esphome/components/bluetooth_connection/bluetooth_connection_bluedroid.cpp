@@ -16,9 +16,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
 #include <esp_gatt_common_api.h>
 
 #include <cstring>
@@ -96,6 +93,13 @@ void BluedroidGattClient::dump_config() {
 // ---- contract ops ----
 
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
+  // Refuse anything but a fully idle slot. Clobbering DISCONNECTING with
+  // DISCOVERED would let the tracker open a new link while the old one is
+  // still closing - the stale CLOSE_EVT then tears the new attempt down.
+  if (this->state_() != ClientState::IDLE) {
+    ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
+    return ESP_GATT_BUSY;
+  }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
   // Hand the request to the tracker's promote loop: it stops the scan, raises
@@ -139,13 +143,18 @@ void BluedroidGattClient::tracker_connect_() {
 
 int BluedroidGattClient::disconnect() {
   auto st = this->state_();
-  if (st == ClientState::IDLE || st == ClientState::DISCONNECTING) {
+  if (st == ClientState::DISCONNECTING) {
     return 0;
   }
+  // Nothing was opened, so no completion event will follow: report
+  // not-connected and the hub frees the slot at once (rp2 convention).
+  if (st == ClientState::IDLE) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   if (st == ClientState::DISCOVERED) {
-    // Never opened: nothing to close.
+    // Parked for the tracker promote loop, never opened.
     this->set_state_(ClientState::IDLE);
-    return 0;
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
     ESP_LOGD(TAG, "[%d] Disconnect scheduled", this->connection_index_);
@@ -441,10 +450,20 @@ void BluedroidGattClient::handle_search_cmpl_() {
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   uint16_t primary = 0;
   uint16_t secondary = 0;
-  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001, 0xFFFF, 0,
-                               &primary);
-  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0,
-                               &secondary);
+  auto primary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE,
+                                                     0x0001, 0xFFFF, 0, &primary);
+  auto secondary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE,
+                                                       0x0001, 0xFFFF, 0, &secondary);
+  if (primary_status != ESP_GATT_OK || secondary_status != ESP_GATT_OK) {
+    // A failed count must not become an authoritative empty database - V3
+    // clients cache the streamed result permanently.
+    auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
+    this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
+    if (this->listener_ != nullptr) {
+      this->listener_->on_service_discovery_done(status);
+    }
+    return;
+  }
   this->service_total_ = primary + secondary;
   this->sink_.on_service_discovery_done(0);
 }
@@ -521,6 +540,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         }
         if (char_status != ESP_GATT_OK || cc == 0) {
           if (char_status != ESP_GATT_OK) {
+            this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
             conn.send_service_ = DONE_SENDING_SERVICES;
             return;
           }
@@ -534,8 +554,15 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         characteristic_resp.properties = char_result.properties;
 
         uint16_t total_desc_count = 0;
-        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0,
-                                     char_result.char_handle, &total_desc_count);
+        auto desc_count_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR,
+                                                              0, 0, char_result.char_handle, &total_desc_count);
+        if (desc_count_status != ESP_GATT_OK) {
+          // Abort rather than stream the characteristic descriptor-less: a
+          // missing CCCD in a cached database breaks notifications for good.
+          this->log_gattc_warning_("esp_ble_gattc_get_attr_count", desc_count_status);
+          conn.send_service_ = DONE_SENDING_SERVICES;
+          return;
+        }
         if (total_desc_count > 0) {
           characteristic_resp.descriptors.init(total_desc_count);
           uint16_t desc_offset = 0;
@@ -549,6 +576,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             }
             if (desc_status != ESP_GATT_OK || dc == 0) {
               if (desc_status != ESP_GATT_OK) {
+                this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
                 conn.send_service_ = DONE_SENDING_SERVICES;
                 return;
               }
@@ -628,11 +656,12 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
-  // Passive disconnect: report now, but wait for CLOSE_EVT before going IDLE -
-  // reconnecting earlier makes the controller reject with 133 or assert.
+  // Passive disconnect: wait for CLOSE_EVT before going IDLE (reconnecting
+  // earlier makes the controller reject with 133 or assert) and before
+  // reporting - the wrapper frees the slot on the report, and a freed slot
+  // invites a reconnect into the still-closing link.
   this->release_services();
   this->set_disconnecting_();
-  this->report_connection_state_(false, param->disconnect.reason);
 }
 
 bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -696,9 +725,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
         return false;
       this->release_services();
       this->set_idle_();
-      // The wrapper frees the slot on this final report; after a passive
-      // disconnect this is the second connected=false, matching the previous
-      // esp32 behavior (report at DISCONNECT, slot free at CLOSE).
+      // The one connected=false report: the wrapper frees the slot on it,
+      // so it must not fire before the controller finished closing.
       this->report_connection_state_(false, param->close.reason);
       break;
     }

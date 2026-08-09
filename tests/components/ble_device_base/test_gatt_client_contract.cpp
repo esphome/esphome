@@ -53,6 +53,9 @@ class MinimalConnection {
   }
   GattServiceTable get_service_table() { return {}; }
   void release_services() {}
+  bool disconnect_pending() const { return false; }
+  void cancel_pending_disconnect() {}
+  void set_connection_type(ConnectionType ct) {}
 
  protected:
   GattEventSink sink_;
