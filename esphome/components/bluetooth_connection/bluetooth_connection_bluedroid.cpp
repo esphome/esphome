@@ -120,11 +120,9 @@ void BluedroidGattClient::tracker_connect_() {
   this->services_released_ = false;
   this->seen_mtu_ = false;
   // Per-attempt reset: the stack-down path in loop() reaches IDLE through
-  // set_state() without set_idle_(), and a stale done latch would complete
-  // this connection's discovery with the previous connection's result.
-  this->search_prestarted_ = false;
-  this->search_done_ = false;
-  this->search_requested_ = false;
+  // set_state() without set_idle_(), and a stale completed search would
+  // satisfy this connection's discovery with the previous one's result.
+  this->search_state_ = SearchState::NONE;
   this->search_status_ = 0;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
@@ -188,20 +186,27 @@ int BluedroidGattClient::discover_services() {
   if (this->conn_id_ == UNSET_CONN_ID) {
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
-  if (this->search_prestarted_) {
-    // Completion comes from the pre-started search: the pending SEARCH_CMPL,
-    // or - when it already landed - the flush after the connected report
-    // (loop() covers a request made outside that event drain).
-    this->search_requested_ = true;
-    if (this->search_done_) {
+  switch (this->search_state_) {
+    case SearchState::PRESTARTED:
+      // The pending SEARCH_CMPL reports once it lands.
+      this->search_state_ = SearchState::CLAIMED;
+      return 0;
+    case SearchState::PRESTART_DONE:
+      // Already landed: the flush after the connected report delivers
+      // (loop() covers a claim made outside that event drain).
+      this->search_state_ = SearchState::REPORT_PENDING;
       this->enable_loop();
-    }
-    return 0;
+      return 0;
+    case SearchState::CLAIMED:
+    case SearchState::REPORT_PENDING:
+      return 0;  // One completion is already owed to this claimant.
+    case SearchState::NONE:
+      break;
   }
   int err = this->check_and_log_error_("esp_ble_gattc_search_service",
                                        esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr));
   if (err == 0) {
-    this->search_requested_ = true;
+    this->search_state_ = SearchState::CLAIMED;
   }
   return err;
 }
@@ -445,9 +450,7 @@ bool BluedroidGattClient::check_addr_(const esp_bd_addr_t &addr) const {
 void BluedroidGattClient::set_idle_() {
   this->set_state(ClientState::IDLE);
   this->conn_id_ = UNSET_CONN_ID;
-  this->search_prestarted_ = false;
-  this->search_done_ = false;
-  this->search_requested_ = false;
+  this->search_state_ = SearchState::NONE;
   this->search_status_ = 0;
 }
 
@@ -507,16 +510,14 @@ int BluedroidGattClient::handle_search_cmpl_() {
   return 0;
 }
 
-// Reports a completed search once its consumer has asked for it; the
-// pre-started search must stay silent until then. Delivery consumes the
-// whole latch, so a later discover_services() on the same connection issues
-// a real search instead of re-reporting this result.
+// Reports a completed search once it has a claimant; a pre-started search
+// stays silent until claimed. Delivery consumes the state, so a later
+// discover_services() on the same connection issues a real search instead
+// of re-reporting this result.
 void BluedroidGattClient::deliver_pending_search_() {
-  if (!this->search_requested_ || !this->search_done_)
+  if (this->search_state_ != SearchState::REPORT_PENDING)
     return;
-  this->search_requested_ = false;
-  this->search_prestarted_ = false;
-  this->search_done_ = false;
+  this->search_state_ = SearchState::NONE;
   this->listener_->on_service_discovery_done(this->search_status_);
 }
 
@@ -714,7 +715,7 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // consumer's own discover_services() call retries the real search.
     if (this->check_and_log_error_("esp_ble_gattc_search_service",
                                    esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr)) == 0) {
-      this->search_prestarted_ = true;
+      this->search_state_ = SearchState::PRESTARTED;
     }
   }
 }
@@ -809,7 +810,6 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       if (this->conn_id_ != param->search_cmpl.conn_id)
         return false;
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
-      this->search_done_ = true;
       if (this->state() == ClientState::DISCONNECTING) {
         // Teardown already owns the link: keep its state and safety timer,
         // and skip the param/count work - the result is never delivered (the
@@ -817,6 +817,8 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         break;
       }
       this->search_status_ = this->handle_search_cmpl_();
+      this->search_state_ =
+          this->search_state_ == SearchState::CLAIMED ? SearchState::REPORT_PENDING : SearchState::PRESTART_DONE;
       this->set_state(ClientState::ESTABLISHED);
       this->deliver_pending_search_();
       if (this->state() != ClientState::DISCONNECTING) {

@@ -31,6 +31,15 @@ class BluetoothConnection;
 // void disconnect() cannot overload with an int-returning twin.
 class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
+  // Lifecycle of one connection attempt's service search.
+  enum class SearchState : uint8_t {
+    NONE,           // no search this attempt
+    PRESTARTED,     // issued at OPEN_EVT, no claimant yet
+    PRESTART_DONE,  // completed with search_status_ latched, no claimant yet
+    CLAIMED,        // in flight with a claimant (pre-started or direct)
+    REPORT_PENDING  // completed and claimed: deliver on the next flush
+  };
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -135,15 +144,12 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // The connected report waits for the MTU exchange; OPEN_EVT alone would
   // hand HA the default 23.
   bool seen_mtu_ : 1 {false};
-  // Pre-started discovery latch: the search is issued at OPEN_EVT so it
-  // overlaps the MTU exchange (the replaced class's timing) and the
-  // consumer's discover_services() completes from it instead of paying a
-  // serialized ATT round trip. requested/done meet in
-  // deliver_pending_search_().
-  bool search_prestarted_ : 1 {false};
-  bool search_done_ : 1 {false};
-  bool search_requested_ : 1 {false};
-  // esp_gatt_status_t of the completed search, held until requested.
+  // Pre-started discovery: the search is issued at OPEN_EVT so it overlaps
+  // the MTU exchange (the replaced class's timing) and the consumer's
+  // discover_services() completes from it instead of paying a serialized
+  // ATT round trip. Reset per attempt and on idle.
+  SearchState search_state_ : 4 {SearchState::NONE};
+  // esp_gatt_status_t of the completed search, held until claimed.
   uint8_t search_status_{0};
 };
 
