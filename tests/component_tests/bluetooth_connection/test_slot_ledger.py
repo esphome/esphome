@@ -9,31 +9,29 @@ from esphome.components import (
     bluetooth_connection,
     bluetooth_proxy,
 )
-from esphome.const import (
-    CONF_MAC_ADDRESS,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_RP2,
-    PlatformFramework,
-)
+from esphome.const import CONF_MAC_ADDRESS, PlatformFramework
 from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
 
 
-def test_gatt_slot_ledger_rejects_overcommit_on_rp2() -> None:
+def test_gatt_slot_ledger_rejects_overcommit_on_rp2(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     # The cap logic in isolation: two hand charges must trip it.
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})
     with pytest.raises(cv.Invalid, match="supports at most 1 GATT client"):
         bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
 
 
-def test_gatt_slot_ledger_skipped_in_testing_mode() -> None:
+def test_gatt_slot_ledger_skipped_in_testing_mode(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     # Grouped component builds merge fixtures past the cap; the check defers
     # to testing mode like esp32_ble.validate_connection_slots.
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})
     CORE.testing_mode = True

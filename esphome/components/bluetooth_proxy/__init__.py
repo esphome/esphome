@@ -99,6 +99,12 @@ def _esp32_config_schema() -> cv.All:
                 raise cv.Invalid(
                     "Connections can only be used if the proxy is set to active"
                 )
+            # Explicit entries claim slots like the generated ones; dev
+            # historically skipped this, letting an explicit-connections
+            # config evade the controller budget.
+            bluetooth_connection.consume_gatt_slot(
+                "bluetooth_proxy", len(config[CONF_CONNECTIONS])
+            )(config)
         elif config[CONF_ACTIVE]:
             connection_slots: int = config[CONF_CONNECTION_SLOTS]
             bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(

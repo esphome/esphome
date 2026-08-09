@@ -28,8 +28,13 @@ void BLEClient::set_enabled(bool enabled) {
   this->enabled = enabled;
   if (!enabled) {
     this->disconnect();
+    return;
   }
-  // Enabling does not connect: the next sighting does (legacy parity).
+  // A re-enable is an explicit "try again": clear the backoff so the next
+  // sighting connects promptly. Enabling does not itself connect (legacy
+  // parity).
+  this->consecutive_failures_ = 0;
+  this->hold_off_ms_ = 0;
 }
 
 bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {

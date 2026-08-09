@@ -12,7 +12,10 @@ from esphome.components.ble_device_base import (
     as_reversed_hex_array,
     bt_uuid,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_platform,
+    frameworks_for_platforms,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
@@ -59,12 +62,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         # Every framework of every non-esp32 registry platform: a platform
         # that validates the neutral arm must also compile the neutral engine.
-        "ble_client_gatt.cpp": {
-            pf
-            for pf in PlatformFramework
-            if pf.value[0] in bluetooth_connection.GATT_CLIENT_PLATFORMS
-            and pf.value[0] != PLATFORM_ESP32
-        },
+        "ble_client_gatt.cpp": frameworks_for_platforms(
+            set(bluetooth_connection.GATT_CLIENT_PLATFORMS) - {PLATFORM_ESP32}
+        ),
     }
 )
 

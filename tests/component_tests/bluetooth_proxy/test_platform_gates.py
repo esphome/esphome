@@ -179,6 +179,16 @@ def test_rp2_rejects_esp32_only_keys_by_name(
         bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
 
 
+def test_esp32_explicit_connections_claim_gatt_slots(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # Explicit `connections:` entries must charge the slot ledger like the
+    # generated ones; dev historically let them evade the budget.
+    set_core_config(PlatformFramework.ESP32_IDF)
+    bluetooth_proxy.CONFIG_SCHEMA({"active": True, "connections": [{}, {}]})
+    assert "bluetooth_proxy" in bluetooth_connection._ledger().consumers
+
+
 def test_hub_source_filter_covers_every_hub_platform() -> None:
     # bluetooth_connection cannot import this module to derive the hub.cpp
     # framework set, so pin it here: a platform admitted to the proxy but
