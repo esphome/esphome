@@ -309,7 +309,9 @@ void BluedroidGattClient::release_services() {
   // Always set: terminates any in-flight stream on every cache config.
   this->services_released_ = true;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
-  esp_ble_gattc_cache_clean(this->remote_bda_);
+  // A failed clean leaves a stale database the next connection could serve
+  // as authoritative; make it visible like every other IDF call here.
+  this->check_and_log_error_("esp_ble_gattc_cache_clean", esp_ble_gattc_cache_clean(this->remote_bda_));
 #endif
 }
 
