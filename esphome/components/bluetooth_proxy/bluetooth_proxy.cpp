@@ -51,7 +51,7 @@ bool BluetoothProxy::send_bluetooth_scanner_state_(ble_device_base::ScannerState
   return this->api_connection_->send_message(resp);
 }
 
-#ifndef USE_ESP32
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
 void BluetoothProxy::send_polled_scanner_state_() {
   // One read feeds both the frame and the change detector; the detector only
   // advances if the frame was accepted, so a dropped send (WOULD_BLOCK on a
@@ -62,7 +62,7 @@ void BluetoothProxy::send_polled_scanner_state_() {
     this->last_scan_running_ = running;
   }
 }
-#endif  // !USE_ESP32
+#endif  // !USE_BLE_SCANNER_STATE_CALLBACK
 
 void BluetoothProxy::setup() {
   // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
@@ -75,9 +75,12 @@ void BluetoothProxy::setup() {
   this->hub_->set_raw_advertisement_callback({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
                                                 static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
                                               }});
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // Only push hubs compile the slot; elsewhere loop() polls scan_running().
   this->hub_->set_scanner_state_callback({this, [](void *self, ble_device_base::ScannerState state) {
                                             static_cast<BluetoothProxy *>(self)->send_bluetooth_scanner_state_(state);
                                           }});
+#endif
 }
 
 // The hub delivers raw advertisements on the ESPHome main loop.
@@ -469,13 +472,15 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->parent_()->get_scan_active() == active) {
+  // esp32 only: BLEHub is the concrete tracker here, so these calls reach
+  // tracker-native methods beyond the neutral contract.
+  if (this->hub_->get_scan_active() == active) {
     return;
   }
   ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-  this->parent_()->set_scan_active(active);
-  this->parent_()->stop_scan();
-  this->parent_()->set_scan_continuous(
+  this->hub_->set_scan_active(active);
+  this->hub_->stop_scan();
+  this->hub_->set_scan_continuous(
       true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
@@ -511,11 +516,13 @@ void BluetoothProxy::loop() {
     return;
   }
 
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
   // This hub doesn't push scanner-state transitions; poll and report on
-  // change. A hub gaining push must also refresh last_scan_running_ here.
+  // change. A hub gaining push emits the define and drops this poll.
   if (this->hub_->scan_running() != this->last_scan_running_) {
     this->send_polled_scanner_state_();
   }
+#endif
 
   this->flush_pending_advertisements_();
 }
@@ -598,12 +605,15 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
       ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
     }
   }
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
   if (this->api_connection_ != nullptr) {
     // Reports the mode change; the sender also refreshes last_scan_running_, so
     // a failed restart (scan_running_ dropped by the tracker) is not reported
-    // again by loop() on the next tick.
+    // again by loop() on the next tick. A push hub reports the restart's
+    // transitions (mode rides along) instead.
     this->send_polled_scanner_state_();
   }
+#endif
 }
 
 #endif  // USE_ESP32
@@ -622,8 +632,9 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
              this->api_connection_->get_peername_to(old_peername));
   }
   this->api_connection_ = api_connection;
-#ifdef USE_ESP32
-  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
+  this->send_bluetooth_scanner_state_(this->hub_->get_scanner_state());
 #else
   this->send_polled_scanner_state_();
 #endif

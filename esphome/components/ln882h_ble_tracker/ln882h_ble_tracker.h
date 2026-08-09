@@ -26,7 +26,6 @@ namespace esphome::ln882h_ble_tracker {
 // ---------------------------------------------------------------------------
 
 class LN882HBLETracker : public Component,
-                         public ble_device_base::BLEHub,
                          public Parented<ln882h_ble::LN882HBLE>,
                          public ln882h_ble::BLEScanListener
 #ifdef USE_OTA_STATE_LISTENER
@@ -75,15 +74,15 @@ class LN882HBLETracker : public Component,
   void stop_scan();
 
   // ---- ble_device_base::BLEHub contract ----
-  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override {
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
     this->listeners_.push_back(listener);
 #endif
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
     this->raw_advertisement_callback_ = callback;
   }
-  ble_device_base::HubCapabilities get_capabilities() const override {
+  static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // The LN882H controller supports active scanning; adv + scan response arrive
     // as separate reports and are merged by this tracker (Bluedroid semantics).
     // The SDK's GATT client is not exposed.
@@ -92,15 +91,15 @@ class LN882HBLETracker : public Component,
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
-  void get_adapter_mac(uint8_t out[6]) override {
+  void get_adapter_mac(uint8_t out[6]) {
     uint8_t mac[6];
     this->parent_->get_mac_lsb_first(mac);
     for (int i = 0; i < 6; i++)
       out[i] = mac[5 - i];
   }
-  bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return this->scan_active_; }
-  bool request_scan_mode(bool active) override;
+  bool scan_running() { return this->scan_running_; }
+  bool scan_active() { return this->scan_active_; }
+  bool request_scan_mode(bool active);
 
   // ---- ln882h_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the
