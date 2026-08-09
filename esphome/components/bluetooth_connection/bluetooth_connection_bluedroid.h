@@ -95,7 +95,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void tracker_connect_();
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param);
-  int handle_search_cmpl_();
+  int handle_search_cmpl_(esp_gatt_status_t status);
   void deliver_pending_search_();
   void unconditional_disconnect_();
   void set_idle_();
@@ -148,10 +148,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   bool seen_mtu_ : 1 {false};
   // The MTU request was refused at CONNECT_EVT; OPEN_EVT reports instead.
   bool mtu_failed_ : 1 {false};
-  // Pre-started discovery: the search is issued at OPEN_EVT so it overlaps
-  // the MTU exchange (the replaced class's timing) and the consumer's
-  // discover_services() completes from it instead of paying a serialized
-  // ATT round trip. Reset per attempt and on idle.
+  // Search issued at OPEN_EVT overlaps the MTU exchange; discover_services()
+  // completes from it. Reset per attempt and on idle.
   SearchState search_state_ : 4 {SearchState::NONE};
   // esp_gatt_status_t of the completed search, held until claimed.
   uint8_t search_status_{0};

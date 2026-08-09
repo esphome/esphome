@@ -46,10 +46,8 @@ void BluetoothConnection::disconnect() {
   }
   int err = this->backend_->gatt_disconnect();
   if (err != 0) {
-    // Both backends return nonzero only when there is nothing to tear down
-    // (already idle): free the slot so the client is not stuck. Accepted
-    // teardowns always reach a terminal report - the backend owns the
-    // safety timer on every path.
+    // Nonzero means nothing to tear down (both backends): free the slot.
+    // Accepted teardowns always reach a terminal report.
     ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle, err=%d", this->connection_index_, this->address_str_, err);
     this->reset_connection_(err);
     return;

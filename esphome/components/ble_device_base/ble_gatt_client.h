@@ -172,10 +172,11 @@ inline const GattService *find_service(const GattServiceTable &table, const ESPB
 
 inline const GattCharacteristic *find_characteristic(const GattServiceTable &table, const GattService &service,
                                                      const ESPBTUUID &uuid) {
-  uint16_t end = service.first_characteristic + service.characteristic_count;
+  // 32-bit range math: a corrupt first/count pair cannot wrap past the check.
+  uint32_t end = uint32_t(service.first_characteristic) + service.characteristic_count;
   if (end > table.characteristic_count)
     return nullptr;
-  for (uint16_t i = service.first_characteristic; i < end; i++) {
+  for (uint32_t i = service.first_characteristic; i < end; i++) {
     if (table.characteristics[i].uuid == uuid)
       return &table.characteristics[i];
   }
@@ -185,11 +186,11 @@ inline const GattCharacteristic *find_characteristic(const GattServiceTable &tab
 /// Handle of the characteristic's Client Characteristic Configuration
 /// descriptor (0x2902), or 0 when it has none.
 inline uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic) {
-  uint16_t end = characteristic.first_descriptor + characteristic.descriptor_count;
+  uint32_t end = uint32_t(characteristic.first_descriptor) + characteristic.descriptor_count;
   if (end > table.descriptor_count)
     return 0;
   const ESPBTUUID cccd_uuid = ESPBTUUID::from_uint16(CCCD_UUID);
-  for (uint16_t i = characteristic.first_descriptor; i < end; i++) {
+  for (uint32_t i = characteristic.first_descriptor; i < end; i++) {
     if (table.descriptors[i].uuid == cccd_uuid)
       return table.descriptors[i].handle;
   }

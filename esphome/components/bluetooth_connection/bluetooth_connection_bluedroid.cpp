@@ -51,9 +51,8 @@ void BluedroidGattClient::setup() {
 
 void BluedroidGattClient::loop() {
   if (!esp32_ble::global_ble->is_active()) {
-    // Stack down: no CLOSE_EVT will ever come. Settle a link that was past
-    // IDLE so the consumer frees its slot instead of holding a phantom
-    // connection, then re-register the app on the next enable.
+    // Stack down: no CLOSE_EVT will come. Settle a live link so the consumer
+    // frees its slot, then re-register the app on the next enable.
     auto down_st = this->state();
     if (down_st != ClientState::IDLE && down_st != ClientState::INIT) {
       this->release_services();
@@ -73,20 +72,18 @@ void BluedroidGattClient::loop() {
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
     this->set_state(ClientState::IDLE);
   } else if (st == ClientState::DISCONNECTING || this->want_disconnect_) {
-    // The one teardown safety net (the wrapper has no timer): covers a lost
-    // CLOSE_EVT and a scheduled teardown whose OPEN_EVT never arrives.
+    // The one teardown safety net: a lost CLOSE_EVT, or a scheduled
+    // teardown whose OPEN_EVT never arrives.
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
       ESP_LOGE(TAG, "[%d] Timeout waiting for teardown, forcing IDLE", this->connection_index_);
-      // Release before idling: unconditional disconnect does not release,
-      // and a lost completion would otherwise leak the table and the cache.
+      // Release before idling: a lost completion must not leak the cache.
       this->release_services();
       this->set_idle_();  // also clears want_disconnect_
       this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_TIMEOUT);
     }
   } else {
-    // While a link exists the loop stays on watching for a stack-down (the
-    // settle above needs a tick to run) and flushing a pre-started search
-    // claimed outside an event drain; it settles only back at IDLE.
+    // The loop stays on while a link exists (stack-down watch, pre-started
+    // search flush); it settles only back at IDLE.
     this->deliver_pending_search_();
     if (this->state() == ClientState::IDLE) {
       this->disable_loop();
@@ -132,9 +129,8 @@ void BluedroidGattClient::tracker_connect_() {
   this->services_released_ = false;
   this->seen_mtu_ = false;
   this->mtu_failed_ = false;
-  // Per-attempt reset: the stack-down path in loop() reaches IDLE through
-  // set_state() without set_idle_(), and a stale completed search would
-  // satisfy this connection's discovery with the previous one's result.
+  // Per-attempt reset: the stack-down path reaches IDLE without set_idle_(),
+  // and a stale result must not satisfy this attempt's discovery.
   this->search_state_ = SearchState::NONE;
   this->search_status_ = 0;
   this->enable_loop();
@@ -175,8 +171,7 @@ int BluedroidGattClient::gatt_disconnect() {
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
     ESP_LOGD(TAG, "[%d] Disconnect scheduled", this->connection_index_);
     this->want_disconnect_ = true;
-    // The backend owns the whole safety window (the wrapper has no timer):
-    // a lost OPEN_EVT must not leak the scheduled teardown.
+    // Arm the safety window: a lost OPEN_EVT must not leak the teardown.
     this->disconnecting_started_ = millis();
     this->enable_loop();
     return 0;
@@ -385,6 +380,7 @@ bool BluedroidGattClient::build_service_table_() {
                                         return true;
                                       });
   if (!counted) {
+    ESP_LOGW(TAG, "[%d] Service table walk failed during count", this->connection_index_);
     return false;
   }
 
@@ -449,8 +445,8 @@ bool BluedroidGattClient::build_service_table_() {
         return true;
       });
   if (!filled || char_index != char_total || desc_index != desc_total) {
-    // A walk error or a database that changed between the two passes; the
-    // consumer sees an empty table rather than a corrupt one.
+    // Walk error or the database changed between passes; better an empty
+    // table than a corrupt one.
     ESP_LOGW(TAG, "[%d] Service table walk mismatch, discarding", this->connection_index_);
     this->free_service_table_();
     return false;
@@ -506,14 +502,20 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 
 // ---- service streaming ----
 
-int BluedroidGattClient::handle_search_cmpl_() {
+int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
 #ifdef USE_BLE_GATT_SERVICE_TABLE
-  // A completed re-discovery moves the counts table_view_() derives its
-  // offsets from; a table built from the old ones must not survive it.
+  // Re-discovery moves the counts table_view_() derives offsets from; free
+  // the stale table.
   this->free_service_table_();
 #endif
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
+  if (status != ESP_GATT_OK) {
+    // A failed discovery reads as a clean zero from the count calls below;
+    // honoring the event status stops it becoming an authoritative empty
+    // list.
+    return status;
+  }
   uint16_t primary = 0;
   uint16_t secondary = 0;
   auto primary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE,
@@ -530,10 +532,8 @@ int BluedroidGattClient::handle_search_cmpl_() {
   return 0;
 }
 
-// Reports a completed search once it has a claimant; a pre-started search
-// stays silent until claimed. Delivery consumes the state, so a later
-// discover_services() on the same connection issues a real search instead
-// of re-reporting this result.
+// Reports a completed search once claimed; delivery consumes the state so
+// a re-discovery issues a real search.
 void BluedroidGattClient::deliver_pending_search_() {
   if (this->search_state_ != SearchState::REPORT_PENDING)
     return;
@@ -542,6 +542,11 @@ void BluedroidGattClient::deliver_pending_search_() {
 }
 
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
+// The wrapper's compile-time streamer detection must keep finding this
+// method; a signature drift would silently fall back to the table streamer,
+// which proxy builds compile without a materializer.
+static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.stream_service_batch(conn); });
+
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
@@ -695,9 +700,12 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
 void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
   auto st = this->state();
   if (st == ClientState::IDLE) {
-    // IDF can deliver OPEN_EVT after esp_ble_gattc_open already returned an
-    // error and the slot went IDLE; do not resurrect it.
-    ESP_LOGD(TAG, "[%d] OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_, param->open.status);
+    // Late OPEN_EVT after the slot went IDLE (open-error race, or the
+    // teardown net gave up): close a won link, never resurrect the slot.
+    ESP_LOGD(TAG, "[%d] OPEN_EVT in IDLE state (status=%d)", this->connection_index_, param->open.status);
+    if (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN) {
+      esp_ble_gattc_close(this->gattc_if_, param->open.conn_id);
+    }
     return;
   }
   if (st != ClientState::CONNECTING) {
@@ -734,8 +742,8 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
       this->search_state_ = SearchState::PRESTARTED;
     }
     if (this->mtu_failed_ && !this->seen_mtu_) {
-      // The MTU request was refused at CONNECT_EVT: report here with the
-      // default so the consumer proceeds instead of waiting forever.
+      // Refused MTU request: report with the default so the consumer
+      // proceeds.
       this->seen_mtu_ = true;
       this->listener_->on_connection_state(true, ble_device_base::DEFAULT_ATT_MTU, 0);
       this->deliver_pending_search_();
@@ -786,8 +794,7 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
       if (ret) {
         this->log_gattc_warning_("esp_ble_gattc_send_mtu_req", ret);
-        // No CFG_MTU_EVT will follow: OPEN_EVT reports with the default MTU
-        // so the connection still reaches a reported state.
+        // No CFG_MTU_EVT will follow; OPEN_EVT reports with the default.
         this->mtu_failed_ = true;
       }
       break;
@@ -837,12 +844,11 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         return false;
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
       if (this->state() == ClientState::DISCONNECTING) {
-        // Teardown already owns the link: keep its state and safety timer,
-        // and skip the param/count work - the result is never delivered (the
-        // terminal connected=false report settles the consumer).
+        // Teardown owns the link; the result is never delivered, skip the
+        // work.
         break;
       }
-      this->search_status_ = this->handle_search_cmpl_();
+      this->search_status_ = this->handle_search_cmpl_(static_cast<esp_gatt_status_t>(param->search_cmpl.status));
       this->search_state_ =
           this->search_state_ == SearchState::CLAIMED ? SearchState::REPORT_PENDING : SearchState::PRESTART_DONE;
       this->set_state(ClientState::ESTABLISHED);
@@ -895,9 +901,8 @@ void BluedroidGattClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
     case ESP_GAP_BLE_SEC_REQ_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))
         break;
-      // Always accept a server-initiated security request. A refused
-      // response means no AUTH_CMPL will follow, so answer the pairing
-      // request with the failure instead of hanging it.
+      // Always accept; a refused response means no AUTH_CMPL, so answer the
+      // pairing request with the failure.
       int sec_err = this->check_and_log_error_("esp_ble_gap_security_rsp",
                                                esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true));
       if (sec_err != 0) {
