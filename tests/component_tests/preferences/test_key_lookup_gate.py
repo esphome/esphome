@@ -1,8 +1,13 @@
 """Every preferences platform either emits USE_PREFERENCE_KEY_LOOKUP from
 codegen (key-lookup backends) or must not (slot-based backends, whose managers
 have no load_from_key()). Run each platform's real codegen and assert the
-emission, pinning the same split the deny-list in esphome/core/defines.h
-encodes for static analysis."""
+emission, mirroring the split the deny-list in esphome/core/defines.h assumes
+for static analysis.
+
+The fixtures cover every distinct preferences backend today: ln882x and
+rtl87xx route through libretiny (bk72xx stands in for the family), rp2040 is
+an alias of rp2, and nrf52 exercises zephyr. A seventh backend needs a new
+fixture here."""
 
 from collections.abc import Callable
 from pathlib import Path
