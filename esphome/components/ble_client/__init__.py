@@ -178,7 +178,7 @@ _COMMON_SCHEMA = cv.Schema(
 def _esp32_config_schema() -> cv.All:
     """The legacy engine's schema, byte-compatible with what esp32 always had
     (including the Bluedroid security triggers)."""
-    from esphome.components import esp32_ble, esp32_ble_tracker
+    from esphome.components import esp32_ble_tracker
 
     return cv.All(
         _COMMON_SCHEMA.extend(
@@ -213,7 +213,7 @@ def _esp32_config_schema() -> cv.All:
                 ),
             }
         ).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
-        esp32_ble.consume_connection_slots(1, "ble_client"),
+        bluetooth_connection.consume_gatt_slot("ble_client"),
     )
 
 

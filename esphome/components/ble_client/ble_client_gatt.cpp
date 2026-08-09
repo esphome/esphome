@@ -152,33 +152,34 @@ void BLEClient::on_service_discovery_done(int error) {
     this->disconnect();
     return;
   }
-  // CONNECTED before the fan-out so nodes may consult connected() from
-  // their own on_connected().
-  this->state_ = State::CONNECTED;
+  ble_device_base::GattServiceTable table{};
   if (!this->nodes_.empty()) {
     // Materialize only when a node will read it: a client with no nodes
     // would pay the build/free cycle on every (re)connect for nothing.
-    auto table = this->backend_->get_service_table();
+    table = this->backend_->get_service_table();
     if (table.service_count == 0) {
       // A failed materialization is indistinguishable from a service-less
-      // peer, and a real GATT peer always exposes at least GAP/GATT: treat
-      // it as a discovery failure so the connection retries instead of
-      // sitting inert behind a successful-looking on_connect.
+      // peer, and a real GATT peer always exposes at least GAP/GATT: fail
+      // the discovery before CONNECTED so the teardown resolves through
+      // connect_failed, never a spurious on_disconnect.
       ESP_LOGW(TAG, "[%s] Service table is empty; treating as failed discovery", this->address_str_);
       this->backend_->release_services();
       this->register_failure_();
       this->disconnect();
       return;
     }
-    for (auto *node : this->nodes_) {
-      node->on_connected(table);
-      if (this->state_ != State::CONNECTED || this->cancel_requested_) {
-        // A node tore the link down mid-fan-out: on_disconnect fires with no
-        // preceding on_connect, so leave a trace of why.
-        ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);
-        this->backend_->release_services();
-        return;
-      }
+  }
+  // CONNECTED before the fan-out so nodes may consult connected() from
+  // their own on_connected().
+  this->state_ = State::CONNECTED;
+  for (auto *node : this->nodes_) {
+    node->on_connected(table);
+    if (this->state_ != State::CONNECTED || this->cancel_requested_) {
+      // A node tore the link down mid-fan-out: on_disconnect fires with no
+      // preceding on_connect, so leave a trace of why.
+      ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);
+      this->backend_->release_services();
+      return;
     }
   }
   this->backend_->release_services();
