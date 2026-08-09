@@ -1,0 +1,24 @@
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: test_blec
+    on_connect:
+      then:
+        - ble_client.ble_write:
+            id: test_blec
+            service_uuid: '1802'
+            characteristic_uuid: '2a06'
+            value: [0x04, 0x05, 0x06]
+    on_disconnect:
+      then:
+        - ble_client.disconnect: test_blec
+
+button:
+  - platform: template
+    name: Connect button
+    on_press:
+      - ble_client.connect: test_blec
+      - ble_client.ble_write:
+          id: test_blec
+          service_uuid: '1802'
+          characteristic_uuid: '2a06'
+          value: !lambda return {0x01, 0x02};

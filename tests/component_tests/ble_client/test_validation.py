@@ -19,8 +19,20 @@ from esphome.const import (
     CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TYPE,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
+
+
+@pytest.fixture(autouse=True)
+def esp32_platform() -> None:
+    # The node platforms gate on only_on_esp32 now (the neutral engine has no
+    # raw-gattc nodes); these schema tests exercise the esp32 arm.
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP32
+
 
 DESCRIPTOR_CONFIG: ConfigType = {
     CONF_NAME: "test",

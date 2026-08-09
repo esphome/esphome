@@ -33,7 +33,7 @@ BLETextSensorNotifyTrigger = ble_client_ns.class_(
     "BLETextSensorNotifyTrigger", automation.Trigger.template(cg.std_string)
 )
 
-CONFIG_SCHEMA = cv.All(
+_CONFIG_SCHEMA = cv.All(
     text_sensor.text_sensor_schema(BLETextSensor)
     .extend(
         {
@@ -109,3 +109,7 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await ble_client.register_ble_node(trigger, config)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+
+# Raw-gattc node platform: not yet migrated to the neutral ble_client engine.
+CONFIG_SCHEMA = cv.All(cv.only_on_esp32, _CONFIG_SCHEMA)

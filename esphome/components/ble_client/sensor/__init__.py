@@ -50,7 +50,7 @@ def checkType(value):
     return value
 
 
-CONFIG_SCHEMA = cv.All(
+_CONFIG_SCHEMA = cv.All(
     checkType,
     cv.typed_schema(
         {
@@ -164,3 +164,7 @@ async def to_code(config):
         await rssi_sensor_to_code(config)
     elif config[CONF_TYPE] == TYPE_CHARACTERISTIC:
         await characteristic_sensor_to_code(config)
+
+
+# Raw-gattc node platform: not yet migrated to the neutral ble_client engine.
+CONFIG_SCHEMA = cv.All(cv.only_on_esp32, _CONFIG_SCHEMA)
