@@ -2,3 +2,6 @@ nrf52:
   reg0:
     voltage: 3.3V
     uicr_erase: true
+  power_enable:
+    pin: P0.13
+    startup_delay: 500ms

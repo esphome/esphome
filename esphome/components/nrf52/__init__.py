@@ -36,9 +36,13 @@ from esphome.const import (
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
     CONF_OTA,
+    CONF_PIN,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
+    CONF_STARTUP_DELAY,
     CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
@@ -206,6 +210,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
 CONF_LIBC_NANO = "libc_nano"
+CONF_POWER_ENABLE = "power_enable"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -228,6 +233,22 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     return _DFU_SCHEMA(value)
 
 
+# Some nRF52 boards (mostly cheap hobby clones, e.g. "SuperMini nRF52840"/nRFMicro)
+# gate their external peripheral header behind a GPIO-controlled power rail that
+# Arduino's board-support code enables invisibly on boot. Zephyr has no board port
+# for these clones, so nothing does that for them. Modelling the pin as a Zephyr
+# `regulator-fixed` devicetree node (rather than app-level C++) means the rail is
+# enabled by Zephyr's own device init, before any ESPHome component's setup() runs.
+_POWER_ENABLE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(
+            CONF_STARTUP_DELAY, default="0us"
+        ): cv.positive_time_period_microseconds,
+    }
+)
+
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -239,6 +260,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): _dfu_schema,
             cv.Optional(CONF_DCDC): cv.boolean,
+            cv.Optional(CONF_POWER_ENABLE): _POWER_ENABLE_SCHEMA,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -398,6 +420,28 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
+
+    if power_enable_config := config.get(CONF_POWER_ENABLE):
+        pin = power_enable_config[CONF_PIN]
+        pin_no = pin[CONF_NUMBER]
+        active = "GPIO_ACTIVE_LOW" if pin[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
+        startup_delay_us = int(
+            power_enable_config[CONF_STARTUP_DELAY].total_microseconds
+        )
+        zephyr_add_prj_conf("REGULATOR", True)
+        zephyr_add_overlay(
+            f"""
+                / {{
+                    esphome_power_enable: esphome_power_enable {{
+                        compatible = "regulator-fixed";
+                        regulator-name = "esphome_power_enable";
+                        enable-gpios = <&gpio{pin_no // 32} {pin_no % 32} {active}>;
+                        regulator-boot-on;
+                        startup-delay-us = <{startup_delay_us}>;
+                    }};
+                }};
+            """
+        )
 
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
