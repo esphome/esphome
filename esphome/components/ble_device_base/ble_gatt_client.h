@@ -5,8 +5,11 @@
 // Exactly one GATT backend exists per build, so BLEGattConnection is a
 // compile-time alias (bluetooth_connection_gatt_backend.h), not an abstract
 // interface.
-// The hub BluetoothConnection wrapper drives it and receives completions
-// through its event-sink methods, which the backend calls directly. All sink
+// A consumer (the hub BluetoothConnection wrapper, or a component owning a
+// dedicated backend instance such as radon_eye_rd200) drives it and receives
+// completions through a GattEventSink — a pointer-sized-entry function table
+// rather than a concrete consumer type, because one build can hold several
+// consumer types while the backend stays a single non-virtual class. All sink
 // calls are delivered on the ESPHome main loop; borrowed data pointers are
 // valid only for the duration of the call.
 //
@@ -78,6 +81,78 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
+// The event sink the backend calls directly, asserted where each consumer is
+// defined: on_connection_state carries the negotiated MTU and an HCI
+// status/disconnect reason. The requirements check call validity, not exact
+// parameter types; keep sink parameters at the documented widths (uint16_t
+// handles and lengths).
+template<typename S>
+concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
+  { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_service_discovery_done(int{}) } -> std::same_as<void>;
+  { sink.on_read_result(uint16_t{}, data, uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_write_result(uint16_t{}, int{}) } -> std::same_as<void>;
+  { sink.on_notify_state(uint16_t{}, true, int{}) } -> std::same_as<void>;
+  { sink.on_notify_data(uint16_t{}, data, uint16_t{}) } -> std::same_as<void>;
+  { sink.on_pairing_result(int{}) } -> std::same_as<void>;
+};
+
+/// Type-erased consumer handle a backend delivers events through: one
+/// instance pointer plus a trampoline per event. Built with make_gatt_sink()
+/// from any type satisfying GattClientEventSinkContract; call sites read the
+/// same as a direct listener call. No virtuals, no heap — the cost of
+/// supporting several consumer types in one build is one indirect call per
+/// event. Codegen wires the sink before setup(), so backends may call
+/// without a null check.
+struct GattEventSink {
+  void *instance{nullptr};
+  void (*connection_state)(void *, bool, uint16_t, int){nullptr};
+  void (*service_discovery_done)(void *, int){nullptr};
+  void (*read_result)(void *, uint16_t, const uint8_t *, uint16_t, int){nullptr};
+  void (*write_result)(void *, uint16_t, int){nullptr};
+  void (*notify_state)(void *, uint16_t, bool, int){nullptr};
+  void (*notify_data)(void *, uint16_t, const uint8_t *, uint16_t){nullptr};
+  void (*pairing_result)(void *, int){nullptr};
+
+  void on_connection_state(bool connected, uint16_t mtu, int error) const {
+    this->connection_state(this->instance, connected, mtu, error);
+  }
+  void on_service_discovery_done(int error) const { this->service_discovery_done(this->instance, error); }
+  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) const {
+    this->read_result(this->instance, handle, data, len, error);
+  }
+  void on_write_result(uint16_t handle, int error) const { this->write_result(this->instance, handle, error); }
+  void on_notify_state(uint16_t handle, bool enabled, int error) const {
+    this->notify_state(this->instance, handle, enabled, error);
+  }
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) const {
+    this->notify_data(this->instance, handle, data, len);
+  }
+  void on_pairing_result(int status) const { this->pairing_result(this->instance, status); }
+};
+
+template<typename T> GattEventSink make_gatt_sink(T *consumer) {
+  static_assert(GattClientEventSinkContract<T>, "the consumer is missing part of the event-sink surface");
+  return GattEventSink{
+      consumer,
+      [](void *p, bool connected, uint16_t mtu, int error) {
+        static_cast<T *>(p)->on_connection_state(connected, mtu, error);
+      },
+      [](void *p, int error) { static_cast<T *>(p)->on_service_discovery_done(error); },
+      [](void *p, uint16_t handle, const uint8_t *data, uint16_t len, int error) {
+        static_cast<T *>(p)->on_read_result(handle, data, len, error);
+      },
+      [](void *p, uint16_t handle, int error) { static_cast<T *>(p)->on_write_result(handle, error); },
+      [](void *p, uint16_t handle, bool enabled, int error) {
+        static_cast<T *>(p)->on_notify_state(handle, enabled, error);
+      },
+      [](void *p, uint16_t handle, const uint8_t *data, uint16_t len) {
+        static_cast<T *>(p)->on_notify_data(handle, data, len);
+      },
+      [](void *p, int status) { static_cast<T *>(p)->on_pairing_result(status); },
+  };
+}
+
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
 // through the sink) or a synchronous error (busy, not connected, stack
@@ -88,17 +163,19 @@ struct GattServiceTable {
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
-//   released after streaming (release is idempotent). A backend may instead
-//   provide its own service streamer (stream_service_batch on the concrete
-//   type, detected by the consumer at compile time) and keep the table empty.
+//   released after streaming (release is idempotent). A backend may
+//   additionally provide its own service streamer (stream_service_batch on
+//   the concrete type, detected by the consumer at compile time) for
+//   arbitrary-size databases; the table then materializes only for consumers
+//   that ask for it.
 // - completions: connect and disconnect land in on_connection_state,
 //   discover_services in on_service_discovery_done, pair in
 //   on_pairing_result, reads in on_read_result, notify_characteristic in
 //   on_notify_state, characteristic writes with response and descriptor
 //   writes in on_write_result.
-template<typename T, typename Sink>
-concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *data) {
-  conn.set_listener(sink);
+template<typename T>
+concept BLEGattConnectionContract = requires(T conn, GattEventSink sink, const uint8_t *data) {
+  conn.set_sink(sink);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
   { conn.disconnect() } -> std::same_as<int>;
   { conn.discover_services() } -> std::same_as<int>;
@@ -113,21 +190,50 @@ concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *
   { conn.release_services() } -> std::same_as<void>;
 };
 
-// The event sink the backend calls directly (the hub BluetoothConnection
-// wrapper), asserted where the wrapper is defined: on_connection_state
-// carries the negotiated MTU and an HCI status/disconnect reason. The
-// requirements check call validity, not exact parameter types; keep sink
-// parameters at the documented widths (uint16_t handles and lengths).
-template<typename S>
-concept GattClientEventSinkContract = requires(S sink, const uint8_t *data) {
-  { sink.on_connection_state(true, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_service_discovery_done(int{}) } -> std::same_as<void>;
-  { sink.on_read_result(uint16_t{}, data, uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_write_result(uint16_t{}, int{}) } -> std::same_as<void>;
-  { sink.on_notify_state(uint16_t{}, true, int{}) } -> std::same_as<void>;
-  { sink.on_notify_data(uint16_t{}, data, uint16_t{}) } -> std::same_as<void>;
-  { sink.on_pairing_result(int{}) } -> std::same_as<void>;
-};
+// ---- service table lookup helpers ----
+//
+// Neutral, bounds-checked walks over a materialized GattServiceTable for
+// consumers that resolve a known device's handles by UUID (the proxy streams
+// the whole table to HA instead and never needs these). Linear search: the
+// table exists only between discovery and release_services(), for one small
+// known device.
+
+/// Client Characteristic Configuration descriptor UUID (Bluetooth spec).
+static constexpr uint16_t CCCD_UUID = 0x2902;
+
+inline const GattService *find_service(const GattServiceTable &table, const ESPBTUUID &uuid) {
+  for (uint16_t i = 0; i < table.service_count; i++) {
+    if (table.services[i].uuid == uuid)
+      return &table.services[i];
+  }
+  return nullptr;
+}
+
+inline const GattCharacteristic *find_characteristic(const GattServiceTable &table, const GattService &service,
+                                                     const ESPBTUUID &uuid) {
+  uint16_t end = service.first_characteristic + service.characteristic_count;
+  if (end > table.characteristic_count)
+    return nullptr;
+  for (uint16_t i = service.first_characteristic; i < end; i++) {
+    if (table.characteristics[i].uuid == uuid)
+      return &table.characteristics[i];
+  }
+  return nullptr;
+}
+
+/// Handle of the characteristic's Client Characteristic Configuration
+/// descriptor (0x2902), or 0 when it has none.
+inline uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic) {
+  uint16_t end = characteristic.first_descriptor + characteristic.descriptor_count;
+  if (end > table.descriptor_count)
+    return 0;
+  const ESPBTUUID cccd_uuid = ESPBTUUID::from_uint16(CCCD_UUID);
+  for (uint16_t i = characteristic.first_descriptor; i < end; i++) {
+    if (table.descriptors[i].uuid == cccd_uuid)
+      return table.descriptors[i].handle;
+  }
+  return 0;
+}
 
 }  // namespace esphome::ble_device_base
 

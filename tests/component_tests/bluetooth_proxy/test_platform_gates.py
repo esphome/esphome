@@ -186,12 +186,12 @@ def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
 
 
 def test_every_registered_hub_platform_has_a_schema_arm() -> None:
-    # A platform added to HUB_MAX_CONNECTIONS without a schema builder,
-    # codegen arm, or _HUB_PLATFORMS entry would only fail when a config for
-    # it is validated (or not even then); pin all three couplings here.
+    # A platform added to HUB_MAX_CONNECTIONS without a schema builder or
+    # _HUB_PLATFORMS entry would only fail when a config for it is validated
+    # (or not even then); pin both couplings here. Connection codegen is
+    # shared (bluetooth_connection.new_gatt_backend), so it needs no arm.
     registered = set(bluetooth_connection.HUB_MAX_CONNECTIONS)
     assert registered <= set(bluetooth_proxy._GATT_HUB_SCHEMAS)
-    assert registered <= set(bluetooth_proxy._GATT_HUB_TO_CODE)
     assert registered <= set(bluetooth_proxy._HUB_PLATFORMS)
     # The outer walkable schema's bound must stay the loosest platform cap.
     assert (

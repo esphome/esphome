@@ -1,0 +1,4 @@
+# The BTstack GATT backend and its rp2040_ble controller are auto-loaded;
+# no tracker hub is needed for a dedicated GATT client.
+packages:
+  radon_eye_rd200: !include common.yaml

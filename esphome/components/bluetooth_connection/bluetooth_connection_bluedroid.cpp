@@ -220,11 +220,171 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
+  this->free_service_table_();
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
+}
+
+ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
+  if (this->table_storage_ == nullptr &&
+      (this->services_released_ || this->service_total_ == 0 || !this->build_service_table_())) {
+    return {};
+  }
+  return this->table_view_();
+}
+
+// The view is carved from the storage block and the counts on each call
+// (a cold path) rather than cached, saving a per-instance table member.
+ble_device_base::GattServiceTable BluedroidGattClient::table_view_() const {
+  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
+  size_t char_bytes = this->table_char_total_ * sizeof(ble_device_base::GattCharacteristic);
+  return {reinterpret_cast<const ble_device_base::GattService *>(this->table_storage_),
+          reinterpret_cast<const ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes),
+          reinterpret_cast<const ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes),
+          this->service_total_,
+          this->table_char_total_,
+          this->table_desc_total_};
+}
+
+void BluedroidGattClient::free_service_table_() {
+  if (this->table_storage_ == nullptr) {
+    return;
+  }
+  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+  allocator.deallocate(this->table_storage_, 0);
+  this->table_storage_ = nullptr;
+  this->table_char_total_ = 0;
+  this->table_desc_total_ = 0;
+}
+
+bool BluedroidGattClient::build_service_table_() {
+  // Pass 1: count characteristics and descriptors so one exact-size block
+  // holds the whole table (descriptor counts need the characteristic handles,
+  // so this pass already enumerates characteristics).
+  uint16_t char_total = 0;
+  uint16_t desc_total = 0;
+  for (uint16_t s = 0; s < this->service_total_; s++) {
+    esp_gattc_service_elem_t svc;
+    uint16_t svc_count = 1;
+    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
+        svc_count == 0) {
+      return false;
+    }
+    uint16_t svc_chars = 0;
+    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC, svc.start_handle,
+                                     svc.end_handle, 0, &svc_chars) != ESP_GATT_OK) {
+      return false;
+    }
+    for (uint16_t c = 0; c < svc_chars; c++) {
+      esp_gattc_char_elem_t chr;
+      uint16_t char_count = 1;
+      auto status =
+          esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
+                                     &char_count, c);
+      if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
+        break;
+      }
+      if (status != ESP_GATT_OK || char_count == 0) {
+        return false;
+      }
+      char_total++;
+      uint16_t chr_descs = 0;
+      esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, chr.char_handle,
+                                   &chr_descs);
+      desc_total += chr_descs;
+    }
+  }
+
+  // The arrays share one block; carving stays aligned because each struct's
+  // strictest member is the UUID and array sizes are multiples of it.
+  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
+  size_t char_bytes = char_total * sizeof(ble_device_base::GattCharacteristic);
+  size_t total_bytes = svc_bytes + char_bytes + desc_total * sizeof(ble_device_base::GattDescriptor);
+  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+  this->table_storage_ = allocator.allocate(total_bytes);
+  if (this->table_storage_ == nullptr) {
+    ESP_LOGW(TAG, "[%d] Service table allocation failed (%u bytes)", this->connection_index_,
+             static_cast<unsigned>(total_bytes));
+    return false;
+  }
+  auto *services = reinterpret_cast<ble_device_base::GattService *>(this->table_storage_);
+  auto *characteristics = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes);
+  auto *descriptors =
+      reinterpret_cast<ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes);
+
+  // Pass 2: fill. Every write is bounded by the pass-1 totals, so a
+  // misbehaving peripheral returning extra entries cannot overrun the block.
+  uint16_t char_index = 0;
+  uint16_t desc_index = 0;
+  for (uint16_t s = 0; s < this->service_total_; s++) {
+    esp_gattc_service_elem_t svc;
+    uint16_t svc_count = 1;
+    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
+        svc_count == 0) {
+      this->free_service_table_();
+      return false;
+    }
+    auto &service = services[s];
+    service.uuid = ble_device_base::ESPBTUUID::from_uuid(svc.uuid);
+    service.start_handle = svc.start_handle;
+    service.end_handle = svc.end_handle;
+    service.first_characteristic = char_index;
+    for (uint16_t c = 0; char_index < char_total; c++) {
+      esp_gattc_char_elem_t chr;
+      uint16_t char_count = 1;
+      auto status =
+          esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
+                                     &char_count, c);
+      if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
+        break;
+      }
+      if (status != ESP_GATT_OK || char_count == 0) {
+        this->free_service_table_();
+        return false;
+      }
+      auto &characteristic = characteristics[char_index];
+      characteristic.uuid = ble_device_base::ESPBTUUID::from_uuid(chr.uuid);
+      characteristic.value_handle = chr.char_handle;
+      // Bluedroid addresses descriptors by characteristic handle, so the
+      // table's end_handle only needs the service-bounded upper bound.
+      characteristic.end_handle = svc.end_handle;
+      characteristic.properties = chr.properties;
+      characteristic.first_descriptor = desc_index;
+      uint16_t chr_descs = 0;
+      esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0, chr.char_handle,
+                                   &chr_descs);
+      for (uint16_t d = 0; d < chr_descs && desc_index < desc_total; d++) {
+        esp_gattc_descr_elem_t desc;
+        uint16_t desc_count = 1;
+        auto desc_status =
+            esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, chr.char_handle, &desc, &desc_count, d);
+        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (desc_status != ESP_GATT_OK || desc_count == 0) {
+          this->free_service_table_();
+          return false;
+        }
+        descriptors[desc_index].uuid = ble_device_base::ESPBTUUID::from_uuid(desc.uuid);
+        descriptors[desc_index].handle = desc.handle;
+        desc_index++;
+      }
+      characteristic.descriptor_count = desc_index - characteristic.first_descriptor;
+      char_index++;
+    }
+    service.characteristic_count = char_index - service.first_characteristic;
+  }
+  if (char_index < char_total) {
+    // Fewer characteristics enumerated than counted: close the gap so the
+    // view's descriptor offset can be derived from the filled count alone.
+    memmove(characteristics + char_index, descriptors, desc_index * sizeof(ble_device_base::GattDescriptor));
+  }
+  this->table_char_total_ = char_index;
+  this->table_desc_total_ = desc_index;
+  return true;
 }
 
 // ---- internals ----
@@ -246,7 +406,7 @@ void BluedroidGattClient::set_disconnecting_() {
 }
 
 void BluedroidGattClient::report_connection_state_(bool connected, int error) {
-  this->listener_->on_connection_state(connected, this->mtu_, error);
+  this->sink_.on_connection_state(connected, this->mtu_, error);
 }
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
@@ -284,7 +444,7 @@ void BluedroidGattClient::handle_search_cmpl_() {
   esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0,
                                &secondary);
   this->service_total_ = primary + secondary;
-  this->listener_->on_service_discovery_done(0);
+  this->sink_.on_service_discovery_done(0);
 }
 
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
@@ -551,7 +711,7 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       if (this->conn_id_ != param->read.conn_id)
         return false;
       bool ok = param->read.status == ESP_GATT_OK;
-      this->listener_->on_read_result(param->read.handle, ok ? param->read.value : nullptr,
+      this->sink_.on_read_result(param->read.handle, ok ? param->read.value : nullptr,
                                       ok ? param->read.value_len : 0, ok ? 0 : param->read.status);
       break;
     }
@@ -559,17 +719,17 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_WRITE_DESCR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      this->listener_->on_write_result(param->write.handle,
+      this->sink_.on_write_result(param->write.handle,
                                        param->write.status == ESP_GATT_OK ? 0 : param->write.status);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->listener_->on_notify_state(param->reg_for_notify.handle, true,
+      this->sink_.on_notify_state(param->reg_for_notify.handle, true,
                                        param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      this->listener_->on_notify_state(
+      this->sink_.on_notify_state(
           param->unreg_for_notify.handle, false,
           param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
       break;
@@ -578,7 +738,7 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       if (this->conn_id_ != param->notify.conn_id)
         return false;
       ESP_LOGV(TAG, "[%d] NOTIFY_EVT handle=0x%2X", this->connection_index_, param->notify.handle);
-      this->listener_->on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
+      this->sink_.on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
       break;
     }
     default:
@@ -599,7 +759,7 @@ void BluedroidGattClient::handle_gap_event_(esp_gap_ble_cb_event_t event, esp_bl
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))
         break;
-      this->listener_->on_pairing_result(
+      this->sink_.on_pairing_result(
           param->ble_security.auth_cmpl.success ? 0 : param->ble_security.auth_cmpl.fail_reason);
       break;
     }

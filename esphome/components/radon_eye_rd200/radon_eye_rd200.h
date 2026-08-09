@@ -1,45 +1,74 @@
+// RD200 radon sensor over the platform-neutral GATT client contract
+// (ble_device_base/ble_gatt_client.h). The component owns a dedicated
+// backend instance and is its event sink — the first ble_client-family
+// component migrated off the esp32-only BLEClientNode, which also enables it
+// on every platform with a GATT backend (esp32 and rp2 today).
+//
+// Poll cycle: connect → discover → resolve handles by UUID from the service
+// table → subscribe (local registration, then an explicit CCCD write — the
+// contract makes the CCCD the client's job) → write the read command → parse
+// the notification → disconnect. The link is dropped after every reading so
+// the vendor mobile app can connect between polls.
+
 #pragma once
 
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
 
-#include <esp_gattc_api.h>
-#include <algorithm>
-#include <iterator>
-#include "esphome/components/ble_client/ble_client.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#ifdef USE_BLE_GATT_CLIENT
+
+#include "esphome/components/ble_device_base/ble_gatt_client.h"
+#include "esphome/components/bluetooth_connection/bluetooth_connection_gatt_backend.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
 
 namespace esphome::radon_eye_rd200 {
 
-class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClientNode {
+class RadonEyeRD200 final : public PollingComponent {
  public:
-  RadonEyeRD200();
+  RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address) : address_(address), backend_(backend) {
+    backend->set_sink(ble_device_base::make_gatt_sink(this));
+  }
 
   void dump_config() override;
   void update() override;
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
+  void set_radon(sensor::Sensor *radon) { this->radon_sensor_ = radon; }
+  void set_radon_long_term(sensor::Sensor *radon_long_term) { this->radon_long_term_sensor_ = radon_long_term; }
 
-  void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
-  void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
+  // ---- backend event sink ----
+  void on_connection_state(bool connected, uint16_t mtu, int error);
+  void on_service_discovery_done(int error);
+  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
+  void on_write_result(uint16_t handle, int error);
+  void on_notify_state(uint16_t handle, bool enabled, int error);
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len);
+  void on_pairing_result(int status) {}
 
  protected:
-  void read_sensors_(uint8_t *value, uint16_t value_len);
+  bool resolve_handles_();
+  void read_sensors_(const uint8_t *value, uint16_t value_len);
+  void abort_connection_();
 
+  // Group 1: 8-byte types
+  uint64_t address_;
+
+  // Group 2: pointers
+  ble_device_base::BLEGattConnection *backend_;
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};
 
-  uint8_t write_command_;
-  uint16_t read_handle_;
-  uint16_t write_handle_;
-  esp32_ble_tracker::ESPBTUUID service_uuid_;
-  esp32_ble_tracker::ESPBTUUID sensors_write_characteristic_uuid_;
-  esp32_ble_tracker::ESPBTUUID sensors_read_characteristic_uuid_;
+  // Group 3: 2-byte types
+  uint16_t read_handle_{0};
+  uint16_t write_handle_{0};
+  uint16_t cccd_handle_{0};
+
+  // Group 4: 1-byte types
+  uint8_t write_command_{0};
+  // A connect was accepted and the link is not torn down yet; cleared by
+  // on_connection_state(false).
+  bool busy_{false};
 };
 
 }  // namespace esphome::radon_eye_rd200
 
-#endif  // USE_ESP32
+#endif  // USE_BLE_GATT_CLIENT

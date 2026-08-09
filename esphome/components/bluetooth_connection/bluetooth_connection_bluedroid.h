@@ -53,7 +53,7 @@ class BluedroidGattClient final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
   // Wired by codegen before setup and invariant for the device lifetime.
-  void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
+  void set_sink(ble_device_base::GattEventSink sink) { this->sink_ = sink; }
   esp32_ble_tracker::ESPBTClient *tracker_client() { return &this->shim_; }
 
   // ---- ble_device_base::BLEGattConnection contract ----
@@ -67,9 +67,12 @@ class BluedroidGattClient final : public Component {
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  // Never called: this backend streams in place (stream_service_batch), so
-  // the table stays empty. Satisfies the contract concept.
-  ble_device_base::GattServiceTable get_service_table() { return {}; }
+  // Materialized on demand from Bluedroid's cached database for direct
+  // consumers that resolve handles by UUID (e.g. radon_eye_rd200). The proxy
+  // wrapper never calls this - it streams through stream_service_batch - so
+  // proxy peak RAM is unchanged; a direct consumer's peak is bounded by its
+  // one known device's table.
+  ble_device_base::GattServiceTable get_service_table();
   void release_services();
 
   /// In-place service streamer (the wrapper detects and prefers it): builds
@@ -101,10 +104,18 @@ class BluedroidGattClient final : public Component {
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
   void log_gattc_warning_(const char *operation, int code);
+  bool build_service_table_();
+  void free_service_table_();
+  ble_device_base::GattServiceTable table_view_() const;
 
   // Group 1: pointers / composed objects
   BluedroidTrackerShim shim_{this};
-  BluetoothConnection *listener_{nullptr};
+  ble_device_base::GattEventSink sink_;
+  // One exact-size block carved into the table's three arrays; owned here,
+  // freed by release_services(). Null when no table is materialized. The
+  // GattServiceTable view is rebuilt from this pointer and the counts on
+  // each (cold) get_service_table() call instead of being cached.
+  uint8_t *table_storage_{nullptr};
   // Group 2: 4-byte types
   int gattc_if_{ESP_GATT_IF_NONE};
   uint32_t disconnecting_started_{0};
@@ -116,6 +127,9 @@ class BluedroidGattClient final : public Component {
   uint16_t conn_id_{0xFFFF};
   uint16_t mtu_{23};
   uint16_t service_total_{0};
+  // Filled element counts of the materialized table (0 when none).
+  uint16_t table_char_total_{0};
+  uint16_t table_desc_total_{0};
 
   // Group 5: 1-byte types
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.

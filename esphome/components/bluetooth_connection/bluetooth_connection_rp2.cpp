@@ -384,8 +384,8 @@ void RP2GattClient::loop() {
 
   RP2GattNotifyEvent *notify;
   while ((notify = this->notify_queue_.pop()) != nullptr) {
-    if (this->listener_ != nullptr && this->notify_subscribed_(notify->handle)) {
-      this->listener_->on_notify_data(notify->handle, notify->data, notify->len);
+    if (this->notify_subscribed_(notify->handle)) {
+      this->sink_.on_notify_data(notify->handle, notify->data, notify->len);
     }
     this->notify_pool_.release(notify);
   }
@@ -448,9 +448,7 @@ void RP2GattClient::loop() {
     }
     if (timed_out) {
       ESP_LOGW(TAG, "Deferred write timeout, handle=0x%04x", this->op_handle_);
-      if (this->listener_ != nullptr) {
-        this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
-      }
+      this->sink_.on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
     }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
                                                    this->event_queue_.empty() && this->notify_queue_.empty())) {
@@ -474,9 +472,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
-        if (this->listener_ != nullptr) {
-          this->listener_->on_connection_state(true, this->mtu_, 0);
-        }
+        this->sink_.on_connection_state(true, this->mtu_, 0);
       }
       break;
     case RP2GattEvent::QUERY_COMPLETE:
@@ -486,9 +482,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
       this->finish_write_no_rsp_(event.status);
       break;
     case RP2GattEvent::PAIRING_RESULT:
-      if (this->listener_ != nullptr) {
-        this->listener_->on_pairing_result(event.status);
-      }
+      this->sink_.on_pairing_result(event.status);
       break;
   }
 }
@@ -514,9 +508,7 @@ void RP2GattClient::finish_write_no_rsp_(uint8_t status) {
     return;
   }
   this->op_type_ = OpType::NONE;
-  if (this->listener_ != nullptr) {
-    this->listener_->on_write_result(this->op_handle_, status);
-  }
+  this->sink_.on_write_result(this->op_handle_, status);
 }
 
 void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
@@ -576,9 +568,7 @@ void RP2GattClient::fail_connection_(uint8_t reason) {
   this->cleanup_link_state_();
   this->release_scan_inhibit_();
   this->state_ = EngineState::IDLE;
-  if (this->listener_ != nullptr) {
-    this->listener_->on_connection_state(false, 0, reason);
-  }
+  this->sink_.on_connection_state(false, 0, reason);
 }
 
 void RP2GattClient::cleanup_link_state_() {
@@ -621,9 +611,6 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
   if (this->op_type_ != OpType::NONE && this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
     OpType op = this->op_type_;
     this->op_type_ = OpType::NONE;
-    if (this->listener_ == nullptr) {
-      return;
-    }
     switch (op) {
       case OpType::READ_CHAR:
       case OpType::READ_DESC:
@@ -634,12 +621,12 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
             this->op_len_ > 0) {
           att_status = 0;
         }
-        this->listener_->on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
+        this->sink_.on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
                                         att_status);
         break;
       case OpType::WRITE_CHAR:
       case OpType::WRITE_DESC:
-        this->listener_->on_write_result(this->op_handle_, att_status);
+        this->sink_.on_write_result(this->op_handle_, att_status);
         break;
       default:
         break;
@@ -796,9 +783,7 @@ void RP2GattClient::finish_discovery_(int error) {
   if (error != 0) {
     this->release_services();
   }
-  if (this->listener_ != nullptr) {
-    this->listener_->on_service_discovery_done(error);
-  }
+  this->sink_.on_service_discovery_done(error);
 }
 
 ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
@@ -990,8 +975,8 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
         return 0;
       }
     }
-    if (status == 0 && this->listener_ != nullptr) {
-      this->listener_->on_write_result(handle, 0);
+    if (status == 0) {
+      this->sink_.on_write_result(handle, 0);
     }
     return status;
   }
@@ -1092,9 +1077,7 @@ int RP2GattClient::notify_characteristic(uint16_t handle, bool enable) {
       }
     }
   }
-  if (this->listener_ != nullptr) {
-    this->listener_->on_notify_state(handle, enable, 0);
-  }
+  this->sink_.on_notify_state(handle, enable, 0);
   return 0;
 }
 

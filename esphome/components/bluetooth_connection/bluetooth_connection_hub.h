@@ -29,7 +29,7 @@ class BluetoothConnection final {
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
     this->backend_ = backend;
-    backend->set_listener(this);
+    backend->set_sink(ble_device_base::make_gatt_sink(this));
   }
 
   // ---- proxy dispatch surface (mirrors the esp32 class) ----
