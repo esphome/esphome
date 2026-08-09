@@ -111,6 +111,11 @@ concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *
   { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
   { conn.get_service_table() } -> std::same_as<GattServiceTable>;
   { conn.release_services() } -> std::same_as<void>;
+  // Deferred-disconnect visibility and the connection-type hint; backends
+  // without the underlying state carry inline no-ops.
+  { conn.disconnect_pending() } -> std::same_as<bool>;
+  { conn.cancel_pending_disconnect() } -> std::same_as<void>;
+  { conn.set_connection_type(ConnectionType{}) } -> std::same_as<void>;
 };
 
 // The event sink the backend calls directly (the hub BluetoothConnection

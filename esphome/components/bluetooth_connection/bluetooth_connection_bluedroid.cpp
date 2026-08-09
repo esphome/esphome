@@ -12,9 +12,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
 #include <esp_gatt_common_api.h>
 
 #include <cstring>
@@ -92,6 +89,13 @@ void BluedroidGattClient::dump_config() {
 // ---- contract ops ----
 
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
+  // Refuse anything but a fully idle slot. Clobbering DISCONNECTING with
+  // DISCOVERED would let the tracker open a new link while the old one is
+  // still closing - the stale CLOSE_EVT then tears the new attempt down.
+  if (this->state_() != ClientState::IDLE) {
+    ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
+    return ESP_GATT_BUSY;
+  }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
   // Hand the request to the tracker's promote loop: it stops the scan, raises
@@ -488,11 +492,12 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
-  // Passive disconnect: report now, but wait for CLOSE_EVT before going IDLE -
-  // reconnecting earlier makes the controller reject with 133 or assert.
+  // Passive disconnect: wait for CLOSE_EVT before going IDLE (reconnecting
+  // earlier makes the controller reject with 133 or assert) and before
+  // reporting - the wrapper frees the slot on the report, and a freed slot
+  // invites a reconnect into the still-closing link.
   this->release_services();
   this->set_disconnecting_();
-  this->report_connection_state_(false, param->disconnect.reason);
 }
 
 bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -556,9 +561,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
         return false;
       this->release_services();
       this->set_idle_();
-      // The wrapper frees the slot on this final report; after a passive
-      // disconnect this is the second connected=false, matching the previous
-      // esp32 behavior (report at DISCONNECT, slot free at CLOSE).
+      // The one connected=false report: the wrapper frees the slot on it,
+      // so it must not fire before the controller finished closing.
       this->report_connection_state_(false, param->close.reason);
       break;
     }

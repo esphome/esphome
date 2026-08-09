@@ -21,8 +21,7 @@ conn_err_t unpair_device(uint64_t address) {
 conn_err_t clear_gatt_cache(uint64_t address) {
   esp_bd_addr_t bda;
   ble_device_base::uint64_to_mac_msb_first(address, bda);
-  esp_ble_gattc_cache_clean(bda);
-  return CONN_OK;
+  return esp_ble_gattc_cache_clean(bda);
 }
 
 }  // namespace esphome::bluetooth_connection
