@@ -30,9 +30,8 @@ void BLEClient::set_enabled(bool enabled) {
     this->disconnect();
     return;
   }
-  // A re-enable is an explicit "try again": clear the backoff so the next
-  // sighting connects promptly. Enabling does not itself connect (legacy
-  // parity).
+  // A re-enable clears the backoff; the next sighting connects (legacy
+  // parity: enabling does not itself connect).
   this->consecutive_failures_ = 0;
   this->hold_off_ms_ = 0;
 }
@@ -52,8 +51,10 @@ bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
 }
 
 void BLEClient::connect() {
-  if (this->state_ != State::IDLE)
+  if (this->state_ != State::IDLE) {
+    ESP_LOGD(TAG, "[%s] Connect requested while busy, ignoring", this->address_str_);
     return;
+  }
   // An absent peer can inhibit scanning for the backend's full connect
   // timeout, so this is worth a breadcrumb - but it is a supported action.
   ESP_LOGI(TAG, "[%s] Connecting on request", this->address_str_);
@@ -81,15 +82,16 @@ void BLEClient::attempt_connect_() {
 }
 
 void BLEClient::disconnect() {
-  if (this->state_ == State::IDLE)
+  if (this->state_ == State::IDLE) {
+    ESP_LOGD(TAG, "[%s] Disconnect requested while idle, ignoring", this->address_str_);
     return;
+  }
   // A deliberate teardown's failure report must not feed the backoff.
   this->cancel_requested_ = true;
   int err = this->backend_->gatt_disconnect();
   if (err != 0) {
-    // Refused synchronously: the backend and the client disagreed about the
-    // link state. Worth a warning of its own - the settle below then runs
-    // the same deliberate-cancel path as a clean teardown.
+    // Refused synchronously: backend and client disagree about the link
+    // state. Warn, then settle through the deliberate-cancel path.
     ESP_LOGW(TAG, "[%s] Disconnect refused, err=%d; settling locally", this->address_str_, err);
     this->on_connection_state(false, 0, err);
   }
@@ -157,9 +159,8 @@ void BLEClient::on_service_discovery_done(int error) {
   for (auto *node : this->nodes_) {
     node->on_connected(table);
     if (this->state_ != State::CONNECTED) {
-      // A node tore the link down mid-fan-out; the teardown settled. Release
-      // the borrowed table here since the normal release below is skipped
-      // (idempotent when the backend released on teardown already).
+      // A node tore the link down mid-fan-out; the normal release below is
+      // skipped (release is idempotent).
       this->backend_->release_services();
       return;
     }

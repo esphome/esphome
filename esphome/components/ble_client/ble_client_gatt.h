@@ -84,10 +84,9 @@ class BLEClient : public Component,
   void run_later(std::function<void()> &&f) { this->defer(std::move(f)); }  // NOLINT
 
   // Backend ops for nodes and actions - the frozen node-facing surface.
-  // Only write_characteristic has an in-tree caller today; the rest exist so
-  // the first migrated node codes against a complete interface (subscribing
-  // means notify_characteristic plus a write_descriptor on the CCCD - the
-  // backend contract keeps the CCCD write the caller's responsibility).
+  // Only write_characteristic has an in-tree caller; subscribing means
+  // notify_characteristic plus a CCCD write_descriptor (the caller's job
+  // per the contract).
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
     return this->backend_->write_characteristic(handle, data, len, response);
   }

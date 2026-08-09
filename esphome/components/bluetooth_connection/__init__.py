@@ -212,9 +212,11 @@ async def new_gatt_backend(
     it with its platform stack. The connection slot is claimed at validation
     (the consume_gatt_slot validators), not here.
 
-    service_table compiles the on-demand service-table materializer into the
-    backend; direct consumers need it, the streaming proxy does not, so
-    proxy-only builds keep the smaller footprint.
+    service_table is honored by the Bluedroid backend only: forward
+    scaffolding for the first esp32 direct consumer, load-bearing on no
+    current build (rp2 ignores the define and always materializes - its
+    proxy hub streams through get_service_table(), so it must keep the
+    materializer regardless of the flag).
     """
     from esphome.components import ble_device_base
 
