@@ -14,7 +14,7 @@ class OpenthermOutput final : public output::FloatOutput, public Component, publ
   float min_value_, max_value_;
 
  public:
-  float state;
+  float state{0.0f};
 
   void set_id(const char *id) { this->id_ = id; }
 

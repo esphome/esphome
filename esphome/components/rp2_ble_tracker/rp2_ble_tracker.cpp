@@ -122,7 +122,7 @@ void RP2BLETracker::dump_config() {
 void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
   // Raw callback (the raw-advertisement path).
   if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{.mac = report.mac,
+    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(report.mac),
                                                 .data = report.data,
                                                 .data_len = report.data_len,
                                                 .rssi = report.rssi,

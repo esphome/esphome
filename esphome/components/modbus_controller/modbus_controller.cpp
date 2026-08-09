@@ -157,10 +157,11 @@ void ModbusController::queue_command(ModbusCommandItem command) {
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
-  // Called as the last action of the command's own callback, and from send() after send_pdu (which may
-  // synchronously call on_not_sent). Destroying `command` here would leave send() and the hub touching a
-  // freed object, so we only FLAG it; sweep_completed_one_shots_() erases it later at a safe point. No-op
-  // for polling commands (they persist and are not in the one-shot list).
+  // Called as the last action of the command's own callback (on_response/on_error/on_not_sent/
+  // on_no_response), which the hub runs from inside its sweep while this entry is still live.
+  // Destroying `command` here would leave the hub touching a freed object, so we only FLAG it;
+  // sweep_completed_one_shots_() erases it later at a safe point. No-op for polling commands
+  // (they persist and are not in the one-shot list).
   for (auto &item : this->one_shot_command_items_) {
     if (item.get() == command) {
       item->pending_removal = true;
@@ -382,14 +383,14 @@ void ModbusCommandItem::send_pdu(std::span<const uint8_t> pdu) {
     this->function_code_ = static_cast<FunctionCode>(pdu[0]);
     this->register_type_ = modbus::helpers::entity_type_from_function_code(pdu[0]);
   }
-  modbus::ModbusClientDevice::send_pdu(pdu);
+  modbus::ModbusClientDevice::queue_pdu(pdu);
 }
 
 void ModbusCommandItem::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
   if (frame.empty())
     return;
   this->set_metadata_from_frame_(frame);
-  this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+  this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
 }
 
 // Best-effort decode of the raw frame header so handlers and logs get standard-command metadata.
@@ -497,15 +498,15 @@ bool ModbusCommandItem::send() {
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: the ready-made PDU bytes live in the sensor.
-    accepted = modbus::ModbusClientDevice::send_pdu(std::span<const uint8_t>(*this->custom_pdu_));
+    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_));
   } else if (!this->payload.empty()) {
     if (this->payload_is_raw_frame_) {
       // Legacy raw frame staged by create_custom_command(): route the PDU to the frame's own address byte.
       std::span<const uint8_t> frame = this->payload;
-      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
     } else {
       // Full PDU staged by one of the deprecated create_* factories.
-      accepted = modbus::ModbusClientDevice::send_pdu(this->payload);
+      accepted = modbus::ModbusClientDevice::queue_pdu(this->payload);
     }
   } else {
     // Read command: dispatch by entity type through the base's typed read helper.
