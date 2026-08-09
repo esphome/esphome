@@ -89,16 +89,6 @@ using ble_device_base::client_state_to_string;
 // Neutral scanner lifecycle re-exported for backward compatibility.
 using ScannerState = ble_device_base::ScannerState;
 
-/** Listener interface for BLE scanner state changes.
- *
- * Components can implement this interface to receive scanner state updates
- * without the overhead of std::function callbacks.
- */
-class BLEScannerStateListener {
- public:
-  virtual void on_scanner_state(ScannerState state) = 0;
-};
-
 /// Base class for BLE GATT clients that connect to remote devices.
 ///
 /// State Change Tracking Design:
@@ -226,15 +216,6 @@ class ESP32BLETracker final : public Component,
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
 #endif
 
-#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
-  /// Add a listener for scanner state changes. Only compiled when a consumer
-  /// requested a slot in codegen: register through
-  /// esp32_ble_tracker.register_scanner_state_listener() in your component's
-  /// to_code, which requests the slot and emits this call.
-  void add_scanner_state_listener(BLEScannerStateListener *listener) {
-    this->scanner_state_listeners_.push_back(listener);
-  }
-#endif
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
  protected:
@@ -300,10 +281,6 @@ class ESP32BLETracker final : public Component,
 #endif
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
-  StaticVector<BLEScannerStateListener *, ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT>
-      scanner_state_listeners_;
 #endif
   // Parsed listeners registered through the neutral BLEHub contract (migrated
   // sensors); dispatched alongside listeners_.
