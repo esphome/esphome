@@ -148,8 +148,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
       return;
     }
     // V3_WITHOUT_CACHE: discover services first — the connected response is
-    // sent when discovery completes, mirroring the esp32 flow (MTU + services
-    // before the response).
+    // sent when discovery completes (MTU + services before the response).
     this->state_ = ClientState::CONNECTED;
     int err = this->backend_->discover_services();
     if (err != 0) {
@@ -337,8 +336,8 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // The subscriber vanished mid-stream: park the cursor at done WITHOUT
-  // sending services-done (esp32 parity — a resubscribing client gets
-  // silence and its 30 s timeout, never an authoritative partial list) and
+  // sending services-done (a resubscribing client gets silence and its
+  // 30 s timeout, never an authoritative partial list) and
   // free the table; the api-gone sweep tears the connection down anyway.
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {

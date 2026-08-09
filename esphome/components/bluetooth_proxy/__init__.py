@@ -52,8 +52,9 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 # Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
 # proxy would be misdriven — bk72xx follows once the API carries a feature
 # flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
-# Coupled to bluetooth_connection: platforms with a GATT backend are also
-# listed in its HUB_MAX_CONNECTIONS and its FILTER_SOURCE_FILES hub entry.
+# Coupled to bluetooth_connection: platforms here are also listed in its
+# _PLATFORM_BACKENDS registry, HUB_MAX_CONNECTIONS, and FILTER_SOURCE_FILES
+# hub entry.
 _HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
@@ -203,7 +204,12 @@ def _rp2_config_schema() -> cv.All:
 async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     """One wrapper + backend pair per slot; the platform-specific backend
     registration lives in bluetooth_connection.new_gatt_backend()."""
-    for connection_conf in config.get(CONF_CONNECTIONS, []):
+    connections = config.get(CONF_CONNECTIONS, [])
+    # The api component sizes BluetoothConnectionsFreeResponse.allocated with
+    # this define whenever a proxy is present (zero on advertisement-only
+    # hubs); sized here so it can never diverge from the loop below.
+    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", len(connections))
+    for connection_conf in connections:
         backend = await bluetooth_connection.new_gatt_backend(
             connection_conf, service_table=False
         )
@@ -366,10 +372,6 @@ async def _to_code_esp32(config: ConfigType) -> None:
     # registration into the proxy; the other hubs are polled instead.
     cg.add_define("USE_BLE_SCANNER_STATE_CALLBACK")
 
-    # Define max connections for protobuf fixed array
-    connection_count = len(config.get(CONF_CONNECTIONS, []))
-    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
-
     await _connections_to_code(var, config)
 
     if config.get(CONF_CACHE_SERVICES):
@@ -384,12 +386,6 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     hub = await cg.get_variable(config[ble_device_base.CONF_BLE_HUB_ID])
     cg.add(var.set_ble_hub(hub))
 
-    # The api component sizes BluetoothConnectionsFreeResponse.allocated with
-    # this define whenever a proxy is present. Zero on advertisement-only hubs.
-    # Sized from the instantiated connections so the define can never diverge
-    # from the loop below (the define sizes fixed storage in the proxy).
-    slots = len(config.get(CONF_CONNECTIONS, ()))
-    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", slots)
     await _connections_to_code(var, config)
 
 
