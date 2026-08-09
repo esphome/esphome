@@ -2,19 +2,25 @@
 
 Backends: esp32 Bluedroid, rp2 BTstack. No user-facing configuration; a
 consumer's codegen declares and registers the backend instances — the
-Bluetooth proxy through its per-slot connection wrappers, and components
-owning a dedicated backend (e.g. radon_eye_rd200) through
-gatt_client_schema() + new_gatt_backend().
+Bluetooth proxy through its per-slot connection wrappers (a streaming
+consumer), and direct consumers owning a dedicated backend through
+gatt_client_config_schema() + new_gatt_backend().
 """
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.const import PLATFORM_ESP32, PLATFORM_RP2, PlatformFramework
+from esphome.const import (
+    CONF_MAC_ADDRESS,
+    PLATFORM_ESP32,
+    PLATFORM_RP2,
+    PlatformFramework,
+)
 from esphome.core import CORE
-from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 DOMAIN = "bluetooth_connection"
@@ -45,12 +51,7 @@ RP2_MAX_CONNECTIONS = 1
 # registry of which hub platforms run the connection-capable proxy.
 HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
 
-# Every platform with a GATT backend; gates dedicated-backend consumers.
-# Derived from the hub registry so a platform gaining a backend is admitted
-# everywhere at once (esp32 is the non-hub arm).
-GATT_CLIENT_PLATFORMS = [PLATFORM_ESP32, *HUB_MAX_CONNECTIONS]
-
-# The hub-platform wrapper and the rp2 BTstack backend codegen classes.
+# The hub-platform wrapper and the backend codegen classes.
 HubBluetoothConnection = bluetooth_connection_ns.class_("BluetoothConnection")
 RP2GattClient = bluetooth_connection_ns.class_("RP2GattClient", cg.Component)
 BluedroidGattClient = bluetooth_connection_ns.class_(
@@ -58,6 +59,70 @@ BluedroidGattClient = bluetooth_connection_ns.class_(
 )
 
 CONF_BACKEND_ID = "backend_id"
+CONF_ADDRESS_TYPE = "address_type"
+
+# BLE_ADDR_TYPE_* code space shared with the API and the backends.
+ADDRESS_TYPES = {"public": 0, "random": 1}
+
+
+def _esp32_schema_fragment() -> cv.Schema:
+    from esphome.components import esp32_ble_tracker
+
+    return esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
+
+
+def _rp2_schema_fragment() -> cv.Schema:
+    from esphome.components import rp2040_ble
+
+    return cv.Schema(
+        {cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE)}
+    )
+
+
+async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import esp32_ble_tracker
+
+    # The tracker's promote loop owns connect timing; the backend's
+    # tracker-facing shim registers as a raw client.
+    await esp32_ble_tracker.register_raw_client(backend.tracker_client(), config)
+
+
+async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import rp2040_ble
+
+    await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
+
+
+@dataclass(frozen=True)
+class _PlatformBackend:
+    """One platform's backend: codegen class, extra schema keys (lazy so the
+    platform stack is only imported when targeted), and stack registration."""
+
+    backend_class: cg.MockObjClass
+    schema_fragment: Callable[[], cv.Schema]
+    register: Callable[[cg.MockObj, ConfigType], Awaitable[None]]
+
+
+# The single registry of platforms with a GATT client backend; a platform
+# missing here fails loudly everywhere instead of falling into another
+# platform's arm.
+_PLATFORM_BACKENDS: dict[str, _PlatformBackend] = {
+    PLATFORM_ESP32: _PlatformBackend(
+        BluedroidGattClient, _esp32_schema_fragment, _esp32_register
+    ),
+    PLATFORM_RP2: _PlatformBackend(RP2GattClient, _rp2_schema_fragment, _rp2_register),
+}
+
+# Gates dedicated-backend consumers (cv.only_on).
+GATT_CLIENT_PLATFORMS = list(_PLATFORM_BACKENDS)
+
+
+def _backend_entry() -> _PlatformBackend:
+    if (entry := _PLATFORM_BACKENDS.get(CORE.target_platform)) is None:
+        raise cv.Invalid(
+            f"no GATT client backend is registered for {CORE.target_platform}"
+        )
+    return entry
 
 
 def gatt_client_schema() -> cv.Schema:
@@ -66,21 +131,9 @@ def gatt_client_schema() -> cv.Schema:
     dispatch happens at call time, so call this from inside a validator or a
     per-platform schema builder, never at module import.
     """
-    if CORE.is_esp32:
-        from esphome.components import esp32_ble_tracker
-
-        return esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
-            {cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(BluedroidGattClient)}
-        )
-    from esphome.components import rp2040_ble
-
-    return cv.Schema(
-        {
-            cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(RP2GattClient),
-            cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(
-                rp2040_ble.RP2040BLE
-            ),
-        }
+    entry = _backend_entry()
+    return entry.schema_fragment().extend(
+        {cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(entry.backend_class)}
     )
 
 
@@ -106,17 +159,18 @@ def _ledger() -> _SlotLedger:
     return CORE.data[DOMAIN]
 
 
-def consume_gatt_slot(consumer: str):
-    """Validator claiming one GATT connection slot: the neutral ledger feeds
-    the platform cap check in FINAL_VALIDATE_SCHEMA, and esp32 additionally
-    charges the controller's connection budget."""
+def consume_gatt_slot(consumer: str, count: int = 1):
+    """Validator claiming GATT connection slots — the one spelling for every
+    claimant (the proxy per configured slot, dedicated backends once). The
+    neutral ledger feeds the platform cap check in FINAL_VALIDATE_SCHEMA;
+    esp32 additionally charges the controller's connection budget."""
 
     def validator(config: ConfigType) -> ConfigType:
-        _ledger().consumers.append(consumer)
+        _ledger().consumers.extend([consumer] * count)
         if CORE.is_esp32:
             from esphome.components import esp32_ble
 
-            esp32_ble.consume_connection_slots(1, consumer)(config)
+            esp32_ble.consume_connection_slots(count, consumer)(config)
         return config
 
     return validator
@@ -140,58 +194,65 @@ def _validate_slot_totals(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_slot_totals
 
 
+# The peer keys every dedicated-backend consumer shares: one target device.
+_PEER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ADDRESS_TYPE, default="public"): cv.enum(
+            ADDRESS_TYPES, lower=True
+        ),
+    }
+)
+
+
 def gatt_client_config_schema(base_schema: cv.Schema, consumer: str):
     """Wrap a dedicated-backend consumer's schema so the consumer stays
     platform-blind: gates on the platforms with a backend, folds in
-    gatt_client_schema(), and claims the connection slot.
-    `consumer` names the component in slot-exhaustion errors."""
+    gatt_client_schema() plus the peer keys (mac_address, address_type),
+    and claims the connection slot. `consumer` names the component in
+    slot-exhaustion errors."""
 
+    @schema_extractor("schema")
     def apply(config: ConfigType) -> ConfigType:
         if config is SCHEMA_EXTRACT:
             # The language-schema dumper runs without a platform; expose the
-            # consumer's own keys. Checked before the platform gate so the
-            # dumper is not rejected by only_on.
-            return base_schema
+            # consumer's keys plus the platform-free peer keys.
+            return base_schema.extend(_PEER_SCHEMA)
         cv.only_on(GATT_CLIENT_PLATFORMS)(config)
-        config = base_schema.extend(gatt_client_schema())(config)
+        schema = base_schema.extend(_PEER_SCHEMA).extend(gatt_client_schema())
+        config = schema(config)
         return consume_gatt_slot(consumer)(config)
 
     return apply
 
 
-async def new_gatt_backend(config: ConfigType) -> cg.MockObj:
-    """Instantiate the backend declared by gatt_client_schema(), register it
-    with its platform stack, and claim one neutral GATT client slot.
+async def new_gatt_backend(
+    config: ConfigType, *, service_table: bool = True
+) -> cg.MockObj:
+    """Instantiate the backend declared by gatt_client_schema() and register
+    it with its platform stack. The connection slot is claimed at validation
+    (gatt_client_config_schema / the proxy's slot validators), not here.
 
-    On esp32 the tracker's promote loop owns connect timing, so the backend's
-    tracker-facing shim registers as a raw client; on rp2 the backend parents
-    on the BTstack controller.
+    service_table compiles the on-demand service-table materializer into the
+    backend; direct consumers need it, the streaming proxy does not, so
+    proxy-only builds keep the smaller footprint.
     """
     from esphome.components import ble_device_base
 
     ble_device_base.request_gatt_client()
+    if service_table:
+        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
     # The backend has no user-facing component options; an empty config keeps
     # the consumer's own keys (update_interval, ...) off it.
     await cg.register_component(backend, {})
-    if CORE.is_esp32:
-        from esphome.components import esp32_ble_tracker
-
-        await esp32_ble_tracker.register_raw_client(backend.tracker_client(), config)
-    else:
-        from esphome.components import rp2040_ble
-
-        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
+    await _backend_entry().register(backend, config)
     return backend
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "bluetooth_connection_bluedroid.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        "bluetooth_connection_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },

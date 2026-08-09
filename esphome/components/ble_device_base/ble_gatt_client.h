@@ -5,8 +5,9 @@
 // Exactly one GATT backend exists per build, so BLEGattConnection is a
 // compile-time alias (bluetooth_connection_gatt_backend.h), not an abstract
 // interface.
-// A consumer (the hub BluetoothConnection wrapper, or a component owning a
-// dedicated backend instance such as radon_eye_rd200) drives it and receives
+// A consumer - a streaming consumer that forwards the raw database (the hub
+// BluetoothConnection wrapper) or a direct consumer owning a dedicated
+// backend and resolving handles by UUID - drives it and receives
 // completions through a GattEventSink — a pointer-sized-entry function table
 // rather than a concrete consumer type, because one build can hold several
 // consumer types while the backend stays a single non-virtual class. All sink
@@ -197,20 +198,18 @@ concept BLEGattConnectionContract = requires(T conn, GattEventSink sink, const u
   { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
   { conn.get_service_table() } -> std::same_as<GattServiceTable>;
   { conn.release_services() } -> std::same_as<void>;
-  // Deferred-disconnect visibility and the connection-type hint; backends
-  // without the underlying state carry inline no-ops.
-  { conn.disconnect_pending() } -> std::same_as<bool>;
-  { conn.cancel_pending_disconnect() } -> std::same_as<void>;
+  // Connection-type hint for backends that tune parameters by it; others
+  // carry an inline no-op.
   { conn.set_connection_type(ConnectionType{}) } -> std::same_as<void>;
 };
 
 // ---- service table lookup helpers ----
 //
 // Neutral, bounds-checked walks over a materialized GattServiceTable for
-// consumers that resolve a known device's handles by UUID (the proxy streams
-// the whole table to HA instead and never needs these). Linear search: the
-// table exists only between discovery and release_services(), for one small
-// known device.
+// direct consumers that resolve a known device's handles by UUID (streaming
+// consumers forward the raw database and never need these). Linear search:
+// the table exists only between discovery and release_services(), for one
+// small known device.
 
 /// Client Characteristic Configuration descriptor UUID (Bluetooth spec).
 static constexpr uint16_t CCCD_UUID = 0x2902;

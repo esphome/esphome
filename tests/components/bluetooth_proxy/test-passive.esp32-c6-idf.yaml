@@ -1,5 +1,5 @@
 # Advertisement-only proxy on esp32 by explicit choice: no GATT backend is
-# compiled (USE_BLE_GATT_CLIENT unset), which pins the HAS_GATT gating and the
+# compiled (USE_BLE_GATT_CLIENT unset), which pins the SERVES_PROXY gating and the
 # address-scoped maintenance path that a connections build never exercises.
 packages:
   common: !include common.yaml

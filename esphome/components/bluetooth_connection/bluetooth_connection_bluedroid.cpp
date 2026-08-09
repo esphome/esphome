@@ -234,7 +234,9 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
+#ifdef USE_BLE_GATT_SERVICE_TABLE
   this->free_service_table_();
+#endif
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
@@ -242,6 +244,7 @@ void BluedroidGattClient::release_services() {
 #endif
 }
 
+#ifdef USE_BLE_GATT_SERVICE_TABLE
 ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
   if (this->table_storage_ == nullptr &&
       (this->services_released_ || this->service_total_ == 0 || !this->build_service_table_())) {
@@ -413,6 +416,7 @@ bool BluedroidGattClient::build_service_table_() {
   this->table_desc_total_ = desc_total;
   return true;
 }
+#endif  // USE_BLE_GATT_SERVICE_TABLE
 
 // ---- internals ----
 
@@ -657,6 +661,9 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // matching the previous esp32 behavior).
     this->seen_mtu_ = true;
     this->report_connection_state_(true, 0);
+    // Settled: only the disconnect safety net needs the loop, and
+    // set_disconnecting_() re-enables it.
+    this->disable_loop();
   }
 }
 
@@ -750,6 +757,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
       this->set_state_(ClientState::ESTABLISHED);
       this->handle_search_cmpl_();
+      // Settled (see the V3_WITH_CACHE arm in handle_open_evt_).
+      this->disable_loop();
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT:

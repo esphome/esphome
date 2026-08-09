@@ -10,6 +10,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BECQUEREL_PER_CUBIC_METER,
 )
+
+# mac_address and address_type come from gatt_client_config_schema.
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["bluetooth_connection"]
@@ -28,7 +30,6 @@ CONFIG_SCHEMA = bluetooth_connection.gatt_client_config_schema(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RadonEyeRD200),
-            cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_RADON): _SENSOR_SCHEMA,
             cv.Optional(CONF_RADON_LONG_TERM): _SENSOR_SCHEMA,
         }
@@ -39,7 +40,12 @@ CONFIG_SCHEMA = bluetooth_connection.gatt_client_config_schema(
 
 async def to_code(config: ConfigType) -> None:
     backend = await bluetooth_connection.new_gatt_backend(config)
-    var = cg.new_Pvariable(config[CONF_ID], backend, config[CONF_MAC_ADDRESS].as_hex)
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        backend,
+        config[CONF_MAC_ADDRESS].as_hex,
+        config[bluetooth_connection.CONF_ADDRESS_TYPE],
+    )
     await cg.register_component(var, config)
 
     if (radon := config.get(CONF_RADON)) is not None:

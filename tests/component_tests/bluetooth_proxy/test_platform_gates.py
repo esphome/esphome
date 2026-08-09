@@ -203,6 +203,9 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
     registered = set(bluetooth_connection.HUB_MAX_CONNECTIONS)
     assert registered <= set(bluetooth_proxy._GATT_HUB_SCHEMAS)
     assert registered <= set(bluetooth_proxy._HUB_PLATFORMS)
+    # Hub platforms must also be in the backend registry the shared consumer
+    # helpers dispatch on.
+    assert registered <= set(bluetooth_connection.GATT_CLIENT_PLATFORMS)
     # The outer walkable schema's bound must stay the loosest platform cap.
     assert (
         max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())

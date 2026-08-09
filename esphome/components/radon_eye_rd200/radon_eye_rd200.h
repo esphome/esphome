@@ -25,7 +25,8 @@ namespace esphome::radon_eye_rd200 {
 
 class RadonEyeRD200 final : public PollingComponent {
  public:
-  RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address) : backend_(backend), address_(address) {
+  RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address, uint8_t address_type)
+      : backend_(backend), address_(address), address_type_(address_type) {
     backend->set_sink(ble_device_base::make_gatt_sink(this));
   }
 
@@ -64,6 +65,7 @@ class RadonEyeRD200 final : public PollingComponent {
 
   // Group 4: 1-byte types
   uint8_t write_command_{0};
+  uint8_t address_type_;
 };
 
 }  // namespace esphome::radon_eye_rd200

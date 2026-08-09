@@ -25,7 +25,6 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // and keeps the scan inhibited, so the engine cancels after 20 s. The
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
-static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
 // Can-send windows normally open within a connection interval (tens of ms).
 static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 500;
 
@@ -429,7 +428,7 @@ void RP2GattClient::loop() {
       }
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
-    if (millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
+    if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }

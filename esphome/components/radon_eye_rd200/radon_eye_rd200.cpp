@@ -33,7 +33,7 @@ static const uint16_t MESSAGE_MIN_LEN_V2 = 68;
 void RadonEyeRD200::update() {
   // The backends refuse a connect on a non-idle slot, so a poll landing
   // mid-sequence just logs and retries next interval.
-  int err = this->backend_->connect(this->address_, ble_device_base::BLE_ADDR_TYPE_PUBLIC);
+  int err = this->backend_->connect(this->address_, this->address_type_);
   if (err != 0) {
     ESP_LOGW(TAG, "Connection in progress (err=%d)", err);
     return;

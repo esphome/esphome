@@ -72,11 +72,16 @@ class BluedroidGattClient final : public Component {
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   // Materialized on demand from Bluedroid's cached database for direct
-  // consumers that resolve handles by UUID (e.g. radon_eye_rd200). The proxy
-  // wrapper never calls this - it streams through stream_service_batch - so
-  // proxy peak RAM is unchanged; a direct consumer's peak is bounded by its
-  // one known device's table.
+  // consumers that resolve handles by UUID. The streaming consumer (the
+  // proxy wrapper) never calls this - it uses stream_service_batch - so the
+  // materializer only compiles when codegen declares a direct consumer
+  // (USE_BLE_GATT_SERVICE_TABLE) and proxy-only builds keep the old
+  // footprint; a direct consumer's peak is bounded by its one known device.
+#ifdef USE_BLE_GATT_SERVICE_TABLE
   ble_device_base::GattServiceTable get_service_table();
+#else
+  ble_device_base::GattServiceTable get_service_table() { return {}; }
+#endif
   void release_services();
 
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
@@ -86,9 +91,7 @@ class BluedroidGattClient final : public Component {
   void stream_service_batch(BluetoothConnection &conn);
 #endif
 
-  void set_connection_type(esp32_ble_tracker::ConnectionType ct) { this->connection_type_ = ct; }
-  bool disconnect_pending() const { return this->shim_.disconnect_pending(); }
-  void cancel_pending_disconnect() { this->shim_.cancel_pending_disconnect(); }
+  void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
 
  protected:
   friend class BluedroidTrackerShim;
@@ -110,20 +113,24 @@ class BluedroidGattClient final : public Component {
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
   void log_gattc_warning_(const char *operation, int code);
+#ifdef USE_BLE_GATT_SERVICE_TABLE
   template<typename ServiceFn, typename CharFn, typename DescFn>
   bool walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc);
   bool build_service_table_();
   void free_service_table_();
   ble_device_base::GattServiceTable table_view_() const;
+#endif
 
   // Group 1: pointers / composed objects
   BluedroidTrackerShim shim_{this};
   ble_device_base::GattEventSink sink_;
+#ifdef USE_BLE_GATT_SERVICE_TABLE
   // One exact-size block carved into the table's three arrays; owned here,
   // freed by release_services(). Null when no table is materialized. The
   // GattServiceTable view is rebuilt from this pointer and the counts on
   // each (cold) get_service_table() call instead of being cached.
   uint8_t *table_storage_{nullptr};
+#endif
   // Group 2: 4-byte types
   int gattc_if_{ESP_GATT_IF_NONE};
   uint32_t disconnecting_started_{0};
@@ -135,9 +142,11 @@ class BluedroidGattClient final : public Component {
   uint16_t conn_id_{0xFFFF};
   uint16_t mtu_{23};
   uint16_t service_total_{0};
+#ifdef USE_BLE_GATT_SERVICE_TABLE
   // Filled element counts of the materialized table (0 when none).
   uint16_t table_char_total_{0};
   uint16_t table_desc_total_{0};
+#endif
 
   // Group 5: 1-byte types
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.

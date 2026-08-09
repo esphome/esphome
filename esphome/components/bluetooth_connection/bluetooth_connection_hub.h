@@ -7,9 +7,9 @@
 
 #include "bluetooth_connection.h"
 
-// The wrapper exists to serve the proxy's API surface; dedicated-backend
-// consumers (radon_eye_rd200) drive the backend directly, so backend-only
-// builds compile this header empty.
+// The wrapper exists to serve the proxy's API surface; direct consumers
+// drive the backend themselves, so backend-only builds compile this header
+// empty.
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
@@ -33,7 +33,7 @@ class BluetoothConnection final {
     backend->set_sink(ble_device_base::make_gatt_sink(this));
   }
 
-  // ---- proxy dispatch surface (mirrors the esp32 class) ----
+  // ---- proxy dispatch surface ----
   conn_err_t read_characteristic(uint16_t handle);
   conn_err_t write_characteristic(uint16_t handle, const uint8_t *data, size_t length, bool response);
   conn_err_t read_descriptor(uint16_t handle);
@@ -52,8 +52,6 @@ class BluetoothConnection final {
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
-  bool disconnect_pending() const { return this->backend_->disconnect_pending(); }
-  void cancel_pending_disconnect() { this->backend_->cancel_pending_disconnect(); }
 
   void set_address(uint64_t address);
   uint64_t get_address() const { return this->address_; }
@@ -71,8 +69,8 @@ class BluetoothConnection final {
   }
   // Latched at discovery completion rather than read from the backend table:
   // streaming frees the table, and this must stay true for the connection's
-  // lifetime (esp32 parity — a repeat GetServices is silently ignored there,
-  // never answered with an authoritative empty database).
+  // lifetime (a repeat GetServices is silently ignored, never answered with
+  // an authoritative empty database).
   bool has_gatt_services() const { return this->services_discovered_; }
 
   /// Stream any pending service-discovery batch and police the disconnect

@@ -53,8 +53,6 @@ class MinimalConnection {
   }
   GattServiceTable get_service_table() { return {}; }
   void release_services() {}
-  bool disconnect_pending() const { return false; }
-  void cancel_pending_disconnect() {}
   void set_connection_type(ConnectionType ct) {}
 
  protected:
@@ -109,7 +107,8 @@ TEST_F(ServiceTableLookup, FindsServicesAndCharacteristicsByUuid) {
   EXPECT_EQ(service->start_handle, 0x0010);
   EXPECT_EQ(find_service(this->table_, ESPBTUUID::from_uint16(0xFFFF)), nullptr);
 
-  const GattCharacteristic *characteristic = find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x1525));
+  const GattCharacteristic *characteristic =
+      find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x1525));
   ASSERT_NE(characteristic, nullptr);
   EXPECT_EQ(characteristic->value_handle, 0x0012);
   // The lookup is scoped to the service: 0x2A00 lives in the other service.

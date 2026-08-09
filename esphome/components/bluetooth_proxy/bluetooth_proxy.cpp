@@ -241,12 +241,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_connections_free();
         return;
       } else if (connection->state() == ClientState::CONNECTING) {
-        if (connection->disconnect_pending()) {
-          ESP_LOGW(TAG, "[%d] [%s] Connection request while pending disconnect, cancelling pending disconnect",
-                   connection->get_connection_index(), connection->address_str());
-          connection->cancel_pending_disconnect();
-          return;
-        }
         this->log_connection_request_ignored_(connection, connection->state());
         return;
       } else if (connection->state() != ClientState::INIT) {
@@ -281,7 +275,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR: {
-      // Both connection classes expose the same pairing surface; success is
+      // The connection wrapper exposes the pairing surface; success is
       // reported when the platform's pairing completion arrives.
       auto *connection = this->get_connection_(msg.address, false);
       if (connection != nullptr) {
@@ -493,10 +487,10 @@ void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
     // The API subscriber is gone: tear down any connections it left behind
-    // (disconnect() on an already-disconnecting backend is a no-op).
+    // (disconnect() on an already-disconnecting slot is a no-op).
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       auto *connection = this->connections_[i];
-      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
+      if (connection->get_address() != 0) {
         connection->disconnect();
       }
     }
