@@ -2,7 +2,7 @@ import functools
 import logging
 
 import esphome.codegen as cg
-from esphome.components import ble_device_base
+from esphome.components import ble_device_base, bluetooth_connection
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
 from esphome.core import CORE
@@ -27,13 +27,18 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     target platform set, so it takes one of the concrete branches.
     """
     if CORE.is_esp32:
-        return ["esp32_ble_client", "esp32_ble_tracker"]
+        return ["bluetooth_connection", "esp32_ble_client", "esp32_ble_tracker"]
     if CORE.target_platform in _HUB_PLATFORMS:
-        return ["ble_device_base"]
+        return ["ble_device_base", "bluetooth_connection"]
     # No target platform, or one this component does not support: tooling
     # resolving the manifest (including the host-pinned dependency resolver) —
     # expose every arm so the closure keeps the esp32 BLE stack.
-    return ["ble_device_base", "esp32_ble_client", "esp32_ble_tracker"]
+    return [
+        "ble_device_base",
+        "bluetooth_connection",
+        "esp32_ble_client",
+        "esp32_ble_tracker",
+    ]
 
 
 # Platforms with an in-tree ble_device_base BLE tracker hub whose controller
@@ -42,6 +47,8 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
 # Assistant) assumes an ESPHome proxy can scan actively, so a passive-only
 # proxy would be misdriven — bk72xx follows once the API carries a feature
 # flag clients can trust (FEATURE_ACTIVE_SCAN + a version flag, separate PRs).
+# Coupled to bluetooth_connection: platforms with a GATT backend are also
+# listed in its HUB_MAX_CONNECTIONS and its FILTER_SOURCE_FILES hub entry.
 _HUB_PLATFORMS = (PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
@@ -52,22 +59,24 @@ _LOGGER = logging.getLogger(__name__)
 CONF_CONNECTION_SLOTS = "connection_slots"
 CONF_CACHE_SERVICES = "cache_services"
 CONF_CONNECTIONS = "connections"
+CONF_BACKEND_ID = "backend_id"
 DEFAULT_CONNECTION_SLOTS = 3
 
 bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
 
 BluetoothProxy = bluetooth_proxy_ns.class_("BluetoothProxy", cg.Component)
 
-# Mirrors esp32_ble.IDF_MAX_CONNECTIONS as a literal so the statically walkable
-# CONFIG_SCHEMA below can state the connection_slots range without importing the
-# esp32 BLE stack. tests/component_tests/bluetooth_proxy/ pins the two together.
+# Mirrors esp32_ble.IDF_MAX_CONNECTIONS (the loosest platform cap): the esp32
+# schema builder asserts the two agree, tests/component_tests/bluetooth_proxy/
+# pins them together, and the outer walkable schema uses it as the
+# connection_slots bound (per-platform schemas tighten it).
 _IDF_MAX_CONNECTIONS = 9
 
 
 @functools.cache
 def _esp32_config_schema() -> cv.All:
     """Build the esp32 schema, importing the esp32 BLE stack only when used."""
-    from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+    from esphome.components import esp32_ble, esp32_ble_tracker
 
     if esp32_ble.IDF_MAX_CONNECTIONS != _IDF_MAX_CONNECTIONS:
         raise cv.Invalid(
@@ -77,9 +86,7 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    BluetoothConnection = bluetooth_proxy_ns.class_(
-        "BluetoothConnection", esp32_ble_client.BLEClientBase
-    )
+    BluetoothConnection = bluetooth_connection.esp32_connection_class()
     CONNECTION_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(BluetoothConnection),
@@ -142,31 +149,111 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
     return config
 
 
-# Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
-# callback feeds the same API batching. GATT/active connections are excluded at
-# compile time — only the esp32 build compiles the connection stack; nothing
-# reads HubCapabilities::gatt at runtime for this today.
-# Keys both platform schemas must declare identically; each arm spreads this
-# dict so the shared surface cannot drift. CONF_ACTIVE deliberately stays
-# per-arm: its default differs (esp32 True, hub arms False — no GATT).
+@functools.cache
+def _rp2_config_schema() -> cv.All:
+    """Full proxy on the rp2 BLE hub: active connections through the BTstack
+    GATT client backend in bluetooth_connection. The slot limit comes from the
+    prebuilt BTstack library (one connection today); the code is built for N."""
+    from esphome.components import rp2040_ble
+
+    connection_schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(bluetooth_connection.HubBluetoothConnection),
+            cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(
+                bluetooth_connection.RP2GattClient
+            ),
+        }
+    )
+
+    def populate_connections(config: ConfigType) -> ConfigType:
+        # One wrapper + backend pair per slot, declared during validation so
+        # their ids exist for codegen (the esp32 arm's `connections` pattern).
+        if not config[CONF_ACTIVE]:
+            return config
+        return {
+            **config,
+            CONF_CONNECTIONS: [
+                connection_schema({}) for _ in range(config[CONF_CONNECTION_SLOTS])
+            ],
+        }
+
+    max_conn = bluetooth_connection.HUB_MAX_CONNECTIONS[PLATFORM_RP2]
+    schema = (
+        cv.Schema(
+            {
+                **_COMMON_SCHEMA_KEYS,
+                # The GATT backend drives the controller directly (connect, GATT
+                # ops), not through the tracker hub.
+                cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(
+                    rp2040_ble.RP2040BLE
+                ),
+                cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_CONNECTION_SLOTS,
+                    default=min(DEFAULT_CONNECTION_SLOTS, max_conn),
+                ): cv.All(
+                    cv.positive_int,
+                    cv.Range(
+                        min=1,
+                        max=max_conn,
+                        msg=f"rp2 supports at most {max_conn} connection slot(s); "
+                        "the framework's BTstack library is built with "
+                        f"MAX_NR_GATT_CLIENTS {max_conn}",
+                    ),
+                ),
+            }
+        )
+        .extend(
+            # ble_hub_id with the friendly no-tracker-configured guard.
+            ble_device_base.BLE_DEVICE_SCHEMA
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+    )
+    return cv.All(schema, populate_connections)
+
+
+async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import rp2040_ble
+
+    # One wrapper + backend pair per slot (the esp32 arm's pattern).
+    for connection_conf in config[CONF_CONNECTIONS]:
+        ble_device_base.request_gatt_client()
+        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
+        await cg.register_component(backend, connection_conf)
+        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
+        connection = cg.new_Pvariable(connection_conf[CONF_ID])
+        cg.add(connection.set_backend(backend))
+        cg.add(var.register_connection(connection))
+
+
+# Per-platform schema builders and connection codegen; every key of
+# bluetooth_connection.HUB_MAX_CONNECTIONS needs an entry in both (pinned by
+# tests/component_tests/bluetooth_proxy/).
+_GATT_HUB_SCHEMAS = {PLATFORM_RP2: _rp2_config_schema}
+_GATT_HUB_TO_CODE = {PLATFORM_RP2: _rp2_connections_to_code}
+
+
+# Keys every platform arm declares identically; each arm spreads this dict so
+# the shared surface cannot drift. CONF_ACTIVE stays per-arm: its default
+# differs (esp32 True, rp2 True, advertisement-only False).
 _COMMON_SCHEMA_KEYS = {
     cv.GenerateID(): cv.declare_id(BluetoothProxy),
 }
 
+# Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
+# callback feeds the same API batching, no connection stack compiled.
 _BLE_HUB_CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             **_COMMON_SCHEMA_KEYS,
-            # Declared directly (BLE_DEVICE_SCHEMA-style): appending a validator
-            # after a strict schema rejects an explicit `ble_hub_id` before it
-            # runs, and that key is the documented way to disambiguate once a
-            # platform has two trackers.
-            cv.GenerateID(ble_device_base.CONF_BLE_HUB_ID): cv.use_id(
-                ble_device_base.BLEHub
-            ),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(
+        # ble_hub_id with the friendly no-tracker-configured guard.
+        ble_device_base.BLE_DEVICE_SCHEMA
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     _validate_no_active,
 )
 
@@ -175,9 +262,10 @@ _BLE_HUB_CONFIG_SCHEMA = cv.All(
 def _validate_platform(config: ConfigType) -> ConfigType:
     """Apply the schema for the platform actually being compiled.
 
-    esp32 keeps the full GATT proxy; every other platform gets the
-    advertisement-only shape, which rejects the connection-oriented options
-    above because its schema does not define them.
+    Three-way dispatch: esp32 gets the full GATT proxy, HUB_MAX_CONNECTIONS
+    platforms get their _GATT_HUB_SCHEMAS arm, the remaining hub platforms get
+    the advertisement-only shape; unsupported keys were already rejected by
+    name in _reject_unsupported_connection_keys.
     """
     if config is SCHEMA_EXTRACT:
         # The language-schema dumper runs without a platform. Expose the esp32
@@ -193,18 +281,21 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"bluetooth_proxy is not supported on {CORE.target_platform}: no "
             "active-scan-capable BLE tracker hub is available for this "
-            "platform. It runs on esp32 (full proxy), and the ln882x and rp2 "
-            "families (advertisement-only)."
+            "platform. It runs on esp32 and rp2 (full proxy) and the ln882x "
+            "family (advertisement-only)."
         )
+    if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
+        return _GATT_HUB_SCHEMAS[CORE.target_platform]()(config)
     return _BLE_HUB_CONFIG_SCHEMA(config)
 
 
-def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
-    """Reject connection-oriented options by name on hub-only platforms.
+def _reject_unsupported_connection_keys(config: ConfigType) -> ConfigType:
+    """Reject connection options a platform does not support, by name.
 
-    Runs before the walkable schema below so the user gets "this option does
-    not exist here" instead of the option's esp32 value range (which would
-    imply a smaller number is accepted).
+    GATT hub platforms keep connection_slots but reject the esp32-only keys;
+    advertisement-only hubs reject all three. Runs before the walkable schema
+    below so the user gets "this option does not exist here" instead of a
+    value-range error implying the option works.
     """
     if not isinstance(config, dict) or CORE.is_esp32 or CORE.target_platform is None:
         return config
@@ -213,14 +304,28 @@ def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
         # reports "not supported on {platform}" instead of a key-level message
         # implying an advertisement-only proxy is available.
         return config
-    for key in (CONF_CONNECTION_SLOTS, CONF_CACHE_SERVICES, CONF_CONNECTIONS):
+    if CORE.target_platform in bluetooth_connection.HUB_MAX_CONNECTIONS:
+        # Full proxy: connection_slots is real here; the per-connection list
+        # exists internally but carries no user options, and the Bluedroid
+        # NVS service cache is esp32-only.
+        rejected = {
+            CONF_CONNECTIONS: (
+                "has no per-connection options on this platform; use "
+                "'connection_slots' to set the count"
+            ),
+            CONF_CACHE_SERVICES: "is esp32-only (Bluedroid NVS service cache)",
+        }
+    else:
+        reason = (
+            "requires active connection support; this platform runs the "
+            "advertisement-only proxy and has no such option"
+        )
+        rejected = dict.fromkeys(
+            (CONF_CONNECTION_SLOTS, CONF_CACHE_SERVICES, CONF_CONNECTIONS), reason
+        )
+    for key, reason in rejected.items():
         if key in config:
-            raise cv.Invalid(
-                f"'{key}' requires active connection support, which needs the "
-                "esp32 GATT stack; this platform runs the advertisement-only "
-                "proxy and has no such option",
-                path=[key],
-            )
+            raise cv.Invalid(f"'{key}' {reason}", path=[key])
     return config
 
 
@@ -238,11 +343,14 @@ def _reject_connection_keys_off_esp32(config: ConfigType) -> ConfigType:
 # rejects it as empty. extra=ALLOW_EXTRA passes `connections` through untouched
 # for _ESP32_CONFIG_SCHEMA to validate exactly once.
 CONFIG_SCHEMA = cv.All(
-    _reject_connection_keys_off_esp32,
+    _reject_unsupported_connection_keys,
     cv.Schema(
         {
             cv.Optional(CONF_ACTIVE): cv.boolean,
             cv.Optional(CONF_CACHE_SERVICES): cv.boolean,
+            # Bounded by the loosest platform cap so range walkers (the
+            # device-builder field-range sync) see a real Range; the
+            # per-platform schemas tighten it (1 on rp2) with their own error.
             cv.Optional(CONF_CONNECTION_SLOTS): cv.All(
                 cv.positive_int,
                 cv.Range(min=1, max=_IDF_MAX_CONNECTIONS),
@@ -266,8 +374,12 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    await esp32_ble_tracker.register_raw_ble_device(var, config)
-    await esp32_ble_tracker.register_scanner_state_listener(var, config)
+    tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
+    cg.add(var.set_ble_hub(tracker))
+
+    # Compiles the scanner-state push slot into the tracker and the matching
+    # registration into the proxy; the other hubs are polled instead.
+    cg.add_define("USE_BLE_SCANNER_STATE_CALLBACK")
 
     # Define max connections for protobuf fixed array
     connection_count = len(config.get(CONF_CONNECTIONS, []))
@@ -292,8 +404,15 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     cg.add(var.set_ble_hub(hub))
 
     # The api component sizes BluetoothConnectionsFreeResponse.allocated with
-    # this define whenever a proxy is present; no connections off-esp32.
-    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", 0)
+    # this define whenever a proxy is present. Zero on advertisement-only hubs.
+    # Sized from the instantiated connections so the define can never diverge
+    # from the loop below (the define sizes fixed storage in the proxy).
+    slots = len(config.get(CONF_CONNECTIONS, ()))
+    cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", slots)
+    if not slots:
+        return
+
+    await _GATT_HUB_TO_CODE[CORE.target_platform](var, config)
 
 
 async def to_code(config: ConfigType) -> None:

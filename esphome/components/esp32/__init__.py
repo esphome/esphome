@@ -2248,6 +2248,62 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
         )
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_vfs_fatfs_sdkconfig(
+    disable_vfs_termios: bool,
+    disable_vfs_select: bool,
+    disable_vfs_dir: bool,
+    disable_fatfs: bool,
+) -> None:
+    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+
+    def set_opt(name: str, value: SdkconfigValueType) -> None:
+        # User sdkconfig_options (applied during to_code) win.
+        if name not in opts:
+            add_idf_sdkconfig_option(name, value)
+
+    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
+    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
+
+    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
+    # sockets use lwip_select() either way. ~2.7KB flash when off.
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
+
+    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
+
+    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
+    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
+    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
+    lfn_keys = (
+        "CONFIG_FATFS_LFN_NONE",
+        "CONFIG_FATFS_LFN_HEAP",
+        "CONFIG_FATFS_LFN_STACK",
+    )
+    user_picked_lfn = any(k in opts for k in lfn_keys)
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", False)
+            set_opt("CONFIG_FATFS_LFN_HEAP", True)
+            set_opt("CONFIG_FATFS_MAX_LFN", 255)
+        set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
+    elif disable_fatfs:
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
+        # Kconfig range is [1,10]; 0 gets clamped to the default.
+        set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
+
+
 @coroutine_with_priority(CoroPriority.FINAL - 1)
 async def _finalize_arduino_aware_flags():
     """Build flags that depend on whether arduino-esp32 is linked in.
@@ -2603,47 +2659,6 @@ async def to_code(config):
     if advanced[CONF_DISABLE_LIBC_LOCKS_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
-    # Disable VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
-        # Component requires VFS termios - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_TERMIOS", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
-        )
-
-    # Disable VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
-        # Component requires VFS select - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_SELECT", not advanced[CONF_DISABLE_VFS_SUPPORT_SELECT]
-        )
-
-    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # ESPHome doesn't use directory functions on ESP32.
-    # Components that need it (e.g., storage components) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
-        # Component requires VFS directory support - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
-        )
-
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
@@ -2878,6 +2893,16 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
+    # FINAL: require_*() calls can come from to_code at or below this priority, so an
+    # inline read would be iteration-order-dependent; reconcile once after every job ran.
+    CORE.add_job(
+        _reconcile_vfs_fatfs_sdkconfig,
+        advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
+        advanced[CONF_DISABLE_VFS_SUPPORT_SELECT],
+        advanced[CONF_DISABLE_VFS_SUPPORT_DIR],
+        advanced[CONF_DISABLE_FATFS],
+    )
+
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
@@ -2892,17 +2917,6 @@ async def to_code(config):
         or advanced[CONF_ADC_ONESHOT_IN_IRAM]
     ):
         add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
-
-    # Disable FATFS support
-    # Components that need FATFS (SD card, etc.) can call require_fatfs()
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Component called require_fatfs() - enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
-    elif advanced[CONF_DISABLE_FATFS]:
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
-        # Kconfig range is [1,10]; 0 gets clamped to the default.
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))

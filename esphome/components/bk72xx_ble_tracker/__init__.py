@@ -44,6 +44,8 @@ DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
 
+ble_device_base.register_hub_provider("bk72xx_ble_tracker")
+
 bk72xx_ble_tracker_ns = cg.esphome_ns.namespace("bk72xx_ble_tracker")
 BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
     "BK72xxBLETracker", ble_device_base.BLEHub, cg.Component
@@ -142,6 +144,9 @@ async def stop_scan_action_to_code(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_BK72XX_BLE_TRACKER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
