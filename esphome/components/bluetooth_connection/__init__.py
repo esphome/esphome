@@ -22,8 +22,9 @@ DOMAIN = "bluetooth_connection"
 
 def AUTO_LOAD() -> list[str]:
     """ble_device_base plus the platform BLE stack the build's backend
-    registers with, so consumers stay platform-blind. The platform-less arm
-    serves tooling that resolves the manifest without a target."""
+    registers with (the Bluedroid header includes the tracker's), so
+    consumers stay platform-blind. The platform-less arm serves tooling that
+    resolves the manifest without a target."""
     if CORE.is_esp32:
         return ["ble_device_base", "esp32_ble_tracker"]
     if CORE.is_rp2:
@@ -130,9 +131,13 @@ def gatt_client_schema(platform: str | None = None) -> cv.Schema:
 
 def hub_connection_schema(platform: str | None = None) -> cv.Schema:
     """Per-slot schema for the proxy's connection wrappers: the wrapper id on
-    top of the backend fragment. Same platform rules as gatt_client_schema()."""
-    return gatt_client_schema(platform).extend(
-        {cv.GenerateID(): cv.declare_id(HubBluetoothConnection)}
+    top of the backend fragment, plus the component keys (setup_priority and
+    friends now apply to the backend, the slot's real Component). Same
+    platform rules as gatt_client_schema()."""
+    return (
+        gatt_client_schema(platform)
+        .extend({cv.GenerateID(): cv.declare_id(HubBluetoothConnection)})
+        .extend(cv.COMPONENT_SCHEMA)
     )
 
 
@@ -201,9 +206,11 @@ async def new_gatt_backend(
     if service_table:
         cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
-    # The backend has no user-facing component options; an empty config keeps
-    # the consumer's own keys (update_interval, ...) off it.
-    await cg.register_component(backend, {})
+    # The backend is the slot's real Component: component keys from the
+    # connection entry (setup_priority, ...) apply to it. Consumers whose own
+    # schema carries keys that register_component would misapply to the
+    # backend (e.g. a polling interval) must not put them in this config.
+    await cg.register_component(backend, config)
     await _backend_entry().register(backend, config)
     return backend
 

@@ -530,13 +530,16 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
       ESP_LOGE(TAG, "[%d] [%s] Service walk failed (service %d), aborting stream", conn.connection_index_,
                conn.address_str_, conn.send_service_);
       conn.send_service_ = DONE_SENDING_SERVICES;
+      conn.disconnect();
       return;
     }
     uint16_t total_char_count = 0;
     if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
                                      service_result.start_handle, service_result.end_handle, 0,
                                      &total_char_count) != ESP_GATT_OK) {
+      this->log_gattc_warning_("esp_ble_gattc_get_attr_count", ESP_GATT_ERROR);
       conn.send_service_ = DONE_SENDING_SERVICES;
+      conn.disconnect();
       return;
     }
 
@@ -569,6 +572,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
           if (char_status != ESP_GATT_OK) {
             this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
             conn.send_service_ = DONE_SENDING_SERVICES;
+            conn.disconnect();
             return;
           }
           break;
@@ -588,6 +592,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
           // missing CCCD in a cached database breaks notifications for good.
           this->log_gattc_warning_("esp_ble_gattc_get_attr_count", desc_count_status);
           conn.send_service_ = DONE_SENDING_SERVICES;
+          conn.disconnect();
           return;
         }
         if (total_desc_count > 0) {
@@ -605,6 +610,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
               if (desc_status != ESP_GATT_OK) {
                 this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
                 conn.send_service_ = DONE_SENDING_SERVICES;
+                conn.disconnect();
                 return;
               }
               break;
@@ -669,7 +675,9 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // suppressed by seen_mtu_ (HA tolerates a post-connect MTU of 23 here,
     // matching the previous esp32 behavior).
     this->seen_mtu_ = true;
-    this->report_connection_state_(true, 0, 0);
+    // Wire parity with the old class: no MTU exchange happened yet, and HA
+    // has always been handed the default 23 on the cached path.
+    this->report_connection_state_(true, 23, 0);
     // Settled: only the disconnect safety net needs the loop, and
     // set_disconnecting_() re-enables it.
     this->disable_loop();

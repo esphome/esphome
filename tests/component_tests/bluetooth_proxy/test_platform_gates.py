@@ -177,10 +177,11 @@ def test_rp2_rejects_esp32_only_keys_by_name(
         bluetooth_proxy.CONFIG_SCHEMA({"connections": [{}]})
 
 
-def test_bluetooth_connection_auto_load_matches_the_platform_stack() -> None:
-    # The backend registers with its platform BLE stack, so that dependency
-    # lives here and consumers (proxy, radon_eye_rd200) stay platform-blind;
-    # the platform-less arm is the union for manifest-resolving tooling.
+def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
+    # The backend registers with its platform BLE stack (and the Bluedroid
+    # header includes the tracker's), so that closure lives here and
+    # consumers stay platform-blind; the platform-less arm is the union for
+    # manifest-resolving tooling.
     _set_platform("esp32")
     assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_tracker"]
     _set_platform("rp2")
@@ -203,9 +204,9 @@ def test_every_registered_hub_platform_has_a_schema_arm() -> None:
     registered = set(bluetooth_connection.HUB_MAX_CONNECTIONS)
     assert registered <= set(bluetooth_proxy._GATT_HUB_SCHEMAS)
     assert registered <= set(bluetooth_proxy._HUB_PLATFORMS)
-    # Hub platforms must also be in the backend registry the shared consumer
+    # Hub platforms must also be in the backend registry the shared codegen
     # helpers dispatch on.
-    assert registered <= set(bluetooth_connection.GATT_CLIENT_PLATFORMS)
+    assert registered <= set(bluetooth_connection._PLATFORM_BACKENDS)
     # The outer walkable schema's bound must stay the loosest platform cap.
     assert (
         max(bluetooth_connection.HUB_MAX_CONNECTIONS.values())

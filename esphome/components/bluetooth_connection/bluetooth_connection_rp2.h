@@ -92,7 +92,8 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
-  // No connection-type branching on this backend.
+  // No deferred-disconnect state (disconnect is one call) and no
+  // connection-type branching on this backend.
   void set_connection_type(ble_device_base::ConnectionType ct) {}
   void release_services();
 
