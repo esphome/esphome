@@ -472,6 +472,8 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
+  // esp32 only: BLEHub is the concrete tracker here, so these calls reach
+  // tracker-native methods beyond the neutral contract.
   if (this->hub_->get_scan_active() == active) {
     return;
   }
