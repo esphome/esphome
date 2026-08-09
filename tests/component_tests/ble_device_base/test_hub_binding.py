@@ -204,34 +204,27 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -
         ble_device_base.add_service_uuid(var, "123")
 
 
-def test_hub_alias_ladder_mirrors_tracker_defines() -> None:
-    """Adding a BLE chip is a three-place invariant: the tracker's to_code
-    emits USE_<CHIP>_BLE_TRACKER, ble_hub_impl.h has a matching alias arm, and
-    defines.h mirrors the define for static analysis. Pin all three so a
-    missing piece fails here instead of as a distant C++ error."""
-    import re
+@pytest.mark.parametrize(
+    ("config_name", "define"),
+    [
+        ("esp32_tracker_only.yaml", "USE_ESP32_BLE_TRACKER"),
+        ("rp2_tracker.yaml", "USE_RP2_BLE_TRACKER"),
+        ("bk72xx_tracker.yaml", "USE_BK72XX_BLE_TRACKER"),
+        ("ln882h_tracker.yaml", "USE_LN882H_BLE_TRACKER"),
+    ],
+)
+def test_every_tracker_emits_its_alias_define(
+    generate_main,
+    component_config_path,
+    config_name: str,
+    define: str,
+) -> None:
+    """Each tracker's codegen must emit its USE_*_BLE_TRACKER define - the
+    ble_hub_impl.h alias ladder selects on it. Checked through real codegen
+    (the other two legs of the invariant, the ladder arm and the defines.h
+    mirror, are compile-enforced: a missing arm fails every consumer build on
+    that platform and clang-tidy compiles each arm's static_assert)."""
+    generate_main(component_config_path(config_name))
+    from tests.component_tests.helpers import get_define_value
 
-    components = Path(ble_device_base.__file__).parent.parent
-    impl = (components / "ble_device_base" / "ble_hub_impl.h").read_text()
-    arm_defines = set(re.findall(r"defined\((USE_\w+_BLE_TRACKER)\)", impl))
-    assert arm_defines, "alias ladder has no tracker arms - parse stale?"
-
-    defines_h = (components.parent / "core" / "defines.h").read_text()
-    for define in arm_defines:
-        chip = define.removeprefix("USE_").removesuffix("_BLE_TRACKER").lower()
-        tracker_init = (components / f"{chip}_ble_tracker" / "__init__.py").read_text()
-        assert f'cg.add_define("{define}")' in tracker_init, (
-            f"{define} has an alias arm but {chip}_ble_tracker never emits it"
-        )
-        assert f"#define {define}" in defines_h, (
-            f"{define} missing from the defines.h static-analysis mirror"
-        )
-
-    # Reverse direction: every tracker emitting the define has an alias arm.
-    for init in components.glob("*_ble_tracker/__init__.py"):
-        for define in re.findall(
-            r'cg\.add_define\("(USE_\w+_BLE_TRACKER)"\)', init.read_text()
-        ):
-            assert define in arm_defines, (
-                f"{init.parent.name} emits {define} but ble_hub_impl.h has no alias arm"
-            )
+    assert get_define_value(define) is not None, f"{define} not emitted by codegen"
