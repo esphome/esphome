@@ -28,7 +28,7 @@ using bluetooth_connection::conn_err_t;
 using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
 using ClientState = ble_device_base::ClientState;
 #endif
@@ -60,7 +60,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 };
 
 class BluetoothProxy final : public Component {
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   // Allow the connection to update connections_free_response_
   friend bluetooth_connection::BluetoothConnection;
 #endif
@@ -71,9 +71,9 @@ class BluetoothProxy final : public Component {
   void setup() override;
   void loop() override;
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   void register_connection(BluetoothConnection *connection);
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // BLUETOOTH_CONNECTION_SERVES_PROXY
 #ifndef USE_ESP32
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
   // snapshots scan_active()/scan_running() and installs the raw callback, and
@@ -191,7 +191,7 @@ class BluetoothProxy final : public Component {
   }
   void log_advertisement_flush_();
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
@@ -199,7 +199,7 @@ class BluetoothProxy final : public Component {
   void log_not_connected_gatt_(const char *action, const char *type);
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   /// Keep the pre-allocated connections-free message in step when a
   /// connection slot changes address (0 = free). Called from the connection
   /// classes' set_address().
@@ -239,7 +239,7 @@ class BluetoothProxy final : public Component {
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
