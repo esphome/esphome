@@ -223,11 +223,17 @@ int BluedroidGattClient::discover_services() {
 }
 
 int BluedroidGattClient::read_characteristic(uint16_t handle) {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   return this->check_and_log_error_("esp_ble_gattc_read_char", esp_ble_gattc_read_char(this->gattc_if_, this->conn_id_,
                                                                                        handle, ESP_GATT_AUTH_REQ_NONE));
 }
 
 int BluedroidGattClient::write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   // The BTC layer copies the payload immediately, so the const_cast is safe.
   return this->check_and_log_error_(
       "esp_ble_gattc_write_char",
@@ -237,12 +243,18 @@ int BluedroidGattClient::write_characteristic(uint16_t handle, const uint8_t *da
 }
 
 int BluedroidGattClient::read_descriptor(uint16_t handle) {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   return this->check_and_log_error_(
       "esp_ble_gattc_read_char_descr",
       esp_ble_gattc_read_char_descr(this->gattc_if_, this->conn_id_, handle, ESP_GATT_AUTH_REQ_NONE));
 }
 
 int BluedroidGattClient::write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   return this->check_and_log_error_(
       "esp_ble_gattc_write_char_descr",
       esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, handle, len, const_cast<uint8_t *>(data),
@@ -250,6 +262,9 @@ int BluedroidGattClient::write_descriptor(uint16_t handle, const uint8_t *data, 
 }
 
 int BluedroidGattClient::notify_characteristic(uint16_t handle, bool enable) {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   // Local registration only; the CCCD write is the API client's responsibility.
   if (enable) {
     return this->check_and_log_error_("esp_ble_gattc_register_for_notify",
@@ -259,7 +274,12 @@ int BluedroidGattClient::notify_characteristic(uint16_t handle, bool enable) {
                                     esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle));
 }
 
-int BluedroidGattClient::pair() { return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT); }
+int BluedroidGattClient::pair() {
+  if (this->conn_id_ == UNSET_CONN_ID) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
+  return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT);
+}
 
 int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                                   uint16_t timeout) {
