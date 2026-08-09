@@ -373,7 +373,7 @@ void ModbusCommandItem::write_multiple_coils(uint16_t start_address, std::span<c
   modbus::ModbusClientDevice::write_multiple_coils(start_address, values);
 }
 
-void ModbusCommandItem::send_pdu(std::span<const uint8_t> pdu) {
+void ModbusCommandItem::queue_pdu(std::span<const uint8_t> pdu) {
   // Best-effort decode of the PDU header so handlers and logs get the same metadata as a standard command.
   if (pdu.size() >= 3) {
     auto function_code = static_cast<FunctionCode>(pdu[0]);

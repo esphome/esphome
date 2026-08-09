@@ -285,9 +285,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void write_single_coil(uint16_t address, bool value);
   void write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values);
   void write_multiple_coils(uint16_t start_address, std::span<const bool> values);
-  /// Send a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
+  /// Queue a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
   /// handle the response.
-  void send_pdu(std::span<const uint8_t> pdu);
+  void queue_pdu(std::span<const uint8_t> pdu);
   /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
   /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
   void send_raw_frame_deprecated(std::span<const uint8_t> frame);
@@ -297,7 +297,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// pending frame is silently retired.
   bool send();
 
-  /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / send_pdu())
+  /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / queue_pdu())
   /** Create modbus read command
    *  Function code 02-04
    * @param controller the controller whose hub and address the command uses
@@ -452,7 +452,7 @@ class ModbusController final : public PollingComponent {
   modbus::ModbusClientHub *hub() const { return this->hub_; }
   uint8_t device_address() const { return this->address_; }
 
-  /// Empty command on this controller's hub/address: own it, call a write helper / send_pdu(), keep it alive
+  /// Empty command on this controller's hub/address: own it, call a write helper / queue_pdu(), keep it alive
   /// until the reply.
   ModbusCommandItem create_command() { return ModbusCommandItem(*this, this->hub_, this->address_); }
   /// Build a polling command for a register range bound to this controller's hub and address.
