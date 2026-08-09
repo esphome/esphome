@@ -201,11 +201,12 @@ void BLEClient::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t le
 }
 
 void BLEClient::on_notify_state(uint16_t handle, bool enabled, int error) {
-  // Breadcrumb only until the first notify node lands; a dropped failure
-  // here would otherwise be silent on a frozen surface.
   if (error != 0) {
     ESP_LOGW(TAG, "[%s] Notify %s on handle 0x%04x failed, status=%d", this->address_str_,
              enabled ? "enable" : "disable", handle, error);
+  }
+  for (auto *node : this->nodes_) {
+    node->on_notify_state(handle, enabled, error);
   }
 }
 

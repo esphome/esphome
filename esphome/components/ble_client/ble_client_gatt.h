@@ -37,6 +37,7 @@ class BLEClientNode {
   virtual void on_connected(const ble_device_base::GattServiceTable &table) {}
   virtual void on_disconnected() {}
   virtual void on_notify(uint16_t handle, const uint8_t *data, uint16_t len) {}
+  virtual void on_notify_state(uint16_t handle, bool enabled, int error) {}
   virtual void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
   virtual void on_write_result(uint16_t handle, int error) {}
 
