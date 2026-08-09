@@ -415,6 +415,21 @@ NCS_ZIGBEE: ZephyrSDK = ZephyrSDK(
     resolve_boards_ref_via_manifest=True,
 )
 
+# Silicon Labs' "Simplicity SDK for Zephyr" -- same manifest-of-manifests shape as NCS:
+# a vendor overlay repo (mcuboot/tf-psa-crypto overrides, hal_silabs, extra HAL modules)
+# around a bundled Zephyr fork (SiliconLabsSoftware/zephyr) pinned by raw commit SHA in
+# zephyr-silabs's own west.yml, not derivable from the vendor repo's version tag -- same
+# reasoning as NCS's resolve_boards_ref_via_manifest. Real board/DTS support for chips
+# not yet upstreamed to mainline Zephyr lives in that bundled fork.
+SILABS: ZephyrSDK = ZephyrSDK(
+    manifest_url="https://github.com/SiliconLabsSoftware/zephyr-silabs",
+    boards_repo_url="https://github.com/SiliconLabsSoftware/zephyr",
+    tools_subdir="sdk-silabs",
+    default_version="2026.6.0",
+    min_version=cv.Version(2026, 6, 0),
+    resolve_boards_ref_via_manifest=True,
+)
+
 # Module names under this package that define a variant.
 # Each module must export VARIANT_NAME and a ZephyrVariant instance named VARIANT.
 _VARIANT_MODULES = [

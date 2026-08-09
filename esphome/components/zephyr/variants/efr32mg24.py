@@ -1,5 +1,7 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
@@ -13,6 +15,7 @@ from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_EFR32MG24
 from ..dts_lookup import get_i2c_pinctrl_silabs
 from . import (
     MAINLINE,
+    SILABS,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -24,6 +27,17 @@ from . import (
 # for this board, so qualify_board() is a no-op here (soc= is left unset below).
 _DEFAULT_BOARD = "xg24_ek2703a"
 
+# framework: type: silabs only -- overrides commander_setup.py's pinned default. Its own
+# release cadence is independent of the silabs SDK version, same reasoning as
+# west_version:/ninja_version: vs. the Zephyr version.
+CONF_COMMANDER_VERSION = "commander_version"
+
+_ADVANCED_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_COMMANDER_VERSION): cv.string_strict,
+    }
+)
+
 # GPIO -> Silicon Labs IADC analog-input macro name. Fully regular fixed-function
 # silicon mapping (unlike nRF52's sparse datasheet AIN0-AIN7 table): every GPIO pin
 # PA0..PD15 has its own IADC_INPUT_P<port><pin> macro, confirmed against
@@ -33,10 +47,11 @@ _ADC_AIN_MAP = {p: f"IADC_INPUT_P{chr(ord('A') + p // 16)}{p % 16}" for p in ran
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_EFR32MG24
 VARIANT = ZephyrVariant(
-    # No Silicon Labs vendor SDK equivalent to Nordic's NCS -- mainline Zephyr is the
-    # only SDK carrying silabs board/HAL support.
+    # Mainline stays default; Silicon Labs' vendor SDK (SILABS) is available as an alt
+    # (framework: type: silabs) pending real hardware testing.
     sdk=MAINLINE,
     sdk_name="zephyr",
+    alt_sdks={"silabs": SILABS},
     family="silabs",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
@@ -70,9 +85,16 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "efr32mg24", config, "EFR32MG24 support"
     )
+    if CONF_COMMANDER_VERSION in config[CONF_ADVANCED] and sdk_name != "silabs":
+        raise cv.Invalid(
+            f"'{CONF_COMMANDER_VERSION}' only applies with framework: type: silabs "
+            f"(current: {sdk_name!r})",
+            [CONF_ADVANCED, CONF_COMMANDER_VERSION],
+        )
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],

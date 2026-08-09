@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import logging
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -1382,7 +1383,7 @@ def run_compile(args, config: ConfigType) -> bool:
     from .sdk_setup_west import check_and_install as sdk_install
 
     variant_data = VARIANTS[variant]
-    _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
+    sdk_name, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     python_bin, framework_path, west_env = west_install(
         sdk,
@@ -1392,6 +1393,16 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
     )
+    if sdk_name == "silabs":
+        from .commander_setup import check_and_install as commander_install
+
+        # "commander_version" mirrors efr32mg24.CONF_COMMANDER_VERSION -- not imported
+        # directly to avoid this generic module depending on one specific variant.
+        commander_version = (
+            config[CORE.target_platform].get(CONF_ADVANCED, {}).get("commander_version")
+        )
+        commander_dir = commander_install(commander_version)
+        west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
     cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
     if blob_spec := variant_data.blobs:
