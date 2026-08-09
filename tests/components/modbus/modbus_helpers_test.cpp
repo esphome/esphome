@@ -92,6 +92,18 @@ TEST(ModbusClientFrameLength, ReadWriteMultipleByteCountCappedAtSpecLimit) {
   EXPECT_EQ(client_pdu_length(pdu, sizeof(pdu)), 10 + MAX_NUM_OF_REGISTERS_TO_WRITE_RW * 2);
 }
 
+TEST(ModbusClientFrameLength, ReadWriteMultipleUsesByteCount) {
+  // read start(2) + read qty(2) + write start(2) + write qty(2) + byte count(1) then data
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02, 0x04, 0xAA, 0xBB, 0xCC, 0xDD};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13 + 4);
+}
+
+TEST(ModbusClientFrameLength, ReadWriteMultipleMissingByteCount) {
+  // header present up to the write quantity but the byte count byte (frame[10]) is absent
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13);
+}
+
 TEST(ModbusClientFrameLength, WriteMultipleMissingByteCount) {
   const uint8_t frame[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02};
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9);
@@ -331,6 +343,7 @@ TEST(ModbusCreateClientPdu, WriteCoilsUseTheCoilLimitNotTheRegisterLimit) {
   EXPECT_TRUE(create_client_pdu(FC::WRITE_MULTIPLE_COILS, 0x0000, 1969, big.data(), big.size()).empty());
 }
 
+// --- payload_to_number -----------------------------------------------------
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
   EXPECT_FALSE(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 2, 0xFFFFFFFF).has_value());
@@ -346,12 +359,44 @@ TEST(ModbusHelpersTest, PayloadToNumberDecodesValidWord) {
   EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD, 0, 0xFFFFFFFF), 0x1234);
 }
 
+TEST(ModbusHelpersTest, PayloadToNumberDecodesSwappedUnsignedWord) {
+  const std::vector<uint8_t> data{0x34, 0x12};
+  EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD_S, 0, 0xFFFFFFFF), 0x1234);
+}
+
+TEST(ModbusHelpersTest, PayloadToNumberDecodesSwappedSignedWord) {
+  const std::vector<uint8_t> data{0xFE, 0xFF};
+  EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::S_WORD_S, 0, 0xFFFFFFFF), -2);
+}
+
+TEST(ModbusHelpersTest, PayloadToNumberAppliesBitmaskAfterSwap) {
+  // Bytes {0x34,0x12} decode as U_WORD_S to 0x1234; mask 0xFF00 then right-shift by bit 8 -> 0x12
+  const std::vector<uint8_t> data{0x34, 0x12};
+  EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::U_WORD_S, 0, 0xFF00), 0x12);
+}
+
+TEST(ModbusHelpersTest, PayloadToNumberAppliesBitmaskAfterSwapSigned) {
+  // Bytes {0x34,0xFE} decode as S_WORD_S to 0xFE34 (negative); mask 0x00F0 then right-shift by bit 4 -> 0x3
+  const std::vector<uint8_t> data{0x34, 0xFE};
+  EXPECT_EQ(payload_to_number(std::span<const uint8_t>(data), SensorValueType::S_WORD_S, 0, 0x00F0), 0x3);
+}
+
 // --- registers_to_number ---------------------------------------------------
 // Register words are host byte order; results must match the byte-based payload_to_number.
 
 TEST(ModbusHelpersTest, RegistersToNumberDecodesWord) {
   const uint16_t registers[] = {0x1234};
   EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::U_WORD), 0x1234);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesSwappedUnsignedWord) {
+  const uint16_t registers[] = {0x3412};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::U_WORD_S), 0x1234);
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberDecodesSwappedSignedWord) {
+  const uint16_t registers[] = {0xFEFF};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::S_WORD_S), -2);
 }
 
 TEST(ModbusHelpersTest, RegistersToNumberDecodesDwordHighWordFirst) {
@@ -432,6 +477,24 @@ TEST(ModbusTypedBuilders, FloatToPayloadAppendsToExistingContent) {
   ASSERT_EQ(data.size(), 2u);
   EXPECT_EQ(data[0], 0x1234);
   EXPECT_EQ(data[1], 0x0001);
+}
+
+// --- number_to_payload -----------------------------------------------------
+
+TEST(ModbusHelpersTest, NumberToPayloadRoundTripsSwappedUnsignedWord) {
+  std::vector<uint16_t> regs;
+  number_to_payload(regs, 0x1234, SensorValueType::U_WORD_S);
+  ASSERT_EQ(regs.size(), 1u);
+  EXPECT_EQ(regs[0], 0x3412);
+  EXPECT_EQ(registers_to_number(regs.data(), regs.size(), SensorValueType::U_WORD_S), 0x1234);
+}
+
+TEST(ModbusHelpersTest, NumberToPayloadRoundTripsSwappedSignedWord) {
+  std::vector<uint16_t> regs;
+  number_to_payload(regs, -2, SensorValueType::S_WORD_S);
+  ASSERT_EQ(regs.size(), 1u);
+  EXPECT_EQ(regs[0], 0xFEFF);
+  EXPECT_EQ(registers_to_number(regs.data(), regs.size(), SensorValueType::S_WORD_S), -2);
 }
 
 TEST(ModbusCreateClientPdu, ExceptionFlaggedWriteCodesRejected) {
