@@ -53,6 +53,16 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// takes.
   void initiate_connection(uint8_t address_type);
   void disconnect();
+  /// A connect request racing a scheduled teardown: true when the backend
+  /// had not started closing - the in-flight open resumes and reports
+  /// connected. False once the teardown owns the link.
+  bool cancel_teardown() {
+    if (this->state_ == ClientState::DISCONNECTING && this->backend_->cancel_gatt_disconnect()) {
+      this->state_ = ClientState::CONNECTING;
+      return true;
+    }
+    return false;
+  }
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }

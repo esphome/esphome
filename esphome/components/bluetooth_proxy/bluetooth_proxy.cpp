@@ -240,6 +240,10 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, true);
         this->send_connections_free();
         return;
+      } else if (connection->state() == ClientState::DISCONNECTING && connection->cancel_teardown()) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request while pending disconnect, cancelling pending disconnect",
+                 connection->get_connection_index(), connection->address_str());
+        return;
       } else if (connection->state() != ClientState::INIT) {
         // Covers CONNECTING too: a repeat request during a connect attempt is
         // ignored the same way.
