@@ -1231,9 +1231,7 @@ async def to_code(config: ConfigType) -> None:
 def _upload_using_picotool() -> bool:
     """Upload Zephyr firmware to RP2040 in BOOTSEL mode using picotool."""
     import shutil
-    import subprocess
     import sys
-    from pathlib import Path as _Path
 
     from esphome.util import (
         PICOTOOL_PACKAGE,
@@ -1242,10 +1240,10 @@ def _upload_using_picotool() -> bool:
     )
 
     binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
-    pio_packages = _Path.home() / ".platformio" / "packages"
+    pio_packages = Path.home() / ".platformio" / "packages"
     picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
     if not picotool.is_file():
-        picotool = _Path(shutil.which(binary_name) or "")
+        picotool = Path(shutil.which(binary_name) or "")
 
     if not picotool or not picotool.is_file():
         _LOGGER.error(
@@ -1292,9 +1290,7 @@ def _upload_using_picotool() -> bool:
                 msg += f" {_RP2040_UDEV_HINT}"
             _LOGGER.error(msg)
         else:
-            _LOGGER.error(
-                "picotool upload failed (exit code %d).", result.returncode
-            )
+            _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
         return False
     return True
 
