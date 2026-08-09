@@ -18,34 +18,24 @@ struct MinimalBackend {
 };
 static_assert(OTABackendContract<MinimalBackend>);
 
-// begin() must accept the one-argument form; a backend without the default
-// ota_type argument breaks consumers that only pass the image size.
-struct BackendWithoutDefaultOTAType {
+// Each negative case derives from MinimalBackend and breaks exactly one
+// requirement; the declaration in the derived struct hides the conforming
+// one from the base.
+
+// begin() without the default ota_type argument breaks consumers that only
+// pass the image size.
+struct BackendWithoutDefaultOTAType : MinimalBackend {
   OTAResponseTypes begin(size_t image_size, OTAType ota_type) { return OTA_RESPONSE_OK; }
-  void set_update_md5(const char *md5) {}
-  OTAResponseTypes write(uint8_t *data, size_t len) { return OTA_RESPONSE_OK; }
-  OTAResponseTypes end() { return OTA_RESPONSE_OK; }
-  void abort() {}
-  bool supports_compression() { return false; }
 };
 static_assert(!OTABackendContract<BackendWithoutDefaultOTAType>);
 
-struct BackendMissingAbort {
-  OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP) { return OTA_RESPONSE_OK; }
-  void set_update_md5(const char *md5) {}
-  OTAResponseTypes write(uint8_t *data, size_t len) { return OTA_RESPONSE_OK; }
-  OTAResponseTypes end() { return OTA_RESPONSE_OK; }
-  bool supports_compression() { return false; }
+struct BackendMissingAbort : MinimalBackend {
+  void abort() = delete;
 };
 static_assert(!OTABackendContract<BackendMissingAbort>);
 
-struct BackendWrongWriteReturn {
-  OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP) { return OTA_RESPONSE_OK; }
-  void set_update_md5(const char *md5) {}
+struct BackendWrongWriteReturn : MinimalBackend {
   bool write(uint8_t *data, size_t len) { return true; }
-  OTAResponseTypes end() { return OTA_RESPONSE_OK; }
-  void abort() {}
-  bool supports_compression() { return false; }
 };
 static_assert(!OTABackendContract<BackendWrongWriteReturn>);
 
