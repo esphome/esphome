@@ -144,8 +144,10 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
   uint8_t connection_index_;
-  // Set only when release_services() cleans the stack's GATT cache, which no
-  // walk may then touch (Bluedroid asserts rather than erroring).
+  // Set by every release_services(): terminates an in-flight service stream
+  // (a partial list must never be sent as authoritative) and, when the cache
+  // was cleaned, marks the database unsafe to walk (Bluedroid asserts rather
+  // than erroring).
   bool services_released_{false};
   // The connected report waits for the MTU exchange; OPEN_EVT alone would
   // hand HA the default 23.
