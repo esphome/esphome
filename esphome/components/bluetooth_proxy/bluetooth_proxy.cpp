@@ -475,6 +475,11 @@ void BluetoothProxy::loop() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->process_pending_services();
   }
+  if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
+    // Resend a dropped slot-state update once the TCP buffer drains.
+    this->connections_free_pending_ = false;
+    this->send_connections_free(this->api_connection_);
+  }
 #endif
 
   // Run advertisement flush / scanner-state poll every 100ms
@@ -629,7 +634,10 @@ void BluetoothProxy::send_connections_free() {
 }
 
 void BluetoothProxy::send_connections_free(api::APIConnection *api_connection) {
-  api_connection->send_message(this->connections_free_response_);
+  if (!api_connection->send_message(this->connections_free_response_)) {
+    ESP_LOGD(TAG, "Connections-free update deferred, TCP buffer full");
+    this->connections_free_pending_ = true;
+  }
 }
 
 void BluetoothProxy::send_gatt_services_done(uint64_t address) {

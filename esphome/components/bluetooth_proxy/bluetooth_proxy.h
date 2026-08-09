@@ -254,6 +254,10 @@ class BluetoothProxy final : public Component {
 
   // Group 4: 1-byte types grouped together
   bool active_;
+  // A dropped send (full TCP buffer) would leave the API client with a stale
+  // slot state forever; the cached response is current by construction, so
+  // retrying it from loop() is an idempotent resync.
+  bool connections_free_pending_{false};
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
 #ifndef USE_BLE_SCANNER_STATE_CALLBACK
