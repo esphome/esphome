@@ -6,6 +6,14 @@
 
 namespace esphome::ble_device_base {
 
+void ScanResponseMerger::deliver_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
+                                  uint8_t data_len, bool raw_only) {
+  if (this->dispatcher_ == nullptr)
+    return;
+  this->dispatcher_->dispatch(mac, rssi, addr_type, data, data_len, raw_only,
+                              *this->scan_continuous_ ? nullptr : this->log_tag_);
+}
+
 void ScanResponseMerger::stash_adv(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
                                    uint8_t data_len, uint32_t now) {
   // One pass: find a same-device entry (deliver + reuse) while remembering the
@@ -24,7 +32,7 @@ void ScanResponseMerger::stash_adv(const uint8_t *mac, int8_t rssi, uint8_t addr
       // the slot, so no frame is ever lost.
       p.used = false;
       this->pending_count_--;
-      this->sink_.invoke(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+      this->deliver_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
       slot = &p;
       break;
     }
@@ -33,7 +41,7 @@ void ScanResponseMerger::stash_adv(const uint8_t *mac, int8_t rssi, uint8_t addr
     slot = free_slot;
   if (slot == nullptr) {
     // Table full — degrade gracefully: deliver the advertisement unmerged.
-    this->sink_.invoke(mac, rssi, addr_type, data, data_len, /*raw_only=*/false);
+    this->deliver_(mac, rssi, addr_type, data, data_len, /*raw_only=*/false);
     return;
   }
   slot->used = true;
@@ -61,7 +69,7 @@ void ScanResponseMerger::submit_scan_rsp(const uint8_t *mac, int8_t rssi, uint8_
         p.used = false;
         this->pending_count_--;
         // The advertisement's RSSI, not the scan response's (header contract).
-        this->sink_.invoke(mac, p.rssi, addr_type, p.data, p.data_len + add, /*raw_only=*/false);
+        this->deliver_(mac, p.rssi, addr_type, p.data, p.data_len + add, /*raw_only=*/false);
         return;
       }
     }
@@ -69,7 +77,7 @@ void ScanResponseMerger::submit_scan_rsp(const uint8_t *mac, int8_t rssi, uint8_
   // Unmatched scan-response: goes out on the raw callback only (HA merges per
   // address); local listeners/triggers receive each advertisement exactly once
   // via the merged/plain path above.
-  this->sink_.invoke(mac, rssi, addr_type, data, data_len, /*raw_only=*/true);
+  this->deliver_(mac, rssi, addr_type, data, data_len, /*raw_only=*/true);
 }
 
 void ScanResponseMerger::sweep(uint32_t now) {
@@ -79,7 +87,7 @@ void ScanResponseMerger::sweep(uint32_t now) {
     if (p.used && now - p.stored_ms > PENDING_ADV_TIMEOUT_MS) {
       p.used = false;
       this->pending_count_--;
-      this->sink_.invoke(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+      this->deliver_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
     }
   }
 }
@@ -90,10 +98,10 @@ void ScanResponseMerger::flush() {
   for (auto &p : this->pending_adv_) {
     if (p.used) {
       p.used = false;
-      this->sink_.invoke(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
+      this->pending_count_--;
+      this->deliver_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
     }
   }
-  this->pending_count_ = 0;
 }
 
 void AdvDispatcher::dispatch(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint8_t data_len,

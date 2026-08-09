@@ -21,14 +21,9 @@ void LN882HBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // rw task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
-  // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
-  // devices are logged only on one-shot scans (continuous would spam).
-  this->merger_.set_sink({this, [](void *self, const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                   uint8_t data_len, bool raw_only) {
-                            auto *tracker = static_cast<LN882HBLETracker *>(self);
-                            tracker->dispatcher_.dispatch(mac, rssi, addr_type, data, data_len, raw_only,
-                                                          tracker->scan_continuous_ ? nullptr : TAG);
-                          }});
+  // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
+  // is read at each delivery to decide unclaimed-device logging.
+  this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
   // scan_running_ check: an on_boot start_scan action (priority 600) runs
   // before this setup() (200) and enable_loop() is a no-op pre-setup — parking
   // the loop here would strand that already-running scan.

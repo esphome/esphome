@@ -103,8 +103,10 @@ class RP2BLETracker : public Component,
 #endif
 
   // Shared adv + scan-response merge and frame dispatch (ble_device_base).
-  // All calls run on the main loop; the merger is clocked by
-  // App.get_loop_component_start_time() throughout this tracker.
+  // All calls run on the main loop. Merger clock: stash_adv() reads the
+  // PARENT's cached loop time (on_scan_report runs inside rp2040_ble's queue
+  // drain), sweep() this component's — same App.loop() pass, so the delta
+  // stays non-negative and the 300 ms timeout holds.
   ble_device_base::ScanResponseMerger merger_;
   ble_device_base::AdvDispatcher dispatcher_;
 };

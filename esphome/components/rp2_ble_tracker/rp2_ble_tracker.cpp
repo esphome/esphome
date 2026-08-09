@@ -24,14 +24,9 @@ void RP2BLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // BTstack packet handler (IRQ) and delivers here on the main loop.
   this->parent_->register_scan_listener(this);
-  // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
-  // devices are logged only on one-shot scans (continuous would spam).
-  this->merger_.set_sink({this, [](void *self, const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                   uint8_t data_len, bool raw_only) {
-                            auto *tracker = static_cast<RP2BLETracker *>(self);
-                            tracker->dispatcher_.dispatch(mac, rssi, addr_type, data, data_len, raw_only,
-                                                          tracker->scan_continuous_ ? nullptr : TAG);
-                          }});
+  // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
+  // is read at each delivery to decide unclaimed-device logging.
+  this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — the BLE scan competes with
   // the OTA download on the shared CYW43 radio. Mirrors esp32_ble_tracker.
