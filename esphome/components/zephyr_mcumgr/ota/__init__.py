@@ -20,6 +20,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_RP2040,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -65,6 +66,7 @@ ZEPHYR_VARIANTS = (
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_EFR32MG24,
+    ZEPHYR_VARIANT_RP2040,
 )
 
 # Families whose boards actually have a USB peripheral this CDC-ACM transport can
@@ -72,9 +74,9 @@ ZEPHYR_VARIANTS = (
 # has no USB device controller node at all (board.yaml doesn't list "usb"), so
 # CDC/CDC1 would fail with an opaque "undefined node label 'zephyr_udc0'"
 # devicetree error instead of a clear config-time one -- same rule logger's own
-# hardware_uart: already applies (UART_SELECTION_ZEPHYR_NORDIC is the only zephyr
+# hardware_uart: already applies (UART_SELECTION_ZEPHYR_USB_CDC is the only zephyr
 # family list that includes USB_CDC).
-_CDC_CAPABLE_FAMILIES = {"nordic"}
+_CDC_CAPABLE_FAMILIES = {"nordic", "rpi_pico"}
 
 CDC_IDS = {"CDC": 0, "CDC1": 1}
 UARTS = ("CDC", "CDC1", "UART0", "UART1")
