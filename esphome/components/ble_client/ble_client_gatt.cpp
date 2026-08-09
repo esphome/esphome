@@ -95,6 +95,8 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     this->state_ = State::DISCOVERING;
     if (this->backend_->discover_services() != 0) {
       // Synchronous refusal: no discovery completion will follow.
+      ESP_LOGW(TAG, "[%s] Service discovery refused", this->address_str_);
+      this->register_failure_();
       this->disconnect();
     }
     return;
@@ -130,12 +132,14 @@ void BLEClient::on_service_discovery_done(int error) {
     this->disconnect();
     return;
   }
+  // CONNECTED before the fan-out so nodes may consult connected() from
+  // their own on_connected().
+  this->state_ = State::CONNECTED;
   auto table = this->backend_->get_service_table();
   for (auto *node : this->nodes_) {
     node->on_connected(table);
   }
   this->backend_->release_services();
-  this->state_ = State::CONNECTED;
   this->consecutive_failures_ = 0;
   this->hold_off_ms_ = 0;
   ESP_LOGI(TAG, "[%s] Connected", this->address_str_);

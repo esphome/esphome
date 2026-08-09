@@ -56,6 +56,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        # Every framework of every bluetooth_connection.GATT_CLIENT_PLATFORMS
+        # entry except esp32; extend when the registry gains a platform.
         "ble_client_gatt.cpp": {PlatformFramework.RP2_ARDUINO},
     }
 )

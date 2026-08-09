@@ -149,6 +149,10 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
 
   void on_write_result(uint16_t handle, int error) override {
     if (this->resolved_ && handle == this->char_handle_ && this->num_running_ != 0) {
+      if (error != 0) {
+        // Continue the chain (legacy parity) but leave a breadcrumb.
+        esph_log_w(Automation::TAG, "Write completed with status %d", error);
+      }
       this->ble_client_->run_later([this]() { this->play_next_tuple_(this->var_); });
     }
   }
