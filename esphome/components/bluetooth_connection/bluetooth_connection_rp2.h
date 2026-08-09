@@ -93,7 +93,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  ble_device_base::GattServiceTable get_service_table(uint16_t first_service);
+  ble_device_base::GattServiceTable get_service_table();
   void release_services();
 
  protected:

@@ -801,7 +801,7 @@ void RP2GattClient::finish_discovery_(int error) {
   }
 }
 
-ble_device_base::GattServiceTable RP2GattClient::get_service_table(uint16_t first_service) {
+ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
   ble_device_base::GattServiceTable table;
   if (this->arena_ != nullptr) {
     table.services = this->arena_->services;

@@ -66,8 +66,15 @@ class BluedroidGattClient final : public Component {
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  ble_device_base::GattServiceTable get_service_table(uint16_t first_service);
+  // Never called: this backend streams in place (stream_service_batch), so
+  // the table stays empty. Satisfies the contract concept.
+  ble_device_base::GattServiceTable get_service_table() { return {}; }
   void release_services();
+
+  /// In-place service streamer (the wrapper detects and prefers it): builds
+  /// one api response batch directly from Bluedroid's cached database, so the
+  /// streaming peak is the response itself - the old esp32 model.
+  void stream_service_batch(BluetoothConnection &conn);
 
   void set_connection_type(esp32_ble_tracker::ConnectionType ct) { this->connection_type_ = ct; }
   bool disconnect_pending() const { return this->shim_.disconnect_pending(); }
@@ -85,9 +92,6 @@ class BluedroidGattClient final : public Component {
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_search_cmpl_();
-  bool materialize_services_();
-  bool build_window_(uint16_t first_service, ble_device_base::GattServiceTable &out);
-  uint8_t *ensure_capacity_(uint8_t *&buf, size_t &cap, size_t needed);
   void unconditional_disconnect_();
   void set_idle_();
   void set_disconnecting_();
@@ -100,16 +104,6 @@ class BluedroidGattClient final : public Component {
   // Group 1: pointers / composed objects
   BluedroidTrackerShim shim_{this};
   BluetoothConnection *listener_{nullptr};
-  // The full services array (small) lives for the whole streaming window;
-  // characteristics/descriptors are materialized per batch into grow-only
-  // scratch buffers so the peak stays bounded to one batch (the old
-  // streamer's crash-driven budget). All freed by release_services().
-  ble_device_base::GattService *services_{nullptr};
-  uint8_t *window_{nullptr};
-  uint8_t *elems_{nullptr};
-  size_t window_cap_{0};
-  size_t elems_cap_{0};
-
   // Group 2: 4-byte types
   int gattc_if_{ESP_GATT_IF_NONE};
   uint32_t disconnecting_started_{0};
@@ -120,13 +114,13 @@ class BluedroidGattClient final : public Component {
   // Group 4: 2-byte types
   uint16_t conn_id_{0xFFFF};
   uint16_t mtu_{23};
+  uint16_t service_total_{0};
 
   // Group 5: 1-byte types
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.
   uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
   uint8_t connection_index_;
-  uint8_t service_total_{0};
   // Set only when release_services() cleans the stack's GATT cache, which no
   // walk may then touch (Bluedroid asserts rather than erroring).
   bool services_released_{false};

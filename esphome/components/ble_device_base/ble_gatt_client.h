@@ -87,12 +87,10 @@ struct GattServiceTable {
 // - disconnect: also cancels a connect in progress.
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
-// - get_service_table(first_service): backend-owned transient storage,
-//   valid until the next call or release_services() (idempotent release).
-//   The services array is always complete; characteristics/descriptors need
-//   only cover services from first_service through at least one full
-//   MAX_PACKET_SIZE batch, with that window's index ranges rebased into the
-//   returned arrays - backends bound their streaming peak to one batch.
+// - get_service_table/release_services: backend-owned transient storage,
+//   released after streaming (release is idempotent). A backend may instead
+//   provide its own service streamer (stream_service_batch on the concrete
+//   type, detected by the consumer at compile time) and keep the table empty.
 // - completions: connect and disconnect land in on_connection_state,
 //   discover_services in on_service_discovery_done, pair in
 //   on_pairing_result, reads in on_read_result, notify_characteristic in
@@ -111,7 +109,7 @@ concept BLEGattConnectionContract = requires(T conn, Sink *sink, const uint8_t *
   { conn.notify_characteristic(uint16_t{}, true) } -> std::same_as<int>;
   { conn.pair() } -> std::same_as<int>;
   { conn.update_connection_params(uint16_t{}, uint16_t{}, uint16_t{}, uint16_t{}) } -> std::same_as<int>;
-  { conn.get_service_table(uint16_t{}) } -> std::same_as<GattServiceTable>;
+  { conn.get_service_table() } -> std::same_as<GattServiceTable>;
   { conn.release_services() } -> std::same_as<void>;
 };
 

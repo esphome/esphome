@@ -5,6 +5,8 @@
 #include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
+#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -214,45 +216,7 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
   return this->update_conn_params_(min_interval, max_interval, latency, timeout, "custom");
 }
 
-ble_device_base::GattServiceTable BluedroidGattClient::get_service_table(uint16_t first_service) {
-  ble_device_base::GattServiceTable table{};
-  if (this->services_ == nullptr || this->services_released_) {
-    return table;
-  }
-  table.services = this->services_;
-  table.service_count = this->service_total_;
-  if (first_service >= this->service_total_) {
-    // Terminal pump: the wrapper only reads service_count.
-    return table;
-  }
-  if (!this->build_window_(first_service, table)) {
-    // Zero-length ranges on a non-empty service trip the wrapper's
-    // out-of-bounds abort, so a walk failure can never stream a truncated
-    // database as authoritative.
-    table.characteristics = nullptr;
-    table.descriptors = nullptr;
-    table.characteristic_count = 0;
-    table.descriptor_count = 0;
-  }
-  return table;
-}
-
 void BluedroidGattClient::release_services() {
-  RAMAllocator<uint8_t> allocator;
-  if (this->services_ != nullptr) {
-    allocator.deallocate(reinterpret_cast<uint8_t *>(this->services_), 0);
-    this->services_ = nullptr;
-  }
-  if (this->window_ != nullptr) {
-    allocator.deallocate(this->window_, 0);
-    this->window_ = nullptr;
-    this->window_cap_ = 0;
-  }
-  if (this->elems_ != nullptr) {
-    allocator.deallocate(this->elems_, 0);
-    this->elems_ = nullptr;
-    this->elems_cap_ = 0;
-  }
   this->service_total_ = 0;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
@@ -308,164 +272,150 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
   ESP_LOGW(TAG, "[%d] %s failed, status=%d", this->connection_index_, operation, code);
 }
 
-// ---- table materialization ----
+// ---- service streaming ----
 
-uint8_t *BluedroidGattClient::ensure_capacity_(uint8_t *&buf, size_t &cap, size_t needed) {
-  if (needed <= cap) {
-    return buf;
-  }
-  RAMAllocator<uint8_t> allocator;
-  if (buf != nullptr) {
-    allocator.deallocate(buf, 0);
-  }
-  buf = allocator.allocate(needed);
-  cap = buf != nullptr ? needed : 0;
-  return buf;
-}
-
-bool BluedroidGattClient::materialize_services_() {
-  if (this->services_released_) {
-    ESP_LOGW(TAG, "[%d] Services released, cannot walk the GATT cache", this->connection_index_);
-    return false;
-  }
+void BluedroidGattClient::handle_search_cmpl_() {
+  // Step down from the fast discovery params.
+  this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   uint16_t primary = 0;
   uint16_t secondary = 0;
   esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001, 0xFFFF, 0,
                                &primary);
   esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0,
                                &secondary);
-  const uint16_t total = primary + secondary;
-  if (total == 0) {
-    this->service_total_ = 0;
-    return true;
+  this->service_total_ = primary + secondary;
+  if (this->listener_ != nullptr) {
+    this->listener_->on_service_discovery_done(0);
   }
-  RAMAllocator<uint8_t> allocator;
-  this->services_ = reinterpret_cast<ble_device_base::GattService *>(
-      allocator.allocate(total * sizeof(ble_device_base::GattService)));
-  if (this->services_ == nullptr) {
-    ESP_LOGE(TAG, "[%d] Service list allocation failed", this->connection_index_);
-    return false;
-  }
-  uint16_t filled = 0;
-  for (uint16_t s = 0; s < total; s++) {
-    esp_gattc_service_elem_t service_result;
-    uint16_t count = 1;
-    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &service_result, &count, s) !=
-            ESP_GATT_OK ||
-        count == 0) {
-      break;
-    }
-    auto &service = this->services_[filled];
-    service.uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(service_result.uuid);
-    service.start_handle = service_result.start_handle;
-    service.end_handle = service_result.end_handle;
-    service.first_characteristic = 0;
-    uint16_t char_count = 0;
-    esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
-                                 service_result.start_handle, service_result.end_handle, 0, &char_count);
-    service.characteristic_count = char_count;
-    filled++;
-  }
-  this->service_total_ = filled;
-  return true;
 }
 
-bool BluedroidGattClient::build_window_(uint16_t first_service, ble_device_base::GattServiceTable &out) {
-  if (this->services_released_) {
-    return false;
+void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
+  if (this->services_released_ || conn.send_service_ >= this->service_total_) {
+    conn.send_service_ = DONE_SENDING_SERVICES;
+    conn.proxy_->send_gatt_services_done(conn.address_);
+    this->release_services();
+    return;
   }
-  // Cover at least the services the wrapper can admit into one batch. Sizing
-  // with the smaller (efficient-UUID) estimate makes the window a superset of
-  // the admitted set in either UUID mode.
-  uint16_t window_end = first_service;
-  size_t est = 0;
-  uint16_t chars_total = 0;
-  uint16_t descs_bound = 0;
-  uint16_t elems_max = 0;
-  while (window_end < this->service_total_) {
-    const auto &svc = this->services_[window_end];
-    uint16_t n_attrs = 0;
-    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_ALL, svc.start_handle, svc.end_handle,
-                                     0, &n_attrs) != ESP_GATT_OK) {
-      return false;
+
+  // The subscriber vanished mid-stream: park the cursor at done WITHOUT
+  // sending services-done (a resubscribing client gets silence and its 30 s
+  // timeout, never an authoritative partial list).
+  auto *api_conn = conn.proxy_->get_api_connection();
+  if (api_conn == nullptr) {
+    ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", conn.connection_index_, conn.address_str_);
+    conn.send_service_ = DONE_SENDING_SERVICES;
+    this->release_services();
+    return;
+  }
+
+  bool use_efficient_uuids = conn.proxy_->client_supports_efficient_uuids();
+  api::BluetoothGATTGetServicesResponse resp;
+  resp.address = conn.address_;
+  size_t current_size = resp.calculate_size();
+  int16_t batch_start = conn.send_service_;
+
+  while (conn.send_service_ < this->service_total_) {
+    esp_gattc_service_elem_t service_result;
+    uint16_t svc_count = 1;
+    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &service_result, &svc_count,
+                                  conn.send_service_) != ESP_GATT_OK ||
+        svc_count == 0) {
+      ESP_LOGE(TAG, "[%d] [%s] Service walk failed (service %d), aborting stream", conn.connection_index_,
+               conn.address_str_, conn.send_service_);
+      conn.send_service_ = DONE_SENDING_SERVICES;
+      return;
     }
-    chars_total += svc.characteristic_count;
-    if (n_attrs > 1 + svc.characteristic_count) {
-      descs_bound += n_attrs - 1 - svc.characteristic_count;
+    uint16_t total_char_count = 0;
+    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                     service_result.start_handle, service_result.end_handle, 0,
+                                     &total_char_count) != ESP_GATT_OK) {
+      conn.send_service_ = DONE_SENDING_SERVICES;
+      return;
     }
-    if (n_attrs > elems_max) {
-      elems_max = n_attrs;
-    }
-    est += estimate_service_size(svc.characteristic_count, true);
-    window_end++;
-    if (est > MAX_PACKET_SIZE) {
+
+    // If this service likely won't fit, send the current batch first.
+    size_t estimated_size = estimate_service_size(total_char_count, use_efficient_uuids);
+    if (!resp.services.empty() && current_size + estimated_size > MAX_PACKET_SIZE) {
       break;
     }
-  }
 
-  const size_t chr_bytes = chars_total * sizeof(ble_device_base::GattCharacteristic);
-  if (this->ensure_capacity_(this->window_, this->window_cap_,
-                             chr_bytes + descs_bound * sizeof(ble_device_base::GattDescriptor)) == nullptr ||
-      this->ensure_capacity_(this->elems_, this->elems_cap_, elems_max * sizeof(esp_gattc_db_elem_t)) == nullptr) {
-    ESP_LOGE(TAG, "[%d] Service window allocation failed", this->connection_index_);
-    return false;
-  }
-  auto *chars = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->window_);
-  auto *descs = reinterpret_cast<ble_device_base::GattDescriptor *>(this->window_ + chr_bytes);
-  auto *elems = reinterpret_cast<esp_gattc_db_elem_t *>(this->elems_);
+    resp.services.emplace_back();
+    auto &service_resp = resp.services.back();
+    fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid,
+                   esp32_ble_tracker::ESPBTUUID::from_uuid(service_result.uuid), use_efficient_uuids);
+    service_resp.handle = service_result.start_handle;
 
-  uint16_t chr_index = 0;
-  uint16_t dsc_index = 0;
-  for (uint16_t s = first_service; s < window_end; s++) {
-    auto &svc = this->services_[s];
-    svc.first_characteristic = chr_index;
-    uint16_t filled_chars = 0;
-    uint16_t count = elems_max;
-    if (esp_ble_gattc_get_db(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, elems, &count) !=
-        ESP_GATT_OK) {
-      return false;
-    }
-    // The snapshot is handle-ordered: descriptors follow their characteristic.
-    ble_device_base::GattCharacteristic *chr = nullptr;
-    for (uint16_t i = 0; i < count; i++) {
-      const auto &elem = elems[i];
-      if (elem.type == ESP_GATT_DB_CHARACTERISTIC) {
-        // Bounded by the pass-1 count: a misbehaving peripheral can return
-        // more entries than it reported.
-        if (filled_chars >= svc.characteristic_count || chr_index >= chars_total) {
+    if (total_char_count > 0) {
+      service_resp.characteristics.init(total_char_count);
+      uint16_t char_offset = 0;
+      esp_gattc_char_elem_t char_result;
+      // Bounded by the count query: a misbehaving peripheral can make the
+      // enumeration return more entries than it reported.
+      while (char_offset < total_char_count) {
+        uint16_t cc = 1;
+        auto char_status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, service_result.start_handle,
+                                                      service_result.end_handle, &char_result, &cc, char_offset);
+        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
           break;
         }
-        chr = &chars[chr_index++];
-        filled_chars++;
-        chr->uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(elem.uuid);
-        chr->value_handle = elem.attribute_handle;
-        chr->end_handle = elem.attribute_handle;
-        chr->properties = elem.properties;
-        chr->first_descriptor = dsc_index;
-        chr->descriptor_count = 0;
-      } else if (elem.type == ESP_GATT_DB_DESCRIPTOR && chr != nullptr && dsc_index < descs_bound) {
-        descs[dsc_index].uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(elem.uuid);
-        descs[dsc_index].handle = elem.attribute_handle;
-        dsc_index++;
-        chr->descriptor_count++;
+        if (char_status != ESP_GATT_OK || cc == 0) {
+          if (char_status != ESP_GATT_OK) {
+            conn.send_service_ = DONE_SENDING_SERVICES;
+            return;
+          }
+          break;
+        }
+        service_resp.characteristics.emplace_back();
+        auto &characteristic_resp = service_resp.characteristics.back();
+        fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid,
+                       esp32_ble_tracker::ESPBTUUID::from_uuid(char_result.uuid), use_efficient_uuids);
+        characteristic_resp.handle = char_result.char_handle;
+        characteristic_resp.properties = char_result.properties;
+
+        uint16_t total_desc_count = 0;
+        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0,
+                                     char_result.char_handle, &total_desc_count);
+        if (total_desc_count > 0) {
+          characteristic_resp.descriptors.init(total_desc_count);
+          uint16_t desc_offset = 0;
+          esp_gattc_descr_elem_t desc_result;
+          while (desc_offset < total_desc_count) {
+            uint16_t dc = 1;
+            auto desc_status = esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, char_result.char_handle,
+                                                           &desc_result, &dc, desc_offset);
+            if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+              break;
+            }
+            if (desc_status != ESP_GATT_OK || dc == 0) {
+              if (desc_status != ESP_GATT_OK) {
+                conn.send_service_ = DONE_SENDING_SERVICES;
+                return;
+              }
+              break;
+            }
+            characteristic_resp.descriptors.emplace_back();
+            auto &descriptor_resp = characteristic_resp.descriptors.back();
+            fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid,
+                           esp32_ble_tracker::ESPBTUUID::from_uuid(desc_result.uuid), use_efficient_uuids);
+            descriptor_resp.handle = desc_result.handle;
+            desc_offset++;
+          }
+        }
+        char_offset++;
       }
     }
-    svc.characteristic_count = filled_chars;
+
+    if (close_service_batch(resp, current_size, conn.send_service_, conn.connection_index_, conn.address_str_) !=
+        BatchClose::CONTINUE) {
+      break;
+    }
   }
 
-  out.characteristics = chars;
-  out.descriptors = descs;
-  out.characteristic_count = chr_index;
-  out.descriptor_count = dsc_index;
-  return true;
-}
-
-void BluedroidGattClient::handle_search_cmpl_() {
-  // Step down from the fast discovery params.
-  this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
-  bool ok = this->materialize_services_();
-  if (this->listener_ != nullptr) {
-    this->listener_->on_service_discovery_done(ok ? 0 : ble_device_base::GATT_ERR_NO_MEMORY);
+  // On a failed send, rewind the cursor so the batch is retried instead of
+  // silently skipped.
+  if (!api_conn->send_message(resp)) {
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", conn.connection_index_, conn.address_str_);
+    conn.send_service_ = batch_start;
   }
 }
 

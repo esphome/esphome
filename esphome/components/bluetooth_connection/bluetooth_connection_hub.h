@@ -78,7 +78,7 @@ class BluetoothConnection final {
   /// loop() and has the same 10 s safety net in its base class).
   void process_pending_services() {
     if (this->send_service_ >= 0) {
-      this->send_service_for_discovery_();
+      this->stream_pending_(this->backend_);
     }
     this->check_disconnect_timeout_();
   }
@@ -94,8 +94,21 @@ class BluetoothConnection final {
 
  protected:
   friend class bluetooth_proxy::BluetoothProxy;
+  // The Bluedroid backend streams services in place from its stack cache.
+  friend class BluedroidGattClient;
 
   void start_connect_();
+  // A backend providing its own streamer (see the contract doc) builds the
+  // response in place from its stack cache; the rest use the table streamer.
+  // Template so the discarded branch is not odr-checked against backends
+  // that lack the method.
+  template<typename Backend> void stream_pending_(Backend *backend) {
+    if constexpr (requires { backend->stream_service_batch(*this); }) {
+      backend->stream_service_batch(*this);
+    } else {
+      this->send_service_for_discovery_();
+    }
+  }
   void send_service_for_discovery_();
   void check_disconnect_timeout_();
   void reset_connection_(conn_err_t reason);

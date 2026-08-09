@@ -49,7 +49,7 @@ class MinimalConnection {
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout) {
     return 0;
   }
-  GattServiceTable get_service_table(uint16_t first_service) { return {}; }
+  GattServiceTable get_service_table() { return {}; }
   void release_services() {}
 
  protected:
@@ -70,7 +70,7 @@ TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {
   EXPECT_EQ(connection.read_characteristic(1), GATT_ERR_NOT_CONNECTED);
 
   // A default table is empty and safe to walk.
-  GattServiceTable table = connection.get_service_table(0);
+  GattServiceTable table = connection.get_service_table();
   EXPECT_EQ(table.service_count, 0);
   EXPECT_EQ(table.characteristic_count, 0);
   EXPECT_EQ(table.descriptor_count, 0);

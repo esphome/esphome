@@ -45,7 +45,7 @@ class StubGattBackend {
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout) {
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
-  ble_device_base::GattServiceTable get_service_table(uint16_t first_service) { return {}; }
+  ble_device_base::GattServiceTable get_service_table() { return {}; }
   void release_services() {}
 };
 
