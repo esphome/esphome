@@ -119,6 +119,13 @@ void BluedroidGattClient::tracker_connect_() {
   ESP_LOGI(TAG, "[%d] 0x%02x Connecting", this->connection_index_, this->remote_addr_type_);
   this->services_released_ = false;
   this->seen_mtu_ = false;
+  // Per-attempt reset: the stack-down path in loop() reaches IDLE through
+  // set_state() without set_idle_(), and a stale done latch would complete
+  // this connection's discovery with the previous connection's result.
+  this->search_prestarted_ = false;
+  this->search_done_ = false;
+  this->search_requested_ = false;
+  this->search_status_ = 0;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
@@ -501,11 +508,15 @@ int BluedroidGattClient::handle_search_cmpl_() {
 }
 
 // Reports a completed search once its consumer has asked for it; the
-// pre-started search must stay silent until then.
+// pre-started search must stay silent until then. Delivery consumes the
+// whole latch, so a later discover_services() on the same connection issues
+// a real search instead of re-reporting this result.
 void BluedroidGattClient::deliver_pending_search_() {
   if (!this->search_requested_ || !this->search_done_)
     return;
   this->search_requested_ = false;
+  this->search_prestarted_ = false;
+  this->search_done_ = false;
   this->listener_->on_service_discovery_done(this->search_status_);
 }
 
