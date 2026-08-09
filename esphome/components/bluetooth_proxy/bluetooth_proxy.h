@@ -179,7 +179,7 @@ class BluetoothProxy final : public Component {
 
  protected:
   bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
-#ifndef USE_ESP32
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
   void send_polled_scanner_state_();
 #endif
   void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
@@ -263,7 +263,7 @@ class BluetoothProxy final : public Component {
   bool active_;
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
-#ifndef USE_ESP32
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
   bool last_scan_running_{false};  // Last scanner state reported to the subscriber
 #endif
 };
