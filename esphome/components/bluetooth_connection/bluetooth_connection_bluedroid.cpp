@@ -134,11 +134,13 @@ void BluedroidGattClient::tracker_connect_() {
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
     // Fast params for the discovery phase; stepped down at SEARCH_CMPL.
-    esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL, 0,
-                                       FAST_CONN_TIMEOUT);
+    this->check_and_log_error_("esp_ble_gap_set_prefer_conn_params",
+                               esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL,
+                                                                  FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT));
   } else {
-    esp_ble_gap_set_prefer_conn_params(this->remote_bda_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
-                                       MEDIUM_CONN_TIMEOUT);
+    this->check_and_log_error_("esp_ble_gap_set_prefer_conn_params",
+                               esp_ble_gap_set_prefer_conn_params(this->remote_bda_, MEDIUM_MIN_CONN_INTERVAL,
+                                                                  MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT));
   }
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_,
                                 static_cast<esp_ble_addr_type_t>(this->remote_addr_type_), true);

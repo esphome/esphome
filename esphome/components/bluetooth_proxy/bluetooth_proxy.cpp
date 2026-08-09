@@ -476,19 +476,21 @@ void BluetoothProxy::loop() {
     this->connections_[i]->process_pending_services();
   }
 #endif
-  if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
-    // Resend a dropped slot-state update once the TCP buffer drains; the
-    // advertisement-only arm answers DISCONNECT requests with this message
-    // too, so the drain compiles on every proxy build.
-    this->connections_free_pending_ = false;
-    this->send_connections_free(this->api_connection_);
-  }
 
   // Run advertisement flush / scanner-state poll every 100ms
   uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_advertisement_flush_time_ < 100)
     return;
   this->last_advertisement_flush_time_ = now;
+
+  if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
+    // Resend a dropped slot-state update, paced by the 100 ms gate so the
+    // retry does not hammer the congestion it exists to survive; the
+    // advertisement-only arm answers DISCONNECT requests with this message
+    // too, so the drain compiles on every proxy build.
+    this->connections_free_pending_ = false;
+    this->send_connections_free(this->api_connection_);
+  }
 
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
