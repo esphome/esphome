@@ -4,6 +4,9 @@ esphome:
 
 zephyr:
   variant: RP2040
+  board: rpi_pico/rp2040/w/mcuboot
+  advanced:
+    bootloader: mcuboot
 
 logger:
   level: VERY_VERBOSE

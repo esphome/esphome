@@ -1027,15 +1027,14 @@ def _find_picotool() -> Path | None:
 
 def _find_picotool_zephyr() -> Path | None:
     """Find picotool without PlatformIO — looks in the global packages dir."""
-    import sys
-    from pathlib import Path as P
+    import shutil
 
     binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
-    pio_packages = P.home() / ".platformio" / "packages"
+    pio_packages = Path.home() / ".platformio" / "packages"
     picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
     if picotool.is_file():
         return picotool
-    return P(binary_name) if shutil.which(binary_name) else None
+    return Path(binary_name) if shutil.which(binary_name) else None
 
 
 def upload_using_picotool(config: ConfigType) -> int:
