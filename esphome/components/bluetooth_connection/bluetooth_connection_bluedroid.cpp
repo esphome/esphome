@@ -133,13 +133,18 @@ void BluedroidGattClient::tracker_connect_() {
 
 int BluedroidGattClient::disconnect() {
   auto st = this->state_();
-  if (st == ClientState::IDLE || st == ClientState::DISCONNECTING) {
+  if (st == ClientState::DISCONNECTING) {
     return 0;
   }
+  // Nothing was opened, so no completion event will follow: report
+  // not-connected and the hub frees the slot at once (rp2 convention).
+  if (st == ClientState::IDLE) {
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  }
   if (st == ClientState::DISCOVERED) {
-    // Never opened: nothing to close.
+    // Parked for the tracker promote loop, never opened.
     this->set_state_(ClientState::IDLE);
-    return 0;
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
     ESP_LOGD(TAG, "[%d] Disconnect scheduled", this->connection_index_);
@@ -279,10 +284,20 @@ void BluedroidGattClient::handle_search_cmpl_() {
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   uint16_t primary = 0;
   uint16_t secondary = 0;
-  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001, 0xFFFF, 0,
-                               &primary);
-  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0,
-                               &secondary);
+  auto primary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE,
+                                                     0x0001, 0xFFFF, 0, &primary);
+  auto secondary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE,
+                                                       0x0001, 0xFFFF, 0, &secondary);
+  if (primary_status != ESP_GATT_OK || secondary_status != ESP_GATT_OK) {
+    // A failed count must not become an authoritative empty database - V3
+    // clients cache the streamed result permanently.
+    auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
+    this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
+    if (this->listener_ != nullptr) {
+      this->listener_->on_service_discovery_done(status);
+    }
+    return;
+  }
   this->service_total_ = primary + secondary;
   if (this->listener_ != nullptr) {
     this->listener_->on_service_discovery_done(0);
@@ -360,6 +375,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         }
         if (char_status != ESP_GATT_OK || cc == 0) {
           if (char_status != ESP_GATT_OK) {
+            this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
             conn.send_service_ = DONE_SENDING_SERVICES;
             return;
           }
@@ -373,8 +389,15 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         characteristic_resp.properties = char_result.properties;
 
         uint16_t total_desc_count = 0;
-        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR, 0, 0,
-                                     char_result.char_handle, &total_desc_count);
+        auto desc_count_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_DESCRIPTOR,
+                                                              0, 0, char_result.char_handle, &total_desc_count);
+        if (desc_count_status != ESP_GATT_OK) {
+          // Abort rather than stream the characteristic descriptor-less: a
+          // missing CCCD in a cached database breaks notifications for good.
+          this->log_gattc_warning_("esp_ble_gattc_get_attr_count", desc_count_status);
+          conn.send_service_ = DONE_SENDING_SERVICES;
+          return;
+        }
         if (total_desc_count > 0) {
           characteristic_resp.descriptors.init(total_desc_count);
           uint16_t desc_offset = 0;
@@ -388,6 +411,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             }
             if (desc_status != ESP_GATT_OK || dc == 0) {
               if (desc_status != ESP_GATT_OK) {
+                this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
                 conn.send_service_ = DONE_SENDING_SERVICES;
                 return;
               }

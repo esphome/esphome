@@ -15,12 +15,12 @@ namespace esphome::ble_device_base {
 /// ATT code range so they cannot be mistaken for spec errors. -1 is
 /// understood by API clients as "not connected". Shared by every GATT
 /// client backend.
+static constexpr int GATT_ERR_NOT_CONNECTED = -1;
+static constexpr int GATT_ERR_NO_MEMORY = -2;
+
 /// Safety net shared by every GATT backend: force IDLE when the stack never
 /// delivers its disconnect completion.
 static constexpr uint32_t GATT_DISCONNECT_TIMEOUT_MS = 10000;
-
-static constexpr int GATT_ERR_NOT_CONNECTED = -1;
-static constexpr int GATT_ERR_NO_MEMORY = -2;
 
 // Preferred connection parameters shared by every platform's GATT client so
 // the backends cannot drift (units: interval 1.25 ms, timeout 10 ms; latency

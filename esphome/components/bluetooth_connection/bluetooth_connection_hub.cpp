@@ -67,8 +67,8 @@ void BluetoothConnection::disconnect() {
 void BluetoothConnection::check_disconnect_timeout_() {
   // Safety net mirroring the esp32 base class: if the backend's disconnect
   // completion is lost, force the slot free instead of leaking it.
-  static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
-  if (this->state_ == ClientState::DISCONNECTING && millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
+  if (this->state_ == ClientState::DISCONNECTING &&
+      millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
     ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
     this->reset_connection_(GATT_NOT_CONNECTED);
   }
