@@ -112,6 +112,8 @@ class GattClientListener {
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
 // - gatt_disconnect: also cancels a connect in progress (named to coexist
 //   with a platform stack's own void disconnect() on one backend class).
+//   Nonzero means nothing to tear down and no completion will follow; an
+//   accepted teardown (0) always reaches a terminal on_connection_state.
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
