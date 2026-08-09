@@ -20,10 +20,6 @@
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
-#include <esp_bt_device.h>
 #else
 #include "esphome/components/ble_device_base/ble_hub.h"
 #ifdef USE_BLE_GATT_CLIENT
@@ -179,28 +175,15 @@ class BluetoothProxy final : public Component {
   }
 
   void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
-#ifdef USE_ESP32
-    const uint8_t *mac = esp_bt_dev_get_address();
-    if (mac != nullptr) {
-      format_mac_addr_upper(mac, output.data());
-    } else {
-      output[0] = '\0';
-    }
-#else
     uint8_t mac[6] = {};
     this->hub_->get_adapter_mac(mac);
-    // Mirror the esp32 arm's unavailable -> empty-string fallback: some hubs
-    // (rp2040's BTstack) only learn the address once the link layer is up, and
-    // report all-zero until then.
-    bool nonzero = false;
-    for (uint8_t b : mac)
-      nonzero |= b != 0;
-    if (nonzero) {
+    // Unavailable -> empty string: some hubs (rp2040's BTstack) only learn
+    // the address once the link layer is up, and report all-zero until then.
+    if (mac_address_is_valid(mac)) {
       format_mac_addr_upper(mac, output.data());
     } else {
       output[0] = '\0';
     }
-#endif
   }
 
  protected:

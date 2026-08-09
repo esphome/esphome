@@ -35,11 +35,6 @@ using namespace esp32_ble;
 
 using adv_data_t = ble_device_base::adv_data_t;
 
-enum AdvertisementParserType {
-  PARSED_ADVERTISEMENTS,
-  RAW_ADVERTISEMENTS,
-};
-
 #ifdef USE_ESP32_BLE_UUID
 using ServiceData = ble_device_base::ServiceData;
 #endif
@@ -63,10 +58,6 @@ class ESPBTDeviceListener : public ble_device_base::ESPBTDeviceListener {
   // Raw-only build: no parsed-device support is compiled in.
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 #endif
-  virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
-  virtual AdvertisementParserType get_advertisement_parser_type() {
-    return AdvertisementParserType::PARSED_ADVERTISEMENTS;
-  };
   void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
@@ -123,6 +114,10 @@ class BLEScannerStateListener {
 /// The pointer may be null if the client is not registered with a tracker.
 class ESPBTClient : public ESPBTDeviceListener {
  public:
+  /// False keeps the tracker from building parsed ESPBTDevice objects on
+  /// this client's account (raw consumers use the hub callback).
+  virtual bool wants_parsed_advertisements() { return true; }
+
   virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
@@ -199,7 +194,6 @@ class ESP32BLETracker final : public Component,
   // esp32-flavored path (unmigrated esp32 sensors; sets the tracker back-pointer).
   void register_listener(ESPBTDeviceListener *listener);
   void register_client(ESPBTClient *client);
-  void recalculate_advertisement_parser_types();
 
   // ---- ble_device_base::BLEHub (the platform-neutral tracker contract) ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) override;
@@ -212,7 +206,7 @@ class ESP32BLETracker final : public Component,
     return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
             /* scan_mode_switch = */ false};
   }
-  void get_adapter_mac(uint8_t out[6]) override;
+  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
   bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
   bool scan_active() override { return this->scan_active_; }
 
@@ -355,7 +349,6 @@ class ESP32BLETracker final : public Component,
   bool scan_continuous_before_ota_{false};
 #endif
   bool ble_was_disabled_{true};
-  bool raw_advertisements_{false};
   bool parse_advertisements_{false};
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
