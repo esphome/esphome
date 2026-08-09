@@ -52,13 +52,10 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     this->disconnect();
   }
 
-  /// Start connecting: record the API address type (BLE_ADDR_TYPE_* code
-  /// space) and open the connection through the backend. Failures report
-  /// through the same reset path a failed open takes.
-  void initiate_connection(uint8_t address_type) {
-    this->remote_addr_type_ = address_type;
-    this->start_connect_();
-  }
+  /// Start connecting with the API address type (BLE_ADDR_TYPE_* code
+  /// space). Failures report through the same reset path a failed open
+  /// takes.
+  void initiate_connection(uint8_t address_type) { this->start_connect_(address_type); }
   void disconnect();
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
@@ -84,17 +81,12 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // an authoritative empty database).
   bool has_gatt_services() const { return this->services_discovered_; }
 
-  /// Stream any pending service-discovery batch and police the disconnect
-  /// safety timeout. Called from the proxy's loop — the wrapper has no
-  /// Component loop of its own.
+  /// Stream any pending service-discovery batch. Called from the proxy's
+  /// loop — the wrapper has no Component loop of its own. The disconnect
+  /// safety timer lives in the backend, which owns every teardown path.
   void process_pending_services() {
     if (this->send_service_ >= 0) {
       this->stream_pending_(this->backend_);
-    }
-    // Inline state gate: this runs per loop iteration for every slot, and the
-    // 10 s safety net only matters while DISCONNECTING.
-    if (this->state_ == ClientState::DISCONNECTING) {
-      this->check_disconnect_timeout_();
     }
   }
 
@@ -112,7 +104,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // The Bluedroid backend streams services in place from its stack cache.
   friend class BluedroidGattClient;
 
-  void start_connect_();
+  void start_connect_(uint8_t address_type);
   // A backend providing its own streamer (see the contract doc) builds the
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
@@ -125,7 +117,6 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     }
   }
   void send_service_for_discovery_();
-  void check_disconnect_timeout_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
@@ -141,19 +132,18 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};
-  uint32_t disconnecting_started_{0};
   conn_err_t pending_error_{0};
 
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
 
-  // Group 5: 1-byte types
-  ClientState state_{ClientState::IDLE};
-  bool paired_{false};
-  ConnectionType connection_type_{ConnectionType::V1};
-  uint8_t remote_addr_type_{0};
-  uint8_t connection_index_{0};
-  bool services_discovered_{false};
+  // Group 5: bit-packed tail. address_ makes the object 8-aligned, so this
+  // group must stay within 2 bytes to keep the wrapper at 48 (dev parity).
+  ClientState state_ : 3 {ClientState::IDLE};
+  bool paired_ : 1 {false};
+  ConnectionType connection_type_ : 2 {ConnectionType::V1};
+  uint8_t connection_index_ : 4 {0};
+  bool services_discovered_ : 1 {false};
 };
 
 }  // namespace esphome::bluetooth_connection

@@ -26,11 +26,11 @@ void BluetoothConnection::set_address(uint64_t address) {
   format_mac_addr_upper(mac, this->address_str_);
 }
 
-void BluetoothConnection::start_connect_() {
+void BluetoothConnection::start_connect_(uint8_t address_type) {
   // No connect timeout here: the API client's own timeout or
   // the api-gone sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
-  int err = this->backend_->connect(this->address_, this->remote_addr_type_);
+  int err = this->backend_->connect(this->address_, address_type);
   if (err != 0) {
     ESP_LOGW(TAG, "[%d] [%s] connect failed, err=%d", this->connection_index_, this->address_str_, err);
     this->reset_connection_(err);
@@ -45,33 +45,16 @@ void BluetoothConnection::disconnect() {
     return;
   }
   int err = this->backend_->gatt_disconnect();
-  if (err == GATT_NOT_CONNECTED) {
-    // Backend already idle: free the slot so the client is not stuck.
-    ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle", this->connection_index_, this->address_str_);
+  if (err != 0) {
+    // Both backends return nonzero only when there is nothing to tear down
+    // (already idle): free the slot so the client is not stuck. Accepted
+    // teardowns always reach a terminal report - the backend owns the
+    // safety timer on every path.
+    ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle, err=%d", this->connection_index_, this->address_str_, err);
     this->reset_connection_(err);
     return;
   }
-  if (err != 0) {
-    // Transient refusal: stay DISCONNECTING and let the safety timeout
-    // arbitrate rather than freeing a slot whose teardown is unresolved.
-    // Latch the refusal unless a GATT cause is already recorded (first wins).
-    ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
-    if (this->pending_error_ == 0) {
-      this->pending_error_ = err;
-    }
-  }
   this->state_ = ClientState::DISCONNECTING;
-  this->disconnecting_started_ = millis();
-}
-
-void BluetoothConnection::check_disconnect_timeout_() {
-  // Safety net: if the backend's disconnect completion is lost (or a refusal
-  // left the teardown unresolved), force the slot free instead of leaking it.
-  // The caller already gates on DISCONNECTING.
-  if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
-    this->reset_connection_(GATT_NOT_CONNECTED);
-  }
 }
 
 void BluetoothConnection::on_pairing_result(int status) {
@@ -113,15 +96,9 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
     int err = this->backend_->gatt_disconnect();
-    // Fresh teardown attempt: give it the full safety window.
-    this->disconnecting_started_ = millis();
-    if (err == GATT_NOT_CONNECTED) {
+    if (err != 0) {
       // Nothing left to tear down after all.
       this->reset_connection_(err);
-    } else if (err != 0) {
-      // Transient refusal while the link is up: keep DISCONNECTING and let
-      // the safety timeout arbitrate (same policy as disconnect()).
-      ESP_LOGW(TAG, "[%d] [%s] teardown disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
     }
     return;
   }

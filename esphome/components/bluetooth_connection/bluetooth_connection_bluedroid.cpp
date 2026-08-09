@@ -72,7 +72,18 @@ void BluedroidGattClient::loop() {
     }
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
     this->set_state(ClientState::IDLE);
-  } else if (st != ClientState::DISCONNECTING) {
+  } else if (st == ClientState::DISCONNECTING || this->want_disconnect_) {
+    // The one teardown safety net (the wrapper has no timer): covers a lost
+    // CLOSE_EVT and a scheduled teardown whose OPEN_EVT never arrives.
+    if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
+      ESP_LOGE(TAG, "[%d] Timeout waiting for teardown, forcing IDLE", this->connection_index_);
+      // Release before idling: unconditional disconnect does not release,
+      // and a lost completion would otherwise leak the table and the cache.
+      this->release_services();
+      this->set_idle_();  // also clears want_disconnect_
+      this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_TIMEOUT);
+    }
+  } else {
     // While a link exists the loop stays on watching for a stack-down (the
     // settle above needs a tick to run) and flushing a pre-started search
     // claimed outside an event drain; it settles only back at IDLE.
@@ -80,13 +91,6 @@ void BluedroidGattClient::loop() {
     if (this->state() == ClientState::IDLE) {
       this->disable_loop();
     }
-  } else if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
-    ESP_LOGE(TAG, "[%d] Timeout waiting for CLOSE_EVT, forcing IDLE", this->connection_index_);
-    // Release before idling: unconditional disconnect does not release, and a
-    // lost CLOSE/DISCONNECT would otherwise leak the table and the cache.
-    this->release_services();
-    this->set_idle_();
-    this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_TIMEOUT);
   }
 }
 
@@ -171,6 +175,10 @@ int BluedroidGattClient::gatt_disconnect() {
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
     ESP_LOGD(TAG, "[%d] Disconnect scheduled", this->connection_index_);
     this->want_disconnect_ = true;
+    // The backend owns the whole safety window (the wrapper has no timer):
+    // a lost OPEN_EVT must not leak the scheduled teardown.
+    this->disconnecting_started_ = millis();
+    this->enable_loop();
     return 0;
   }
   this->unconditional_disconnect_();
