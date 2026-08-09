@@ -523,10 +523,10 @@ class ModbusClientDevice {
                 "2026.8.0")
   void send_pdu(std::span<const uint8_t> pdu) { this->queue_pdu(pdu); }
   ESPDEPRECATED("Use queue_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
-  bool send_raw(const std::vector<uint8_t> &payload) {
+  void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty())
-      return false;  // too short to contain a PDU; refused at the door like any invalid send
-    return this->parent_->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+      return;  // too short to contain a PDU; refused at the door like any invalid send
+    this->parent_->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   // The typed request builders below all queue through queue_pdu(), so they share its contract: true
   // means the request is queued and will resolve in exactly one terminal callback, false means it was

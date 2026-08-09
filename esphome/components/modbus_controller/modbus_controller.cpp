@@ -160,10 +160,11 @@ void ModbusController::queue_command(ModbusCommandItem command) {
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
-  // Called as the last action of the command's own callback, and from send() after queue_pdu (which may
-  // synchronously call on_not_sent). Destroying `command` here would leave send() and the hub touching a
-  // freed object, so we only FLAG it; sweep_completed_one_shots_() erases it later at a safe point. No-op
-  // for polling commands (they persist and are not in the one-shot list).
+  // Called as the last action of the command's own callback (on_response/on_error/on_not_sent/
+  // on_no_response), which the hub runs from inside its sweep while this entry is still live.
+  // Destroying `command` here would leave the hub touching a freed object, so we only FLAG it;
+  // sweep_completed_one_shots_() erases it later at a safe point. No-op for polling commands
+  // (they persist and are not in the one-shot list).
   for (auto &item : this->one_shot_command_items_) {
     if (item.get() == command) {
       item->pending_removal = true;

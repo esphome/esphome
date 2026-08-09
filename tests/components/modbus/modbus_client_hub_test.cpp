@@ -991,10 +991,10 @@ TEST(ModbusClientHubQueue, SendRawTooShortIsRefusedAtTheDoor) {
   NotSentCountingRawDevice device(&hub, 0x02);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  EXPECT_FALSE(device.send_raw({}));  // too short to contain a PDU
+  device.send_raw({});  // too short to contain a PDU; the deprecated void spelling cannot report it
 #pragma GCC diagnostic pop
-  EXPECT_EQ(device.not_sent_count_, 0);  // refusals are returned, never delivered
-  EXPECT_TRUE(hub.tx_buffer_empty());
+  EXPECT_EQ(device.not_sent_count_, 0);  // refused at the door: no callback delivered
+  EXPECT_TRUE(hub.tx_buffer_empty());    // the only evidence of the refusal is that nothing queued
 }
 
 // A continuous read: every wire transmission pairs one sent with one terminal, ending on the error.
@@ -1531,10 +1531,15 @@ TEST(ModbusClientHubCompat, DeprecatedSendPduStillQueues) {
   hub.send_pdu(0x03, other, &device);
   EXPECT_EQ(hub.queued_frames(), 2u);
 
-  // The frame queued through the old name still resolves to its owner.
+  // Both frames resolve to the same owner. Drain them in turn: the device-spelling frame first (FIFO),
+  // then the hub-spelling frame - addressed to 0x03 yet owned by &device, so reaching device's
+  // on_no_response proves the request routes by owner pointer, not by address.
   hub.force_send_next();
   hub.timeout_waiting();
-  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.no_response_count_, 1);  // device-spelling frame (address 0x02)
+  hub.force_send_next();
+  hub.timeout_waiting();
+  EXPECT_EQ(device.no_response_count_, 2);  // hub-spelling frame (address 0x03, &device routing)
 }
 #pragma GCC diagnostic pop
 
