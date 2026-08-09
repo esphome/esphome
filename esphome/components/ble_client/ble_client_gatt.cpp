@@ -159,6 +159,11 @@ void BLEClient::on_service_discovery_done(int error) {
     // Materialize only when a node will read it: a client with no nodes
     // would pay the build/free cycle on every (re)connect for nothing.
     auto table = this->backend_->get_service_table();
+    if (table.service_count == 0) {
+      // A service-less device or a failed materialization: either way the
+      // nodes cannot resolve, so say so instead of sitting inert.
+      ESP_LOGW(TAG, "[%s] Service table is empty; nodes will not resolve", this->address_str_);
+    }
     for (auto *node : this->nodes_) {
       node->on_connected(table);
       if (this->state_ != State::CONNECTED) {
