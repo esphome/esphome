@@ -114,6 +114,7 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            **model.get_config_options(),
         }
     )
 
@@ -200,6 +201,7 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
+    config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     if dc_pin_config := config.get(CONF_DC_PIN):

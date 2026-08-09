@@ -9,7 +9,7 @@ light:
     id: led_strip2
     pin: ${pin2}
     num_leds: 60
-    rgb_order: RGB
+    rgbw_order: RWGB
     bit0_high: 100us
     bit0_low: 100us
     bit1_high: 100us

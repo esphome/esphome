@@ -1,0 +1,109 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+display:
+  # Generic IT8951 with explicit dimensions
+  - platform: it8951
+    spi_id: spi_bus
+    model: it8951
+    dimensions:
+      width: 1872
+      height: 1404
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    enable_pin:
+      - GPIO17
+      - GPIO18
+    vcom: 1500
+    update_interval: 60s
+    # Exercise an alias for the update_mode config option.
+    update_mode: fast
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);
+
+  # m5stack-m5paper (960x540) — model supplies pin defaults
+  - platform: it8951
+    id: m5epd_display
+    spi_id: spi_bus
+    model: m5stack-m5paper
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    full_update_every: 30
+    invert_colors: false
+    sleep_when_done: true
+    grayscale: true
+    update_mode: GC16
+    rotation: 270
+    transform:
+      mirror_x: false
+      mirror_y: false
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 30, Color::BLACK);
+
+  # seeed-reterminal-e1003 (1872x1404)
+  - platform: it8951
+    spi_id: spi_bus
+    model: seeed-reterminal-e1003
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    vcom: 1400
+    sleep_when_done: false
+    lambda: |-
+      it.filled_rectangle(0, 0, 128, 128, Color::BLACK);
+
+  # seeed-ee03 (1872x1404), monochrome fast path
+  - platform: it8951
+    spi_id: spi_bus
+    model: seeed-ee03
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    grayscale: false
+    dithering: false
+    update_mode: DU
+    lambda: |-
+      it.circle(128, 128, 64, Color::BLACK);
+
+# Exercise the it8951.update automation: alias modes, a direct enum-name mode,
+# and the bare (default-mode) form.
+interval:
+  - interval: 30s
+    then:
+      - it8951.update:
+          id: m5epd_display
+          mode: fast
+      - it8951.update:
+          id: m5epd_display
+          mode: full
+      - it8951.update:
+          id: m5epd_display
+          mode: A2
+      - it8951.update: m5epd_display

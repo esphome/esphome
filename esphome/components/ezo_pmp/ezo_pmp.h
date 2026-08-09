@@ -19,7 +19,7 @@
 
 namespace esphome::ezo_pmp {
 
-class EzoPMP : public PollingComponent, public i2c::I2CDevice {
+class EzoPMP final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
 
@@ -114,7 +114,7 @@ class EzoPMP : public PollingComponent, public i2c::I2CDevice {
 };
 
 // Action Templates
-template<typename... Ts> class EzoPMPFindAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPFindAction final : public Action<Ts...> {
  public:
   EzoPMPFindAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -124,7 +124,7 @@ template<typename... Ts> class EzoPMPFindAction : public Action<Ts...> {
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPDoseContinuouslyAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPDoseContinuouslyAction final : public Action<Ts...> {
  public:
   EzoPMPDoseContinuouslyAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -134,7 +134,7 @@ template<typename... Ts> class EzoPMPDoseContinuouslyAction : public Action<Ts..
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPDoseVolumeAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPDoseVolumeAction final : public Action<Ts...> {
  public:
   EzoPMPDoseVolumeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -145,7 +145,7 @@ template<typename... Ts> class EzoPMPDoseVolumeAction : public Action<Ts...> {
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPDoseVolumeOverTimeAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPDoseVolumeOverTimeAction final : public Action<Ts...> {
  public:
   EzoPMPDoseVolumeOverTimeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -159,7 +159,7 @@ template<typename... Ts> class EzoPMPDoseVolumeOverTimeAction : public Action<Ts
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPDoseWithConstantFlowRateAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPDoseWithConstantFlowRateAction final : public Action<Ts...> {
  public:
   EzoPMPDoseWithConstantFlowRateAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -173,7 +173,7 @@ template<typename... Ts> class EzoPMPDoseWithConstantFlowRateAction : public Act
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPSetCalibrationVolumeAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPSetCalibrationVolumeAction final : public Action<Ts...> {
  public:
   EzoPMPSetCalibrationVolumeAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -184,7 +184,7 @@ template<typename... Ts> class EzoPMPSetCalibrationVolumeAction : public Action<
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPClearTotalVolumeDispensedAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPClearTotalVolumeDispensedAction final : public Action<Ts...> {
  public:
   EzoPMPClearTotalVolumeDispensedAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -194,7 +194,7 @@ template<typename... Ts> class EzoPMPClearTotalVolumeDispensedAction : public Ac
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPClearCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPClearCalibrationAction final : public Action<Ts...> {
  public:
   EzoPMPClearCalibrationAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -204,7 +204,7 @@ template<typename... Ts> class EzoPMPClearCalibrationAction : public Action<Ts..
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPPauseDosingAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPPauseDosingAction final : public Action<Ts...> {
  public:
   EzoPMPPauseDosingAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -214,7 +214,7 @@ template<typename... Ts> class EzoPMPPauseDosingAction : public Action<Ts...> {
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPStopDosingAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPStopDosingAction final : public Action<Ts...> {
  public:
   EzoPMPStopDosingAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -224,7 +224,7 @@ template<typename... Ts> class EzoPMPStopDosingAction : public Action<Ts...> {
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPChangeI2CAddressAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPChangeI2CAddressAction final : public Action<Ts...> {
  public:
   EzoPMPChangeI2CAddressAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 
@@ -235,7 +235,7 @@ template<typename... Ts> class EzoPMPChangeI2CAddressAction : public Action<Ts..
   EzoPMP *ezopmp_;
 };
 
-template<typename... Ts> class EzoPMPArbitraryCommandAction : public Action<Ts...> {
+template<typename... Ts> class EzoPMPArbitraryCommandAction final : public Action<Ts...> {
  public:
   EzoPMPArbitraryCommandAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
 

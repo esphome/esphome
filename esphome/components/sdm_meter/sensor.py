@@ -41,12 +41,15 @@ from esphome.const import (
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@polyfaces", "@jesserockz"]
 
 sdm_meter_ns = cg.esphome_ns.namespace("sdm_meter")
-SDMMeter = sdm_meter_ns.class_("SDMMeter", cg.PollingComponent, modbus.ModbusDevice)
+SDMMeter = sdm_meter_ns.class_(
+    "SDMMeter", cg.PollingComponent, modbus.ModbusClientDevice
+)
 
 PHASE_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -145,10 +148,17 @@ CONFIG_SCHEMA = (
 )
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    return modbus.final_validate_modbus_device("sdm_meter", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await modbus.register_modbus_device(var, config)
+    await modbus.register_modbus_client_device(var, config)
 
     if CONF_TOTAL_POWER in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL_POWER])

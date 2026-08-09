@@ -21,9 +21,9 @@ using t_http_codes = enum {
  * The image will then be stored in a buffer, so that it can be re-displayed without the
  * need to re-download or re-decode.
  */
-class OnlineImage : public PollingComponent,
-                    public runtime_image::RuntimeImage,
-                    public Parented<esphome::http_request::HttpRequestComponent> {
+class OnlineImage final : public PollingComponent,
+                          public runtime_image::RuntimeImage,
+                          public Parented<esphome::http_request::HttpRequestComponent> {
  public:
   /**
    * @brief Construct a new OnlineImage object.
@@ -53,6 +53,19 @@ class OnlineImage : public PollingComponent,
     this->etag_ = "";
     this->last_modified_ = "";
   }
+
+  /**
+   * @brief Get/set the ETag and Last-Modified caching headers.
+   *
+   * Exposed so callers can persist them (e.g. across a deep-sleep reboot, where the plain
+   * member variables below don't survive) and restore them before the next update() to get
+   * a conditional GET instead of a full re-download when the source hasn't changed.
+   * set_url() always clears both, so restore after set_url() and before update().
+   */
+  const std::string &get_etag() const { return this->etag_; }
+  void set_etag(const std::string &etag) { this->etag_ = etag; }
+  const std::string &get_last_modified() const { return this->last_modified_; }
+  void set_last_modified(const std::string &last_modified) { this->last_modified_ = last_modified; }
 
   /** Add the request header */
   template<typename V> void add_request_header(const std::string &header, V value) {
@@ -104,7 +117,7 @@ class OnlineImage : public PollingComponent,
   uint32_t start_time_{0};
 };
 
-template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
+template<typename... Ts> class OnlineImageSetUrlAction final : public Action<Ts...> {
  public:
   OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -120,7 +133,7 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
   OnlineImage *parent_;
 };
 
-template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
+template<typename... Ts> class OnlineImageReleaseAction final : public Action<Ts...> {
  public:
   OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
   void play(const Ts &...x) override { this->parent_->release(); }

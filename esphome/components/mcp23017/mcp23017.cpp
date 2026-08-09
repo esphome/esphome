@@ -19,6 +19,10 @@ void MCP23017::setup() {
   this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
   this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
 
+  // Reset IPOL to 0x00: ESPHome handles 'inverted' in software.
+  this->write_reg(mcp23x17_base::MCP23X17_IPOLA, 0x00);
+  this->write_reg(mcp23x17_base::MCP23X17_IPOLB, 0x00);
+
   uint8_t iocon_flags = 0;
   if (this->open_drain_ints_) {
     iocon_flags |= IOCON_ODR;
