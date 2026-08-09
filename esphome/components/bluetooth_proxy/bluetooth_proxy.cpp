@@ -240,10 +240,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, true);
         this->send_connections_free();
         return;
-      } else if (connection->state() == ClientState::CONNECTING) {
-        this->log_connection_request_ignored_(connection, connection->state());
-        return;
       } else if (connection->state() != ClientState::INIT) {
+        // Covers CONNECTING too: a repeat request during a connect attempt is
+        // ignored the same way.
         this->log_connection_request_ignored_(connection, connection->state());
         return;
       }
