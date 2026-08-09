@@ -2,7 +2,7 @@
 // configured; this TU pins it on the host so the header cannot rot unseen.
 // The contract is a concept (BLEGattConnection is a per-platform alias), so
 // the minimal backend here proves the concept stays satisfiable and routes
-// events through the type-erased GattEventSink the way a real backend does.
+// events through the GattClientListener interface the way a real backend does.
 #define USE_BLE_GATT_CLIENT
 
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
@@ -11,37 +11,34 @@
 
 namespace esphome::ble_device_base::testing {
 
-struct RecordingSink {
-  void on_connection_state(bool connected, uint16_t mtu, int error) { this->connected_ = connected; }
-  void on_service_discovery_done(int error) { this->discovery_error_ = error; }
-  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
-  void on_write_result(uint16_t handle, int error) { this->write_handle_ = handle; }
-  void on_notify_state(uint16_t handle, bool enabled, int error) {}
-  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {}
-  void on_pairing_result(int status) {}
+// Overrides only what it records; the interface's defaults cover the rest.
+class RecordingListener : public GattClientListener {
+ public:
+  void on_connection_state(bool connected, uint16_t mtu, int error) override { this->connected_ = connected; }
+  void on_service_discovery_done(int error) override { this->discovery_error_ = error; }
+  void on_write_result(uint16_t handle, int error) override { this->write_handle_ = handle; }
+
   bool connected_{false};
   int discovery_error_{0};
   uint16_t write_handle_{0};
 };
 
-static_assert(GattClientEventSinkContract<RecordingSink>, "the recording sink must cover the full event-sink surface");
-
 class MinimalConnection {
  public:
-  void set_sink(GattEventSink sink) { this->sink_ = sink; }
+  void set_listener(GattClientListener *listener) { this->listener_ = listener; }
 
   int connect(uint64_t address, uint8_t addr_type) {
-    this->sink_.on_connection_state(true, 517, 0);
+    this->listener_->on_connection_state(true, 517, 0);
     return 0;
   }
   int disconnect() { return 0; }
   int discover_services() {
-    this->sink_.on_service_discovery_done(0);
+    this->listener_->on_service_discovery_done(0);
     return 0;
   }
   int read_characteristic(uint16_t handle) { return GATT_ERR_NOT_CONNECTED; }
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
-    this->sink_.on_write_result(handle, 0);
+    this->listener_->on_write_result(handle, 0);
     return 0;
   }
   int read_descriptor(uint16_t handle) { return 0; }
@@ -58,7 +55,7 @@ class MinimalConnection {
   void set_connection_type(ConnectionType ct) {}
 
  protected:
-  GattEventSink sink_;
+  GattClientListener *listener_{nullptr};
 };
 
 static_assert(BLEGattConnectionContract<MinimalConnection>,
@@ -66,8 +63,8 @@ static_assert(BLEGattConnectionContract<MinimalConnection>,
 
 TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {
   MinimalConnection connection;
-  RecordingSink listener;
-  connection.set_sink(make_gatt_sink(&listener));
+  RecordingListener listener;
+  connection.set_listener(&listener);
   EXPECT_EQ(connection.connect(0xAABBCCDDEEFFULL, 0), 0);
   EXPECT_TRUE(listener.connected_);
   EXPECT_EQ(connection.discover_services(), 0);
