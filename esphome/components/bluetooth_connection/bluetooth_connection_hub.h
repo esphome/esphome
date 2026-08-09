@@ -1,14 +1,13 @@
-// Hub-platform BluetoothConnection: drives the build's GATT backend (the
+// BluetoothConnection: drives the build's GATT backend (the
 // ble_device_base::BLEGattConnection alias) and translates its events into
-// the same API messages the esp32 class emits.
-// Presents the identical method surface, so the proxy's GATT dispatch
-// compiles against either class unchanged.
+// the proxy's API messages. One wrapper for every platform; per-backend
+// differences live behind the alias and the streamer cut-through.
 
 #pragma once
 
 #include "esphome/core/defines.h"
 
-#if !defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+#ifdef USE_BLE_GATT_CLIENT
 
 #include "bluetooth_connection.h"
 
@@ -30,10 +29,10 @@ class BluetoothConnection final {
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
     this->backend_ = backend;
-    backend->set_listener(this);
+    backend->set_sink(ble_device_base::make_gatt_sink(this));
   }
 
-  // ---- proxy dispatch surface (mirrors the esp32 class) ----
+  // ---- proxy dispatch surface ----
   conn_err_t read_characteristic(uint16_t handle);
   conn_err_t write_characteristic(uint16_t handle, const uint8_t *data, size_t length, bool response);
   conn_err_t read_descriptor(uint16_t handle);
@@ -52,10 +51,8 @@ class BluetoothConnection final {
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
-  // A backend disconnect() is a single call that also cancels an in-progress
-  // connect; there is no deferred-disconnect state to track.
-  bool disconnect_pending() const { return false; }
-  void cancel_pending_disconnect() {}
+  bool disconnect_pending() const { return this->backend_->disconnect_pending(); }
+  void cancel_pending_disconnect() { this->backend_->cancel_pending_disconnect(); }
 
   void set_address(uint64_t address);
   uint64_t get_address() const { return this->address_; }
@@ -65,22 +62,30 @@ class BluetoothConnection final {
   ClientState state() const { return this->state_; }
   void set_state(ClientState st) { this->state_ = st; }
   bool connected() const { return this->state_ == ClientState::ESTABLISHED; }
-  void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
+  void set_connection_type(ConnectionType ct) {
+    this->connection_type_ = ct;
+    // The bluedroid backend branches on the type itself (prefer-params and
+    // the with-cache report at OPEN_EVT); the others ignore it.
+    this->backend_->set_connection_type(ct);
+  }
   // Latched at discovery completion rather than read from the backend table:
   // streaming frees the table, and this must stay true for the connection's
-  // lifetime (esp32 parity — a repeat GetServices is silently ignored there,
-  // never answered with an authoritative empty database).
+  // lifetime (a repeat GetServices is silently ignored, never answered with
+  // an authoritative empty database).
   bool has_gatt_services() const { return this->services_discovered_; }
 
   /// Stream any pending service-discovery batch and police the disconnect
-  /// safety timeout. Called from the proxy's loop — hub connections have no
-  /// Component loop of their own (the esp32 class streams from its own
-  /// loop() and has the same 10 s safety net in its base class).
+  /// safety timeout. Called from the proxy's loop — the wrapper has no
+  /// Component loop of its own.
   void process_pending_services() {
     if (this->send_service_ >= 0) {
       this->stream_pending_(this->backend_);
     }
-    this->check_disconnect_timeout_();
+    // Inline state gate: this runs per loop iteration for every slot, and the
+    // 10 s safety net only matters while DISCONNECTING.
+    if (this->state_ == ClientState::DISCONNECTING) {
+      this->check_disconnect_timeout_();
+    }
   }
 
   // ---- backend event sink (called directly by the backend, main loop) ----
@@ -146,4 +151,4 @@ static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // !USE_ESP32 && USE_BLE_GATT_CLIENT
+#endif  // USE_BLE_GATT_CLIENT

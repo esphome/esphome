@@ -2,17 +2,20 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+// The in-place streamer serves the proxy's service-discovery API; backend-only
+// builds compile without the proxy headers or the streamer.
+#ifdef USE_BLUETOOTH_PROXY
 #include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+#endif
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <esp_bt.h>
 #include <esp_gatt_common_api.h>
 
 #include <cstring>
@@ -90,6 +93,13 @@ void BluedroidGattClient::dump_config() {
 // ---- contract ops ----
 
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
+  // Refuse anything but a fully idle slot. Clobbering DISCONNECTING with
+  // DISCOVERED would let the tracker open a new link while the old one is
+  // still closing - the stale CLOSE_EVT then tears the new attempt down.
+  if (this->state_() != ClientState::IDLE) {
+    ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
+    return ESP_GATT_BUSY;
+  }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
   // Hand the request to the tracker's promote loop: it stops the scan, raises
@@ -223,12 +233,189 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
+#ifdef USE_BLE_GATT_SERVICE_TABLE
+  this->free_service_table_();
+#endif
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
 }
+
+#ifdef USE_BLE_GATT_SERVICE_TABLE
+ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
+  if (this->table_storage_ == nullptr &&
+      (this->services_released_ || this->service_total_ == 0 || !this->build_service_table_())) {
+    return {};
+  }
+  return this->table_view_();
+}
+
+// The view is carved from the storage block and the counts on each call
+// (a cold path) rather than cached, saving a per-instance table member.
+ble_device_base::GattServiceTable BluedroidGattClient::table_view_() const {
+  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
+  size_t char_bytes = this->table_char_total_ * sizeof(ble_device_base::GattCharacteristic);
+  return {reinterpret_cast<const ble_device_base::GattService *>(this->table_storage_),
+          reinterpret_cast<const ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes),
+          reinterpret_cast<const ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes),
+          this->service_total_,
+          this->table_char_total_,
+          this->table_desc_total_};
+}
+
+void BluedroidGattClient::free_service_table_() {
+  if (this->table_storage_ == nullptr) {
+    return;
+  }
+  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+  allocator.deallocate(this->table_storage_, 0);
+  this->table_storage_ = nullptr;
+  this->table_char_total_ = 0;
+  this->table_desc_total_ = 0;
+}
+
+template<typename ServiceFn, typename CharFn, typename DescFn>
+bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc) {
+  // Shared enumeration for both table-build passes: an identical walk order
+  // is what lets the counting pass size the block the filling pass fills.
+  // INVALID_OFFSET/NOT_FOUND mean end-of-range; anything else is a failure.
+  for (uint16_t s = 0; s < this->service_total_; s++) {
+    esp_gattc_service_elem_t svc;
+    uint16_t svc_count = 1;
+    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
+        svc_count == 0) {
+      return false;
+    }
+    if (!on_service(s, svc)) {
+      return false;
+    }
+    uint16_t svc_chars = 0;
+    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC, svc.start_handle,
+                                     svc.end_handle, 0, &svc_chars) != ESP_GATT_OK) {
+      return false;
+    }
+    for (uint16_t c = 0; c < svc_chars; c++) {
+      esp_gattc_char_elem_t chr;
+      uint16_t char_count = 1;
+      auto status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
+                                               &char_count, c);
+      if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
+        break;
+      }
+      if (status != ESP_GATT_OK || char_count == 0) {
+        return false;
+      }
+      if (!on_char(svc, chr)) {
+        return false;
+      }
+      for (uint16_t d = 0;; d++) {
+        esp_gattc_descr_elem_t desc;
+        uint16_t desc_count = 1;
+        auto desc_status =
+            esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, chr.char_handle, &desc, &desc_count, d);
+        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (desc_status != ESP_GATT_OK || desc_count == 0) {
+          return false;
+        }
+        if (!on_desc(chr, desc)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+bool BluedroidGattClient::build_service_table_() {
+  // Pass 1: count, so one exact-size block holds the whole table.
+  uint16_t char_total = 0;
+  uint16_t desc_total = 0;
+  bool counted = this->walk_database_([](uint16_t, const esp_gattc_service_elem_t &) { return true; },
+                                      [&](const esp_gattc_service_elem_t &, const esp_gattc_char_elem_t &) {
+                                        char_total++;
+                                        return true;
+                                      },
+                                      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &) {
+                                        desc_total++;
+                                        return true;
+                                      });
+  if (!counted) {
+    return false;
+  }
+
+  // The arrays share one block; carving stays aligned because each struct's
+  // strictest member is the UUID and array sizes are multiples of it.
+  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
+  size_t char_bytes = char_total * sizeof(ble_device_base::GattCharacteristic);
+  size_t total_bytes = svc_bytes + char_bytes + desc_total * sizeof(ble_device_base::GattDescriptor);
+  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+  this->table_storage_ = allocator.allocate(total_bytes);
+  if (this->table_storage_ == nullptr) {
+    ESP_LOGW(TAG, "[%d] Service table allocation failed (%u bytes)", this->connection_index_,
+             static_cast<unsigned>(total_bytes));
+    return false;
+  }
+  auto *services = reinterpret_cast<ble_device_base::GattService *>(this->table_storage_);
+  auto *characteristics = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes);
+  auto *descriptors =
+      reinterpret_cast<ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes);
+
+  // Pass 2: fill, bounded by the pass-1 totals. A bound trip or a shortfall
+  // means the cached database changed between the passes; fail the build
+  // rather than serve an inconsistent table (the consumer retries).
+  uint16_t char_index = 0;
+  uint16_t desc_index = 0;
+  ble_device_base::GattService *cur_service = nullptr;
+  ble_device_base::GattCharacteristic *cur_char = nullptr;
+  bool filled = this->walk_database_(
+      [&](uint16_t s, const esp_gattc_service_elem_t &svc) {
+        cur_service = &services[s];
+        cur_service->uuid = ble_device_base::ESPBTUUID::from_uuid(svc.uuid);
+        cur_service->start_handle = svc.start_handle;
+        cur_service->end_handle = svc.end_handle;
+        cur_service->first_characteristic = char_index;
+        cur_service->characteristic_count = 0;
+        return true;
+      },
+      [&](const esp_gattc_service_elem_t &svc, const esp_gattc_char_elem_t &chr) {
+        if (char_index >= char_total) {
+          return false;
+        }
+        cur_char = &characteristics[char_index++];
+        cur_char->uuid = ble_device_base::ESPBTUUID::from_uuid(chr.uuid);
+        cur_char->value_handle = chr.char_handle;
+        // Bluedroid addresses descriptors by characteristic handle, so the
+        // table's end_handle only needs the service-bounded upper bound.
+        cur_char->end_handle = svc.end_handle;
+        cur_char->properties = chr.properties;
+        cur_char->first_descriptor = desc_index;
+        cur_char->descriptor_count = 0;
+        cur_service->characteristic_count++;
+        return true;
+      },
+      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &desc) {
+        if (desc_index >= desc_total) {
+          return false;
+        }
+        descriptors[desc_index].uuid = ble_device_base::ESPBTUUID::from_uuid(desc.uuid);
+        descriptors[desc_index].handle = desc.handle;
+        desc_index++;
+        cur_char->descriptor_count++;
+        return true;
+      });
+  if (!filled || char_index != char_total || desc_index != desc_total) {
+    this->free_service_table_();
+    return false;
+  }
+  this->table_char_total_ = char_total;
+  this->table_desc_total_ = desc_total;
+  return true;
+}
+#endif  // USE_BLE_GATT_SERVICE_TABLE
 
 // ---- internals ----
 
@@ -249,9 +436,7 @@ void BluedroidGattClient::set_disconnecting_() {
 }
 
 void BluedroidGattClient::report_connection_state_(bool connected, int error) {
-  if (this->listener_ != nullptr) {
-    this->listener_->on_connection_state(connected, this->mtu_, error);
-  }
+  this->sink_.on_connection_state(connected, this->mtu_, error);
 }
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
@@ -293,17 +478,14 @@ void BluedroidGattClient::handle_search_cmpl_() {
     // clients cache the streamed result permanently.
     auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
     this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
-    if (this->listener_ != nullptr) {
-      this->listener_->on_service_discovery_done(status);
-    }
+    this->sink_.on_service_discovery_done(status);
     return;
   }
   this->service_total_ = primary + secondary;
-  if (this->listener_ != nullptr) {
-    this->listener_->on_service_discovery_done(0);
-  }
+  this->sink_.on_service_discovery_done(0);
 }
 
+#ifdef USE_BLUETOOTH_PROXY
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_ || conn.send_service_ >= this->service_total_) {
     conn.send_service_ = DONE_SENDING_SERVICES;
@@ -357,7 +539,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     resp.services.emplace_back();
     auto &service_resp = resp.services.back();
     fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid,
-                   esp32_ble_tracker::ESPBTUUID::from_uuid(service_result.uuid), use_efficient_uuids);
+                   ble_device_base::ESPBTUUID::from_uuid(service_result.uuid), use_efficient_uuids);
     service_resp.handle = service_result.start_handle;
 
     if (total_char_count > 0) {
@@ -384,7 +566,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
         fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid,
-                       esp32_ble_tracker::ESPBTUUID::from_uuid(char_result.uuid), use_efficient_uuids);
+                       ble_device_base::ESPBTUUID::from_uuid(char_result.uuid), use_efficient_uuids);
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
 
@@ -420,7 +602,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             characteristic_resp.descriptors.emplace_back();
             auto &descriptor_resp = characteristic_resp.descriptors.back();
             fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid,
-                           esp32_ble_tracker::ESPBTUUID::from_uuid(desc_result.uuid), use_efficient_uuids);
+                           ble_device_base::ESPBTUUID::from_uuid(desc_result.uuid), use_efficient_uuids);
             descriptor_resp.handle = desc_result.handle;
             desc_offset++;
           }
@@ -442,6 +624,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     conn.send_service_ = batch_start;
   }
 }
+#endif  // USE_BLUETOOTH_PROXY
 
 // ---- events ----
 
@@ -463,7 +646,7 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->report_connection_state_(false, param->open.status);
     return;
   }
-  if (this->shim_.disconnect_scheduled()) {
+  if (this->shim_.disconnect_pending()) {
     // Earliest point conn_id_ exists; keep it set so CLOSE_EVT still matches.
     this->unconditional_disconnect_();
     return;
@@ -477,6 +660,9 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // matching the previous esp32 behavior).
     this->seen_mtu_ = true;
     this->report_connection_state_(true, 0);
+    // Settled: only the disconnect safety net needs the loop, and
+    // set_disconnecting_() re-enables it.
+    this->disable_loop();
   }
 }
 
@@ -490,11 +676,12 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
-  // Passive disconnect: report now, but wait for CLOSE_EVT before going IDLE -
-  // reconnecting earlier makes the controller reject with 133 or assert.
+  // Passive disconnect: wait for CLOSE_EVT before going IDLE (reconnecting
+  // earlier makes the controller reject with 133 or assert) and before
+  // reporting - the wrapper frees the slot on the report, and a freed slot
+  // invites a reconnect into the still-closing link.
   this->release_services();
   this->set_disconnecting_();
-  this->report_connection_state_(false, param->disconnect.reason);
 }
 
 bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -558,9 +745,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
         return false;
       this->release_services();
       this->set_idle_();
-      // The wrapper frees the slot on this final report; after a passive
-      // disconnect this is the second connected=false, matching the previous
-      // esp32 behavior (report at DISCONNECT, slot free at CLOSE).
+      // The one connected=false report: the wrapper frees the slot on it,
+      // so it must not fire before the controller finished closing.
       this->report_connection_state_(false, param->close.reason);
       break;
     }
@@ -570,52 +756,41 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
       this->set_state_(ClientState::ESTABLISHED);
       this->handle_search_cmpl_();
+      // Settled (see the V3_WITH_CACHE arm in handle_open_evt_).
+      this->disable_loop();
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT:
     case ESP_GATTC_READ_DESCR_EVT: {
       if (this->conn_id_ != param->read.conn_id)
         return false;
-      if (this->listener_ != nullptr) {
-        bool ok = param->read.status == ESP_GATT_OK;
-        this->listener_->on_read_result(param->read.handle, ok ? param->read.value : nullptr,
-                                        ok ? param->read.value_len : 0, ok ? 0 : param->read.status);
-      }
+      bool ok = param->read.status == ESP_GATT_OK;
+      this->sink_.on_read_result(param->read.handle, ok ? param->read.value : nullptr, ok ? param->read.value_len : 0,
+                                 ok ? 0 : param->read.status);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
     case ESP_GATTC_WRITE_DESCR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      if (this->listener_ != nullptr) {
-        this->listener_->on_write_result(param->write.handle,
-                                         param->write.status == ESP_GATT_OK ? 0 : param->write.status);
-      }
+      this->sink_.on_write_result(param->write.handle, param->write.status == ESP_GATT_OK ? 0 : param->write.status);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      if (this->listener_ != nullptr) {
-        this->listener_->on_notify_state(
-            param->reg_for_notify.handle, true,
-            param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status);
-      }
+      this->sink_.on_notify_state(param->reg_for_notify.handle, true,
+                                  param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      if (this->listener_ != nullptr) {
-        this->listener_->on_notify_state(
-            param->unreg_for_notify.handle, false,
-            param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
-      }
+      this->sink_.on_notify_state(param->unreg_for_notify.handle, false,
+                                  param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (this->conn_id_ != param->notify.conn_id)
         return false;
       ESP_LOGV(TAG, "[%d] NOTIFY_EVT handle=0x%2X", this->connection_index_, param->notify.handle);
-      if (this->listener_ != nullptr) {
-        this->listener_->on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
-      }
+      this->sink_.on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
       break;
     }
     default:
@@ -636,10 +811,8 @@ void BluedroidGattClient::handle_gap_event_(esp_gap_ble_cb_event_t event, esp_bl
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))
         break;
-      if (this->listener_ != nullptr) {
-        this->listener_->on_pairing_result(
-            param->ble_security.auth_cmpl.success ? 0 : param->ble_security.auth_cmpl.fail_reason);
-      }
+      this->sink_.on_pairing_result(param->ble_security.auth_cmpl.success ? 0
+                                                                          : param->ble_security.auth_cmpl.fail_reason);
       break;
     }
     default:
