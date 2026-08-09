@@ -99,8 +99,10 @@ struct HubCapabilities {
 //   reports the real state back); true = applied immediately, restarting a
 //   running scan. Honoring is advertised by HubCapabilities::scan_mode_switch.
 // Push hubs additionally provide set_scanner_state_callback(ScannerStateCallback)
-// under USE_BLE_SCANNER_STATE_CALLBACK; the concept requires it exactly when
-// that define is set.
+// and get_scanner_state() under USE_BLE_SCANNER_STATE_CALLBACK; the concept
+// requires both exactly when that define is set. A push hub must emit a
+// transition for every accepted or refused mode request - consumers skip
+// their own mode report on push builds.
 template<typename T>
 concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdvertisementCallback raw_callback,
                                   uint8_t *mac) {
@@ -113,6 +115,7 @@ concept BLEHubContract = requires(T hub, ESPBTDeviceListener *listener, RawAdver
   { hub.request_scan_mode(true) } -> std::same_as<bool>;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   hub.set_scanner_state_callback(ScannerStateCallback{});
+  { hub.get_scanner_state() } -> std::same_as<ScannerState>;
 #endif
 };
 

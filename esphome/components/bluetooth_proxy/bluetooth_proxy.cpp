@@ -633,8 +633,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  // esp32 only: get_scanner_state() is tracker-native, beyond the neutral
-  // contract; the push define implies the concrete tracker alias.
+  // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
   this->send_bluetooth_scanner_state_(this->hub_->get_scanner_state());
 #else
   this->send_polled_scanner_state_();
