@@ -4,7 +4,13 @@ import logging
 import esphome.codegen as cg
 from esphome.components import ble_device_base, bluetooth_connection
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTIVE, CONF_ID, PLATFORM_LN882X, PLATFORM_RP2
+from esphome.const import (
+    CONF_ACTIVE,
+    CONF_ID,
+    PLATFORM_ESP32,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+)
 from esphome.core import CORE
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -84,7 +90,7 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema()
+    CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
     def validate_connections(config):
         if CONF_CONNECTIONS in config:
@@ -147,7 +153,7 @@ def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
     GATT client backend in bluetooth_connection. The slot limit comes from the
     prebuilt BTstack library (one connection today); the code is built for N."""
-    connection_schema = bluetooth_connection.hub_connection_schema()
+    connection_schema = bluetooth_connection.hub_connection_schema(PLATFORM_RP2)
 
     def populate_connections(config: ConfigType) -> ConfigType:
         # One wrapper + backend pair per slot, declared during validation so
