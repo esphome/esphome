@@ -134,7 +134,7 @@ TEST(HeapProbe, QueueingTypicalCommandsIsAllocationFree) {
   size_t total = 0;
   for (int i = 0; i != n; i++) {
     req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
-    total += sample([&] { device.send_pdu(req); }).count;
+    total += sample([&] { device.queue_pdu(req); }).count;
   }
   printf("HEAPPROBE queue_%d_typical_commands total_allocs=%zu\n", n, total);
   EXPECT_EQ(total, 0u);
@@ -151,11 +151,11 @@ TEST(HeapProbe, WriteBehindQueuedReadsAppendsAllocationFree) {
   req.assign(read_pdu, read_pdu + sizeof(read_pdu));
   for (int i = 0; i != 3; i++) {
     req[2] = static_cast<uint8_t>(i);  // distinct start addresses: identical frames would dedup, not enqueue
-    device.send_pdu(req);
+    device.queue_pdu(req);
   }
 
   const uint8_t write_pdu[] = {0x06, 0x00, 0x10, 0xBE, 0xEF};
-  Sample append = sample([&] { device.send_pdu(write_pdu); });
+  Sample append = sample([&] { device.queue_pdu(write_pdu); });
   printf("HEAPPROBE write_append count=%zu bytes=%zu\n", append.count, append.bytes);
   EXPECT_EQ(append.count, 0u);
 }
@@ -180,7 +180,7 @@ TEST(HeapProbe, ResponseHandlingIsAllocationFreeAfterWarmup) {
   const uint8_t small_resp[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
 
   auto round_trip = [&](std::span<const uint8_t> response_pdu) {
-    device.send_pdu(req);
+    device.queue_pdu(req);
     hub.loop();  // transmit; the tx queue is empty during the measured receive below
     uart.inject_frame(0x02, response_pdu);
     return sample([&] { hub.loop(); });  // receive + parse + match + dispatch

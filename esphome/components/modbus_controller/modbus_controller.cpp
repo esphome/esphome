@@ -166,10 +166,11 @@ void ModbusController::queue_command(ModbusCommandItem command) {
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
-  // Called as the last action of the command's own callback, and from send() after send_pdu (which may
-  // synchronously call on_not_sent). Destroying `command` here would leave send() and the hub touching a
-  // freed object, so we only FLAG it; sweep_completed_one_shots_() erases it later at a safe point. No-op
-  // for polling commands (they persist and are not in the one-shot list).
+  // Called as the last action of the command's own callback (on_response/on_error/on_not_sent/
+  // on_no_response), which the hub runs from inside its sweep while this entry is still live.
+  // Destroying `command` here would leave the hub touching a freed object, so we only FLAG it;
+  // sweep_completed_one_shots_() erases it later at a safe point. No-op for polling commands
+  // (they persist and are not in the one-shot list).
   for (auto &item : this->one_shot_command_items_) {
     if (item.get() == command) {
       item->pending_removal = true;
@@ -500,13 +501,13 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 bool ModbusCommandItem::send() {
   bool accepted;
   if (this->function_code_ != FunctionCode::CUSTOM) {
-    accepted = this->send_pdu(modbus::helpers::create_client_pdu(
+    accepted = this->queue_pdu(modbus::helpers::create_client_pdu(
         this->function_code_, this->start_address_, this->register_count_,
         this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
   } else {
     // Custom command: the bytes are a complete raw frame (address + PDU). Send the PDU to the frame's own
     // address (which may differ from this controller's); the hub appends the CRC and routes the response
-    // back to this item by pointer. (send_raw() is deprecated, so send_pdu() is called with the extracted
+    // back to this item by pointer. (send_raw() is deprecated, so queue_pdu() is called with the extracted
     // address. Raw-frame semantics are kept here; the custom_pdu migration is a later step.)
     std::span<const uint8_t> frame =
         this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
@@ -514,7 +515,7 @@ bool ModbusCommandItem::send() {
       ESP_LOGW(TAG, "Empty custom command frame, not sent");
       accepted = false;
     } else {
-      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
     }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.

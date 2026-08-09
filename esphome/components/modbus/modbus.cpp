@@ -893,8 +893,8 @@ void ModbusClientHub::sweep_() {
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-bool ModbusClientHub::send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
-                               CommandOptions options) {
+bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device,
+                                CommandOptions options) {
   // Requests refused here never enter the machine and get no callback - the false return is it.
   if (pdu.empty()) {
     ESP_LOGW(TAG, "Empty PDU refused for address %" PRIu8, address);
@@ -1005,7 +1005,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     ESP_LOGW(TAG, "send_raw() payload too short to contain a PDU, refused");
     return;
   }
-  this->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
+  this->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), device);
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
@@ -1087,7 +1087,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
   //  - On failure (status engaged) the response is empty by design (see on_error()), so only the request
   //    is validated.
   bool custom = !helpers::is_client_pdu_standard(request_pdu.data(), request_pdu.size());
-  if (!custom && !status.has_value()) {
+  if (!custom && succeeded(status)) {
     custom = !helpers::is_server_pdu_standard(response_pdu.data(), response_pdu.size());
     if (!custom && helpers::is_function_code_read(static_cast<uint8_t>(function_code))) {
       const bool bits =
@@ -1114,7 +1114,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       // capacity of RegisterValues); a mismatch was diverted to on_custom_response(), never clamped. On
       // failure the registers span is empty.
       RegisterValues registers;
-      if (!status.has_value()) {
+      if (succeeded(status)) {
         for (size_t i = 0; i != count_or_value; i++) {
           registers.push_back(helpers::get_data<uint16_t>(response_pdu.data(), 2 + 2 * i));
         }
@@ -1134,7 +1134,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       // PackedBits::operator[] is unchecked, so size() must never promise bits with no bytes behind them.
       std::span<const uint8_t> packed_bytes;
       uint16_t count = 0;
-      if (!status.has_value()) {
+      if (succeeded(status)) {
         packed_bytes = response_pdu.subspan(2);
         count = count_or_value;
       }
@@ -1151,7 +1151,7 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
     // copy. On an exception the response has no value and the request copy is the only one.
     case FunctionCode::WRITE_SINGLE_REGISTER:
     case FunctionCode::WRITE_SINGLE_COIL: {
-      const uint16_t value = (!status.has_value() && response_pdu.size() >= WRITE_SINGLE_PDU_SIZE)
+      const uint16_t value = (succeeded(status) && response_pdu.size() >= WRITE_SINGLE_PDU_SIZE)
                                  ? helpers::get_data<uint16_t>(response_pdu.data(), 3)
                                  : count_or_value;
       if (function_code == FunctionCode::WRITE_SINGLE_REGISTER) {
