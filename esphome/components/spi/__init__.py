@@ -64,6 +64,10 @@ PLATFORM_SPI_CLOCKS = {
     PLATFORM_RP2: 62.5e6,
 }
 
+# SPIM2 only implements these discrete clock steps - unlike the other platforms
+# it does not derive an arbitrary rate from a divisor of its max clock.
+PLATFORM_NRF52_SPI_RATES = (125e3, 250e3, 500e3, 1e6, 2e6, 4e6, 8e6)
+
 MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
 
 
@@ -100,8 +104,11 @@ def _frequency_validator(value):
         )
     if value < 1000:
         raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
-    divisor = round(frequency / value)
-    actual = frequency / divisor
+    if platform == PLATFORM_NRF52:
+        actual = min(PLATFORM_NRF52_SPI_RATES, key=lambda rate: abs(rate - value))
+    else:
+        divisor = round(frequency / value)
+        actual = frequency / divisor
     error = abs(actual - value) / value
     if error > MAX_DATA_RATE_ERROR:
         raise cv.Invalid(
@@ -410,9 +417,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get().get(CONF_SPI, [])
-    if CORE.using_zephyr and len(full_config) > 1:
+    hardware_buses = sum(CONF_INTERFACE_INDEX in spi for spi in full_config)
+    if CORE.using_zephyr and hardware_buses > 1:
         raise cv.Invalid("Second spi is not implemented on Zephyr yet")
 
 
@@ -436,51 +444,58 @@ async def to_code(configs):
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
-        if CORE.using_zephyr:
-            zephyr_add_prj_conf("SPI", True)
-            clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
-            mosi_pin = mosi[CONF_NUMBER] if mosi else None
-            miso_pin = miso[CONF_NUMBER] if miso else None
-            psels = f"<NRF_PSEL(SPIM_SCK, {clk_pin // 32}, {clk_pin % 32})>"
-            if mosi_pin is not None:
-                psels += f", <NRF_PSEL(SPIM_MOSI, {mosi_pin // 32}, {mosi_pin % 32})>"
-            if miso_pin is not None:
-                psels += f", <NRF_PSEL(SPIM_MISO, {miso_pin // 32}, {miso_pin % 32})>"
-            zephyr_add_overlay(
-                f"""
-                    &pinctrl {{
-                        spi2_default: spi2_default {{
-                            group1 {{
-                                psels = {psels};
+        if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
+            if CORE.using_zephyr:
+                zephyr_add_prj_conf("SPI", True)
+                clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
+                mosi_pin = mosi[CONF_NUMBER] if mosi else None
+                miso_pin = miso[CONF_NUMBER] if miso else None
+                psels = f"<NRF_PSEL(SPIM_SCK, {clk_pin // 32}, {clk_pin % 32})>"
+                if mosi_pin is not None:
+                    psels += (
+                        f", <NRF_PSEL(SPIM_MOSI, {mosi_pin // 32}, {mosi_pin % 32})>"
+                    )
+                if miso_pin is not None:
+                    psels += (
+                        f", <NRF_PSEL(SPIM_MISO, {miso_pin // 32}, {miso_pin % 32})>"
+                    )
+                zephyr_add_overlay(
+                    f"""
+                        &pinctrl {{
+                            spi2_default: spi2_default {{
+                                group1 {{
+                                    psels = {psels};
+                                }};
+                            }};
+                            spi2_sleep: spi2_sleep {{
+                                group1 {{
+                                    psels = {psels};
+                                    low-power-enable;
+                                }};
                             }};
                         }};
-                        spi2_sleep: spi2_sleep {{
-                            group1 {{
-                                psels = {psels};
-                                low-power-enable;
-                            }};
+                        &spi2 {{
+                            status = "okay";
+                            pinctrl-0 = <&spi2_default>;
+                            pinctrl-1 = <&spi2_sleep>;
+                            pinctrl-names = "default", "sleep";
                         }};
-                    }};
-                    &spi2 {{
-                        status = "okay";
-                        pinctrl-0 = <&spi2_default>;
-                        pinctrl-1 = <&spi2_sleep>;
-                        pinctrl-names = "default", "sleep";
-                    }};
-                """
-            )
-            cg.add(
-                var.set_interface(cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))"))
-            )
-            cg.add(var.set_interface_name("spi2"))
-        elif (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
-            interface = get_spi_interface(index)
-            cg.add(var.set_interface(cg.RawExpression(interface)))
-            cg.add(
-                var.set_interface_name(
-                    re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+                    """
                 )
-            )
+                cg.add(
+                    var.set_interface(
+                        cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))")
+                    )
+                )
+                cg.add(var.set_interface_name("spi2"))
+            else:
+                interface = get_spi_interface(index)
+                cg.add(var.set_interface(cg.RawExpression(interface)))
+                cg.add(
+                    var.set_interface_name(
+                        re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+                    )
+                )
 
 
 def spi_device_schema(
