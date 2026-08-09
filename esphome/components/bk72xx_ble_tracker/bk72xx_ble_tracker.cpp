@@ -26,6 +26,9 @@ static const char *const TAG = "bk72xx_ble_tracker";
 // a single WARN is emitted when the retry interval first saturates.
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 static constexpr uint8_t SCAN_START_RETRY_MAX_DOUBLINGS = 6;  // 1 s << 6 = 64 s
+// Stable-run time before the failure streak clears; reset-on-start would keep
+// a flapping controller at the 1 s gate.
+static constexpr uint32_t SCAN_STABLE_RESET_MS = 30000;
 
 // Radio-idle deadline for the bounded stop drain at OTA start.
 static constexpr uint32_t OTA_STOP_FLUSH_MS = 100;
@@ -43,12 +46,7 @@ void BK72xxBLETracker::setup() {
   this->parent_->register_scan_listener(this);
   // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
   // devices are logged only on one-shot scans (continuous would spam).
-  this->merger_.set_sink({this, [](void *self, const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                   uint8_t data_len, bool raw_only) {
-                            auto *tracker = static_cast<BK72xxBLETracker *>(self);
-                            tracker->dispatcher_.dispatch(mac, rssi, addr_type, data, data_len, raw_only,
-                                                          tracker->scan_continuous_ ? nullptr : TAG);
-                          }});
+  this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — on the single-core BK72xx the
   // BLE scan competes with the OTA flash writes. Mirrors esp32_ble_tracker.
@@ -92,19 +90,23 @@ void BK72xxBLETracker::loop() {
   if (!this->merger_.empty())
     this->merger_.sweep(now);
 
-  // The controller self-completes deferred work; a terminal failure while we
-  // report running is recovered through the normal retry path.
+  // Before the drop branch: a drop after a stable run starts a fresh streak.
+  if (this->scan_running_ && this->failed_start_count_ != 0 && now - this->scan_start_time_ >= SCAN_STABLE_RESET_MS)
+    this->failed_start_count_ = 0;
+
+  // A terminal failure while we report running recovers via the normal retry
+  // path; the drop charges the backoff so a flapping controller escalates.
   if (this->scan_running_ && this->parent_->last_scan_result() == bk72xx_ble::ScanOpResult::FAILED) {
     ESP_LOGW(TAG, "Controller scan lost; retrying");
     this->scan_requested_ = true;
+    this->count_failed_start_();
     this->mark_scan_ended_(now);
   }
 
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
-      // A start that succeeded re-anchored the period timer from a later clock read,
-      // so the stale `now` below would underflow the comparison and fire
-      // on_scan_end() for a scan that just began. Resume next iteration.
+      // One-iteration deferral; all stamps share this iteration's cached
+      // timestamp, so the period check below cannot underflow.
       if (this->try_start_with_backoff_(now))
         return;
     }
@@ -126,9 +128,7 @@ void BK72xxBLETracker::loop() {
   // would be silent: the scan never runs, stop_scan_() is never reached and
   // on_scan_end() never fires, leaving period-keyed consumers waiting forever.
   if (this->scan_requested_ && !this->scan_running_) {
-    // Same stale-`now` hazard as the continuous branch: start_scan_() stamps
-    // scan_start_time_ from a later clock read, so the duration check below would
-    // underflow and stop the scan in the iteration that started it.
+    // Same one-iteration deferral as the continuous branch.
     if (this->try_start_with_backoff_(now))
       return;
   }
@@ -297,7 +297,7 @@ void BK72xxBLETracker::start_scan_() {
   this->scan_running_ = true;
   this->scan_requested_ = false;  // the latched one-shot request is satisfied
   this->start_attempt_open_ = false;
-  this->failed_start_count_ = 0;  // reset here so direct starts clear the backoff too
+  // failed_start_count_ deliberately not reset here; only a stable run clears it (loop()).
   this->scan_start_time_ = now;
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging

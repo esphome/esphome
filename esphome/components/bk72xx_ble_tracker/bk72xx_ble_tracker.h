@@ -163,7 +163,7 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_start_time_{0};
 
   uint32_t last_scan_start_attempt_{0};  // last controller start attempt, any caller; rate-limits retries
-  uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
+  uint8_t failed_start_count_{0};        // failed starts AND drops; backoff shift, cleared after a stable run (loop())
   uint32_t scan_period_start_{0};        // loop-clock start of the scan period; rate-limits on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 

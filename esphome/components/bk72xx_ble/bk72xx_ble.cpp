@@ -204,11 +204,11 @@ void BK72xxBLE::loop() {
       this->advance_();
   } else if (this->scan_wanted_ && this->last_result_ == ScanOpResult::SETTLED &&
              pump_now - this->last_advance_ms_ >= SCAN_LIVENESS_CHECK_MS) {
-    // Re-check a settled scan; re-requesting through scan_start() refills the
-    // bring-up budget exactly like any new episode.
+    // Re-check a settled scan; scan_start() refills the bring-up budget.
+    // WARN: the only report of a drop that recovers inside its budget.
     if (this->scan_start(this->requested_.interval, this->requested_.window, this->requested_.active) !=
         ScanOpResult::SETTLED)
-      ESP_LOGD(TAG, "Controller dropped the scan; restarting");
+      ESP_LOGW(TAG, "Controller dropped the scan; restarting");
   }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -464,6 +464,8 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
     case BdkOpResult::FAILED:
       break;
   }
+  // Safe to clear (unlike BUSY): acquire is a pure search, so a rejected
+  // create leaves the slot IDLE for re-acquire.
   this->scan_activity_idx_ = INVALID_ACTIVITY_IDX;
   return ScanOpResult::FAILED;
 }
