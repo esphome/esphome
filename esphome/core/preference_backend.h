@@ -103,17 +103,15 @@ concept PreferencesContract = requires(T prefs, size_t len, uint32_t type, bool 
   { prefs.reset() } -> std::same_as<bool>;
 };
 
-#ifdef USE_PREFERENCE_KEY_LOOKUP
-// Key-lookup platforms (the ones that emit USE_PREFERENCE_KEY_LOOKUP from
-// Python codegen) additionally provide load_from_key(), a one-shot read of a
-// stored preference by key that migrate_preference() relies on. It is not part
-// of the neutral surface because slot-based backends cannot implement it, so
-// it gets its own concept, asserted only where the define is set.
+// Key-lookup platforms additionally provide load_from_key(), a one-shot read
+// of a stored preference by key that migrate_preference() relies on; see the
+// key-lookup note at the top of this file. Not part of PreferencesContract,
+// so it is asserted in preferences.h only where USE_PREFERENCE_KEY_LOOKUP
+// is set.
 template<typename T>
 concept PreferencesKeyLookupContract = requires(T prefs, uint32_t type, uint8_t *data, size_t len) {
   { prefs.load_from_key(type, data, len) } -> std::same_as<bool>;
 };
-#endif  // USE_PREFERENCE_KEY_LOOKUP
 
 /// CRTP mixin providing type-safe template make_preference<T>() helpers.
 /// Platform preferences classes inherit this to avoid duplicating these templates.

@@ -59,10 +59,9 @@ struct PreferencesWrongSyncReturn : public PreferencesMixin<PreferencesWrongSync
 };
 static_assert(!PreferencesContract<PreferencesWrongSyncReturn>);
 
-// The derived non-template overloads hide PreferencesMixin's template forms
-// unless the class re-exposes them with a using declaration; forgetting that
-// line breaks every make_preference<T>() call site, so the concept must
-// reject the class.
+// Forgot `using PreferencesMixin<X>::make_preference;`, so the derived
+// overloads hide the template forms (see the PreferencesContract note in
+// preference_backend.h); the concept must reject the class.
 struct PreferencesForgotUsingDeclaration : public PreferencesMixin<PreferencesForgotUsingDeclaration> {
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
@@ -71,7 +70,6 @@ struct PreferencesForgotUsingDeclaration : public PreferencesMixin<PreferencesFo
 };
 static_assert(!PreferencesContract<PreferencesForgotUsingDeclaration>);
 
-#ifdef USE_PREFERENCE_KEY_LOOKUP
 struct MinimalKeyLookup {
   bool load_from_key(uint32_t, uint8_t *, size_t) { return true; }
 };
@@ -79,7 +77,6 @@ static_assert(PreferencesKeyLookupContract<MinimalKeyLookup>);
 
 struct KeyLookupMissingMethod {};
 static_assert(!PreferencesKeyLookupContract<KeyLookupMissingMethod>);
-#endif
 
 TEST(PreferenceContract, NullBackendRefusesBothOperations) {
   // ESPPreferenceObject forwards to whichever backend the platform binds; a
