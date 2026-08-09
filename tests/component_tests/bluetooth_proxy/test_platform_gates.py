@@ -189,7 +189,7 @@ def test_hub_source_filter_covers_every_hub_platform() -> None:
     hub_frameworks = bluetooth_connection.SOURCE_FILE_FRAMEWORKS[
         "bluetooth_connection_hub.cpp"
     ]
-    assert expected <= hub_frameworks
+    assert expected == hub_frameworks
 
 
 def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
