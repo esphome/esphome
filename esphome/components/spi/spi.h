@@ -23,9 +23,14 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
+#elif defined(USE_ZEPHYR)
+
+struct device;
+using SPIInterface = const device *;
+
 #elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 
