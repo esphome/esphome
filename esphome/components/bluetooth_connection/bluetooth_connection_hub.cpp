@@ -325,7 +325,7 @@ conn_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, 
 // ---- Service streaming ----
 
 void BluetoothConnection::send_service_for_discovery_() {
-  auto table = this->backend_->get_service_table();
+  auto table = this->backend_->get_service_table(this->send_service_);
   if (this->send_service_ >= table.service_count) {
     this->send_service_ = DONE_SENDING_SERVICES;
     this->proxy_->send_gatt_services_done(this->address_);

@@ -2,6 +2,7 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
@@ -213,15 +214,46 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
   return this->update_conn_params_(min_interval, max_interval, latency, timeout, "custom");
 }
 
-ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() { return this->table_; }
+ble_device_base::GattServiceTable BluedroidGattClient::get_service_table(uint16_t first_service) {
+  ble_device_base::GattServiceTable table{};
+  if (this->services_ == nullptr || this->services_released_) {
+    return table;
+  }
+  table.services = this->services_;
+  table.service_count = this->service_total_;
+  if (first_service >= this->service_total_) {
+    // Terminal pump: the wrapper only reads service_count.
+    return table;
+  }
+  if (!this->build_window_(first_service, table)) {
+    // Zero-length ranges on a non-empty service trip the wrapper's
+    // out-of-bounds abort, so a walk failure can never stream a truncated
+    // database as authoritative.
+    table.characteristics = nullptr;
+    table.descriptors = nullptr;
+    table.characteristic_count = 0;
+    table.descriptor_count = 0;
+  }
+  return table;
+}
 
 void BluedroidGattClient::release_services() {
-  if (this->arena_ != nullptr) {
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->arena_, 0);
-    this->arena_ = nullptr;
+  RAMAllocator<uint8_t> allocator;
+  if (this->services_ != nullptr) {
+    allocator.deallocate(reinterpret_cast<uint8_t *>(this->services_), 0);
+    this->services_ = nullptr;
   }
-  this->table_ = {};
+  if (this->window_ != nullptr) {
+    allocator.deallocate(this->window_, 0);
+    this->window_ = nullptr;
+    this->window_cap_ = 0;
+  }
+  if (this->elems_ != nullptr) {
+    allocator.deallocate(this->elems_, 0);
+    this->elems_ = nullptr;
+    this->elems_cap_ = 0;
+  }
+  this->service_total_ = 0;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
@@ -278,130 +310,160 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 
 // ---- table materialization ----
 
-bool BluedroidGattClient::materialize_table_() {
+uint8_t *BluedroidGattClient::ensure_capacity_(uint8_t *&buf, size_t &cap, size_t needed) {
+  if (needed <= cap) {
+    return buf;
+  }
+  RAMAllocator<uint8_t> allocator;
+  if (buf != nullptr) {
+    allocator.deallocate(buf, 0);
+  }
+  buf = allocator.allocate(needed);
+  cap = buf != nullptr ? needed : 0;
+  return buf;
+}
+
+bool BluedroidGattClient::materialize_services_() {
   if (this->services_released_) {
     ESP_LOGW(TAG, "[%d] Services released, cannot walk the GATT cache", this->connection_index_);
     return false;
   }
-  // One flat snapshot of Bluedroid's cached database: a single internal
-  // allocation instead of a per-element copy of the full result set on every
-  // get_service/get_all_char/get_all_descr call.
-  uint16_t total = 0;
-  if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_ALL, 0x0001, 0xFFFF, 0, &total) !=
-          ESP_GATT_OK ||
-      total == 0) {
+  uint16_t primary = 0;
+  uint16_t secondary = 0;
+  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001, 0xFFFF, 0,
+                               &primary);
+  esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0,
+                               &secondary);
+  const uint16_t total = primary + secondary;
+  if (total == 0) {
+    this->service_total_ = 0;
+    return true;
+  }
+  RAMAllocator<uint8_t> allocator;
+  this->services_ = reinterpret_cast<ble_device_base::GattService *>(
+      allocator.allocate(total * sizeof(ble_device_base::GattService)));
+  if (this->services_ == nullptr) {
+    ESP_LOGE(TAG, "[%d] Service list allocation failed", this->connection_index_);
     return false;
   }
-  RAMAllocator<esp_gattc_db_elem_t> db_allocator;
-  esp_gattc_db_elem_t *db = db_allocator.allocate(total);
-  if (db == nullptr) {
-    ESP_LOGE(TAG, "[%d] Database snapshot allocation failed", this->connection_index_);
-    return false;
+  uint16_t filled = 0;
+  for (uint16_t s = 0; s < total; s++) {
+    esp_gattc_service_elem_t service_result;
+    uint16_t count = 1;
+    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &service_result, &count, s) !=
+            ESP_GATT_OK ||
+        count == 0) {
+      break;
+    }
+    auto &service = this->services_[filled];
+    service.uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(service_result.uuid);
+    service.start_handle = service_result.start_handle;
+    service.end_handle = service_result.end_handle;
+    service.first_characteristic = 0;
+    uint16_t char_count = 0;
+    esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                 service_result.start_handle, service_result.end_handle, 0, &char_count);
+    service.characteristic_count = char_count;
+    filled++;
   }
-  uint16_t count = total;
-  if (esp_ble_gattc_get_db(this->gattc_if_, this->conn_id_, 0x0001, 0xFFFF, db, &count) != ESP_GATT_OK) {
-    db_allocator.deallocate(db, total);
-    return false;
-  }
+  this->service_total_ = filled;
+  return true;
+}
 
-  uint16_t n_svc = 0;
-  uint16_t n_chr = 0;
-  uint16_t n_dsc = 0;
-  for (uint16_t i = 0; i < count; i++) {
-    switch (db[i].type) {
-      case ESP_GATT_DB_PRIMARY_SERVICE:
-      case ESP_GATT_DB_SECONDARY_SERVICE:
-        n_svc++;
-        break;
-      case ESP_GATT_DB_CHARACTERISTIC:
-        n_chr++;
-        break;
-      case ESP_GATT_DB_DESCRIPTOR:
-        n_dsc++;
-        break;
-      default:
-        break;
+bool BluedroidGattClient::build_window_(uint16_t first_service, ble_device_base::GattServiceTable &out) {
+  if (this->services_released_) {
+    return false;
+  }
+  // Cover at least the services the wrapper can admit into one batch. Sizing
+  // with the smaller (efficient-UUID) estimate makes the window a superset of
+  // the admitted set in either UUID mode.
+  uint16_t window_end = first_service;
+  size_t est = 0;
+  uint16_t chars_total = 0;
+  uint16_t descs_bound = 0;
+  uint16_t elems_max = 0;
+  while (window_end < this->service_total_) {
+    const auto &svc = this->services_[window_end];
+    uint16_t n_attrs = 0;
+    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_ALL, svc.start_handle, svc.end_handle,
+                                     0, &n_attrs) != ESP_GATT_OK) {
+      return false;
+    }
+    chars_total += svc.characteristic_count;
+    if (n_attrs > 1 + svc.characteristic_count) {
+      descs_bound += n_attrs - 1 - svc.characteristic_count;
+    }
+    if (n_attrs > elems_max) {
+      elems_max = n_attrs;
+    }
+    est += estimate_service_size(svc.characteristic_count, true);
+    window_end++;
+    if (est > MAX_PACKET_SIZE) {
+      break;
     }
   }
 
-  const size_t svc_bytes = n_svc * sizeof(ble_device_base::GattService);
-  const size_t chr_bytes = n_chr * sizeof(ble_device_base::GattCharacteristic);
-  RAMAllocator<uint8_t> allocator;
-  this->arena_ = allocator.allocate(svc_bytes + chr_bytes + n_dsc * sizeof(ble_device_base::GattDescriptor));
-  if (this->arena_ == nullptr) {
-    ESP_LOGE(TAG, "[%d] Service table allocation failed", this->connection_index_);
-    db_allocator.deallocate(db, total);
+  const size_t chr_bytes = chars_total * sizeof(ble_device_base::GattCharacteristic);
+  if (this->ensure_capacity_(this->window_, this->window_cap_,
+                             chr_bytes + descs_bound * sizeof(ble_device_base::GattDescriptor)) == nullptr ||
+      this->ensure_capacity_(this->elems_, this->elems_cap_, elems_max * sizeof(esp_gattc_db_elem_t)) == nullptr) {
+    ESP_LOGE(TAG, "[%d] Service window allocation failed", this->connection_index_);
     return false;
   }
-  auto *services = reinterpret_cast<ble_device_base::GattService *>(this->arena_);
-  auto *chars = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->arena_ + svc_bytes);
-  auto *descs = reinterpret_cast<ble_device_base::GattDescriptor *>(this->arena_ + svc_bytes + chr_bytes);
+  auto *chars = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->window_);
+  auto *descs = reinterpret_cast<ble_device_base::GattDescriptor *>(this->window_ + chr_bytes);
+  auto *elems = reinterpret_cast<esp_gattc_db_elem_t *>(this->elems_);
 
-  // The snapshot is handle-ordered: each service is followed by its
-  // characteristics, each characteristic by its descriptors, so one linear
-  // walk assigns the index ranges.
-  ble_device_base::GattService *service = nullptr;
-  ble_device_base::GattCharacteristic *chr = nullptr;
-  uint16_t svc_index = 0;
   uint16_t chr_index = 0;
   uint16_t dsc_index = 0;
-  for (uint16_t i = 0; i < count; i++) {
-    const auto &elem = db[i];
-    switch (elem.type) {
-      case ESP_GATT_DB_PRIMARY_SERVICE:
-      case ESP_GATT_DB_SECONDARY_SERVICE: {
-        service = &services[svc_index++];
-        service->uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(elem.uuid);
-        service->start_handle = elem.start_handle;
-        service->end_handle = elem.end_handle;
-        service->first_characteristic = chr_index;
-        service->characteristic_count = 0;
-        chr = nullptr;
-        break;
-      }
-      case ESP_GATT_DB_CHARACTERISTIC: {
-        if (service == nullptr) {
+  for (uint16_t s = first_service; s < window_end; s++) {
+    auto &svc = this->services_[s];
+    svc.first_characteristic = chr_index;
+    uint16_t filled_chars = 0;
+    uint16_t count = elems_max;
+    if (esp_ble_gattc_get_db(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, elems, &count) !=
+        ESP_GATT_OK) {
+      return false;
+    }
+    // The snapshot is handle-ordered: descriptors follow their characteristic.
+    ble_device_base::GattCharacteristic *chr = nullptr;
+    for (uint16_t i = 0; i < count; i++) {
+      const auto &elem = elems[i];
+      if (elem.type == ESP_GATT_DB_CHARACTERISTIC) {
+        // Bounded by the pass-1 count: a misbehaving peripheral can return
+        // more entries than it reported.
+        if (filled_chars >= svc.characteristic_count || chr_index >= chars_total) {
           break;
         }
         chr = &chars[chr_index++];
+        filled_chars++;
         chr->uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(elem.uuid);
         chr->value_handle = elem.attribute_handle;
         chr->end_handle = elem.attribute_handle;
         chr->properties = elem.properties;
         chr->first_descriptor = dsc_index;
         chr->descriptor_count = 0;
-        service->characteristic_count++;
-        break;
-      }
-      case ESP_GATT_DB_DESCRIPTOR: {
-        if (chr == nullptr) {
-          break;
-        }
+      } else if (elem.type == ESP_GATT_DB_DESCRIPTOR && chr != nullptr && dsc_index < descs_bound) {
         descs[dsc_index].uuid = esp32_ble_tracker::ESPBTUUID::from_uuid(elem.uuid);
         descs[dsc_index].handle = elem.attribute_handle;
         dsc_index++;
         chr->descriptor_count++;
-        break;
       }
-      default:
-        break;
     }
+    svc.characteristic_count = filled_chars;
   }
-  db_allocator.deallocate(db, total);
 
-  this->table_.services = services;
-  this->table_.characteristics = chars;
-  this->table_.descriptors = descs;
-  this->table_.service_count = svc_index;
-  this->table_.characteristic_count = chr_index;
-  this->table_.descriptor_count = dsc_index;
+  out.characteristics = chars;
+  out.descriptors = descs;
+  out.characteristic_count = chr_index;
+  out.descriptor_count = dsc_index;
   return true;
 }
 
 void BluedroidGattClient::handle_search_cmpl_() {
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
-  bool ok = this->materialize_table_();
+  bool ok = this->materialize_services_();
   if (this->listener_ != nullptr) {
     this->listener_->on_service_discovery_done(ok ? 0 : ble_device_base::GATT_ERR_NO_MEMORY);
   }
