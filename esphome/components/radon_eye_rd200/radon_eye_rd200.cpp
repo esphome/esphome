@@ -121,8 +121,8 @@ void RadonEyeRD200::on_notify_state(uint16_t handle, bool enabled, int error) {
     this->backend_->disconnect();
     return;
   }
-  static const uint8_t enable_notify[2] = {0x01, 0x00};
-  if (this->backend_->write_descriptor(this->cccd_handle_, enable_notify, sizeof(enable_notify)) != 0) {
+  static const uint8_t ENABLE_NOTIFY[2] = {0x01, 0x00};
+  if (this->backend_->write_descriptor(this->cccd_handle_, ENABLE_NOTIFY, sizeof(ENABLE_NOTIFY)) != 0) {
     this->backend_->disconnect();
   }
 }
