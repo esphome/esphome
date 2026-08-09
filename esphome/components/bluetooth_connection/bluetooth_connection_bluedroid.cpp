@@ -237,9 +237,11 @@ void BluedroidGattClient::release_services() {
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   this->free_service_table_();
 #endif
-#ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
-  // Only the cache clean makes the stack's database unsafe to walk.
+  // Always mark released: the flag terminates any in-flight service stream
+  // (with or without the NVS cache) so a partial list is never sent as
+  // authoritative.
   this->services_released_ = true;
+#ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
 }
@@ -488,7 +490,14 @@ void BluedroidGattClient::handle_search_cmpl_() {
 
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
-  if (this->services_released_ || conn.send_service_ >= this->service_total_) {
+  if (this->services_released_) {
+    // The database was released under the stream (peer dropped mid-stream):
+    // park without services-done so a V3 client can never cache the partial
+    // list as authoritative; its own timeout drives the retry.
+    conn.send_service_ = DONE_SENDING_SERVICES;
+    return;
+  }
+  if (conn.send_service_ >= this->service_total_) {
     conn.send_service_ = DONE_SENDING_SERVICES;
     conn.proxy_->send_gatt_services_done(conn.address_);
     this->release_services();
@@ -757,8 +766,11 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
       this->set_state_(ClientState::ESTABLISHED);
       this->handle_search_cmpl_();
-      // Settled (see the V3_WITH_CACHE arm in handle_open_evt_).
-      this->disable_loop();
+      if (this->state_() != ClientState::DISCONNECTING) {
+        // Settled (see the V3_WITH_CACHE arm in handle_open_evt_). A failed
+        // count reports an error and starts a teardown that needs the loop.
+        this->disable_loop();
+      }
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT:

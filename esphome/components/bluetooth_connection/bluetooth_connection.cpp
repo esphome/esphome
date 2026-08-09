@@ -1,7 +1,7 @@
 #include "bluetooth_connection.h"
 
 #ifdef USE_ESP32
-#include <esp_bt_device.h>
+#include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #endif
 
