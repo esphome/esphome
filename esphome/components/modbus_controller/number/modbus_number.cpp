@@ -56,6 +56,12 @@ void ModbusNumber::control(float value) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     // The lambda filled a legacy raw frame as words (address + function code + data); pack big-endian and
     // send; the hub adds the CRC.
+    if (data.size() * 2 > modbus::MAX_RAW_SIZE) {
+      // Past the buffer's capacity push_back would silently drop bytes and the truncated frame would
+      // get a valid CRC; refuse instead.
+      ESP_LOGE(TAG, "Raw frame of %zu words exceeds the frame limit, not sent", data.size());
+      return;
+    }
     StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
     for (auto v : data) {
       bytes.push_back((v >> 8) & 0xFF);
@@ -66,6 +72,12 @@ void ModbusNumber::control(float value) {
   } else {
     std::vector<uint16_t> payload;
     modbus::helpers::float_to_payload(payload, write_value, this->sensor_value_type);
+    // float_to_payload() appends nothing for RAW, so an empty payload must be caught before payload[0]
+    // below (the same guard select and output already carry).
+    if (payload.empty()) {
+      ESP_LOGW(TAG, "No payload was created for updating number");
+      return;
+    }
 
     ESP_LOGD(TAG,
              "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
