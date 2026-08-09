@@ -685,6 +685,53 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
 }
 
 namespace {
+// Records on_sent / on_response / on_no_response so a broadcast's completion path can be asserted.
+class BroadcastProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->response_count_++;
+    this->last_response_size_ = response_pdu.size();
+  }
+  bool on_no_response(std::span<const uint8_t> request_pdu) override {
+    this->no_response_count_++;
+    return false;
+  }
+  int sent_count_{0};
+  int response_count_{0};
+  int no_response_count_{0};
+  size_t last_response_size_{0};
+};
+}  // namespace
+
+// A broadcast (address 0) is never answered (Modbus 4.1), so the client completes it at transmission
+// instead of parking it in the waiting slot until the send-wait timeout expires: on_sent fires as the
+// frame goes out, on_response follows immediately with an empty payload so the sender's accounting
+// closes, and the hub is left NOT waiting - no timeout is burned and the entry is erased by the sweep.
+TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.send_pdu(write));
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);           // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 1);       // and completed immediately
+  EXPECT_EQ(device.last_response_size_, 0u);  // with an empty payload
+  EXPECT_EQ(device.no_response_count_, 0);    // never waited for a reply
+  EXPECT_FALSE(hub.waiting());                // no waiting slot occupied
+  EXPECT_EQ(hub.queued_frames(), 0u);         // and the entry is gone
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+namespace {
 // tx_blocked() clear for send_next_frame_'s gate, then blocked for send_frame_'s post-delay re-check.
 class RejectPostDelayHub : public NoResponseProbeHub {
  public:
