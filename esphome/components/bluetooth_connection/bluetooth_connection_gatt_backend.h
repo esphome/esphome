@@ -28,7 +28,7 @@ class StubGattBackend {
  public:
   void set_listener(ble_device_base::GattClientListener *listener) {}
   int connect(uint64_t address, uint8_t addr_type) { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
-  int disconnect() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
+  int gatt_disconnect() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int discover_services() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int read_characteristic(uint16_t handle) { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {

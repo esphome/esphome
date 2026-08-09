@@ -393,7 +393,7 @@ void RP2GattClient::loop() {
     // Control events must not be lost; the connection state is no longer
     // trustworthy — recover with a forced teardown.
     ESP_LOGE(TAG, "Dropped %u GATT control events, disconnecting", dropped);
-    this->disconnect();
+    this->gatt_disconnect();
   }
   uint16_t notify_dropped = this->notify_queue_.get_and_reset_dropped_count();
   if (notify_dropped > 0) {
@@ -424,7 +424,7 @@ void RP2GattClient::loop() {
         // reclaims state if the disconnection event is lost. Dropping engine
         // state without gap_disconnect would leak the live link and the
         // single GATT slot for the rest of the boot.
-        this->disconnect();
+        this->gatt_disconnect();
       }
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
@@ -856,7 +856,7 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   return 0;
 }
 
-int RP2GattClient::disconnect() {
+int RP2GattClient::gatt_disconnect() {
   switch (this->state_) {
     case EngineState::IDLE:
       return GATT_ERR_NOT_CONNECTED;
