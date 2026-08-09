@@ -312,6 +312,14 @@ class ModbusClientHub : public Modbus {
   std::deque<ModbusDeviceCommand> tx_buffer_;
 };
 
+// Transaction status: std::nullopt on success, otherwise a Modbus exception code
+using ResponseStatus = std::optional<ExceptionCode>;
+
+// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
+// the capacity of this type.
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
+
 class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
@@ -322,26 +330,46 @@ class ModbusServerHub : public Modbus {
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
+  // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
+  void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
+  // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the host-order register
+  // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
+  // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
+  // writes (which silently drop invalid frames).
+  ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
+  ResponseStatus parse_write_multiple_(std::span<const uint8_t> data, uint16_t &start_address,
+                                       RegisterValues &registers);
+  // Appends the big-endian register values in values to registers, in host byte order.
+  void assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
-  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
-  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                             uint16_t number_of_registers);
+  // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
+  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
+  ResponseStatus check_register_range_(uint16_t start_address, uint16_t number_of_registers);
+
+  // Builds the body of a register read response (byte count followed by the big-endian register values) into
+  // response_buffer. Shared by every function code that answers with register values, so the read reply stays
+  // identical across them. Returns false once an exception has been sent: the one the handler reported via
+  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers, the count exceeds the
+  // protocol read limit, or the body does not fit.
+  bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
+                                      uint16_t number_of_registers, const RegisterValues &registers,
+                                      std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
+  // Stamp of the last "broadcast reached no device" warning, 0 until the first one is logged. Rate limiting
+  // on time rather than on address keeps the log bounded no matter how many addresses a shared bus carries.
+  uint32_t last_unaccepted_broadcast_warn_{0};
+
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
   uint16_t deferred_payload_len_{0};
 };
-
-// Transaction status: std::nullopt on success, otherwise a Modbus exception code
-using ResponseStatus = std::optional<ExceptionCode>;
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by
@@ -563,11 +591,6 @@ class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_e
   }
 };
 
-// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
-// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
-// the capacity of this type.
-using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
-
 class ModbusServerDevice {
  public:
   virtual ~ModbusServerDevice() = default;
@@ -594,9 +617,18 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
+  // Hub entry point for broadcast (address 0) writes, which are never answered.
+  ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    this->broadcast_write_ = true;
+    ResponseStatus status = this->on_write_registers(start_address, registers);
+    this->broadcast_write_ = false;
+    return status;
+  }
 
  protected:
   uint8_t address_{0};
+  // Set while handling a broadcast write: the caller sends no reply, so a rejection has no wire consequence.
+  bool broadcast_write_{false};
 };
 
 }  // namespace esphome::modbus
