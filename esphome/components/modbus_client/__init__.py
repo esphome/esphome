@@ -485,8 +485,6 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
     return await register_client_action(var, config, args, [])
 
 
-# Read/write multiple registers (FC 0x17): writes one register block and reads another in a single
-# transaction. It has two address ranges, so it uses read_address/write_address instead of start_address;
 # Read/write multiple registers (FC 0x17) writes one register block and reads another in a single
 # transaction, so it has two address ranges and uses read_address/write_address instead of start_address.
 # Note the two meanings of `values`: here it is the block being WRITTEN, while in on_response the lambda
