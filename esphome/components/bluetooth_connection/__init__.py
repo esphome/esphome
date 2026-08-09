@@ -117,31 +117,31 @@ _PLATFORM_BACKENDS: dict[str, _PlatformBackend] = {
 GATT_CLIENT_PLATFORMS = list(_PLATFORM_BACKENDS)
 
 
-def _backend_entry() -> _PlatformBackend:
-    if (entry := _PLATFORM_BACKENDS.get(CORE.target_platform)) is None:
-        raise cv.Invalid(
-            f"no GATT client backend is registered for {CORE.target_platform}"
-        )
+def _backend_entry(platform: str | None = None) -> _PlatformBackend:
+    key = platform if platform is not None else CORE.target_platform
+    if (entry := _PLATFORM_BACKENDS.get(key)) is None:
+        raise cv.Invalid(f"no GATT client backend is registered for {key}")
     return entry
 
 
-def gatt_client_schema() -> cv.Schema:
+def gatt_client_schema(platform: str | None = None) -> cv.Schema:
     """Schema fragment for one GATT backend instance: its generated id plus
-    the platform-stack reference new_gatt_backend() resolves. Platform
-    dispatch happens at call time, so call this from inside a validator or a
-    per-platform schema builder, never at module import.
+    the platform-stack reference new_gatt_backend() resolves.
+
+    Defaults to the platform being validated; pass `platform` explicitly when
+    building a schema outside validation (the language-schema dumper calls
+    per-platform builders under arbitrary CORE platforms).
     """
-    entry = _backend_entry()
+    entry = _backend_entry(platform)
     return entry.schema_fragment().extend(
         {cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(entry.backend_class)}
     )
 
 
-def hub_connection_schema() -> cv.Schema:
+def hub_connection_schema(platform: str | None = None) -> cv.Schema:
     """Per-slot schema for the proxy's connection wrappers: the wrapper id on
-    top of the backend fragment. Same call-time constraint as
-    gatt_client_schema()."""
-    return gatt_client_schema().extend(
+    top of the backend fragment. Same platform rules as gatt_client_schema()."""
+    return gatt_client_schema(platform).extend(
         {cv.GenerateID(): cv.declare_id(HubBluetoothConnection)}
     )
 

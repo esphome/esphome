@@ -14,15 +14,11 @@ import voluptuous as vol
 
 from esphome import config_validation as cv
 from esphome.components.bluetooth_proxy import CONFIG_SCHEMA, _esp32_config_schema
-from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP32
-from esphome.core import CORE
 
 
 def _esp32_schema_keys() -> dict[str, object]:
-    # The builder resolves the backend schema through the platform-dispatched
-    # bluetooth_connection.gatt_client_schema(), so the platform must be set
-    # (conftest's autouse reset restores CORE after each test).
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP32
+    # The builder names its platform explicitly, so no CORE state is needed
+    # (this also mirrors how the language-schema dumper calls it).
     return _keys(_schema_of(_esp32_config_schema()))
 
 
