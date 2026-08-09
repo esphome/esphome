@@ -155,15 +155,19 @@ void BLEClient::on_service_discovery_done(int error) {
   // CONNECTED before the fan-out so nodes may consult connected() from
   // their own on_connected().
   this->state_ = State::CONNECTED;
-  auto table = this->backend_->get_service_table();
-  for (auto *node : this->nodes_) {
-    node->on_connected(table);
-    if (this->state_ != State::CONNECTED) {
-      // A node tore the link down mid-fan-out: on_disconnect fires with no
-      // preceding on_connect, so leave a trace of why.
-      ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);
-      this->backend_->release_services();
-      return;
+  if (!this->nodes_.empty()) {
+    // Materialize only when a node will read it: a client with no nodes
+    // would pay the build/free cycle on every (re)connect for nothing.
+    auto table = this->backend_->get_service_table();
+    for (auto *node : this->nodes_) {
+      node->on_connected(table);
+      if (this->state_ != State::CONNECTED) {
+        // A node tore the link down mid-fan-out: on_disconnect fires with no
+        // preceding on_connect, so leave a trace of why.
+        ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);
+        this->backend_->release_services();
+        return;
+      }
     }
   }
   this->backend_->release_services();
