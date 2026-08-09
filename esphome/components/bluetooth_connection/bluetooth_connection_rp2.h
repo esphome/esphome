@@ -94,8 +94,6 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   ble_device_base::GattServiceTable get_service_table();
   // No deferred-disconnect state (disconnect is one call) and no
   // connection-type branching on this backend.
-  bool disconnect_pending() const { return false; }
-  void cancel_pending_disconnect() {}
   void set_connection_type(ble_device_base::ConnectionType ct) {}
   void release_services();
 

@@ -44,8 +44,6 @@ class StubGattBackend {
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   ble_device_base::GattServiceTable get_service_table() { return {}; }
-  bool disconnect_pending() const { return false; }
-  void cancel_pending_disconnect() {}
   void set_connection_type(ble_device_base::ConnectionType ct) {}
   void release_services() {}
 };
