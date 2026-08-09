@@ -78,7 +78,8 @@ void BluedroidGattClient::loop() {
     // The loop only drives the bootstrap and the disconnect safety timeout.
     this->disable_loop();
   } else if (st == ClientState::DISCONNECTING &&
-             millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
+             static_cast<uint16_t>(static_cast<uint16_t>(millis() >> 8) - this->disconnecting_tick_) >
+                 (ble_device_base::GATT_DISCONNECT_TIMEOUT_MS >> 8)) {
     ESP_LOGE(TAG, "[%d] Timeout waiting for CLOSE_EVT, forcing IDLE", this->connection_index_);
     // Release before idling: unconditional disconnect does not release, and a
     // lost CLOSE/DISCONNECT would otherwise leak the table and the cache.
@@ -436,7 +437,7 @@ void BluedroidGattClient::set_idle_() {
 }
 
 void BluedroidGattClient::set_disconnecting_() {
-  this->disconnecting_started_ = millis();
+  this->disconnecting_tick_ = static_cast<uint16_t>(millis() >> 8);
   this->set_state_(ClientState::DISCONNECTING);
   // The loop may be disabled while idle; the safety timeout needs it.
   this->enable_loop();
