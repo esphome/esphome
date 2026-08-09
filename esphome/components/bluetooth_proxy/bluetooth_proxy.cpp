@@ -477,9 +477,8 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
 
 void BluetoothProxy::loop() {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  // Stream pending service-discovery batches every iteration (esp32 parity:
-  // its connections stream from their own per-iteration Component loop).
-  // send_service_for_discovery_() handles a vanished API connection itself.
+  // Stream pending service-discovery batches every iteration; the streamer
+  // handles a vanished API connection itself.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->process_pending_services();
   }
@@ -539,12 +538,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
       this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
-      this->send_device_unpairing(msg.address, false, GATT_NOT_CONNECTED);
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
+      // Address-scoped maintenance needs no connection slot: real on esp32
+      // (Bluedroid bond table), the stub elsewhere keeps the old error reply.
+      conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
+      this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
-      this->send_device_clear_cache(msg.address, false, GATT_NOT_CONNECTED);
+    }
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
+      conn_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
+      this->send_device_clear_cache(msg.address, ret == CONN_OK, ret);
       break;
+    }
   }
 }
 

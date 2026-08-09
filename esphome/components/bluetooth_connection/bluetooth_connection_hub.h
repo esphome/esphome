@@ -1,8 +1,7 @@
-// Hub-platform BluetoothConnection: drives the build's GATT backend (the
+// BluetoothConnection: drives the build's GATT backend (the
 // ble_device_base::BLEGattConnection alias) and translates its events into
-// the same API messages the esp32 class emits.
-// Presents the identical method surface, so the proxy's GATT dispatch
-// compiles against either class unchanged.
+// the proxy's API messages. One wrapper for every platform; per-backend
+// differences live behind the alias and the streamer cut-through.
 
 #pragma once
 
@@ -52,11 +51,8 @@ class BluetoothConnection final {
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
-  // Backends with deferred-disconnect state (bluedroid) answer through the
-  // detected forwards; the rest have nothing to track. Templates so the
-  // discarded branch is not odr-checked against backends without the methods.
-  bool disconnect_pending() const { return disconnect_pending_(this->backend_); }
-  void cancel_pending_disconnect() { cancel_pending_(this->backend_); }
+  bool disconnect_pending() const { return this->backend_->disconnect_pending(); }
+  void cancel_pending_disconnect() { this->backend_->cancel_pending_disconnect(); }
 
   void set_address(uint64_t address);
   uint64_t get_address() const { return this->address_; }
@@ -69,8 +65,8 @@ class BluetoothConnection final {
   void set_connection_type(ConnectionType ct) {
     this->connection_type_ = ct;
     // The bluedroid backend branches on the type itself (prefer-params and
-    // the with-cache report at OPEN_EVT).
-    forward_connection_type_(this->backend_, ct);
+    // the with-cache report at OPEN_EVT); the others ignore it.
+    this->backend_->set_connection_type(ct);
   }
   // Latched at discovery completion rather than read from the backend table:
   // streaming frees the table, and this must stay true for the connection's
@@ -79,14 +75,17 @@ class BluetoothConnection final {
   bool has_gatt_services() const { return this->services_discovered_; }
 
   /// Stream any pending service-discovery batch and police the disconnect
-  /// safety timeout. Called from the proxy's loop — hub connections have no
-  /// Component loop of their own (the esp32 class streams from its own
-  /// loop() and has the same 10 s safety net in its base class).
+  /// safety timeout. Called from the proxy's loop — the wrapper has no
+  /// Component loop of its own.
   void process_pending_services() {
     if (this->send_service_ >= 0) {
       this->stream_pending_(this->backend_);
     }
-    this->check_disconnect_timeout_();
+    // Inline state gate: this runs per loop iteration for every slot, and the
+    // 10 s safety net only matters while DISCONNECTING.
+    if (this->state_ == ClientState::DISCONNECTING) {
+      this->check_disconnect_timeout_();
+    }
   }
 
   // ---- backend event sink (called directly by the backend, main loop) ----
@@ -108,23 +107,6 @@ class BluetoothConnection final {
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
   // that lack the method.
-  template<typename Backend> static bool disconnect_pending_(Backend *backend) {
-    if constexpr (requires { backend->disconnect_pending(); }) {
-      return backend->disconnect_pending();
-    } else {
-      return false;
-    }
-  }
-  template<typename Backend> static void cancel_pending_(Backend *backend) {
-    if constexpr (requires { backend->cancel_pending_disconnect(); }) {
-      backend->cancel_pending_disconnect();
-    }
-  }
-  template<typename Backend> static void forward_connection_type_(Backend *backend, ConnectionType ct) {
-    if constexpr (requires { backend->set_connection_type(ct); }) {
-      backend->set_connection_type(ct);
-    }
-  }
   template<typename Backend> void stream_pending_(Backend *backend) {
     if constexpr (requires { backend->stream_service_batch(*this); }) {
       backend->stream_service_batch(*this);

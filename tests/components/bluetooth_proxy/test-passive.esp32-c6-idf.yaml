@@ -1,0 +1,10 @@
+# Advertisement-only proxy on esp32 by explicit choice: no GATT backend is
+# compiled (USE_BLE_GATT_CLIENT unset), which pins the HAS_GATT gating and the
+# address-scoped maintenance path that a connections build never exercises.
+packages:
+  common: !include common.yaml
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: false

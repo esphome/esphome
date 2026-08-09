@@ -213,18 +213,29 @@ def _rp2_config_schema() -> cv.All:
     return cv.All(schema, populate_connections)
 
 
-async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
-    from esphome.components import rp2040_ble
-
-    # One wrapper + backend pair per slot (the esp32 arm's pattern).
-    for connection_conf in config[CONF_CONNECTIONS]:
+async def _connections_to_code(
+    var: cg.MockObj, config: ConfigType, register_backend
+) -> None:
+    """One wrapper + backend pair per slot; register_backend supplies the
+    platform's backend registration (tracker client on esp32, controller
+    parent on rp2)."""
+    for connection_conf in config.get(CONF_CONNECTIONS, []):
         ble_device_base.request_gatt_client()
         backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
         await cg.register_component(backend, connection_conf)
-        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
+        await register_backend(backend, connection_conf, config)
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
         cg.add(connection.set_backend(backend))
         cg.add(var.register_connection(connection))
+
+
+async def _rp2_connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import rp2040_ble
+
+    async def register_backend(backend, connection_conf, config):
+        await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
+
+    await _connections_to_code(var, config, register_backend)
 
 
 # Per-platform schema builders and connection codegen; every key of
@@ -386,17 +397,13 @@ async def _to_code_esp32(config: ConfigType) -> None:
     connection_count = len(config.get(CONF_CONNECTIONS, []))
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
 
-    for connection_conf in config.get(CONF_CONNECTIONS, []):
-        ble_device_base.request_gatt_client()
-        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
-        await cg.register_component(backend, connection_conf)
+    async def register_backend(backend, connection_conf, _config):
         # The tracker promote loop drives connect timing through the shim.
         await esp32_ble_tracker.register_raw_client(
             backend.tracker_client(), connection_conf
         )
-        connection = cg.new_Pvariable(connection_conf[CONF_ID])
-        cg.add(connection.set_backend(backend))
-        cg.add(var.register_connection(connection))
+
+    await _connections_to_code(var, config, register_backend)
 
     if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)

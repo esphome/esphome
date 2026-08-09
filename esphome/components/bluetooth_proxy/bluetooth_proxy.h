@@ -5,8 +5,6 @@
 #ifdef USE_BLUETOOTH_PROXY
 
 #include <array>
-#include <map>
-#include <vector>
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -27,7 +25,6 @@ namespace esphome::bluetooth_proxy {
 // re-exported here so the proxy code reads unqualified.
 using bluetooth_connection::CONN_OK;
 using bluetooth_connection::conn_err_t;
-using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
 

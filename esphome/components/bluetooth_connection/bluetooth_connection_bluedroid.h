@@ -52,6 +52,7 @@ class BluedroidGattClient final : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
+  // Wired by codegen before setup and invariant for the device lifetime.
   void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
   esp32_ble_tracker::ESPBTClient *tracker_client() { return &this->shim_; }
 
