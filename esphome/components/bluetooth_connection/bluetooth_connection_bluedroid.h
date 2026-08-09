@@ -69,14 +69,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  // On-demand table for direct consumers; the proxy streams instead, so the
-  // materializer compiles only under USE_BLE_GATT_SERVICE_TABLE (emitted by
-  // direct-consumer codegen, never by the proxy).
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  ble_device_base::GattServiceTable get_service_table();
-#else
+  // Contract stub: the proxy streams in place; the on-demand materializer
+  // for direct consumers lands with #18205.
   ble_device_base::GattServiceTable get_service_table() { return {}; }
-#endif
   void release_services();
 
 #ifdef USE_BLUETOOTH_PROXY
@@ -102,21 +97,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
   void log_gattc_warning_(const char *operation, int code);
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  template<typename ServiceFn, typename CharFn, typename DescFn>
-  bool walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc);
-  bool build_service_table_();
-  void free_service_table_();
-  ble_device_base::GattServiceTable table_view_() const;
-#endif
 
   // Group 1: pointers / composed objects
   ble_device_base::GattClientListener *listener_{nullptr};
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  // One exact-size block carved into the three arrays; the view is rebuilt
-  // per (cold) call instead of cached.
-  uint8_t *table_storage_{nullptr};
-#endif
   // Group 2: 4-byte types
   uint32_t disconnecting_started_{0};
 
@@ -126,11 +109,6 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // Group 4: 2-byte types
   uint16_t conn_id_{0xFFFF};
   uint16_t service_total_{0};
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  // Filled element counts of the materialized table (0 when none).
-  uint16_t table_char_total_{0};
-  uint16_t table_desc_total_{0};
-#endif
 
   // Group 5: 1-byte types
   esp_gatt_if_t gattc_if_{ESP_GATT_IF_NONE};  // uint8_t width keeps the object at 48 bytes
