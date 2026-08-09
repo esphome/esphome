@@ -65,7 +65,7 @@ void BluedroidGattClient::loop() {
     }
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
     this->set_idle_();
-  } else if (st == ClientState::DISCONNECTING || this->want_disconnect_) {
+  } else if (st == ClientState::DISCONNECTING || this->disconnect_pending()) {
     // The one teardown safety net: a lost CLOSE_EVT, or a scheduled
     // teardown whose OPEN_EVT never arrives.
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
@@ -539,7 +539,8 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     return;
   }
   if (this->disconnect_pending()) {
-    // Earliest point conn_id_ exists; keep it set so CLOSE_EVT still matches.
+    // Open resolved with a teardown scheduled: close now (conn_id_ stays set
+    // so CLOSE_EVT still matches).
     this->unconditional_disconnect_();
     return;
   }
@@ -547,11 +548,10 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
   ESP_LOGI(TAG, "[%d] Connection open", this->connection_index_);
   if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
     this->set_state(ClientState::ESTABLISHED);
-    // No discovery phase: report immediately; the MTU report below is
-    // suppressed by seen_mtu_ (HA tolerates a post-connect MTU of 23 here,
-    // matching the previous esp32 behavior).
+    // No discovery phase: report immediately with the default MTU. The
+    // cached path never waits for (or reports) the exchange - seen_mtu_
+    // suppresses the CFG_MTU report, matching the previous esp32 behavior.
     this->seen_mtu_ = true;
-    // Cached path never exchanged an MTU; HA has always seen the default.
     this->listener_->on_connection_state(true, ble_device_base::DEFAULT_ATT_MTU, 0);
   } else {
     // Discovery-bound connection: start the search now so it overlaps the
