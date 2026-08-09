@@ -22,8 +22,10 @@
 
 namespace esphome::bluetooth_connection {
 
-class BluetoothConnection;
 class BluedroidGattClient;
+#ifdef USE_BLUETOOTH_PROXY
+class BluetoothConnection;
+#endif
 
 // The tracker-facing half: owns the ClientState the promote loop reads and
 // forwards events/commands to the engine.
@@ -75,10 +77,12 @@ class BluedroidGattClient final : public Component {
   ble_device_base::GattServiceTable get_service_table();
   void release_services();
 
-  /// In-place service streamer (the wrapper detects and prefers it): builds
-  /// one api response batch directly from Bluedroid's cached database, so the
-  /// streaming peak is the response itself - the old esp32 model.
+#ifdef USE_BLUETOOTH_PROXY
+  /// In-place service streamer (the proxy wrapper detects and prefers it):
+  /// builds one api response batch directly from Bluedroid's cached database,
+  /// so the streaming peak is the response itself - the old esp32 model.
   void stream_service_batch(BluetoothConnection &conn);
+#endif
 
   void set_connection_type(esp32_ble_tracker::ConnectionType ct) { this->connection_type_ = ct; }
   bool disconnect_pending() const { return this->shim_.disconnect_pending(); }

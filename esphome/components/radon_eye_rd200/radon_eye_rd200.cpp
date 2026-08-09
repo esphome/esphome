@@ -2,6 +2,7 @@
 
 #ifdef USE_BLE_GATT_CLIENT
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -23,6 +24,10 @@ static const char *const SERVICE_UUID_V2 = "00001523-0000-1000-8000-00805f9b34fb
 static const char *const WRITE_CHARACTERISTIC_UUID_V2 = "00001524-0000-1000-8000-00805f9b34fb";
 static const char *const READ_CHARACTERISTIC_UUID_V2 = "00001525-0000-1000-8000-00805f9b34fb";
 static const uint8_t WRITE_COMMAND_V2 = 0x40;
+
+// Minimum notification payload carrying all three measurements.
+static const uint16_t MESSAGE_MIN_LEN_V1 = 20;
+static const uint16_t MESSAGE_MIN_LEN_V2 = 68;
 
 // BLE public address type (shared code space with the API/backends).
 static const uint8_t BLE_ADDR_TYPE_PUBLIC = 0;
@@ -161,7 +166,8 @@ void RadonEyeRD200::read_sensors_(const uint8_t *value, uint16_t value_len) {
 
   uint8_t command = value[0];
 
-  if ((command == WRITE_COMMAND_V1 && value_len < 20) || (command == WRITE_COMMAND_V2 && value_len < 68)) {
+  if ((command == WRITE_COMMAND_V1 && value_len < MESSAGE_MIN_LEN_V1) ||
+      (command == WRITE_COMMAND_V2 && value_len < MESSAGE_MIN_LEN_V2)) {
     ESP_LOGW(TAG, "Unexpected command 0x%02X message length %d", command, value_len);
     return;
   }
@@ -170,8 +176,11 @@ void RadonEyeRD200::read_sensors_(const uint8_t *value, uint16_t value_len) {
   // 501085EBB9400000000000000000220025000000
   // Example data V2:
   // 4042323230313033525532303338330652443230304e56322e302e3200014a00060a00080000000300010079300000e01108001c00020000003822005c8f423fa4709d3f
-  ESP_LOGV(TAG, "radon sensors raw bytes");
-  ESP_LOG_BUFFER_HEX_LEVEL(TAG, value, value_len, ESP_LOG_VERBOSE);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  // Sized for the longest supported message; format_hex_to truncates longer.
+  char hex_buf[format_hex_size(MESSAGE_MIN_LEN_V2)];
+  ESP_LOGV(TAG, "radon sensors raw bytes: %s", format_hex_to(hex_buf, value, value_len));
+#endif
 
   // Convert from pCi/L to Bq/m³
   constexpr float convert_to_bwpm3 = 37.0;

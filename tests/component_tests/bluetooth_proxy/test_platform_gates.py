@@ -178,11 +178,21 @@ def test_rp2_rejects_esp32_only_keys_by_name(
 
 
 def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
-    # Every backend builds on ble_device_base alone; the Bluedroid backend
-    # talks to IDF directly, so esp32_ble_client is no longer in the closure.
-    for platform in ("esp32", "rp2", None):
-        _set_platform(platform)
-        assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
+    # The backend registers with its platform BLE stack, so that dependency
+    # lives here and consumers (proxy, radon_eye_rd200) stay platform-blind;
+    # the platform-less arm is the union for manifest-resolving tooling.
+    _set_platform("esp32")
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_tracker"]
+    _set_platform("rp2")
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "rp2040_ble"]
+    _set_platform("ln882x")
+    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
+    _set_platform(None)
+    assert bluetooth_connection.AUTO_LOAD() == [
+        "ble_device_base",
+        "esp32_ble_tracker",
+        "rp2040_ble",
+    ]
 
 
 def test_every_registered_hub_platform_has_a_schema_arm() -> None:

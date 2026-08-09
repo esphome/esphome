@@ -1,7 +1,7 @@
 // Hub-platform connection wrapper (USE_RP2 hub builds today).
 #include "bluetooth_connection_hub.h"
 
-#ifdef USE_BLE_GATT_CLIENT
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -433,4 +433,4 @@ void BluetoothConnection::send_service_for_discovery_() {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_BLE_GATT_CLIENT
+#endif  // USE_BLE_GATT_CLIENT && USE_BLUETOOTH_PROXY

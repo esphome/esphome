@@ -16,11 +16,13 @@
 #include <esp_err.h>
 #endif
 
-// The connection-aware API request handlers are compiled: a GATT backend is
-// wired by codegen (one slot per connection). Advertisement-only builds get
-// the clean-error handlers; address-scoped maintenance (unpair, cache clear)
-// still works there through the per-platform free functions below.
-#ifdef USE_BLE_GATT_CLIENT
+// The connection-aware API request handlers are compiled: a proxy is present
+// and a GATT backend is wired by codegen (one slot per connection).
+// Advertisement-only builds get the clean-error handlers; address-scoped
+// maintenance (unpair, cache clear) still works there through the
+// per-platform free functions below. Backend-only builds (a dedicated-backend
+// consumer without bluetooth_proxy) compile none of this API surface.
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 #define BLUETOOTH_CONNECTION_HAS_GATT
 #endif
 

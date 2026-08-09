@@ -7,7 +7,10 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_BLE_GATT_CLIENT
+// The wrapper exists to serve the proxy's API surface; dedicated-backend
+// consumers (radon_eye_rd200) drive the backend directly, so backend-only
+// builds compile this header empty.
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 
 #include "bluetooth_connection.h"
 
@@ -151,4 +154,4 @@ static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_BLE_GATT_CLIENT
+#endif  // USE_BLE_GATT_CLIENT && USE_BLUETOOTH_PROXY

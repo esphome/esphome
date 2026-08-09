@@ -8,14 +8,24 @@ gatt_client_schema() + new_gatt_backend().
 """
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.config_helpers import filter_source_files_from_platform
-from esphome.const import PLATFORM_RP2, PlatformFramework
+import esphome.config_validation as cv
+from esphome.const import PLATFORM_ESP32, PLATFORM_RP2, PlatformFramework
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 
 
-def AUTO_LOAD() -> list[str]:
+def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
+    """ble_device_base plus the platform BLE stack the build's backend
+    registers with, so consumers stay platform-blind. The platform-less arm
+    serves tooling that resolves the manifest without a target."""
+    if CORE.is_esp32:
+        return ["ble_device_base", "esp32_ble_tracker"]
+    if CORE.target_platform == PLATFORM_RP2:
+        return ["ble_device_base", "rp2040_ble"]
+    if CORE.target_platform is None:
+        return ["ble_device_base", "esp32_ble_tracker", "rp2040_ble"]
     return ["ble_device_base"]
 
 
@@ -30,6 +40,9 @@ RP2_MAX_CONNECTIONS = 1
 # Hub platforms with a GATT backend, mapped to their slot limit — the single
 # registry of which hub platforms run the connection-capable proxy.
 HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
+
+# Every platform with a GATT backend; gates dedicated-backend consumers.
+GATT_CLIENT_PLATFORMS = [PLATFORM_ESP32, PLATFORM_RP2]
 
 # The hub-platform wrapper and the rp2 BTstack backend codegen classes.
 HubBluetoothConnection = bluetooth_connection_ns.class_("BluetoothConnection")
@@ -65,6 +78,27 @@ def gatt_client_schema() -> cv.Schema:
     )
 
 
+def gatt_client_config_schema(base_schema: cv.Schema, consumer: str) -> cv.All:
+    """Wrap a dedicated-backend consumer's schema so the consumer stays
+    platform-blind: gates on the platforms with a backend, folds in
+    gatt_client_schema(), and does the esp32 controller-slot bookkeeping.
+    `consumer` names the component in slot-exhaustion errors."""
+
+    def apply(config: ConfigType) -> ConfigType:
+        if config is SCHEMA_EXTRACT:
+            # The language-schema dumper runs without a platform; expose the
+            # consumer's own keys.
+            return base_schema
+        config = base_schema.extend(gatt_client_schema())(config)
+        if CORE.is_esp32:
+            from esphome.components import esp32_ble
+
+            esp32_ble.consume_connection_slots(1, consumer)(config)
+        return config
+
+    return cv.All(cv.only_on(GATT_CLIENT_PLATFORMS), apply)
+
+
 async def new_gatt_backend(config: ConfigType) -> cg.MockObj:
     """Instantiate the backend declared by gatt_client_schema(), register it
     with its platform stack, and claim one neutral GATT client slot.
@@ -77,7 +111,9 @@ async def new_gatt_backend(config: ConfigType) -> cg.MockObj:
 
     ble_device_base.request_gatt_client()
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
-    await cg.register_component(backend, config)
+    # The backend has no user-facing component options; an empty config keeps
+    # the consumer's own keys (update_interval, ...) off it.
+    await cg.register_component(backend, {})
     if CORE.is_esp32:
         from esphome.components import esp32_ble_tracker
 
