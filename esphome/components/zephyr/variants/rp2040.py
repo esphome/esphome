@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,6 +20,8 @@ from . import (
     resolve_framework_version,
     set_core_data,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_BOARD = "rpi_pico"
 
@@ -60,6 +64,12 @@ VARIANT = ZephyrVariant(
 
 
 def config_schema(config: ConfigType) -> ConfigType:
+    # Cannot use kconfig_option: CONFIG_SMP -- mainline Zephyr has no SMP
+    # support for RP2040.
+    _LOGGER.warning(
+        "RP2040 is dual-core, but Zephyr has no SMP support for this SoC yet -- only one core "
+        "is used."
+    )
     config = dict(config)
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
