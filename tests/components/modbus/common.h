@@ -23,8 +23,6 @@ class NullUART : public uart::UARTComponent {
 // A UART that records every byte written so tests can assert on the exact wire response.
 class RecordingUART : public NullUART {
  public:
-  RecordingUART() { this->set_baud_rate(9600); }
-
   void write_array(const uint8_t *data, size_t len) override {
     this->written.insert(this->written.end(), data, data + len);
   }

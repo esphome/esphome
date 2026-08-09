@@ -429,9 +429,8 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  // Packed straight into an exact-size payload: no fixed staging buffer to burn stack on the single
-  // coil in-tree callers send, and an over-long set makes an oversize frame the hub rejects and logs
-  // rather than being silently truncated while the quantity field still claims every coil.
+  // Pack through the shared bit view (MutablePackedBits) so the coil wire layout lives in one place
+  // instead of an open-coded loop.
   const size_t byte_count = modbus::packed_bit_bytes(values.size());
   uint8_t *p = cmd.payload.init(byte_count);
   memset(p, 0, byte_count);

@@ -396,6 +396,11 @@ static constexpr size_t WRITE_SINGLE_VALUES_OFFSET = 2;
 static constexpr size_t WRITE_MULTIPLE_VALUES_OFFSET = 5;
 // FC 0x17 writes follow read start(2) + read quantity(2) + write start(2) + write quantity(2) + byte count(1).
 static constexpr size_t READ_WRITE_VALUES_OFFSET = 9;
+// A coil write (FC 0x0F) is function(1) + start(2) + quantity(2) + byte count(1) + packed bits. The largest
+// one (MAX_NUM_OF_COILS_TO_WRITE coils) must fit the received request PDU, so the value subspan taken at
+// WRITE_MULTIPLE_VALUES_OFFSET can never run past it.
+static_assert(1 + WRITE_MULTIPLE_VALUES_OFFSET + packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE) <= MAX_PDU_SIZE,
+              "the largest FC 0x0F coil write must fit within MAX_PDU_SIZE");
 
 ResponseStatus ModbusServerHub::parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address,
                                                     RegisterValues &registers) {
