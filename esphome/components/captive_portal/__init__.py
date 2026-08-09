@@ -1,7 +1,7 @@
 import logging
 
 import esphome.codegen as cg
-from esphome.components import web_server_base
+from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -13,7 +13,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
-            PLATFORM_RP2040,
+            PLATFORM_RP2,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -101,11 +101,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
+    # The portal reads wifi scan results from the web server task; this makes the
+    # wifi component guard them with a lock on multi-threaded platforms.
+    wifi.request_wifi_scan_results_lock()
 
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2040):
+    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2):
         cg.add_library("DNSServer", None)
 
 

@@ -599,6 +599,18 @@ class LoadValidationStep(ConfigValidationStep):
         CORE.loaded_integrations.add(self.domain)
         # For platform components, normalize conf before creating MetadataValidationStep
         if component.is_platform_component:
+            # Legacy config migration: allow a platform component to rewrite a
+            # pre-platform-format top-level config (e.g. a bare list or legacy
+            # dict form) into the normalized list of `platform:` tagged entries.
+            # Removable deprecation shim hook; no-op for components that do not
+            # define LEGACY_CONFIG_MIGRATE.
+            if (
+                (migrate := component.legacy_config_migrate) is not None
+                and self.conf
+                and not isinstance(self.conf, core.AutoLoad)
+                and (migrated := migrate(self.conf)) is not None
+            ):
+                result[self.domain] = self.conf = migrated
             if not self.conf:
                 result[self.domain] = self.conf = []
             elif not isinstance(self.conf, list):
@@ -1096,6 +1108,7 @@ def validate_config(
     config: dict[str, Any],
     command_line_substitutions: dict[str, Any] | None,
     skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     result = Config()
 
@@ -1206,11 +1219,13 @@ def validate_config(
     # Snapshot the user's config before any schema validation defaults are
     # applied. preload_core_config and later validation steps rewrite entries
     # in-place with defaulted values; deep-copying here preserves the
-    # user-supplied keys for `esphome config --no-defaults`.
-    result.user_config = copy.deepcopy(config)
-    if substitutions is not None:
-        result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
-        result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+    # user-supplied keys for `esphome config --no-defaults`. The deep copy is
+    # expensive, so it is only taken when that command actually asked for it.
+    if snapshot_user_config:
+        result.user_config = copy.deepcopy(config)
+        if substitutions is not None:
+            result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
+            result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     # 2. Load partial core config
     import esphome.core.config as core_config
@@ -1323,7 +1338,9 @@ class InvalidYAMLError(EsphomeError):
 
 
 def _load_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     """Load the configuration file."""
     try:
@@ -1332,7 +1349,12 @@ def _load_config(
         raise InvalidYAMLError(e) from e
 
     try:
-        return validate_config(config, command_line_substitutions, skip_external_update)
+        return validate_config(
+            config,
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except EsphomeError:
         raise
     except Exception:
@@ -1341,10 +1363,16 @@ def _load_config(
 
 
 def load_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     try:
-        return _load_config(command_line_substitutions, skip_external_update)
+        return _load_config(
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
@@ -1485,11 +1513,17 @@ def strip_default_ids(config):
 
 
 def read_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config | None:
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config(command_line_substitutions, skip_external_update)
+        res = load_config(
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None

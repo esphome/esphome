@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 from esphome.core import CORE, Library
+from esphome.espidf import variant_to_idf_target
 from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import (
     DEFAULT_BUILD_FLAGS,
@@ -46,20 +47,21 @@ def _apply_extra_script(component: IDFComponent) -> None:
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
         return
-    # Resolve and confine to the component dir so a malicious library.json
-    # can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
-    library_root = component.path.resolve()
-    script_path = (component.path / extra_script).resolve()
+    # Resolve and confine to the library's source dir so a malicious
+    # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
+    source_path = component.source_dir
+    library_root = source_path.resolve()
+    script_path = (source_path / extra_script).resolve()
     if not script_path.is_relative_to(library_root) or not script_path.is_file():
         return
     from esphome.components.esp32 import get_esp32_variant
     from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
 
-    idf_target = get_esp32_variant().lower().replace("-", "")
+    idf_target = variant_to_idf_target(get_esp32_variant())
     result = run_extra_script(
-        script_path, library_dir=component.path, idf_target=idf_target
+        script_path, library_dir=source_path, idf_target=idf_target
     )
-    extra_flags = captured_as_build_flags(result, library_dir=component.path)
+    extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
         return
     flags = component.data.setdefault("build", {}).setdefault("flags", [])
@@ -83,16 +85,34 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
+    # Late import: this module loads with the esp32 platform on every
+    # validate/compile, but shlex is only needed when generating component
+    # CMakeLists.
+    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
         return f'"{str(p)}"'.replace("\\", "\\\\")
 
+    def escape_path(p: PathType) -> str:
+        # CMake uses forward slashes for paths on every platform and treats
+        # backslashes as escape characters. On Windows os.path.relpath yields
+        # backslash paths, which break CMake's list re-parsing (e.g. "\b" in
+        # "src\backend" is an invalid character escape). Emit forward slashes,
+        # which Windows accepts too, so the generated CMakeLists is portable.
+        return f'"{str(p).replace(os.sep, "/")}"'
+
+    # The library's own files live in source_path (the user's directory for a
+    # local library, the downloaded dir otherwise). When it differs from the
+    # component dir the CMakeLists must reference sources by absolute path.
+    read_path = component.source_dir
+    external = read_path.resolve() != component.path.resolve()
+
     # Extract the values
     build_src_dir = component.data.get("build", {}).get("srcDir", None)
     if not build_src_dir:
         for d in ["src", "Src", "."]:
-            if (component.path / Path(d)).is_dir():
+            if (read_path / Path(d)).is_dir():
                 build_src_dir = d
                 break
 
@@ -105,10 +125,27 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     build_flags = ensure_list(
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
+    # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
+    # same way; emitting such an entry as a single quoted compile option
+    # hands the compiler one argv with an embedded space.
+    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
+    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
+    # the prefix classifiers below still route them to INCLUDE_DIRS and the
+    # link handling.
+    tokens, build_flags = build_flags, []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
+            build_flags.append(tokens[i] + tokens[i + 1])
+            i += 2
+        else:
+            build_flags.append(tokens[i])
+            i += 1
 
     # List all sources files
     build_src_files = collect_filtered_files(
-        component.path / Path(build_src_dir), build_src_filter
+        read_path / Path(build_src_dir), build_src_filter
     )
 
     # Only bake library.json-declared deps here. Project-managed and
@@ -120,8 +157,12 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         dependency.get_require_name() for dependency in component.dependencies
     }
 
-    # Only keep sources
-    build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
+    # Only keep sources. Reference them absolutely when they live outside the
+    # component dir (a local library), relative otherwise.
+    if external:
+        build_src_files = [str(Path(p).resolve()) for p in build_src_files]
+    else:
+        build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
         f for f in build_src_files if Path(f).suffix in SRC_FILE_EXTENSIONS
     ]
@@ -136,13 +177,24 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )
+    # A local library's relative -L paths are relative to its own directory;
+    # resolve them against it so they still work from the component cache dir.
+    # (read_path / d yields d unchanged when d is already absolute.)
+    if external:
+        link_directories = [
+            str((read_path / Path(d)).resolve()) for d in link_directories
+        ]
 
     # Split include directories from build_flags
     # Only keep an include directory if it exists
     build_include_dirs = [build_include_dir, build_src_dir] + include_dir_flags
     build_include_dirs = [
-        d for d in build_include_dirs if (component.path / Path(d)).is_dir()
+        d for d in build_include_dirs if (read_path / Path(d)).is_dir()
     ]
+    if external:
+        build_include_dirs = [
+            str((read_path / Path(d)).resolve()) for d in build_include_dirs
+        ]
 
     # Split build_flags list into private and public lists
     private_build_flags, public_build_flags = split_list_by_condition(
@@ -152,10 +204,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Generate the component
     content = "idf_component_register(\n"
     if build_src_files:
-        str_srcs = " ".join([escape_entry(p) for p in sorted(build_src_files)])
+        str_srcs = " ".join([escape_path(p) for p in sorted(build_src_files)])
         content += f"  SRCS {str_srcs}\n"
     if build_include_dirs:
-        str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
+        str_include_dirs = " ".join([escape_path(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
     # Project-managed and built-in component lists are set per-project
     # via idf_build_set_property in the top-level CMakeLists; expanded
@@ -190,7 +242,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if link_directories:
         content += "target_link_directories(${COMPONENT_LIB} INTERFACE\n"
         for link_directory in link_directories:
-            str_build_flag = escape_entry(link_directory)
+            str_build_flag = escape_path(link_directory)
             content += f"  {str_build_flag}\n"
         content += ")\n"
 

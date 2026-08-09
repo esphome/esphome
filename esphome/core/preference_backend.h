@@ -12,8 +12,8 @@
 #include "esphome/components/esp32/preference_backend.h"
 #elif defined(USE_ESP8266)
 #include "esphome/components/esp8266/preference_backend.h"
-#elif defined(USE_RP2040)
-#include "esphome/components/rp2040/preference_backend.h"
+#elif defined(USE_RP2)
+#include "esphome/components/rp2/preference_backend.h"
 #elif defined(USE_LIBRETINY)
 #include "esphome/components/libretiny/preference_backend.h"
 #elif defined(USE_HOST)
@@ -22,9 +22,15 @@
 #include "esphome/components/zephyr/preference_backend.h"
 #endif
 
+// Key-lookup preference backends find stored data by key; their platforms add the
+// USE_PREFERENCE_KEY_LOOKUP define from Python codegen, which enables preference key
+// migration. Slot-based backends (ESP8266, RP2040) instead allocate a storage slot for
+// every make_preference() call and use the key only as a validity tag on that slot;
+// migration is not possible there, and key collisions cannot corrupt data.
+
 namespace esphome {
 
-#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY) && \
+#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2) && !defined(USE_LIBRETINY) && \
     !defined(USE_HOST) && !(defined(USE_ZEPHYR) && defined(CONFIG_SETTINGS))
 // Stub for static analysis when no platform is defined.
 struct PreferenceBackend {
@@ -40,16 +46,22 @@ class ESPPreferenceObject {
   ESPPreferenceObject() = default;
   explicit ESPPreferenceObject(PreferenceBackend *backend) : backend_(backend) {}
 
-  template<typename T> bool save(const T *src) {
+  template<typename T> bool save(const T *src) { return this->save(reinterpret_cast<const uint8_t *>(src), sizeof(T)); }
+
+  template<typename T> bool load(T *dest) { return this->load(reinterpret_cast<uint8_t *>(dest), sizeof(T)); }
+
+  /// Raw save with explicit length, for callers that only know the size at runtime.
+  bool save(const uint8_t *src, size_t len) {
     if (this->backend_ == nullptr)
       return false;
-    return this->backend_->save(reinterpret_cast<const uint8_t *>(src), sizeof(T));
+    return this->backend_->save(src, len);
   }
 
-  template<typename T> bool load(T *dest) {
+  /// Raw load with explicit length, for callers that only know the size at runtime.
+  bool load(uint8_t *dest, size_t len) {
     if (this->backend_ == nullptr)
       return false;
-    return this->backend_->load(reinterpret_cast<uint8_t *>(dest), sizeof(T));
+    return this->backend_->load(dest, len);
   }
 
  protected:

@@ -29,6 +29,7 @@ DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
 
 CONF_PDM = "pdm"
+CONF_PDM_DSR = "pdm_dsr"
 CONF_ADC_TYPE = "adc_type"
 
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"

@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from bleak import BleakScanner
-from bleak.exc import BleakDeviceNotFoundError
+from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
 from smpclient.exceptions import SMPBadSequence
@@ -128,6 +128,12 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
         await smp_client.connect(timeout_s=SMP_NET_REQUEST_TIMEOUT if is_udp else 5.0)
     except BleakDeviceNotFoundError as exc:
         raise EsphomeError(f"Device {device} not found") from exc
+    except BleakDBusError as exc:
+        if "NotPermitted" in exc.dbus_error:
+            raise EsphomeError(
+                f"Cannot connect to {device}: Make sure the device is paired."
+            ) from exc
+        raise EsphomeError(f"BLE error connecting to {device}: {exc}") from exc
     except SMPBLETransportException as exc:
         raise EsphomeError(f"Connection error with {device}") from exc
 
