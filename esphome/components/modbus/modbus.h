@@ -262,19 +262,31 @@ class ModbusClientHub : public Modbus {
   void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_ms_ = time_in_ms; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
-  ESPDEPRECATED("Use send_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
+  ESPDEPRECATED("Use queue_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
-    this->send_pdu(address,
-                   helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
-                                              payload_len),
-                   device);
+    this->queue_pdu(address,
+                    helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
+                                               payload_len),
+                    device);
   };
-  // Queue a request; true once it is a live entry (resolving in one terminal), false if it never
-  // entered the machine (empty/oversize PDU, full queue, anonymous or over-cap duplicate) - no callback.
-  bool send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
-                CommandOptions options = {});
-  ESPDEPRECATED("Use send_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
+  /// Queue a request. The name says queue, not send: the frame is appended to the transmit queue and
+  /// goes out later from loop(), so a true return means accepted into the machine (it will resolve in
+  /// exactly one terminal callback), NOT that anything reached the wire - that is on_sent(). False means
+  /// it never entered the machine at all (empty or oversize PDU, full queue, anonymous or over-cap
+  /// duplicate) and no callback of any kind will follow; the false return is the whole story.
+  bool queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
+                 CommandOptions options = {});
+  // Remove before 2027.2.0. Deliberately the signature 2026.7.4 shipped - void, and no CommandOptions:
+  // the bool return and the options argument arrived after that release, so nothing external can be
+  // relying on them under this name. Callers who want the queued/refused answer move to queue_pdu().
+  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one, and it "
+                "reports whether the request was accepted. Removed in 2027.2.0",
+                "2026.8.0")
+  void send_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr) {
+    this->queue_pdu(address, pdu, device);
+  }
+  ESPDEPRECATED("Use queue_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   // Clear an address's commands; each un-run request resolves via on_not_sent(), but a frame on the
   // wire still runs to its usual terminal. clear_tx_queue_for_device() instead discards silently.
@@ -314,6 +326,12 @@ class ModbusClientHub : public Modbus {
 
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
+
+/// True when a transaction carried no exception. The optional holds the exception, so has_value() means
+/// the request FAILED - the inverse of how "status" usually reads. Prefer this at the call site; the
+/// bare !status.has_value() has already been mistaken for a failure check more than once. Where the code
+/// is going to unwrap the exception anyway, status.has_value() followed by status.value() stays clearer.
+inline bool succeeded(ResponseStatus status) { return !status.has_value(); }
 
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
@@ -394,7 +412,7 @@ class ModbusServerHub : public Modbus {
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by
-/// clear_tx_queue_for_address before transmission). A request refused at send_pdu() (false return)
+/// clear_tx_queue_for_address before transmission). A request refused at queue_pdu() (false return)
 /// gets none. on_sent() is additional, once per transmission, never for an on_not_sent() request.
 /// on_response()/on_error() fire at parse time and on_no_response() at the send-wait watchdog, all
 /// from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
@@ -404,7 +422,7 @@ class ModbusServerHub : public Modbus {
 /// merges into it).
 ///
 /// Invariants:
-/// - Public entry points (send_pdu/clear_tx_queue_*) only append to the queue or mutate an existing
+/// - Public entry points (queue_pdu/clear_tx_queue_*) only append to the queue or mutate an existing
 ///   entry through its callback-free transition methods.
 /// - Public entry points can never trigger a callback synchronously.
 /// - Callbacks are delivered only from within loop().
@@ -506,66 +524,75 @@ class ModbusClientDevice {
   /// to handle custom traffic (which also silences the warning).
   virtual void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                                   ResponseStatus status);
-  ESPDEPRECATED("Use the typed read_*/write_* helpers or send_pdu() instead. Removed in 2027.2.0", "2026.8.0")
+  ESPDEPRECATED("Use the typed read_*/write_* helpers or queue_pdu() instead. Removed in 2027.2.0", "2026.8.0")
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send_pdu(
+    this->parent_->queue_pdu(
         this->address_,
         helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
         this);
   }
-  /// See ModbusClientHub::send_pdu(): true = accepted (a terminal callback will follow),
-  /// false = refused at the door (no callback).
-  bool send_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
-    return this->parent_->send_pdu(this->address_, pdu, this, options);
+  /// See ModbusClientHub::queue_pdu(): true = accepted into the queue and a terminal callback will
+  /// follow, false = refused at the door and nothing further happens. Neither means the frame is on
+  /// the wire; on_sent() reports that.
+  bool queue_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
+    return this->parent_->queue_pdu(this->address_, pdu, this, options);
   }
-  ESPDEPRECATED("Use send_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
-  bool send_raw(const std::vector<uint8_t> &payload) {
+  // Remove before 2027.2.0. As on the hub, this is the signature 2026.7.4 shipped: void, no options.
+  ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one, and it "
+                "reports whether the request was accepted. Removed in 2027.2.0",
+                "2026.8.0")
+  void send_pdu(std::span<const uint8_t> pdu) { this->queue_pdu(pdu); }
+  ESPDEPRECATED("Use queue_pdu() instead (the device address is prepended for you). Removed in 2027.2.0", "2026.8.0")
+  void send_raw(const std::vector<uint8_t> &payload) {
     if (payload.empty())
-      return false;  // too short to contain a PDU; refused at the door like any invalid send
-    return this->parent_->send_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
+      return;  // too short to contain a PDU; refused at the door like any invalid send
+    this->parent_->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
+  // The typed request builders below all queue through queue_pdu(), so they share its contract: true
+  // means the request is queued and will resolve in exactly one terminal callback, false means it was
+  // refused outright with no callback. Neither says the frame has been transmitted - on_sent() does.
   // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
-  // create_read_pdu() rejects into an empty PDU and send_pdu() refuses with a false return.
+  // create_read_pdu() rejects into an empty PDU and queue_pdu() refuses with a false return.
   bool read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
                      CommandOptions options = {}) {
-    return this->send_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
-                                                   number_of_entities),
-                          options);
+    return this->queue_pdu(helpers::create_read_pdu(helpers::modbus_register_read_function(entity_type), start_address,
+                                                    number_of_entities),
+                           options);
   }
   bool read_input_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    return this->send_pdu(
+    return this->queue_pdu(
         helpers::create_read_pdu(FunctionCode::READ_INPUT_REGISTERS, start_address, number_of_registers), options);
   }
   bool read_holding_registers(uint16_t start_address, uint16_t number_of_registers, CommandOptions options = {}) {
-    return this->send_pdu(
+    return this->queue_pdu(
         helpers::create_read_pdu(FunctionCode::READ_HOLDING_REGISTERS, start_address, number_of_registers), options);
   }
   bool read_coils(uint16_t start_address, uint16_t number_of_coils, CommandOptions options = {}) {
-    return this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils), options);
+    return this->queue_pdu(helpers::create_read_pdu(FunctionCode::READ_COILS, start_address, number_of_coils), options);
   }
   bool read_discrete_inputs(uint16_t start_address, uint16_t number_of_inputs, CommandOptions options = {}) {
-    return this->send_pdu(helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs),
-                          options);
+    return this->queue_pdu(
+        helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs), options);
   }
   bool write_single_register(uint16_t start_address, uint16_t value) {
-    return this->send_pdu(helpers::create_write_single_register_pdu(start_address, value));
+    return this->queue_pdu(helpers::create_write_single_register_pdu(start_address, value));
   }
   bool write_single_coil(uint16_t address, bool value) {
-    return this->send_pdu(helpers::create_write_single_coil_pdu(address, value));
+    return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value));
   }
   bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
-    return this->send_pdu(helpers::create_write_registers_pdu(start_address, values));
+    return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values));
   }
   /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
   /// overload.
   bool write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
-    return this->send_pdu(helpers::create_write_coils_pdu(start_address, values));
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, values));
   }
   /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
   /// read-modify-write needs no unpack/repack.
   bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
-    return this->send_pdu(helpers::create_write_coils_pdu(start_address, bits));
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }

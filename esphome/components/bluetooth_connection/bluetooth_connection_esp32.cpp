@@ -479,10 +479,6 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
   return this->check_and_log_error_("esp_ble_gattc_unregister_for_notify", err);
 }
 
-esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisement_parser_type() {
-  return this->proxy_->get_advertisement_parser_type();
-}
-
 }  // namespace esphome::bluetooth_connection
 
 #endif  // USE_ESP32
