@@ -25,6 +25,11 @@ test_uart_mock_ld2412_gate_thresholds (partial gate threshold config):
   1. Threshold queries are answered, so every gate has a known module value
   2. Writing one threshold does not crash when most gates have no number
   3. Gates without a number are written back with the module value, not a zero
+
+test_uart_mock_ld2412_thresholds_not_read (module never reports its thresholds):
+  1. The threshold queries go unanswered, so no gate has a module value
+  2. Writing a threshold holds the command back instead of writing zeros
+  3. The group where no gate has a value at all is not sent either
 """
 
 from __future__ import annotations
@@ -32,7 +37,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from aioesphomeapi import ButtonInfo, EntityState, NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo
 import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
@@ -441,8 +446,6 @@ async def test_uart_mock_ld2412_gate_thresholds(
         if expected_still in line and not still_written.done():
             still_written.set_result(True)
 
-    states: dict[int, float] = {}
-
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
@@ -451,10 +454,7 @@ async def test_uart_mock_ld2412_gate_thresholds(
 
         initial_state_helper = InitialStateHelper(entities)
 
-        def on_state(state: EntityState) -> None:
-            states[state.key] = state.state
-
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda s: None))
 
         try:
             await initial_state_helper.wait_for_initial_states()
@@ -501,6 +501,86 @@ async def test_uart_mock_ld2412_gate_thresholds(
                 f"  expected motion payload: {expected_motion}\n"
                 f"  expected still payload:  {expected_still}"
             )
+
+        # A round trip proves the device is still running after the write
+        entities_after, _ = await client.list_entities_services()
+        assert len(entities_after) == len(entities)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_thresholds_not_read(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test writing a threshold before the module has reported the values it holds.
+
+    The gates without a number are filled from the last values read back from the module. When the
+    module never answers the setup query there is nothing to fill them with, and sending the command
+    anyway would write a zero to every one of those gates, which is maximum sensitivity. The command
+    has to be held back instead. The still group has no gate with a value at all, so it is not sent
+    either.
+    """
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # The length and command bytes of a threshold command, as the mock logs them
+    # Length 16 (2 command bytes and one byte per gate), then the command, motion is 0x03 and still is 0x04
+    motion_command = "10:00:03:00"
+    still_command = "10:00:04:00"
+    # Length 2 and command 0xFE, the frame that leaves configuration mode at the end of the write
+    config_mode_left = "02:00:FE:00"
+    motion_held_back = loop.create_future()
+    write_finished = loop.create_future()
+    tx_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        # The component logs the command it did not send in place of sending it
+        if "Command 03 not sent" in line and not motion_held_back.done():
+            motion_held_back.set_result(True)
+            return
+        if "uart_mock" not in line or "TX " not in line:
+            return
+        tx_lines.append(line)
+        # Configuration mode is left once both groups have been dealt with
+        if (
+            motion_held_back.done()
+            and config_mode_left in line
+            and not write_finished.done()
+        ):
+            write_finished.set_result(True)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        gate_0_move = find_entity(entities, "gate_0_move_threshold", NumberInfo)
+        assert gate_0_move is not None, "gate_0_move_threshold number not found"
+
+        client.number_command(gate_0_move.key, 77.0)
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(motion_held_back, write_finished), timeout=5.0
+            )
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the write to be handled")
+
+        # Neither threshold command reached the module, so no gate was reconfigured
+        assert not [line for line in tx_lines if motion_command in line], (
+            "motion threshold command was sent without a value for the gates that have no number"
+        )
+        assert not [line for line in tx_lines if still_command in line], (
+            "still threshold command was sent when no gate had a value to write"
+        )
 
         # A round trip proves the device is still running after the write
         entities_after, _ = await client.list_entities_services()

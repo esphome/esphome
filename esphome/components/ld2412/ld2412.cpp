@@ -75,6 +75,7 @@ enum PeriodicDataValue : uint8_t {
 enum AckData : uint8_t {
   COMMAND = 6,
   COMMAND_STATUS = 7,
+  ACK_PAYLOAD = 10,
 };
 
 // Memory-efficient lookup tables
@@ -191,6 +192,8 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+// A gate threshold answer carries one byte per gate, so the whole frame is the payload offset, the gates and the footer
+static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
@@ -597,20 +600,29 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_MOTION_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_move_thresholds_.size() && (10 + i) < this->buffer_pos_; i++) {
-        this->gate_move_thresholds_[i] = this->buffer_data_[10 + i];
-        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
+      // buffer_pos_ counts the footer, so a frame that stops short of the full size is not a complete answer
+      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
+        return false;
       }
+      for (size_t i = 0; i < this->gate_move_thresholds_.size(); i++) {
+        this->gate_move_thresholds_[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[ACK_PAYLOAD + i]);
+      }
+      this->gate_move_thresholds_read_ = true;
 #endif
       break;
     }
 
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      for (size_t i = 0; i < this->gate_still_thresholds_.size() && (10 + i) < this->buffer_pos_; i++) {
-        this->gate_still_thresholds_[i] = this->buffer_data_[10 + i];
-        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
+      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
+        return false;
       }
+      for (size_t i = 0; i < this->gate_still_thresholds_.size(); i++) {
+        this->gate_still_thresholds_[i] = this->buffer_data_[ACK_PAYLOAD + i];
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[ACK_PAYLOAD + i]);
+      }
+      this->gate_still_thresholds_read_ = true;
 #endif
       break;
     }
@@ -808,9 +820,10 @@ void LD2412Component::set_basic_config() {
 
 #ifdef USE_NUMBER
 void LD2412Component::send_gate_thresholds_(uint8_t command, const std::array<number::Number *, TOTAL_GATES> &numbers,
-                                            const std::array<uint8_t, TOTAL_GATES> &last_read) {
+                                            const std::array<uint8_t, TOTAL_GATES> &last_read, bool last_read_valid) {
   uint8_t value[TOTAL_GATES];
   bool any_configured = false;
+  bool any_from_module = false;
   for (uint8_t i = 0; i < TOTAL_GATES; i++) {
     number::Number *n = numbers[i];
     if (n != nullptr && n->has_state()) {
@@ -819,18 +832,26 @@ void LD2412Component::send_gate_thresholds_(uint8_t command, const std::array<nu
     } else {
       // Gates the configuration left out, and gates still waiting for their first read back, keep the module value
       value[i] = last_read[i];
+      any_from_module = true;
     }
   }
   if (!any_configured) {
     return;  // Nothing to change in this group
+  }
+  if (any_from_module && !last_read_valid) {
+    // The module never reported what it holds, so those gates would be sent as zero, which is maximum sensitivity
+    ESP_LOGW(TAG, "Command %02X not sent, the module has not reported its gate thresholds yet", command);
+    return;
   }
   this->send_command_(command, value, sizeof(value));
 }
 
 void LD2412Component::set_gate_threshold() {
   this->set_config_mode_(true);
-  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_threshold_numbers_, this->gate_move_thresholds_);
-  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_threshold_numbers_, this->gate_still_thresholds_);
+  this->send_gate_thresholds_(CMD_MOTION_GATE_SENS, this->gate_move_threshold_numbers_, this->gate_move_thresholds_,
+                              this->gate_move_thresholds_read_);
+  this->send_gate_thresholds_(CMD_STATIC_GATE_SENS, this->gate_still_threshold_numbers_, this->gate_still_thresholds_,
+                              this->gate_still_thresholds_read_);
   this->set_config_mode_(false);
 }
 

@@ -1,0 +1,45 @@
+esphome:
+  name: uart-mock-ld2412-unread
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# The mock answers nothing, so the threshold queries that read_all_info() sends during setup go unanswered
+# and the component never learns what the module holds for any gate
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+# Same 2 gate configuration as the gate threshold test, so writing a threshold needs a value for the other
+# 12 gates, and here there is nothing to fill them with
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    gate_0:
+      move_threshold:
+        name: "Gate 0 Move Threshold"
+      still_threshold:
+        name: "Gate 0 Still Threshold"
+    gate_5:
+      move_threshold:
+        name: "Gate 5 Move Threshold"
+      still_threshold:
+        name: "Gate 5 Still Threshold"

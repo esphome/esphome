@@ -33,9 +33,8 @@ uart_mock:
   # Answer frame (28 bytes):
   #   FD FC FB FA = command frame header
   #   12 00       = length 18
-  #   13          = command being answered
-  #   01          = status OK
-  #   00 00       = required zero bytes
+  #   13 01       = command word, the low byte is the command and the high byte 01 marks the answer
+  #   00 00       = ack status, 00 00 is success
   #   14 bytes    = one threshold per gate, gate 0 first
   #   04 03 02 01 = command frame footer
   responses:
