@@ -27,7 +27,7 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     target platform set, so it takes one of the concrete branches.
     """
     if CORE.is_esp32:
-        return ["bluetooth_connection", "esp32_ble_client", "esp32_ble_tracker"]
+        return ["bluetooth_connection", "esp32_ble_tracker"]
     if CORE.target_platform in _HUB_PLATFORMS:
         return ["ble_device_base", "bluetooth_connection"]
     # No target platform, or one this component does not support: tooling
@@ -36,7 +36,6 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     return [
         "ble_device_base",
         "bluetooth_connection",
-        "esp32_ble_client",
         "esp32_ble_tracker",
     ]
 
@@ -86,10 +85,12 @@ def _esp32_config_schema() -> cv.All:
             f"update _IDF_MAX_CONNECTIONS in bluetooth_proxy/__init__.py"
         )
 
-    BluetoothConnection = bluetooth_connection.esp32_connection_class()
     CONNECTION_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(BluetoothConnection),
+            cv.GenerateID(): cv.declare_id(bluetooth_connection.HubBluetoothConnection),
+            cv.GenerateID(CONF_BACKEND_ID): cv.declare_id(
+                bluetooth_connection.BluedroidGattClient
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 
@@ -386,10 +387,16 @@ async def _to_code_esp32(config: ConfigType) -> None:
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", connection_count)
 
     for connection_conf in config.get(CONF_CONNECTIONS, []):
-        connection_var = cg.new_Pvariable(connection_conf[CONF_ID])
-        await cg.register_component(connection_var, connection_conf)
-        cg.add(var.register_connection(connection_var))
-        await esp32_ble_tracker.register_raw_client(connection_var, connection_conf)
+        ble_device_base.request_gatt_client()
+        backend = cg.new_Pvariable(connection_conf[CONF_BACKEND_ID])
+        await cg.register_component(backend, connection_conf)
+        # The tracker promote loop drives connect timing through the shim.
+        await esp32_ble_tracker.register_raw_client(
+            backend.tracker_client(), connection_conf
+        )
+        connection = cg.new_Pvariable(connection_conf[CONF_ID])
+        cg.add(connection.set_backend(backend))
+        cg.add(var.register_connection(connection))
 
     if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)

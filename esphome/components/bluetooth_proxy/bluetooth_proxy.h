@@ -17,9 +17,7 @@
 
 #include "esphome/components/ble_device_base/ble_hub_impl.h"
 
-#ifdef USE_ESP32
-#include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
-#elif defined(USE_BLE_GATT_CLIENT)
+#ifdef USE_BLE_GATT_CLIENT
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
 #endif
 

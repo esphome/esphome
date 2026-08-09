@@ -178,17 +178,11 @@ def test_rp2_rejects_esp32_only_keys_by_name(
 
 
 def test_bluetooth_connection_auto_load_covers_its_includes() -> None:
-    # The esp32 connection header includes esp32_ble_client; the auto load
-    # must satisfy that closure itself (regression: it once relied on the
-    # consumer's auto loads).
-    _set_platform("esp32")
-    assert "esp32_ble_client" in bluetooth_connection.AUTO_LOAD()
-    _set_platform("rp2")
-    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
-    # No target platform (tooling resolving the manifest): the union, so
-    # dependency closures stay complete for build_codeowners and friends.
-    _set_platform(None)
-    assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base", "esp32_ble_client"]
+    # Every backend builds on ble_device_base alone; the Bluedroid backend
+    # talks to IDF directly, so esp32_ble_client is no longer in the closure.
+    for platform in ("esp32", "rp2", None):
+        _set_platform(platform)
+        assert bluetooth_connection.AUTO_LOAD() == ["ble_device_base"]
 
 
 def test_every_registered_hub_platform_has_a_schema_arm() -> None:

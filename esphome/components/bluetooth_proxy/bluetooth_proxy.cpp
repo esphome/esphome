@@ -132,13 +132,6 @@ void BluetoothProxy::log_advertisement_flush_() {
 }
 
 void BluetoothProxy::dump_config() {
-#ifdef USE_ESP32
-  ESP_LOGCONFIG(TAG,
-                "Bluetooth Proxy:\n"
-                "  Active: %s\n"
-                "  Connections: %d",
-                YESNO(this->active_), this->connection_count_);
-#else
   // Print configured facts. dump_config runs right after setup, before the
   // radio is up, so live scan state would always read "stopped" here — the
   // loop's BluetoothScannerStateResponse carries the changing value instead.
@@ -162,31 +155,7 @@ void BluetoothProxy::dump_config() {
                 "  Adapter MAC: %s",
                 scan_mode, mac_out);
 #endif
-#endif
 }
-
-#ifdef USE_ESP32
-
-void BluetoothProxy::loop() {
-  // Run advertisement flush / connection cleanup every 100ms
-  uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_advertisement_flush_time_ < 100)
-    return;
-  this->last_advertisement_flush_time_ = now;
-
-  if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
-    this->flush_pending_advertisements_();
-    return;
-  }
-  for (uint8_t i = 0; i < this->connection_count_; i++) {
-    auto *connection = this->connections_[i];
-    if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-      connection->disconnect();
-    }
-  }
-}
-
-#endif  // USE_ESP32
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
@@ -200,11 +169,8 @@ void BluetoothProxy::register_connection([[maybe_unused]] BluetoothConnection *c
     ESP_LOGE(TAG, "Connection registry full, dropping registration");
     return;
   }
-#ifndef USE_ESP32
-  // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
-  // class has no Component lifecycle, so the index is assigned here.
+  // The hub wrapper has no Component lifecycle, so the index is assigned here.
   connection->connection_index_ = this->connection_count_;
-#endif
   this->connections_[this->connection_count_++] = connection;
   connection->proxy_ = this;
 #endif
@@ -486,6 +452,29 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
 
 #else  // !USE_ESP32
 
+void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
+  if (this->hub_->scan_active() != active) {
+    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
+    if (!this->hub_->request_scan_mode(active)) {
+      // Passive-only controller asked for active scanning; the state report
+      // below carries the real, unchanged mode so the subscriber does not
+      // assume the change happened.
+      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
+    }
+  }
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+  if (this->api_connection_ != nullptr) {
+    // Reports the mode change; the sender also refreshes last_scan_running_, so
+    // a failed restart (scan_running_ dropped by the tracker) is not reported
+    // again by loop() on the next tick. A push hub reports the restart's
+    // transitions (mode rides along) instead.
+    this->send_polled_scanner_state_();
+  }
+#endif
+}
+
+#endif  // USE_ESP32
+
 void BluetoothProxy::loop() {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Stream pending service-discovery batches every iteration (esp32 parity:
@@ -508,7 +497,7 @@ void BluetoothProxy::loop() {
     // (disconnect() on an already-disconnecting backend is a no-op).
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       auto *connection = this->connections_[i];
-      if (connection->get_address() != 0) {
+      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
         connection->disconnect();
       }
     }
@@ -594,29 +583,6 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 }
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
-
-void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->hub_->scan_active() != active) {
-    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-    if (!this->hub_->request_scan_mode(active)) {
-      // Passive-only controller asked for active scanning; the state report
-      // below carries the real, unchanged mode so the subscriber does not
-      // assume the change happened.
-      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
-    }
-  }
-#ifndef USE_BLE_SCANNER_STATE_CALLBACK
-  if (this->api_connection_ != nullptr) {
-    // Reports the mode change; the sender also refreshes last_scan_running_, so
-    // a failed restart (scan_running_ dropped by the tracker) is not reported
-    // again by loop() on the next tick. A push hub reports the restart's
-    // transitions (mode rides along) instead.
-    this->send_polled_scanner_state_();
-  }
-#endif
-}
-
-#endif  // USE_ESP32
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {

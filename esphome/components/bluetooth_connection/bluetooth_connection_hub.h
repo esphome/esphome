@@ -8,7 +8,7 @@
 
 #include "esphome/core/defines.h"
 
-#if !defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+#ifdef USE_BLE_GATT_CLIENT
 
 #include "bluetooth_connection.h"
 
@@ -52,10 +52,11 @@ class BluetoothConnection final {
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
   conn_err_t pair() { return this->backend_->pair(); }
-  // A backend disconnect() is a single call that also cancels an in-progress
-  // connect; there is no deferred-disconnect state to track.
-  bool disconnect_pending() const { return false; }
-  void cancel_pending_disconnect() {}
+  // Backends with deferred-disconnect state (bluedroid) answer through the
+  // detected forwards; the rest have nothing to track. Templates so the
+  // discarded branch is not odr-checked against backends without the methods.
+  bool disconnect_pending() const { return disconnect_pending_(this->backend_); }
+  void cancel_pending_disconnect() { cancel_pending_(this->backend_); }
 
   void set_address(uint64_t address);
   uint64_t get_address() const { return this->address_; }
@@ -65,7 +66,12 @@ class BluetoothConnection final {
   ClientState state() const { return this->state_; }
   void set_state(ClientState st) { this->state_ = st; }
   bool connected() const { return this->state_ == ClientState::ESTABLISHED; }
-  void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
+  void set_connection_type(ConnectionType ct) {
+    this->connection_type_ = ct;
+    // The bluedroid backend branches on the type itself (prefer-params and
+    // the with-cache report at OPEN_EVT).
+    forward_connection_type_(this->backend_, ct);
+  }
   // Latched at discovery completion rather than read from the backend table:
   // streaming frees the table, and this must stay true for the connection's
   // lifetime (esp32 parity — a repeat GetServices is silently ignored there,
@@ -102,6 +108,23 @@ class BluetoothConnection final {
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
   // that lack the method.
+  template<typename Backend> static bool disconnect_pending_(Backend *backend) {
+    if constexpr (requires { backend->disconnect_pending(); }) {
+      return backend->disconnect_pending();
+    } else {
+      return false;
+    }
+  }
+  template<typename Backend> static void cancel_pending_(Backend *backend) {
+    if constexpr (requires { backend->cancel_pending_disconnect(); }) {
+      backend->cancel_pending_disconnect();
+    }
+  }
+  template<typename Backend> static void forward_connection_type_(Backend *backend, ConnectionType ct) {
+    if constexpr (requires { backend->set_connection_type(ct); }) {
+      backend->set_connection_type(ct);
+    }
+  }
   template<typename Backend> void stream_pending_(Backend *backend) {
     if constexpr (requires { backend->stream_service_batch(*this); }) {
       backend->stream_service_batch(*this);
@@ -146,4 +169,4 @@ static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // !USE_ESP32 && USE_BLE_GATT_CLIENT
+#endif  // USE_BLE_GATT_CLIENT

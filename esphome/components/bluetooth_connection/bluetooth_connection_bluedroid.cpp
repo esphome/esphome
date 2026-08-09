@@ -12,7 +12,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_gatt_common_api.h>
 
 #include <cstring>
@@ -342,7 +344,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     resp.services.emplace_back();
     auto &service_resp = resp.services.back();
     fill_gatt_uuid(service_resp.uuid, service_resp.short_uuid,
-                   esp32_ble_tracker::ESPBTUUID::from_uuid(service_result.uuid), use_efficient_uuids);
+                   ble_device_base::ESPBTUUID::from_uuid(service_result.uuid), use_efficient_uuids);
     service_resp.handle = service_result.start_handle;
 
     if (total_char_count > 0) {
@@ -368,7 +370,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
         fill_gatt_uuid(characteristic_resp.uuid, characteristic_resp.short_uuid,
-                       esp32_ble_tracker::ESPBTUUID::from_uuid(char_result.uuid), use_efficient_uuids);
+                       ble_device_base::ESPBTUUID::from_uuid(char_result.uuid), use_efficient_uuids);
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
 
@@ -396,7 +398,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             characteristic_resp.descriptors.emplace_back();
             auto &descriptor_resp = characteristic_resp.descriptors.back();
             fill_gatt_uuid(descriptor_resp.uuid, descriptor_resp.short_uuid,
-                           esp32_ble_tracker::ESPBTUUID::from_uuid(desc_result.uuid), use_efficient_uuids);
+                           ble_device_base::ESPBTUUID::from_uuid(desc_result.uuid), use_efficient_uuids);
             descriptor_resp.handle = desc_result.handle;
             desc_offset++;
           }
@@ -439,7 +441,7 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->report_connection_state_(false, param->open.status);
     return;
   }
-  if (this->shim_.disconnect_scheduled()) {
+  if (this->shim_.disconnect_pending()) {
     // Earliest point conn_id_ exists; keep it set so CLOSE_EVT still matches.
     this->unconditional_disconnect_();
     return;
