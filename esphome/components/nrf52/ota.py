@@ -125,7 +125,9 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
     try:
         # connect() also covers name resolution; mDNS (.local) over a Thread border
         # router can take longer than smpclient's 5s default, so give it headroom.
-        await smp_client.connect(timeout_s=SMP_NET_REQUEST_TIMEOUT if is_udp else 5.0)
+        await smp_client.connect(
+            connect_timeout_s=SMP_NET_REQUEST_TIMEOUT if is_udp else 5.0
+        )
     except BleakDeviceNotFoundError as exc:
         raise EsphomeError(f"Device {device} not found") from exc
     except BleakDBusError as exc:
