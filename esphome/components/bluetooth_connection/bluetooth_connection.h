@@ -48,20 +48,29 @@ static constexpr conn_err_t GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_C
 
 // What the platform's connection backend supports beyond GATT operations;
 // the proxy derives its feature flags and legacy version from these.
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
 static constexpr bool SUPPORTS_PAIRING = true;
 static constexpr bool SUPPORTS_CACHE_CLEARING = true;
+#elif defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
+// The rp2 BTstack backend pairs (just works + bonding); it has no service
+// cache to clear. Keyed on the backend, not the generic client define, so a
+// future backend without pairing keeps the stub arm below.
+static constexpr bool SUPPORTS_PAIRING = true;
+static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #else
 static constexpr bool SUPPORTS_PAIRING = false;
 static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
 conn_err_t unpair_device(uint64_t address);
-conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
+#endif
+#ifdef USE_ESP32
+conn_err_t clear_gatt_cache(uint64_t address);
+#else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
 

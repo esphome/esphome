@@ -1,11 +1,10 @@
 // RP2 (Pico W / Pico 2 W) GATT client backend over BTstack.
 //
-// Implements ble_device_base::BLEGattConnection for the hub BluetoothConnection
-// wrapper. BTstack packet handlers run in the CYW43 async-context low-priority
-// IRQ (or on the main-loop stack during BluetoothLock release), so handlers
-// only copy into per-instance lock-free queues/storage; loop() drains them and
-// drives the state machine. Every BTstack call issued from the main loop is
-// wrapped in BluetoothLock.
+// The build's ble_device_base::BLEGattConnection backend (bound by alias in
+// bluetooth_connection_gatt_backend.h) for the hub BluetoothConnection wrapper. BTstack packet handlers run in the
+// CYW43 async-context low-priority IRQ (or on the main-loop stack during BluetoothLock release), so handlers only copy
+// into per-instance lock-free queues/storage; loop() drains them and drives the state machine. Every BTstack call
+// issued from the main loop is wrapped in BluetoothLock.
 
 #pragma once
 
@@ -27,6 +26,8 @@
 
 namespace esphome::bluetooth_connection {
 
+class BluetoothConnection;
+
 // Caps for the transient service table. Sized generously for real devices
 // (typical peripherals expose < 8 services / < 30 characteristics); a peer
 // exceeding a cap fails discovery with INSUFFICIENT_RESOURCES rather than
@@ -46,10 +47,12 @@ static constexpr uint16_t RP2_GATT_MAX_ATTR_LEN = 512;
 // Control events from the BTstack handlers to loop().
 struct RP2GattEvent {
   enum Type : uint8_t {
-    CONNECTED,       // status + con_handle (value)
-    DISCONNECTED,    // status = HCI reason
-    MTU_EXCHANGED,   // value = negotiated MTU
-    QUERY_COMPLETE,  // status = ATT status of the finished query
+    CONNECTED,          // status + con_handle (value)
+    DISCONNECTED,       // status = HCI reason
+    MTU_EXCHANGED,      // value = negotiated MTU
+    QUERY_COMPLETE,     // status = ATT status of the finished query
+    WRITE_NO_RSP_DONE,  // status = result of the deferred write
+    PAIRING_RESULT,     // status = SM pairing status (0 = bonded)
   };
   Type type;
   uint8_t status;
@@ -70,28 +73,28 @@ static constexpr uint8_t RP2_GATT_EVENT_QUEUE_SIZE = 8;
 // full 512 B ATT payload, so depth buys burst tolerance at ~516 B per slot.
 static constexpr uint8_t RP2_GATT_NOTIFY_QUEUE_SIZE = 4;
 
-class RP2GattClient final : public Component,
-                            public ble_device_base::BLEGattConnection,
-                            public Parented<rp2040_ble::RP2040BLE> {
+class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040BLE> {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
-  // ---- ble_device_base::BLEGattConnection ----
-  int connect(uint64_t address, uint8_t addr_type) override;
-  int disconnect() override;
-  int discover_services() override;
-  int read_characteristic(uint16_t handle) override;
-  int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) override;
-  int read_descriptor(uint16_t handle) override;
-  int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) override;
-  int notify_characteristic(uint16_t handle, bool enable) override;
-  int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                               uint16_t timeout) override;
-  ble_device_base::GattServiceTable get_service_table() override;
-  void release_services() override;
+  void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
+
+  // ---- ble_device_base::BLEGattConnection contract ----
+  int connect(uint64_t address, uint8_t addr_type);
+  int disconnect();
+  int discover_services();
+  int read_characteristic(uint16_t handle);
+  int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
+  int read_descriptor(uint16_t handle);
+  int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len);
+  int notify_characteristic(uint16_t handle, bool enable);
+  int pair();
+  int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
+  ble_device_base::GattServiceTable get_service_table();
+  void release_services();
 
  protected:
   // Link/engine state. Discovery and GATT ops have their own cursors below —
@@ -106,7 +109,7 @@ class RP2GattClient final : public Component,
 
   enum class DiscoveryPhase : uint8_t { NONE, SERVICES, CHARACTERISTICS, DESCRIPTORS };
 
-  enum class OpType : uint8_t { NONE, READ_CHAR, WRITE_CHAR, READ_DESC, WRITE_DESC };
+  enum class OpType : uint8_t { NONE, READ_CHAR, WRITE_CHAR, WRITE_CHAR_NO_RSP, READ_DESC, WRITE_DESC };
 
   // The whole table in one transient allocation (RAMAllocator, checked),
   // freed after streaming.
@@ -119,11 +122,13 @@ class RP2GattClient final : public Component,
   // BTstack packet handlers (IRQ context: copy-and-enqueue only).
   static void hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
   static void gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
+  static void sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
   static RP2GattClient *instance_for_con_handle(hci_con_handle_t con_handle);
 
   void handle_gatt_event_irq_(uint8_t event_type, const uint8_t *packet);
   void enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value);
   void enqueue_notify_irq_(uint16_t handle, const uint8_t *data, uint16_t len);
+  void assemble_blob_irq_(uint16_t offset, const uint8_t *data, uint16_t len);
 
   // Main-loop state machine.
   void handle_event_(const RP2GattEvent &event);
@@ -137,12 +142,15 @@ class RP2GattClient final : public Component,
   void fail_connection_(uint8_t reason);
   void cleanup_link_state_();
   bool notify_subscribed_(uint16_t handle) const;
+  static void can_write_no_rsp_trampoline(void *context);
+  void finish_write_no_rsp_(uint8_t status);
   void release_scan_inhibit_();
   bool op_in_flight_() const {
     return this->op_type_ != OpType::NONE || this->discovery_phase_ != DiscoveryPhase::NONE;
   }
 
   // Group 1: containers / large storage
+  BluetoothConnection *listener_{nullptr};
   ServiceArena *arena_{nullptr};
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;
@@ -156,10 +164,12 @@ class RP2GattClient final : public Component,
 
   // BTstack registrations
   gatt_client_notification_t notification_registration_{};
+  btstack_context_callback_registration_t can_write_registration_{};
 
   // Group 3: 4-byte types
   uint32_t connect_started_{0};
   uint32_t disconnecting_started_{0};
+  uint32_t write_no_rsp_started_{0};
 
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
@@ -199,6 +209,8 @@ class RP2GattClient final : public Component,
   static uint8_t instance_count;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static btstack_packet_callback_registration_t hci_event_registration;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static btstack_packet_callback_registration_t sm_event_registration;
 };
 
 }  // namespace esphome::bluetooth_connection

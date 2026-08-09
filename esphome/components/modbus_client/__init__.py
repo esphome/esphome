@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_COUNT,
+    CONF_ID,
     CONF_ON_ERROR,
     CONF_ON_RESPONSE,
     CONF_VALUE,
@@ -17,6 +18,10 @@ from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
+MULTI_CONF = True
+# The modbus hub auto-loads this component to make the actions available. Without this, that auto-load
+# would try to create a device with no address.
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_ON_CUSTOM_RESPONSE = "on_custom_response"
 CONF_ON_NO_RESPONSE = "on_no_response"
@@ -66,6 +71,34 @@ _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 # The list form below is bounded by cv.Length; a lambda cannot be. PduBuffer drops bytes past
 # modbus.MAX_PDU_SIZE without reporting it, so an over-long lambda PDU is silently truncated.
 _PDU_BUFFER = modbus.modbus_ns.namespace("helpers").class_("PduBuffer")
+
+# A bare modbus::ModbusClientDevice bound to a hub and a device address, and nothing else - no polling,
+# no entities, no automation wiring. It exists so a lambda can talk to a device directly:
+#
+#   modbus_client:
+#     - id: my_client
+#       address: 0x01
+#
+#   - lambda: "id(my_client).write_single_register(0x10, 42);"
+#
+# Nothing here overrides the device callbacks, so every outcome takes the base class default, and those
+# are no-ops: a successful reply, a Modbus exception, a timeout, and a frame that never reached the wire
+# are all discarded without a log. The single exception is a reply the dispatch gate treats as
+# non-standard, which warns once per device and logs at VERBOSE after that. So a lambda gets no feedback
+# on an ordinary failure - use the modbus_client.* actions whenever the outcome matters, since they carry
+# on_response/on_error/on_no_response/on_not_sent handlers.
+# The id is required, not generated: the device is reachable only through id() in a lambda, so an
+# entry without one builds something nothing can name. Better to say so than to accept dead config.
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.declare_id(modbus.ModbusClientDevice),
+    }
+).extend(modbus.modbus_device_schema(None))
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await modbus.register_modbus_client_device(var, config)
 
 
 def _packed_bit_bytes(bits: int) -> int:
