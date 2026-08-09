@@ -371,7 +371,7 @@ template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedCl
   // The 0x17 response carries only the read block, so the hub dispatch delivers it as a holding-register read.
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                          modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger(registers);
   }
 
