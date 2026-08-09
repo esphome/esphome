@@ -542,8 +542,7 @@
 // variants get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
 // gets a hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
 #if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || \
-    defined(USE_NRF52)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_NRF52)
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
 #endif
 
