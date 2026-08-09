@@ -106,3 +106,6 @@ def test_legacy_node_choke_point_rejects_other_platforms() -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
     with pytest.raises(cv.Invalid, match="not been migrated"):
         ble_client._legacy_engine_only(ID("x"))
+    # Through the public schema too, so removing the cv.All wiring fails here.
+    with pytest.raises(cv.Invalid, match="not been migrated"):
+        ble_client.BLE_CLIENT_SCHEMA({})

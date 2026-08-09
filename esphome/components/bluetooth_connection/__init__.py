@@ -36,10 +36,10 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
-# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1;
-# raising this needs an upstream change (the layer itself supports N).
 DOMAIN = "bluetooth_connection"
 
+# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1;
+# raising this needs an upstream change (the layer itself supports N).
 RP2_MAX_CONNECTIONS = 1
 
 # Slot limits for the hub platforms running the connection-capable proxy;

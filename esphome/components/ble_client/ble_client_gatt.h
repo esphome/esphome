@@ -83,14 +83,21 @@ class BLEClient : public Component,
   /// continuations must leave that stack first.
   void run_later(std::function<void()> &&f) { this->defer(std::move(f)); }  // NOLINT
 
-  // Backend ops for nodes and actions. read/write_descriptor have no caller
-  // yet; kept as the frozen node-facing surface (like on_notify/on_read_result).
+  // Backend ops for nodes and actions - the frozen node-facing surface.
+  // Only write_characteristic has an in-tree caller today; the rest exist so
+  // the first migrated node codes against a complete interface (subscribing
+  // means notify_characteristic plus a write_descriptor on the CCCD - the
+  // backend contract keeps the CCCD write the caller's responsibility).
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
     return this->backend_->write_characteristic(handle, data, len, response);
   }
   int read_characteristic(uint16_t handle) { return this->backend_->read_characteristic(handle); }
+  int read_descriptor(uint16_t handle) { return this->backend_->read_descriptor(handle); }
   int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) {
     return this->backend_->write_descriptor(handle, data, len);
+  }
+  int notify_characteristic(uint16_t handle, bool enable) {
+    return this->backend_->notify_characteristic(handle, enable);
   }
 
   // Automation callback registration.
