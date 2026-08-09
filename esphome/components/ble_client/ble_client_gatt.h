@@ -73,8 +73,8 @@ class BLEClient : public Component,
   bool connected() const { return this->state_ == State::CONNECTED; }
   bool idle() const { return this->state_ == State::IDLE; }
 
-  /// Action-initiated connect (no sighting needed; uses the last captured or
-  /// configured address type). No-op unless idle.
+  /// Action-initiated connect (no sighting needed; uses the last captured
+  /// address type, public until a sighting arrives). No-op unless idle.
   void connect();
   void disconnect();
 
@@ -147,6 +147,8 @@ class BLEClient : public Component,
   // Group 6: 1-byte types
   State state_{State::IDLE};
   uint8_t address_type_{0};  // BLE_ADDR_TYPE_*, captured from the sighting
+  // Distinguishes a captured public type from the never-sighted default.
+  bool address_type_known_{false};
   bool auto_connect_{true};
   // A user-initiated teardown in flight; its failure report is not a
   // connect failure and must not feed the backoff.

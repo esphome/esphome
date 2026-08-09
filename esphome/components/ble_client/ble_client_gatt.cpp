@@ -42,6 +42,7 @@ bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
     return false;
   // The sighting is the source of truth for the address type.
   this->address_type_ = device.get_address_type();
+  this->address_type_known_ = true;
   if (!this->enabled || !this->auto_connect_ || this->state_ != State::IDLE)
     return true;
   if (this->hold_off_ms_ != 0 && millis() - this->hold_off_start_ < this->hold_off_ms_)
@@ -56,6 +57,11 @@ void BLEClient::connect() {
   // An absent peer can inhibit scanning for the backend's full connect
   // timeout, so this is worth a breadcrumb - but it is a supported action.
   ESP_LOGI(TAG, "[%s] Connecting on request", this->address_str_);
+  if (!this->address_type_known_) {
+    // Legacy parity: without a sighting the address type defaults to
+    // public, which never matches a random-static peer.
+    ESP_LOGW(TAG, "[%s] No sighting yet; assuming a public address type", this->address_str_);
+  }
   this->attempt_connect_();
 }
 
@@ -81,9 +87,10 @@ void BLEClient::disconnect() {
   this->cancel_requested_ = true;
   int err = this->backend_->gatt_disconnect();
   if (err != 0) {
-    // Refused synchronously (states diverged; the backend is already down):
-    // settle through the normal path, carrying the real code so the log is
-    // distinguishable from a clean teardown.
+    // Refused synchronously: the backend and the client disagreed about the
+    // link state. Worth a warning of its own - the settle below then runs
+    // the same deliberate-cancel path as a clean teardown.
+    ESP_LOGW(TAG, "[%s] Disconnect refused, err=%d; settling locally", this->address_str_, err);
     this->on_connection_state(false, 0, err);
   }
 }
@@ -149,6 +156,9 @@ void BLEClient::on_service_discovery_done(int error) {
   auto table = this->backend_->get_service_table();
   for (auto *node : this->nodes_) {
     node->on_connected(table);
+    if (this->state_ != State::CONNECTED) {
+      return;  // A node tore the link down mid-fan-out; the teardown settled.
+    }
   }
   this->backend_->release_services();
   this->consecutive_failures_ = 0;

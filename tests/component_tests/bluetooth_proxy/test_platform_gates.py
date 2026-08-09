@@ -186,7 +186,9 @@ def test_esp32_explicit_connections_claim_gatt_slots(
     # generated ones; dev historically let them evade the budget.
     set_core_config(PlatformFramework.ESP32_IDF)
     bluetooth_proxy.CONFIG_SCHEMA({"active": True, "connections": [{}, {}]})
-    assert "bluetooth_proxy" in bluetooth_connection._ledger().consumers
+    # Exact match (one entry per slot): catches a missed charge and a
+    # double charge alike.
+    assert bluetooth_connection._ledger().consumers == ["bluetooth_proxy"] * 2
 
 
 def test_hub_source_filter_covers_every_hub_platform() -> None:
