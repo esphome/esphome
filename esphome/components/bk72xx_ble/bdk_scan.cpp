@@ -39,6 +39,9 @@ static_assert(GAPM_SCAN_PROP_PHY_1M_BIT == (1 << 0) && GAPM_SCAN_PROP_ACTIVE_1M_
               "against the SDK's app_ble_start_scaning()");
 static_assert(INVALID_ACTIVITY_IDX == UNKNOW_ACT_IDX,
               "beken-bdk activity sentinel changed; revalidate the scan reconciler");
+static_assert(GAPM_REPORT_TYPE_SCAN_RSP_EXT == 2 && GAPM_REPORT_TYPE_SCAN_RSP_LEG == 3 &&
+                  GAPM_REPORT_INFO_SCAN_ADV_BIT == (1 << 5),
+              "beken-bdk GAPM report info changed; revalidate the tracker's demux constants");
 
 bool bdk_scan_ready() { return app_ble_env_state_get() == APP_BLE_READY; }
 
@@ -99,12 +102,17 @@ BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t win
   return BdkOpResult::OK;
 }
 
+// Last rejected release code, surfaced in the stuck-teardown ERROR.
+static int s_last_release_err = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+int bdk_scan_last_release_error() { return s_last_release_err; }
+
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
   ble_err_t ret = created ? bk_ble_delete_scaning(activity_idx, nullptr) : bk_ble_scan_stop(activity_idx, nullptr);
   if (ret == ERR_SUCCESS)
     return BdkOpResult::OK;
-  // Retryable (the reconciler paces and narrates it); keep the SDK's reason
-  // on record for a later stuck-teardown ERROR.
+  // Retryable; the reconciler paces and narrates it.
+  s_last_release_err = static_cast<int>(ret);
   ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
   return BdkOpResult::BUSY;
 }

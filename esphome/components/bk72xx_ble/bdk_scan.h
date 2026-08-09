@@ -44,6 +44,8 @@ BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t win
 /// rejected), stop otherwise. BUSY when rejected (retry); teardown is
 /// asynchronous — observe IDLE to confirm.
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created);
+/// SDK code of the last rejected release (0 = none); for the stuck-teardown ERROR.
+int bdk_scan_last_release_error();
 
 }  // namespace esphome::bk72xx_ble
 
