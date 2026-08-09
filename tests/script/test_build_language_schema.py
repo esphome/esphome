@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import importlib.util
 import json
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -205,7 +207,7 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
     assert "sensitive_source" not in entry
 
 
-def _wildcard_validator(value):
+def _wildcard_validator(value: Any) -> Any:
     return value
 
 
@@ -231,8 +233,8 @@ def test_convert_keys_marker_wrapped_callable_beside_fixed_keys() -> None:
 
 
 def test_convert_keys_bare_callable_dotted_qualname() -> None:
-    def make_validator():
-        def validator(value):
+    def make_validator() -> Callable[[Any], Any]:
+        def validator(value: Any) -> Any:
             return value
 
         return validator
