@@ -356,25 +356,45 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
     return result
 
 
-def _find_dts_file(board_dir: Path, board: str) -> Path | None:
-    # HWMv2 board strings are "<board>" or "<board>/<soc>" or, for boards with
-    # multiple cores (e.g. esp32c6_devkitc/esp32c6/hpcore), "<board>/<soc>/<qualifier>".
-    # The .dts filename on disk is "<board>[_<qualifier>].dts" -- the middle <soc>
-    # segment never appears in the filename. A board directory can contain more
-    # than one .dts file (e.g. esp32c6_devkitc_hpcore.dts and _lpcore.dts side by
-    # side) so an unqualified glob is ambiguous; the qualifier must disambiguate.
+def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | None:
+    # HWMv2 board strings are "<board>[/<soc>[/<variant>[/<subvariant>[/...]]]]" --
+    # board.yml's `variants:` key nests arbitrarily deep (e.g. rpi_pico2's
+    # rp2350a/m33/w/mcuboot -- soc, a cpucluster, and two nested variant levels, 5
+    # segments total). The on-disk filename is "<board>_<every remaining segment
+    # joined by _><suffix>", except the <soc> segment is dropped when it's already
+    # part of the board dirname itself (esp32c6_devkitc/esp32c6/hpcore ->
+    # esp32c6_devkitc_hpcore.dts, not _esp32c6_hpcore.dts). Try the fully-qualified
+    # form first (covers rpi_pico_rp2040_mcuboot.dts, adafruit_feather_nrf52840_
+    # nrf52840_sense_uf2.dts, rpi_pico2_rp2350a_m33_w_mcuboot.dts), then the same
+    # with the soc segment dropped, then the bare board name.
     parts = board.split("/")
     board_dirname = parts[0]
-    qualifier = parts[2] if len(parts) >= 3 else None
+    rest = parts[1:]
 
-    if qualifier:
-        qualified = board_dir / f"{board_dirname}_{qualifier}.dts"
+    if rest:
+        qualified = board_dir / f"{board_dirname}_{'_'.join(rest)}{suffix}"
         if qualified.exists():
             return qualified
 
-    exact = board_dir / f"{board_dirname}.dts"
+    if len(rest) > 1:
+        qualified = board_dir / f"{board_dirname}_{'_'.join(rest[1:])}{suffix}"
+        if qualified.exists():
+            return qualified
+
+    exact = board_dir / f"{board_dirname}{suffix}"
     if exact.exists():
         return exact
+
+    return None
+
+
+def _find_dts_file(board_dir: Path, board: str) -> Path | None:
+    # A board directory can contain more than one .dts file (e.g.
+    # esp32c6_devkitc_hpcore.dts and _lpcore.dts side by side) so an unqualified glob
+    # is ambiguous; _find_qualified_file's naming match must disambiguate first.
+    found = _find_qualified_file(board_dir, board, ".dts")
+    if found is not None:
+        return found
 
     candidates = [
         f for f in board_dir.glob("*.dts") if not f.name.endswith("_defconfig.dts")
@@ -389,18 +409,9 @@ def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
     file sits next to the .dts and carries the board author's own declared
     `supported:` capability list, maintained independently of the DTS.
     """
-    parts = board.split("/")
-    board_dirname = parts[0]
-    qualifier = parts[2] if len(parts) >= 3 else None
-
-    if qualifier:
-        qualified = board_dir / f"{board_dirname}_{qualifier}.yaml"
-        if qualified.exists():
-            return qualified
-
-    exact = board_dir / f"{board_dirname}.yaml"
-    if exact.exists():
-        return exact
+    found = _find_qualified_file(board_dir, board, ".yaml")
+    if found is not None:
+        return found
 
     candidates = list(board_dir.glob("*.yaml"))
     return candidates[0] if candidates else None
