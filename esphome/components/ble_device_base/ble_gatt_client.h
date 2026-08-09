@@ -79,17 +79,12 @@ struct GattServiceTable {
   uint16_t descriptor_count{0};
 };
 
-/// The event surface a backend delivers completions through. Genuine runtime
-/// polymorphism lives here - one build can hold several consumer types (the
-/// proxy's connection wrapper, dedicated-backend components) against the one
-/// non-virtual backend class - so this is a plain virtual interface: every
-/// method defaults to a no-op, consumers override what they consume (override
-/// makes a misspelled name a compile error), and adding an event touches no
-/// existing consumer. No destructor: components are never destroyed, and
-/// nothing deletes through this base.
-/// on_connection_state carries the negotiated MTU and an HCI
-/// status/disconnect reason. Codegen wires the listener before setup(), so
-/// backends may call without a null check.
+/// The event surface a backend delivers completions through - the one place
+/// with genuine runtime polymorphism (several consumer types, one non-virtual
+/// backend). Methods default to no-ops; consumers override what they consume.
+/// No destructor: components are never destroyed.
+/// on_connection_state carries the negotiated MTU and an HCI status/reason.
+/// Codegen wires the listener before setup(), so backends skip null checks.
 class GattClientListener {
  public:
   virtual void on_connection_state(bool connected, uint16_t mtu, int error) {}
