@@ -33,6 +33,8 @@ class BluetoothConnection;
 // void disconnect() cannot overload with an int-returning twin.
 class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
+  static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
+
   // Lifecycle of one connection attempt's service search.
   enum class SearchState : uint8_t {
     NONE,           // no search this attempt
@@ -126,7 +128,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   esp_bd_addr_t remote_bda_{};
 
   // Group 4: 2-byte types
-  uint16_t conn_id_{0xFFFF};
+  uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t service_total_{0};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // Filled element counts of the materialized table (0 when none).
