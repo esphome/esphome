@@ -23,6 +23,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
@@ -1908,8 +1909,7 @@ bool APIConnection::send_device_capabilities_response_() {
   DeviceCapabilitiesResponse resp;
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char bluetooth_mac[18];
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.bluetooth_proxy.mac_address = StringRef(bluetooth_mac);
 #endif
