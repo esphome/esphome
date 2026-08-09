@@ -357,27 +357,27 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
 
 
 def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | None:
-    # HWMv2 board strings are "<board>" or "<board>/<soc>" or, for boards with
-    # multiple cores (e.g. esp32c6_devkitc/esp32c6/hpcore), "<board>/<soc>/<qualifier>".
-    # The on-disk filename is usually "<board>[_<qualifier>]<suffix>" -- the middle
-    # <soc> segment is dropped when it's already part of the board dirname itself
-    # (esp32c6_devkitc_hpcore.dts). But some vendors keep it: a single board directory
-    # covering several SoC variants (rpi_pico's plain/w/mcuboot family, nRF54L/LM20's
-    # DK covering multiple die revisions) needs it to disambiguate, giving filenames
-    # like rpi_pico_rp2040_mcuboot.dts or nrf54l15dk_nrf54l15_cpuapp.dts instead. Try
-    # the more specific form first, then fall back to the shorter one.
+    # HWMv2 board strings are "<board>[/<soc>[/<variant>[/<subvariant>[/...]]]]" --
+    # board.yml's `variants:` key nests arbitrarily deep (e.g. rpi_pico2's
+    # rp2350a/m33/w/mcuboot -- soc, a cpucluster, and two nested variant levels, 5
+    # segments total). The on-disk filename is "<board>_<every remaining segment
+    # joined by _><suffix>", except the <soc> segment is dropped when it's already
+    # part of the board dirname itself (esp32c6_devkitc/esp32c6/hpcore ->
+    # esp32c6_devkitc_hpcore.dts, not _esp32c6_hpcore.dts). Try the fully-qualified
+    # form first (covers rpi_pico_rp2040_mcuboot.dts, adafruit_feather_nrf52840_
+    # nrf52840_sense_uf2.dts, rpi_pico2_rp2350a_m33_w_mcuboot.dts), then the same
+    # with the soc segment dropped, then the bare board name.
     parts = board.split("/")
     board_dirname = parts[0]
-    soc = parts[1] if len(parts) >= 2 else None
-    qualifier = parts[2] if len(parts) >= 3 else None
+    rest = parts[1:]
 
-    if qualifier and soc:
-        qualified = board_dir / f"{board_dirname}_{soc}_{qualifier}{suffix}"
+    if rest:
+        qualified = board_dir / f"{board_dirname}_{'_'.join(rest)}{suffix}"
         if qualified.exists():
             return qualified
 
-    if qualifier:
-        qualified = board_dir / f"{board_dirname}_{qualifier}{suffix}"
+    if len(rest) > 1:
+        qualified = board_dir / f"{board_dirname}_{'_'.join(rest[1:])}{suffix}"
         if qualified.exists():
             return qualified
 

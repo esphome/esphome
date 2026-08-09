@@ -94,7 +94,10 @@ def test_resolve_zephyr_bus_raises_when_nothing_resolves() -> None:
 def fake_zephyr_base(tmp_path: Path) -> Path:
     """Build a minimal boards/ tree mimicking HWMv2 layout, including a board
     with two qualifier-suffixed .dts files (like esp32c6_devkitc's hpcore/lpcore)
-    to exercise the qualifier-disambiguation fix in _find_dts_file.
+    to exercise the qualifier-disambiguation fix in _find_dts_file, and a board
+    whose qualified filenames repeat the <soc> segment (like rpi_pico's plain/
+    w/mcuboot family and nRF54L15's multi-die DK) to exercise
+    _find_qualified_file's <board>_<soc>_<qualifier> match.
     """
     boards = tmp_path / "boards"
     single = boards / "espressif" / "esp32h2_devkitm"
@@ -105,6 +108,58 @@ def fake_zephyr_base(tmp_path: Path) -> Path:
     dual.mkdir(parents=True)
     (dual / "esp32c6_devkitc_lpcore.dts").write_text("/* lpcore */")
     (dual / "esp32c6_devkitc_hpcore.dts").write_text("/* hpcore */")
+
+    # Real upstream filenames (raspberrypi/rpi_pico) -- soc "rp2040" repeats in the
+    # qualified variants' filenames, but not the plain board's.
+    rpi_pico = boards / "raspberrypi" / "rpi_pico"
+    rpi_pico.mkdir(parents=True)
+    (rpi_pico / "rpi_pico.dts").write_text("/* plain */")
+    (rpi_pico / "rpi_pico_rp2040_mcuboot.dts").write_text("/* mcuboot */")
+    (rpi_pico / "rpi_pico_rp2040_w.dts").write_text("/* w */")
+    (rpi_pico / "rpi_pico_rp2040_w_mcuboot.dts").write_text("/* w mcuboot */")
+
+    # Real upstream filenames (nordic/nrf54l15dk) -- many adjacent qualified
+    # variants sharing a prefix, to make sure disambiguation doesn't false-match
+    # a neighbor (e.g. nrf54l15dk_nrf54l15_cpuapp vs. _cpuapp_ns/_cpuflpr).
+    nrf54l15dk = boards / "nordic" / "nrf54l15dk"
+    nrf54l15dk.mkdir(parents=True)
+    for suffix in (
+        "nrf54l05_cpuapp",
+        "nrf54l05_cpuflpr",
+        "nrf54l10_cpuapp",
+        "nrf54l10_cpuapp_ns",
+        "nrf54l10_cpuflpr",
+        "nrf54l15_cpuapp",
+        "nrf54l15_cpuapp_ns",
+        "nrf54l15_cpuflpr",
+        "nrf54l15_cpuflpr_xip",
+    ):
+        (nrf54l15dk / f"nrf54l15dk_{suffix}.dts").write_text(f"/* {suffix} */")
+
+    # Real upstream filenames (adafruit/feather_nrf52840) -- board.yml nests a
+    # "uf2" variant under the "sense" variant, giving a 4-segment identifier
+    # (board/soc/sense/uf2) whose filename doubles the soc AND both variant levels.
+    feather = boards / "adafruit" / "feather_nrf52840"
+    feather.mkdir(parents=True)
+    (feather / "adafruit_feather_nrf52840.dts").write_text("/* plain */")
+    (feather / "adafruit_feather_nrf52840_nrf52840_uf2.dts").write_text("/* uf2 */")
+    (feather / "adafruit_feather_nrf52840_nrf52840_sense.dts").write_text("/* sense */")
+    (feather / "adafruit_feather_nrf52840_nrf52840_sense_uf2.dts").write_text(
+        "/* sense uf2 */"
+    )
+
+    # Real upstream filenames (raspberrypi/rpi_pico2) -- board.yml's `cpucluster:`
+    # attribute inserts its own path segment ("m33"), on top of the variant
+    # nesting, giving a 5-segment identifier (board/soc/cpucluster/variant/
+    # subvariant) for rp2350a/m33/w/mcuboot.
+    rpi_pico2 = boards / "raspberrypi" / "rpi_pico2"
+    rpi_pico2.mkdir(parents=True)
+    (rpi_pico2 / "rpi_pico2_rp2350a_m33.dts").write_text("/* m33 */")
+    (rpi_pico2 / "rpi_pico2_rp2350a_m33_mcuboot.dts").write_text("/* m33 mcuboot */")
+    (rpi_pico2 / "rpi_pico2_rp2350a_m33_w.dts").write_text("/* m33 w */")
+    (rpi_pico2 / "rpi_pico2_rp2350a_m33_w_mcuboot.dts").write_text(
+        "/* m33 w mcuboot */"
+    )
 
     return tmp_path
 
@@ -147,6 +202,83 @@ def test_find_dts_file_falls_back_to_glob_when_unambiguous(tmp_path: Path) -> No
     (board_dir / "only_board.dts").write_text("/* only */")
     result = _find_dts_file(board_dir, "only_board/soc")
     assert result == board_dir / "only_board.dts"
+
+
+def test_find_dts_file_doubled_soc_segment_picks_qualified_variant(
+    fake_zephyr_base: Path,
+) -> None:
+    """Regression test for the rpi_pico/rp2040/mcuboot bug: when the qualified
+    filename repeats the <soc> segment (rpi_pico_rp2040_mcuboot.dts, not
+    rpi_pico_mcuboot.dts), it must still be found -- not silently fall through to
+    the plain board's rpi_pico.dts."""
+    board_dir = fake_zephyr_base / "boards" / "raspberrypi" / "rpi_pico"
+    result = _find_dts_file(board_dir, "rpi_pico/rp2040/mcuboot")
+    assert result == board_dir / "rpi_pico_rp2040_mcuboot.dts"
+
+    result_w = _find_dts_file(board_dir, "rpi_pico_rp2040_w/rp2040/mcuboot")
+    assert result_w == board_dir / "rpi_pico_rp2040_w_mcuboot.dts"
+
+
+def test_find_dts_file_doubled_soc_segment_bare_board_picks_plain(
+    fake_zephyr_base: Path,
+) -> None:
+    """The default (no qualifier) board string must still resolve to the plain
+    board file, not accidentally match a qualified variant."""
+    board_dir = fake_zephyr_base / "boards" / "raspberrypi" / "rpi_pico"
+    result = _find_dts_file(board_dir, "rpi_pico/rp2040")
+    assert result == board_dir / "rpi_pico.dts"
+
+
+def test_find_dts_file_doubled_soc_segment_disambiguates_among_many_neighbors(
+    fake_zephyr_base: Path,
+) -> None:
+    """nrf54l15dk-shaped case: several qualified variants share a long common
+    prefix (nrf54l15dk_nrf54l15_cpuapp vs. _cpuapp_ns vs. _cpuflpr vs. _cpuflpr_xip,
+    plus sibling die revisions nrf54l05/nrf54l10) -- must match exactly, not a
+    neighbor with the same prefix."""
+    board_dir = fake_zephyr_base / "boards" / "nordic" / "nrf54l15dk"
+    result = _find_dts_file(board_dir, "nrf54l15dk/nrf54l15/cpuapp")
+    assert result == board_dir / "nrf54l15dk_nrf54l15_cpuapp.dts"
+
+    result_ns = _find_dts_file(board_dir, "nrf54l15dk/nrf54l15/cpuapp_ns")
+    assert result_ns == board_dir / "nrf54l15dk_nrf54l15_cpuapp_ns.dts"
+
+    result_l05 = _find_dts_file(board_dir, "nrf54l15dk/nrf54l05/cpuapp")
+    assert result_l05 == board_dir / "nrf54l15dk_nrf54l05_cpuapp.dts"
+
+
+def test_find_dts_file_four_segment_nested_variant(fake_zephyr_base: Path) -> None:
+    """adafruit_feather_nrf52840/nrf52840/sense/uf2 -- a 4-segment identifier from
+    board.yml's nested `variants:` (uf2 nested under sense). Must match the fully
+    qualified file, not the shorter "sense" or "uf2"-only siblings."""
+    board_dir = fake_zephyr_base / "boards" / "adafruit" / "feather_nrf52840"
+
+    result = _find_dts_file(board_dir, "adafruit_feather_nrf52840/nrf52840/sense/uf2")
+    assert result == board_dir / "adafruit_feather_nrf52840_nrf52840_sense_uf2.dts"
+
+    result_sense = _find_dts_file(board_dir, "adafruit_feather_nrf52840/nrf52840/sense")
+    assert result_sense == board_dir / "adafruit_feather_nrf52840_nrf52840_sense.dts"
+
+    result_uf2 = _find_dts_file(board_dir, "adafruit_feather_nrf52840/nrf52840/uf2")
+    assert result_uf2 == board_dir / "adafruit_feather_nrf52840_nrf52840_uf2.dts"
+
+
+def test_find_dts_file_five_segment_cpucluster_and_nested_variant(
+    fake_zephyr_base: Path,
+) -> None:
+    """rpi_pico2/rp2350a/m33/w/mcuboot -- a 5-segment identifier where board.yml's
+    `cpucluster:` attribute (m33) inserts its own path segment on top of two
+    nested variant levels (w, then mcuboot). Must match the fully qualified file."""
+    board_dir = fake_zephyr_base / "boards" / "raspberrypi" / "rpi_pico2"
+
+    result = _find_dts_file(board_dir, "rpi_pico2/rp2350a/m33/w/mcuboot")
+    assert result == board_dir / "rpi_pico2_rp2350a_m33_w_mcuboot.dts"
+
+    result_plain_mcuboot = _find_dts_file(board_dir, "rpi_pico2/rp2350a/m33/mcuboot")
+    assert result_plain_mcuboot == board_dir / "rpi_pico2_rp2350a_m33_mcuboot.dts"
+
+    result_cluster_only = _find_dts_file(board_dir, "rpi_pico2/rp2350a/m33")
+    assert result_cluster_only == board_dir / "rpi_pico2_rp2350a_m33.dts"
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +412,17 @@ def test_find_board_yaml_picks_correct_qualifier(fake_zephyr_base: Path) -> None
     (board_dir / "esp32c6_devkitc_lpcore.yaml").write_text("supported:\n  - uart\n")
     result = _find_board_yaml(board_dir, "esp32c6_devkitc/esp32c6/hpcore")
     assert result == board_dir / "esp32c6_devkitc_hpcore.yaml"
+
+
+def test_find_board_yaml_doubled_soc_segment_picks_qualified_variant(
+    fake_zephyr_base: Path,
+) -> None:
+    """Same regression as the .dts case, for the .yaml sibling file."""
+    board_dir = fake_zephyr_base / "boards" / "raspberrypi" / "rpi_pico"
+    (board_dir / "rpi_pico.yaml").write_text("supported:\n  - uart\n")
+    (board_dir / "rpi_pico_rp2040_mcuboot.yaml").write_text("supported:\n  - flash\n")
+    result = _find_board_yaml(board_dir, "rpi_pico/rp2040/mcuboot")
+    assert result == board_dir / "rpi_pico_rp2040_mcuboot.yaml"
 
 
 def test_get_board_yaml_supported_end_to_end(tmp_path: Path) -> None:
