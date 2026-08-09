@@ -4,6 +4,7 @@ Supports image (single-shot) and audio (streaming) model types,
 with local file, github shorthand, and http URL model sources.
 """
 
+from contextlib import suppress
 import hashlib
 import json
 from pathlib import Path
@@ -235,10 +236,8 @@ def _download_http_model(url):
         # auto-detection falls back to filename heuristics.
         txt_url = f"{url[:-7]}.txt"
         txt_path = path / Path(txt_url).name
-        try:
+        with suppress(cv.Invalid, OSError):
             external_files.download_content(txt_url, txt_path)
-        except (cv.Invalid, OSError):
-            pass
         return model_path
 
     manifest_path = path / "manifest.json"
