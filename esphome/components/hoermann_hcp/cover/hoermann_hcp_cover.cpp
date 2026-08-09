@@ -1,12 +1,12 @@
-#include "hoermann_cover.h"
+#include "hoermann_hcp_cover.h"
 
 #include "esphome/core/log.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann.cover";
+static const char *const TAG = "hoermann_hcp.cover";
 
-cover::CoverTraits HoermannCover::get_traits() {
+cover::CoverTraits HoermannHcpCover::get_traits() {
   auto traits = cover::CoverTraits();
   traits.set_supports_position(true);
   traits.set_supports_stop(true);
@@ -14,13 +14,13 @@ cover::CoverTraits HoermannCover::get_traits() {
   return traits;
 }
 
-void HoermannCover::setup() {
+void HoermannHcpCover::setup() {
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
-void HoermannCover::dump_config() { LOG_COVER("", "Hoermann Cover", this); }
+void HoermannHcpCover::dump_config() { LOG_COVER("", "Hoermann HCP Cover", this); }
 
-void HoermannCover::control(const cover::CoverCall &call) {
+void HoermannHcpCover::control(const cover::CoverCall &call) {
   if (call.get_stop()) {
     this->parent_->stop_door();
   }
@@ -32,7 +32,7 @@ void HoermannCover::control(const cover::CoverCall &call) {
   }
 }
 
-void HoermannCover::update_from_state_() {
+void HoermannHcpCover::update_from_state_() {
   if (!this->parent_->is_valid()) {
     this->status_set_warning();
     return;
@@ -73,4 +73,4 @@ void HoermannCover::update_from_state_() {
   }
 }
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp

@@ -3,21 +3,21 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
 
-from .. import CONF_HOERMANN_ID, Hoermann, hoermann_ns
+from .. import CONF_HOERMANN_HCP_ID, HoermannHcp, hoermann_hcp_ns
 
-DEPENDENCIES = ["hoermann"]
+DEPENDENCIES = ["hoermann_hcp"]
 
 CONF_IS_CONNECTED = "is_connected"
 
-HoermannConnectedBinarySensor = hoermann_ns.class_(
-    "HoermannConnectedBinarySensor", binary_sensor.BinarySensor, cg.Component
+HoermannHcpConnectedBinarySensor = hoermann_hcp_ns.class_(
+    "HoermannHcpConnectedBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_HOERMANN_ID): cv.use_id(Hoermann),
+        cv.GenerateID(CONF_HOERMANN_HCP_ID): cv.use_id(HoermannHcp),
         cv.Optional(CONF_IS_CONNECTED): binary_sensor.binary_sensor_schema(
-            HoermannConnectedBinarySensor,
+            HoermannHcpConnectedBinarySensor,
             device_class=DEVICE_CLASS_CONNECTIVITY,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.COMPONENT_SCHEMA),
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_HOERMANN_ID])
+    parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
     if (conf := config.get(CONF_IS_CONNECTED)) is not None:
         var = await binary_sensor.new_binary_sensor(conf)
         await cg.register_component(var, conf)

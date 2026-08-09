@@ -1,13 +1,13 @@
-hoermann:
-  id: hoermann_hcp
+hoermann_hcp:
+  id: hoermann_hcp_hub
   modbus_id: modbus_server_bus
 
 cover:
-  - platform: hoermann
+  - platform: hoermann_hcp
     name: Garage Door
     device_class: garage
 
 binary_sensor:
-  - platform: hoermann
+  - platform: hoermann_hcp
     is_connected:
       name: Garage Connected

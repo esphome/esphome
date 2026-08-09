@@ -1,11 +1,11 @@
-#include "hoermann.h"
+#include "hoermann_hcp.h"
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann";
+static const char *const TAG = "hoermann_hcp";
 
 // Simulated key-press duration: a command is "pressed" for this long before its end value is sent.
 static constexpr uint32_t SIMULATE_KEY_PRESS_DELAY_MS = 100;
@@ -18,9 +18,9 @@ static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back b
 static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by the bus controller
 
 // Command definitions: {name, reg_plus2_start, reg_plus2_end, reg_plus3_start, reg_plus3_end}.
-static constexpr HoermannCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x0000};
-static constexpr HoermannCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
-static constexpr HoermannCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
+static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x0000};
+static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
+static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
 
 // The hub rejects a reply whose register count does not match the request, so an unrecognized block length
 // is padded with zeros rather than answered with an exception that would fail the controller's whole poll.
@@ -42,7 +42,7 @@ static bool is_moving(DoorState state) {
   }
 }
 
-void Hoermann::update() {
+void HoermannHcp::update() {
   // Time out the connection flag if the bus controller stopped polling.
   if (this->valid_ && millis() - this->last_response_ > CONNECTION_TIMEOUT_MS) {
     this->set_valid_(false);
@@ -53,15 +53,15 @@ void Hoermann::update() {
   }
 }
 
-void Hoermann::dump_config() {
+void HoermannHcp::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Hoermann HCP bridge:\n"
                 "  Modbus server address: 0x%02X",
                 this->get_address());
 }
 
-modbus::ResponseStatus Hoermann::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                           modbus::RegisterValues &registers) {
+modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                              modbus::RegisterValues &registers) {
   this->record_response_();
 
   if (start_address != STATE_REG) {
@@ -110,7 +110,8 @@ modbus::ResponseStatus Hoermann::on_read_holding_registers(uint16_t start_addres
   return {};
 }
 
-modbus::ResponseStatus Hoermann::on_write_registers(uint16_t start_address, const modbus::RegisterValues &registers) {
+modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
+                                                       const modbus::RegisterValues &registers) {
   this->record_response_();
 
   if (start_address == COMMAND_REG) {
@@ -139,7 +140,7 @@ modbus::ResponseStatus Hoermann::on_write_registers(uint16_t start_address, cons
   return {};
 }
 
-void Hoermann::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3) {
+void HoermannHcp::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3) {
   reg_plus2 = 0x0000;
   reg_plus3 = 0x0000;
   if (this->next_command_ == nullptr)
@@ -162,7 +163,7 @@ void Hoermann::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_pl
   // Within the key-press window we keep presenting 0x0000.
 }
 
-void Hoermann::on_door_position_changed_(uint16_t old_value, uint16_t new_value) {
+void HoermannHcp::on_door_position_changed_(uint16_t old_value, uint16_t new_value) {
   // Low byte: current position.
   if ((old_value & 0x00FF) == (new_value & 0x00FF))
     return;
@@ -179,7 +180,7 @@ void Hoermann::on_door_position_changed_(uint16_t old_value, uint16_t new_value)
     this->stop_door();
 }
 
-void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value) {
+void HoermannHcp::on_current_state_changed_(uint16_t old_value, uint16_t new_value) {
   // The low byte is part of the state for 0x00, so the whole register has to be compared, not just the high byte.
   if (old_value == new_value)
     return;
@@ -221,7 +222,7 @@ void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value)
   }
 }
 
-bool Hoermann::queue_command_(const HoermannCommand &command) {
+bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
   if (!this->valid_) {
     // Queueing now would fire the command whenever the controller comes back, which may be much later.
     ESP_LOGW(TAG, "Not connected to the bus controller, dropping '%s' command", command.name);
@@ -237,11 +238,11 @@ bool Hoermann::queue_command_(const HoermannCommand &command) {
   return true;
 }
 
-void Hoermann::open_door() { this->queue_command_(COMMAND_OPEN); }
-void Hoermann::close_door() { this->queue_command_(COMMAND_CLOSE); }
-void Hoermann::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
+void HoermannHcp::open_door() { this->queue_command_(COMMAND_OPEN); }
+void HoermannHcp::close_door() { this->queue_command_(COMMAND_CLOSE); }
+void HoermannHcp::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
 
-void Hoermann::stop_door() {
+void HoermannHcp::stop_door() {
   if (!is_moving(this->door_state_)) {
     this->goto_position_ = 0.0f;
     return;
@@ -250,7 +251,7 @@ void Hoermann::stop_door() {
   this->queue_command_(COMMAND_IMPULSE);
 }
 
-void Hoermann::set_position(float position) {
+void HoermannHcp::set_position(float position) {
   // The first and last movement segments are inconsistent on some doors, so snap to fully open/closed.
   if (position <= 0.05f) {
     this->close_door();
@@ -272,12 +273,12 @@ void Hoermann::set_position(float position) {
     this->goto_position_ = position;
 }
 
-void Hoermann::record_response_() {
+void HoermannHcp::record_response_() {
   this->last_response_ = millis();
   this->set_valid_(true);
 }
 
-void Hoermann::set_valid_(bool valid) {
+void HoermannHcp::set_valid_(bool valid) {
   if (this->valid_ == valid)
     return;
   this->valid_ = valid;
@@ -293,7 +294,7 @@ void Hoermann::set_valid_(bool valid) {
   this->goto_position_ = 0.0f;
 }
 
-void Hoermann::set_door_state_(DoorState state) {
+void HoermannHcp::set_door_state_(DoorState state) {
   if (this->door_state_ == state)
     return;
   this->door_state_ = state;
@@ -304,7 +305,7 @@ void Hoermann::set_door_state_(DoorState state) {
   this->update_current_position_();
 }
 
-void Hoermann::update_current_position_() {
+void HoermannHcp::update_current_position_() {
   // Doors do not always park at exactly 0 or 200, and Cover::is_fully_closed() is an exact comparison, so
   // trust the reported end stop over the raw count.
   switch (this->door_state_) {
@@ -320,11 +321,11 @@ void Hoermann::update_current_position_() {
   }
 }
 
-void Hoermann::set_current_position_(float position) {
+void HoermannHcp::set_current_position_(float position) {
   if (this->current_position_ != position) {
     this->current_position_ = position;
     this->changed_ = true;
   }
 }
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp

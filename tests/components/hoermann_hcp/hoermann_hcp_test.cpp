@@ -3,20 +3,20 @@
 #include <chrono>
 #include <thread>
 
-#include "esphome/components/hoermann/hoermann.h"
+#include "esphome/components/hoermann_hcp/hoermann_hcp.h"
 
-namespace esphome::hoermann {
+namespace esphome::hoermann_hcp {
 
 using modbus::RegisterValues;
 
 namespace {
 
-// Register block addresses the Hoermann bus controller polls (see hoermann.cpp).
+// Register block addresses the Hoermann bus controller polls (see hoermann_hcp.cpp).
 constexpr uint16_t COMMAND_REG = 0x9C41;
 constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
 
-// Simulated key-press duration in hoermann.cpp, plus margin for a loaded CI runner.
+// Simulated key-press duration in hoermann_hcp.cpp, plus margin for a loaded CI runner.
 constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(150);
 
 RegisterValues make_registers(std::initializer_list<uint16_t> values) {
@@ -27,10 +27,10 @@ RegisterValues make_registers(std::initializer_list<uint16_t> values) {
 }
 
 // The device only accepts commands once the bus controller has actually talked to it.
-void connect(Hoermann &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
+void connect(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
 
 // Runs one command poll (write 2 / read 8) and returns the register carrying the key-press value.
-uint16_t poll_command(Hoermann &door) {
+uint16_t poll_command(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
@@ -39,16 +39,16 @@ uint16_t poll_command(Hoermann &door) {
 }
 
 // Exposes the connection bookkeeping so the timeout cleanup can be driven without waiting it out.
-class TestableHoermann : public Hoermann {
+class TestableHoermannHcp : public HoermannHcp {
  public:
-  using Hoermann::set_valid_;
+  using HoermannHcp::set_valid_;
 };
 
 }  // namespace
 
 // An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
-TEST(HoermannReadWrite, EmptyPollReturnsStatusWord) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
+  HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 2, response);
@@ -59,8 +59,8 @@ TEST(HoermannReadWrite, EmptyPollReturnsStatusWord) {
 }
 
 // A bus scan (write 3 / read 5) answers with the fixed device identification block.
-TEST(HoermannReadWrite, BusScanReturnsIdentification) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
+  HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 5, response);
@@ -73,8 +73,8 @@ TEST(HoermannReadWrite, BusScanReturnsIdentification) {
 }
 
 // Without a queued command, the command poll (write 2 / read 8) reports idle and no key press.
-TEST(HoermannReadWrite, IdleCommandPollHasNoCommand) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, IdleCommandPollHasNoCommand) {
+  HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
   auto status = door.on_read_holding_registers(STATE_REG, 8, response);
@@ -86,8 +86,8 @@ TEST(HoermannReadWrite, IdleCommandPollHasNoCommand) {
 }
 
 // A queued control command is injected into the next command poll as a simulated key press.
-TEST(HoermannReadWrite, QueuedCommandIsInjectedIntoPoll) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, QueuedCommandIsInjectedIntoPoll) {
+  HoermannHcp door;
   connect(door);
   door.open_door();
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
@@ -100,16 +100,16 @@ TEST(HoermannReadWrite, QueuedCommandIsInjectedIntoPoll) {
 }
 
 // A read of any other block is an addressing error rather than a successful all-zero reply.
-TEST(HoermannReadWrite, UnknownAddressIsRejected) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
+  HoermannHcp door;
   RegisterValues response;
   EXPECT_EQ(door.on_read_holding_registers(0x1234, 2, response), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_EQ(door.on_write_registers(0x1234, make_registers({0x0000})), modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // A command is held for the key-press duration, then released, and only then can the next one be queued.
-TEST(HoermannReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
+  HoermannHcp door;
   connect(door);
   door.open_door();
   EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
@@ -124,16 +124,16 @@ TEST(HoermannReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
 }
 
 // Commands issued while the bus controller is absent are dropped instead of firing when it returns.
-TEST(HoermannReadWrite, CommandIsDroppedWhileDisconnected) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, CommandIsDroppedWhileDisconnected) {
+  HoermannHcp door;
   door.open_door();
   EXPECT_EQ(poll_command(door), 0x0000);
 }
 
 // Losing the controller must drop a command it never fetched, otherwise it blocks every later command
 // and fires unasked once the bus comes back.
-TEST(HoermannReadWrite, ConnectionLossDropsThePendingCommand) {
-  TestableHoermann door;
+TEST(HoermannHcpReadWrite, ConnectionLossDropsThePendingCommand) {
+  TestableHoermannHcp door;
   connect(door);
   door.open_door();
   ASSERT_TRUE(door.is_valid());
@@ -150,8 +150,8 @@ TEST(HoermannReadWrite, ConnectionLossDropsThePendingCommand) {
 
 // The 0x17 read half echoes the message counter and command byte written to COMMAND_REG, packed
 // differently per block length.
-TEST(HoermannReadWrite, CommandRegisterIsEchoedBack) {
-  Hoermann door;
+TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
+  HoermannHcp door;
   // Counter 0x34 in the high byte, command 0x07 in the low byte.
   door.on_write_registers(COMMAND_REG, make_registers({0x3407, 0x0000}));
 
@@ -175,8 +175,8 @@ TEST(HoermannReadWrite, CommandRegisterIsEchoedBack) {
 }
 
 // A status broadcast (function code 0x10 to 0x9D31) updates the decoded door state and position.
-TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
-  Hoermann door;
+TEST(HoermannHcpWrite, BroadcastUpdatesStateAndPosition) {
+  HoermannHcp door;
   // registers[1] low byte = position (value / 200), registers[2] high byte = state (0x01 -> opening).
   auto status = door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_FALSE(status.has_value());
@@ -186,8 +186,8 @@ TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
 
 // The vent position is reported as state 0x00 with low byte 0x61, so a change confined to the low byte of
 // the state register still has to be decoded.
-TEST(HoermannWrite, VentIsDecodedFromTheStateLowByte) {
-  Hoermann door;
+TEST(HoermannHcpWrite, VentIsDecodedFromTheStateLowByte) {
+  HoermannHcp door;
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0100}));
   ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0000}));
@@ -198,8 +198,8 @@ TEST(HoermannWrite, VentIsDecodedFromTheStateLowByte) {
 
 // A door parking a count short of its end stop must still report exactly closed or open, because
 // Cover::is_fully_closed() compares against 0.0 exactly.
-TEST(HoermannWrite, EndStopsReportExactPositions) {
-  Hoermann door;
+TEST(HoermannHcpWrite, EndStopsReportExactPositions) {
+  HoermannHcp door;
   // Position register 1 of 200 while the door reports itself closed.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0001, 0x4000}));
   ASSERT_EQ(door.get_door_state(), DoorState::CLOSED);
@@ -216,8 +216,8 @@ TEST(HoermannWrite, EndStopsReportExactPositions) {
 }
 
 // A position request below the lower snap threshold becomes a plain close command.
-TEST(HoermannPosition, NearlyClosedTargetClosesTheDoor) {
-  Hoermann door;
+TEST(HoermannHcpPosition, NearlyClosedTargetClosesTheDoor) {
+  HoermannHcp door;
   connect(door);
   door.set_position(0.02f);
   RegisterValues response;
@@ -227,8 +227,8 @@ TEST(HoermannPosition, NearlyClosedTargetClosesTheDoor) {
 }
 
 // A half-open target starts the door moving towards the requested position.
-TEST(HoermannPosition, HalfOpenTargetOpensTheDoor) {
-  Hoermann door;  // starts out fully closed
+TEST(HoermannHcpPosition, HalfOpenTargetOpensTheDoor) {
+  HoermannHcp door;  // starts out fully closed
   connect(door);
   door.set_position(0.5f);
   RegisterValues response;
@@ -238,8 +238,8 @@ TEST(HoermannPosition, HalfOpenTargetOpensTheDoor) {
 }
 
 // The door has no notion of a target, so it is stopped with an impulse once it travels past the request.
-TEST(HoermannPosition, TargetPositionStopsTheDoor) {
-  Hoermann door;
+TEST(HoermannHcpPosition, TargetPositionStopsTheDoor) {
+  HoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
@@ -258,8 +258,8 @@ TEST(HoermannPosition, TargetPositionStopsTheDoor) {
 
 // An impulse restarts a stopped door, so a frame reporting the stop and the target crossing at once
 // must be read as "already stopped" rather than "still opening".
-TEST(HoermannPosition, StopReportedWithTheCrossingSendsNoImpulse) {
-  Hoermann door;
+TEST(HoermannHcpPosition, StopReportedWithTheCrossingSendsNoImpulse) {
+  HoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);
@@ -276,8 +276,8 @@ TEST(HoermannPosition, StopReportedWithTheCrossingSendsNoImpulse) {
 }
 
 // A target the door never reaches is dropped once it comes to rest, so a later move is not cut short.
-TEST(HoermannPosition, TargetIsDroppedWhenTheDoorStopsShort) {
-  Hoermann door;
+TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorStopsShort) {
+  HoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);
@@ -295,4 +295,4 @@ TEST(HoermannPosition, TargetIsDroppedWhenTheDoorStopsShort) {
   EXPECT_EQ(poll_command(door), 0x0000);
 }
 
-}  // namespace esphome::hoermann
+}  // namespace esphome::hoermann_hcp

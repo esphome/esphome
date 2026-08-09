@@ -7,21 +7,23 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@zweckj"]
 DEPENDENCIES = ["modbus"]
 
-CONF_HOERMANN_ID = "hoermann_id"
+CONF_HOERMANN_HCP_ID = "hoermann_hcp_id"
 
-hoermann_ns = cg.esphome_ns.namespace("hoermann")
-Hoermann = hoermann_ns.class_(
-    "Hoermann", cg.PollingComponent, modbus.ModbusServerDevice
+hoermann_hcp_ns = cg.esphome_ns.namespace("hoermann_hcp")
+HoermannHcp = hoermann_hcp_ns.class_(
+    "HoermannHcp", cg.PollingComponent, modbus.ModbusServerDevice
 )
 
 # The Hoermann UAP module answers on Modbus server address 2.
 CONFIG_SCHEMA = (
-    cv.Schema({cv.GenerateID(): cv.declare_id(Hoermann)})
+    cv.Schema({cv.GenerateID(): cv.declare_id(HoermannHcp)})
     .extend(cv.polling_component_schema("500ms"))
     .extend(modbus.modbus_device_schema(0x02, role="server"))
 )
 
-FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device("hoermann", role="server")
+FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device(
+    "hoermann_hcp", role="server"
+)
 
 
 async def to_code(config: ConfigType) -> None:
