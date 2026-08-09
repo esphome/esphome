@@ -16,8 +16,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <esp_gatt_common_api.h>
-
 #include <cstring>
 
 namespace esphome::bluetooth_connection {
@@ -34,21 +32,12 @@ using esp32_ble_tracker::ClientState;
 using esp32_ble_tracker::ConnectionType;
 
 static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
-// Wire default before any MTU exchange (Bluetooth spec ATT_MTU minimum).
-static constexpr uint16_t DEFAULT_ATT_MTU = 23;
 // Bounds one characteristic's descriptor walk against a stack that never
 // reports end-of-range.
 static constexpr uint16_t MAX_DESCRIPTORS_PER_CHARACTERISTIC = 64;
 
 // ---- tracker surface ----
 
-bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                              esp_ble_gattc_cb_param_t *param) {
-  return this->handle_gattc_event_(event, gattc_if, param);
-}
-void BluedroidGattClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  this->handle_gap_event_(event, param);
-}
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
 void BluedroidGattClient::disconnect() { this->gatt_disconnect(); }
 
@@ -62,10 +51,10 @@ void BluedroidGattClient::setup() {
 void BluedroidGattClient::loop() {
   if (!esp32_ble::global_ble->is_active()) {
     // Stack down: re-register the app on the next enable.
-    this->set_state_(ClientState::INIT);
+    this->set_state(ClientState::INIT);
     return;
   }
-  auto st = this->state_();
+  auto st = this->state();
   if (st == ClientState::INIT) {
     auto ret = esp_ble_gattc_app_register(this->app_id);
     if (ret) {
@@ -73,7 +62,7 @@ void BluedroidGattClient::loop() {
       this->mark_failed();
     }
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
-    this->set_state_(ClientState::IDLE);
+    this->set_state(ClientState::IDLE);
   } else if (st == ClientState::IDLE) {
     // The loop only drives the bootstrap and the disconnect safety timeout.
     this->disable_loop();
@@ -84,7 +73,7 @@ void BluedroidGattClient::loop() {
     // lost CLOSE/DISCONNECT would otherwise leak the table and the cache.
     this->release_services();
     this->set_idle_();
-    this->report_connection_state_(false, 0, ESP_GATT_CONN_TIMEOUT);
+    this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_TIMEOUT);
   }
 }
 
@@ -100,7 +89,7 @@ void BluedroidGattClient::dump_config() {
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
   // Only from idle: clobbering DISCONNECTING would open a new link the
   // stale CLOSE_EVT then tears down.
-  if (this->state_() != ClientState::IDLE) {
+  if (this->state() != ClientState::IDLE) {
     ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
     return ESP_GATT_BUSY;
   }
@@ -108,12 +97,12 @@ int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
   this->remote_addr_type_ = addr_type;
   // Hand the request to the tracker's promote loop: it stops the scan, raises
   // coex, and calls tracker_connect_() - the tracker owns connect timing here.
-  this->set_state_(ClientState::DISCOVERED);
+  this->set_state(ClientState::DISCOVERED);
   return 0;
 }
 
 void BluedroidGattClient::tracker_connect_() {
-  auto st = this->state_();
+  auto st = this->state();
   if (st == ClientState::CONNECTING || st == ClientState::CONNECTED || st == ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%d] Connection already in progress", this->connection_index_);
     return;
@@ -126,7 +115,7 @@ void BluedroidGattClient::tracker_connect_() {
   this->services_released_ = false;
   this->seen_mtu_ = false;
   this->enable_loop();
-  this->set_state_(ClientState::CONNECTING);
+  this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
     // Fast params for the discovery phase; stepped down at SEARCH_CMPL.
     esp_ble_gap_set_prefer_conn_params(this->remote_bda_, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL, 0,
@@ -140,13 +129,13 @@ void BluedroidGattClient::tracker_connect_() {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
     // CONNECT_EVT never fired, so conn_id_ is legitimately unset: plain IDLE.
-    this->set_state_(ClientState::IDLE);
-    this->report_connection_state_(false, 0, ret);
+    this->set_state(ClientState::IDLE);
+    this->listener_->on_connection_state(false, 0, ret);
   }
 }
 
 int BluedroidGattClient::gatt_disconnect() {
-  auto st = this->state_();
+  auto st = this->state();
   if (st == ClientState::DISCONNECTING) {
     return 0;
   }
@@ -157,7 +146,7 @@ int BluedroidGattClient::gatt_disconnect() {
   }
   if (st == ClientState::DISCOVERED) {
     // Parked for the tracker promote loop, never opened.
-    this->set_state_(ClientState::IDLE);
+    this->set_state(ClientState::IDLE);
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
@@ -428,19 +417,15 @@ bool BluedroidGattClient::check_addr_(const esp_bd_addr_t &addr) const {
 }
 
 void BluedroidGattClient::set_idle_() {
-  this->set_state_(ClientState::IDLE);
+  this->set_state(ClientState::IDLE);
   this->conn_id_ = UNSET_CONN_ID;
 }
 
 void BluedroidGattClient::set_disconnecting_() {
   this->disconnecting_started_ = millis();
-  this->set_state_(ClientState::DISCONNECTING);
+  this->set_state(ClientState::DISCONNECTING);
   // The loop may be disabled while idle; the safety timeout needs it.
   this->enable_loop();
-}
-
-void BluedroidGattClient::report_connection_state_(bool connected, uint16_t mtu, int error) {
-  this->listener_->on_connection_state(connected, mtu, error);
 }
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
@@ -645,7 +630,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
 // ---- events ----
 
 void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
-  auto st = this->state_();
+  auto st = this->state();
   if (st == ClientState::IDLE) {
     // IDF can deliver OPEN_EVT after esp_ble_gattc_open already returned an
     // error and the slot went IDLE; do not resurrect it.
@@ -659,7 +644,7 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->log_gattc_warning_("Connection open", param->open.status);
     // Never established, CLOSE_EVT may not follow.
     this->set_idle_();
-    this->report_connection_state_(false, 0, param->open.status);
+    this->listener_->on_connection_state(false, 0, param->open.status);
     return;
   }
   if (this->disconnect_pending()) {
@@ -667,17 +652,17 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->unconditional_disconnect_();
     return;
   }
-  this->set_state_(ClientState::CONNECTED);
+  this->set_state(ClientState::CONNECTED);
   ESP_LOGI(TAG, "[%d] Connection open", this->connection_index_);
   if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
-    this->set_state_(ClientState::ESTABLISHED);
+    this->set_state(ClientState::ESTABLISHED);
     // No discovery phase: report immediately; the MTU report below is
     // suppressed by seen_mtu_ (HA tolerates a post-connect MTU of 23 here,
     // matching the previous esp32 behavior).
     this->seen_mtu_ = true;
     // Cached path never exchanged an MTU; HA has always seen the default.
-    this->report_connection_state_(true, DEFAULT_ATT_MTU, 0);
-    if (this->state_() != ClientState::DISCONNECTING) {
+    this->listener_->on_connection_state(true, ble_device_base::DEFAULT_ATT_MTU, 0);
+    if (this->state() != ClientState::DISCONNECTING) {
       // Settled; set_disconnecting_() re-enables the loop for the net.
       this->disable_loop();
     }
@@ -685,12 +670,12 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
 }
 
 void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param) {
-  if (param->disconnect.reason == ESP_GATT_CONN_TERMINATE_PEER_USER && this->state_() == ClientState::CONNECTED) {
+  if (param->disconnect.reason == ESP_GATT_CONN_TERMINATE_PEER_USER && this->state() == ClientState::CONNECTED) {
     ESP_LOGW(TAG, "[%d] Remote closed during discovery", this->connection_index_);
   } else {
     ESP_LOGD(TAG, "[%d] DISCONNECT_EVT reason=0x%02x", this->connection_index_, param->disconnect.reason);
   }
-  if (this->state_() == ClientState::IDLE) {
+  if (this->state() == ClientState::IDLE) {
     // Active close delivers CLOSE_EVT first; never walk back to DISCONNECTING.
     return;
   }
@@ -702,7 +687,7 @@ void BluedroidGattClient::handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param
   this->set_disconnecting_();
 }
 
-bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
+bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                               esp_ble_gattc_cb_param_t *param) {
   if (event == ESP_GATTC_REG_EVT && this->app_id != param->reg.app_id)
     return false;
@@ -746,8 +731,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       if (!this->seen_mtu_) {
         this->seen_mtu_ = true;
         // The connected report waited for the MTU; forwarded, not stored.
-        this->report_connection_state_(true,
-                                       param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : DEFAULT_ATT_MTU, 0);
+        this->listener_->on_connection_state(
+            true, param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : ble_device_base::DEFAULT_ATT_MTU, 0);
       }
       break;
     }
@@ -764,16 +749,16 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       this->set_idle_();
       // The one connected=false report: the wrapper frees the slot on it,
       // so it must not fire before the controller finished closing.
-      this->report_connection_state_(false, 0, param->close.reason);
+      this->listener_->on_connection_state(false, 0, param->close.reason);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (this->conn_id_ != param->search_cmpl.conn_id)
         return false;
       ESP_LOGI(TAG, "[%d] Service discovery complete", this->connection_index_);
-      this->set_state_(ClientState::ESTABLISHED);
+      this->set_state(ClientState::ESTABLISHED);
       this->handle_search_cmpl_();
-      if (this->state_() != ClientState::DISCONNECTING) {
+      if (this->state() != ClientState::DISCONNECTING) {
         // Settled; a failed count started a teardown that needs the loop.
         this->disable_loop();
       }
@@ -820,7 +805,7 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
   return true;
 }
 
-void BluedroidGattClient::handle_gap_event_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void BluedroidGattClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))

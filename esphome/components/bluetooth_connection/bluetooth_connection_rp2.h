@@ -92,8 +92,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
-  // No deferred-disconnect state (disconnect is one call) and no
-  // connection-type branching on this backend.
+  // No connection-type branching on this backend.
   void set_connection_type(ble_device_base::ConnectionType ct) {}
   void release_services();
 
@@ -175,7 +174,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
   hci_con_handle_t con_handle_{HCI_CON_HANDLE_INVALID};
-  uint16_t mtu_{23};
+  uint16_t mtu_{ble_device_base::DEFAULT_ATT_MTU};
   uint16_t op_handle_{0};
   uint16_t op_len_{0};
   uint16_t service_count_{0};

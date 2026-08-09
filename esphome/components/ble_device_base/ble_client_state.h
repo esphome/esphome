@@ -22,6 +22,9 @@ static constexpr int GATT_ERR_NO_MEMORY = -2;
 /// delivers its disconnect completion.
 static constexpr uint32_t GATT_DISCONNECT_TIMEOUT_MS = 10000;
 
+/// ATT MTU before negotiation completes (Bluetooth spec default).
+static constexpr uint16_t DEFAULT_ATT_MTU = 23;
+
 // Preferred connection parameters shared by every platform's GATT client so
 // the backends cannot drift (units: interval 1.25 ms, timeout 10 ms; latency
 // 0). FAST covers connection setup and service discovery; MEDIUM is the

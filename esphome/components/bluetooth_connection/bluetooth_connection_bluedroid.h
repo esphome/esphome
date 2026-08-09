@@ -2,10 +2,8 @@
 // ble_device_base::BLEGattConnection alias for the hub BluetoothConnection
 // wrapper. Not a BLEClientBase: the tracker's promote loop owns
 // scan-stop/coex/one-connect-at-a-time, so the contract's connect() only
-// parks the address in DISCOVERED and the real esp_ble_gattc_open happens in
-// the tracker-invoked shim connect(). The shim exists because the tracker's
-// ESPBTClient::disconnect() returns void while the contract's returns int -
-// one class cannot carry both.
+// parks the address in DISCOVERED; the real esp_ble_gattc_open happens in
+// the tracker-invoked connect() override.
 
 #pragma once
 
@@ -22,7 +20,6 @@
 
 namespace esphome::bluetooth_connection {
 
-class BluedroidGattClient;
 #ifdef USE_BLUETOOTH_PROXY
 class BluetoothConnection;
 #endif
@@ -41,7 +38,6 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 
   // Wired by codegen before setup and invariant for the device lifetime.
   void set_listener(ble_device_base::GattClientListener *listener) { this->listener_ = listener; }
-  esp32_ble_tracker::ESPBTClient *tracker_client() { return this; }
 
   // ---- esp32_ble_tracker::ESPBTClient ----
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -65,7 +61,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   // On-demand table for direct consumers; the proxy streams instead, so the
-  // materializer compiles only under USE_BLE_GATT_SERVICE_TABLE.
+  // materializer compiles only under USE_BLE_GATT_SERVICE_TABLE (emitted by
+  // direct-consumer codegen, never by the proxy).
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   ble_device_base::GattServiceTable get_service_table();
 #else
@@ -83,19 +80,14 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
 
  protected:
-  esp32_ble_tracker::ClientState state_() const { return this->state(); }
-  void set_state_(esp32_ble_tracker::ClientState st) { this->set_state(st); }
   bool check_addr_(const esp_bd_addr_t &addr) const;
   void tracker_connect_();
-  bool handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
-  void handle_gap_event_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_search_cmpl_();
   void unconditional_disconnect_();
   void set_idle_();
   void set_disconnecting_();
-  void report_connection_state_(bool connected, uint16_t mtu, int error);
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);

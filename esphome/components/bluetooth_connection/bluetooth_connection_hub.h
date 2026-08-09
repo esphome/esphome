@@ -43,7 +43,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   /// Start connecting: record the API address type (BLE_ADDR_TYPE_* code
   /// space) and open the connection through the backend. Failures report
-  /// through the same reset path a failed open takes on esp32.
+  /// through the same reset path a failed open takes.
   void initiate_connection(uint8_t address_type) {
     this->remote_addr_type_ = address_type;
     this->start_connect_();
@@ -126,7 +126,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   // Group 2: 2-byte types
   int16_t send_service_{INIT_SENDING_SERVICES};
-  uint16_t mtu_{23};
+  uint16_t mtu_{ble_device_base::DEFAULT_ATT_MTU};
 
   // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};

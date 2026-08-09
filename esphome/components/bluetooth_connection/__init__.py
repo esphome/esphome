@@ -15,8 +15,6 @@ from esphome.const import PLATFORM_ESP32, PLATFORM_RP2, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-DOMAIN = "bluetooth_connection"
-
 
 def AUTO_LOAD() -> list[str]:
     """ble_device_base plus the platform BLE stack the build's backend
@@ -39,8 +37,8 @@ bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 # raising this needs an upstream change (the layer itself supports N).
 RP2_MAX_CONNECTIONS = 1
 
-# Hub platforms with a GATT backend, mapped to their slot limit — the single
-# registry of which hub platforms run the connection-capable proxy.
+# Slot limits for the hub platforms running the connection-capable proxy;
+# the backend registry itself is _PLATFORM_BACKENDS below.
 HUB_MAX_CONNECTIONS: dict[str, int] = {PLATFORM_RP2: RP2_MAX_CONNECTIONS}
 
 # The hub-platform wrapper and the backend codegen classes.
@@ -70,9 +68,9 @@ def _rp2_schema_fragment() -> cv.Schema:
 async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
     from esphome.components import esp32_ble_tracker
 
-    # The tracker's promote loop owns connect timing; the backend's
-    # tracker-facing shim registers as a raw client.
-    await esp32_ble_tracker.register_raw_client(backend.tracker_client(), config)
+    # The tracker's promote loop owns connect timing; the backend registers
+    # as a raw client (it is the tracker's ESPBTClient).
+    await esp32_ble_tracker.register_raw_client(backend, config)
 
 
 async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
