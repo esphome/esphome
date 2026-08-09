@@ -323,7 +323,9 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA, cv.only_on_esp32)
 
 DEPENDENCIES = (
-    ["esp32"] if CORE.data.get(KEY_CORE) is not None and CORE.target_platform == "esp32" else []
+    ["esp32"]
+    if CORE.data.get(KEY_CORE) is not None and CORE.target_platform == "esp32"
+    else []
 )
 
 
