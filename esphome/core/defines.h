@@ -157,9 +157,13 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
-// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
-// slot-based platforms (esp8266, rp2040) never set it in generated builds
+// Only defined by key-lookup preference backends; slot-based platforms
+// (esp8266, rp2040) never set it in generated builds, and their preferences
+// managers do not provide load_from_key(), so mirror codegen here or the
+// PreferencesKeyLookupContract assert fails their clang-tidy environments.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST) || defined(USE_ZEPHYR)
 #define USE_PREFERENCE_KEY_LOOKUP
+#endif
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
