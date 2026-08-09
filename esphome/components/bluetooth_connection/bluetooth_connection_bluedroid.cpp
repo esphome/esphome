@@ -34,6 +34,11 @@ using esp32_ble_tracker::ClientState;
 using esp32_ble_tracker::ConnectionType;
 
 static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
+// Wire default before any MTU exchange (Bluetooth spec ATT_MTU minimum).
+static constexpr uint16_t DEFAULT_ATT_MTU = 23;
+// Sanity bound for one characteristic's descriptor enumeration: real devices
+// carry a handful; a stack that never reports end-of-range must not hang.
+static constexpr uint16_t MAX_DESCRIPTORS_PER_CHARACTERISTIC = 64;
 
 // ---- tracker surface ----
 
@@ -312,8 +317,7 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
       if (!on_char(svc, chr)) {
         return false;
       }
-      // Bounded: a stack that never reports end-of-range must not hang setup.
-      for (uint16_t d = 0; d != UINT16_MAX; d++) {
+      for (uint16_t d = 0; d != MAX_DESCRIPTORS_PER_CHARACTERISTIC; d++) {
         esp_gattc_descr_elem_t desc;
         uint16_t desc_count = 1;
         auto desc_status =
@@ -678,7 +682,7 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->seen_mtu_ = true;
     // Wire parity with the old class: no MTU exchange happened yet, and HA
     // has always been handed the default 23 on the cached path.
-    this->report_connection_state_(true, 23, 0);
+    this->report_connection_state_(true, DEFAULT_ATT_MTU, 0);
     if (this->state_() != ClientState::DISCONNECTING) {
       // Settled: only the disconnect safety net needs the loop, and
       // set_disconnecting_() re-enables it.
@@ -750,7 +754,8 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
         this->seen_mtu_ = true;
         // The connected report waited for the MTU so HA never sees 23; the
         // value is forwarded rather than stored (the consumer keeps it).
-        this->report_connection_state_(true, param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : 23, 0);
+        this->report_connection_state_(true,
+                                       param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : DEFAULT_ATT_MTU, 0);
       }
       break;
     }
