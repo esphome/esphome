@@ -1,19 +1,12 @@
 #pragma once
 
-#include <cstdint>
-#include <cstddef>
 #include "esphome/core/defines.h"
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
 #include "tensorflow/lite/c/common.h"
-#include "esphome/core/log.h"
 
 namespace esphome::tflite_micro_helper::debug_utils {
-
-void log_arena_usage(const char *tag, size_t used, size_t total);
-void log_model_info(const char *tag, const char *model_name, size_t model_size, size_t tensor_arena_size);
-void log_inference_time(const char *tag, uint32_t time_ms);
 
 /// Helper function to convert TfLiteType to string (namespace-agnostic for compatibility).
 inline const char *tflite_type_to_string(TfLiteType type) {

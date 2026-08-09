@@ -1,6 +1,5 @@
 #include "model_handler.h"
 #include "esp_log.h"
-#include "debug_utils.h"
 #include <cmath>
 #include <esp_heap_caps.h>
 #include <vector>
@@ -369,9 +368,14 @@ ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const 
 }
 
 ProcessedOutput ModelHandler::process_output(const float *output_data) const {
-  const int num_classes = this->output_size_;
   ProcessedOutput result = {0.0f, 0.0f};
 
+  if (output_data == nullptr) {
+    ESP_LOGE(TAG, "Null output data pointer");
+    return result;
+  }
+
+  const int num_classes = this->output_size_;
   if (num_classes <= 0) {
     ESP_LOGE(TAG, "Invalid number of output classes: %d", num_classes);
     return result;
@@ -628,35 +632,6 @@ void ModelHandler::debug_model_architecture() const {
   }
 }
 
-bool ModelHandler::validate_model_config() const {
-  const TfLiteTensor *input = this->input_tensor();
-  if (!input)
-    return false;
-
-  // Check input dimensions
-  if (input->dims->size >= 4) {
-    int height = input->dims->data[1];
-    int width = input->dims->data[2];
-    int channels = input->dims->data[3];
-
-    if (this->image_config_.input_size.size() >= 2) {
-      if (width != this->image_config_.input_size[0] || height != this->image_config_.input_size[1]) {
-        ESP_LOGW(TAG, "Model input size mismatch! Config: %dx%d, Model: %dx%d", this->image_config_.input_size[0],
-                 this->image_config_.input_size[1], width, height);
-        return false;
-      }
-    }
-
-    if (channels != this->image_config_.input_channels) {
-      ESP_LOGW(TAG, "Model input channels mismatch! Config: %d, Model: %d", this->image_config_.input_channels,
-               channels);
-      return false;
-    }
-  }
-
-  return true;
-}
-
 void ModelHandler::report_memory_status() {
   size_t effective_arena_size = this->tensor_arena_allocation_.actual_size;
   if (effective_arena_size == 0) {
@@ -666,46 +641,82 @@ void ModelHandler::report_memory_status() {
                                       this->get_arena_used_bytes(), this->model_length_);
 }
 
-size_t ModelHandler::probe_arena_size_(const uint8_t *model_start, size_t initial_size,
-                                       const tflite::MicroMutableOpResolver<MAX_OPERATORS> &resolver) {
+size_t ModelHandler::probe_arena_size(const uint8_t *model_start, size_t initial_size) {
   const tflite::Model *model = tflite::GetModel(model_start);
-  if (model->version() != TFLITE_SCHEMA_VERSION) {
-    ESP_LOGE(TAG, "probe_arena_size_: Model schema version mismatch");
+  if (model == nullptr || model->version() != TFLITE_SCHEMA_VERSION) {
+    ESP_LOGE(TAG, "probe_arena_size: Model schema version mismatch");
     return 0;
   }
 
+  // Collect the set of operators required by this model.
+  std::set<tflite::BuiltinOperator> required_ops;
+  for (size_t i = 0; i < model->operator_codes()->size(); ++i) {
+    const auto *op_code = model->operator_codes()->Get(i);
+    required_ops.insert(op_code->builtin_code());
+  }
+
+  // Build a local resolver for probing. Uses the same registration path as
+  // load_model_with_arena so the probe reflects the real runtime setup.
+  auto local_resolver = std::make_unique<tflite::MicroMutableOpResolver<MAX_OPERATORS>>();
+  if (!OpResolverManager::register_ops<MAX_OPERATORS>(*local_resolver, required_ops, TAG)) {
+    ESP_LOGE(TAG, "probe_arena_size: Failed to register operators for probing");
+    return 0;
+  }
+
+  // Try the requested size first, then 1.5x, then 2x. All sizes 16-byte aligned.
   size_t attempt_sizes[] = {(initial_size + 15) & ~15, (initial_size * 3 / 2 + 15) & ~15,
                             (initial_size * 2 + 15) & ~15};
 
   for (size_t attempt_size : attempt_sizes) {
-    uint8_t *probe_arena = static_cast<uint8_t *>(heap_caps_aligned_alloc(16, attempt_size, MALLOC_CAP_8BIT));
-    if (probe_arena == nullptr)
+    // Use MemoryManager so PSRAM/override flags are honored identically to the real load.
+    MemoryManager::AllocationResult probe_allocation = MemoryManager::allocate_tensor_arena(attempt_size);
+    if (!probe_allocation) {
+      ESP_LOGW(TAG, "probe_arena_size: Could not allocate %zu bytes for probing", attempt_size);
       continue;
+    }
+    uint8_t *probe_arena = probe_allocation.data.get();
 
-    auto probe_interpreter = std::make_unique<tflite::MicroInterpreter>(model, resolver, probe_arena, attempt_size);
+    auto probe_interpreter =
+        std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, probe_allocation.actual_size);
     if (probe_interpreter->AllocateTensors() != kTfLiteOk) {
       probe_interpreter.reset();
-      heap_caps_free(probe_arena);
+      probe_allocation.data.reset();
       continue;
     }
 
+    // Largest proven size is the successful attempt; smallest candidate is
+    // arena_used_bytes + 16 (rounded to 16-byte alignment with headroom).
     size_t lower = (probe_interpreter->arena_used_bytes() + 16 + 15) & ~15;
     probe_interpreter.reset();
     size_t upper = attempt_size;
 
+    // Binary-search down to the smallest size that still allocates.
     while (lower < upper) {
-      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, resolver, probe_arena, lower);
+      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, lower);
       bool ok = test_interpreter->AllocateTensors() == kTfLiteOk;
       test_interpreter.reset();
       if (ok) {
-        upper = lower + 16;
-        break;
+        // This size works; shrink further to find the true minimum.
+        upper = lower;
       }
       lower = ((lower + upper) / 2 + 15) & ~15;
     }
-    heap_caps_free(probe_arena);
+
+    // re-test the final lower bound (it may have been rounded down).
+    auto final_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, lower);
+    bool final_ok = final_interpreter->AllocateTensors() == kTfLiteOk;
+    final_interpreter.reset();
+    probe_allocation.data.reset();
+
+    if (final_ok) {
+      ESP_LOGI(TAG, "probe_arena_size: minimum required arena: %zu bytes", lower);
+      return lower;
+    }
+    // upper was proven to work, so fall back to it.
+    ESP_LOGI(TAG, "probe_arena_size: using proven size: %zu bytes", upper);
     return upper;
   }
+  ESP_LOGE(TAG, "probe_arena_size: all attempt sizes failed");
   return 0;
 }
 }  // namespace esphome::tflite_micro_helper

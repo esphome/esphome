@@ -1,6 +1,5 @@
 #include "memory_manager.h"
 #include "esphome/core/log.h"
-#include "debug_utils.h"
 
 namespace esphome::tflite_micro_helper {
 
@@ -9,37 +8,6 @@ static const char *const TAG = "MemoryManager";
 bool MemoryManager::has_psram() {
   size_t total_psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
   return total_psram > 0;
-}
-
-size_t MemoryManager::parse_size_string(const std::string &size_str) {
-  size_t multiplier = 1;
-  std::string str = size_str;
-
-  if (str.find("KB") != std::string::npos) {
-    multiplier = 1024;
-    str = str.substr(0, str.length() - 2);
-  } else if (str.find("MB") != std::string::npos) {
-    multiplier = 1024 * 1024;
-    str = str.substr(0, str.length() - 2);
-  } else if (str.find('B') != std::string::npos) {
-    str = str.substr(0, str.length() - 1);
-  }
-
-  // Manual string to integer conversion
-  const char *cstr = str.c_str();
-  char *end_ptr;
-  int32_t size_value = strtol(cstr, &end_ptr, 10);
-
-  if (end_ptr != cstr && *end_ptr == '\0' && size_value > 0) {
-    // Check for overflow: size_value * multiplier must fit in size_t
-    uint64_t total = static_cast<uint64_t>(size_value) * multiplier;
-    if (total > SIZE_MAX) {
-      ESP_LOGE(TAG, "Size value overflow: %d * %zu exceeds SIZE_MAX", size_value, multiplier);
-      return 0;
-    }
-    return static_cast<size_t>(total);
-  }
-  return 0;  // Parsing failed
 }
 
 MemoryManager::AllocationResult MemoryManager::allocate_tensor_arena(size_t requested_size) {

@@ -1,9 +1,18 @@
+# ESPHome build test: tflite_micro_helper (common - both model types)
+# Audio model: remote http manifest (existing coverage)
+# Image model: local .tflite + .txt (E12 - image config path + multi-model
+# MAX_OPERATORS aggregation; see _compute_max_operators in __init__.py)
+
 tflite_micro_helper:
-  id: test_tflite
-  model_type: audio
-  model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/okay_nabu.json
-  probability_cutoff: 0.5
-  sliding_window_size: 10
-  features_step_size: 20
-  feature_count: 40
-  debug: false
+  - id: test_tflite_audio
+    model_type: audio
+    model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/okay_nabu.json
+    probability_cutoff: 0.5
+    sliding_window_size: 10
+    features_step_size: 20
+    feature_count: 40
+    debug: false
+  - id: test_tflite_image
+    model_type: image
+    model: "digit_recognizer_v3_quantized_integer_quant_uint8.tflite"
+    debug: true

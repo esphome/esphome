@@ -294,7 +294,7 @@ PER_MODEL_SCHEMA = cv.Schema(
 )
 
 MULTI_CONF = True
-CONFIG_SCHEMA = PER_MODEL_SCHEMA
+CONFIG_SCHEMA = PER_MODEL_SCHEMA.extend(cv.only_on_esp32)
 
 DEPENDENCIES = ["esp32"] if CORE.target_platform == "esp32" else []
 
@@ -375,6 +375,11 @@ async def to_code(config):
         cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
         cg.add_build_flag("-DESP_NN")
         cg.add_build_flag("-DOPTIMIZED_KERNEL=esp_nn")
+        # E7: MAX_OPERATORS is a process-global compile-time macro. With MULTI_CONF,
+        # emitting one flag per instance would let the last one win. Compute the max
+        # across ALL configured models so every instance is safe. Idempotent: every
+        # to_code() call for this DOMAIN emits the same value.
+        cg.add_build_flag(f"-DMAX_OPERATORS={_compute_max_operators()}")
         if config.get(CONF_DEBUG, False):
             cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
             cg.add(var.set_debug(True))
@@ -382,22 +387,42 @@ async def to_code(config):
             await _configure_image_model(config, var, model_path, model_data)
         elif model_type == "audio":
             await _configure_audio_model(config, var, model_path, model_data)
-        txt_path = str(Path(model_path).with_suffix(".txt"))
-        if Path(txt_path).exists():
-            with Path(txt_path).open(encoding="utf-8") as f:
-                txt_content = f.read()
-            ops_match = re.search(r"Total operations:\s+(\d+)", txt_content)
-            if ops_match:
-                model_ops = int(ops_match.group(1)) + 5
-                cg.add_build_flag(f"-DMAX_OPERATORS={model_ops}")
-        else:
-            cg.add_build_flag("-DMAX_OPERATORS=30")
         esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
         esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
         if model_type == "audio":
             esp32.add_idf_component(
                 name="esphome/esp-micro-speech-features", ref="1.2.3"
             )
+
+
+def _compute_max_operators():
+    """Compute the single MAX_OPERATORS value for the ENTIRE build.
+
+    Build flags are process-global (cg.add_build_flag). With MULTI_CONF each
+    to_code() invocation would otherwise emit its own -DMAX_OPERATORS and the
+    last one wins -- silently breaking earlier models with a too-small resolver.
+    All invocations therefore compute the SAME max across every configured model.
+
+    Returns max(ops + 5) across all .txt reports, or 30 (the default) when no
+    .txt report provides a count.
+    """
+    if CORE.config is None:
+        return 30
+    max_ops = 0
+    for entry in CORE.config.get(DOMAIN, []):
+        try:
+            model_path, _ = resolve_model_source(entry)
+        except cv.Invalid:
+            continue
+        txt_path = str(Path(model_path).with_suffix(".txt"))
+        if not Path(txt_path).exists():
+            continue
+        with Path(txt_path).open(encoding="utf-8") as f:
+            txt_content = f.read()
+        ops_match = re.search(r"Total operations:\s+(\d+)", txt_content)
+        if ops_match:
+            max_ops = max(max_ops, int(ops_match.group(1)) + 5)
+    return max_ops if max_ops > 0 else 30
 
 
 async def _configure_image_model(entry, var, model_path, model_data):

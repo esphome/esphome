@@ -132,7 +132,13 @@ class ModelHandler {
   static uint32_t calculate_crc32(const uint8_t *data, size_t length);
   bool verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc = 0);
   void debug_model_architecture() const;
-  bool validate_model_config() const;
+
+  /// @brief Probes the actual required tensor arena size by trial allocation.
+  /// Tries the requested size first, then 1.5x, then 2x if it fails.
+  /// On success, binary-searches down to the minimum and returns it (16-byte aligned + padding).
+  /// Uses MemoryManager::allocate_tensor_arena() (PSRAM-aware) and builds a local
+  /// op resolver from the model's operators. Returns 0 on total failure.
+  [[nodiscard]] size_t probe_arena_size(const uint8_t *model_start, size_t initial_size);
 
 #ifdef DEBUG_TFLITE_MICRO_HELPER
   // Advanced Debugging
@@ -161,12 +167,6 @@ class ModelHandler {
   void set_debug(bool debug) { this->debug_ = debug; }
 
  private:
-  /// @brief Probes the actual required tensor arena size by trial allocation.
-  /// Tries the requested size first, then 1.5x, then 2x if it fails.
-  /// On success, binary-searches down to the minimum and returns it (16-byte aligned + padding).
-  size_t probe_arena_size_(const uint8_t *model_start, size_t initial_size,
-                           const tflite::MicroMutableOpResolver<MAX_OPERATORS> &resolver);
-
   const tflite::Model *tflite_model_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
   ModelConfig config_;

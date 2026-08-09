@@ -16,6 +16,11 @@ namespace esphome::tflite_micro_helper {
 /**
  * @struct ModelSpec
  * @brief Generic model dimensions and input spec for any TFLite consumer.
+ *
+ * NOTE: This struct uses IMAGE (4D) tensor semantics. For audio (3D) models,
+ * get_input_width/height/channels() return 0 and input_type is derived from
+ * input_tensor()->type. Audio consumers MUST read input_tensor()->dims
+ * directly and manage their own streaming runtime (MRV, sliding window).
  */
 struct ModelSpec {
   int input_width{0};
@@ -82,7 +87,10 @@ class TFLiteMicroHelper {
   // -- Lifecycle ------------------------------------------------------
   bool load_model();
   void unload_model();
-  bool is_model_loaded() const { return this->model_loaded_.load(); }
+
+  /// @brief Returns true only when the model has been fully loaded (READY).
+  /// Uses a single atomic state machine: no check-then-act across multiple flags.
+  bool is_model_loaded() const { return this->state_.load() == LoadState::READY; }
 
   // -- Inference ------------------------------------------------------
   TfLiteStatus invoke() { return this->model_handler_.invoke(); }
@@ -136,7 +144,6 @@ class TFLiteMicroHelper {
   const uint8_t *model_data_{nullptr};
   size_t model_length_{0};
   size_t tensor_arena_size_requested_{100 * 1024};
-  bool arena_bumped_{false};  // ESP32-S3: 1.5x bump applied once
 
   // Image model config
   ImageModelConfig image_config_;
@@ -152,8 +159,9 @@ class TFLiteMicroHelper {
   mutable std::mutex arena_stats_mutex_;
   ArenaStats cached_arena_stats_{};
 
-  // State
-  std::atomic<bool> model_loaded_{false};
+  // State -- single atomic load state machine (E2 / TOCTOU fix)
+  enum class LoadState : uint8_t { UNLOADED, LOADING, READY };
+  std::atomic<LoadState> state_{LoadState::UNLOADED};
 
   // Expected CRC32 (0 = skip verification, set from __init__.py)
   uint32_t expected_crc32_{0};

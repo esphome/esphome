@@ -1,14 +1,12 @@
 #include "tflite_micro_helper.h"
 #include <cstdlib>
+#include <algorithm>
 
 namespace esphome::tflite_micro_helper {
 
 static const char *const TAG = "tflite_micro_helper";
 
-void TFLiteMicroHelper::set_tensor_arena_size(size_t size) {
-  this->tensor_arena_size_requested_ = size;
-  this->arena_bumped_ = false;
-}
+void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
 void TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
   this->model_data_ = model_data;
@@ -56,7 +54,7 @@ bool TFLiteMicroHelper::validate_input_tensor_(const uint8_t *src_data, size_t s
 }
 
 bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
-  if (!this->model_loaded_.load()) {
+  if (!this->is_model_loaded()) {
     ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
     return false;
   }
@@ -99,8 +97,17 @@ void TFLiteMicroHelper::set_input_order(const std::string &o) { this->input_orde
 void TFLiteMicroHelper::set_normalize(bool n) { this->normalize_ = n; }
 void TFLiteMicroHelper::set_invert(bool i) { this->invert_ = i; }
 
-// Audio model setters
+// Audio model setters.
+// NOTE: TFLiteMicroHelper is *configuration-only* for audio (option b of the review
+// plan). The setters below populate audio_config_ as a pass-through so consumers can
+// read the validated values, but the streaming runtime (MRV, sliding window, stride
+// management) is owned by the consumer (e.g. micro_wake_word::StreamingModel).
 void TFLiteMicroHelper::set_probability_cutoff(float f) {
+  // Saturating clamp [0.0, 1.0] plus NaN guard before the uint8 cast (E10).
+  if (f != f) {
+    f = 0.5f;  // NaN -> default midpoint
+  }
+  f = std::max(0.0f, std::min(1.0f, f));
   this->audio_config_.probability_cutoff = static_cast<uint8_t>(f * 255.0f);
 }
 void TFLiteMicroHelper::set_sliding_window_size(size_t n) { this->audio_config_.sliding_window_size = n; }
@@ -108,28 +115,50 @@ void TFLiteMicroHelper::set_features_step_size(uint8_t ms) { this->audio_config_
 void TFLiteMicroHelper::set_feature_count(size_t n) { this->audio_config_.feature_count = n; }
 
 bool TFLiteMicroHelper::load_model() {
-  ESP_LOGI(TAG, "Loading TFLite model...");
-
-#if defined(CONFIG_ESP32S3_DATA_CACHE_64KB) && defined(CONFIG_ESP32S3_DATA_CACHE_LINE_64B)
-  if (!this->arena_bumped_) {
-    size_t original = this->tensor_arena_size_requested_;
-    this->tensor_arena_size_requested_ = (this->tensor_arena_size_requested_ * 3 + 1) / 2;
-    this->arena_bumped_ = true;
-    ESP_LOGI(TAG, "ESP32-S3 cache: bumped arena (%zu -> %zu bytes)", original, this->tensor_arena_size_requested_);
+  // E2: single atomic state machine -- reject concurrent loads, only transition
+  // LOADING -> READY at the very end on success.
+  LoadState expected = LoadState::UNLOADED;
+  if (!this->state_.compare_exchange_strong(expected, LoadState::LOADING)) {
+    if (this->state_.load() == LoadState::READY) {
+      ESP_LOGW(TAG, "load_model called while already loaded -- returning true");
+      return true;
+    }
+    ESP_LOGE(TAG, "load_model called while another load is in progress");
+    return false;
   }
-#endif
+  ESP_LOGI(TAG, "Loading TFLite model...");
 
   if (this->model_data_ == nullptr || this->model_length_ == 0) {
     ESP_LOGE(TAG, "Model data is NULL or empty");
+    this->state_.store(LoadState::UNLOADED);
     return false;
   }
 
   if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_)) {
     ESP_LOGE(TAG, "Model CRC32 verification failed");
+    this->state_.store(LoadState::UNLOADED);
     return false;
   }
 
+  // E1: probe the actual required arena size (PSRAM-aware, replaces the old 1.5x
+  // ESP32-S3 cache bump). Falls back to the configured size if probing fails.
+  size_t probe_size = this->model_handler_.probe_arena_size(this->model_data_, this->tensor_arena_size_requested_);
+  if (probe_size > 0 && probe_size < this->tensor_arena_size_requested_) {
+    ESP_LOGI(TAG, "Probed arena size %zu bytes < configured %zu bytes -- using probed size", probe_size,
+             this->tensor_arena_size_requested_);
+    this->tensor_arena_size_requested_ = probe_size;
+  } else if (probe_size > 0 && probe_size > this->tensor_arena_size_requested_) {
+    ESP_LOGW(TAG, "Model needs %zu bytes > configured %zu bytes -- using probed size", probe_size,
+             this->tensor_arena_size_requested_);
+    this->tensor_arena_size_requested_ = probe_size;
+  } else if (probe_size == 0) {
+    ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
+  } else {
+    ESP_LOGI(TAG, "Probed size matches configured size: %zu bytes", this->tensor_arena_size_requested_);
+  }
+
   if (!this->allocate_tensor_arena_()) {
+    this->state_.store(LoadState::UNLOADED);
     return false;
   }
 
@@ -141,6 +170,7 @@ bool TFLiteMicroHelper::load_model() {
     this->model_handler_.unload();
     this->tensor_arena_allocation_.data.reset();
     this->tensor_arena_allocation_.actual_size = 0;
+    this->state_.store(LoadState::UNLOADED);
     return false;
   }
 
@@ -156,7 +186,7 @@ bool TFLiteMicroHelper::load_model() {
     this->model_handler_.set_image_config(img_cfg);
   }
 
-  this->model_loaded_ = true;
+  this->state_.store(LoadState::READY);
   ESP_LOGI(TAG, "Model loaded successfully");
   return true;
 }
@@ -164,11 +194,21 @@ bool TFLiteMicroHelper::load_model() {
 void TFLiteMicroHelper::unload_model() {
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
-  this->model_loaded_ = false;
+
+  // Free the arena owned by this helper. ModelHandler::unload() only resets its
+  // own (empty) allocation, so we must release the one allocated here.
+  this->tensor_arena_allocation_.data.reset();
+  this->tensor_arena_allocation_.actual_size = 0;
+
+  // E3: reset runtime state (stats cache + load state). Config fields (model data,
+  // size, CRC, input/audio config) are intentionally preserved: the consumer reload
+  // path (meter_reader_tflite::reload_resources) calls unload_model() then
+  // load_model() without re-issuing set_model()/set_expected_crc32().
   {
     std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
     this->cached_arena_stats_ = ArenaStats{};
   }
+  this->state_.store(LoadState::UNLOADED);
 }
 
 ModelSpec TFLiteMicroHelper::get_model_spec() const {
@@ -178,12 +218,15 @@ ModelSpec TFLiteMicroHelper::get_model_spec() const {
   spec.input_channels = this->model_handler_.get_input_channels();
   spec.normalize = this->model_handler_.get_image_config().normalize;
   spec.input_order = this->model_handler_.get_image_config().input_order;
+
+  // E5: derive input type directly from the tensor type. The old heuristic
+  // (bytes == num_elements * 4) mis-classified audio/3D models because
+  // num_elements = 0*0*0 = 0 made the comparison always match.
   const TfLiteTensor *input = this->model_handler_.input_tensor();
-  size_t num_elements = spec.input_width * spec.input_height * spec.input_channels;
-  if (input && input->bytes == num_elements * 4) {
-    spec.input_type = 1;  // Float32
+  if (input != nullptr) {
+    spec.input_type = (input->type == kTfLiteFloat32) ? 1 : 0;
   } else {
-    spec.input_type = 0;  // Uint8
+    spec.input_type = 0;
   }
   return spec;
 }
