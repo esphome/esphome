@@ -312,7 +312,8 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
       if (!on_char(svc, chr)) {
         return false;
       }
-      for (uint16_t d = 0;; d++) {
+      // Bounded: a stack that never reports end-of-range must not hang setup.
+      for (uint16_t d = 0; d != UINT16_MAX; d++) {
         esp_gattc_descr_elem_t desc;
         uint16_t desc_count = 1;
         auto desc_status =
@@ -533,10 +534,11 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
       return;
     }
     uint16_t total_char_count = 0;
-    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
-                                     service_result.start_handle, service_result.end_handle, 0,
-                                     &total_char_count) != ESP_GATT_OK) {
-      this->log_gattc_warning_("esp_ble_gattc_get_attr_count", ESP_GATT_ERROR);
+    auto char_count_status =
+        esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                     service_result.start_handle, service_result.end_handle, 0, &total_char_count);
+    if (char_count_status != ESP_GATT_OK) {
+      this->log_gattc_warning_("esp_ble_gattc_get_attr_count", char_count_status);
       conn.send_service_ = DONE_SENDING_SERVICES;
       conn.disconnect();
       return;
@@ -677,9 +679,11 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // Wire parity with the old class: no MTU exchange happened yet, and HA
     // has always been handed the default 23 on the cached path.
     this->report_connection_state_(true, 23, 0);
-    // Settled: only the disconnect safety net needs the loop, and
-    // set_disconnecting_() re-enables it.
-    this->disable_loop();
+    if (this->state_() != ClientState::DISCONNECTING) {
+      // Settled: only the disconnect safety net needs the loop, and
+      // set_disconnecting_() re-enables it.
+      this->disable_loop();
+    }
   }
 }
 
@@ -741,7 +745,6 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         // Warn only; a disconnect will follow if the link is dead.
         this->log_gattc_warning_("MTU exchange", param->cfg_mtu.status);
-      } else {
       }
       if (!this->seen_mtu_) {
         this->seen_mtu_ = true;
