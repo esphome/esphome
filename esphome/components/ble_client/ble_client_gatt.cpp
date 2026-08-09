@@ -48,9 +48,9 @@ bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
 void BLEClient::connect() {
   if (this->state_ != State::IDLE)
     return;
-  // Without a fresh sighting each attempt can inhibit scanning for the
-  // backend's full connect timeout (20 s on rp2) if the peer is absent.
-  ESP_LOGW(TAG, "[%s] Connecting without a recent advertisement", this->address_str_);
+  // An absent peer can inhibit scanning for the backend's full connect
+  // timeout, so this is worth a breadcrumb - but it is a supported action.
+  ESP_LOGI(TAG, "[%s] Connecting on request", this->address_str_);
   this->attempt_connect_();
 }
 
@@ -74,7 +74,11 @@ void BLEClient::disconnect() {
     return;
   // A deliberate teardown's failure report must not feed the backoff.
   this->cancel_requested_ = true;
-  this->backend_->gatt_disconnect();
+  if (this->backend_->gatt_disconnect() != 0) {
+    // Refused synchronously: the backend is already down and no report will
+    // come; settle through the normal path so waiters resolve.
+    this->on_connection_state(false, 0, 0);
+  }
 }
 
 void BLEClient::register_failure_() {
@@ -91,7 +95,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     this->state_ = State::DISCOVERING;
     if (this->backend_->discover_services() != 0) {
       // Synchronous refusal: no discovery completion will follow.
-      this->backend_->gatt_disconnect();
+      this->disconnect();
     }
     return;
   }
@@ -121,7 +125,9 @@ void BLEClient::on_service_discovery_done(int error) {
   if (error != 0) {
     ESP_LOGW(TAG, "[%s] Service discovery failed, status=%d", this->address_str_, error);
     this->register_failure_();
-    this->backend_->gatt_disconnect();
+    // The teardown is deliberate: do not charge the backoff again for its
+    // connection report.
+    this->disconnect();
     return;
   }
   auto table = this->backend_->get_service_table();

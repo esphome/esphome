@@ -96,3 +96,23 @@ def test_on_notify_implies_notify() -> None:
 def test_notify_unchanged_without_on_notify() -> None:
     config: ConfigType = {CONF_NOTIFY: False}
     assert notify_from_on_notify(config)[CONF_NOTIFY] is False
+
+
+def test_gatt_slot_ledger_rejects_overcommit_on_rp2() -> None:
+    # Suggestion 4: the cross-component cap must reject two claims on rp2.
+    from esphome.components import bluetooth_connection
+
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "rp2"
+    bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
+    bluetooth_connection.consume_gatt_slot("ble_client")({})
+    with pytest.raises(cv.Invalid, match="supports at most 1 GATT client"):
+        bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
+
+
+def test_legacy_node_choke_point_rejects_other_platforms() -> None:
+    from esphome.components import ble_client
+    from esphome.core import ID
+
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "rp2"
+    with pytest.raises(cv.Invalid, match="not been migrated"):
+        ble_client._legacy_engine_only(ID("x"))

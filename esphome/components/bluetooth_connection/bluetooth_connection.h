@@ -20,7 +20,9 @@
 // backend is wired by codegen (one slot per connection). This is the single
 // spelling of that predicate - the hub wrapper, the connection-aware API
 // request handlers, and the Bluedroid in-place streamer all gate on it.
-// Advertisement-only builds get the clean-error handlers; address-scoped
+// Builds without a compiled backend get the clean-error handlers (a
+// passive proxy alongside a backend consumer compiles the real ones);
+// address-scoped
 // maintenance (unpair, cache clear) still works there through the
 // per-platform free functions below. Backend-only builds (a dedicated-backend
 // consumer without bluetooth_proxy) compile none of this API surface.

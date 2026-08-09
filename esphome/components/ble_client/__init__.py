@@ -208,12 +208,13 @@ def _esp32_config_schema() -> cv.All:
 
 
 @functools.cache
-def _gatt_config_schema() -> cv.All:
+def _gatt_config_schema(platform: str) -> cv.All:
     """The neutral engine's schema: the shared keys plus the hub reference
-    (parsed-advertisement sightings) and the GATT backend declaration."""
+    (parsed-advertisement sightings) and the GATT backend declaration.
+    Keyed by platform - the backend fragment differs per platform."""
     return cv.All(
         _COMMON_SCHEMA.extend(ble_device_base.BLE_DEVICE_SCHEMA).extend(
-            bluetooth_connection.gatt_client_schema()
+            bluetooth_connection.gatt_client_schema(platform)
         ),
         bluetooth_connection.consume_gatt_slot("ble_client"),
     )
@@ -228,7 +229,7 @@ def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         return _esp32_config_schema()(config)
     if CORE.target_platform in bluetooth_connection.GATT_CLIENT_PLATFORMS:
-        return _gatt_config_schema()(config)
+        return _gatt_config_schema(CORE.target_platform)(config)
     raise cv.Invalid(f"ble_client is not supported on {CORE.target_platform}")
 
 
