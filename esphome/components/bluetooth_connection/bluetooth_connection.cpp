@@ -42,9 +42,16 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
   return BatchClose::CONTINUE;
 }
 
+}  // namespace esphome::bluetooth_connection
+
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+
 #ifdef USE_ESP32
+namespace esphome::bluetooth_connection {
+
 // Address-scoped Bluedroid maintenance shared by every esp32 proxy build,
-// including advertisement-only ones where no GATT backend is compiled.
+// including advertisement-only ones where no GATT backend (and none of the
+// gated surface above) is compiled - so this block sits outside that gate.
 
 conn_err_t unpair_device(uint64_t address) {
   esp_bd_addr_t bda;
@@ -57,8 +64,6 @@ conn_err_t clear_gatt_cache(uint64_t address) {
   ble_device_base::uint64_to_mac_msb_first(address, bda);
   return esp_ble_gattc_cache_clean(bda);
 }
-#endif  // USE_ESP32
 
 }  // namespace esphome::bluetooth_connection
-
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_ESP32
