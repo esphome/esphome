@@ -13,7 +13,7 @@ BLEBinaryOutput = ble_client_ns.class_(
     "BLEBinaryOutput", output.BinaryOutput, ble_client.BLEClientNode, cg.Component
 )
 
-_CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = cv.All(
     output.BINARY_OUTPUT_SCHEMA.extend(
         {
             cv.Required(CONF_ID): cv.declare_id(BLEBinaryOutput),
@@ -66,7 +66,3 @@ async def to_code(config):
     await output.register_output(var, config)
     await ble_client.register_ble_node(var, config)
     await cg.register_component(var, config)
-
-
-# Raw-gattc node platform: not yet migrated to the neutral ble_client engine.
-CONFIG_SCHEMA = cv.All(cv.only_on_esp32, _CONFIG_SCHEMA)

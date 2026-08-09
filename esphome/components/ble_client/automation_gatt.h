@@ -20,6 +20,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+// Maximum bytes to log in hex format for BLE writes (many logging buffers are 256 chars)
+static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 64;
+
 namespace esphome::ble_client {
 
 // placeholder class for static TAG (shared with automation.cpp).
@@ -98,6 +101,10 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char hex_buf[format_hex_pretty_size(BLE_WRITE_MAX_LOG_BYTES)];
+    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty_to(hex_buf, data, len));
+#endif
     int err = this->ble_client_->write_characteristic(this->char_handle_, data, len, this->write_response_);
     if (err != 0) {
       esph_log_e(Automation::TAG, "Error writing to characteristic: %d!", err);
@@ -135,12 +142,13 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
 
   void on_disconnected() override {
     this->resolved_ = false;
+    this->char_handle_ = 0;
     if (this->num_running_ != 0)
       this->stop_complex();
   }
 
   void on_write_result(uint16_t handle, int error) override {
-    if (handle == this->char_handle_ && this->num_running_ != 0) {
+    if (this->resolved_ && handle == this->char_handle_ && this->num_running_ != 0) {
       this->ble_client_->run_later([this]() { this->play_next_tuple_(this->var_); });
     }
   }

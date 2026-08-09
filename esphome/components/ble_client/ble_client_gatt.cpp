@@ -39,9 +39,9 @@ bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
   this->address_type_ = device.get_address_type();
   if (!this->enabled || !this->auto_connect_ || this->state_ != State::IDLE)
     return true;
-  if (this->hold_off_until_ != 0 && millis() < this->hold_off_until_)
+  if (this->hold_off_ms_ != 0 && millis() - this->hold_off_start_ < this->hold_off_ms_)
     return true;
-  this->attempt_connect_(false);
+  this->attempt_connect_();
   return true;
 }
 
@@ -51,15 +51,18 @@ void BLEClient::connect() {
   // Without a fresh sighting each attempt can inhibit scanning for the
   // backend's full connect timeout (20 s on rp2) if the peer is absent.
   ESP_LOGW(TAG, "[%s] Connecting without a recent advertisement", this->address_str_);
-  this->attempt_connect_(true);
+  this->attempt_connect_();
 }
 
-void BLEClient::attempt_connect_(bool from_action) {
+void BLEClient::attempt_connect_() {
   int err = this->backend_->connect(this->address_, this->address_type_);
   if (err != 0) {
-    // A refused connect never produces a callback; stay idle and let the
-    // next sighting (or action) retry.
+    // A refused connect never produces a callback: stay idle, charge the
+    // backoff, and resolve any waiting connect action through the failure
+    // path so its chain terminates.
     ESP_LOGW(TAG, "[%s] Connect refused, err=%d", this->address_str_, err);
+    this->register_failure_();
+    this->defer([this]() { this->connect_failed_callbacks_.call(); });
     return;
   }
   ESP_LOGD(TAG, "[%s] Connecting", this->address_str_);
@@ -69,38 +72,16 @@ void BLEClient::attempt_connect_(bool from_action) {
 void BLEClient::disconnect() {
   if (this->state_ == State::IDLE)
     return;
+  // A deliberate teardown's failure report must not feed the backoff.
+  this->cancel_requested_ = true;
   this->backend_->disconnect();
-}
-
-void BLEClient::request_notify(uint16_t char_handle, uint16_t cccd_handle, uint8_t properties) {
-  if (this->cccd_count_ >= BLE_CLIENT_MAX_NOTIFY_REQUESTS) {
-    ESP_LOGW(TAG, "[%s] Too many notify requests, dropping handle 0x%04x", this->address_str_, char_handle);
-    return;
-  }
-  // Local registration is free (no operation slot); the CCCD write is
-  // serialized through the client's queue because the backend accepts one
-  // outstanding operation at a time.
-  this->backend_->notify_characteristic(char_handle, true);
-  uint8_t value = (properties & ble_device_base::GATT_CHAR_PROP_NOTIFY) ? 1 : 2;
-  this->pending_cccd_[this->cccd_count_++] = {cccd_handle, value};
-}
-
-void BLEClient::issue_next_cccd_() {
-  while (this->cccd_head_ < this->cccd_count_) {
-    const auto &pending = this->pending_cccd_[this->cccd_head_];
-    const uint8_t value[2] = {pending.value, 0x00};
-    if (this->backend_->write_descriptor(pending.handle, value, sizeof(value)) == 0) {
-      return;  // advance on the matching on_write_result
-    }
-    ESP_LOGW(TAG, "[%s] CCCD write failed for handle 0x%04x", this->address_str_, pending.handle);
-    this->cccd_head_++;
-  }
 }
 
 void BLEClient::register_failure_() {
   if (this->consecutive_failures_ < FAILURE_HOLD_OFF_MAX_STEPS)
     this->consecutive_failures_++;
-  this->hold_off_until_ = millis() + this->consecutive_failures_ * FAILURE_HOLD_OFF_STEP_MS;
+  this->hold_off_start_ = millis();
+  this->hold_off_ms_ = this->consecutive_failures_ * FAILURE_HOLD_OFF_STEP_MS;
   ESP_LOGW(TAG, "[%s] Holding off reconnect for %u s", this->address_str_,
            this->consecutive_failures_ * (FAILURE_HOLD_OFF_STEP_MS / 1000));
 }
@@ -115,8 +96,9 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     return;
   }
   bool was_connected = this->state_ == State::CONNECTED;
+  bool cancelled = this->cancel_requested_;
+  this->cancel_requested_ = false;
   this->state_ = State::IDLE;
-  this->cccd_head_ = this->cccd_count_ = 0;
   if (was_connected) {
     ESP_LOGI(TAG, "[%s] Disconnected, status=%d", this->address_str_, error);
     for (auto *node : this->nodes_) {
@@ -125,8 +107,12 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     // Continuations leave the backend's event-drain stack first.
     this->defer([this]() { this->disconnect_callbacks_.call(); });
   } else {
-    ESP_LOGW(TAG, "[%s] Connect failed, status=%d", this->address_str_, error);
-    this->register_failure_();
+    if (cancelled) {
+      ESP_LOGD(TAG, "[%s] Connect attempt cancelled", this->address_str_);
+    } else {
+      ESP_LOGW(TAG, "[%s] Connect failed, status=%d", this->address_str_, error);
+      this->register_failure_();
+    }
     this->defer([this]() { this->connect_failed_callbacks_.call(); });
   }
 }
@@ -145,23 +131,12 @@ void BLEClient::on_service_discovery_done(int error) {
   this->backend_->release_services();
   this->state_ = State::CONNECTED;
   this->consecutive_failures_ = 0;
-  this->hold_off_until_ = 0;
+  this->hold_off_ms_ = 0;
   ESP_LOGI(TAG, "[%s] Connected", this->address_str_);
   this->defer([this]() { this->connect_callbacks_.call(); });
-  this->issue_next_cccd_();
 }
 
 void BLEClient::on_write_result(uint16_t handle, int error) {
-  // The client's CCCD queue claims its own completion before the node
-  // fan-out sees it.
-  if (this->cccd_head_ < this->cccd_count_ && this->pending_cccd_[this->cccd_head_].handle == handle) {
-    if (error != 0) {
-      ESP_LOGW(TAG, "[%s] CCCD write error %d on handle 0x%04x", this->address_str_, error, handle);
-    }
-    this->cccd_head_++;
-    this->issue_next_cccd_();
-    return;
-  }
   for (auto *node : this->nodes_) {
     node->on_write_result(handle, error);
   }

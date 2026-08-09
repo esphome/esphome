@@ -22,7 +22,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#include <array>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -30,10 +29,6 @@
 namespace esphome::ble_client {
 
 class BLEClient;
-
-// Concurrent notify subscriptions per client (matches the smallest backend's
-// own cap; a node requesting more logs and is dropped).
-static constexpr uint8_t BLE_CLIENT_MAX_NOTIFY_REQUESTS = 16;
 
 /// The neutral node interface. Nodes resolve their handles from the service
 /// table during on_connected() and MUST copy what they need: the table is
@@ -57,7 +52,6 @@ class BLEClient : public Component,
                   public ble_device_base::ESPBTDeviceListener,
                   public ble_device_base::GattClientListener {
  public:
-  void setup() override { this->enabled = true; }
   void dump_config() override;
 
   // Public field for legacy parity (the switch platform republishes it).
@@ -89,11 +83,6 @@ class BLEClient : public Component,
   /// callbacks run inside the backend's event drain, so automation chain
   /// continuations must leave that stack first.
   void run_later(std::function<void()> &&f) { this->defer(std::move(f)); }  // NOLINT
-
-  /// Called by nodes during on_connected(): registers the notification with
-  /// the backend and queues the CCCD write (the backend accepts one
-  /// outstanding operation, so the client serializes them).
-  void request_notify(uint16_t char_handle, uint16_t cccd_handle, uint8_t properties);
 
   // Backend ops for nodes and actions.
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
@@ -130,13 +119,7 @@ class BLEClient : public Component,
  protected:
   enum class State : uint8_t { IDLE, CONNECTING, DISCOVERING, CONNECTED };
 
-  struct PendingCccd {
-    uint16_t handle;
-    uint8_t value;  // 1 = notify, 2 = indicate
-  };
-
-  void attempt_connect_(bool from_action);
-  void issue_next_cccd_();
+  void attempt_connect_();
   void register_failure_();
 
   // Group 1: pointers / containers
@@ -153,19 +136,21 @@ class BLEClient : public Component,
 
   // Group 4: 4-byte types
   // Backoff after repeated failures so an undiscoverable database or a
-  // dead peer cannot produce a battery-draining connect loop.
-  uint32_t hold_off_until_{0};
+  // dead peer cannot produce a battery-draining connect loop (wrap-safe
+  // start+duration pair).
+  uint32_t hold_off_start_{0};
+  uint32_t hold_off_ms_{0};
 
   // Group 5: arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
-  std::array<PendingCccd, BLE_CLIENT_MAX_NOTIFY_REQUESTS> pending_cccd_{};
 
   // Group 6: 1-byte types
   State state_{State::IDLE};
   uint8_t address_type_{0};  // BLE_ADDR_TYPE_*, captured from the sighting
   bool auto_connect_{true};
-  uint8_t cccd_head_{0};
-  uint8_t cccd_count_{0};
+  // A user-initiated teardown in flight; its failure report is not a
+  // connect failure and must not feed the backoff.
+  bool cancel_requested_{false};
   uint8_t consecutive_failures_{0};
 };
 

@@ -263,15 +263,6 @@ async def register_ble_node(var, config):
     cg.add(parent.register_ble_node(var))
 
 
-def _esp32_only_action(name: str):
-    def validator(config: ConfigType) -> ConfigType:
-        if not CORE.is_esp32:
-            raise cv.Invalid(f"{name} is only supported on esp32")
-        return config
-
-    return validator
-
-
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -288,33 +279,33 @@ BLE_CONNECT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.All(
+    cv.only_on_esp32,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
             cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean),
         }
     ),
-    _esp32_only_action("ble_client.numeric_comparison_reply"),
 )
 
 BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.All(
+    cv.only_on_esp32,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
             cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
         }
     ),
-    _esp32_only_action("ble_client.passkey_reply"),
 )
 
 
 BLE_REMOVE_BOND_ACTION_SCHEMA = cv.All(
+    cv.only_on_esp32,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
         }
     ),
-    _esp32_only_action("ble_client.remove_bond"),
 )
 
 
