@@ -167,7 +167,8 @@ void Hoermann::on_door_position_changed_(uint16_t old_value, uint16_t new_value)
   if ((old_value & 0x00FF) == (new_value & 0x00FF))
     return;
 
-  this->set_current_position_(static_cast<float>(new_value & 0x00FF) / 200.0f);
+  this->position_raw_ = new_value & 0x00FF;
+  this->update_current_position_();
   if (this->goto_position_ == 0.0f)
     return;
 
@@ -300,6 +301,23 @@ void Hoermann::set_door_state_(DoorState state) {
   // The door came to rest without reaching the target, so the request it belonged to is over.
   if (!is_moving(state))
     this->goto_position_ = 0.0f;
+  this->update_current_position_();
+}
+
+void Hoermann::update_current_position_() {
+  // Doors do not always park at exactly 0 or 200, and Cover::is_fully_closed() is an exact comparison, so
+  // trust the reported end stop over the raw count.
+  switch (this->door_state_) {
+    case DoorState::CLOSED:
+      this->set_current_position_(0.0f);
+      break;
+    case DoorState::OPEN:
+      this->set_current_position_(1.0f);
+      break;
+    default:
+      this->set_current_position_(static_cast<float>(this->position_raw_) / 200.0f);
+      break;
+  }
 }
 
 void Hoermann::set_current_position_(float position) {

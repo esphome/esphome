@@ -43,8 +43,8 @@ TEST(HoermannCoverTest, DirectionlessMoveHoldsTheOperationUntilThePositionMoves)
   HoermannCover cover(&door);
   cover.setup();
 
-  // Position 100/200 = 0.5, state 0x40 -> closed.
-  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x4000}));
+  // Position 100/200 = 0.5, state 0x80 -> resting half open.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x8000}));
   door.update();
   ASSERT_EQ(cover.current_operation, cover::COVER_OPERATION_IDLE);
 

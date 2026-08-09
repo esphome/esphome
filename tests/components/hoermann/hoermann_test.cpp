@@ -38,6 +38,12 @@ uint16_t poll_command(Hoermann &door) {
   return response.size() == 8u ? response[2] : 0xFFFF;
 }
 
+// Exposes the connection bookkeeping so the timeout cleanup can be driven without waiting it out.
+class TestableHoermann : public Hoermann {
+ public:
+  using Hoermann::set_valid_;
+};
+
 }  // namespace
 
 // An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
@@ -124,6 +130,50 @@ TEST(HoermannReadWrite, CommandIsDroppedWhileDisconnected) {
   EXPECT_EQ(poll_command(door), 0x0000);
 }
 
+// Losing the controller must drop a command it never fetched, otherwise it blocks every later command
+// and fires unasked once the bus comes back.
+TEST(HoermannReadWrite, ConnectionLossDropsThePendingCommand) {
+  TestableHoermann door;
+  connect(door);
+  door.open_door();
+  ASSERT_TRUE(door.is_valid());
+
+  door.set_valid_(false);
+  EXPECT_FALSE(door.is_valid());
+
+  // The reconnecting poll must not replay the dropped command.
+  EXPECT_EQ(poll_command(door), 0x0000);
+  // And the slot is free, so a new command is accepted.
+  door.close_door();
+  EXPECT_EQ(poll_command(door), 0x0220);
+}
+
+// The 0x17 read half echoes the message counter and command byte written to COMMAND_REG, packed
+// differently per block length.
+TEST(HoermannReadWrite, CommandRegisterIsEchoedBack) {
+  Hoermann door;
+  // Counter 0x34 in the high byte, command 0x07 in the low byte.
+  door.on_write_registers(COMMAND_REG, make_registers({0x3407, 0x0000}));
+
+  RegisterValues command_poll;
+  door.on_read_holding_registers(STATE_REG, 8, command_poll);
+  ASSERT_EQ(command_poll.size(), 8u);
+  EXPECT_EQ(command_poll[0], 0x3400);  // counter alone
+  EXPECT_EQ(command_poll[1], 0x0701);  // command in the high byte, status 0x01 in the low
+
+  RegisterValues empty_poll;
+  door.on_read_holding_registers(STATE_REG, 2, empty_poll);
+  ASSERT_EQ(empty_poll.size(), 2u);
+  EXPECT_EQ(empty_poll[0], 0x3404);  // status 0x04 shares the register with the counter here
+  EXPECT_EQ(empty_poll[1], 0x0700);  // command alone
+
+  RegisterValues scan;
+  door.on_read_holding_registers(STATE_REG, 5, scan);
+  ASSERT_EQ(scan.size(), 5u);
+  EXPECT_EQ(scan[0], 0x3400);
+  EXPECT_EQ(scan[1], 0x0705);
+}
+
 // A status broadcast (function code 0x10 to 0x9D31) updates the decoded door state and position.
 TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
   Hoermann door;
@@ -144,6 +194,25 @@ TEST(HoermannWrite, VentIsDecodedFromTheStateLowByte) {
   ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0061}));
   EXPECT_EQ(door.get_door_state(), DoorState::VENT);
+}
+
+// A door parking a count short of its end stop must still report exactly closed or open, because
+// Cover::is_fully_closed() compares against 0.0 exactly.
+TEST(HoermannWrite, EndStopsReportExactPositions) {
+  Hoermann door;
+  // Position register 1 of 200 while the door reports itself closed.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0001, 0x4000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSED);
+  EXPECT_FLOAT_EQ(door.get_current_position(), 0.0f);
+
+  // Position register 199 of 200 while the door reports itself open.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x00C7, 0x2000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::OPEN);
+  EXPECT_FLOAT_EQ(door.get_current_position(), 1.0f);
+
+  // Away from the end stops the raw count is reported as-is.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
 }
 
 // A position request below the lower snap threshold becomes a plain close command.

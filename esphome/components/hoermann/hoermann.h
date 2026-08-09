@@ -71,11 +71,15 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
   void set_current_position_(float position);
+  // Recomputes the reported position from position_raw_ and the current door state.
+  void update_current_position_();
 
   CallbackManager<void()> state_callback_;
 
   DoorState door_state_{DoorState::CLOSED};
   float current_position_{0.0f};
+  // Position as reported by the bus controller, 0..200 across the full travel.
+  uint8_t position_raw_{0};
   // Position the door was told to travel to; 0.0 means no target is armed.
   float goto_position_{0.0f};
   bool valid_{false};
