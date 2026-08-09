@@ -575,7 +575,9 @@ static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.str
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
-    // list is never cached as authoritative.
+    // list is never cached as authoritative (the client retries after its
+    // GetServices timeout).
+    ESP_LOGW(TAG, "[%d] [%s] Services released mid-stream, parking", conn.connection_index_, conn.address_str_);
     conn.send_service_ = DONE_SENDING_SERVICES;
     return;
   }
@@ -719,7 +721,8 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // teardown net gave up): close a won link, never resurrect the slot.
     ESP_LOGD(TAG, "[%d] OPEN_EVT in IDLE state (status=%d)", this->connection_index_, param->open.status);
     if (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN) {
-      esp_ble_gattc_close(this->gattc_if_, param->open.conn_id);
+      // A failed close here leaks a live link nothing tracks; make it heard.
+      this->check_and_log_error_("esp_ble_gattc_close", esp_ble_gattc_close(this->gattc_if_, param->open.conn_id));
     }
     return;
   }
