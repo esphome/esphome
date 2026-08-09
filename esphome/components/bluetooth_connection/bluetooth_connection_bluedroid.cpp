@@ -72,12 +72,11 @@ void BluedroidGattClient::loop() {
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
     this->set_state(ClientState::IDLE);
   } else if (st != ClientState::DISCONNECTING) {
-    // The loop only drives the bootstrap, the disconnect safety timeout and
-    // the pre-started-search flush (a consumer requesting the finished
-    // search outside an event drain; set_idle_() cleared any stale latch).
-    // Settle - unless delivering just started a teardown needing the timer.
+    // While a link exists the loop stays on watching for a stack-down (the
+    // settle above needs a tick to run) and flushing a pre-started search
+    // claimed outside an event drain; it settles only back at IDLE.
     this->deliver_pending_search_();
-    if (this->state() != ClientState::DISCONNECTING) {
+    if (this->state() == ClientState::IDLE) {
       this->disable_loop();
     }
   } else if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
@@ -717,16 +716,12 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     this->seen_mtu_ = true;
     // Cached path never exchanged an MTU; HA has always seen the default.
     this->listener_->on_connection_state(true, ble_device_base::DEFAULT_ATT_MTU, 0);
-    if (this->state() != ClientState::DISCONNECTING) {
-      // Settled; set_disconnecting_() re-enables the loop for the net.
-      this->disable_loop();
-    }
   } else {
     // Discovery-bound connection: start the search now so it overlaps the
     // MTU exchange. On a refusal fall back to the serialized path - the
     // consumer's own discover_services() call retries the real search.
     if (this->check_and_log_error_("esp_ble_gattc_search_service",
-                                   esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr)) == 0) {
+                                   esp_ble_gattc_search_service(this->gattc_if_, param->open.conn_id, nullptr)) == 0) {
       this->search_state_ = SearchState::PRESTARTED;
     }
     if (this->mtu_failed_ && !this->seen_mtu_) {
@@ -843,11 +838,6 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
           this->search_state_ == SearchState::CLAIMED ? SearchState::REPORT_PENDING : SearchState::PRESTART_DONE;
       this->set_state(ClientState::ESTABLISHED);
       this->deliver_pending_search_();
-      if (this->state() != ClientState::DISCONNECTING) {
-        // Settled - unless delivering a failed status just started a
-        // teardown that needs the loop for its timer.
-        this->disable_loop();
-      }
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT:
