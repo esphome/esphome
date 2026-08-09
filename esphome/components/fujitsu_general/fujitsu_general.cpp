@@ -46,12 +46,16 @@ const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 
 // Mode
 const uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
+// The mode occupies only the low three bits of this nibble, see the frame documentation in the
+// header. The fourth bit belongs to the clean feature, which doubles as 10 degree heat on the
+// ARRAH2E and ARREW4E remotes.
+const uint8_t FUJITSU_GENERAL_MODE_MASK = 0b0111;
+const uint8_t FUJITSU_GENERAL_CLEAN_BIT = 0b1000;
 const uint8_t FUJITSU_GENERAL_MODE_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_MODE_COOL = 0x01;
 const uint8_t FUJITSU_GENERAL_MODE_DRY = 0x02;
 const uint8_t FUJITSU_GENERAL_MODE_FAN = 0x03;
 const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
-// const uint8_t FUJITSU_GENERAL_MODE_10C = 0x0B;
 
 // Swing
 const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
@@ -62,6 +66,9 @@ const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
 
 // Fan
 const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
+// Like the mode, the fan speed occupies only the low three bits of its nibble. The fourth bit is
+// not assigned by the protocol.
+const uint8_t FUJITSU_GENERAL_FAN_MASK = 0b0111;
 const uint8_t FUJITSU_GENERAL_FAN_AUTO = 0x00;
 const uint8_t FUJITSU_GENERAL_FAN_HIGH = 0x01;
 const uint8_t FUJITSU_GENERAL_FAN_MEDIUM = 0x02;
@@ -136,7 +143,6 @@ void FujitsuGeneralClimate::transmit_state() {
     default:
       SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
       break;
-      // TODO: CLIMATE_MODE_10C is missing from esphome
   }
 
   // Set fan
@@ -243,6 +249,44 @@ uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
 
+climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode) {
+  switch (mode_field & FUJITSU_GENERAL_MODE_MASK) {
+    case FUJITSU_GENERAL_MODE_COOL:
+      return climate::CLIMATE_MODE_COOL;
+    case FUJITSU_GENERAL_MODE_HEAT:
+      return climate::CLIMATE_MODE_HEAT;
+    case FUJITSU_GENERAL_MODE_DRY:
+      return climate::CLIMATE_MODE_DRY;
+    case FUJITSU_GENERAL_MODE_FAN:
+      return climate::CLIMATE_MODE_FAN_ONLY;
+    case FUJITSU_GENERAL_MODE_AUTO:
+      return climate::CLIMATE_MODE_HEAT_COOL;
+    default:
+      // The protocol does not assign these values, so there is nothing to report. Keeping the
+      // current mode claims less than inventing one.
+      ESP_LOGW(TAG, "Received unknown mode %X, keeping the current mode", mode_field);
+      return current_mode;
+  }
+}
+
+optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode) {
+  switch (fan_field & FUJITSU_GENERAL_FAN_MASK) {
+    case FUJITSU_GENERAL_FAN_HIGH:
+      return climate::CLIMATE_FAN_HIGH;
+    case FUJITSU_GENERAL_FAN_MEDIUM:
+      return climate::CLIMATE_FAN_MEDIUM;
+    case FUJITSU_GENERAL_FAN_LOW:
+      return climate::CLIMATE_FAN_LOW;
+    case FUJITSU_GENERAL_FAN_SILENT:
+      return climate::CLIMATE_FAN_QUIET;
+    case FUJITSU_GENERAL_FAN_AUTO:
+      return climate::CLIMATE_FAN_AUTO;
+    default:
+      ESP_LOGW(TAG, "Received unknown fan speed %X, keeping the current fan mode", fan_field);
+      return current_mode;
+  }
+}
+
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV(TAG, "Received IR message");
 
@@ -323,46 +367,14 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     const uint8_t recv_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_MODE_NIBBLE);
     ESP_LOGV(TAG, "Received mode %X", recv_mode);
-    switch (recv_mode) {
-      case FUJITSU_GENERAL_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case FUJITSU_GENERAL_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case FUJITSU_GENERAL_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case FUJITSU_GENERAL_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case FUJITSU_GENERAL_MODE_AUTO:
-      default:
-        // TODO: CLIMATE_MODE_10C is missing from esphome
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
+    if ((recv_mode & FUJITSU_GENERAL_CLEAN_BIT) != 0) {
+      ESP_LOGW(TAG, "Received a frame with the clean / 10 degree heat bit set, which is not supported");
     }
+    this->mode = decode_mode(recv_mode, this->mode);
 
     const uint8_t recv_fan_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_FAN_NIBBLE);
     ESP_LOGV(TAG, "Received fan mode %X", recv_fan_mode);
-    switch (recv_fan_mode) {
-      case FUJITSU_GENERAL_FAN_SILENT:
-        this->fan_mode = climate::CLIMATE_FAN_QUIET;
-        break;
-      case FUJITSU_GENERAL_FAN_LOW:
-        this->fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case FUJITSU_GENERAL_FAN_MEDIUM:
-        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case FUJITSU_GENERAL_FAN_HIGH:
-        this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        break;
-      case FUJITSU_GENERAL_FAN_AUTO:
-      default:
-        this->fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
+    this->fan_mode = decode_fan_mode(recv_fan_mode, this->fan_mode);
 
     const uint8_t recv_swing_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_SWING_NIBBLE);
     ESP_LOGV(TAG, "Received swing mode %X", recv_swing_mode);

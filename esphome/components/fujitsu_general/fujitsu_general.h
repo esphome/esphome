@@ -46,6 +46,18 @@ const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
  */
 // clang-format on
 
+/// Turn the mode field of a received frame into a climate mode.
+///
+/// Only the low three bits carry the mode; the fourth bit belongs to the clean feature and is
+/// ignored here. Values the protocol does not assign leave the mode as it was.
+climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode);
+
+/// Turn the fan speed field of a received frame into a fan mode.
+///
+/// Like the mode, only the low three bits carry the value. Speeds the protocol does not assign
+/// leave the fan mode as it was.
+optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode);
+
 class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
  public:
   FujitsuGeneralClimate()
