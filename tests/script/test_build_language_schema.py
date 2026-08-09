@@ -205,6 +205,47 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
     assert "sensitive_source" not in entry
 
 
+def _wildcard_validator(value):
+    return value
+
+
+def test_convert_keys_marker_wrapped_callable_key_normalizes() -> None:
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional(_wildcard_validator): cv.string}, "/root")
+
+    config_vars = converted["schema"]["config_vars"]
+    assert set(config_vars) == {"string"}
+    assert config_vars["string"]["key"] == "Optional"
+    assert config_vars["string"]["key_type"] == "_wildcard_validator"
+
+
+def test_convert_keys_marker_wrapped_callable_beside_fixed_keys() -> None:
+    converted: dict = {}
+    _bls.convert_keys(
+        converted,
+        {cv.Required("id"): cv.string, cv.Optional(_wildcard_validator): cv.string},
+        "/root",
+    )
+
+    assert set(converted["schema"]["config_vars"]) == {"id", "string"}
+
+
+def test_convert_keys_bare_callable_dotted_qualname() -> None:
+    def make_validator():
+        def validator(value):
+            return value
+
+        return validator
+
+    converted: dict = {}
+    _bls.convert_keys(converted, {make_validator(): cv.string}, "/root")
+
+    assert converted["key"] == "String"
+    assert converted["key_type"].endswith("make_validator.<locals>.validator")
+    assert "at 0x" not in converted["key_type"]
+    assert set(converted["schema"]["config_vars"]) == {"string"}
+
+
 # ---------------------------------------------------------------------------
 # Regression tests for the lvgl schema dump.
 #
