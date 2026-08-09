@@ -78,8 +78,9 @@ struct HubCapabilities {
   /// may only see them where the receiver merges per address (Home Assistant does).
   bool merges_scan_response;
   /// GATT client connections are available: the platform has a
-  /// bluetooth_connection backend implementing ble_device_base::BLEGattConnection
-  /// (ble_gatt_client.h). Today: esp32 and rp2.
+  /// bluetooth_connection backend (rp2 binds the BLEGattConnection alias in
+  /// bluetooth_connection_gatt_backend.h; esp32 uses its Bluedroid client).
+  /// Today: esp32 and rp2.
   bool gatt;
   /// request_scan_mode() is honored at runtime. Distinct from active_scan:
   /// a passive-only controller (bk72xx) can never switch, and a hub may
