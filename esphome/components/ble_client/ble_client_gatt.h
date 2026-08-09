@@ -121,6 +121,8 @@ class BLEClient : public Component,
   void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) override;
   void on_write_result(uint16_t handle, int error) override;
   void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) override;
+  void on_notify_state(uint16_t handle, bool enabled, int error) override;
+  void on_pairing_result(int status) override;
 
  protected:
   enum class State : uint8_t { IDLE, CONNECTING, DISCOVERING, CONNECTED };

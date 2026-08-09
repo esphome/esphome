@@ -159,8 +159,9 @@ void BLEClient::on_service_discovery_done(int error) {
   for (auto *node : this->nodes_) {
     node->on_connected(table);
     if (this->state_ != State::CONNECTED) {
-      // A node tore the link down mid-fan-out; the normal release below is
-      // skipped (release is idempotent).
+      // A node tore the link down mid-fan-out: on_disconnect fires with no
+      // preceding on_connect, so leave a trace of why.
+      ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);
       this->backend_->release_services();
       return;
     }
@@ -196,6 +197,23 @@ void BLEClient::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t le
   // Every node sees every notification and filters by handle (legacy parity).
   for (auto *node : this->nodes_) {
     node->on_notify(handle, data, len);
+  }
+}
+
+void BLEClient::on_notify_state(uint16_t handle, bool enabled, int error) {
+  // Breadcrumb only until the first notify node lands; a dropped failure
+  // here would otherwise be silent on a frozen surface.
+  if (error != 0) {
+    ESP_LOGW(TAG, "[%s] Notify %s on handle 0x%04x failed, status=%d", this->address_str_,
+             enabled ? "enable" : "disable", handle, error);
+  }
+}
+
+void BLEClient::on_pairing_result(int status) {
+  if (status != 0) {
+    ESP_LOGW(TAG, "[%s] Pairing failed, status=%d", this->address_str_, status);
+  } else {
+    ESP_LOGI(TAG, "[%s] Paired", this->address_str_);
   }
 }
 
