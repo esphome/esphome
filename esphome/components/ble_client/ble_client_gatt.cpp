@@ -157,7 +157,11 @@ void BLEClient::on_service_discovery_done(int error) {
   for (auto *node : this->nodes_) {
     node->on_connected(table);
     if (this->state_ != State::CONNECTED) {
-      return;  // A node tore the link down mid-fan-out; the teardown settled.
+      // A node tore the link down mid-fan-out; the teardown settled. Release
+      // the borrowed table here since the normal release below is skipped
+      // (idempotent when the backend released on teardown already).
+      this->backend_->release_services();
+      return;
     }
   }
   this->backend_->release_services();

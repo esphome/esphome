@@ -182,6 +182,16 @@ def _validate_slot_totals(config: ConfigType) -> ConfigType:
     if CORE.testing_mode:
         return config
     if (cap := HUB_MAX_CONNECTIONS.get(CORE.target_platform)) is None:
+        # esp32's budget lives in esp32_ble; any other registered backend
+        # platform must carry a cap here or fail loudly, never fail open.
+        if (
+            CORE.target_platform != PLATFORM_ESP32
+            and CORE.target_platform in _PLATFORM_BACKENDS
+        ):
+            raise cv.Invalid(
+                f"{CORE.target_platform} has a GATT backend but no slot cap "
+                "in HUB_MAX_CONNECTIONS"
+            )
         return config
     claimed = _ledger().consumers
     if len(claimed) > cap:
