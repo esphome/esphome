@@ -205,14 +205,23 @@ def _sdk_min_version(
     return sdk.min_version
 
 
-def qualify_board(variant: ZephyrVariant, board: str) -> str:
+def qualify_board(
+    variant: ZephyrVariant, board: str, qualifier: str | None = None
+) -> str:
     """Expand a bare board name into its full west target string. Already-qualified input
-    is left untouched."""
+    is left untouched.
+
+    qualifier overrides variant.qualifier for variants where the qualifier segment isn't
+    a fixed hardware fact (e.g. RP2040's board/soc/mcuboot vs. board/soc split depends on
+    a user config choice, not the chip itself) -- None (the default) falls back to
+    variant.qualifier, unchanged behavior for every other variant.
+    """
     if "/" in board or variant.soc is None:
         return board
     qualified = f"{board}/{variant.soc}"
-    if variant.qualifier:
-        qualified += f"/{variant.qualifier}"
+    qualifier = variant.qualifier if qualifier is None else qualifier
+    if qualifier:
+        qualified += f"/{qualifier}"
     return qualified
 
 
