@@ -122,7 +122,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   uint8_t *table_storage_{nullptr};
 #endif
   // Group 2: 4-byte types
-  int gattc_if_{ESP_GATT_IF_NONE};
+  uint32_t disconnecting_started_{0};
 
   // Group 3: arrays
   esp_bd_addr_t remote_bda_{};
@@ -130,10 +130,6 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // Group 4: 2-byte types
   uint16_t conn_id_{0xFFFF};
   uint16_t service_total_{0};
-  // 256 ms ticks (millis() >> 8), wrap-safe for the 10 s net; a uint16 keeps
-  // the object on the 48-byte boundary (a full uint32 costs 4 B of field
-  // plus 4 B of per-slot storage padding).
-  uint16_t disconnecting_tick_{0};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // Filled element counts of the materialized table (0 when none).
   uint16_t table_char_total_{0};
@@ -141,6 +137,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 #endif
 
   // Group 5: 1-byte types
+  // esp_gatt_if_t is a uint8_t; the narrow type lands the object on the
+  // 48-byte boundary (an int cost 3 bytes of field plus per-slot padding).
+  esp_gatt_if_t gattc_if_{ESP_GATT_IF_NONE};
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.
   uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
