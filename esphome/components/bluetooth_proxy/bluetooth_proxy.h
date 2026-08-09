@@ -251,10 +251,6 @@ class BluetoothProxy final : public Component {
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;
-  // One-deep retry latch for a dropped connected=false notification (the
-  // freed-slot half of the pair the connections-free retry covers).
-  uint64_t pending_disconnection_address_{0};
-  conn_err_t pending_disconnection_error_{0};
 
   // Group 4: 1-byte types grouped together
   bool active_;

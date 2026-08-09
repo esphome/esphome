@@ -206,11 +206,6 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
       return connection;
 
     if (reserve && conn_addr == 0) {
-      if (address == this->pending_disconnection_address_) {
-        // The client re-requested this address: it already acted on the
-        // disconnect, and a late resend would shadow the new connection.
-        this->pending_disconnection_address_ = 0;
-      }
       connection->send_service_ = INIT_SENDING_SERVICES;
       connection->set_address(address);
       // All connections must start at INIT
@@ -492,13 +487,6 @@ void BluetoothProxy::loop() {
     return;
   this->last_advertisement_flush_time_ = now;
 
-  if (this->pending_disconnection_address_ != 0 && this->api_connection_ != nullptr) {
-    // Paced resend of a dropped freed-slot notification; a repeat failure
-    // re-latches through send_device_connection itself.
-    uint64_t addr = this->pending_disconnection_address_;
-    this->pending_disconnection_address_ = 0;
-    this->send_device_connection(addr, false, 0, this->pending_disconnection_error_);
-  }
   if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
     // Resend a dropped slot-state update, paced by the 100 ms gate so the
     // retry does not hammer the congestion it exists to survive; the
@@ -620,9 +608,8 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
              api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
              this->api_connection_->get_peername_to(old_peername));
   }
-  // Stale retry latches belong to the previous subscriber's session.
+  // A stale retry latch belongs to the previous subscriber's session.
   this->connections_free_pending_ = false;
-  this->pending_disconnection_address_ = 0;
   this->api_connection_ = api_connection;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
@@ -639,7 +626,6 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   }
   this->api_connection_ = nullptr;
   this->connections_free_pending_ = false;
-  this->pending_disconnection_address_ = 0;
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
@@ -650,12 +636,9 @@ void BluetoothProxy::send_device_connection(uint64_t address, bool connected, ui
   call.connected = connected;
   call.mtu = mtu;
   call.error = error;
-  if (!this->api_connection_->send_message(call) && !connected) {
-    // The freed-slot notification must eventually arrive; a lost
-    // connected=true is covered by the client's own connect timeout.
-    this->pending_disconnection_address_ = address;
-    this->pending_disconnection_error_ = error;
-  }
+  // Fire and forget: a drop is covered by the client's own timeouts and the
+  // retried connections-free state.
+  this->api_connection_->send_message(call);
 }
 void BluetoothProxy::send_connections_free() {
   if (this->api_connection_ != nullptr) {
