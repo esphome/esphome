@@ -64,12 +64,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  // Materialized on demand from Bluedroid's cached database for direct
-  // consumers that resolve handles by UUID. The streaming consumer (the
-  // proxy wrapper) never calls this - it uses stream_service_batch - so the
-  // materializer only compiles when codegen declares a direct consumer
-  // (USE_BLE_GATT_SERVICE_TABLE) and proxy-only builds keep the old
-  // footprint; a direct consumer's peak is bounded by its one known device.
+  // On-demand table for direct consumers; the proxy streams instead, so the
+  // materializer compiles only under USE_BLE_GATT_SERVICE_TABLE.
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   ble_device_base::GattServiceTable get_service_table();
 #else
@@ -115,10 +111,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // Group 1: pointers / composed objects
   ble_device_base::GattClientListener *listener_{nullptr};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
-  // One exact-size block carved into the table's three arrays; owned here,
-  // freed by release_services(). Null when no table is materialized. The
-  // GattServiceTable view is rebuilt from this pointer and the counts on
-  // each (cold) get_service_table() call instead of being cached.
+  // One exact-size block carved into the three arrays; the view is rebuilt
+  // per (cold) call instead of cached.
   uint8_t *table_storage_{nullptr};
 #endif
   // Group 2: 4-byte types
@@ -137,17 +131,13 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 #endif
 
   // Group 5: 1-byte types
-  // esp_gatt_if_t is a uint8_t; the narrow type lands the object on the
-  // 48-byte boundary (an int cost 3 bytes of field plus per-slot padding).
-  esp_gatt_if_t gattc_if_{ESP_GATT_IF_NONE};
+  esp_gatt_if_t gattc_if_{ESP_GATT_IF_NONE};  // uint8_t width keeps the object at 48 bytes
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.
   uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
   uint8_t connection_index_;
-  // Set by every release_services(): terminates an in-flight service stream
-  // (a partial list must never be sent as authoritative) and, when the cache
-  // was cleaned, marks the database unsafe to walk (Bluedroid asserts rather
-  // than erroring).
+  // Terminates an in-flight stream (never send a partial list as authoritative)
+  // and marks a cleaned cache unsafe to walk (Bluedroid asserts).
   bool services_released_{false};
   // The connected report waits for the MTU exchange; OPEN_EVT alone would
   // hand HA the default 23.
