@@ -267,8 +267,9 @@ void SnifferStats::dump_(uint32_t now) {
     }
 
     // '>' marks a TX row (we sent this frame_type) so the table reads directionally without
-    // a separate column; unmarked rows are RX as before. See AGENT_MEMORY.md — TX and RX
-    // frame_types never collide, so an entry is unambiguously one or the other.
+    // a separate column; unmarked rows are RX as before. Entries are keyed on
+    // (frame_type, is_tx) together, so a frame_type reused in both directions gets two rows
+    // rather than one mixed row -- see SnifferEntry::is_tx.
     ESP_LOGI(TAG, " %c%02X%02X %5" PRIu32 "    %s    %s   %s", e.is_tx ? '>' : ' ', e.frame_type[0], e.frame_type[1],
              e.count, d_ref_buf, d_same_buf, unique_buf);
   }

@@ -77,8 +77,8 @@ struct SnifferEntry {
   uint32_t last_seen_ms{0};
   // Set at creation and never changed: find_or_create_() keys entries on (frame_type, is_tx)
   // together, not frame_type alone, so this is a fixed property of the entry, not a sticky
-  // guess. Needed because AGENT_MEMORY.md's "we never hear our own transmissions" fact only
-  // rules out echo-caused collisions (RS485 half-duplex suppresses local echo) — it says
+  // guess. Needed because UART_MODE_RS485_HALF_DUPLEX suppresses local echo, so the RX path
+  // never sees our own transmissions — that rules out echo-caused collisions, but says
   // nothing about a protocol that genuinely reuses a frame_type numerically for both a
   // request the hub sends and an unrelated reply it receives. Keying on direction too means
   // that case gets two separate rows instead of one row silently mixing both event streams.
