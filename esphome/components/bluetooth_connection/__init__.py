@@ -11,7 +11,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_platform,
+    frameworks_for_platforms,
+)
 import esphome.config_validation as cv
 from esphome.const import PLATFORM_ESP32, PLATFORM_RP2, PlatformFramework
 from esphome.core import CORE
@@ -236,10 +239,7 @@ async def new_gatt_backend(
 # Named so tests can pin the hub entry against bluetooth_proxy's platform
 # list (this module cannot import bluetooth_proxy to derive it).
 SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
-    "bluetooth_connection_bluedroid.cpp": {
-        PlatformFramework.ESP32_ARDUINO,
-        PlatformFramework.ESP32_IDF,
-    },
+    "bluetooth_connection_bluedroid.cpp": frameworks_for_platforms([PLATFORM_ESP32]),
     # Every hub platform the proxy admits (the file compiles empty where
     # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
     # cannot hit a missing-symbol trap here.
