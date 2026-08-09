@@ -382,8 +382,7 @@ void BluetoothConnection::send_service_for_discovery_() {
     if (char_count != 0 && service.first_characteristic + char_count > table.characteristic_count) {
       ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), aborting stream",
                this->connection_index_, this->address_str_, this->send_service_);
-      this->send_service_ = DONE_SENDING_SERVICES;
-      this->disconnect();
+      this->abort_service_stream(ble_device_base::GATT_ERR_UNLIKELY);
       return;
     }
     if (char_count > 0) {
@@ -399,8 +398,7 @@ void BluetoothConnection::send_service_for_discovery_() {
         if (desc_count != 0 && chr.first_descriptor + desc_count > table.descriptor_count) {
           ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), aborting stream",
                    this->connection_index_, this->address_str_, this->send_service_);
-          this->send_service_ = DONE_SENDING_SERVICES;
-          this->disconnect();
+          this->abort_service_stream(ble_device_base::GATT_ERR_UNLIKELY);
           return;
         }
         if (desc_count == 0) {

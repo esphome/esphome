@@ -144,6 +144,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // The connected report waits for the MTU exchange; OPEN_EVT alone would
   // hand HA the default 23.
   bool seen_mtu_ : 1 {false};
+  // The MTU request was refused at CONNECT_EVT; OPEN_EVT reports instead.
+  bool mtu_failed_ : 1 {false};
   // Pre-started discovery: the search is issued at OPEN_EVT so it overlaps
   // the MTU exchange (the replaced class's timing) and the consumer's
   // discover_services() completes from it instead of paying a serialized

@@ -17,6 +17,9 @@ namespace esphome::ble_device_base {
 /// client backend.
 static constexpr int GATT_ERR_NOT_CONNECTED = -1;
 static constexpr int GATT_ERR_NO_MEMORY = -2;
+/// ATT "Unlikely Error" (spec 0x0E): a client-side internal inconsistency,
+/// e.g. a service table failing its own bounds checks.
+static constexpr int GATT_ERR_UNLIKELY = 0x0E;
 
 /// Safety net shared by every GATT backend: force IDLE when the stack never
 /// delivers its disconnect completion.
