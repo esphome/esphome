@@ -74,7 +74,7 @@ void BLEClient::disconnect() {
     return;
   // A deliberate teardown's failure report must not feed the backoff.
   this->cancel_requested_ = true;
-  this->backend_->disconnect();
+  this->backend_->gatt_disconnect();
 }
 
 void BLEClient::register_failure_() {
@@ -91,7 +91,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     this->state_ = State::DISCOVERING;
     if (this->backend_->discover_services() != 0) {
       // Synchronous refusal: no discovery completion will follow.
-      this->backend_->disconnect();
+      this->backend_->gatt_disconnect();
     }
     return;
   }
@@ -121,7 +121,7 @@ void BLEClient::on_service_discovery_done(int error) {
   if (error != 0) {
     ESP_LOGW(TAG, "[%s] Service discovery failed, status=%d", this->address_str_, error);
     this->register_failure_();
-    this->backend_->disconnect();
+    this->backend_->gatt_disconnect();
     return;
   }
   auto table = this->backend_->get_service_table();
