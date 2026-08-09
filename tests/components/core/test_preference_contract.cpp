@@ -25,7 +25,8 @@ struct BackendWrongReturn {
 };
 static_assert(!PreferenceBackendContract<BackendWrongReturn>);
 
-struct MinimalPreferences {
+struct MinimalPreferences : public PreferencesMixin<MinimalPreferences> {
+  using PreferencesMixin<MinimalPreferences>::make_preference;
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
   bool sync() { return true; }
@@ -33,19 +34,52 @@ struct MinimalPreferences {
 };
 static_assert(PreferencesContract<MinimalPreferences>);
 
-struct PreferencesMissingTwoArgForm {
+struct PreferencesMissingTwoArgForm : public PreferencesMixin<PreferencesMissingTwoArgForm> {
+  using PreferencesMixin<PreferencesMissingTwoArgForm>::make_preference;
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   bool sync() { return true; }
   bool reset() { return true; }
 };
 static_assert(!PreferencesContract<PreferencesMissingTwoArgForm>);
 
-struct PreferencesMissingReset {
+struct PreferencesMissingReset : public PreferencesMixin<PreferencesMissingReset> {
+  using PreferencesMixin<PreferencesMissingReset>::make_preference;
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
   bool sync() { return true; }
 };
 static_assert(!PreferencesContract<PreferencesMissingReset>);
+
+struct PreferencesWrongSyncReturn : public PreferencesMixin<PreferencesWrongSyncReturn> {
+  using PreferencesMixin<PreferencesWrongSyncReturn>::make_preference;
+  ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
+  ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
+  void sync() {}
+  bool reset() { return true; }
+};
+static_assert(!PreferencesContract<PreferencesWrongSyncReturn>);
+
+// The derived non-template overloads hide PreferencesMixin's template forms
+// unless the class re-exposes them with a using declaration; forgetting that
+// line breaks every make_preference<T>() call site, so the concept must
+// reject the class.
+struct PreferencesForgotUsingDeclaration : public PreferencesMixin<PreferencesForgotUsingDeclaration> {
+  ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
+  ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
+  bool sync() { return true; }
+  bool reset() { return true; }
+};
+static_assert(!PreferencesContract<PreferencesForgotUsingDeclaration>);
+
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+struct MinimalKeyLookup {
+  bool load_from_key(uint32_t, uint8_t *, size_t) { return true; }
+};
+static_assert(PreferencesKeyLookupContract<MinimalKeyLookup>);
+
+struct KeyLookupMissingMethod {};
+static_assert(!PreferencesKeyLookupContract<KeyLookupMissingMethod>);
+#endif
 
 TEST(PreferenceContract, NullBackendRefusesBothOperations) {
   // ESPPreferenceObject forwards to whichever backend the platform binds; a

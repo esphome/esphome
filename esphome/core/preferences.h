@@ -49,6 +49,11 @@ namespace esphome {
 static_assert(PreferencesContract<ESPPreferences>,
               "The platform's preferences manager is missing part of the ESPPreferences surface "
               "(esphome/core/preference_backend.h)");
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+static_assert(PreferencesKeyLookupContract<ESPPreferences>,
+              "This platform emits USE_PREFERENCE_KEY_LOOKUP but its preferences manager does not provide "
+              "load_from_key() (esphome/core/preference_backend.h)");
+#endif
 }  // namespace esphome
 
 #ifdef USE_PREFERENCE_KEY_LOOKUP
