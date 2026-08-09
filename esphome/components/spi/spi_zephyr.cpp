@@ -51,7 +51,13 @@ void ZephyrSPIDelegate::do_transceive_(const uint8_t *tx, uint8_t *rx, size_t le
     while (remaining > 0) {
       size_t n = remaining < FLASH_STAGING_SIZE ? remaining : FLASH_STAGING_SIZE;
       memcpy(chunk, src, n);
-      this->transceive_chunk_(chunk, dst_rx, n);
+      if (!this->transceive_chunk_(chunk, dst_rx, n)) {
+        // The rest of rx wasn't touched by this or any prior chunk; zero it too so the
+        // whole buffer is deterministic rather than part-result, part-stale data.
+        if (dst_rx != nullptr)
+          memset(dst_rx + n, 0, remaining - n);
+        return;
+      }
       src += n;
       if (dst_rx != nullptr)
         dst_rx += n;
@@ -63,7 +69,7 @@ void ZephyrSPIDelegate::do_transceive_(const uint8_t *tx, uint8_t *rx, size_t le
   this->transceive_chunk_(tx, rx, length);
 }
 
-void ZephyrSPIDelegate::transceive_chunk_(const uint8_t *tx, uint8_t *rx, size_t length) {
+bool ZephyrSPIDelegate::transceive_chunk_(const uint8_t *tx, uint8_t *rx, size_t length) {
   spi_buf tx_buf{};
   spi_buf rx_buf{};
   spi_buf_set tx_set{};
@@ -86,7 +92,11 @@ void ZephyrSPIDelegate::transceive_chunk_(const uint8_t *tx, uint8_t *rx, size_t
       spi_transceive(this->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr, rx != nullptr ? &rx_set : nullptr);
   if (err != 0) {
     ESP_LOGE(TAG, "spi_transceive failed: %d", err);
+    if (rx != nullptr)
+      memset(rx, 0, length);
+    return false;
   }
+  return true;
 }
 
 uint8_t ZephyrSPIDelegate::transfer(uint8_t data) {
@@ -102,6 +112,25 @@ void ZephyrSPIDelegate::transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t le
 }
 
 void ZephyrSPIDelegate::write_array(const uint8_t *ptr, size_t length) { this->do_transceive_(ptr, nullptr, length); }
+
+void ZephyrSPIDelegate::write_array16(const uint16_t *data, size_t length) {
+  if (this->bit_order_ == BIT_ORDER_LSB_FIRST) {
+    this->write_array(reinterpret_cast<const uint8_t *>(data), length * 2);
+    return;
+  }
+  // MSB-first needs each 16-bit word byte-swapped before it goes out; stage the swap
+  // through a small stack buffer instead of one write16() (and one transceive) per pixel.
+  static constexpr size_t SWAP_BUFFER_WORDS = FLASH_STAGING_SIZE / 2;
+  uint16_t buffer[SWAP_BUFFER_WORDS];
+  while (length != 0) {
+    size_t partial = length < SWAP_BUFFER_WORDS ? length : SWAP_BUFFER_WORDS;
+    for (size_t i = 0; i != partial; i++)
+      buffer[i] = (data[i] >> 8) | (data[i] << 8);
+    this->write_array(reinterpret_cast<const uint8_t *>(buffer), partial * 2);
+    data += partial;
+    length -= partial;
+  }
+}
 
 void ZephyrSPIDelegate::read_array(uint8_t *ptr, size_t length) { this->do_transceive_(nullptr, ptr, length); }
 
