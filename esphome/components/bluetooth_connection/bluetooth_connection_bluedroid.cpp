@@ -379,6 +379,7 @@ bool BluedroidGattClient::build_service_table_() {
                                         return true;
                                       });
   if (!counted) {
+    ESP_LOGW(TAG, "[%d] Service table walk failed during count", this->connection_index_);
     return false;
   }
 
@@ -500,7 +501,7 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 
 // ---- service streaming ----
 
-int BluedroidGattClient::handle_search_cmpl_() {
+int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // Re-discovery moves the counts table_view_() derives offsets from; free
   // the stale table.
@@ -508,6 +509,12 @@ int BluedroidGattClient::handle_search_cmpl_() {
 #endif
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
+  if (status != ESP_GATT_OK) {
+    // A failed discovery reads as a clean zero from the count calls below;
+    // honoring the event status stops it becoming an authoritative empty
+    // list.
+    return status;
+  }
   uint16_t primary = 0;
   uint16_t secondary = 0;
   auto primary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE,
@@ -534,6 +541,11 @@ void BluedroidGattClient::deliver_pending_search_() {
 }
 
 #ifdef USE_BLUETOOTH_PROXY
+// The wrapper's compile-time streamer detection must keep finding this
+// method; a signature drift would silently fall back to the table streamer,
+// which proxy builds compile without a materializer.
+static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.stream_service_batch(conn); });
+
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
@@ -687,9 +699,12 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
 void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
   auto st = this->state();
   if (st == ClientState::IDLE) {
-    // IDF can deliver OPEN_EVT after esp_ble_gattc_open already returned an
-    // error and the slot went IDLE; do not resurrect it.
-    ESP_LOGD(TAG, "[%d] OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_, param->open.status);
+    // Late OPEN_EVT after the slot went IDLE (open-error race, or the
+    // teardown net gave up): close a won link, never resurrect the slot.
+    ESP_LOGD(TAG, "[%d] OPEN_EVT in IDLE state (status=%d)", this->connection_index_, param->open.status);
+    if (param->open.status == ESP_GATT_OK || param->open.status == ESP_GATT_ALREADY_OPEN) {
+      esp_ble_gattc_close(this->gattc_if_, param->open.conn_id);
+    }
     return;
   }
   if (st != ClientState::CONNECTING) {
@@ -832,7 +847,7 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         // work.
         break;
       }
-      this->search_status_ = this->handle_search_cmpl_();
+      this->search_status_ = this->handle_search_cmpl_(static_cast<esp_gatt_status_t>(param->search_cmpl.status));
       this->search_state_ =
           this->search_state_ == SearchState::CLAIMED ? SearchState::REPORT_PENDING : SearchState::PRESTART_DONE;
       this->set_state(ClientState::ESTABLISHED);
