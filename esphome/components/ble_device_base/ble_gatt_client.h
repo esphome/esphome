@@ -123,8 +123,8 @@ class GattClientListener {
 // - completions: connect and gatt_disconnect land in on_connection_state,
 //   discover_services in on_service_discovery_done, pair in
 //   on_pairing_result, reads in on_read_result, notify_characteristic in
-//   on_notify_state, characteristic writes with response and descriptor
-//   writes in on_write_result.
+//   on_notify_state, characteristic writes (with and without response) and
+//   descriptor writes in on_write_result.
 template<typename T>
 concept BLEGattConnectionContract = requires(T conn, GattClientListener *listener, const uint8_t *data) {
   conn.set_listener(listener);
