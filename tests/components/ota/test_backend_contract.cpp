@@ -1,10 +1,10 @@
 // Pins the OTA backend contract concept so the surface it enforces cannot
-// drift unnoticed: a minimal conforming type must satisfy it, and a type
-// missing a method or returning the wrong type must not.
+// drift unnoticed: the build's real backend and a minimal conforming type
+// must satisfy it, and a type missing a method or returning the wrong type
+// must not.
 
 #include "esphome/components/ota/ota_backend.h"
-
-#include <gtest/gtest.h>
+#include "esphome/components/ota/ota_backend_host.h"
 
 namespace esphome::ota::testing {
 
@@ -49,17 +49,11 @@ struct BackendWrongWriteReturn {
 };
 static_assert(!OTABackendContract<BackendWrongWriteReturn>);
 
-TEST(OTABackendContract, MinimalBackendDrivesTheConsumerCallSequence) {
-  // Exercise the surface the way ota_esphome does: begin, md5, write, end,
-  // then an unconditional abort, which must be safe after end().
-  MinimalBackend backend;
-  uint8_t chunk[4] = {1, 2, 3, 4};
-  EXPECT_EQ(backend.begin(sizeof(chunk)), OTA_RESPONSE_OK);
-  backend.set_update_md5("00000000000000000000000000000000");
-  EXPECT_EQ(backend.write(chunk, sizeof(chunk)), OTA_RESPONSE_OK);
-  EXPECT_EQ(backend.end(), OTA_RESPONSE_OK);
-  backend.abort();
-  EXPECT_FALSE(backend.supports_compression());
-}
+// Pin the build's real backend, not just local mocks: the unit test harness
+// builds for the host platform, so this is the same check the factory's
+// static_assert performs in a firmware compile.
+#ifdef USE_HOST
+static_assert(OTABackendContract<HostOTABackend>);
+#endif
 
 }  // namespace esphome::ota::testing

@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 
 #ifdef USE_OTA_STATE_LISTENER
