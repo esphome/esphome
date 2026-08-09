@@ -31,6 +31,8 @@ class BluetoothConnection;
 // void disconnect() cannot overload with an int-returning twin.
 class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
+  static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
+
   // Lifecycle of one connection attempt's service search.
   enum class SearchState : uint8_t {
     NONE,           // no search this attempt
@@ -70,7 +72,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   // Contract stub: the proxy streams in place; the on-demand materializer
-  // for direct consumers lands with #18205.
+  // for direct consumers lands with #18205. NOTE: a direct consumer reaching
+  // this stub gets an empty table indistinguishable from a service-less
+  // peer - do not ship one against this backend before the materializer.
   ble_device_base::GattServiceTable get_service_table() { return {}; }
   void release_services();
 
@@ -107,7 +111,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   esp_bd_addr_t remote_bda_{};
 
   // Group 4: 2-byte types
-  uint16_t conn_id_{0xFFFF};
+  uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t service_total_{0};
 
   // Group 5: 1-byte types

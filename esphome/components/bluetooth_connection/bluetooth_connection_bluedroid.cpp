@@ -31,7 +31,6 @@ using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 using esp32_ble_tracker::ClientState;
 using esp32_ble_tracker::ConnectionType;
 
-static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
 // ---- tracker surface ----
 
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
@@ -65,7 +64,7 @@ void BluedroidGattClient::loop() {
       this->mark_failed();
     }
     // Do not wait for REG_EVT; a dropped event must not wedge the slot.
-    this->set_state(ClientState::IDLE);
+    this->set_idle_();
   } else if (st == ClientState::DISCONNECTING || this->want_disconnect_) {
     // The one teardown safety net: a lost CLOSE_EVT, or a scheduled
     // teardown whose OPEN_EVT never arrives.
@@ -121,13 +120,11 @@ void BluedroidGattClient::tracker_connect_() {
     return;
   }
   ESP_LOGI(TAG, "[%d] 0x%02x Connecting", this->connection_index_, this->remote_addr_type_);
+  // Per-attempt latches; the search machine is reset by set_idle_(), the
+  // one door back to IDLE.
   this->services_released_ = false;
   this->seen_mtu_ = false;
   this->mtu_failed_ = false;
-  // Per-attempt reset: the stack-down path reaches IDLE without set_idle_(),
-  // and a stale result must not satisfy this attempt's discovery.
-  this->search_state_ = SearchState::NONE;
-  this->search_status_ = 0;
   this->enable_loop();
   this->set_state(ClientState::CONNECTING);
   if (this->connection_type_ == ConnectionType::V3_WITHOUT_CACHE) {
@@ -142,8 +139,8 @@ void BluedroidGattClient::tracker_connect_() {
                                 static_cast<esp_ble_addr_type_t>(this->remote_addr_type_), true);
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
-    // CONNECT_EVT never fired, so conn_id_ is legitimately unset: plain IDLE.
-    this->set_state(ClientState::IDLE);
+    // CONNECT_EVT never fired; nothing to close.
+    this->set_idle_();
     this->listener_->on_connection_state(false, 0, ret);
   }
 }
@@ -160,7 +157,7 @@ int BluedroidGattClient::gatt_disconnect() {
   }
   if (st == ClientState::DISCOVERED) {
     // Parked for the tracker promote loop, never opened.
-    this->set_state(ClientState::IDLE);
+    this->set_idle_();
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   if (st == ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
@@ -357,9 +354,9 @@ int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
                                                        0x0001, 0xFFFF, 0, &secondary);
   if (primary_status != ESP_GATT_OK || secondary_status != ESP_GATT_OK) {
     // A failed count must not become an authoritative empty database.
-    auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
-    this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
-    return status;
+    auto count_status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
+    this->log_gattc_warning_("esp_ble_gattc_get_attr_count", count_status);
+    return count_status;
   }
   this->service_total_ = primary + secondary;
   return 0;
@@ -635,7 +632,9 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         // Warn only; a disconnect will follow if the link is dead.
         this->log_gattc_warning_("MTU exchange", param->cfg_mtu.status);
       }
-      if (!this->seen_mtu_) {
+      if (!this->seen_mtu_ && !this->disconnect_pending() && this->state() != ClientState::DISCONNECTING) {
+        // Teardown owns the link: suppress the connected report here like
+        // OPEN_EVT and SEARCH_CMPL do; the terminal report settles it.
         this->seen_mtu_ = true;
         // The connected report waited for the MTU; forwarded, not stored.
         this->listener_->on_connection_state(

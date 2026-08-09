@@ -26,7 +26,7 @@ void BluetoothConnection::set_address(uint64_t address) {
   format_mac_addr_upper(mac, this->address_str_);
 }
 
-void BluetoothConnection::start_connect_(uint8_t address_type) {
+void BluetoothConnection::initiate_connection(uint8_t address_type) {
   // No connect timeout here: the API client's own timeout or
   // the api-gone sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
@@ -38,9 +38,9 @@ void BluetoothConnection::start_connect_(uint8_t address_type) {
 }
 
 void BluetoothConnection::disconnect() {
-  // Idempotent: the proxy's teardown loop calls this
-  // every 100 ms while the API subscriber is gone, and a repeat call must not
-  // reach the backend (whose busy error would free the slot mid-teardown).
+  // Idempotent: the proxy's teardown loop calls this every 100 ms while the
+  // API subscriber is gone, and a repeat call reaching the backend would
+  // re-arm its teardown timer so the safety timeout never fires.
   if (this->state_ == ClientState::IDLE || this->state_ == ClientState::DISCONNECTING) {
     return;
   }
@@ -83,11 +83,9 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected && this->address_ == 0) {
     // Late completion for a slot that was already freed: nothing to report,
     // and the api-gone sweep or a new reservation owns the slot now.
-    int err = this->backend_->gatt_disconnect();
-    if (err != 0 && err != GATT_NOT_CONNECTED) {
-      // Log only: re-arming a freed slot could clobber a new reservation.
-      ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
-    }
+    // Return ignored: nonzero just means the backend was already idle, and
+    // re-arming a freed slot could clobber a new reservation.
+    this->backend_->gatt_disconnect();
     return;
   }
   if (connected && this->state_ == ClientState::DISCONNECTING) {
@@ -129,7 +127,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     if (err != 0) {
       ESP_LOGW(TAG, "[%d] [%s] discover_services failed, err=%d", this->connection_index_, this->address_str_, err);
       // Latch the real cause for the disconnect report.
-      this->pending_error_ = err;
+      this->latch_pending_error_(err);
       this->disconnect();
     }
     return;
@@ -148,7 +146,7 @@ void BluetoothConnection::on_service_discovery_done(int error) {
     ESP_LOGW(TAG, "[%d] [%s] Service discovery failed, err=%d", this->connection_index_, this->address_str_, error);
     // Carry the GATT error into the disconnection report so the client sees
     // the real cause instead of a generic HCI reason.
-    this->pending_error_ = error;
+    this->latch_pending_error_(error);
     this->disconnect();
     return;
   }

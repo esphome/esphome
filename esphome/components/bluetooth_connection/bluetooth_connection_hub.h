@@ -41,12 +41,9 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   conn_err_t notify_characteristic(uint16_t handle, bool enable);
   conn_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
 
-  /// Streamer abort: latch the GATT cause (first wins), park the cursor,
-  /// tear down.
+  /// Streamer abort: latch the GATT cause, park the cursor, tear down.
   void abort_service_stream(conn_err_t err) {
-    if (this->pending_error_ == 0) {
-      this->pending_error_ = err;
-    }
+    this->latch_pending_error_(err);
     this->send_service_ = DONE_SENDING_SERVICES;
     this->disconnect();
   }
@@ -54,7 +51,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// Start connecting with the API address type (BLE_ADDR_TYPE_* code
   /// space). Failures report through the same reset path a failed open
   /// takes.
-  void initiate_connection(uint8_t address_type) { this->start_connect_(address_type); }
+  void initiate_connection(uint8_t address_type);
   void disconnect();
   bool is_paired() const { return this->paired_; }
   void set_unpaired() { this->paired_ = false; }
@@ -102,7 +99,12 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // The Bluedroid backend streams services in place from its stack cache.
   friend class BluedroidGattClient;
 
-  void start_connect_(uint8_t address_type);
+  /// First cause wins: a later, less specific error must not overwrite it.
+  void latch_pending_error_(conn_err_t err) {
+    if (this->pending_error_ == 0) {
+      this->pending_error_ = err;
+    }
+  }
   // A backend providing its own streamer (see the contract doc) builds the
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
