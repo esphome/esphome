@@ -182,7 +182,11 @@ int BluedroidGattClient::gatt_disconnect() {
 void BluedroidGattClient::unconditional_disconnect_() {
   ESP_LOGI(TAG, "[%d] Disconnecting (conn_id: %d)", this->connection_index_, this->conn_id_);
   if (this->conn_id_ == UNSET_CONN_ID) {
+    // Terminal state now rather than leaning on the scheduled-teardown timer.
     ESP_LOGE(TAG, "[%d] conn id unset, cannot disconnect", this->connection_index_);
+    this->release_services();
+    this->set_idle_();
+    this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
     return;
   }
   auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
@@ -336,10 +340,9 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
       uint16_t char_count = 1;
       auto status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
                                                &char_count, c);
-      if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
-        break;
-      }
       if (status != ESP_GATT_OK || char_count == 0) {
+        // An early terminator contradicts svc_chars from the same cache;
+        // never build a silently truncated table.
         return false;
       }
       if (!on_char(svc, chr)) {
@@ -620,16 +623,12 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
         uint16_t cc = 1;
         auto char_status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, service_result.start_handle,
                                                       service_result.end_handle, &char_result, &cc, char_offset);
-        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
-          break;
-        }
         if (char_status != ESP_GATT_OK || cc == 0) {
-          if (char_status != ESP_GATT_OK) {
-            this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
-            conn.abort_service_stream(char_status);
-            return;
-          }
-          break;
+          // An early terminator contradicts the count from the same cache;
+          // never stream a silently truncated list.
+          this->log_gattc_warning_("esp_ble_gattc_get_all_char", char_status);
+          conn.abort_service_stream(char_status != ESP_GATT_OK ? char_status : ESP_GATT_NOT_FOUND);
+          return;
         }
         service_resp.characteristics.emplace_back();
         auto &characteristic_resp = service_resp.characteristics.back();
@@ -656,16 +655,10 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
             uint16_t dc = 1;
             auto desc_status = esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, char_result.char_handle,
                                                            &desc_result, &dc, desc_offset);
-            if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-              break;
-            }
             if (desc_status != ESP_GATT_OK || dc == 0) {
-              if (desc_status != ESP_GATT_OK) {
-                this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
-                conn.abort_service_stream(desc_status);
-                return;
-              }
-              break;
+              this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
+              conn.abort_service_stream(desc_status != ESP_GATT_OK ? desc_status : ESP_GATT_NOT_FOUND);
+              return;
             }
             characteristic_resp.descriptors.emplace_back();
             auto &descriptor_resp = characteristic_resp.descriptors.back();
