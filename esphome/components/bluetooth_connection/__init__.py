@@ -221,21 +221,23 @@ async def new_gatt_backend(
     return backend
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "bluetooth_connection_bluedroid.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        # Every hub platform the proxy admits (the file compiles empty where
-        # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
-        # cannot hit a missing-symbol trap here.
-        "bluetooth_connection_hub.cpp": {
-            PlatformFramework.RP2_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
-    }
-)
+# Named so tests can pin the hub entry against bluetooth_proxy's platform
+# list (this module cannot import bluetooth_proxy to derive it).
+SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
+    "bluetooth_connection_bluedroid.cpp": {
+        PlatformFramework.ESP32_ARDUINO,
+        PlatformFramework.ESP32_IDF,
+    },
+    # Every hub platform the proxy admits (the file compiles empty where
+    # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
+    # cannot hit a missing-symbol trap here.
+    "bluetooth_connection_hub.cpp": {
+        PlatformFramework.RP2_ARDUINO,
+        PlatformFramework.LN882X_ARDUINO,
+        PlatformFramework.ESP32_ARDUINO,
+        PlatformFramework.ESP32_IDF,
+    },
+    "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
+}
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(SOURCE_FILE_FRAMEWORKS)

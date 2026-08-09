@@ -87,7 +87,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void handle_open_evt_(esp_ble_gattc_cb_param_t *param);
   void handle_disconnect_evt_(esp_ble_gattc_cb_param_t *param);
   int handle_search_cmpl_();
-  bool deliver_pending_search_();
+  void deliver_pending_search_();
   void unconditional_disconnect_();
   void set_idle_();
   void set_disconnecting_();

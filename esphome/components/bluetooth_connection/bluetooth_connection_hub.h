@@ -41,6 +41,17 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   conn_err_t notify_characteristic(uint16_t handle, bool enable);
   conn_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
 
+  /// Streamer abort: latch the GATT cause for the disconnect report (first
+  /// cause wins, matching disconnect()), park the stream cursor, and tear
+  /// the connection down.
+  void abort_service_stream(conn_err_t err) {
+    if (this->pending_error_ == 0) {
+      this->pending_error_ = err;
+    }
+    this->send_service_ = DONE_SENDING_SERVICES;
+    this->disconnect();
+  }
+
   /// Start connecting: record the API address type (BLE_ADDR_TYPE_* code
   /// space) and open the connection through the backend. Failures report
   /// through the same reset path a failed open takes.
