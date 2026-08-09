@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_REFRESH,
     CONF_TYPE,
     CONF_URL,
+    KEY_CORE,
     TYPE_GIT,
     TYPE_LOCAL,
 )
@@ -159,6 +160,8 @@ def _validate_source_shorthand(value):
         raise cv.Invalid("Model source must be a string or dict")
     if Path(value).exists():
         return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
+    if value.startswith(("http://", "https://")):
+        return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_HTTP, CONF_URL: value})
     if value.endswith(".tflite"):
         return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
     if value.startswith("github://"):
@@ -176,8 +179,6 @@ def _validate_source_shorthand(value):
             return MODEL_SOURCE_SCHEMA(conf)
         except cv.Invalid as e:
             raise cv.Invalid(f"Could not resolve github:// model: {value}") from e
-    if value.startswith(("http://", "https://")):
-        return MODEL_SOURCE_SCHEMA({CONF_TYPE: TYPE_HTTP, CONF_URL: value})
     raise cv.Invalid(
         f"Cannot resolve model source: '{value}'. "
         f"Use a local .tflite path, github:// URL, or http(s):// URL."
@@ -216,19 +217,44 @@ GIT_SCHEMA = cv.All(
 )
 
 
-def _process_http_source(config):
-    url = config[CONF_URL]
-    path = _compute_local_file_path(url)
+def _download_http_model(url):
+    """Download a model from an http(s) URL and return its local path.
+
+    Supports both JSON manifests (which reference the model file) and direct
+    ``.tflite`` URLs. For direct model URLs the companion ``.txt`` metadata
+    file (same basename, ``.txt`` extension) is also fetched best-effort so
+    image/audio model auto-config stays available.
+    """
     from esphome import external_files
 
-    json_path = path / "manifest.json"
-    json_contents = external_files.download_content(url, json_path)
+    path = _compute_local_file_path(url)
+    if url.lower().endswith(".tflite"):
+        model_path = path / Path(url).name
+        external_files.download_content(url, model_path)
+        # Optional companion .txt metadata file; missing is fine, config
+        # auto-detection falls back to filename heuristics.
+        txt_url = f"{url[:-7]}.txt"
+        txt_path = path / Path(txt_url).name
+        try:
+            external_files.download_content(txt_url, txt_path)
+        except (cv.Invalid, OSError):
+            pass
+        return model_path
+
+    manifest_path = path / "manifest.json"
+    json_contents = external_files.download_content(url, manifest_path)
     manifest_data = json.loads(json_contents)
-    model_file = manifest_data.get("model", "")
-    if model_file:
-        model_url = urljoin(url, model_file)
-        model_path = path / Path(model_file).name
-        external_files.download_content(str(model_url), model_path)
+    model_file = manifest_data.get("model")
+    if not model_file:
+        raise cv.Invalid(f"Manifest at {url} does not specify a model file")
+    model_url = urljoin(url, model_file)
+    model_path = path / Path(model_file).name
+    external_files.download_content(str(model_url), model_path)
+    return model_path
+
+
+def _process_http_source(config):
+    _download_http_model(config[CONF_URL])
     return config
 
 
@@ -294,9 +320,11 @@ PER_MODEL_SCHEMA = cv.Schema(
 )
 
 MULTI_CONF = True
-CONFIG_SCHEMA = PER_MODEL_SCHEMA.extend(cv.only_on_esp32)
+CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA, cv.only_on_esp32)
 
-DEPENDENCIES = ["esp32"] if CORE.target_platform == "esp32" else []
+DEPENDENCIES = (
+    ["esp32"] if CORE.data.get(KEY_CORE) is not None and CORE.target_platform == "esp32" else []
+)
 
 
 def resolve_model_source(entry_config):
@@ -340,19 +368,7 @@ def _load_git_file(config):
 
 
 def _load_http_file(config):
-    from esphome import external_files
-
-    url = config[CONF_URL]
-    path = _compute_local_file_path(url)
-    manifest_path = path / "manifest.json"
-    json_contents = external_files.download_content(url, manifest_path)
-    manifest_data = json.loads(json_contents)
-    model_file = manifest_data.get("model")
-    if not model_file:
-        raise cv.Invalid(f"Manifest at {url} does not specify a model file")
-    model_url = urljoin(url, model_file)
-    model_path = path / Path(model_file).name
-    external_files.download_content(str(model_url), model_path)
+    model_path = _download_http_model(config[CONF_URL])
     with Path(model_path).open("rb") as f:
         model_data = f.read()
     return model_path, model_data

@@ -14,5 +14,5 @@ tflite_micro_helper:
     debug: false
   - id: test_tflite_image
     model_type: image
-    model: "digit_recognizer_v3_quantized_integer_quant_uint8.tflite"
+    model: "https://raw.githubusercontent.com/nliaudat/esphome_ai_component/refs/heads/main/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite"
     debug: true
