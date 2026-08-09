@@ -25,12 +25,12 @@ namespace esphome::bluetooth_connection {
 using ClientState = ble_device_base::ClientState;
 using ConnectionType = ble_device_base::ConnectionType;
 
-class BluetoothConnection final {
+class BluetoothConnection final : public ble_device_base::GattClientListener {
  public:
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
     this->backend_ = backend;
-    backend->set_sink(ble_device_base::make_gatt_sink(this));
+    backend->set_listener(this);
   }
 
   // ---- proxy dispatch surface ----
@@ -87,14 +87,14 @@ class BluetoothConnection final {
     }
   }
 
-  // ---- backend event sink (called directly by the backend, main loop) ----
-  void on_connection_state(bool connected, uint16_t mtu, int error);
-  void on_service_discovery_done(int error);
-  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error);
-  void on_write_result(uint16_t handle, int error);
-  void on_notify_state(uint16_t handle, bool enabled, int error);
-  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len);
-  void on_pairing_result(int status);
+  // ---- backend event listener (called directly by the backend, main loop) ----
+  void on_connection_state(bool connected, uint16_t mtu, int error) override;
+  void on_service_discovery_done(int error) override;
+  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) override;
+  void on_write_result(uint16_t handle, int error) override;
+  void on_notify_state(uint16_t handle, bool enabled, int error) override;
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) override;
+  void on_pairing_result(int status) override;
 
  protected:
   friend class bluetooth_proxy::BluetoothProxy;
@@ -144,9 +144,6 @@ class BluetoothConnection final {
   uint8_t connection_index_{0};
   bool services_discovered_{false};
 };
-
-static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
-              "The hub wrapper is missing part of the event-sink surface (ble_gatt_client.h)");
 
 }  // namespace esphome::bluetooth_connection
 

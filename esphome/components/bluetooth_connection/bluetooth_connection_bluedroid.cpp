@@ -437,7 +437,7 @@ void BluedroidGattClient::set_disconnecting_() {
 }
 
 void BluedroidGattClient::report_connection_state_(bool connected, int error) {
-  this->sink_.on_connection_state(connected, this->mtu_, error);
+  this->listener_->on_connection_state(connected, this->mtu_, error);
 }
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
@@ -479,11 +479,11 @@ void BluedroidGattClient::handle_search_cmpl_() {
     // clients cache the streamed result permanently.
     auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
     this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
-    this->sink_.on_service_discovery_done(status);
+    this->listener_->on_service_discovery_done(status);
     return;
   }
   this->service_total_ = primary + secondary;
-  this->sink_.on_service_discovery_done(0);
+  this->listener_->on_service_discovery_done(0);
 }
 
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
@@ -766,32 +766,34 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       if (this->conn_id_ != param->read.conn_id)
         return false;
       bool ok = param->read.status == ESP_GATT_OK;
-      this->sink_.on_read_result(param->read.handle, ok ? param->read.value : nullptr, ok ? param->read.value_len : 0,
-                                 ok ? 0 : param->read.status);
+      this->listener_->on_read_result(param->read.handle, ok ? param->read.value : nullptr,
+                                      ok ? param->read.value_len : 0, ok ? 0 : param->read.status);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
     case ESP_GATTC_WRITE_DESCR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      this->sink_.on_write_result(param->write.handle, param->write.status == ESP_GATT_OK ? 0 : param->write.status);
+      this->listener_->on_write_result(param->write.handle,
+                                       param->write.status == ESP_GATT_OK ? 0 : param->write.status);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->sink_.on_notify_state(param->reg_for_notify.handle, true,
-                                  param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status);
+      this->listener_->on_notify_state(param->reg_for_notify.handle, true,
+                                       param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      this->sink_.on_notify_state(param->unreg_for_notify.handle, false,
-                                  param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
+      this->listener_->on_notify_state(
+          param->unreg_for_notify.handle, false,
+          param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (this->conn_id_ != param->notify.conn_id)
         return false;
       ESP_LOGV(TAG, "[%d] NOTIFY_EVT handle=0x%2X", this->connection_index_, param->notify.handle);
-      this->sink_.on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
+      this->listener_->on_notify_data(param->notify.handle, param->notify.value, param->notify.value_len);
       break;
     }
     default:
@@ -812,8 +814,8 @@ void BluedroidGattClient::handle_gap_event_(esp_gap_ble_cb_event_t event, esp_bl
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (!this->check_addr_(param->ble_security.auth_cmpl.bd_addr))
         break;
-      this->sink_.on_pairing_result(param->ble_security.auth_cmpl.success ? 0
-                                                                          : param->ble_security.auth_cmpl.fail_reason);
+      this->listener_->on_pairing_result(
+          param->ble_security.auth_cmpl.success ? 0 : param->ble_security.auth_cmpl.fail_reason);
       break;
     }
     default:
