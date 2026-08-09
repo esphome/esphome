@@ -107,14 +107,15 @@ def test_esp32_bluetooth_proxy_requests_scanner_state_slot(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The proxy requests one scanner state slot, one raw listener slot and a
-    client slot per connection (three by default with active: true)."""
+    """The proxy requests one scanner state slot and a client slot per
+    connection (three by default with active: true); advertisements arrive
+    through the hub raw callback, so no listener slot exists."""
     generate_main(component_config_path("esp32_bluetooth_proxy.yaml"))
     assert (
         get_define_value("ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT")
         == "1"
     )
-    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") == "1"
+    assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
 
 

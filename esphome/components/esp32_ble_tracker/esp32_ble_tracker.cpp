@@ -462,6 +462,17 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
 #endif  // USE_ESP32_BLE_DEVICE
 
 void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
+  // Neutral raw-advertisement subscriber (the bluetooth_proxy path).
+  if (this->raw_advertisement_callback_.is_set()) {
+    ble_device_base::RawAdvertisement adv;
+    adv.address = esp32_ble::ble_addr_to_uint64(scan_result.bda);
+    adv.data = scan_result.ble_adv;
+    adv.data_len = static_cast<uint16_t>(scan_result.adv_data_len) + scan_result.scan_rsp_len;
+    adv.rssi = scan_result.rssi;
+    adv.addr_type = scan_result.ble_addr_type;
+    this->raw_advertisement_callback_.invoke(adv);
+  }
+
   // Process raw advertisements
   if (this->raw_advertisements_) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT

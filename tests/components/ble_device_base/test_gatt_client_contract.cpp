@@ -46,6 +46,16 @@ class MinimalConnection : public BLEGattConnection {
   void release_services() override {}
 };
 
+TEST(BleGattClientContract, PairingDefaultsAreSafeForNonPairingBackends) {
+  // pair() defaults to not-connected and on_pairing_result() to a no-op, so
+  // a backend without pairing still answers the client through the dispatch.
+  MinimalConnection conn;
+  RecordingListener listener;
+  conn.set_listener(&listener);
+  EXPECT_EQ(conn.pair(), GATT_ERR_NOT_CONNECTED);
+  listener.on_pairing_result(0);  // must not crash: default body
+}
+
 TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {
   MinimalConnection connection;
   RecordingListener listener;
