@@ -222,8 +222,10 @@ def test_every_tracker_emits_its_alias_define(
     """Each tracker's codegen must emit its USE_*_BLE_TRACKER define - the
     ble_hub_impl.h alias ladder selects on it. Checked through real codegen
     (the other two legs of the invariant, the ladder arm and the defines.h
-    mirror, are compile-enforced: a missing arm fails every consumer build on
-    that platform and clang-tidy compiles each arm's static_assert)."""
+    mirror, are compile-enforced: a missing arm fails any build containing a
+    BLEHub consumer - today bluetooth_proxy, which CI compiles or tidy-parses
+    on every tracker platform - and clang-tidy compiles each arm's
+    static_assert)."""
     generate_main(component_config_path(config_name))
 
     assert define in {d.name for d in CORE.defines}, f"{define} not emitted by codegen"
