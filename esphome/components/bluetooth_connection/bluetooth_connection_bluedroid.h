@@ -29,11 +29,23 @@ class BluedroidGattClient;
 class BluetoothConnection;
 #endif
 
-// The tracker-facing half: owns the ClientState the promote loop reads and
-// forwards events/commands to the engine.
-class BluedroidTrackerShim final : public esp32_ble_tracker::ESPBTClient {
+// One class carries both halves: the tracker's ESPBTClient surface (its
+// promote loop owns scan-stop/coex/one-connect-at-a-time and calls the
+// virtual connect()/disconnect()) and the neutral contract ops. The
+// contract's teardown op is named gatt_disconnect() because the tracker's
+// void disconnect() cannot overload with an int-returning twin.
+class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
-  explicit BluedroidTrackerShim(BluedroidGattClient *engine) : engine_(engine) {}
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
+
+  // Wired by codegen before setup and invariant for the device lifetime.
+  void set_listener(ble_device_base::GattClientListener *listener) { this->listener_ = listener; }
+  esp32_ble_tracker::ESPBTClient *tracker_client() { return this; }
+
+  // ---- esp32_ble_tracker::ESPBTClient ----
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
@@ -43,26 +55,9 @@ class BluedroidTrackerShim final : public esp32_ble_tracker::ESPBTClient {
   void on_scan_end() override {}
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
 
-  void schedule_disconnect() { this->want_disconnect_ = true; }
-
- protected:
-  BluedroidGattClient *engine_;
-};
-
-class BluedroidGattClient final : public Component {
- public:
-  void setup() override;
-  void loop() override;
-  void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
-
-  // Wired by codegen before setup and invariant for the device lifetime.
-  void set_listener(ble_device_base::GattClientListener *listener) { this->listener_ = listener; }
-  esp32_ble_tracker::ESPBTClient *tracker_client() { return &this->shim_; }
-
   // ---- ble_device_base::BLEGattConnection contract ----
   int connect(uint64_t address, uint8_t addr_type);
-  int disconnect();
+  int gatt_disconnect();
   int discover_services();
   int read_characteristic(uint16_t handle);
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
@@ -94,10 +89,8 @@ class BluedroidGattClient final : public Component {
   void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
 
  protected:
-  friend class BluedroidTrackerShim;
-
-  esp32_ble_tracker::ClientState state_() const { return this->shim_.state(); }
-  void set_state_(esp32_ble_tracker::ClientState st) { this->shim_.set_state(st); }
+  esp32_ble_tracker::ClientState state_() const { return this->state(); }
+  void set_state_(esp32_ble_tracker::ClientState st) { this->set_state(st); }
   bool check_addr_(const esp_bd_addr_t &addr) const;
   void tracker_connect_();
   bool handle_gattc_event_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
@@ -108,7 +101,7 @@ class BluedroidGattClient final : public Component {
   void unconditional_disconnect_();
   void set_idle_();
   void set_disconnecting_();
-  void report_connection_state_(bool connected, int error);
+  void report_connection_state_(bool connected, uint16_t mtu, int error);
   esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
@@ -122,7 +115,6 @@ class BluedroidGattClient final : public Component {
 #endif
 
   // Group 1: pointers / composed objects
-  BluedroidTrackerShim shim_{this};
   ble_device_base::GattClientListener *listener_{nullptr};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // One exact-size block carved into the table's three arrays; owned here,
@@ -140,7 +132,6 @@ class BluedroidGattClient final : public Component {
 
   // Group 4: 2-byte types
   uint16_t conn_id_{0xFFFF};
-  uint16_t mtu_{23};
   uint16_t service_total_{0};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   // Filled element counts of the materialized table (0 when none).

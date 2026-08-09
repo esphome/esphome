@@ -31,7 +31,7 @@ class MinimalConnection {
     this->listener_->on_connection_state(true, 517, 0);
     return 0;
   }
-  int disconnect() { return 0; }
+  int gatt_disconnect() { return 0; }
   int discover_services() {
     this->listener_->on_service_discovery_done(0);
     return 0;

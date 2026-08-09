@@ -110,7 +110,8 @@ class GattClientListener {
 // rejection); one operation may be outstanding at a time. Semantics beyond
 // the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
-// - disconnect: also cancels a connect in progress.
+// - gatt_disconnect: also cancels a connect in progress (named to coexist
+//   with a platform stack's own void disconnect() on one backend class).
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
@@ -119,7 +120,7 @@ class GattClientListener {
 //   the concrete type, detected by the consumer at compile time) for
 //   arbitrary-size databases; the table then materializes only for consumers
 //   that ask for it.
-// - completions: connect and disconnect land in on_connection_state,
+// - completions: connect and gatt_disconnect land in on_connection_state,
 //   discover_services in on_service_discovery_done, pair in
 //   on_pairing_result, reads in on_read_result, notify_characteristic in
 //   on_notify_state, characteristic writes with response and descriptor
@@ -128,7 +129,7 @@ template<typename T>
 concept BLEGattConnectionContract = requires(T conn, GattClientListener *listener, const uint8_t *data) {
   conn.set_listener(listener);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
-  { conn.disconnect() } -> std::same_as<int>;
+  { conn.gatt_disconnect() } -> std::same_as<int>;
   { conn.discover_services() } -> std::same_as<int>;
   { conn.read_characteristic(uint16_t{}) } -> std::same_as<int>;
   { conn.write_characteristic(uint16_t{}, data, uint16_t{}, true) } -> std::same_as<int>;

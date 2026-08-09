@@ -44,7 +44,7 @@ void BluetoothConnection::disconnect() {
   if (this->state_ == ClientState::IDLE || this->state_ == ClientState::DISCONNECTING) {
     return;
   }
-  int err = this->backend_->disconnect();
+  int err = this->backend_->gatt_disconnect();
   if (err == GATT_NOT_CONNECTED) {
     // Backend already idle: free the slot so the client is not stuck.
     ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle", this->connection_index_, this->address_str_);
@@ -102,7 +102,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected && this->address_ == 0) {
     // Late completion for a slot that was already freed: nothing to report,
     // and the api-gone sweep or a new reservation owns the slot now.
-    int err = this->backend_->disconnect();
+    int err = this->backend_->gatt_disconnect();
     if (err != 0 && err != GATT_NOT_CONNECTED) {
       // Log only: re-arming a freed slot could clobber a new reservation.
       ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
@@ -112,7 +112,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
   if (connected && this->state_ == ClientState::DISCONNECTING) {
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
-    int err = this->backend_->disconnect();
+    int err = this->backend_->gatt_disconnect();
     // Fresh teardown attempt: give it the full safety window.
     this->disconnecting_started_ = millis();
     if (err == GATT_NOT_CONNECTED) {
