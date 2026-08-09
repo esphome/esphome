@@ -23,11 +23,11 @@
 
 namespace esphome::radon_eye_rd200 {
 
-class RadonEyeRD200 final : public PollingComponent {
+class RadonEyeRD200 final : public PollingComponent, public ble_device_base::GattClientListener {
  public:
   RadonEyeRD200(ble_device_base::BLEGattConnection *backend, uint64_t address, uint8_t address_type)
       : backend_(backend), address_(address), address_type_(address_type) {
-    backend->set_sink(ble_device_base::make_gatt_sink(this));
+    backend->set_listener(this);
   }
 
   void dump_config() override;
@@ -36,14 +36,12 @@ class RadonEyeRD200 final : public PollingComponent {
   void set_radon(sensor::Sensor *radon) { this->radon_sensor_ = radon; }
   void set_radon_long_term(sensor::Sensor *radon_long_term) { this->radon_long_term_sensor_ = radon_long_term; }
 
-  // ---- backend event sink ----
-  void on_connection_state(bool connected, uint16_t mtu, int error);
-  void on_service_discovery_done(int error);
-  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
-  void on_write_result(uint16_t handle, int error);
-  void on_notify_state(uint16_t handle, bool enabled, int error);
-  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len);
-  void on_pairing_result(int status) {}
+  // ---- backend event listener (unused events keep the interface's no-ops) ----
+  void on_connection_state(bool connected, uint16_t mtu, int error) override;
+  void on_service_discovery_done(int error) override;
+  void on_write_result(uint16_t handle, int error) override;
+  void on_notify_state(uint16_t handle, bool enabled, int error) override;
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) override;
 
  protected:
   bool resolve_handles_();
