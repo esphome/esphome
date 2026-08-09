@@ -1,4 +1,4 @@
-// Hub-platform connection wrapper (USE_RP2 hub builds today).
+// The proxy's per-slot connection wrapper, shared by every platform.
 #include "bluetooth_connection_hub.h"
 
 #ifdef USE_BLE_GATT_CLIENT
@@ -27,7 +27,7 @@ void BluetoothConnection::set_address(uint64_t address) {
 }
 
 void BluetoothConnection::start_connect_() {
-  // No connect timeout here (esp32 parity): the client's own timeout or
+  // No connect timeout here: the API client's own timeout or
   // the api-gone sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
   int err = this->backend_->connect(this->address_, this->remote_addr_type_);
@@ -38,7 +38,7 @@ void BluetoothConnection::start_connect_() {
 }
 
 void BluetoothConnection::disconnect() {
-  // Idempotent like the esp32 class: the proxy's teardown loop calls this
+  // Idempotent: the proxy's teardown loop calls this
   // every 100 ms while the API subscriber is gone, and a repeat call must not
   // reach the backend (whose busy error would free the slot mid-teardown).
   if (this->state_ == ClientState::IDLE || this->state_ == ClientState::DISCONNECTING) {
@@ -65,10 +65,10 @@ void BluetoothConnection::disconnect() {
 }
 
 void BluetoothConnection::check_disconnect_timeout_() {
-  // Safety net mirroring the esp32 base class: if the backend's disconnect
-  // completion is lost, force the slot free instead of leaking it.
-  if (this->state_ == ClientState::DISCONNECTING &&
-      millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
+  // Safety net: if the backend's disconnect completion is lost (or a refusal
+  // left the teardown unresolved), force the slot free instead of leaking it.
+  // The caller already gates on DISCONNECTING.
+  if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
     ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
     this->reset_connection_(GATT_NOT_CONNECTED);
   }

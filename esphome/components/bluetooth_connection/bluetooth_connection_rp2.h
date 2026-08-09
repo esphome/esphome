@@ -26,8 +26,6 @@
 
 namespace esphome::bluetooth_connection {
 
-class BluetoothConnection;
-
 // Caps for the transient service table. Sized generously for real devices
 // (typical peripherals expose < 8 services / < 30 characteristics); a peer
 // exceeding a cap fails discovery with INSUFFICIENT_RESOURCES rather than
@@ -80,7 +78,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   void dump_config() override;
   float get_setup_priority() const override;
 
-  void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
+  void set_sink(ble_device_base::GattEventSink sink) { this->sink_ = sink; }
 
   // ---- ble_device_base::BLEGattConnection contract ----
   int connect(uint64_t address, uint8_t addr_type);
@@ -155,7 +153,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   }
 
   // Group 1: containers / large storage
-  BluetoothConnection *listener_{nullptr};
+  ble_device_base::GattEventSink sink_;
   ServiceArena *arena_{nullptr};
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;

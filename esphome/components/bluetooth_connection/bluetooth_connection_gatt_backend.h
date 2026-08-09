@@ -24,11 +24,9 @@
 // build hits the #error below.
 namespace esphome::bluetooth_connection {
 
-class BluetoothConnection;
-
 class StubGattBackend {
  public:
-  void set_listener(BluetoothConnection *listener) {}
+  void set_sink(ble_device_base::GattEventSink sink) {}
   int connect(uint64_t address, uint8_t addr_type) { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int disconnect() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
   int discover_services() { return ble_device_base::GATT_ERR_NOT_CONNECTED; }
@@ -61,7 +59,7 @@ class StubGattBackend {
 namespace esphome::ble_device_base {
 
 using BLEGattConnection = ESPHOME_BLE_GATT_CONNECTION_TYPE;
-static_assert(BLEGattConnectionContract<BLEGattConnection, bluetooth_connection::BluetoothConnection>,
+static_assert(BLEGattConnectionContract<BLEGattConnection>,
               "The build's GATT backend is missing part of the BLEGattConnection surface (ble_gatt_client.h)");
 #undef ESPHOME_BLE_GATT_CONNECTION_TYPE
 
