@@ -148,6 +148,9 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
 
   // Group 5: bit-packed tail; within 2 bytes the 8-aligned object stays 48.
+  static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
+  static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
+                "connection_type_ bitfield too narrow");
   ClientState state_ : 3 {ClientState::IDLE};
   bool paired_ : 1 {false};
   ConnectionType connection_type_ : 2 {ConnectionType::V1};
