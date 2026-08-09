@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_RP2040
+from ..const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER, ZEPHYR_VARIANT_RP2040
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -19,9 +19,23 @@ from . import (
     set_core_data,
 )
 
-_DEFAULT_BOARD = "rpi_pico_rp2040_mcuboot"
+_DEFAULT_BOARD = "rpi_pico"
 
-_ADVANCED_SCHEMA = cv.Schema({})
+# RP2040's ROM has its own USB (BOOTSEL) bootloader, so unlike every other mainline
+# variant, a software bootloader here is optional rather than required to flash at all.
+# Default to none -- MCUboot only buys OTA/rollback, at the cost of a second board target
+# (rpi_pico/rp2040/mcuboot) upstream ships as a separate DTS, not a config layered onto
+# the default board the way BOOTLOADER_MCUBOOT sysbuild conf works for other chips.
+CONF_BOOTLOADER = "bootloader"
+BOOTLOADER_NONE = "none"
+
+_ADVANCED_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
+            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
+        ),
+    }
+)
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
@@ -43,14 +57,19 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
-    config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
+    config[CONF_BOARD] = qualify_board(
+        VARIANT,
+        config[CONF_BOARD],
+        qualifier=BOOTLOADER_MCUBOOT if bootloader == BOOTLOADER_MCUBOOT else None,
+    )
     _version_str, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "rp2040", config, "RP2040 support"
     )
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        BOOTLOADER_MCUBOOT,
+        bootloader if bootloader == BOOTLOADER_MCUBOOT else "",
         framework_ver,
         config,
         framework_type=sdk_name,
@@ -63,6 +82,7 @@ async def to_code(config: ConfigType) -> None:
     from .. import (
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
+        zephyr_data,
         zephyr_setup_preferences,
         zephyr_to_code,
     )
@@ -77,6 +97,7 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("HWINFO", True)
     zephyr_add_prj_conf("TEST_RANDOM_GENERATOR", True)
 
-    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
