@@ -374,10 +374,12 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    # Advertisements and scanner state arrive through the hub callbacks
-    # (installed in setup()); the tracker stays typed for scan-mode calls.
     tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
-    cg.add(var.set_parent(tracker))
+    cg.add(var.set_ble_hub(tracker))
+
+    # Compiles the scanner-state push slot into the tracker and the matching
+    # registration into the proxy; the other hubs are polled instead.
+    cg.add_define("USE_BLE_SCANNER_STATE_CALLBACK")
 
     # Define max connections for protobuf fixed array
     connection_count = len(config.get(CONF_CONNECTIONS, []))
@@ -426,5 +428,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
 
     cg.add_define("USE_BLUETOOTH_PROXY")
-    # Compiles the scanner-state push slot into the hub (see ble_hub.h).
-    cg.add_define("USE_BLE_SCANNER_STATE_CALLBACK")
