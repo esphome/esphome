@@ -13,6 +13,15 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
+#ifdef USE_ESP32_CRASH_HANDLER
+#include "esphome/components/esp32/crash_handler.h"
+#endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "esphome/components/esp8266/crash_handler.h"
+#endif
+#ifdef USE_RP2_CRASH_HANDLER
+#include "esphome/components/rp2/crash_handler.h"
+#endif
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "mqtt_component.h"
@@ -74,6 +83,24 @@ void MQTTClientComponent::setup() {
         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
+#if defined(USE_ESP32_CRASH_HANDLER) || defined(USE_ESP8266_CRASH_HANDLER) || defined(USE_RP2_CRASH_HANDLER)
+    // "esphome/logs/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
+    constexpr size_t logs_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
+    char logs_topic[logs_topic_buffer_size];
+    buf_append_printf(logs_topic, sizeof(logs_topic), 0, "esphome/logs/%s", App.get_name().c_str());
+    this->subscribe(logs_topic, [](const std::string &, const std::string &) {
+#ifdef USE_ESP32_CRASH_HANDLER
+      esp32::crash_handler_log();
+      esp32::crash_handler_clear();
+#endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+      esp8266::crash_handler_log();
+#endif
+#ifdef USE_RP2_CRASH_HANDLER
+      rp2::crash_handler_log();
+#endif
+    });
+#endif
   }
 #endif
 

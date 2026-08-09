@@ -262,7 +262,16 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         message = time_ + payload
         safe_print(message)
 
-    return initialize(config, [topic], on_message, None, username, password, client_id)
+    def on_connect(client, userdata, flags, return_code):
+        logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+        _LOGGER.info(
+            "Logs client connected, informing device via topic: %s", logs_topic
+        )
+        client.publish(logs_topic, None, retain=False)
+
+    return initialize(
+        config, [topic], on_message, on_connect, username, password, client_id
+    )
 
 
 def clear_topic(config, topic, username=None, password=None, client_id=None):
