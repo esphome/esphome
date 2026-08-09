@@ -197,6 +197,17 @@ void BluedroidGattClient::unconditional_disconnect_() {
   this->set_disconnecting_();
 }
 
+bool BluedroidGattClient::cancel_gatt_disconnect() {
+  // Only a scheduled teardown (want_disconnect_ latched while the open is
+  // still in flight) is cancellable; once closing started the terminal
+  // report settles the race.
+  if (this->state() != ClientState::CONNECTING || !this->disconnect_pending()) {
+    return false;
+  }
+  this->want_disconnect_ = false;
+  return true;
+}
+
 int BluedroidGattClient::discover_services() {
   if (this->conn_id_ == UNSET_CONN_ID) {
     return ble_device_base::GATT_ERR_NOT_CONNECTED;

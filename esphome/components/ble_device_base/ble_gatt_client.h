@@ -111,6 +111,9 @@ class GattClientListener {
 //   with a platform stack's own void disconnect() on one backend class).
 //   Nonzero means nothing to tear down and no completion will follow; an
 //   accepted teardown (0) always reaches a terminal on_connection_state.
+// - cancel_gatt_disconnect: true cancels a scheduled teardown that has not
+//   started closing - the in-flight connect resumes and completes normally.
+//   False once the teardown owns the link (or nothing was scheduled).
 // - notify_characteristic: local registration only; the CCCD write is the
 //   API client's responsibility (a plain write_descriptor).
 // - get_service_table/release_services: backend-owned transient storage,
@@ -129,6 +132,7 @@ concept BLEGattConnectionContract = requires(T conn, GattClientListener *listene
   conn.set_listener(listener);
   { conn.connect(uint64_t{}, uint8_t{}) } -> std::same_as<int>;
   { conn.gatt_disconnect() } -> std::same_as<int>;
+  { conn.cancel_gatt_disconnect() } -> std::same_as<bool>;
   { conn.discover_services() } -> std::same_as<int>;
   { conn.read_characteristic(uint16_t{}) } -> std::same_as<int>;
   { conn.write_characteristic(uint16_t{}, data, uint16_t{}, true) } -> std::same_as<int>;

@@ -65,6 +65,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // ---- ble_device_base::BLEGattConnection contract ----
   int connect(uint64_t address, uint8_t addr_type);
   int gatt_disconnect();
+  bool cancel_gatt_disconnect();
   int discover_services();
   int read_characteristic(uint16_t handle);
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
