@@ -350,6 +350,9 @@ async def ble_connect_to_code(config, action_id, template_arg, args):
 )
 async def ble_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
+    if not CORE.is_esp32:
+        # The neutral action registers itself as a node in its constructor.
+        _request_node_slot()
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
     value = config[CONF_VALUE]
@@ -448,7 +451,13 @@ async def _to_code_esp32(config: ConfigType) -> cg.MockObj:
     return var
 
 
+# Sizes the neutral client's node storage; the client itself requests a
+# baseline slot so the define exists on every build that compiles the engine.
+_request_node_slot = cg.slot_counter("ESPHOME_BLE_CLIENT_MAX_NODES")
+
+
 async def _to_code_gatt(config: ConfigType) -> cg.MockObj:
+    _request_node_slot()
     backend = await bluetooth_connection.new_gatt_backend(config)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

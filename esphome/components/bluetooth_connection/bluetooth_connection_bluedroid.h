@@ -80,6 +80,8 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   ble_device_base::GattServiceTable get_service_table();
 #else
+  // A direct consumer reaching this stub misconfigured its codegen
+  // (service_table=False): the empty table reads as a service-less peer.
   ble_device_base::GattServiceTable get_service_table() { return {}; }
 #endif
   void release_services();

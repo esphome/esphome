@@ -324,6 +324,10 @@ void BluedroidGattClient::release_services() {
 ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
   if (this->table_storage_ == nullptr &&
       (this->services_released_ || this->service_total_ == 0 || !this->build_service_table_())) {
+    // Released / no services / failed build all collapse to empty; the
+    // build failures warned above, log the quiet two.
+    ESP_LOGD(TAG, "[%d] No service table (released=%d, services=%u)", this->connection_index_, this->services_released_,
+             this->service_total_);
     return {};
   }
   return this->table_view_();

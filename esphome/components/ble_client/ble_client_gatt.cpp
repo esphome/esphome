@@ -160,13 +160,19 @@ void BLEClient::on_service_discovery_done(int error) {
     // would pay the build/free cycle on every (re)connect for nothing.
     auto table = this->backend_->get_service_table();
     if (table.service_count == 0) {
-      // A service-less device or a failed materialization: either way the
-      // nodes cannot resolve, so say so instead of sitting inert.
-      ESP_LOGW(TAG, "[%s] Service table is empty; nodes will not resolve", this->address_str_);
+      // A failed materialization is indistinguishable from a service-less
+      // peer, and a real GATT peer always exposes at least GAP/GATT: treat
+      // it as a discovery failure so the connection retries instead of
+      // sitting inert behind a successful-looking on_connect.
+      ESP_LOGW(TAG, "[%s] Service table is empty; treating as failed discovery", this->address_str_);
+      this->backend_->release_services();
+      this->register_failure_();
+      this->disconnect();
+      return;
     }
     for (auto *node : this->nodes_) {
       node->on_connected(table);
-      if (this->state_ != State::CONNECTED) {
+      if (this->state_ != State::CONNECTED || this->cancel_requested_) {
         // A node tore the link down mid-fan-out: on_disconnect fires with no
         // preceding on_connect, so leave a trace of why.
         ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str_);

@@ -23,7 +23,6 @@
 
 #include <cstdint>
 #include <functional>
-#include <vector>
 
 namespace esphome::ble_client {
 
@@ -133,7 +132,8 @@ class BLEClient : public Component,
 
   // Group 1: pointers / containers
   ble_device_base::BLEGattConnection *backend_{nullptr};
-  std::vector<BLEClientNode *> nodes_;  // filled during setup, never after
+  // Codegen-sized (ESPHOME_BLE_CLIENT_MAX_NODES); filled during setup.
+  StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> nodes_;
 
   // Group 2: 8-byte types
   uint64_t address_{0};
