@@ -141,7 +141,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // Stored narrow (the enum is 4 bytes); widened at the esp_ble_gattc_open call.
   uint8_t remote_addr_type_{0};
   esp32_ble_tracker::ConnectionType connection_type_{esp32_ble_tracker::ConnectionType::V3_WITHOUT_CACHE};
-  uint8_t connection_index_;
+  uint8_t connection_index_{0};
   // Terminates an in-flight stream (never send a partial list as authoritative)
   // and marks a cleaned cache unsafe to walk (Bluedroid asserts).
   bool services_released_ : 1 {false};
