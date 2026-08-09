@@ -74,10 +74,12 @@ void BLEClient::disconnect() {
     return;
   // A deliberate teardown's failure report must not feed the backoff.
   this->cancel_requested_ = true;
-  if (this->backend_->gatt_disconnect() != 0) {
-    // Refused synchronously: the backend is already down and no report will
-    // come; settle through the normal path so waiters resolve.
-    this->on_connection_state(false, 0, 0);
+  int err = this->backend_->gatt_disconnect();
+  if (err != 0) {
+    // Refused synchronously (states diverged; the backend is already down):
+    // settle through the normal path, carrying the real code so the log is
+    // distinguishable from a clean teardown.
+    this->on_connection_state(false, 0, err);
   }
 }
 

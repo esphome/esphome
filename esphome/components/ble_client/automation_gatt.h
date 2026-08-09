@@ -97,8 +97,12 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
   // response-less path can complete synchronously inside the call, so the
   // handle is armed before the backend is touched.
   bool write(const uint8_t *data, size_t len) {
-    if (!this->resolved_ || !this->ble_client_->connected()) {
+    if (!this->ble_client_->connected()) {
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
+      return false;
+    }
+    if (!this->resolved_) {
+      esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - characteristic was not resolved");
       return false;
     }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
