@@ -37,8 +37,8 @@ using esp32_ble_tracker::ConnectionType;
 static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
 // Wire default before any MTU exchange (Bluetooth spec ATT_MTU minimum).
 static constexpr uint16_t DEFAULT_ATT_MTU = 23;
-// Sanity bound for one characteristic's descriptor enumeration: real devices
-// carry a handful; a stack that never reports end-of-range must not hang.
+// Bounds one characteristic's descriptor walk against a stack that never
+// reports end-of-range.
 static constexpr uint16_t MAX_DESCRIPTORS_PER_CHARACTERISTIC = 64;
 
 // ---- tracker surface ----
@@ -99,9 +99,8 @@ void BluedroidGattClient::dump_config() {
 // ---- contract ops ----
 
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
-  // Refuse anything but a fully idle slot. Clobbering DISCONNECTING with
-  // DISCOVERED would let the tracker open a new link while the old one is
-  // still closing - the stale CLOSE_EVT then tears the new attempt down.
+  // Only from idle: clobbering DISCONNECTING would open a new link the
+  // stale CLOSE_EVT then tears down.
   if (this->state_() != ClientState::IDLE) {
     ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
     return ESP_GATT_BUSY;
@@ -242,9 +241,7 @@ void BluedroidGattClient::release_services() {
 #ifdef USE_BLE_GATT_SERVICE_TABLE
   this->free_service_table_();
 #endif
-  // Always mark released: the flag terminates any in-flight service stream
-  // (with or without the NVS cache) so a partial list is never sent as
-  // authoritative.
+  // Always set: terminates any in-flight stream on every cache config.
   this->services_released_ = true;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   esp_ble_gattc_cache_clean(this->remote_bda_);
@@ -482,8 +479,7 @@ void BluedroidGattClient::handle_search_cmpl_() {
   auto secondary_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE,
                                                        0x0001, 0xFFFF, 0, &secondary);
   if (primary_status != ESP_GATT_OK || secondary_status != ESP_GATT_OK) {
-    // A failed count must not become an authoritative empty database - V3
-    // clients cache the streamed result permanently.
+    // A failed count must not become an authoritative empty database.
     auto status = primary_status != ESP_GATT_OK ? primary_status : secondary_status;
     this->log_gattc_warning_("esp_ble_gattc_get_attr_count", status);
     this->listener_->on_service_discovery_done(status);
@@ -496,9 +492,8 @@ void BluedroidGattClient::handle_search_cmpl_() {
 #ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
-    // The database was released under the stream (peer dropped mid-stream):
-    // park without services-done so a V3 client can never cache the partial
-    // list as authoritative; its own timeout drives the retry.
+    // Released under the stream: park without services-done so a partial
+    // list is never cached as authoritative.
     conn.send_service_ = DONE_SENDING_SERVICES;
     return;
   }
@@ -681,12 +676,10 @@ void BluedroidGattClient::handle_open_evt_(esp_ble_gattc_cb_param_t *param) {
     // suppressed by seen_mtu_ (HA tolerates a post-connect MTU of 23 here,
     // matching the previous esp32 behavior).
     this->seen_mtu_ = true;
-    // Wire parity with the old class: no MTU exchange happened yet, and HA
-    // has always been handed the default 23 on the cached path.
+    // Cached path never exchanged an MTU; HA has always seen the default.
     this->report_connection_state_(true, DEFAULT_ATT_MTU, 0);
     if (this->state_() != ClientState::DISCONNECTING) {
-      // Settled: only the disconnect safety net needs the loop, and
-      // set_disconnecting_() re-enables it.
+      // Settled; set_disconnecting_() re-enables the loop for the net.
       this->disable_loop();
     }
   }
@@ -753,8 +746,7 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       }
       if (!this->seen_mtu_) {
         this->seen_mtu_ = true;
-        // The connected report waited for the MTU so HA never sees 23; the
-        // value is forwarded rather than stored (the consumer keeps it).
+        // The connected report waited for the MTU; forwarded, not stored.
         this->report_connection_state_(true,
                                        param->cfg_mtu.status == ESP_GATT_OK ? param->cfg_mtu.mtu : DEFAULT_ATT_MTU, 0);
       }
@@ -783,8 +775,7 @@ bool BluedroidGattClient::handle_gattc_event_(esp_gattc_cb_event_t event, esp_ga
       this->set_state_(ClientState::ESTABLISHED);
       this->handle_search_cmpl_();
       if (this->state_() != ClientState::DISCONNECTING) {
-        // Settled (see the V3_WITH_CACHE arm in handle_open_evt_). A failed
-        // count reports an error and starts a teardown that needs the loop.
+        // Settled; a failed count started a teardown that needs the loop.
         this->disable_loop();
       }
       break;
