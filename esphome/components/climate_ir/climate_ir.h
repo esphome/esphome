@@ -41,7 +41,7 @@ class ClimateIR : public Component,
   void dump_config() override;
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
+  void set_supports_heat_cool(bool supports_heat_cool) { this->supports_heat_cool_ = supports_heat_cool; }
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
 
@@ -59,18 +59,14 @@ class ClimateIR : public Component,
   // Dummy implement on_receive so implementation is optional for inheritors
   bool on_receive(remote_base::RemoteReceiveData data) override { return false; };
 
-  // Resolves whether HEAT_COOL (auto) mode is advertised. HEAT_COOL switches between heating and
-  // cooling, so by default it's inferred from supports_cool_ && supports_heat_. Some devices expose
-  // it independently of their heat/cool capabilities though (e.g. cool-only ACs that still offer an
-  // auto mode, or a heat+cool device whose auto mode is undesirable), so supports_auto_ lets users
-  // override the inferred default explicitly.
-  bool supports_auto_mode_() const {
-    return this->supports_auto_.has_value() ? *this->supports_auto_ : (this->supports_cool_ && this->supports_heat_);
-  }
-
   bool supports_cool_{true};
   bool supports_heat_{true};
-  optional<bool> supports_auto_{};
+  // Whether HEAT_COOL (the "auto" mode on most remotes) is advertised. HEAT_COOL switches between
+  // heating and cooling, so it defaults to supports_cool_ && supports_heat_. Some devices expose it
+  // independently of their heat/cool capabilities though (e.g. cool-only units that still offer an
+  // auto mode, or a heat+cool unit that has no auto mode at all), so the default is resolved during
+  // code generation and can be overridden there.
+  bool supports_heat_cool_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   climate::ClimateFanModeMask fan_modes_{};

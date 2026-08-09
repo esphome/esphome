@@ -6,5 +6,4 @@ climate:
     name: GREE
     transmitter_id: xmitr
     model: YAN
-    supports_heat: false
-    supports_auto: true
+    supports_heat_cool: false

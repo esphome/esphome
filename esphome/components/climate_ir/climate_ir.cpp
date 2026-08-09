@@ -18,7 +18,7 @@ climate::ClimateTraits ClimateIR::traits() {
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
-  if (this->supports_auto_mode_())
+  if (this->supports_heat_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
@@ -97,9 +97,9 @@ void ClimateIR::dump_config() {
                 "  Max. Temperature: %.1f°C\n"
                 "  Supports HEAT: %s\n"
                 "  Supports COOL: %s\n"
-                "  Supports AUTO: %s",
+                "  Supports HEAT_COOL: %s",
                 this->minimum_temperature_, this->maximum_temperature_, YESNO(this->supports_heat_),
-                YESNO(this->supports_cool_), YESNO(this->supports_auto_mode_()));
+                YESNO(this->supports_cool_), YESNO(this->supports_heat_cool_));
 }
 
 }  // namespace esphome::climate_ir

@@ -14,48 +14,46 @@ class TestClimateIR : public ClimateIR {
   void transmit_state() override {}
 };
 
-TEST(ClimateIRTest, HeatCoolAdvertisedWhenHeatAndCoolSupported) {
+// Whether HEAT_COOL is supported by default is decided during code generation (see
+// tests/component_tests/climate_ir). What traits() owns is honoring the resolved flag, including
+// for devices whose HEAT_COOL support doesn't match their heat/cool capabilities.
+
+TEST(ClimateIRTest, HeatCoolAdvertisedWhenSupported) {
   TestClimateIR climate;
   climate.set_supports_heat(true);
   climate.set_supports_cool(true);
+  climate.set_supports_heat_cool(true);
   EXPECT_TRUE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
 }
 
-TEST(ClimateIRTest, HeatCoolNotAdvertisedWhenOnlyHeatSupported) {
-  TestClimateIR climate;
-  climate.set_supports_heat(true);
-  climate.set_supports_cool(false);
-  EXPECT_FALSE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
-}
-
-TEST(ClimateIRTest, HeatCoolNotAdvertisedWhenOnlyCoolSupported) {
-  TestClimateIR climate;
-  climate.set_supports_heat(false);
-  climate.set_supports_cool(true);
-  EXPECT_FALSE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
-}
-
-TEST(ClimateIRTest, HeatCoolNotAdvertisedWhenNeitherSupported) {
-  TestClimateIR climate;
-  climate.set_supports_heat(false);
-  climate.set_supports_cool(false);
-  EXPECT_FALSE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
-}
-
-TEST(ClimateIRTest, SupportsAutoOverrideForcesHeatCoolOnForCoolOnlyDevice) {
-  TestClimateIR climate;
-  climate.set_supports_heat(false);
-  climate.set_supports_cool(true);
-  climate.set_supports_auto(true);
-  EXPECT_TRUE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
-}
-
-TEST(ClimateIRTest, SupportsAutoOverrideForcesHeatCoolOffForHeatAndCoolDevice) {
+TEST(ClimateIRTest, HeatCoolNotAdvertisedWhenUnsupported) {
   TestClimateIR climate;
   climate.set_supports_heat(true);
   climate.set_supports_cool(true);
-  climate.set_supports_auto(false);
+  climate.set_supports_heat_cool(false);
   EXPECT_FALSE(climate.traits().supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
+}
+
+TEST(ClimateIRTest, HeatCoolAdvertisedForCoolOnlyDeviceThatSupportsIt) {
+  TestClimateIR climate;
+  climate.set_supports_heat(false);
+  climate.set_supports_cool(true);
+  climate.set_supports_heat_cool(true);
+  auto traits = climate.traits();
+  EXPECT_TRUE(traits.supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
+  EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT));
+}
+
+TEST(ClimateIRTest, HeatAndCoolModesFollowTheirOwnFlags) {
+  TestClimateIR climate;
+  climate.set_supports_heat(false);
+  climate.set_supports_cool(true);
+  climate.set_supports_heat_cool(false);
+  auto traits = climate.traits();
+  EXPECT_TRUE(traits.supports_mode(climate::CLIMATE_MODE_COOL));
+  EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT));
+  EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
+  EXPECT_TRUE(traits.supports_mode(climate::CLIMATE_MODE_OFF));
 }
 
 }  // namespace esphome::climate_ir::testing
