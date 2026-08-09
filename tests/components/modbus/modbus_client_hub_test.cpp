@@ -685,7 +685,8 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
 }
 
 namespace {
-// Records on_sent / on_response / on_no_response so a broadcast's completion path can be asserted.
+// Records on_sent / on_response / on_no_response so a broadcast's fire-and-forget completion
+// (on_sent, and no terminal) can be asserted.
 class BroadcastProbeDevice : public ModbusClientDevice {
  public:
   BroadcastProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
@@ -705,10 +706,9 @@ class BroadcastProbeDevice : public ModbusClientDevice {
 };
 }  // namespace
 
-// A broadcast (address 0) is never answered (Modbus 4.1), so the client completes it at transmission
-// instead of parking it in the waiting slot until the send-wait timeout expires: on_sent fires as the
-// frame goes out, on_response follows immediately with an empty payload so the sender's accounting
-// closes, and the hub is left NOT waiting - no timeout is burned and the entry is erased by the sweep.
+// A broadcast (address 0) is never answered (Modbus 4.1), so the client treats it as fire-and-forget:
+// on_sent fires as the frame goes out, NO terminal (on_response/on_error/on_no_response) is delivered,
+// the hub is left NOT waiting - no timeout is burned - and the sweep erases the entry.
 TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -722,12 +722,54 @@ TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
 
   hub.send_next_for_test();  // transmit + sweep
 
-  EXPECT_EQ(device.sent_count_, 1);           // the frame went on the wire
-  EXPECT_EQ(device.response_count_, 1);       // and completed immediately
-  EXPECT_EQ(device.last_response_size_, 0u);  // with an empty payload
-  EXPECT_EQ(device.no_response_count_, 0);    // never waited for a reply
-  EXPECT_FALSE(hub.waiting());                // no waiting slot occupied
-  EXPECT_EQ(hub.queued_frames(), 0u);         // and the entry is gone
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());              // no waiting slot occupied
+  EXPECT_EQ(hub.queued_frames(), 0u);       // and the entry is gone
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+namespace {
+// Keeps the DEFAULT on_response() (so the base typed dispatcher runs) and records the typed write
+// callback and the catch-all, to prove a broadcast reaches neither - only on_sent.
+class BroadcastTypedProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastTypedProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) override {
+    this->write_single_count_++;
+  }
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          ResponseStatus status) override {
+    this->custom_count_++;
+  }
+  int sent_count_{0};
+  int write_single_count_{0};
+  int custom_count_{0};
+};
+}  // namespace
+
+// Completing a broadcast with an empty response({}) used to fall, for a device on the default
+// on_response(), through the typed dispatcher to on_custom_response() - firing the wrong callback and
+// logging a spurious "non-standard" warning. Fire-and-forget delivers no terminal at all, so a broadcast
+// write reaches neither the typed write callback nor the catch-all: only on_sent.
+TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastTypedProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.send_pdu(write));
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);          // on_sent still reports the transmission
+  EXPECT_EQ(device.write_single_count_, 0);  // no terminal: the typed write callback never fires
+  EXPECT_EQ(device.custom_count_, 0);        // and it is NOT diverted to the catch-all (no false warning)
+  EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
 }
 

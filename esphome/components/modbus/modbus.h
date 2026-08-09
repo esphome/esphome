@@ -173,6 +173,13 @@ struct ModbusDeviceCommand {
     this->pending = 0;
     this->device = nullptr;
   }
+  // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
+  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with NO terminal
+  // callback and the sweep erases it. Unlike response()/error()/timed_out(), it delivers nothing.
+  void complete_broadcast() {
+    this->state = FrameState::RETIRED;
+    this->pending = 0;
+  }
   // Re-ready for another transmission, restamped to the tail of its class (hub passes next_seq_++).
   void requeue(uint16_t seq) {
     this->state = FrameState::READY;
@@ -374,13 +381,14 @@ class ModbusServerHub : public Modbus {
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
 /// on_error() (exception), on_no_response() (timeout/interruption), or on_not_sent() (dropped by
 /// clear_tx_queue_for_address before transmission). A request refused at send_pdu() (false return)
-/// gets none. on_sent() is additional, once per transmission, never for an on_not_sent() request.
-/// on_response()/on_error() fire at parse time and on_no_response() at the send-wait watchdog, all
-/// from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
+/// gets none, and a broadcast (address 0) gets on_sent() with NO terminal, since a broadcast is never
+/// answered (Modbus 4.1). on_sent() is additional, once per transmission, never for an on_not_sent()
+/// request. on_response()/on_error() fire at parse time and on_no_response() at the send-wait watchdog,
+/// all from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
 /// inside a callback is safe (picked up by the next sweep). Exceptions to "exactly one terminal":
-/// clear_tx_queue_for_device() drops the caller's own frames silently; a continuous poll's cycles are
-/// its own accounting (a one-shot duplicate downgrades the poll to a one-shot; a continuous duplicate
-/// merges into it).
+/// a broadcast is fire-and-forget (on_sent, no terminal); clear_tx_queue_for_device() drops the caller's
+/// own frames silently; a continuous poll's cycles are its own accounting (a one-shot duplicate
+/// downgrades the poll to a one-shot; a continuous duplicate merges into it).
 ///
 /// Invariants:
 /// - Public entry points (send_pdu/clear_tx_queue_*) only append to the queue or mutate an existing

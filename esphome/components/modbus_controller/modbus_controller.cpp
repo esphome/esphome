@@ -107,8 +107,14 @@ void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent
 // trigger reflects when the frame actually went out, not when it was queued.
 void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
-    this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  if (this->controller_ == nullptr)
+    return;
+  this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  // A broadcast (address 0) is never answered (Modbus 4.1), so the hub delivers no terminal callback.
+  // on_sent is this command's only callback, so drop the one-shot from the queue here, or it would leak
+  // (unqueue_command() is a no-op for a persistent polling command, which the poll loop keeps managing).
+  if (this->address_ == modbus::BROADCAST_ADDRESS)
+    this->controller_->unqueue_command(this);
 }
 
 bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {

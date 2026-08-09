@@ -691,13 +691,12 @@ void ModbusClientHub::send_next_frame_() {
 
   cmd->sent();
   if (cmd->frame.address() == BROADCAST_ADDRESS) {
-    // A broadcast (address 0) is never answered (Modbus 4.1), so it completes at transmission instead
-    // of occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
-    // spaces the next frame; the completion is delivered as a response with an empty payload so the
-    // sender's accounting (e.g. the modbus_controller command queue) closes normally. The following
-    // sweep erases or reschedules the entry, exactly as it would after a real reply.
-    ESP_LOGV(TAG, "Broadcast sent to address 0; completing without waiting for a response");
-    cmd->response({});
+    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
+    // reports the transmission, and the entry then retires with no terminal callback instead of
+    // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
+    // spaces the next frame; the following sweep erases the entry.
+    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected (fire-and-forget)");
+    cmd->complete_broadcast();
     this->sweep_needed_ = true;
     return;
   }
