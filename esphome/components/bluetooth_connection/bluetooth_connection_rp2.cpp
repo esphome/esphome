@@ -25,6 +25,10 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // and keeps the scan inhibited, so the engine cancels after 20 s. The
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
+// Budget after a cancel is in flight: its completion normally lands within
+// tens of ms, and while the engine waits it pins the stack-wide connect slot,
+// so a lost completion must cost seconds, not another full connect budget.
+static constexpr uint32_t CONNECT_CANCEL_TIMEOUT_MS = 2000;
 // Pending engines re-attempt gap_connect on this cadence instead of every
 // loop pass: the DISALLOWED path (teardown overlap) takes BluetoothLock.
 static constexpr uint32_t CONNECT_RETRY_INTERVAL_MS = 50;
@@ -415,7 +419,10 @@ void RP2GattClient::loop() {
     }
   } else if (this->state_ == EngineState::CONNECTING || this->state_ == EngineState::MTU_EXCHANGE) {
     uint32_t now = millis();
-    if (now - this->connect_started_ > CONNECT_TIMEOUT_MS) {
+    bool cancel_in_flight = this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID &&
+                            this->connect_cancel_attempted_;
+    uint32_t budget = cancel_in_flight ? CONNECT_CANCEL_TIMEOUT_MS : CONNECT_TIMEOUT_MS;
+    if (now - this->connect_started_ > budget) {
       ESP_LOGW(TAG, "[%u] Connect timeout", this->engine_index_);
       if (this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID) {
         if (!this->connect_cancel_attempted_) {
@@ -427,14 +434,21 @@ void RP2GattClient::loop() {
             gap_connect_cancel();
             // The cancel produces a connection-complete event with a failure
             // status, which drives the normal failure path; restart the timer
-            // so a lost event escalates below instead of wedging here.
+            // so a lost event escalates on the short cancel budget instead of
+            // wedging here.
             this->connect_started_ = now;
             return;
           }
         }
-        // Not the owner (the completion resolved but its event was dropped),
-        // or the cancel's completion never arrived: reclaim the slot and the
-        // scan rather than cancelling forever.
+        {
+          // The cancel's completion never arrived: re-issue it in case the
+          // procedure still runs (a no-op on an idle stack), then reclaim the
+          // slot and the scan rather than cancelling forever.
+          BluetoothLock lock;
+          if (connect_owner == this) {
+            gap_connect_cancel();
+          }
+        }
         this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
       } else {
         // The link is up (MTU exchange stalled): tear it down properly so the
