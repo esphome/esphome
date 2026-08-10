@@ -127,6 +127,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     }
   }
   void send_service_for_discovery_();
+  /// Send services-done and settle the cursor: DONE when it lands (or no
+  /// subscriber), SERVICES_DONE_PENDING on a refused frame (proxy drain
+  /// retries). Callers release the table first; the message needs only the
+  /// address.
+  void send_services_done_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);

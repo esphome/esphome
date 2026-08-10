@@ -80,8 +80,13 @@ inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
 
 // send_service_ cursor states; >= 0 is the next service index to stream.
+// -1 is deliberately unused: it is GATT_NOT_CONNECTED's value, and keeping
+// the cursor sentinels disjoint from the error domain avoids a silent mixup.
 static constexpr int DONE_SENDING_SERVICES = -2;
 static constexpr int INIT_SENDING_SERVICES = -3;
+static constexpr int SERVICES_DONE_PENDING = -4;  // all batches delivered, done-message still owed
+// The streaming gate is send_service_ >= 0; every sentinel must stay below it.
+static_assert(DONE_SENDING_SERVICES < 0 && INIT_SENDING_SERVICES < 0 && SERVICES_DONE_PENDING < 0);
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 

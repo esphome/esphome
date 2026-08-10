@@ -407,9 +407,8 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     return;
   }
   if (conn.send_service_ >= this->service_total_) {
-    conn.send_service_ = DONE_SENDING_SERVICES;
-    conn.proxy_->send_gatt_services_done(conn.address_);
     this->release_services();
+    conn.send_services_done_();
     return;
   }
 

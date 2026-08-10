@@ -299,12 +299,24 @@ conn_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, 
 
 // ---- Service streaming ----
 
+void BluetoothConnection::send_services_done_() {
+  if (this->proxy_->send_gatt_services_done(this->address_)) {
+    // Sent, or subscriber gone (park silently; its timeout arbitrates).
+    this->send_service_ = DONE_SENDING_SERVICES;
+  } else {
+    // Warn on the transition only; retries stay silent.
+    if (this->send_service_ != SERVICES_DONE_PENDING) {
+      ESP_LOGW(TAG, "[%d] [%s] Failed to send services done, retrying", this->connection_index_, this->address_str_);
+    }
+    this->send_service_ = SERVICES_DONE_PENDING;
+  }
+}
+
 void BluetoothConnection::send_service_for_discovery_() {
   auto table = this->backend_->get_service_table();
   if (this->send_service_ >= table.service_count) {
-    this->send_service_ = DONE_SENDING_SERVICES;
-    this->proxy_->send_gatt_services_done(this->address_);
     this->backend_->release_services();
+    this->send_services_done_();
     return;
   }
 

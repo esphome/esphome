@@ -24,7 +24,9 @@ namespace esphome::bluetooth_proxy {
 using bluetooth_connection::CONN_OK;
 using bluetooth_connection::conn_err_t;
 using bluetooth_connection::GATT_NOT_CONNECTED;
+using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::INIT_SENDING_SERVICES;
+using bluetooth_connection::SERVICES_DONE_PENDING;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
@@ -97,10 +99,14 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
+  /// False only when a subscriber refused the frame; true = delivered or
+  /// nobody subscribed. Request-answer callers ignore the result (client
+  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
-  void send_gatt_services_done(uint64_t address);
+  /// Same convention as send_device_connection: false only on a refused frame.
+  bool send_gatt_services_done(uint64_t address);
   void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
@@ -172,7 +178,9 @@ class BluetoothProxy final : public Component {
 
  protected:
   bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
-#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  void send_scanner_state_(ble_device_base::ScannerState state);
+#else
   void send_polled_scanner_state_();
 #endif
   void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
@@ -231,6 +239,10 @@ class BluetoothProxy final : public Component {
   /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
   /// discovery and retry, rather than being told a partial list is complete.
   void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
+  /// Drop any owed freed-slot notification for this address (client reconnected).
+  void clear_pending_disconnection_(uint64_t address);
+  /// Pool a refused freed-slot notification for the paced drain.
+  void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
   // Memory optimized layout for 32-bit systems
@@ -240,6 +252,11 @@ class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
+  // Address-keyed pool of owed freed-slot connected=false notifications
+  // (0 = free entry); loop() resends. Proxy-only state, kept off
+  // BluetoothConnection; entries are not tied to slot indices.
+  std::array<uint64_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
+  std::array<conn_err_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnection_errors_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
 
@@ -260,7 +277,11 @@ class BluetoothProxy final : public Component {
   bool connections_free_pending_{false};
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
-#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // A dropped push (full TX buffer) is re-queried from the hub and resent
+  // from loop(); the hub's current state is idempotent by construction.
+  bool scanner_state_pending_{false};
+#else
   bool last_scan_running_{false};  // Last scanner state reported to the subscriber
 #endif
 };
