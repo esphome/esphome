@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+import yaml
+
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     get_project_compile_flags,
@@ -8,10 +10,85 @@ from esphome.framework_helpers import (
     run_command_ok,
 )
 from esphome.helpers import write_file_if_changed
+from esphome.util import get_serial_number
 
 from .const import ZEPHYR_VARIANT_NATIVE_SIM
 
 _LOGGER = logging.getLogger(__name__)
+
+# West runners known to declare the `dev_id` capability (a `-i/--dev-id` option
+# that selects which attached probe/device to use), among the ones reachable by
+# variants this platform supports. Forwarding `-i` to a runner that doesn't
+# declare this capability makes `west flash` fail outright, so this is an
+# allow-list, not a guess: unlisted/unrecognized runners (e.g. `openocd`, which
+# has no `dev_id` capability at all) are left exactly as they behaved before --
+# no `-i` forwarded, single-probe auto-detect. Keep in sync with the `dev_id`
+# capability declared by each runner's `capabilities()` classmethod upstream in
+# `scripts/west_commands/runners/`.
+_DEV_ID_CAPABLE_RUNNERS = frozenset(
+    {
+        "jlink",
+        "pyocd",
+        "nrfjprog",
+        "nrfutil",
+        "silabs_commander",
+        "linkserver",
+        "probe_rs",
+    }
+)
+
+
+def _find_runners_yaml(build_dir: Path) -> Path:
+    """Locate the runners.yaml describing the board's default flash runner.
+
+    run_west_build() always passes --sysbuild, which fans a single `west build`
+    out into one build directory per image domain (mcuboot, app, ...), each with
+    its own `zephyr/runners.yaml`, plus a top-level `domains.yaml` naming which
+    domain is the default. Every domain targets the same physical board, so the
+    default domain's runners.yaml is a faithful stand-in for the whole build.
+    """
+    domains_yaml_path = Path(build_dir) / "domains.yaml"
+    try:
+        with domains_yaml_path.open(encoding="utf-8") as f:
+            domains_yaml = yaml.safe_load(f)
+        default_domain = domains_yaml["default"]
+        domain_build_dir = next(
+            d["build_dir"]
+            for d in domains_yaml["domains"]
+            if d["name"] == default_domain
+        )
+        return Path(domain_build_dir) / "zephyr" / "runners.yaml"
+    except (OSError, yaml.YAMLError, KeyError, TypeError, StopIteration):
+        # Not a sysbuild (multi-domain) build -- runners.yaml lives directly
+        # under build_dir.
+        return Path(build_dir) / "zephyr" / "runners.yaml"
+
+
+def resolve_dev_id(build_dir: Path, port: str) -> str | None:
+    """Resolve a `-i/--dev-id` value to disambiguate which probe `west flash` uses.
+
+    Reads the board's default flash runner from runners.yaml (written by the
+    CMake configure step, see _find_runners_yaml() for the sysbuild wrinkle) and,
+    only when that runner is known to support device IDs, looks up the USB
+    serial number backing the selected serial `port`. Returns None whenever the
+    runner is unknown/unsupported or the serial number can't be determined --
+    callers should treat None as "don't pass -i", which reproduces today's
+    single-probe auto-detect behavior exactly.
+    """
+    runners_yaml_path = _find_runners_yaml(build_dir)
+    try:
+        with runners_yaml_path.open(encoding="utf-8") as f:
+            runners_yaml = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as e:
+        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
+        return None
+
+    flash_runner = (runners_yaml or {}).get("flash-runner")
+    if flash_runner not in _DEV_ID_CAPABLE_RUNNERS:
+        return None
+
+    return get_serial_number(port)
+
 
 _NATIVE_SIM_LIBSTDCXX_WORKAROUND = """\
 
@@ -210,11 +287,17 @@ def run_west_flash_generic(
     framework_path: Path,
     env: dict,
     build_dir: Path,
+    dev_id: str | None = None,
 ) -> bool:
     """Flash a Zephyr target using the board's default west runner.
 
     This is used by non-ESP32 Zephyr variants where flashing is typically
     handled by probe-based runners configured by Zephyr (jlink, pyocd, etc.).
+
+    `dev_id`, when given (see `resolve_dev_id`), is forwarded as `-i/--dev-id`
+    to tell the runner which attached probe to use -- without it, the runner
+    picks whichever probe it finds, which is ambiguous when more than one
+    debug-probe board is attached at once.
     """
     west_cmd = [
         str(python_executable),
@@ -226,6 +309,8 @@ def run_west_flash_generic(
         "-d",
         str(build_dir),
     ]
+    if dev_id:
+        west_cmd += ["-i", dev_id]
     return run_command_ok(
         west_cmd,
         env=env,
@@ -239,12 +324,16 @@ def run_west_flash_pyocd(
     framework_path: Path,
     env: dict,
     build_dir: Path,
+    dev_id: str | None = None,
 ) -> bool:
     """Flash a real Zephyr embedded target via a J-Link/CMSIS-DAP debug probe.
 
     Delegates to Zephyr's own pyocd runner -- same rationale as run_west_flash
     above, just a different runner for variants with no serial/esptool path
     (e.g. nrf52, which flashes over SWD instead).
+
+    `dev_id`, when given, is forwarded as `-i/--dev-id` -- see
+    `run_west_flash_generic` above.
     """
     west_cmd = [
         str(python_executable),
@@ -258,6 +347,8 @@ def run_west_flash_pyocd(
         "--runner",
         "pyocd",
     ]
+    if dev_id:
+        west_cmd += ["-i", dev_id]
     return run_command_ok(
         west_cmd,
         env=env,
