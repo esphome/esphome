@@ -169,8 +169,10 @@ class BK72xxBLETracker : public Component,
 
   // Shared adv + scan-response merge and frame dispatch (ble_device_base).
   // All calls run on the main task (the controller queue already crossed
-  // tasks); the merger is clocked by App.get_loop_component_start_time()
-  // throughout this tracker.
+  // tasks). Merger clock: stash_adv() reads the PARENT's cached loop time
+  // (on_scan_report runs inside bk72xx_ble's queue drain), sweep() this
+  // component's — same App.loop() pass, so the delta stays non-negative and
+  // the 300 ms timeout holds.
   ble_device_base::ScanResponseMerger merger_;
   ble_device_base::AdvDispatcher dispatcher_;
 };
