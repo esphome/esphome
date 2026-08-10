@@ -151,9 +151,7 @@ struct ModbusDeviceCommand {
   static CommandPriority classify(uint8_t function_code) {
     if (helpers::is_function_code_exception(function_code))
       return CommandPriority::READ;
-    const auto code = static_cast<FunctionCode>(function_code);
-    if (helpers::is_function_code_write(function_code) || code == FunctionCode::MASK_WRITE_REGISTER ||
-        code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS) {
+    if (helpers::is_function_code_write(function_code)) {
       return CommandPriority::WRITE;
     }
     return CommandPriority::READ;
@@ -162,7 +160,7 @@ struct ModbusDeviceCommand {
   // Requests this entry can serve: a standard read twice (run plus one re-run), everything else once.
   uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
-    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
+    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read_only(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
   // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
@@ -606,6 +604,16 @@ class ModbusClientDevice {
   /// read-modify-write needs no unpack/repack.
   bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
     return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  }
+  /// FC 0x17: the read-back is delivered through on_read_holding_registers() (the response carries only the
+  /// read registers, the same wire shape as a holding-register read). A device exception - typically a
+  /// rejected write half - arrives at that same on_read_holding_registers() with the error in its status,
+  /// exactly as success does, so a subclass overriding that one callback handles both outcomes and never
+  /// needs to also override on_error().
+  bool read_write_multiple_registers(uint16_t read_start_address, uint16_t read_count, uint16_t write_start_address,
+                                     std::span<const uint16_t> write_values) {
+    return this->queue_pdu(helpers::create_read_write_multiple_registers_pdu(read_start_address, read_count,
+                                                                             write_start_address, write_values));
   }
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }

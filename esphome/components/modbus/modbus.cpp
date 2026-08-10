@@ -382,7 +382,7 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
 }
 
 ResponseStatus ModbusServerHub::check_address_range_(uint16_t start_address, uint16_t count) {
-  if ((uint32_t) start_address + count > 0x10000u) {
+  if (!helpers::address_range_fits(start_address, count)) {
     ESP_LOGW(TAG, "Address out of range - start: %" PRIu16 " num: %" PRIu16, start_address, count);
     return ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
@@ -1074,7 +1074,8 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       continue;
     if (device == nullptr) {
       // A dropped read is routine (DEBUG); a dropped write/custom warns (unobservable without a device).
-      const bool requeueable = !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read(pdu[0]);
+      const bool requeueable =
+          !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read_only(pdu[0]);
       if (requeueable) {
         ESP_LOGD(TAG, "Anonymous duplicate of active frame for %" PRIu8 " (function 0x%X), dropped", address, pdu[0]);
       } else {
@@ -1254,7 +1255,14 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
 
   switch (function_code) {
     case FunctionCode::READ_HOLDING_REGISTERS:
-    case FunctionCode::READ_INPUT_REGISTERS: {
+    case FunctionCode::READ_INPUT_REGISTERS:
+    // FC 0x17 lands here too: its read start address and read quantity sit at the same request offsets as a
+    // plain read's (bytes 1..2 and 3..4), so start_address and count_or_value already hold the read block; its
+    // response carries only that read data, and the write half is confirmed by the response arriving at all.
+    // An exception routes here as well (the gate only validates the request when status is set), delivering
+    // empty registers with the error in status - so a 0x17 subclass handles success and failure in the one
+    // on_read_holding_registers() callback and never needs to also override on_error().
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       // Decode the big-endian register words into host byte order. The gate guarantees a success response
       // carries exactly count_or_value registers (and count_or_value <= MAX_NUM_OF_REGISTERS_TO_READ, the
       // capacity of RegisterValues); a mismatch was diverted to on_custom_response(), never clamped. On
@@ -1266,10 +1274,15 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
         }
       }
       std::span<const uint16_t> register_span(registers.data(), registers.size());
-      if (function_code == FunctionCode::READ_HOLDING_REGISTERS) {
+      if (function_code == FunctionCode::READ_INPUT_REGISTERS) {
+        this->on_read_input_registers(start_address, register_span, status);
+      } else if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
+                 function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS) {
         this->on_read_holding_registers(start_address, register_span, status);
       } else {
-        this->on_read_input_registers(start_address, register_span, status);
+        // Unreachable for the current case labels; match explicitly so a function code added to this group
+        // later is diverted to on_custom_response() rather than silently delivered as a holding read.
+        this->on_custom_response(request_pdu, response_pdu, status);
       }
       break;
     }
