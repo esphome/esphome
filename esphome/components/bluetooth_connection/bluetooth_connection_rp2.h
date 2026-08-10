@@ -176,6 +176,9 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   uint32_t connect_retry_ms_{0};  // last CONNECT_PENDING gap_connect attempt
   uint32_t disconnecting_started_{0};
   uint32_t write_no_rsp_started_{0};
+  // Unscoped C enum, so int-sized: lives with the 4-byte members to keep the
+  // padding at the tail.
+  bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
 
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
@@ -196,7 +199,6 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   uint8_t notify_subscription_count_{0};
   uint8_t engine_index_{0};  // position in instances[]; tags log lines per slot
   bd_addr_t peer_addr_{};    // MSB-first, as gap_connect expects
-  bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
   EngineState state_{EngineState::IDLE};
   DiscoveryPhase discovery_phase_{DiscoveryPhase::NONE};
   OpType op_type_{OpType::NONE};
