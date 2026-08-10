@@ -15,6 +15,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_RP2,
@@ -27,18 +28,20 @@ from ..types import SetCoreConfigCallable
 # Advertisement-only hub platforms; rp2 runs the full proxy and has its own
 # tests below.
 HUB_PLATFORM_FRAMEWORKS = [
+    PlatformFramework.BK72XX_ARDUINO,
     PlatformFramework.LN882X_ARDUINO,
 ]
 
 HUB_TRACKERS = {
+    PLATFORM_BK72XX: "bk72xx_ble_tracker",
     PLATFORM_LN882X: "ln882h_ble_tracker",
     PLATFORM_RP2: "rp2_ble_tracker",
 }
 
 
 def test_hub_platform_list_covers_every_hub_platform() -> None:
-    # A platform added to _HUB_PLATFORMS (bk72xx is planned) would otherwise
-    # get no gate coverage at all; GATT platforms have their own tests.
+    # A platform added to _HUB_PLATFORMS would otherwise get no gate coverage
+    # at all; GATT platforms have their own tests.
     advertisement_only = set(bluetooth_proxy._HUB_PLATFORMS) - set(
         bluetooth_connection.HUB_MAX_CONNECTIONS
     )

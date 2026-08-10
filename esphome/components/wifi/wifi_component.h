@@ -781,13 +781,19 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
-  void save_fast_connect_settings_();
+  void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
 #endif
 
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
   void clear_roaming_state_();
+#ifdef USE_ESP32
+  /// Redo post-connect bookkeeping after a driver-initiated roam (e.g. 802.11v BTM)
+  /// @param bssid The new AP's BSSID, taken from the connected event
+  /// @param channel The new AP's channel, taken from the connected event
+  void handle_driver_roam_(const bssid_t &bssid, uint8_t channel);
+#endif
 
   /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
   bool roaming_suppressed_() const {

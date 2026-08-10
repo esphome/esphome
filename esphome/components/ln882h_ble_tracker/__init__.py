@@ -47,7 +47,7 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 # LN882H SDK reference scan rate: 100 ms interval / 50 ms window (50 % duty).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", window_default="50ms", supports_active=True
+    "100ms", window_default="50ms"
 )
 
 
