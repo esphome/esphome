@@ -26,6 +26,7 @@ CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
 CONF_MAX_STREAMS = "max_streams"
 CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
+CONF_WORKER_ID = "worker_id"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
@@ -65,6 +66,11 @@ def validate_sector_multiple(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
+        # The async worker is a second component minted from this same storage: block. Declaring
+        # its id here means validation registers it like any component, so the standard component
+        # count includes it -- it is only actually built (new_Pvariable) when a driver pulls the
+        # worker in via request_storage_worker().
+        cv.GenerateID(CONF_WORKER_ID): cv.declare_id(StorageWorker),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
         # is still range- and sector-checked here.
@@ -472,9 +478,7 @@ async def to_code(config):
         if data.worker_task_safe:
             cg.add_define("USE_STORAGE_WORKER_TASK")
 
-        worker_id = ID(f"{var}_worker", is_declaration=True, type=StorageWorker)
-        CORE.component_ids.add(str(worker_id))
-        worker_var = cg.new_Pvariable(worker_id)
+        worker_var = cg.new_Pvariable(config[CONF_WORKER_ID])
         await cg.register_component(worker_var, {})
 
         cg.add(worker_var.set_task_stack_size(config[CONF_TASK_STACK_SIZE]))
