@@ -115,6 +115,18 @@ void usb_host_lib_daemon_task(void *param) {
     }
   }
 }
+
+// How many devices the USB Host Library has enumerated, or -1 if it is not
+// running. Only used to explain why a UVC device did not show up.
+int count_usb_devices() {
+  uint8_t addr_list[16];
+  int num_devices = 0;
+  if (usb_host_device_addr_list_fill(sizeof(addr_list), addr_list, &num_devices) != ESP_OK)
+    return -1;
+  return num_devices;
+}
+#else
+int count_usb_devices() { return -1; }
 #endif
 
 // Generate the sensor XCLK with LEDC. For MIPI-CSI sensors esp_video_init() does
@@ -314,7 +326,7 @@ void ESPVideoCamera::setup() {
     if (this->is_uvc_device_()) {
       ESP_LOGI(TAG, "%s is not there yet; waiting for the USB camera to enumerate", this->resolved_device_.c_str());
       this->capture_retry_pending_ = true;
-      this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+      this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
       return;
     }
     ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->resolved_device_.c_str(), errno,
@@ -477,7 +489,7 @@ void ESPVideoCamera::loop() {
     this->capture_retry_pending_ = false;
     if (!this->start_capture_()) {
       this->capture_retry_pending_ = true;
-      this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+      this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
     }
     return;
   }
@@ -506,7 +518,7 @@ bool ESPVideoCamera::handle_device_gone_(int err) {
   ESP_LOGW(TAG, "Capture device '%s' disappeared (%s); will retry", this->resolved_device_.c_str(), strerror(err));
   this->stop_capture_();
   this->capture_retry_pending_ = true;
-  this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+  this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
   return true;
 }
 
@@ -862,10 +874,15 @@ bool ESPVideoCamera::start_capture_() {
 bool ESPVideoCamera::start_direct_capture_() {
   this->capture_fd_ = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
   if (this->capture_fd_ < 0) {
-    // Not an error for a USB camera: it is simply unplugged or still
-    // enumerating, and loop() comes back every CAPTURE_RETRY_INTERVAL_MS.
+    // Not an error for a USB camera: opening the node is what runs esp_video's
+    // uvc_video_init(), which fails until a camera has enumerated. Say how many
+    // USB devices the host can see, because that splits the two causes apart:
+    // none at all means power or cabling (on many boards the host port's 5 V is
+    // behind a GPIO), while a device that is there but not usable means it did
+    // not offer a UVC streaming interface.
     if (this->is_uvc_device_()) {
-      ESP_LOGW(TAG, "USB camera not available on %s (%s); retrying", this->resolved_device_.c_str(), strerror(errno));
+      ESP_LOGW(TAG, "No USB camera on %s yet (%s); %d USB device(s) on the bus", this->resolved_device_.c_str(),
+               strerror(errno), count_usb_devices());
     } else {
       ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
     }

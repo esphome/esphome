@@ -133,6 +133,14 @@ class ESPVideoCamera : public camera::Camera {
 
   // Re-open delay after the capture device disappeared mid-stream.
   static constexpr uint32_t CAPTURE_RETRY_INTERVAL_MS = 2000;
+  // Same, for a USB camera. Opening its node is what runs esp_video's
+  // uvc_video_init(), which blocks for CONFIG_USB_UVC_INIT_TIMEOUT_MS while no
+  // camera is connected -- out of the main loop. A failed open of a MIPI device
+  // returns at once, so only this path has to be spaced out.
+  static constexpr uint32_t UVC_RETRY_INTERVAL_MS = 5000;
+  uint32_t capture_retry_interval_ms_() const {
+    return this->is_uvc_device_() ? UVC_RETRY_INTERVAL_MS : CAPTURE_RETRY_INTERVAL_MS;
+  }
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};
   // Retry delay for esp_video_init() itself, which only fails when a USB camera

@@ -310,11 +310,13 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
-        # How long esp_video_init() waits for the USB camera to enumerate, and
-        # it waits on the main task. Upstream's 10 s stalls boot that long when
-        # no camera is plugged in; the component retries the whole init anyway
-        # (see loop()), so a short wait is what makes hot-plug bearable.
-        add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 2000)
+        # How long esp_video waits for the USB camera to enumerate. It waits on
+        # whichever task opened the device, which for this component is the main
+        # loop, so upstream's 10 s stalls the whole device while no camera is
+        # plugged in. The wait only ever costs anything when there is nothing to
+        # find: a camera that is already enumerated is picked up from the USB
+        # host's device list with no wait at all. 500 is the Kconfig minimum.
+        add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
 
     # Pin the dynamic-link detection mode: auto-detection needs every detect
     # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
