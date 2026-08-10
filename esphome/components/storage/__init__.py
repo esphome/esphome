@@ -4,7 +4,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -440,7 +440,11 @@ async def to_code(config):
             raw = config[CONF_TASK_STACK_SIZE]
             budget = int(raw * _WALK_STACK_HEADROOM)
             if needed > raw:
-                raise cv.Invalid(
+                # This runs in a codegen job (path_max can depend on a FATFS bound the esp32
+                # component reconciles at FINAL), not during validation, so cv.Invalid would escape
+                # the validation machinery and reach the user as a raw traceback. EsphomeError is
+                # caught by the CLI and logged as a clean error line.
+                raise EsphomeError(
                     f"storage: a {_MAX_RECURSION_DEPTH}-level tree walk with path_max {path_max} "
                     f"needs roughly {needed} bytes of stack, which exceeds task_stack_size ({raw}) "
                     f"and would overflow it at runtime. Raise task_stack_size."
