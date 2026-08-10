@@ -26,13 +26,13 @@ void HoermannHcpCover::dump_config() { LOG_COVER("", "Hoermann HCP Cover", this)
 void HoermannHcpCover::control(const cover::CoverCall &call) {
   bool accepted = true;
   if (call.get_stop()) {
-    accepted = this->parent_->stop_door();
+    accepted &= this->parent_->stop_door();
   }
   if (call.get_toggle().has_value()) {
-    accepted = this->parent_->impulse_door();
+    accepted &= this->parent_->impulse_door();
   }
   if (const auto &position = call.get_position(); position.has_value()) {
-    accepted = this->parent_->set_position(position.value());
+    accepted &= this->parent_->set_position(position.value());
   }
   if (!accepted) {
     // The command never reached the door, so publish the unchanged state over the one the caller assumed.

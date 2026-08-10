@@ -155,7 +155,8 @@ TEST(HoermannHcpReadWrite, ConnectionLossDropsThePendingCommand) {
 // command it never fetched in the field.
 TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 20;
+  // Wide enough that a stall cannot expire the connection before the check below runs.
+  door.connection_timeout_ms_ = 10000;
   connect(door);
   door.open_door();
 
@@ -163,6 +164,8 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
   door.update();
   ASSERT_TRUE(door.is_valid());
 
+  // Shrink the window so the expiry needs only a short sleep; overshooting it only makes it surer.
+  door.connection_timeout_ms_ = 20;
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   door.update();
   EXPECT_FALSE(door.is_valid());
@@ -174,11 +177,11 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
 // expire on its own; otherwise it blocks every later command until the bus goes quiet entirely.
 TEST(HoermannHcpReadWrite, UnfetchedCommandExpiresWhileConnected) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 20;
+  door.connection_timeout_ms_ = 200;
   connect(door);
   door.open_door();
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  std::this_thread::sleep_for(std::chrono::milliseconds(220));
   // A status broadcast refreshes the connection without ever fetching the command.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
   door.update();
@@ -400,7 +403,7 @@ TEST(HoermannHcpPosition, MomentaryStopWhileTurningAroundKeepsTheTarget) {
 // A door that never turns around has to lose the target as well, otherwise it would cut a later move short.
 TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 20;
+  door.connection_timeout_ms_ = 200;
   connect(door);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
   ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
@@ -410,7 +413,7 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   EXPECT_EQ(poll_command(door), 0x0110);
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  std::this_thread::sleep_for(std::chrono::milliseconds(220));
   // The door ignored the command and closed all the way. Its broadcast keeps the connection alive, so the
   // target is the only thing that may expire here.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
