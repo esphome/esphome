@@ -72,11 +72,10 @@ void HoermannHcpCover::update_from_state_() {
   // Compare against the position last published, which starts at COVER_OPEN rather than at zero.
   const bool position_changed = this->position != current_position;
   this->position = current_position;
-  if (this->previous_operation_ != this->current_operation) {
-    this->previous_operation_ = this->current_operation;
-    this->publish_state();
-  } else if (position_changed) {
-    // Position updates arrive continuously while the door travels, so keep them out of flash.
+  const bool operation_changed = this->previous_operation_ != this->current_operation;
+  this->previous_operation_ = this->current_operation;
+  if (operation_changed || position_changed) {
+    // The bus reports the position on every broadcast, so nothing here is worth restoring from flash.
     this->publish_state(false);
   }
 }

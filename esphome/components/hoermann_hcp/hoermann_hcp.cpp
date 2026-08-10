@@ -43,6 +43,14 @@ void HoermannHcp::update() {
   if (this->valid_ && millis() - this->last_response_ > this->connection_timeout_ms_) {
     this->set_valid_(false);
   }
+  // Status broadcasts alone keep the connection alive, so a command the controller never fetches would
+  // otherwise block every later one for as long as it keeps broadcasting.
+  if (this->next_command_ != nullptr && millis() - this->command_queued_at_ > this->connection_timeout_ms_) {
+    ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
+    this->next_command_ = nullptr;
+    this->command_written_at_ = 0;
+    this->goto_position_ = 0.0f;
+  }
   if (this->changed_) {
     this->changed_ = false;
     this->state_callback_.call();
@@ -250,6 +258,7 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
   // A new command supersedes any half-open target the door was still travelling to.
   this->goto_position_ = 0.0f;
   this->next_command_ = &command;
+  this->command_queued_at_ = millis();
   return true;
 }
 
