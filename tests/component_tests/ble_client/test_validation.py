@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_TYPE,
     PlatformFramework,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 from ..types import SetCoreConfigCallable
@@ -115,10 +116,14 @@ def test_neutral_arm_rejects_esp32_only_keys(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     # Pins the schema split's rejection side: the legacy-only keys must not
-    # leak into the neutral arm.
-    from esphome.components import ble_client
+    # leak into the neutral arm. The hub is registered so the extra key is
+    # the only error - without it the missing-tracker error would satisfy
+    # the raises vacuously.
+    from esphome.components import ble_client, ble_device_base
 
     set_core_config(PlatformFramework.RP2_ARDUINO)
+    ble_device_base.register_hub_provider("rp2_ble_tracker")
+    CORE.loaded_integrations.add("rp2_ble_tracker")
     for key in ("name", "on_passkey_request", "on_passkey_notification"):
-        with pytest.raises(cv.Invalid):
+        with pytest.raises(cv.Invalid, match="extra keys not allowed"):
             ble_client.CONFIG_SCHEMA({"mac_address": "AA:BB:CC:DD:EE:FF", key: "x"})

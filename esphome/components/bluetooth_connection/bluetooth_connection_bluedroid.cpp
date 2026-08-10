@@ -365,16 +365,19 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
   for (uint16_t s = 0; s < this->service_total_; s++) {
     esp_gattc_service_elem_t svc;
     uint16_t svc_count = 1;
-    if (esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s) != ESP_GATT_OK ||
-        svc_count == 0) {
+    auto svc_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s);
+    if (svc_status != ESP_GATT_OK || svc_count == 0) {
+      this->log_gattc_warning_("esp_ble_gattc_get_service", svc_status);
       return false;
     }
     if (!on_service(s, svc)) {
       return false;
     }
     uint16_t svc_chars = 0;
-    if (esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC, svc.start_handle,
-                                     svc.end_handle, 0, &svc_chars) != ESP_GATT_OK) {
+    auto count_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
+                                                     svc.start_handle, svc.end_handle, 0, &svc_chars);
+    if (count_status != ESP_GATT_OK) {
+      this->log_gattc_warning_("esp_ble_gattc_get_attr_count", count_status);
       return false;
     }
     for (uint16_t c = 0; c < svc_chars; c++) {
@@ -385,6 +388,7 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
       if (status != ESP_GATT_OK || char_count == 0) {
         // An early terminator contradicts svc_chars from the same cache;
         // never build a silently truncated table.
+        this->log_gattc_warning_("esp_ble_gattc_get_all_char", status);
         return false;
       }
       if (!on_char(svc, chr)) {
@@ -394,6 +398,8 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
         if (d == MAX_DESCRIPTORS_PER_CHARACTERISTIC) {
           // A stack that never reports end-of-range; fail like every other
           // inconsistency instead of truncating the table silently.
+          ESP_LOGW(TAG, "[%d] Descriptor walk exceeded %u entries", this->connection_index_,
+                   MAX_DESCRIPTORS_PER_CHARACTERISTIC);
           return false;
         }
         esp_gattc_descr_elem_t desc;
@@ -404,6 +410,7 @@ bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_cha
           break;
         }
         if (desc_status != ESP_GATT_OK || desc_count == 0) {
+          this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
           return false;
         }
         if (!on_desc(chr, desc)) {

@@ -14,6 +14,17 @@ static const char *const TAG = "ble_client";
 static const uint32_t FAILURE_HOLD_OFF_STEP_MS = 10000;
 static const uint8_t FAILURE_HOLD_OFF_MAX_STEPS = 6;
 
+void BLEClient::register_ble_node(BLEClientNode *node) {
+  node->set_ble_client_parent(this);
+  if (this->nodes_.size() == ESPHOME_BLE_CLIENT_MAX_NODES) {
+    // push_back past capacity is a silent no-op; an undersized slot count
+    // must be loud at boot, not an unresolvable node at runtime.
+    ESP_LOGE(TAG, "[%s] Node capacity exceeded; node dropped", this->address_str_);
+    return;
+  }
+  this->nodes_.push_back(node);
+}
+
 void BLEClient::set_address(uint64_t address) {
   this->address_ = address;
   uint8_t mac[6];

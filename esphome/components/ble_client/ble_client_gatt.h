@@ -65,10 +65,7 @@ class BLEClient : public Component,
   void set_enabled(bool enabled);
   const char *address_str() const { return this->address_str_; }
 
-  void register_ble_node(BLEClientNode *node) {
-    node->set_ble_client_parent(this);
-    this->nodes_.push_back(node);
-  }
+  void register_ble_node(BLEClientNode *node);
 
   bool connected() const { return this->state_ == State::CONNECTED; }
   bool idle() const { return this->state_ == State::IDLE; }
