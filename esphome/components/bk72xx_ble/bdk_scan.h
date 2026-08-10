@@ -41,10 +41,11 @@ BdkOpResult bdk_scan_create(uint8_t activity_idx);
 /// back).
 BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t window, bool active);
 /// Release the activity: delete when never started (a stop would be
-/// rejected), stop otherwise. BUSY when rejected (retry); teardown is
-/// asynchronous — observe IDLE to confirm.
+/// rejected), stop otherwise. BUSY on a transient rejection (retry), FAILED
+/// on any other error; teardown is asynchronous — observe IDLE to confirm.
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created);
-/// SDK code of the last rejected release (0 = none); for the stuck-teardown ERROR.
+/// SDK code of the last failed release (0 = none since the last success);
+/// for the stuck-teardown ERROR.
 int bdk_scan_last_release_error();
 
 }  // namespace esphome::bk72xx_ble

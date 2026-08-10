@@ -383,18 +383,20 @@ ScanOpResult BK72xxBLE::advance_() {
       if (this->scan_wanted_)
         this->pending_since_ms_ = now;
       if (this->teardown_overdue_(now)) {
-        // Re-logged each interval: a stuck restart stays PENDING, so this is
-        // its only ongoing signal.
         if (now - this->teardown_stuck_log_ms_ >= TEARDOWN_STUCK_ERROR_MS) {
-          ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (release err %d)",
-                   bdk_scan_last_release_error());
+          const int err = bdk_scan_last_release_error();
+          if (err != 0) {
+            ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (release err %d)", err);
+          } else {
+            // No rejected release this episode: stuck waiting on the controller.
+            ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (controller busy)");
+          }
           this->teardown_stuck_log_ms_ = now;
         }
-        // A stuck stop is terminal for waiting consumers (the release keeps
-        // re-driving from loop()); a stuck restart stays PENDING — the radio
-        // still scans in the old mode.
-        if (!this->scan_wanted_)
-          result = ScanOpResult::FAILED;
+        // Terminal for stop AND restart: the tracker's backoff owns recovery
+        // (a stop's release keeps re-driving from loop(); a restart is
+        // re-requested through scan_start(), one release attempt per retry).
+        result = ScanOpResult::FAILED;
       }
     }
   }

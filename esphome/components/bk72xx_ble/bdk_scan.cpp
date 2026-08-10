@@ -109,12 +109,18 @@ int bdk_scan_last_release_error() { return s_last_release_err; }
 
 BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
   ble_err_t ret = created ? bk_ble_delete_scaning(activity_idx, nullptr) : bk_ble_scan_stop(activity_idx, nullptr);
-  if (ret == ERR_SUCCESS)
+  if (ret == ERR_SUCCESS) {
+    s_last_release_err = 0;
     return BdkOpResult::OK;
-  // Retryable; the reconciler paces and narrates it.
+  }
   s_last_release_err = static_cast<int>(ret);
-  ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
-  return BdkOpResult::BUSY;
+  if (ret == ERR_BLE_STATUS) {
+    // Transient (raced the BLE task); the reconciler paces and narrates it.
+    ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
+    return BdkOpResult::BUSY;
+  }
+  ESP_LOGE(TAG, "Scan release failed (err %d)", static_cast<int>(ret));
+  return BdkOpResult::FAILED;
 }
 
 }  // namespace esphome::bk72xx_ble
