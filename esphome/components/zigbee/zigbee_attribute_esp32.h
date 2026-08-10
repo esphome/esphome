@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <type_traits>
 
 #include "esphome/core/automation.h"
@@ -45,6 +46,7 @@ class ZigbeeAttribute final : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);
+  template<typename T> float get_val_or_nan(float value);
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
   template<typename T, typename F> void connect(sensor::Sensor *sensor, F &&f);
@@ -86,9 +88,39 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
   this->enable_loop();
 }
 
+template<typename T> float ZigbeeAttribute::get_val_or_nan(float value) {
+  if constexpr (std::is_integral<T>::value) {
+    if constexpr (std::is_signed<T>::value) {
+      if (std::isnan(value)) {
+        // For signed integer types, NaN is the minimum value
+        return static_cast<float>(std::numeric_limits<T>::min());
+      }
+      return value;
+    }
+
+    if (value < 0.0f || std::isnan(value)) {
+      if (this->attr_type_ >= EZB_ZCL_ATTR_TYPE_UINT8 && this->attr_type_ <= EZB_ZCL_ATTR_TYPE_INT64) {
+        // For unsigned integer types, NaN is the maximum value
+        return static_cast<float>(std::numeric_limits<T>::max());
+      }
+      // for other types like map, enum, etc., that also use uintN_t we can return 0.0f as a safe default
+      return 0.0f;
+    }
+
+    return value;
+  }
+
+  // should never reach here for non-integral types, but just in case, return 0.0f for NaN
+  if (std::isnan(value)) {
+    return 0.0f;
+  }
+  return value;
+}
+
 #ifdef USE_SENSOR
 template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
-  sensor->add_on_state_callback([this](float value) { this->set_attr((T) (this->scale_ * value)); });
+  sensor->add_on_state_callback(
+      [this](float value) { this->set_attr((T) (this->scale_ * (get_val_or_nan<T>(value)))); });
 }
 template<typename T, typename F> void ZigbeeAttribute::connect(sensor::Sensor *sensor, F &&f) {
   sensor->add_on_state_callback([f = std::forward<F>(f), this](float value) { this->set_attr((T) f(value)); });
