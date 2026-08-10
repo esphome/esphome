@@ -1051,7 +1051,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
   // code (0x80 bit set) is refused: is_function_code_custom() masks that bit away, so exclude it explicitly
   // here to match classify()'s exception-first handling of the write side.
   if (address == BROADCAST_ADDRESS && ModbusDeviceCommand::classify(pdu[0]) != CommandPriority::WRITE &&
-      !(helpers::is_function_code_custom(pdu[0]) && !helpers::is_function_code_exception(pdu[0]))) {
+      (!helpers::is_function_code_custom(pdu[0]) || helpers::is_function_code_exception(pdu[0]))) {
     ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
     return false;
   }
