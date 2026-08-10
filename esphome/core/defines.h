@@ -157,9 +157,17 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
-// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
-// slot-based platforms (esp8266, rp2040) never set it in generated builds
+// Only defined by key-lookup preference backends; the slot-based platforms
+// (esp8266, rp2040) never set it in generated builds, and their preferences
+// managers do not provide load_from_key(), so the PreferencesKeyLookupContract
+// assert would fail their clang-tidy environments. Written as a deny-list so
+// the no-platform analysis configuration (whose Preferences stub provides
+// load_from_key()) keeps covering the key-lookup code paths, and so a future
+// slot-based platform fails the assert loudly instead of silently losing
+// analysis coverage.
+#if !defined(USE_ESP8266) && !defined(USE_RP2)
 #define USE_PREFERENCE_KEY_LOOKUP
+#endif
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
@@ -306,6 +314,8 @@
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define USE_ESP32_BLE_TRACKER
+#define USE_BLE_GATT_CLIENT
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
@@ -387,6 +397,7 @@
 #define USE_ETHERNET_W6100
 #define USE_ETHERNET_W6300
 #define USE_ETHERNET_DM9051
+#define USE_ETHERNET_CH390
 #define CONFIG_ETH_SPI_ETHERNET_W5500 1
 #define CONFIG_ETH_SPI_ETHERNET_DM9051 1
 #define CONFIG_ETH_USE_ESP32_EMAC 1
@@ -469,6 +480,7 @@
 #define USE_RP2_BLE_TRACKER
 #define RP2040_BLE_SCAN_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define USE_RP2040_VARIANT_RP2040
@@ -500,6 +512,7 @@
 #define USE_BK72XX_BLE_TRACKER
 #endif
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS

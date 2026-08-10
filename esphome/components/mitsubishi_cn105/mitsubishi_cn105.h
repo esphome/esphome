@@ -1,9 +1,10 @@
 #pragma once
 
-#include <cmath>
-#include <optional>
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/finite_set_mask.h"
+
+#include <cmath>
+#include <optional>
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -70,16 +71,16 @@ class MitsubishiCN105 {
   uint32_t get_update_interval() const { return this->update_interval_ms_; }
   void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
-  uint32_t get_room_temperature_min_interval() const { return this->room_temperature_min_interval_ms_; }
-  bool is_room_temperature_enabled() const { return this->room_temperature_min_interval_ms_ != SCHEDULER_DONT_RUN; }
-  void set_room_temperature_min_interval(uint32_t interval_ms) {
-    this->room_temperature_min_interval_ms_ = interval_ms;
+  uint32_t get_telemetry_request_min_interval() const { return this->telemetry_request_min_interval_ms_; }
+  bool is_telemetry_polling_enabled() const { return this->telemetry_request_min_interval_ms_ != SCHEDULER_DONT_RUN; }
+  void set_telemetry_request_min_interval(uint32_t interval_ms) {
+    this->telemetry_request_min_interval_ms_ = interval_ms;
   }
 
   const Status &status() const { return this->status_; }
   bool is_status_initialized() const {
-    return this->is_room_temperature_enabled() ? !std::isnan(this->status_.room_temperature)
-                                               : !std::isnan(this->status_.target_temperature);
+    return this->is_telemetry_polling_enabled() ? !std::isnan(this->status_.room_temperature)
+                                                : !std::isnan(this->status_.target_temperature);
   }
 
   void set_power(bool power_on);
@@ -150,10 +151,10 @@ class MitsubishiCN105 {
   bool process_status_packet_(const uint8_t *payload, size_t len);
   bool parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len);
   bool parse_status_settings_(const uint8_t *payload, size_t len);
-  bool parse_status_room_temperature_(const uint8_t *payload, size_t len);
+  bool parse_status_telemetry_(const uint8_t *payload, size_t len);
   void send_packet_(const uint8_t *packet, size_t len);
   void update_status_();
-  bool should_request_room_temperature_() const;
+  bool should_request_telemetry_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -162,11 +163,15 @@ class MitsubishiCN105 {
   static const LogString *state_to_string(State state);
 
   uart::UARTDevice &device_;
+  // Default 1s; legacy climate-owned hub compatibility relies on this when update_interval is omitted.
+  // Remove legacy note in 2027.2.0.
   uint32_t update_interval_ms_{1000};
   uint32_t status_update_wait_credit_ms_{0};
   uint32_t operation_start_ms_{0};
-  uint32_t room_temperature_min_interval_ms_{60000};
-  std::optional<uint32_t> last_room_temperature_update_ms_;
+  // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
+  // omitted. Remove legacy note in 2027.2.0.
+  uint32_t telemetry_request_min_interval_ms_{60000};
+  std::optional<uint32_t> last_telemetry_update_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;

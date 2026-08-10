@@ -48,6 +48,8 @@ def test_trigger_codegen(
     # scan_parameters continuous: false reaches the YAML-mode setter, not the
     # runtime override.
     assert "->set_configured_continuous(false)" in main_cpp
+    # active: false (non-default) flows through to the setter.
+    assert "->set_scan_active(false)" in main_cpp
     # Constructor call, not just the declaration: the parent argument is what
     # registers the trigger as a listener.
     assert re.search(

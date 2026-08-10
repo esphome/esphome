@@ -16,10 +16,15 @@
 #include <esp_err.h>
 #endif
 
-// A GATT connection backend exists in this build: esp32 (Bluedroid) or a hub
-// platform with the neutral GATT client compiled in. Single-sourced here so
-// the proxy and this component cannot drift.
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+// The connection-aware API request handlers are compiled: a GATT backend is
+// wired by codegen (one slot per connection). This is the single spelling of
+// that predicate - the hub wrapper and the API request handlers gate on it.
+// The wrapper serves the proxy's API surface, so it compiles only when a
+// backend AND the proxy are present; advertisement-only and backend-only
+// builds get the clean-error handlers instead. Address-scoped maintenance
+// (unpair, cache clear) still works there through the per-platform free
+// functions below.
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 #define BLUETOOTH_CONNECTION_HAS_GATT
 #endif
 

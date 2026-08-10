@@ -3,7 +3,6 @@
 #include "ln882h_ble_tracker.h"
 
 #include <cinttypes>
-#include <cstring>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -22,6 +21,9 @@ void LN882HBLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // rw task and delivers here on the main task.
   this->parent_->register_scan_listener(this);
+  // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
+  // is read at each delivery to decide unclaimed-device logging.
+  this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
   // scan_running_ check: an on_boot start_scan action (priority 600) runs
   // before this setup() (200) and enable_loop() is a no-op pre-setup — parking
   // the loop here would strand that already-running scan.
@@ -72,19 +74,11 @@ void LN882HBLETracker::loop() {
       this->start_scan_();
     }
   }
-  // Flush pending scannable advertisements whose scan response never arrived
-  // (device didn't answer / frame lost) — delivered unmerged after the timeout.
-  // Main-task only, like every consumer of pending_adv_.
+  // Deliver held scannable advertisements whose scan response never arrived —
+  // unmerged after the merger's timeout. Main-task only, like every merger call.
   const uint32_t now = millis();
-  if (this->pending_count_ != 0) {
-    for (auto &p : this->pending_adv_) {
-      if (p.used && now - p.stored_ms > PENDING_ADV_TIMEOUT_MS) {
-        p.used = false;
-        this->pending_count_--;
-        this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
-      }
-    }
-  }
+  if (!this->merger_.empty())
+    this->merger_.sweep(now);
 
   if (this->scan_continuous_) {
     if (!this->scan_running_) {
@@ -145,129 +139,25 @@ void LN882HBLETracker::dump_config() {
 }
 
 // ---------------------------------------------------------------------------
-// Adv/scan-response demux with Bluedroid-style merge: the LN controller
-// delivers the pair as separate reports; a scannable advertisement is held
-// until its scan response arrives and delivered as one merged frame.
+// Adv/scan-response demux into the shared merger (ble_device_base): the LN
+// controller delivers the pair as separate reports; a scannable advertisement
+// is held until its scan response arrives and delivered as one merged frame.
 // ---------------------------------------------------------------------------
 
 void LN882HBLETracker::on_scan_report(const ln882h_ble::BLEScanReport &report) {
   if (report.is_scan_response) {
-    this->deliver_scan_rsp_(report);
+    this->merger_.submit_scan_rsp(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
     return;
   }
   // Stash only while the scan runs: after a one-shot stop the loop is
-  // disabled and nothing would sweep the table, so a late report would
+  // disabled and nothing would sweep the merger, so a late report would
   // surface minutes later as a fresh advertisement.
   if (this->scan_running_ && this->scan_active_ && report.scannable) {
-    this->stash_adv_(report);
+    this->merger_.stash_adv(report.mac, report.rssi, report.addr_type, report.data, report.data_len, millis());
     return;
   }
-  this->process_adv_(report.mac, report.rssi, report.addr_type, report.data, report.data_len, /*raw_only=*/false);
-}
-
-// Hold a scannable advertisement, waiting (≤ PENDING_ADV_TIMEOUT_MS) for its
-// scan response.
-void LN882HBLETracker::stash_adv_(const ln882h_ble::BLEScanReport &report) {
-  // One pass: find a same-device entry (deliver + reuse) while remembering the
-  // first free slot as the fallback.
-  PendingAdv *slot = nullptr;
-  PendingAdv *free_slot = nullptr;
-  for (auto &p : this->pending_adv_) {
-    if (!p.used) {
-      if (free_slot == nullptr)
-        free_slot = &p;
-      continue;
-    }
-    if (p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
-      // Same device advertised again before its scan response arrived — deliver
-      // the previous advertisement (its scan response is not coming) and reuse
-      // the slot, so no frame is ever lost.
-      p.used = false;
-      this->pending_count_--;
-      this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
-      slot = &p;
-      break;
-    }
-  }
-  if (slot == nullptr)
-    slot = free_slot;
-  if (slot == nullptr) {
-    // Table full — degrade gracefully: deliver the advertisement unmerged.
-    this->process_adv_(report.mac, report.rssi, report.addr_type, report.data, report.data_len, /*raw_only=*/false);
-    return;
-  }
-  slot->used = true;
-  this->pending_count_++;
-  memcpy(slot->mac, report.mac, 6);
-  slot->addr_type = report.addr_type;
-  slot->rssi = report.rssi;
-  slot->data_len = (report.data_len <= sizeof(slot->data)) ? report.data_len : sizeof(slot->data);
-  memcpy(slot->data, report.data, slot->data_len);
-  slot->stored_ms = millis();
-}
-
-// Scan response arrived: merge it with the pending advertisement from the same
-// device into ONE frame (ESP-IDF/Bluedroid semantics).
-void LN882HBLETracker::deliver_scan_rsp_(const ln882h_ble::BLEScanReport &report) {
-  // Fast-out on the empty table (loop()/flush use the same guard); this is
-  // the hottest caller.
-  if (this->pending_count_ != 0) {
-    for (auto &p : this->pending_adv_) {
-      if (p.used && p.addr_type == report.addr_type && memcmp(p.mac, report.mac, 6) == 0) {
-        // Append in place: the slot is released on delivery, so its 62-byte
-        // buffer (legacy adv + scan response) holds the merged frame directly.
-        const uint8_t room = sizeof(p.data) - p.data_len;
-        const uint8_t add = (report.data_len <= room) ? report.data_len : room;
-        memcpy(p.data + p.data_len, report.data, add);
-        p.used = false;
-        this->pending_count_--;
-        // The advertisement's RSSI, not the scan response's: every unmerged path
-        // reports the advertisement's measurement, so a device's RSSI must not
-        // jump between two measurements depending on merge timing.
-        this->process_adv_(report.mac, p.rssi, report.addr_type, p.data, p.data_len + add, /*raw_only=*/false);
-        return;
-      }
-    }
-  }
-  // Unmatched scan-response: goes out on the raw callback only (HA merges per
-  // address); local listeners/triggers receive each advertisement exactly once
-  // via the merged/plain path above.
-  this->process_adv_(report.mac, report.rssi, report.addr_type, report.data, report.data_len, /*raw_only=*/true);
-}
-
-void LN882HBLETracker::process_adv_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
-                                    uint8_t data_len, bool raw_only) {
-  // Raw callback (the raw-advertisement path). Both full advertisements and
-  // unmatched scan responses (raw_only) are forwarded.
-  if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(mac),
-                                                .data = data,
-                                                .data_len = data_len,
-                                                .rssi = rssi,
-                                                .addr_type = addr_type};
-    this->raw_advertisement_callback_.invoke(adv);
-  }
-
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Scan-response-only frames are never parsed for local sensors/triggers.
-  if (raw_only)
-    return;
-  ble_device_base::ESPBTDevice device;
-  device.from_scan_result(mac, rssi, addr_type, data, data_len);
-  // The listener list holds sensors AND this tracker's automation triggers
-  // (the triggers are listeners, exactly like esp32_ble_tracker), so one
-  // loop feeds both and ORs into `found`.
-  bool found = false;
-  for (auto *listener : this->listeners_) {
-    if (listener->parse_device(device)) {
-      found = true;
-    }
-  }
-  // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
-  // it and the scan is one-shot (continuous scans would spam).
-  if (!found && !this->scan_continuous_)
-    this->discovered_log_.log_device(TAG, device);
-#endif  // ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  this->dispatcher_.dispatch(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
+                             /*raw_only=*/false, this->scan_continuous_ ? nullptr : TAG);
 }
 
 // ---------------------------------------------------------------------------
@@ -356,27 +246,9 @@ void LN882HBLETracker::stop_scan_() {
 // Close a scan period: deliver held advertisements whose scan response never
 // came (unmerged) BEFORE on_scan_end fires, then re-anchor the period clock.
 void LN882HBLETracker::end_scan_period_(uint32_t now) {
-  this->flush_pending_adv_();
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  for (auto *listener : this->listeners_)
-    listener->on_scan_end();
-  this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
-#endif
+  this->merger_.flush();
+  this->dispatcher_.on_scan_end();
   this->scan_period_start_ = now;
-}
-
-// Deliver every held advertisement now (scan period/scan is ending): unmerged
-// delivery, same as the timeout path in loop(). Main-task only.
-void LN882HBLETracker::flush_pending_adv_() {
-  if (this->pending_count_ == 0)
-    return;
-  for (auto &p : this->pending_adv_) {
-    if (p.used) {
-      p.used = false;
-      this->process_adv_(p.mac, p.rssi, p.addr_type, p.data, p.data_len, /*raw_only=*/false);
-    }
-  }
-  this->pending_count_ = 0;
 }
 
 }  // namespace esphome::ln882h_ble_tracker
