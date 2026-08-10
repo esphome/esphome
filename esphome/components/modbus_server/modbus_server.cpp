@@ -241,12 +241,20 @@ modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modb
     }
   }
 
-  // Commit: the only failure now is a user write callback rejecting the value at runtime -- which
-  // cannot be rolled back.
+  // Commit: the pre-flight above proved every address resolves to a writable bit. Re-resolve here rather
+  // than caching up to MAX_NUM_OF_COILS_TO_WRITE pointers (a per-request heap allocation), matching the
+  // register write's two-pass shape -- but guard the pointer anyway, so a future change to the pre-flight
+  // can never turn this into a silent null dereference. The only expected failure is a write callback
+  // rejecting the value at runtime, which cannot be rolled back.
   for (uint16_t i = 0; i < bits.size(); i++) {
     const uint16_t address = static_cast<uint16_t>(start_address + i);
-    if (!this->find_bit_(address)->write_lambda(address, bits[i])) {
-      ESP_LOGW(TAG, "A bit write callback failed mid-sequence; earlier writes were already applied.");
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->write_lambda) {
+      ESP_LOGE(TAG, "Bit at 0x%04X unresolved between pre-flight and commit; aborting write.", address);
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    if (!server_bit->write_lambda(address, bits[i])) {
+      ESP_LOGW(TAG, "Bit write callback failed at 0x%04X mid-sequence; earlier writes were already applied.", address);
       return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
   }
@@ -269,6 +277,11 @@ void ModbusServer::dump_config() {
   for (auto &r : this->server_registers_) {
     ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%u register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
+  }
+  ESP_LOGCONFIG(TAG, "server bits");
+  for (auto &b : this->server_bits_) {
+    ESP_LOGCONFIG(TAG, "  Address=0x%04X readable=%s writable=%s", b->address, b->read_lambda ? "true" : "false",
+                  b->write_lambda ? "true" : "false");
   }
 #endif
 }

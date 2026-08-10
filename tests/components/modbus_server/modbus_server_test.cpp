@@ -288,11 +288,12 @@ TEST(ModbusServerRead, EmptyServerRejectsWithIllegalFunction) {
 }
 
 // A register read lambda returning an empty optional declines the read: the whole request is
-// answered with SERVICE_DEVICE_FAILURE.
+// answered with SERVICE_DEVICE_FAILURE. Uses set_read_lambda<T> so the optional-forwarding wrapper
+// (not a hand-assigned read_lambda) is what carries the decline through.
 TEST(ModbusServerRead, ReadLambdaDecliningIsServiceDeviceFailure) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.read_lambda = []() -> optional<int64_t> { return {}; };
+  reg.set_read_lambda<uint16_t>([](uint16_t address) -> optional<uint16_t> { return {}; });
   server.add_server_register(&reg);
 
   RegisterValues out;
