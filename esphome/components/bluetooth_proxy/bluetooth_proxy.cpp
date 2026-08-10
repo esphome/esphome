@@ -198,6 +198,10 @@ void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, con
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
+  // Finish the scan before reserving: a free slot earlier in the array must
+  // not win over a later slot that already holds the address, or one device
+  // ends up on two slots with a second connection attempt racing the first.
+  BluetoothConnection *free_slot = nullptr;
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto *connection = this->connections_[i];
     uint64_t conn_addr = connection->get_address();
@@ -205,18 +209,19 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
     if (conn_addr == address)
       return connection;
 
-    if (reserve && conn_addr == 0) {
-      connection->send_service_ = INIT_SENDING_SERVICES;
-      connection->set_address(address);
-      // All connections must start at INIT
-      // We only set the state if we allocate the connection
-      // to avoid a race where multiple connection attempts
-      // are made.
-      connection->set_state(ClientState::INIT);
-      return connection;
-    }
+    if (free_slot == nullptr && conn_addr == 0)
+      free_slot = connection;
   }
-  return nullptr;
+  if (!reserve || free_slot == nullptr)
+    return nullptr;
+  free_slot->send_service_ = INIT_SENDING_SERVICES;
+  free_slot->set_address(address);
+  // All connections must start at INIT
+  // We only set the state if we allocate the connection
+  // to avoid a race where multiple connection attempts
+  // are made.
+  free_slot->set_state(ClientState::INIT);
+  return free_slot;
 }
 
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
