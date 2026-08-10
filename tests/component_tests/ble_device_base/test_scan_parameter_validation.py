@@ -49,12 +49,11 @@ def test_to_ble_units_truncates() -> None:
 
 def test_bk72xx_defaults_are_valid() -> None:
     """bk72xx pins the BK reference rate — 100 ms interval, shared 30 ms window —
-    and exposes active with an opt-in default (its active start bypasses the
-    passive-only BDK API)."""
+    and exposes active (default on, like every active-capable tracker)."""
     config = _validate()
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
-    assert config["active"] is False
+    assert config["active"] is True
 
 
 def test_esp32_defaults_are_valid() -> None:
@@ -88,9 +87,9 @@ def test_esp32_active_can_disable() -> None:
     assert config["active"] is False
 
 
-def test_bk72xx_active_can_enable() -> None:
-    config = _validate(active=True)
-    assert config["active"] is True
+def test_bk72xx_active_can_disable() -> None:
+    config = _validate(active=False)
+    assert config["active"] is False
 
 
 def test_passive_schema_rejects_active_key() -> None:

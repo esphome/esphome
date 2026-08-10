@@ -21,7 +21,7 @@
 //       window:      30ms
 //       duration:    5min
 //       continuous:  true
-//       active:      false
+//       active:      true
 
 #pragma once
 
@@ -154,8 +154,8 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
   bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
-  bool scan_active_{false};                // resolved mode; see scan_parameters.active
-  bool scan_active_configured_{false};     // YAML value; runtime requests must not lose it
+  bool scan_active_{true};                 // resolved mode; see scan_parameters.active
+  bool scan_active_configured_{true};      // YAML value; runtime requests must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_requested_before_ota_{false};   // pending one-shot latch saved at OTA start, re-latched on OTA failure

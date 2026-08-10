@@ -65,13 +65,8 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 # window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
 # to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
 #
-# active defaults to off, unlike the other active-capable trackers: the active
-# start bypasses the BDK's passive-only scan API (bk72xx_ble's reconciler), so
-# the YAML default is opt-in until proven broadly on hardware. Runtime mode
-# requests (Home Assistant via bluetooth_proxy) stay enabled deliberately —
-# that is the point of admitting bk72xx to the proxy.
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", supports_active=True, active_default=False
+    "100ms", supports_active=True
 )
 
 CONFIG_SCHEMA = cv.Schema(
