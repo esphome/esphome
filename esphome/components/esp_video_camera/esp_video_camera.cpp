@@ -256,12 +256,9 @@ void ESPVideoCamera::setup() {
   esp_log_level_set("ISP", ESP_LOG_INFO);
   esp_log_level_set("esp_video_cam", ESP_LOG_INFO);
 
-  if (!this->init_pipeline_()) {
-    this->mark_failed();
-    return;
-  }
-
-  // Resolve the device alias to a concrete /dev/videoN path.
+  // Resolve the device alias to a concrete /dev/videoN path. This runs before
+  // init_pipeline_() because is_uvc_device_() reads the resolved path, and the
+  // pipeline is built differently for a USB camera.
   const std::string &d = this->device_;
   this->is_hw_jpeg_ = false;
   if (d.empty() || d == "jpeg" || d == ESP_VIDEO_JPEG_DEVICE_NAME) {
@@ -273,6 +270,21 @@ void ESPVideoCamera::setup() {
     this->resolved_device_ = std::string(ESP_VIDEO_USB_UVC_NAME_PREFIX) + index;
   } else {
     this->resolved_device_ = d;
+  }
+
+  if (!this->init_pipeline_()) {
+    // A USB camera that has not enumerated makes esp_video_init() fail as a
+    // whole, and it unwinds everything it had created, so calling it again
+    // later starts from a clean slate. Retry instead of failing the component
+    // for good: that is also what makes plugging the camera in after boot work.
+    if (this->enable_uvc_) {
+      ESP_LOGW(TAG, "Camera pipeline is not up (no USB camera?); will retry every %u s",
+               (unsigned) (PIPELINE_RETRY_INTERVAL_MS / 1000));
+      this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
+      return;
+    }
+    this->mark_failed();
+    return;
   }
 
   // The encoder is always present, but it is fed by /dev/video0, which only
@@ -294,6 +306,17 @@ void ESPVideoCamera::setup() {
 
   int test_fd = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
   if (test_fd < 0) {
+    // A USB camera enumerates on its own schedule and is routinely still absent
+    // here, a second or two after esp_video_init(). Failing the component would
+    // make that permanent, so leave it to loop(), which already retries a
+    // missing device on a timer. A MIPI sensor is either detected by now or
+    // never will be.
+    if (this->is_uvc_device_()) {
+      ESP_LOGI(TAG, "%s is not there yet; waiting for the USB camera to enumerate", this->resolved_device_.c_str());
+      this->capture_retry_pending_ = true;
+      this->capture_retry_at_ms_ = millis() + CAPTURE_RETRY_INTERVAL_MS;
+      return;
+    }
     ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->resolved_device_.c_str(), errno,
              strerror(errno));
     this->mark_failed();
@@ -304,21 +327,28 @@ void ESPVideoCamera::setup() {
   ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
 }
 
+bool ESPVideoCamera::is_uvc_device_() const {
+  return this->device_.starts_with("uvc") || this->resolved_device_.rfind(ESP_VIDEO_USB_UVC_NAME_PREFIX, 0) == 0;
+}
+
 bool ESPVideoCamera::init_pipeline_() {
-  if (this->i2c_bus_ == nullptr) {
-    ESP_LOGE(TAG, "No I2C bus set");
-    return false;
-  }
-  i2c_master_bus_handle_t i2c_handle = get_i2c_bus_handle(this->i2c_bus_);
-  if (i2c_handle == nullptr) {
-    ESP_LOGE(TAG, "Could not obtain the ESP-IDF I2C bus handle");
-    return false;
+  // A USB camera is not on any I2C bus, so only the MIPI-CSI path needs one.
+  const bool uvc_only = this->is_uvc_device_();
+  i2c_master_bus_handle_t i2c_handle = nullptr;
+  if (!uvc_only) {
+    if (this->i2c_bus_ == nullptr) {
+      ESP_LOGE(TAG, "No I2C bus set");
+      return false;
+    }
+    i2c_handle = get_i2c_bus_handle(this->i2c_bus_);
+    if (i2c_handle == nullptr) {
+      ESP_LOGE(TAG, "Could not obtain the ESP-IDF I2C bus handle");
+      return false;
+    }
   }
 
   // esp_video_init() only probes for a MIPI sensor when config->csi is set, so
   // leave it NULL for a USB-only board.
-  const bool uvc_only = this->device_.starts_with("uvc");
-
   // Start XCLK via LEDC if requested (MIPI sensors need it before init).
   if (!uvc_only && this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
     if (init_xclk_ledc(this->xclk_pin_, this->xclk_freq_) != ESP_OK) {
@@ -393,8 +423,18 @@ bool ESPVideoCamera::init_pipeline_() {
     return false;
   }
 
+  // With UVC enabled, esp_video_init() spends up to CONFIG_USB_UVC_INIT_TIMEOUT_MS
+  // (10 s by default) waiting for the USB camera to enumerate before it returns.
+  // Waiting only INIT_TIMEOUT_MS here would expire in the same instant and fail
+  // the component for a camera that was about to come up.
+  uint32_t init_timeout_ms = INIT_TIMEOUT_MS;
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+  if (this->enable_uvc_)
+    init_timeout_ms += CONFIG_USB_UVC_INIT_TIMEOUT_MS;
+#endif
+
   bool ok = false;
-  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(INIT_TIMEOUT_MS)) != pdTRUE) {
+  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(init_timeout_ms)) != pdTRUE) {
     // The task keeps running and keeps its reference to ctx; it frees the
     // context itself once esp_video_init() eventually returns.
     ESP_LOGE(TAG, "esp_video_init() timed out");
@@ -414,6 +454,18 @@ bool ESPVideoCamera::init_pipeline_() {
 // ===========================================================================
 void ESPVideoCamera::loop() {
   const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
+
+  // Only reachable with UVC: setup() fails the component outright otherwise.
+  // Retried on demand and on a long timer because esp_video_init() blocks the
+  // main task while it waits for the USB camera to enumerate.
+  if (!this->pipeline_ready_) {
+    if (!wanted || (int32_t) (millis() - this->pipeline_retry_at_ms_) < 0)
+      return;
+    this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
+    if (this->init_pipeline_())
+      ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
+    return;
+  }
 
   if (!this->streaming_) {
     if (!wanted)
@@ -810,7 +862,13 @@ bool ESPVideoCamera::start_capture_() {
 bool ESPVideoCamera::start_direct_capture_() {
   this->capture_fd_ = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
   if (this->capture_fd_ < 0) {
-    ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
+    // Not an error for a USB camera: it is simply unplugged or still
+    // enumerating, and loop() comes back every CAPTURE_RETRY_INTERVAL_MS.
+    if (this->is_uvc_device_()) {
+      ESP_LOGW(TAG, "USB camera not available on %s (%s); retrying", this->resolved_device_.c_str(), strerror(errno));
+    } else {
+      ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
+    }
     return false;
   }
   set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
@@ -1002,17 +1060,20 @@ void ESPVideoCamera::dump_config() {
   // Which sensor drivers esp_cam_sensor actually built in. esp_video_init()
   // probes exactly these over SCCB, so when auto-detection comes up empty this
   // line says whether the sensor you have is even represented in the firmware.
-  std::string drivers;
+  // A USB camera is not probed over SCCB, so the list means nothing there.
+  if (!this->is_uvc_device_()) {
+    std::string drivers;
 #ifdef CONFIG_CAMERA_SC202CS
-  drivers += " SC202CS(0x36)";
+    drivers += " SC202CS(0x36)";
 #endif
 #ifdef CONFIG_CAMERA_OV5647
-  drivers += " OV5647(0x36)";
+    drivers += " OV5647(0x36)";
 #endif
 #ifdef CONFIG_CAMERA_SC2336
-  drivers += " SC2336(0x30)";
+    drivers += " SC2336(0x30)";
 #endif
-  ESP_LOGCONFIG(TAG, "  MIPI-CSI drivers:%s", drivers.empty() ? " none" : drivers.c_str());
+    ESP_LOGCONFIG(TAG, "  MIPI-CSI drivers:%s", drivers.empty() ? " none" : drivers.c_str());
+  }
 
   if (this->is_failed())
     ESP_LOGCONFIG(TAG, "  State: FAILED");

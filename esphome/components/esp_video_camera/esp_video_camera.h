@@ -85,6 +85,10 @@ class ESPVideoCamera : public camera::Camera {
   void stop_stream(camera::CameraRequester requester) override;
 
  protected:
+  /// True when the source is a USB camera: the "uvc"/"uvcN" aliases and the
+  /// /dev/video4N paths they resolve to. Those need no I2C bus and appear only
+  /// once the device has enumerated, so both paths treat them differently.
+  bool is_uvc_device_() const;
   bool init_pipeline_();
   bool start_capture_();
   void stop_capture_();
@@ -131,6 +135,11 @@ class ESPVideoCamera : public camera::Camera {
   static constexpr uint32_t CAPTURE_RETRY_INTERVAL_MS = 2000;
   bool capture_retry_pending_{false};
   uint32_t capture_retry_at_ms_{0};
+  // Retry delay for esp_video_init() itself, which only fails when a USB camera
+  // is absent. Much longer than the capture retry: the call blocks the main task
+  // while the USB stack waits for an enumeration that is not going to happen.
+  static constexpr uint32_t PIPELINE_RETRY_INTERVAL_MS = 10000;
+  uint32_t pipeline_retry_at_ms_{0};
   // When the last consumer went away, or 0 while at least one is present. The
   // pipeline is only torn down once this is CAPTURE_IDLE_TIMEOUT_MS old.
   uint32_t idle_since_ms_{0};

@@ -23,7 +23,9 @@ from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
 from esphome.core.entity_helpers import setup_entity
 
 CODEOWNERS = ["@youkorr"]
-DEPENDENCIES = ["esp32", "i2c"]
+# Not "i2c": a USB camera is not on a bus, and a UVC-only board has no reason to
+# declare one. The MIPI-CSI path needs it, and _validate_i2c_bus asks for it.
+DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["camera"]
 
 esp_video_camera_ns = cg.esphome_ns.namespace("esp_video_camera")
@@ -128,6 +130,12 @@ def _validate_device(value):
     )
 
 
+def _is_uvc(device):
+    """True for a USB camera: the 'uvc'/'uvcN' aliases and the /dev/video4N
+    paths they resolve to (esp_video reserves 40-49 for USB-UVC)."""
+    return device.startswith(("uvc", "/dev/video4"))
+
+
 def _xclk_pin(value):
     """A GPIO number for the sensor XCLK, or -1 / NO_CLOCK for boards that
     already drive it (an on-board oscillator, or a BSP that started it)."""
@@ -148,8 +156,18 @@ def _validate_xclk(config):
     return config
 
 
+def _validate_i2c_bus(config):
+    if _is_uvc(config[CONF_DEVICE]) or CONF_I2C_ID in config:
+        return config
+    raise cv.Invalid(
+        "i2c_id: is required to probe a MIPI-CSI sensor. Only a USB camera can go "
+        "without it, since it is not on an I2C bus.",
+        path=[CONF_I2C_ID],
+    )
+
+
 def _validate_uvc_device(config):
-    if config[CONF_DEVICE].startswith("uvc") and not config[CONF_ENABLE_UVC]:
+    if _is_uvc(config[CONF_DEVICE]) and not config[CONF_ENABLE_UVC]:
         raise cv.Invalid(
             f"device: {config[CONF_DEVICE]} needs enable_uvc: true, otherwise the "
             "USB-UVC host driver is not compiled in and the device never appears.",
@@ -166,7 +184,7 @@ def _sensor_format_symbol(config):
     here.
     """
     resolution = config[CONF_RESOLUTION]
-    if resolution == "auto" or config[CONF_DEVICE].startswith("uvc"):
+    if resolution == "auto" or _is_uvc(config[CONF_DEVICE]):
         return None
     width, height = (int(part) for part in resolution.split("x"))
     return _SENSOR_FORMATS[config[CONF_SENSOR_MODEL]][width, height]
@@ -174,7 +192,7 @@ def _sensor_format_symbol(config):
 
 def _validate_resolution_for_sensor(config):
     resolution = config[CONF_RESOLUTION]
-    if resolution == "auto" or config[CONF_DEVICE].startswith("uvc"):
+    if resolution == "auto" or _is_uvc(config[CONF_DEVICE]):
         return config
 
     if (model := config.get(CONF_SENSOR_MODEL)) is None:
@@ -202,7 +220,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPVideoCamera),
-            cv.Required(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
+            # Only the MIPI-CSI path probes a sensor over I2C; a USB camera is not
+            # on any bus. Required for everything else by _validate_i2c_bus below.
+            cv.Optional(CONF_I2C_ID): cv.use_id(i2c.InternalI2CBus),
             cv.Optional(CONF_DEVICE, default="jpeg"): _validate_device,
             cv.Optional(CONF_RESOLUTION, default="auto"): _validate_resolution,
             cv.Optional(CONF_SENSOR_MODEL): _validate_sensor_model,
@@ -229,6 +249,7 @@ CONFIG_SCHEMA = cv.All(
     # and esp_video 2.3.0 requires ESP-IDF 5.4 or newer. Reject both at
     # validation time rather than at code generation.
     _validate_uvc_device,
+    _validate_i2c_bus,
     _validate_xclk,
     # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
     # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
@@ -250,8 +271,9 @@ async def to_code(config):
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
 
-    i2c_bus = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(i2c_bus))
+    if (i2c_id := config.get(CONF_I2C_ID)) is not None:
+        i2c_bus = await cg.get_variable(i2c_id)
+        cg.add(var.set_i2c_bus(i2c_bus))
     cg.add(
         var.set_xclk_pin(
             cg.RawExpression(
@@ -288,6 +310,11 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
+        # How long esp_video_init() waits for the USB camera to enumerate, and
+        # it waits on the main task. Upstream's 10 s stalls boot that long when
+        # no camera is plugged in; the component retries the whole init anyway
+        # (see loop()), so a short wait is what makes hot-plug bearable.
+        add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 2000)
 
     # Pin the dynamic-link detection mode: auto-detection needs every detect
     # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
