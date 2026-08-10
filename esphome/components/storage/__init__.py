@@ -6,6 +6,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -43,7 +44,7 @@ StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 StorageWorker = storage_ns.class_("StorageWorker", cg.PollingComponent)
 
 
-def validate_sector_multiple(value):
+def validate_sector_multiple(value: int) -> int:
     """Require a multiple of 512 (the common sector size).
 
     Anything else loses the FATFS direct-sector-read path that motivated picking a
@@ -104,7 +105,8 @@ CONFIG_SCHEMA = cv.Schema(
         # FreeRTOS priority: above idle (0), below networking tasks (typically higher).
         cv.Optional(CONF_TASK_PRIORITY, default=1): cv.int_range(min=1, max=23),
         # Fixed request pool/queue depth -- sized exactly at codegen like the storage
-        # registry's device count, no heap allocation per request at runtime.
+        # registry's device count, so the slot itself never allocates at runtime. (The
+        # completion callback is a std::function and may allocate for a large lambda capture.)
         cv.Optional(CONF_MAX_PENDING, default=4): cv.int_range(min=1, max=16),
         # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) --
         # streams are typically much longer-lived than a single copy/move (e.g. one HTTP
@@ -127,7 +129,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _collect_mount_paths(fragment, where, out):
+def _collect_mount_paths(fragment: object, where: str, out: list[tuple[str, str]]) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
@@ -140,7 +142,7 @@ def _collect_mount_paths(fragment, where, out):
             _collect_mount_paths(item, where, out)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     """Reject two storage devices claiming the same mount point.
 
     This lives here and not in the drivers because no driver can see the others' configuration.
@@ -227,7 +229,7 @@ def request_fatfs_path_length() -> None:
     _get_data().fatfs_path_bound = True
 
 
-def validate_mount_path(value):
+def validate_mount_path(value: str) -> str:
     """Validate a storage device's mount point. Drivers use this in place of cv.string.
 
     The interface treats the mount path as an invariant: set once at construction time and
@@ -347,7 +349,7 @@ _FATFS_MAX_LFN_DEFAULT = 255
 _FATFS_SHORT_NAME_MAX = 13
 
 
-def _resolve_path_max(config) -> int:
+def _resolve_path_max(config: ConfigType) -> int:
     """The API's path bound, resolved once every contributor has had its say.
 
     An explicit `path_max:` wins. Otherwise it is the largest bound any configured driver
@@ -407,14 +409,18 @@ def _default_copy_chunk_size() -> int:
 # reads them. Consumers awaiting the registry/worker variables (e.g. via cg.get_variable())
 # are unaffected either way, since that call already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
     # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
-    cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
+    # Only emit it when a driver actually registered a device; with none (every config in
+    # tests/components/storage/) storage.h keeps its own >0 fallback, so the header comment
+    # that the fallback is unreachable in real builds stays true.
+    if device_count > 0:
+        cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 

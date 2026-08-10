@@ -373,8 +373,11 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->file_done = 0;
   slot->file_total = 0;
   // Bump the generation on claim (skipping 0) so stale TransferJob handles from a previous
-  // occupant of this slot stop resolving. Main loop only -- submissions never race each other.
-  if (++slot->generation == 0)
+  // occupant of this slot stop resolving. Masked to 24 bits: make_transfer_job() packs it above
+  // the 8-bit slot index, so an unmasked 32-bit counter would truncate on claim and never match
+  // again after ~16.7M claims. Main loop only -- submissions never race each other.
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr) {
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -490,7 +493,8 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   slot->waiting_logged = false;
   slot->last_progress_ms = millis();
   slot->progress_mark = 0;
-  if (++slot->generation == 0)
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -587,7 +591,8 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   const bool file_fs = file_side != nullptr && file_side->get_storage_type() == StorageType::FILESYSTEM;
   slot->src_is_fs = file_fs && file_is_src;
   slot->dst_is_fs = file_fs && !file_is_src;
-  if (++slot->generation == 0)
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -687,7 +692,13 @@ bool StorageWorker::get_transfer_status(TransferJob job, TransferStatus *out) co
   // poll frame, never out-of-bounds (copy is bounded, termination forced below).
   out->file[0] = '\0';
   if (state == RequestState::RUNNING && req.file_total.load() != 0) {
-    const char *slash = strrchr(req.src_path, '/');
+    // Bounded reverse scan (not strrchr): src_path may be mid-rewrite by the worker task, so
+    // stop at the buffer end even if the terminator was momentarily clobbered.
+    const char *slash = nullptr;
+    for (size_t i = 0; i < sizeof(req.src_path) && req.src_path[i] != '\0'; i++) {
+      if (req.src_path[i] == '/')
+        slash = &req.src_path[i];
+    }
     strncpy(out->file, slash != nullptr ? slash + 1 : req.src_path, sizeof(out->file) - 1);
     out->file[sizeof(out->file) - 1] = '\0';
   }

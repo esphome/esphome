@@ -9,3 +9,5 @@ storage:
   task_stack_size: 8192
   task_priority: 1
   max_pending: 4
+  max_streams: 2
+  worker_update_interval: 5ms
