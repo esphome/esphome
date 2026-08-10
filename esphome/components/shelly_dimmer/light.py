@@ -130,8 +130,13 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
     if not isinstance(url, str):
         return None
     sha = sha if isinstance(sha, str) else None
+    path = _firmware_path(url, sha)
+    if sha is not None and path.is_file():
+        # Content-addressed and already on disk; get_firmware verifies it
+        # by hash, so there is nothing to revalidate.
+        return None
     # No hash means no stale copies, matching the validator's policy.
-    return RemoteFile(url, _firmware_path(url, sha), allow_stale=sha is not None)
+    return RemoteFile(url, path, allow_stale=sha is not None)
 
 
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)

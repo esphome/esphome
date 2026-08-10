@@ -25,6 +25,14 @@ def test_prefetch_known_version(setup_core: Path) -> None:
     assert stages == [[RemoteFile(url, shd._firmware_cache_path(sha))]]
 
 
+def test_prefetch_skips_content_addressed_blob_on_disk(setup_core: Path) -> None:
+    """A sha-keyed cache file needs no revalidation; get_firmware hashes it."""
+    url, sha = shd.KNOWN_FIRMWARE["51.6"]
+    shd._firmware_cache_path(sha).write_bytes(b"pinned firmware")
+    entries = [{"firmware": {"version": "51.6", "update": True}}]
+    assert list(shd.PREFETCH_FILES(entries)) == [[]]
+
+
 def test_prefetch_explicit_url_without_sha(setup_core: Path) -> None:
     url = "https://example.com/fw.bin"
     entries = [{"firmware": {"url": url, "update": True}}]

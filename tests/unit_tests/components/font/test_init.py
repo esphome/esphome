@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -134,6 +134,10 @@ def test_unparseable_gfonts_css_is_evicted(setup_core: Path) -> None:
             "esphome.components.font.external_files.download_content",
             return_value=b"no truetype url here",
         ),
+        patch(
+            "esphome.components.font.external_files.is_fresh_this_run",
+            return_value=True,
+        ),
         pytest.raises(cv.Invalid, match="please report this"),
     ):
         font.download_gfont(spec)
@@ -144,10 +148,58 @@ def test_unparseable_gfonts_css_is_evicted(setup_core: Path) -> None:
             "esphome.components.font.external_files.download_content",
             return_value=b"\xff\xfe\x00\x01binary",
         ),
+        patch(
+            "esphome.components.font.external_files.is_fresh_this_run",
+            return_value=True,
+        ),
         pytest.raises(cv.Invalid, match="not a text document"),
     ):
         font.download_gfont(spec)
     assert not css_path.exists()
+
+
+def test_unrevalidated_gfonts_css_uses_cached_font(setup_core: Path) -> None:
+    """A CSS body that could not be revalidated is not parsed for a ttf
+    URL; the cached font is used instead."""
+    spec = {
+        "family": "Roboto",
+        "weight": 400,
+        "italic": False,
+        "refresh": font._REFRESH_VALIDATOR("0s"),
+    }
+    ttf_path = font._gfonts_ttf_path(spec)
+    ttf_path.parent.mkdir(parents=True, exist_ok=True)
+    ttf_path.write_bytes(b"cached ttf")
+    cache = MagicMock()
+    with (
+        patch.object(font, "FONT_CACHE", cache),
+        patch(
+            "esphome.components.font.external_files.download_content",
+            return_value=b"stale css",
+        ),
+    ):
+        assert font.download_gfont(spec) is spec
+    cache.__setitem__.assert_called_once_with(spec, ttf_path)
+
+
+def test_unrevalidated_gfonts_css_without_cached_font_errors(
+    setup_core: Path,
+) -> None:
+    """No verified CSS and no cached font is a clear error."""
+    spec = {
+        "family": "Roboto",
+        "weight": 500,
+        "italic": False,
+        "refresh": font._REFRESH_VALIDATOR("0s"),
+    }
+    with (
+        patch(
+            "esphome.components.font.external_files.download_content",
+            return_value=b"stale css",
+        ),
+        pytest.raises(cv.Invalid, match="no cached font"),
+    ):
+        font.download_gfont(spec)
 
 
 def test_stage2_skips_css_not_fetched_this_run(setup_core: Path) -> None:

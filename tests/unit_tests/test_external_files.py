@@ -552,6 +552,10 @@ def test_download_content_skip_external_update_uses_cache(
     assert result == cached_content
     mock_has_remote_file_changed.assert_not_called()
     mock_requests_get.assert_not_called()
+    # Deliberately unchecked is memoized for the run but never "fresh".
+    assert not external_files.is_fresh_this_run(test_file)
+    assert external_files.download_content(url, test_file) == cached_content
+    mock_has_remote_file_changed.assert_not_called()
 
 
 def test_download_content_skip_external_update_downloads_when_missing(

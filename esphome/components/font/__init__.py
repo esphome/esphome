@@ -339,6 +339,19 @@ def download_gfont(value: ConfigType) -> ConfigType:
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
             ) from e
+        if not (
+            external_files.is_fresh_this_run(css_path) or CORE.skip_external_update
+        ):
+            # Same rule as PREFETCH_FILES stage two: a CSS body that could
+            # not be revalidated may name a rotated ttf URL. Use the cached
+            # font instead (the failed check already warned).
+            if path.exists():
+                FONT_CACHE[value] = path
+                return value
+            raise cv.Invalid(
+                f"Could not refresh the Google Fonts CSS for "
+                f"{value[CONF_FAMILY]} and no cached font is available"
+            )
         try:
             css = css_bytes.decode("utf-8")
         except UnicodeDecodeError as e:

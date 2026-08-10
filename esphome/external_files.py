@@ -55,6 +55,9 @@ class ExternalFilesRunData:
     fresh_paths: set[Path] = field(default_factory=set)
     # Served from disk without revalidation; strict callers reject these.
     stale_paths: set[Path] = field(default_factory=set)
+    # Served under skip_external_update, deliberately unchecked; skips the
+    # network like fresh_paths but never counts as verified.
+    unchecked_paths: set[Path] = field(default_factory=set)
     # Failed with no usable copy; later touches replay the error fast.
     failed_paths: dict[Path, FailedDownload] = field(default_factory=dict)
 
@@ -253,7 +256,7 @@ def download_content(
     # because download_content_many dedupes by path before fanning out.
     run_data = _run_data()
     fresh_paths = run_data.fresh_paths
-    if path in fresh_paths and path.exists():
+    if (path in fresh_paths or path in run_data.unchecked_paths) and path.exists():
         return _cached()
     if allow_stale and path in run_data.stale_paths and path.exists():
         # Strict callers fall through to try the network themselves.
@@ -272,7 +275,7 @@ def download_content(
     ensure_happy_eyeballs()
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
-        fresh_paths.add(path)
+        run_data.unchecked_paths.add(path)
         return _cached()
     if not has_remote_file_changed(url, path, timeout):
         if path in run_data.stale_paths:
