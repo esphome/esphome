@@ -65,6 +65,10 @@ enum class RequestOp : uint8_t {
   // one-shot on the worker task for task-safe media (main loop free, watchdog-safe) or from a
   // loop() step otherwise. Moves no bytes and opens no handles.
   FORMAT,
+  // Mountable-device mount -- the same single-blocking-call shape as FORMAT: network mounts
+  // resolve, connect and probe, which must never sit on the main loop. The target rides in
+  // dst_storage; run resolves it back to MountableStorage via as_mountable().
+  MOUNT,
 };
 
 // Where a request currently stands. Transitions:
@@ -490,6 +494,11 @@ class StorageWorker : public PollingComponent {
   // Filesystem format -- a single blocking control-plane call, routed through the engine so
   // it runs on the worker task for task-safe media (main loop free, watchdog-safe) instead of
   // blocking the caller. on_done fires once with the driver's result, like any transfer.
+  // Mount -- same contract as async_format(): one blocking control-plane call on the worker
+  // task for task-safe devices (main loop free, watchdog-safe), loop-sliced otherwise; on_done
+  // fires once with the driver's mount() result.
+  storage::StorageError async_mount(storage::PathStorage *target, CompletionCallback &&on_done,
+                                    TransferJob *job_out = nullptr);
   storage::StorageError async_format(storage::FilesystemStorage *target, CompletionCallback &&on_done,
                                      TransferJob *job_out = nullptr);
 
@@ -588,6 +597,8 @@ class StorageWorker : public PollingComponent {
   storage::StorageError tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told);
 
  protected:
+  storage::StorageError submit_control_op_(RequestOp op, storage::PathStorage *target, CompletionCallback &&on_done,
+                                           TransferJob *job_out);
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,
                                 storage::PathStorage *dst, const char *dst_path, CompletionCallback &&on_done,
                                 TransferJob *job_out = nullptr, bool overwrite = false);
