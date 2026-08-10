@@ -10,6 +10,7 @@ import os
 import os.path
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -21,6 +22,42 @@ root_path = str(Path(__file__).resolve().parent.parent)
 basepath = str(Path(root_path) / "esphome")
 temp_folder = str(Path(root_path) / ".temp")
 temp_header_file = str(Path(temp_folder) / "all-include.cpp")
+
+
+def clean_build_cache_if_moved(cache_dir: Path) -> None:
+    """Remove a test build cache that was created in a different source tree.
+
+    PlatformIO and ESP-IDF caches embed absolute source paths, so a cache
+    created in another tree (a different git worktree, or a directory that
+    was copied or renamed) silently compiles that other tree's sources while
+    appearing to test this one. A marker file records which tree created the
+    cache; on mismatch the cache is removed so it rebuilds from this tree.
+    """
+    marker = cache_dir / ".tree"
+    if cache_dir.is_dir():
+        try:
+            recorded = marker.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            recorded = ""
+        except OSError as err:
+            # Unreadable marker: rebuild to be safe, but surface the IO problem
+            print(f"Cannot read build cache marker {marker}: {err}")
+            recorded = ""
+        if recorded != root_path:
+            print(f"Removing build cache created in another source tree: {cache_dir}")
+            # Clear the contents but keep cache_dir itself: CI bind-mounts this
+            # directory, and removing a mount point fails with EBUSY.
+            # A partial removal still aborts loudly: the surviving stale marker
+            # would otherwise let every later run silently reuse the wrong-tree cache
+            for entry in cache_dir.iterdir():
+                if entry.is_dir() and not entry.is_symlink():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    if not marker.exists():
+        marker.write_text(root_path, encoding="utf-8")
+
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")

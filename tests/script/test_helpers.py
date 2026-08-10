@@ -1853,6 +1853,135 @@ def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) ->
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
 
 
+def test_clean_build_cache_if_moved_creates_cache_and_marker(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A missing cache dir is created and stamped with this tree's root."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert cache_dir.is_dir()
+    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+
+
+def test_clean_build_cache_if_moved_keeps_matching_cache(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A cache stamped with this tree's root is left untouched."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    (cache_dir / ".tree").write_text(str(tmp_path), encoding="utf-8")
+    sentinel = cache_dir / "cached.o"
+    sentinel.write_text("keep me", encoding="utf-8")
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep me"
+
+
+def test_clean_build_cache_if_moved_clears_foreign_cache(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A cache stamped with another tree's root is removed and re-stamped."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    sentinel = cache_dir / "cached.o"
+    sentinel.write_text("stale", encoding="utf-8")
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert not sentinel.exists()
+    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+
+
+def test_clean_build_cache_if_moved_clears_unmarked_cache(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """An existing cache with no marker is treated as foreign and removed."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    sentinel = cache_dir / "cached.o"
+    sentinel.write_text("stale", encoding="utf-8")
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert not sentinel.exists()
+    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+
+
+def test_clean_build_cache_if_moved_logs_unreadable_marker(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A marker that exists but cannot be read is logged, not silently eaten."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    # A directory named .tree makes read_text raise IsADirectoryError (an OSError)
+    (cache_dir / ".tree").mkdir()
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert ".tree" in capsys.readouterr().out
+    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+
+
+def test_clean_build_cache_if_moved_raises_when_removal_fails(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A failed removal of a foreign cache must abort, not silently reuse it."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    (cache_dir / "stale_subdir").mkdir()
+
+    def fail_rmtree(*args: object, **kwargs: object) -> None:
+        raise OSError("device busy")
+
+    monkeypatch.setattr(helpers.shutil, "rmtree", fail_rmtree)
+
+    with pytest.raises(OSError, match="device busy"):
+        helpers.clean_build_cache_if_moved(cache_dir)
+
+
+def test_clean_build_cache_if_moved_keeps_directory_identity(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Clearing a foreign cache must not delete and recreate the directory.
+
+    CI bind-mounts the build directory, and removing a mount point fails
+    with EBUSY, so the directory itself has to survive the clearing.
+    """
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    (cache_dir / "stale_subdir").mkdir()
+    (cache_dir / "stale_subdir" / "cached.o").write_text("stale", encoding="utf-8")
+    # A symlink to a directory outside the cache: the link must be removed
+    # without following it into the target
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    (outside_dir / "keep.txt").write_text("keep me", encoding="utf-8")
+    (cache_dir / "dir_link").symlink_to(outside_dir)
+    inode_before = cache_dir.stat().st_ino
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    assert cache_dir.stat().st_ino == inode_before
+    assert [p.name for p in cache_dir.iterdir()] == [".tree"]
+    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    assert (outside_dir / "keep.txt").read_text(encoding="utf-8") == "keep me"
+
+
 @pytest.mark.parametrize(
     ("files", "expected"),
     [

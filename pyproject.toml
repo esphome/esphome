@@ -56,6 +56,9 @@ include = ["esphome*"]
 testpaths = [
   "tests",
 ]
+# Prepend the repo root so in-process esphome imports resolve to THIS tree,
+# not wherever the venv's editable install points (e.g. another git worktree).
+pythonpath = ["."]
 addopts = [
   "--cov=esphome",
   "--cov-branch",

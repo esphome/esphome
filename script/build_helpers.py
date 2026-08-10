@@ -10,7 +10,11 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_dependencies, root_path as _root_path
+from helpers import (
+    clean_build_cache_if_moved,
+    get_all_dependencies,
+    root_path as _root_path,
+)
 import yaml
 
 # Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
@@ -456,6 +460,9 @@ def build_and_run(
     if os.name == "nt":
         print(f"Skipping {label} on Windows", file=sys.stderr)
         return EXIT_SKIPPED
+
+    # Caches embed absolute paths; drop them if this tree is not where they were built.
+    clean_build_cache_if_moved(tests_dir / ".esphome")
 
     # Remove components that do not have files
     components = filter_components_with_files(selected_components, tests_dir)
