@@ -9,6 +9,8 @@ static const char *const TAG = "modbus_helpers";
 
 // A quantity/address pair is standard when the quantity is non-zero, within the per-table maximum,
 // and the range [start_address, start_address + quantity) stays inside the 16-bit address space.
+// Non-logging twin of register_block_in_range(): the same three predicates for the parser side, taking a
+// uint16_t quantity. register_block_in_range() is the builder-side variant that also logs which half failed.
 static bool quantity_in_range(uint16_t start_address, uint16_t quantity, uint16_t max_quantity) {
   return quantity != 0 && quantity <= max_quantity && address_range_fits(start_address, quantity);
 }
@@ -464,7 +466,8 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
 // Validate one register block for a client builder: a non-zero quantity within max_quantity that does not
 // run past the 16-bit address space (register count × 2 stays within MAX_PDU_SIZE as a result). On failure
 // it logs the reason and returns false, on which the caller returns an empty PDU. `role` names the block in
-// the log ("Read"/"Write").
+// the log ("Read"/"Write"). Logging twin of quantity_in_range(): the same three predicates, split so each
+// failure names its reason, and taking size_t so an oversize span is caught before any narrowing.
 static bool register_block_in_range(const LogString *role, uint16_t start_address, size_t quantity,
                                     uint16_t max_quantity) {
   if (quantity == 0 || quantity > max_quantity) {

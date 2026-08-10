@@ -497,6 +497,10 @@ TEST(ModbusTypedBuilders, ReadWriteMultipleRegistersPduRejectsOutOfRange) {
   // A block that runs past the 16-bit address space is refused (read block, then write block).
   EXPECT_TRUE(create_read_write_multiple_registers_pdu(0xFFFF, 2, 0x0020, one_value).empty());
   EXPECT_TRUE(create_read_write_multiple_registers_pdu(0x0000, 2, 0xFFFF, two_values).empty());
+  // Accept boundary: a block ending exactly at 0x10000 (last register 0xFFFF) still fits.
+  EXPECT_FALSE(create_read_write_multiple_registers_pdu(0xFFFE, 2, 0x0000, one_value).empty());  // read ends at 0x10000
+  EXPECT_FALSE(
+      create_read_write_multiple_registers_pdu(0x0000, 1, 0xFFFF, one_value).empty());  // write ends at 0x10000
 }
 
 TEST(ModbusFunctionCodeClass, ReadWriteMultipleCountsAsBothReadAndWrite) {

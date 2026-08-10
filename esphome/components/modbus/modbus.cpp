@@ -1103,6 +1103,9 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
     // FC 0x17 lands here too: its read start address and read quantity sit at the same request offsets as a
     // plain read's (bytes 1..2 and 3..4), so start_address and count_or_value already hold the read block; its
     // response carries only that read data, and the write half is confirmed by the response arriving at all.
+    // An exception routes here as well (the gate only validates the request when status is set), delivering
+    // empty registers with the error in status - so a 0x17 subclass handles success and failure in the one
+    // on_read_holding_registers() callback and never needs to also override on_error().
     case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
       // Decode the big-endian register words into host byte order. The gate guarantees a success response
       // carries exactly count_or_value registers (and count_or_value <= MAX_NUM_OF_REGISTERS_TO_READ, the

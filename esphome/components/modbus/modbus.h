@@ -572,7 +572,10 @@ class ModbusClientDevice {
     return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
   /// FC 0x17: the read-back is delivered through on_read_holding_registers() (the response carries only the
-  /// read registers, the same wire shape as a holding-register read).
+  /// read registers, the same wire shape as a holding-register read). A device exception - typically a
+  /// rejected write half - arrives at that same on_read_holding_registers() with the error in its status,
+  /// exactly as success does, so a subclass overriding that one callback handles both outcomes and never
+  /// needs to also override on_error().
   bool read_write_multiple_registers(uint16_t read_start_address, uint16_t read_count, uint16_t write_start_address,
                                      std::span<const uint16_t> write_values) {
     return this->queue_pdu(helpers::create_read_write_multiple_registers_pdu(read_start_address, read_count,
