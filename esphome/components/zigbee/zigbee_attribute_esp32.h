@@ -106,13 +106,6 @@ template<typename T> float ZigbeeAttribute::get_val_or_nan(float value) {
       // for other types like map, enum, etc., that also use uintN_t we can return 0.0f as a safe default
       return 0.0f;
     }
-
-    return value;
-  }
-
-  // should never reach here for non-integral types, but just in case, return 0.0f for NaN
-  if (std::isnan(value)) {
-    return 0.0f;
   }
   return value;
 }
