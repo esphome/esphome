@@ -310,6 +310,11 @@ message DeviceInfoResponse {
 
   // Serial proxy instance metadata
   repeated SerialProxyInfo serial_proxies = 25 [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+
+  // Device is unprovisioned and accepts Noise handshakes with the well-known
+  // all-zeros PSK, so the api encryption key can be provisioned without being
+  // sent in plaintext (protects against passive sniffing, not active MITM)
+  bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
 }
 
 message ListEntitiesRequest {
