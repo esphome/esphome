@@ -465,10 +465,8 @@ def _extract_remote_font(value: object) -> ConfigType | None:
     if font_type == TYPE_WEB and isinstance(url := value.get(CONF_URL), str):
         return {CONF_TYPE: TYPE_WEB, CONF_URL: url}
     if font_type == TYPE_GFONTS and isinstance(family := value.get(CONF_FAMILY), str):
-        italic = value.get(CONF_ITALIC, _DEFAULT_ITALIC)
-        if not isinstance(italic, bool):
-            return None
         try:
+            italic = cv.boolean(value.get(CONF_ITALIC, _DEFAULT_ITALIC))
             weight = _WEIGHT_VALIDATOR(value.get(CONF_WEIGHT, _DEFAULT_WEIGHT))
             refresh = _REFRESH_VALIDATOR(value.get(CONF_REFRESH, _DEFAULT_REFRESH))
         except cv.Invalid:

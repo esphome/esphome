@@ -30,6 +30,21 @@ def test_extract_gfonts_shorthand_weight_variants(setup_core: Path) -> None:
     assert font._extract_remote_font("gfonts://Roboto@500")[font.CONF_WEIGHT] == 500
 
 
+def test_extract_gfonts_normalizes_quoted_italic(setup_core: Path) -> None:
+    """Boolean spellings the schema accepts are accepted by the extractor."""
+    spec = font._extract_remote_font(
+        {"type": "gfonts", "family": "Roboto", "italic": "true"}
+    )
+    assert spec is not None
+    assert spec[font.CONF_ITALIC] is True
+    assert (
+        font._extract_remote_font(
+            {"type": "gfonts", "family": "Roboto", "italic": "maybe"}
+        )
+        is None
+    )
+
+
 def test_extract_typed_gfonts_dict(setup_core: Path) -> None:
     spec = font._extract_remote_font(
         {"type": "gfonts", "family": "Roboto", "weight": "medium", "italic": True}

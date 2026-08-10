@@ -121,7 +121,13 @@ def get_firmware(value: ConfigType) -> list[HexInt] | None:
 
 def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
     firmware = entry.get(CONF_FIRMWARE)
-    if not isinstance(firmware, dict) or not firmware.get(CONF_UPDATE):
+    if not isinstance(firmware, dict):
+        return None
+    try:
+        # cv.boolean, not truthiness: `update: "false"` is a valid False.
+        if not cv.boolean(firmware.get(CONF_UPDATE, False)):
+            return None
+    except cv.Invalid:
         return None
     url = firmware.get(CONF_URL)
     sha = firmware.get(CONF_SHA256)
@@ -129,7 +135,13 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
         url, sha = known
     if not isinstance(url, str):
         return None
-    sha = sha if isinstance(sha, str) else None
+    if sha is not None:
+        # Reject anything but a well-formed hash; a raw string would
+        # otherwise become a path component before validation runs.
+        try:
+            sha = validate_sha256(sha)
+        except (cv.Invalid, ValueError, TypeError):
+            return None
     path = _firmware_path(url, sha)
     if sha is not None and path.is_file():
         # Content-addressed and already on disk; get_firmware verifies it

@@ -25,6 +25,31 @@ def test_prefetch_known_version(setup_core: Path) -> None:
     assert stages == [[RemoteFile(url, shd._firmware_cache_path(sha))]]
 
 
+def test_prefetch_normalizes_update_like_the_schema(setup_core: Path) -> None:
+    """Quoted booleans behave as the schema will normalize them."""
+    url, sha = shd.KNOWN_FIRMWARE["51.6"]
+    off = [{"firmware": {"version": "51.6", "update": "false"}}]
+    assert list(shd.PREFETCH_FILES(off)) == [[]]
+    on = [{"firmware": {"version": "51.6", "update": "true"}}]
+    assert list(shd.PREFETCH_FILES(on)) == [
+        [RemoteFile(url, shd._firmware_cache_path(sha))]
+    ]
+
+
+def test_prefetch_rejects_malformed_sha256(setup_core: Path) -> None:
+    """A raw sha256 that is not a hash never becomes a path component."""
+    entries = [
+        {
+            "firmware": {
+                "url": "https://example.com/fw.bin",
+                "sha256": "/tmp/payload",
+                "update": True,
+            }
+        }
+    ]
+    assert list(shd.PREFETCH_FILES(entries)) == [[]]
+
+
 def test_prefetch_skips_content_addressed_blob_on_disk(setup_core: Path) -> None:
     """A sha-keyed cache file needs no revalidation; get_firmware hashes it."""
     url, sha = shd.KNOWN_FIRMWARE["51.6"]
