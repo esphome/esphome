@@ -1320,19 +1320,29 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
 
     import serial
 
-    from esphome.util import detect_rp2040_bootsel
+    from esphome.util import detect_rp2040_bootsel, get_serial_ports
 
     picotool = _find_picotool()
     if picotool is None:
         return False
 
-    # A board already sitting in BOOTSEL before the touch can't be our target -- it's
-    # reachable right now as a live serial port, which a BOOTSEL-mode device never is.
-    # Snapshot that count so we can tell "our target rebooted into BOOTSEL" (count went
-    # up by exactly one) apart from "the touch didn't work and we're just still seeing
-    # whatever stray device was already there" (count unchanged) or "more than one
-    # device showed up" (ambiguous -- can't tell picotool which one is ours).
-    before_count = detect_rp2040_bootsel(str(picotool)).device_count
+    # Once triggered, BOOTSEL mode is anonymous -- picotool can't tell devices apart
+    # (no serial number/bus-address selection is used anywhere in this upload path), so
+    # there's no way to prove after the fact that whatever appears in BOOTSEL is really
+    # the board we touched, versus some other RP-family device on the system. The only
+    # way to make this safe is to refuse up front whenever more than one candidate
+    # device could possibly be involved -- counting every serial port present (which
+    # includes the target's own port) plus every device already in BOOTSEL.
+    total_devices = len(get_serial_ports()) + detect_rp2040_bootsel(
+        str(picotool)
+    ).device_count
+    if total_devices > 1:
+        _LOGGER.error(
+            "More than one RP2040/RP2350-capable device is connected. Disconnect all "
+            "but the target device before uploading, or put the target into BOOTSEL "
+            "mode manually and select it explicitly."
+        )
+        return False
 
     try:
         with serial.Serial(port, baudrate=1200):
@@ -1343,15 +1353,8 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
 
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        after_count = detect_rp2040_bootsel(str(picotool)).device_count
-        if after_count == before_count + 1:
+        if detect_rp2040_bootsel(str(picotool)).device_count > 0:
             return True
-        if after_count > before_count + 1:
-            _LOGGER.error(
-                "Multiple RP2040/RP2350 devices appeared in BOOTSEL mode after the "
-                "reboot touch -- cannot identify which one is the target device."
-            )
-            return False
         time.sleep(0.5)
     return False
 
