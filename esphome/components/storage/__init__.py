@@ -640,6 +640,8 @@ def _exactly_one_step_kind(config: ConfigType) -> ConfigType:
         raise cv.Invalid("'separator' is only valid with 'key'")
     if CONF_GROUP in config and CONF_REGEX not in config:
         raise cv.Invalid("'group' is only valid with 'regex'")
+    if CONF_TRIM in config and not config[CONF_TRIM]:
+        raise cv.Invalid("'trim' must be true; remove the step entirely to skip trimming")
     return config
 
 
@@ -908,7 +910,13 @@ async def file_exists_condition_to_code(
 MountAction = storage_ns.class_("MountAction", automation.Action)
 
 _MOUNT_SCHEMA = cv.maybe_simple_value(
-    {cv.Required(CONF_ID): cv.use_id(MountableStorage)}, key=CONF_ID
+    {
+        cv.Required(CONF_ID): cv.use_id(MountableStorage),
+        # Fires (error text, empty = success) when the mount/unmount finishes. mount is
+        # worker-routed and async, so sequence dependent actions from here, not by ordering.
+        cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+    },
+    key=CONF_ID,
 )
 
 
@@ -921,7 +929,12 @@ async def _build_mount_action(
 ):
     # cv.use_id(MountableStorage) already rejected non-removable targets at YAML time.
     target = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, target, mount)
+    var = cg.new_Pvariable(action_id, template_arg, target, mount)
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
+    return var
 
 
 @automation.register_action(

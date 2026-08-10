@@ -162,15 +162,20 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //                       on the worker task (main loop free, watchdog-safe); otherwise a loop()
 //                       step runs the one blocking call and the loop waits it out. Fires
 //                       on_complete like the streaming actions.
-//     - mount / unmount SYNCHRONOUS. One connect()/disconnect(); bounded by the driver, not the
-//                       author -- an NFS connect() to a dead server blocks for the socket
-//                       timeout. Kept synchronous on purpose: a mount must be in place before
-//                       the next action runs, and the blocking is a short control round-trip on
-//                       a live medium.
+//     - mount           ASYNC. One connect()/probe, bounded by the driver not the author -- an
+//                       NFS connect() to a dead server blocks for the socket timeout, so it is
+//                       worker-routed like format: task-safe media connect on the worker task,
+//                       otherwise loop-sliced. play() returns before the medium is mounted and
+//                       fires on_complete (error text, empty = success) when the connect
+//                       finishes. Sequence a dependent action from on_complete, not by placing
+//                       it after storage.mount.
+//     - unmount         SYNCHRONOUS. One disconnect(). Stays synchronous by design: drivers
+//                       quiesce the worker inside unmount() and that drain is owned by the main
+//                       loop, so routing it to the worker task would deadlock the drain.
 // ===========================================================================
 
 // Non-template workers for the actions below -- all error logging lives in the .cpp.
-void perform_mount(PathStorage *target, bool mount);
+void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete);
 void perform_format_async(FilesystemStorage *target, Trigger<std::string> *on_complete);
 // Returns the error so the no-worker fallback in perform_file_copy_async() can report it --
 // on_complete's contract is "error text, empty = success", which a void return cannot honour.
@@ -461,12 +466,17 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
   // routing needs it, and perform_mount() derives MountableStorage via as_mountable() -- the
   // same target the worker's async_mount() expects.
   explicit MountAction(PathStorage *target, bool mount) : target_(target), mount_(mount) {}
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
-  void play(const Ts &...x) override { perform_mount(this->target_, this->mount_); }
+  // mount is fire-and-forget like format: play() submits and returns; on_complete fires (error
+  // text, empty = success) when the connect/probe finishes. unmount runs synchronously and still
+  // fires on_complete on return.
+  void play(const Ts &...x) override { perform_mount(this->target_, this->mount_, &this->complete_trigger_); }
 
  protected:
   PathStorage *target_;
   bool mount_;
+  Trigger<std::string> complete_trigger_;
 };
 
 template<typename... Ts> class FormatAction : public Action<Ts...> {

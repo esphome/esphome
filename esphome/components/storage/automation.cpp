@@ -102,7 +102,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
       JsonDocument doc = json::parse_json(reinterpret_cast<const uint8_t *>(buf.data()), buf.size());
       JsonVariantConst node = doc.as<JsonVariantConst>();
       if (node.isNull()) {
-        ESP_LOGV(TAG, "extract json: invalid JSON document");
+        ESP_LOGW(TAG, "extract json: invalid JSON document");
         return false;
       }
       const std::string &ptr = step.arg;
@@ -115,7 +115,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
             char *end = nullptr;
             uint64_t idx = strtoul(token.c_str(), &end, 10);
             if (end == nullptr || *end != '\0') {
-              ESP_LOGV(TAG, "extract json: '%s' is not an array index", token.c_str());
+              ESP_LOGW(TAG, "extract json: '%s' is not an array index", token.c_str());
               return false;
             }
             node = node.as<JsonArrayConst>()[idx];
@@ -123,7 +123,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
             node = node[token.c_str()];
           }
           if (node.isNull()) {
-            ESP_LOGV(TAG, "extract json: path element '%s' not found", token.c_str());
+            ESP_LOGW(TAG, "extract json: path element '%s' not found", token.c_str());
             return false;
           }
         }
@@ -140,6 +140,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
       }
       return true;
 #else
+      ESP_LOGE(TAG, "file_read: json step configured but not compiled in");
       return false;  // step cannot be configured without the define -- defensive
 #endif  // USE_STORAGE_JSON_EXTRACT
     }
@@ -323,10 +324,19 @@ static bool raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, si
       return false;
     }
     if (got == 0)
-      break;  // end of medium (partial-read contract)
+      break;  // end of medium before the requested size
     done += got;
   }
   *done_out = done;
+  if (done < size) {
+    // A sized (whole-object) read: a short count means the medium ended before `size`, so the
+    // read the caller expects cannot be fulfilled. Report it rather than handing back a
+    // truncated buffer that looks complete (the primitive read()'s short-is-EOF contract is for
+    // streaming callers, not this one).
+    ESP_LOGE(TAG, "raw_read: short read at 0x%08" PRIX32 " (%u of %u bytes)", (uint32_t) address, (unsigned) done,
+             (unsigned) size);
+    return false;
+  }
   return true;
 }
 
@@ -709,6 +719,10 @@ void perform_file_delete(const std::string &path, bool recursive) {
     ESP_LOGE(TAG, "file_delete: no storage mounted for '%s'", path.c_str());
     return;
   }
+  if (worker_task_busy(ps)) {
+    ESP_LOGE(TAG, "file_delete: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
+    return;
+  }
   // remove() deletes files and empty directories; remove_recursive() walks subtrees.
   StorageError err = recursive ? remove_recursive(ps, rel) : ps->remove(rel);
   if (err != StorageError::OK) {
@@ -729,6 +743,10 @@ bool check_file_exists(const std::string &path) {
     ESP_LOGW(TAG, "file_exists: no storage mounted for '%s'; reporting it as absent", path.c_str());
     return false;
   }
+  if (worker_task_busy(ps)) {
+    ESP_LOGW(TAG, "file_exists: '%s' is busy with a background transfer; reporting it as absent", path.c_str());
+    return false;
+  }
   StorageError err = StorageError::OK;
   bool found = exists(ps, rel, &err);
   // Only NOT_FOUND is a clean "no" -- surface anything else (unmounted/faulted medium) so a
@@ -739,16 +757,20 @@ bool check_file_exists(const std::string &path) {
   return found;
 }
 
-static void mount_fire(bool mount, StorageError result) {
+static void mount_fire(bool mount, StorageError result, Trigger<std::string> *on_complete) {
   if (result != StorageError::OK) {
     ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(result));
   }
+  if (on_complete != nullptr)
+    on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
 }
 
-void perform_mount(PathStorage *target, bool mount) {
+void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete) {
   MountableStorage *m = target->as_mountable();
   if (m == nullptr) {
     ESP_LOGE(TAG, "target is not mountable");
+    if (on_complete != nullptr)
+      on_complete->trigger(std::string("not mountable"));
     return;
   }
   if (mount) {
@@ -758,19 +780,19 @@ void perform_mount(PathStorage *target, bool mount) {
     // platform has one, and loop-slices it otherwise -- capabilities decide, not the caller.
     if (global_storage_worker != nullptr) {
       StorageError err = global_storage_worker->async_mount(
-          target, [](StorageError r) { mount_fire(true, r); }, nullptr);
+          target, [on_complete](StorageError r) { mount_fire(true, r, on_complete); }, nullptr);
       if (err != StorageError::OK)
-        mount_fire(true, err);  // could not queue -- report inline
+        mount_fire(true, err, on_complete);  // could not queue -- report inline
       return;
     }
 #endif
-    mount_fire(true, m->mount());
+    mount_fire(true, m->mount(), on_complete);
     return;
   }
   // Unmount stays synchronous by design: drivers quiesce the worker inside unmount(), and the
   // quiesce drain is owned by the main loop -- running it on the worker task would deadlock
   // the drain against itself.
-  mount_fire(false, m->unmount());
+  mount_fire(false, m->unmount(), on_complete);
 }
 
 static void format_fire(Trigger<std::string> *on_complete, StorageError result) {
