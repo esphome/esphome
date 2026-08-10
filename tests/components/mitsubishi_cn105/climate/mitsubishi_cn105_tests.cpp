@@ -42,11 +42,17 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   // All bytes from UART should be consumed
   EXPECT_TRUE(ctx.uart.rx.empty());
-  // After successful connect we request status, first settings (0x02)
+  // Defer the first settings request (0x02) until the next update.
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(201);
+  ASSERT_FALSE(ctx.sut.update());
+
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 200);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 201);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();
@@ -75,11 +81,17 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_4);
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SWING);
 
-  // Now fetch room temperature (0x03)
+  // Defer the room temperature request (0x03) until the next update.
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(301);
+  ASSERT_FALSE(ctx.sut.update());
+
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A));
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 300);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 301);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();

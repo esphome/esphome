@@ -133,6 +133,10 @@ void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::update() {
   switch (this->state_) {
+    case State::SCHEDULE_NEXT_STATUS_REQUEST:
+      this->set_state_(State::UPDATING_STATUS);
+      return false;
+
     case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
       if (this->pending_updates_.any()) {
         this->status_update_wait_credit_ms_ =
@@ -185,11 +189,13 @@ bool MitsubishiCN105::should_transition(State from, State to) {
       return from == State::CONNECTING;
 
     case State::UPDATING_STATUS:
-      return from == State::CONNECTED || from == State::STATUS_UPDATED ||
-             from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
+      return from == State::SCHEDULE_NEXT_STATUS_REQUEST || from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
 
     case State::STATUS_UPDATED:
       return from == State::UPDATING_STATUS;
+
+    case State::SCHEDULE_NEXT_STATUS_REQUEST:
+      return from == State::CONNECTED || from == State::STATUS_UPDATED;
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       return from == State::STATUS_UPDATED || from == State::SETTINGS_APPLIED;
@@ -219,7 +225,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::CONNECTED:
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
-      this->set_state_(State::UPDATING_STATUS);
+      this->set_state_(State::SCHEDULE_NEXT_STATUS_REQUEST);
       break;
 
     case State::UPDATING_STATUS:
@@ -231,7 +237,7 @@ void MitsubishiCN105::did_transition_(State to) {
         this->set_state_(State::APPLYING_SETTINGS);
       } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
         this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMP;
-        this->set_state_(State::UPDATING_STATUS);
+        this->set_state_(State::SCHEDULE_NEXT_STATUS_REQUEST);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       }
@@ -259,6 +265,7 @@ void MitsubishiCN105::did_transition_(State to) {
       this->set_state_(State::CONNECTING);
       break;
 
+    case State::SCHEDULE_NEXT_STATUS_REQUEST:
     default:
       break;
   }
@@ -540,6 +547,8 @@ const LogString *MitsubishiCN105::state_to_string(State state) {
       return LOG_STR("UpdatingStatus");
     case State::STATUS_UPDATED:
       return LOG_STR("StatusUpdated");
+    case State::SCHEDULE_NEXT_STATUS_REQUEST:
+      return LOG_STR("ScheduleNextStatusRequest");
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       return LOG_STR("ScheduleNextStatusUpdate");
     case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
