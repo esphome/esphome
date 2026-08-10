@@ -524,6 +524,14 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
+        if (this->connection_type_ == ble_device_base::ConnectionType::V3_WITH_CACHE) {
+          // Cached connections never run discovery, so nothing consumes the
+          // FAST interval; settle to MEDIUM now (esp32 parity). Sustained
+          // FAST intervals starve WiFi on the shared CYW43 radio.
+          BluetoothLock lock;
+          gap_update_connection_parameters(this->con_handle_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
+                                           MEDIUM_CONN_TIMEOUT);
+        }
         this->listener_->on_connection_state(true, this->mtu_, 0);
       }
       break;

@@ -95,8 +95,9 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
-  // No connection-type branching on this backend.
-  void set_connection_type(ble_device_base::ConnectionType ct) {}
+  // Cached connections settle straight to MEDIUM parameters on link-up
+  // (esp32 parity); FAST is reserved for connect and discovery.
+  void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
   void release_services();
 
  protected:
@@ -199,6 +200,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   uint8_t notify_subscription_count_{0};
   uint8_t engine_index_{0};  // position in instances[]; tags log lines per slot
   bd_addr_t peer_addr_{};    // MSB-first, as gap_connect expects
+  ble_device_base::ConnectionType connection_type_{ble_device_base::ConnectionType::V3_WITHOUT_CACHE};
   EngineState state_{EngineState::IDLE};
   DiscoveryPhase discovery_phase_{DiscoveryPhase::NONE};
   OpType op_type_{OpType::NONE};
