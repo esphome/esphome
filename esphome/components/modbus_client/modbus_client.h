@@ -332,4 +332,56 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
   } values_;
 };
 
+/// modbus_client.read_write_multiple_registers (FC 0x17): writes one register block and reads another back in
+/// one transaction (write first, per Modbus 6.17). on_response delivers the read-back words as `values`.
+template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, read_address)
+  TEMPLATABLE_VALUE(uint16_t, read_count)
+  TEMPLATABLE_VALUE(uint16_t, write_address)
+
+  /// Static config: the write registers live in flash, so play() neither allocates nor copies.
+  void set_values_static(const uint16_t *values, size_t len) {
+    this->values_.data = values;
+    this->len_ = static_cast<ssize_t>(len);
+  }
+  /// Lambda config: the write registers are only known at play() time.
+  void set_values_template(std::vector<uint16_t> (*func)(Ts...)) {
+    this->values_.func = func;
+    this->len_ = -1;  // sentinel: template mode
+  }
+
+  Trigger<std::span<const uint16_t>> *get_response_trigger() { return &this->response_trigger_; }
+
+  void play(const Ts &...x) override {
+    const uint16_t read_start = this->read_address_.value(x...);
+    const uint16_t read_count = this->read_count_.value(x...);
+    const uint16_t write_start = this->write_address_.value(x...);
+    // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
+    if (this->len_ >= 0) {
+      this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
+          read_start, read_count, write_start,
+          std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))));
+      return;
+    }
+    const std::vector<uint16_t> values = this->values_.func(x...);
+    this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
+        read_start, read_count, write_start, std::span<const uint16_t>(values)));
+  }
+  // The 0x17 response carries only the read block, so the hub dispatch delivers it as a holding-register read.
+  void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
+                         modbus::ResponseStatus status) override {
+    if (modbus::succeeded(status))
+      this->response_trigger_.trigger(registers);
+  }
+
+ protected:
+  Trigger<std::span<const uint16_t>> response_trigger_;
+  ssize_t len_{-1};  // -1 = template mode, >= 0 = static mode with this many write registers
+  union Values {
+    std::vector<uint16_t> (*func)(Ts...);
+    const uint16_t *data;
+  } values_;
+};
+
 }  // namespace esphome::modbus_client

@@ -819,3 +819,38 @@ async def test_uart_mock_modbus_fairness(
             f"controllers did not get a fair share of the bus: "
             f"controller 1 issued {count_1}, controller 2 issued {count_2}"
         )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_client_read_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A modbus_client.read_write_multiple_registers action (FC 0x17) drives a server end to end.
+
+    The client writes reg 0x0001 = 0x1234 and reads regs 0x0001..0x0002 in one transaction; the server
+    applies the write first (Modbus 6.17). The test confirms both ends: the server's write_lambda ran
+    (srv_write_1) and the read half came back to the client's on_response (client_read_0 = the
+    just-written 0x1234, client_read_1 = the read-only 0x00AA).
+    """
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["srv_write_1", "srv_read_1", "client_read_0", "client_read_1"]
+    )
+    futures = tracker.expect_all(
+        {
+            "srv_write_1": 4660,  # server wrote 0x1234 to reg 0x0001
+            "client_read_0": 4660,  # client read reg 0x0001 back as the just-written 0x1234
+            "client_read_1": 170,  # client read reg 0x0002 (0x00AA) in the same request
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
