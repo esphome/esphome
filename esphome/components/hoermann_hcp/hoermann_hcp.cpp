@@ -139,13 +139,8 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
   }
 
   if (start_address != BROADCAST_REG) {
-    // The hub hands every broadcast to every device, so a frame meant for another node is ordinary traffic
-    // here: it must neither count as contact with our controller nor warn once per frame.
-    if (this->broadcast_write_) {
-      ESP_LOGV(TAG, "Ignoring broadcast write to address 0x%04X", start_address);
-    } else {
-      ESP_LOGW(TAG, "Unknown write address 0x%04X", start_address);
-    }
+    // Every device sees every broadcast, so a frame meant for another node is ordinary traffic
+    ESP_LOGV(TAG, "Ignoring write to address 0x%04X", start_address);
     return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
 

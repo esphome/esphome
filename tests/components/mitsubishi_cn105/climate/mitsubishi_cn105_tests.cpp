@@ -75,7 +75,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_4);
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SWING);
 
-  // Now fetch room temperature (0x03)
+  // Now fetch telemetry (0x03)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A));
@@ -84,11 +84,11 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Clear TX bytes.
   ctx.uart.tx.clear();
 
-  // Room temperature response
+  // Telemetry response
   ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
                     0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5});
 
-  // Room temperature should still have initial value
+  // Room temperature from telemetry should still have initial value
   EXPECT_THAT(ctx.sut.status().room_temperature, ::testing::IsNan());
 
   ctx.sut.set_current_time(400);
@@ -97,7 +97,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_TRUE(ctx.uart.rx.empty());
   EXPECT_TRUE(ctx.sut.is_status_initialized());
 
-  // Check room temperature we just read from received package
+  // Check room temperature we just read from telemetry package
   EXPECT_EQ(ctx.sut.status().room_temperature, 21.0f);
 
   EXPECT_TRUE(ctx.uart.tx.empty());
