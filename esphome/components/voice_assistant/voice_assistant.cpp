@@ -1120,6 +1120,12 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
     for (const auto &ww_id : active_wake_words) {
       // Already loaded (compiled or previously downloaded) enable() persists the state.
       if (auto *model = this->micro_wake_word_->get_model_by_id(ww_id)) {
+        // get_model_by_id does not filter internal-only models, but the disable loop above iterates
+        // get_wake_words(), which does. Enabling one here would leave it stuck on until a reboot.
+        if (model->get_internal_only()) {
+          ESP_LOGW(TAG, "Ignoring request to enable internal-only wake word: %s", ww_id.c_str());
+          continue;
+        }
         model->enable();
         ESP_LOGD(TAG, "Enabled wake word: %s (id=%s)", model->get_wake_word().c_str(), model->get_id().c_str());
         continue;
