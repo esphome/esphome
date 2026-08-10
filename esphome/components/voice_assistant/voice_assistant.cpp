@@ -1290,10 +1290,12 @@ void VoiceAssistant::restore_runtime_models_() {
       continue;
     }
 
-    // Only re-download models the user had enabled before the reboot.
-    auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+    // Only re-download models the user had enabled before the reboot. Read the key directly: make_preference
+    // allocates a backend that is never freed, and this runs for every advertised model on every request.
     bool enabled = false;
-    if (pref.load(&enabled) && enabled) {
+    if (global_preferences->load_from_key(fnv1_hash(cached_ww.id), reinterpret_cast<uint8_t *>(&enabled),
+                                          sizeof(enabled)) &&
+        enabled) {
       ESP_LOGD(TAG, "Restoring runtime model %s", cached_ww.id.c_str());
       this->model_download_queue_.push_back(cached_ww);
       this->pending_active_wake_words_.push_back(cached_ww.id);
