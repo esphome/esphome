@@ -2,37 +2,31 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime
 import functools
-import getpass
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import time
 from typing import Protocol
 
-import argcomplete
-
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
-import esphome.codegen as cg
-from esphome.config import iter_component_configs, read_config, strip_default_ids
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
+    BUNDLE_EXTENSION,
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -52,11 +46,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -64,6 +55,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -230,8 +222,9 @@ def _discover_mac_suffix_devices() -> list[str] | None:
 
     Returns:
         - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
-          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
-          then fall back to whatever default OTA address they normally use.
+          mDNS disabled, or ``CORE.address`` isn't a ``.local`` mDNS address).
+          Callers should then fall back to whatever default OTA address they
+          normally use.
         - ``[]`` when discovery ran but found nothing. Callers should NOT fall
           back to the base name: with ``name_add_mac_suffix`` enabled, the base
           name by definition doesn't exist on the network.
@@ -241,7 +234,7 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
     already have without opening a second Zeroconf client.
     """
-    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+    if not (has_name_add_mac_suffix() and has_mdns() and has_mdns_address()):
         return None
     from esphome.zeroconf import discover_mdns_devices
 
@@ -266,6 +259,36 @@ def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
     if (discovered := _discover_mac_suffix_devices()) is not None:
         return discovered
     return _resolve_with_cache(CORE.address, purpose)
+
+
+def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
+    """Build the error when a default device target produced no usable host.
+
+    When the OTA default was requested and the address resolves but the config
+    lacks the transport the purpose needs (``api:`` for logs, an ``ota:``
+    platform for uploads), name that gap instead of the misleading
+    "could not be resolved" / set-use_address hint.
+    """
+    if "OTA" in defaults and has_resolvable_address():
+        if purpose == Purpose.LOGGING and not has_api():
+            return (
+                "Cannot view logs over the network: no 'api:' component is "
+                "configured. Network log streaming requires the native API; add "
+                "an 'api:' component, enable MQTT logging, or view logs over USB."
+            )
+        if purpose == Purpose.UPLOADING and not has_ota():
+            return (
+                "Cannot upload over the network: no 'ota:' platform is "
+                "configured. Add an 'ota:' platform, or upload over USB."
+            )
+    if CORE.dashboard:
+        hint = "If you know the IP, set 'use_address' in your network config."
+    else:
+        hint = "If you know the IP, try --device <IP>"
+    return (
+        f"All specified devices {defaults} could not be resolved. "
+        f"Is the device connected to the network? {hint}"
+    )
 
 
 def choose_upload_log_host(
@@ -317,14 +340,7 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
-            if CORE.dashboard:
-                hint = "If you know the IP, set 'use_address' in your network config."
-            else:
-                hint = "If you know the IP, try --device <IP>"
-            raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. "
-                f"Is the device connected to the network? {hint}"
-            )
+            raise EsphomeError(_unresolved_default_error(purpose, defaults))
         return resolved
 
     # No devices specified, show interactive chooser
@@ -336,7 +352,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -383,7 +399,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -469,8 +485,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -485,17 +499,22 @@ def has_mdns() -> bool:
 
 
 def has_non_ip_address() -> bool:
-    """Check if CORE.address is set and is not an IP address."""
+    """Check if ``CORE.address`` is set and is not an IP address."""
     return CORE.address is not None and not is_ip_address(CORE.address)
 
 
+def has_mdns_address() -> bool:
+    """Check if ``CORE.address`` is a ``.local`` mDNS hostname."""
+    return CORE.address is not None and CORE.address.endswith(".local")
+
+
 def has_ip_address() -> bool:
-    """Check if CORE.address is a valid IP address."""
+    """Check if ``CORE.address`` is a valid IP address."""
     return CORE.address is not None and is_ip_address(CORE.address)
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    """Check if ``CORE.address`` is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
     if CORE.address is None:
@@ -504,11 +523,17 @@ def has_resolvable_address() -> bool:
     if has_ip_address():
         return True
 
+    # device-builder pre-resolves the device and passes the IPs via
+    # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
+    # device has mDNS disabled (e.g. a .local host found via ping).
+    if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
+        return True
+
     if has_mdns():
         return True
 
     # .local mDNS hostnames are only resolvable if mDNS is enabled
-    return not CORE.address.endswith(".local")
+    return not has_mdns_address()
 
 
 def has_name_add_mac_suffix() -> bool:
@@ -592,6 +617,8 @@ def _resolve_network_devices(
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
+    from datetime import datetime
+
     from aioesphomeapi import LogParser
     import serial
 
@@ -604,18 +631,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
-
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -655,11 +673,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -674,6 +688,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
 
 def _wrap_to_code(name, comp, yaml_util):
+    import esphome.codegen as cg
+
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -709,6 +725,7 @@ def write_cpp(config: ConfigType) -> int:
 
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
+    from esphome.config import iter_component_configs
 
     _LOGGER.info("Generating C++ source...")
 
@@ -745,6 +762,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         from esphome.components.wifi import check_placeholder_credentials
 
         check_placeholder_credentials(config)
+
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
@@ -894,9 +918,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
@@ -950,12 +975,14 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+    if CORE.is_rp2:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -987,6 +1014,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
+    import subprocess
+
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -1093,6 +1122,8 @@ def check_permissions(port: str):
                 "the USB cable can be used for data and is not a power-only cable."
             )
         if not (os.access(port, os.R_OK | os.W_OK)):
+            import getpass
+
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
@@ -1105,12 +1136,11 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1140,10 +1170,10 @@ def upload_program(
         check_permissions(host)
 
         exit_code = 1
-        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+        if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
+        elif CORE.is_rp2 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1370,12 +1400,11 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
@@ -1393,7 +1422,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api() and (
         network_devices := _resolve_network_devices(devices, config, args)
     ):
-        from esphome.components.api.client import run_logs
+        from esphome.api_client import run_logs
 
         return run_logs(
             config,
@@ -1427,6 +1456,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.config import strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1464,12 +1494,37 @@ _LEGACY_REDACTION_REMOVAL = "2026.12.0"
 
 def _redact_with_legacy_fallback(output: str) -> str:
     unmarked: set[str] = set()
+    # Track the top-level ``substitutions:`` block. Its keys are arbitrary
+    # user-chosen names with no schema validator, so the ``cv.sensitive(...)``
+    # migration named in the warning can't be applied to them. Their values are
+    # still redacted, but emitting the (unactionable) deprecation warning would
+    # only confuse users.
+    in_substitutions = False
 
-    def _replace(m: re.Match[str]) -> str:
-        unmarked.add(m.group("key"))
-        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
-
-    output = _LEGACY_REDACTION_RE.sub(_replace, output)
+    lines = output.split("\n")
+    for i, line in enumerate(lines):
+        # A non-indented, non-blank line is a top-level key that opens or
+        # closes the substitutions block.
+        if line and not line[0].isspace():
+            in_substitutions = line.startswith(f"{CONF_SUBSTITUTIONS}:")
+        m = _LEGACY_REDACTION_RE.search(line)
+        if m is None:
+            continue
+        key = m.group("key")
+        if not in_substitutions:
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
+            unmarked.add(key)
+        lines[i] = (
+            f"{line[: m.start()]}{key}: "
+            f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
+        )
+    output = "\n".join(lines)
     for key in sorted(unmarked):
         _LOGGER.warning(
             "Field '%s' is being redacted by a legacy substring heuristic. "
@@ -1600,10 +1655,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if (
-        successful_device is None
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
-    ):
+    if successful_device is None and CORE.is_rp2:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
@@ -1654,7 +1706,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+    from esphome.bundle import ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
@@ -1686,9 +1738,13 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_dashboard(args: ArgsProtocol) -> int | None:
-    from esphome.dashboard import dashboard
-
-    return dashboard.start_dashboard(args)
+    raise EsphomeError(
+        "The built-in dashboard has been removed from ESPHome. "
+        "Install and run ESPHome Device Builder instead:\n"
+        "  pip install esphome-device-builder\n"
+        "  esphome-device-builder\n"
+        "See https://github.com/esphome/device-builder for more information."
+    )
 
 
 def run_multiple_configs(
@@ -1764,6 +1820,21 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
+
+    if CORE.using_toolchain_esp_idf:
+        # Native ESP-IDF derives idedata from the build's compile_commands.json,
+        # so the configuration must already be compiled.
+        from esphome.espidf import toolchain as espidf_toolchain
+
+        idedata = espidf_toolchain.get_idedata()
+        if idedata is None:
+            _LOGGER.error(
+                "No idedata available; compile the configuration first",
+            )
+            return 1
+
+        print(json.dumps(idedata, indent=2) + "\n")
+        return 0
 
     if not CORE.using_toolchain_platformio:
         _LOGGER.error(
@@ -1870,7 +1941,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
-            print(
+            safe_print(
                 color(
                     AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
@@ -1883,7 +1954,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
             )
@@ -1930,7 +2001,9 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             > 1
         ):
-            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            safe_print(
+                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
+            )
             return 1
 
         new_raw = re.sub(
@@ -1948,7 +2021,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
     # would otherwise just re-flash the same hostname).
     if new_name == old_name:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -1958,7 +2031,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
     if new_path.resolve() == CORE.config_path.resolve():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -1966,7 +2039,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
         return 1
     if new_path.exists():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"Cannot rename: {new_path} already exists. "
@@ -1974,7 +2047,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
         )
         return 1
-    print(
+    safe_print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
@@ -1983,7 +2056,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
-        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
+        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
         return 1
 
@@ -2009,7 +2082,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.config_path != new_path:
         CORE.config_path.unlink()
 
-    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
+    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 
@@ -2329,50 +2402,31 @@ def parse_args(argv):
     )
 
     parser_clean_all = subparsers.add_parser(
-        "clean-all", help="Clean all build and platform files."
+        "clean-all",
+        help="Clean all build and platform files, including machine-global "
+        "toolchain caches shared by all configurations, so other projects will "
+        "re-download them on next build.",
     )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
-    parser_dashboard = subparsers.add_parser(
-        "dashboard", help="Create a simple web server for a dashboard."
+    # The dashboard moved to ESPHome Device Builder; the command is kept only to
+    # print a redirect (see command_dashboard). Accept and ignore the old flags
+    # so legacy invocations reach that message instead of failing on argparse
+    # "unrecognized arguments".
+    parser_dashboard = subparsers.add_parser("dashboard")
+    parser_dashboard.add_argument("configuration", nargs="?", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--port", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--address", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--username", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--password", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--socket", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument(
+        "--open-ui", action="store_true", help=argparse.SUPPRESS
     )
     parser_dashboard.add_argument(
-        "configuration", help="Your YAML configuration file directory."
-    )
-    parser_dashboard.add_argument(
-        "--port",
-        help="The HTTP port to open connections on. Defaults to 6052.",
-        type=int,
-        default=6052,
-    )
-    parser_dashboard.add_argument(
-        "--address",
-        help="The address to bind to.",
-        type=str,
-        default="0.0.0.0",
-    )
-    parser_dashboard.add_argument(
-        "--username",
-        help="The optional username to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--password",
-        help="The optional password to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--socket", help="Make the dashboard serve under a unix socket", type=str
+        "--ha-addon", action="store_true", help=argparse.SUPPRESS
     )
 
     parser_vscode = subparsers.add_parser("vscode")
@@ -2439,7 +2493,12 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    argcomplete.autocomplete(parser)
+    # argcomplete only does anything when the shell-completion machinery
+    # invokes us with _ARGCOMPLETE set; skip the import otherwise.
+    if "_ARGCOMPLETE" in os.environ:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
 
     if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
         args, unknown_args = parser.parse_known_args(arguments)
@@ -2467,11 +2526,7 @@ def run_esphome(argv):
     elif args.quiet:
         args.log_level = "CRITICAL"
 
-    setup_log(
-        log_level=args.log_level,
-        # Show timestamp for dashboard access logs
-        include_timestamp=args.command == "dashboard",
-    )
+    setup_log(log_level=args.log_level)
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
@@ -2503,10 +2558,11 @@ def run_esphome(argv):
         return 0
 
     # Bundle support: if the configuration is a .esphomebundle, extract it
-    # and rewrite conf_path to the extracted YAML config.
-    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+    # and rewrite conf_path to the extracted YAML config. The suffix check
+    # stays inline so the ordinary run never imports esphome.bundle.
+    if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        from esphome.bundle import prepare_bundle_for_compile
 
-    if is_bundle_path(conf_path):
         _LOGGER.info("Extracting config bundle %s...", conf_path)
         conf_path = prepare_bundle_for_compile(conf_path)
         # Update the argument so downstream code sees the extracted path
@@ -2542,9 +2598,13 @@ def run_esphome(argv):
             )
 
     if config is None:
+        from esphome.config import read_config
+
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
+            # Snapshot only needed by `esphome config --no-defaults`.
+            snapshot_user_config=getattr(args, "no_defaults", False),
         )
         # Refresh the cache so the next upload/logs hits the fast path
         # instead of re-running read_config. Skip when the storage

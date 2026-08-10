@@ -3,8 +3,10 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
 from esphome.types import ConfigType
 
-DEPENDENCIES = ["rp2040"]
+DEPENDENCIES = ["rp2"]
 CODEOWNERS = ["@bdraco"]
+
+CONF_RP2040_BLE_ID = "rp2040_ble_id"
 
 rp2040_ble_ns = cg.esphome_ns.namespace("rp2040_ble")
 RP2040BLE = rp2040_ble_ns.class_("RP2040BLE", cg.Component)
@@ -15,6 +17,25 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _validate_board(config: ConfigType) -> ConfigType:
+    from esphome.components.rp2 import board_has_wifi, get_board
+
+    if not board_has_wifi():
+        raise cv.Invalid(
+            f"Board '{get_board()}' does not have Bluetooth support (no CYW43 wireless "
+            f"chip). Use a board like 'rpipicow' or 'rpipico2w'."
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_board
+
+
+# Once per registered scan listener; sizes the controller's StaticVector
+# listener storage.
+request_scan_listener_slot = cg.slot_counter("RP2040_BLE_SCAN_LISTENER_COUNT")
 
 
 async def to_code(config: ConfigType) -> None:

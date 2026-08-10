@@ -1,0 +1,38 @@
+---
+name: Nightly Dev Release
+
+# Works out the dated dev tag and starts the release workflow with it, so that
+# the release run is named after the tag it builds. A workflow run name is
+# fixed when the run starts and cannot read a file or the current date.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: read  # actions/checkout to read the version from esphome/const.py
+
+jobs:
+  trigger:
+    name: Start release build
+    if: github.repository == 'esphome/esphome'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # actions/checkout to read the version from esphome/const.py
+      actions: write  # gh workflow run starts release.yml
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Start the release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p" esphome/const.py)
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not read __version__ from esphome/const.py"
+            exit 1
+          fi
+          TAG="${VERSION}$(date --utc '+%Y%m%d')"
+          echo "Starting release build for ${TAG}"
+          gh workflow run release.yml --ref "${GITHUB_REF_NAME}" --field tag="${TAG}"

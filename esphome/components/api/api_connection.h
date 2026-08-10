@@ -18,8 +18,8 @@
 #ifdef USE_ESP32_CRASH_HANDLER
 #include "esphome/components/esp32/crash_handler.h"
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-#include "esphome/components/rp2040/crash_handler.h"
+#ifdef USE_RP2_CRASH_HANDLER
+#include "esphome/components/rp2/crash_handler.h"
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
 #include "esphome/components/esp8266/crash_handler.h"
@@ -43,10 +43,7 @@ class APIServer;
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
-// TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
-static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
-static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
 // Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
@@ -169,10 +166,14 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void send_homeassistant_action(const HomeassistantActionRequest &call) {
+  // Returns whether this client has subscribed to Home Assistant actions; the message
+  // is only handed to the send path when subscribed. A true return does not guarantee
+  // delivery - it lets the caller warn when no connected client has the subscription.
+  bool send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
-      return;
+      return false;
     this->send_message(call);
+    return true;
   }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg);
@@ -262,7 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_get_time_response(const GetTimeResponse &value);
 #endif
   void on_hello_request(const HelloRequest &msg);
-  void on_disconnect_request();
+  void on_disconnect_request(const DisconnectRequest &msg);
   void on_ping_request();
   void on_device_info_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
@@ -282,8 +283,8 @@ class APIConnection final : public APIServerConnectionBase {
     esp32::crash_handler_log();
     esp32::crash_handler_clear();
 #endif
-#ifdef USE_RP2040_CRASH_HANDLER
-    rp2040::crash_handler_log();
+#ifdef USE_RP2_CRASH_HANDLER
+    rp2::crash_handler_log();
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
     esp8266::crash_handler_log();
@@ -481,13 +482,6 @@ class APIConnection final : public APIServerConnectionBase {
   inline bool check_voice_assistant_api_connection_() const;
 #endif
 
-  // Get the max batch size based on client API version
-  // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
-  // TODO: Remove this method before 2026.7.0 and use MAX_INITIAL_PER_BATCH directly
-  size_t get_max_batch_size_() const {
-    return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
-  }
-
   // Send keepalive ping or disconnect unresponsive client.
   // Cold path — extracted from loop() to reduce instruction cache pressure.
   void __attribute__((noinline)) check_keepalive_(uint32_t now);
@@ -636,6 +630,11 @@ class APIConnection final : public APIServerConnectionBase {
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
   void finalize_iterator_sync_();
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Swap the plaintext helper for a Noise helper after the client opened
+  // with a Noise hello on an unprovisioned device (zero-PSK provisioning).
+  void upgrade_helper_to_noise_();
+#endif
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif

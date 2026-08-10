@@ -121,51 +121,51 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
 
     this->cmd_ = "detRangeCfg -1 0 0";
   } else if (min2 < 0 || max2 < 0) {
-    this->min1_ = min1 = round(min1 / 0.15) * 0.15;
-    this->max1_ = max1 = round(max1 / 0.15) * 0.15;
+    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
+    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
     this->min2_ = min2 = this->max2_ = max2 = this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 =
         this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15, max1 / 0.15);
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15f, max1 / 0.15f);
     this->cmd_ = buf;
   } else if (min3 < 0 || max3 < 0) {
-    this->min1_ = min1 = round(min1 / 0.15) * 0.15;
-    this->max1_ = max1 = round(max1 / 0.15) * 0.15;
-    this->min2_ = min2 = round(min2 / 0.15) * 0.15;
-    this->max2_ = max2 = round(max2 / 0.15) * 0.15;
+    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
+    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
+    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
+    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
     this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 = this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
-             max2 / 0.15);
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
+             max2 / 0.15f);
     this->cmd_ = buf;
   } else if (min4 < 0 || max4 < 0) {
-    this->min1_ = min1 = round(min1 / 0.15) * 0.15;
-    this->max1_ = max1 = round(max1 / 0.15) * 0.15;
-    this->min2_ = min2 = round(min2 / 0.15) * 0.15;
-    this->max2_ = max2 = round(max2 / 0.15) * 0.15;
-    this->min3_ = min3 = round(min3 / 0.15) * 0.15;
-    this->max3_ = max3 = round(max3 / 0.15) * 0.15;
+    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
+    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
+    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
+    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
+    this->min3_ = min3 = roundf(min3 / 0.15f) * 0.15f;
+    this->max3_ = max3 = roundf(max3 / 0.15f) * 0.15f;
     this->min4_ = min4 = this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
-             max2 / 0.15, min3 / 0.15, max3 / 0.15);
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
+             max2 / 0.15f, min3 / 0.15f, max3 / 0.15f);
     this->cmd_ = buf;
   } else {
-    this->min1_ = min1 = round(min1 / 0.15) * 0.15;
-    this->max1_ = max1 = round(max1 / 0.15) * 0.15;
-    this->min2_ = min2 = round(min2 / 0.15) * 0.15;
-    this->max2_ = max2 = round(max2 / 0.15) * 0.15;
-    this->min3_ = min3 = round(min3 / 0.15) * 0.15;
-    this->max3_ = max3 = round(max3 / 0.15) * 0.15;
-    this->min4_ = min4 = round(min4 / 0.15) * 0.15;
-    this->max4_ = max4 = round(max4 / 0.15) * 0.15;
+    this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
+    this->max1_ = max1 = roundf(max1 / 0.15f) * 0.15f;
+    this->min2_ = min2 = roundf(min2 / 0.15f) * 0.15f;
+    this->max2_ = max2 = roundf(max2 / 0.15f) * 0.15f;
+    this->min3_ = min3 = roundf(min3 / 0.15f) * 0.15f;
+    this->max3_ = max3 = roundf(max3 / 0.15f) * 0.15f;
+    this->min4_ = min4 = roundf(min4 / 0.15f) * 0.15f;
+    this->max4_ = max4 = roundf(max4 / 0.15f) * 0.15f;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15,
-             min2 / 0.15, max2 / 0.15, min3 / 0.15, max3 / 0.15, min4 / 0.15, max4 / 0.15);
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f,
+             min2 / 0.15f, max2 / 0.15f, min3 / 0.15f, max3 / 0.15f, min4 / 0.15f, max4 / 0.15f);
     this->cmd_ = buf;
   }
 
