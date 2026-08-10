@@ -253,10 +253,11 @@
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
-// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
-// advertisement-only hubs) — so static analysis checks the same
-// std::array<uint64_t, N> instantiation a real build produces.
+// count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
+// the slot count (1 on rp2, 0 on advertisement-only hubs) — so static analysis
+// checks the same instantiations a real build produces.
 #ifdef USE_ESP32
+#define USE_BLE_SCANNER_STATE_CALLBACK
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
 #elif defined(USE_RP2)
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
@@ -304,9 +305,9 @@
 #define USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
+#define USE_ESP32_BLE_TRACKER
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
-#define ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT 1
@@ -465,6 +466,7 @@
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define USE_RP2_BLE_TRACKER
 #define RP2040_BLE_SCAN_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_BLE_GATT_CLIENT
@@ -489,6 +491,14 @@
 #define BK72XX_BLE_SCAN_LISTENER_COUNT 1
 #define USE_LN882H_BLE
 #define LN882H_BLE_SCAN_LISTENER_COUNT 1
+// One tracker arm per build: ln882x gets its real hub; bk72xx also stands in
+// for hub-less LibreTiny chips (rtl87xx) so bluetooth_proxy.h has a BLEHub
+// to parse against.
+#ifdef USE_LN882X
+#define USE_LN882H_BLE_TRACKER
+#else
+#define USE_BK72XX_BLE_TRACKER
+#endif
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK

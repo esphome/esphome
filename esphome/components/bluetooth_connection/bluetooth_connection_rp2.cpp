@@ -1,5 +1,8 @@
 #include "bluetooth_connection_rp2.h"
 
+#include "bluetooth_connection_hub.h"
+#include "bluetooth_connection.h"
+
 #if defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
 
 #include "esphome/core/hal.h"
@@ -24,6 +27,8 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
 static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
+// Can-send windows normally open within a connection interval (tens of ms).
+static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 500;
 
 // HCI "connection timeout" reason, reported when a teardown had to be forced.
 static constexpr uint8_t HCI_REASON_CONNECTION_TIMEOUT = 0x08;
@@ -49,6 +54,7 @@ using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 RP2GattClient *RP2GattClient::instances[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
 uint8_t RP2GattClient::instance_count = 0;
 btstack_packet_callback_registration_t RP2GattClient::hci_event_registration = {};
+btstack_packet_callback_registration_t RP2GattClient::sm_event_registration = {};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static ESPBTUUID uuid_from_btstack(uint16_t uuid16, const uint8_t uuid128[16]) {
@@ -86,6 +92,8 @@ void RP2GattClient::setup() {
     if (hci_event_registration.callback == nullptr) {
       hci_event_registration.callback = &RP2GattClient::hci_packet_handler;
       hci_add_event_handler(&hci_event_registration);
+      sm_event_registration.callback = &RP2GattClient::sm_packet_handler;
+      sm_add_event_handler(&sm_event_registration);
     }
   }
 
@@ -155,6 +163,38 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
   }
 }
 
+void RP2GattClient::sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size) {
+  if (type != HCI_EVENT_PACKET) {
+    return;
+  }
+  switch (hci_event_packet_get_type(packet)) {
+    case SM_EVENT_JUST_WORKS_REQUEST:
+      // Confirming from the SM callback is the intended BTstack pattern.
+      // Unscoped on purpose: no peripheral role exists in-tree, and scoping
+      // would drop a request racing the queued CONNECTED event.
+      sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+      break;
+    case SM_EVENT_PAIRING_COMPLETE: {
+      RP2GattClient *inst = instance_for_con_handle(sm_event_pairing_complete_get_handle(packet));
+      if (inst != nullptr) {
+        inst->enqueue_event_irq_(RP2GattEvent::PAIRING_RESULT, sm_event_pairing_complete_get_status(packet), 0);
+      }
+      break;
+    }
+    case SM_EVENT_REENCRYPTION_COMPLETE: {
+      // A bonded peer re-encrypts instead of pairing; BTstack emits only this
+      // event on that path, so it answers the PAIR request too.
+      RP2GattClient *inst = instance_for_con_handle(sm_event_reencryption_complete_get_handle(packet));
+      if (inst != nullptr) {
+        inst->enqueue_event_irq_(RP2GattEvent::PAIRING_RESULT, sm_event_reencryption_complete_get_status(packet), 0);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size) {
   if (type != HCI_EVENT_PACKET) {
     return;
@@ -176,11 +216,11 @@ void RP2GattClient::gatt_packet_handler(uint8_t type, uint16_t channel, uint8_t 
     case GATT_EVENT_ALL_CHARACTERISTIC_DESCRIPTORS_QUERY_RESULT:
       con_handle = gatt_event_all_characteristic_descriptors_query_result_get_handle(packet);
       break;
-    case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT:
-      con_handle = gatt_event_characteristic_value_query_result_get_handle(packet);
+    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
+      con_handle = gatt_event_long_characteristic_value_query_result_get_handle(packet);
       break;
-    case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
-      con_handle = gatt_event_characteristic_descriptor_query_result_get_handle(packet);
+    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
+      con_handle = gatt_event_long_characteristic_descriptor_query_result_get_handle(packet);
       break;
     case GATT_EVENT_NOTIFICATION:
       con_handle = gatt_event_notification_get_handle(packet);
@@ -263,24 +303,17 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
       this->desc_count_++;
       break;
     }
-    case GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT: {
-      uint16_t len = gatt_event_characteristic_value_query_result_get_value_length(packet);
-      if (len > RP2_GATT_MAX_ATTR_LEN) {
-        len = RP2_GATT_MAX_ATTR_LEN;
-      }
-      memcpy(this->op_buffer_, gatt_event_characteristic_value_query_result_get_value(packet), len);
-      this->op_len_ = len;
+    case GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT:
+      // One blob per event at the reported offset; assemble into the op buffer.
+      this->assemble_blob_irq_(gatt_event_long_characteristic_value_query_result_get_value_offset(packet),
+                               gatt_event_long_characteristic_value_query_result_get_value(packet),
+                               gatt_event_long_characteristic_value_query_result_get_value_length(packet));
       break;
-    }
-    case GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT: {
-      uint16_t len = gatt_event_characteristic_descriptor_query_result_get_descriptor_length(packet);
-      if (len > RP2_GATT_MAX_ATTR_LEN) {
-        len = RP2_GATT_MAX_ATTR_LEN;
-      }
-      memcpy(this->op_buffer_, gatt_event_characteristic_descriptor_query_result_get_descriptor(packet), len);
-      this->op_len_ = len;
+    case GATT_EVENT_LONG_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT:
+      this->assemble_blob_irq_(gatt_event_long_characteristic_descriptor_query_result_get_descriptor_offset(packet),
+                               gatt_event_long_characteristic_descriptor_query_result_get_descriptor(packet),
+                               gatt_event_long_characteristic_descriptor_query_result_get_descriptor_length(packet));
       break;
-    }
     case GATT_EVENT_NOTIFICATION:
       this->enqueue_notify_irq_(gatt_event_notification_get_value_handle(packet),
                                 gatt_event_notification_get_value(packet),
@@ -297,28 +330,45 @@ void RP2GattClient::handle_gatt_event_irq_(uint8_t event_type, const uint8_t *pa
 }
 
 // NOLINTBEGIN(clang-analyzer-unix.Malloc)
+void RP2GattClient::assemble_blob_irq_(uint16_t offset, const uint8_t *data, uint16_t len) {
+  if (offset >= RP2_GATT_MAX_ATTR_LEN) {
+    return;
+  }
+  if (len > RP2_GATT_MAX_ATTR_LEN - offset) {
+    len = RP2_GATT_MAX_ATTR_LEN - offset;
+  }
+  memcpy(this->op_buffer_ + offset, data, len);
+  if (offset + len > this->op_len_) {
+    this->op_len_ = offset + len;
+  }
+}
+
 void RP2GattClient::enqueue_event_irq_(RP2GattEvent::Type type, uint8_t status, uint16_t value) {
   RP2GattEvent *event = this->event_pool_.allocate();
   if (event == nullptr) {
     this->event_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
   event->type = type;
   event->status = status;
   event->value = value;
   this->event_queue_.push(event);
+  this->enable_loop_soon_any_context();
 }
 
 void RP2GattClient::enqueue_notify_irq_(uint16_t handle, const uint8_t *data, uint16_t len) {
   RP2GattNotifyEvent *event = this->notify_pool_.allocate();
   if (event == nullptr) {
     this->notify_queue_.increment_dropped_count();
+    this->enable_loop_soon_any_context();
     return;
   }
   event->handle = handle;
   event->len = len > RP2_GATT_MAX_ATTR_LEN ? RP2_GATT_MAX_ATTR_LEN : len;
   memcpy(event->data, data, event->len);
   this->notify_queue_.push(event);
+  this->enable_loop_soon_any_context();
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
@@ -384,7 +434,27 @@ void RP2GattClient::loop() {
       ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
-  } else if (this->state_ == EngineState::IDLE) {
+  } else if (this->state_ == EngineState::READY && this->op_type_ == OpType::WRITE_CHAR_NO_RSP &&
+             millis() - this->write_no_rsp_started_ > WRITE_NO_RSP_TIMEOUT_MS) {
+    // The can-send window never opened; report instead of hanging the op slot.
+    bool timed_out = false;
+    {
+      BluetoothLock lock;
+      // The trampoline may have just sent it; its queued result wins.
+      if (this->event_queue_.empty()) {
+        this->op_type_ = OpType::NONE;
+        timed_out = true;
+      }
+    }
+    if (timed_out) {
+      ESP_LOGW(TAG, "Deferred write timeout, handle=0x%04x", this->op_handle_);
+      if (this->listener_ != nullptr) {
+        this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
+      }
+    }
+  } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
+                                                   this->event_queue_.empty() && this->notify_queue_.empty())) {
+    // Nothing pending: the enqueue path re-arms the loop from any context.
     this->disable_loop();
   }
 }
@@ -412,6 +482,40 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::QUERY_COMPLETE:
       this->handle_query_complete_(event.status);
       break;
+    case RP2GattEvent::WRITE_NO_RSP_DONE:
+      this->finish_write_no_rsp_(event.status);
+      break;
+    case RP2GattEvent::PAIRING_RESULT:
+      if (this->listener_ != nullptr) {
+        this->listener_->on_pairing_result(event.status);
+      }
+      break;
+  }
+}
+
+void RP2GattClient::can_write_no_rsp_trampoline(void *context) {
+  // BTstack context: this callback IS the can-send window, so the deferred
+  // write happens here; only the result is enqueued for the main loop.
+  auto *self = static_cast<RP2GattClient *>(context);
+  if (self->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
+    return;
+  }
+  uint8_t status = gatt_client_write_value_of_characteristic_without_response(self->con_handle_, self->op_handle_,
+                                                                              self->op_len_, self->op_buffer_);
+  if ((status == GATT_CLIENT_BUSY || status == BTSTACK_ACL_BUFFERS_FULL) &&
+      gatt_client_request_to_write_without_response(&self->can_write_registration_, self->con_handle_) == 0) {
+    return;  // next window retries; a failed re-arm falls through as an error
+  }
+  self->enqueue_event_irq_(RP2GattEvent::WRITE_NO_RSP_DONE, status, 0);
+}
+
+void RP2GattClient::finish_write_no_rsp_(uint8_t status) {
+  if (this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
+    return;
+  }
+  this->op_type_ = OpType::NONE;
+  if (this->listener_ != nullptr) {
+    this->listener_->on_write_result(this->op_handle_, status);
   }
 }
 
@@ -514,7 +618,7 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
   // this BTstack emits no QUERY_COMPLETE (the MTU state machine is separate
   // from the query state machine). Completions with nothing in flight are
   // dropped below.
-  if (this->op_type_ != OpType::NONE) {
+  if (this->op_type_ != OpType::NONE && this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
     OpType op = this->op_type_;
     this->op_type_ = OpType::NONE;
     if (this->listener_ == nullptr) {
@@ -523,6 +627,13 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
     switch (op) {
       case OpType::READ_CHAR:
       case OpType::READ_DESC:
+        // A value that is an exact multiple of MTU - 1 ends with a trailing
+        // blob request some peers refuse with INVALID_OFFSET; the read is
+        // complete, not failed.
+        if ((att_status == ATT_ERROR_INVALID_OFFSET || att_status == ATT_ERROR_ATTRIBUTE_NOT_LONG) &&
+            this->op_len_ > 0) {
+          att_status = 0;
+        }
         this->listener_->on_read_result(this->op_handle_, this->op_buffer_, att_status == 0 ? this->op_len_ : 0,
                                         att_status);
         break;
@@ -822,8 +933,9 @@ int RP2GattClient::read_characteristic(uint16_t handle) {
   this->op_handle_ = handle;
   this->op_len_ = 0;
   BluetoothLock lock;
-  uint8_t status = gatt_client_read_value_of_characteristic_using_value_handle(&RP2GattClient::gatt_packet_handler,
-                                                                               this->con_handle_, handle);
+  // Long variant: plain read first, blob continuations only past MTU - 1.
+  uint8_t status = gatt_client_read_long_value_of_characteristic_using_value_handle(&RP2GattClient::gatt_packet_handler,
+                                                                                    this->con_handle_, handle);
   if (status != 0) {
     this->op_type_ = OpType::NONE;
     return status;
@@ -845,8 +957,38 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
     uint8_t status;
     {
       BluetoothLock lock;
+      if (this->op_type_ == OpType::WRITE_CHAR_NO_RSP) {
+        // A deferred write is parked; sending now would overtake it.
+        return GATT_CLIENT_BUSY;
+      }
       status = gatt_client_write_value_of_characteristic_without_response(this->con_handle_, handle, len,
                                                                           const_cast<uint8_t *>(data));
+      // BTSTACK_ACL_BUFFERS_FULL is the same transient flow control one layer
+      // down (L2CAP), so it defers identically.
+      if (status == GATT_CLIENT_BUSY || status == BTSTACK_ACL_BUFFERS_FULL) {
+        if (this->op_in_flight_()) {
+          // The op buffer is owned; bounce the busy to the caller as before.
+          return status;
+        }
+        // Stash the payload and send from the can-send callback.
+        memcpy(this->op_buffer_, data, len);
+        this->op_type_ = OpType::WRITE_CHAR_NO_RSP;
+        this->op_handle_ = handle;
+        this->op_len_ = len;
+        this->write_no_rsp_started_ = millis();
+        this->can_write_registration_.callback = &RP2GattClient::can_write_no_rsp_trampoline;
+        this->can_write_registration_.context = this;
+        uint8_t req = gatt_client_request_to_write_without_response(&this->can_write_registration_, this->con_handle_);
+        if (req != 0 && req != ERROR_CODE_COMMAND_DISALLOWED) {
+          this->op_type_ = OpType::NONE;
+          return req;
+        }
+        // COMMAND_DISALLOWED = still armed from a timed-out deferral; that
+        // registration sends the newly parked payload. Keep the loop running
+        // so the deadline below can fire on a stalled link.
+        this->enable_loop();
+        return 0;
+      }
     }
     if (status == 0 && this->listener_ != nullptr) {
       this->listener_->on_write_result(handle, 0);
@@ -888,7 +1030,7 @@ int RP2GattClient::read_descriptor(uint16_t handle) {
   this->op_handle_ = handle;
   this->op_len_ = 0;
   BluetoothLock lock;
-  uint8_t status = gatt_client_read_characteristic_descriptor_using_descriptor_handle(
+  uint8_t status = gatt_client_read_long_characteristic_descriptor_using_descriptor_handle(
       &RP2GattClient::gatt_packet_handler, this->con_handle_, handle);
   if (status != 0) {
     this->op_type_ = OpType::NONE;
@@ -917,6 +1059,15 @@ int RP2GattClient::write_descriptor(uint16_t handle, const uint8_t *data, uint16
     this->op_type_ = OpType::NONE;
     return status;
   }
+  return 0;
+}
+
+int RP2GattClient::pair() {
+  if (this->state_ != EngineState::READY) {
+    return GATT_ERR_NOT_CONNECTED;
+  }
+  BluetoothLock lock;
+  sm_request_pairing(this->con_handle_);  // void API; completion via SM events
   return 0;
 }
 
@@ -963,6 +1114,30 @@ int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_
   }
   BluetoothLock lock;
   return gap_update_connection_parameters(this->con_handle_, min_interval, max_interval, latency, timeout);
+}
+
+conn_err_t unpair_device(uint64_t address) {
+  uint8_t mac[6];
+  ble_device_base::uint64_to_mac_msb_first(address, mac);
+  bool found = false;
+  BluetoothLock lock;
+  // Exhaustive: the db keys on (type, address), so stale entries can share
+  // the same address bytes under different types.
+  for (int i = 0; i < le_device_db_max_count(); i++) {
+    int addr_type = 0;
+    bd_addr_t addr;
+    le_device_db_info(i, &addr_type, addr, nullptr);
+    if (addr_type != BD_ADDR_TYPE_UNKNOWN && memcmp(addr, mac, sizeof(bd_addr_t)) == 0) {
+      le_device_db_remove(i);
+      found = true;
+    }
+  }
+  if (found) {
+    return CONN_OK;
+  }
+  // No bond for this address; the shared error domain has no closer code
+  // (esp32 parity: its remove-bond call also errors for an unknown address).
+  return GATT_NOT_CONNECTED;
 }
 
 }  // namespace esphome::bluetooth_connection

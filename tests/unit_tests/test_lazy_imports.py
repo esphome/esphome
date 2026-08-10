@@ -46,6 +46,11 @@ API_HEAVY_MODULES = ("aioesphomeapi",)
 # never pays for the bundle machinery and its tarfile chain.
 BUNDLE_HEAVY_MODULES = ("esphome.bundle", "tarfile")
 
+# Heavy only for a cache-hit upload/logs run: the JSON cache parse must
+# not resolve pyyaml or the yaml_util chain (the read_config fallback
+# still uses both).
+CACHE_HIT_HEAVY_MODULES = ("esphome.yaml_util", "yaml")
+
 # Stdlib modules deferred out of the dispatch fast path: a cache-hit
 # upload/logs run never writes a file (tempfile), spawns a process
 # (subprocess), parses a URL (urllib.parse), or prints a serial
@@ -56,8 +61,6 @@ STDLIB_FAST_PATH_MODULES = (
     "tempfile",
     "subprocess",
     "getpass",
-    # Pins the module-level contract only: PyYAML's constructor loads
-    # datetime during the cache parse until the JSON cache lands.
     "datetime",
     *(("urllib.parse",) if sys.version_info >= (3, 13) else ()),
 )
@@ -108,6 +111,7 @@ def test_watched_heavy_modules_exist() -> None:
         FAST_PATH_HEAVY_MODULES
         + API_HEAVY_MODULES
         + BUNDLE_HEAVY_MODULES
+        + CACHE_HIT_HEAVY_MODULES
         + STDLIB_FAST_PATH_MODULES
     ):
         assert importlib.util.find_spec(module) is not None, (
@@ -270,13 +274,13 @@ def test_upload_command_path_does_not_import_heavy_modules(
     leaked = _leaked_from_fixture(
         fixture_path,
         "upload_command_fast_path.py",
-        extra=BUNDLE_HEAVY_MODULES + STDLIB_FAST_PATH_MODULES,
+        extra=BUNDLE_HEAVY_MODULES + CACHE_HIT_HEAVY_MODULES + STDLIB_FAST_PATH_MODULES,
     )
     assert not leaked, (
         f"the upload dispatch path pulls in heavy modules: {leaked}. "
         "An ordinary run only needs the bundle suffix constant, and the "
-        "cache parse must not resolve voluptuous; keep the esphome.bundle "
-        "import inside the branch that extracts one, the Invalid import "
-        "inside the branch that raises it, and the deferred stdlib "
-        "imports inside the write/spawn/serial helpers that use them."
+        "JSON cache parse must not resolve voluptuous or pyyaml; keep the "
+        "esphome.bundle import inside the branch that extracts one, the "
+        "yaml_util imports inside the read_config fallback, and the "
+        "deferred stdlib imports inside the write/spawn/serial helpers."
     )

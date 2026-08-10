@@ -1,6 +1,6 @@
-// Hub-platform BluetoothConnection: drives a platform GATT client backend
-// through the neutral ble_device_base::BLEGattConnection interface and
-// translates its events into the same API messages the esp32 class emits.
+// Hub-platform BluetoothConnection: drives the build's GATT backend (the
+// ble_device_base::BLEGattConnection alias) and translates its events into
+// the same API messages the esp32 class emits.
 // Presents the identical method surface, so the proxy's GATT dispatch
 // compiles against either class unchanged.
 
@@ -13,7 +13,7 @@
 #include "bluetooth_connection.h"
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
-#include "esphome/components/ble_device_base/ble_gatt_client.h"
+#include "bluetooth_connection_gatt_backend.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bluetooth_proxy {
@@ -25,7 +25,7 @@ namespace esphome::bluetooth_connection {
 using ClientState = ble_device_base::ClientState;
 using ConnectionType = ble_device_base::ConnectionType;
 
-class BluetoothConnection final : public ble_device_base::GattClientEventListener {
+class BluetoothConnection final {
  public:
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
@@ -49,6 +49,9 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
     this->start_connect_();
   }
   void disconnect();
+  bool is_paired() const { return this->paired_; }
+  void set_unpaired() { this->paired_ = false; }
+  conn_err_t pair() { return this->backend_->pair(); }
   // A backend disconnect() is a single call that also cancels an in-progress
   // connect; there is no deferred-disconnect state to track.
   bool disconnect_pending() const { return false; }
@@ -80,13 +83,14 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
     this->check_disconnect_timeout_();
   }
 
-  // ---- ble_device_base::GattClientEventListener ----
-  void on_connection_state(bool connected, uint16_t mtu, int error) override;
-  void on_service_discovery_done(int error) override;
-  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) override;
-  void on_write_result(uint16_t handle, int error) override;
-  void on_notify_state(uint16_t handle, bool enabled, int error) override;
-  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) override;
+  // ---- backend event sink (called directly by the backend, main loop) ----
+  void on_connection_state(bool connected, uint16_t mtu, int error);
+  void on_service_discovery_done(int error);
+  void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error);
+  void on_write_result(uint16_t handle, int error);
+  void on_notify_state(uint16_t handle, bool enabled, int error);
+  void on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len);
+  void on_pairing_result(int status);
 
  protected:
   friend class bluetooth_proxy::BluetoothProxy;
@@ -98,8 +102,7 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
 
-  // Memory optimized layout for 32-bit systems (a vptr precedes: pointers and
-  // 2-byte members first fill to an 8-byte boundary before address_)
+  // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   bluetooth_proxy::BluetoothProxy *proxy_{nullptr};
   ble_device_base::BLEGattConnection *backend_{nullptr};
@@ -118,11 +121,15 @@ class BluetoothConnection final : public ble_device_base::GattClientEventListene
 
   // Group 5: 1-byte types
   ClientState state_{ClientState::IDLE};
+  bool paired_{false};
   ConnectionType connection_type_{ConnectionType::V1};
   uint8_t remote_addr_type_{0};
   uint8_t connection_index_{0};
   bool services_discovered_{false};
 };
+
+static_assert(ble_device_base::GattClientEventSinkContract<BluetoothConnection>,
+              "The hub wrapper is missing part of the event-sink surface (ble_gatt_client.h)");
 
 }  // namespace esphome::bluetooth_connection
 

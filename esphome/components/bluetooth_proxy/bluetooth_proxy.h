@@ -15,21 +15,13 @@
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
+#include "esphome/components/ble_device_base/ble_hub_impl.h"
+
 #ifdef USE_ESP32
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
 #include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
-
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
-#include <esp_bt_device.h>
-#else
-#include "esphome/components/ble_device_base/ble_hub.h"
-#ifdef USE_BLE_GATT_CLIENT
+#elif defined(USE_BLE_GATT_CLIENT)
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
 #endif
-#endif  // USE_ESP32
 
 namespace esphome::bluetooth_proxy {
 
@@ -72,26 +64,14 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-#ifdef USE_ESP32
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
-                             public esp32_ble_tracker::BLEScannerStateListener,
-                             public Component {
-#else
 class BluetoothProxy final : public Component {
-#endif
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Allow the connection to update connections_free_response_
   friend bluetooth_connection::BluetoothConnection;
 #endif
  public:
   BluetoothProxy();
-#ifdef USE_ESP32
-#ifdef USE_ESP32_BLE_DEVICE
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-#endif
-  bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
-  esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
-#endif  // USE_ESP32
+  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   void dump_config() override;
   void setup() override;
   void loop() override;
@@ -100,7 +80,6 @@ class BluetoothProxy final : public Component {
   void register_connection(BluetoothConnection *connection);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
-  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
   // snapshots scan_active()/scan_running() and installs the raw callback, and
   // the BLEHub contract does not promise those are settled any earlier than
@@ -139,11 +118,6 @@ class BluetoothProxy final : public Component {
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
-#ifdef USE_ESP32
-  /// BLEScannerStateListener interface
-  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
-#endif
-
   uint32_t get_legacy_version() const {
     if (!this->active_) {
       return LEGACY_PASSIVE_ONLY_VERSION;
@@ -169,7 +143,7 @@ class BluetoothProxy final : public Component {
     // scan_mode_switch is the capability bit for exactly that (#18079) —
     // active_scan alone is not enough, a hub may support active scanning yet
     // refuse the runtime switch.
-    if (this->hub_->get_capabilities().scan_mode_switch) {
+    if (ble_device_base::BLEHub::get_capabilities().scan_mode_switch) {
       flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
     }
 #endif
@@ -192,37 +166,23 @@ class BluetoothProxy final : public Component {
   }
 
   void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
-#ifdef USE_ESP32
-    const uint8_t *mac = esp_bt_dev_get_address();
-    if (mac != nullptr) {
-      format_mac_addr_upper(mac, output.data());
-    } else {
-      output[0] = '\0';
-    }
-#else
     uint8_t mac[6] = {};
     this->hub_->get_adapter_mac(mac);
-    // Mirror the esp32 arm's unavailable -> empty-string fallback: some hubs
-    // (rp2040's BTstack) only learn the address once the link layer is up, and
-    // report all-zero until then.
-    bool nonzero = false;
-    for (uint8_t b : mac)
-      nonzero |= b != 0;
-    if (nonzero) {
+    // Unavailable -> empty string: some hubs (rp2040's BTstack) only learn
+    // the address once the link layer is up, and report all-zero until then.
+    if (mac_address_is_valid(mac)) {
       format_mac_addr_upper(mac, output.data());
     } else {
       output[0] = '\0';
     }
-#endif
   }
 
  protected:
-#ifdef USE_ESP32
-  void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
-#else
-  void send_bluetooth_scanner_state_();
-  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
+  bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+  void send_polled_scanner_state_();
 #endif
+  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
 
   /// Caller must ensure api_connection_ is non-null and API server is connected.
   void flush_pending_advertisements_() {
@@ -288,9 +248,7 @@ class BluetoothProxy final : public Component {
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
-#ifndef USE_ESP32
   ble_device_base::BLEHub *hub_{nullptr};
-#endif
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
@@ -305,7 +263,7 @@ class BluetoothProxy final : public Component {
   bool active_;
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
-#ifndef USE_ESP32
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
   bool last_scan_running_{false};  // Last scanner state reported to the subscriber
 #endif
 };
