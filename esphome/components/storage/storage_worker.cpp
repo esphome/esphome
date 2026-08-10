@@ -118,8 +118,8 @@ bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (!this->task_running_)
     return false;
-  // format() touches exactly one storage (the target in dst_storage), no file side.
-  if (req.op == RequestOp::FORMAT)
+  // format()/mount() touch exactly one storage (the target in dst_storage), no file side.
+  if (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)
     return (req.dst_storage->get_capabilities() & StorageCaps::STORAGE_CAP_IO_TASK_SAFE) != 0;
   // Every storage this op touches must be task-safe, or a background task would race the main
   // loop on it. A copy/move touches src_storage AND dst_storage (both non-null, no raw_device).
@@ -431,8 +431,8 @@ StorageError StorageWorker::async_raw_erase(RawStorage *device, uint64_t address
                            job_out, force_sliced);
 }
 
-StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCallback &&on_done,
-                                         TransferJob *job_out) {
+StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target, CompletionCallback &&on_done,
+                                               TransferJob *job_out) {
   this->ensure_started_();
   TransferRequest *slot = nullptr;
   for (auto &req : this->pool_) {
@@ -444,7 +444,7 @@ StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCa
   }
   if (slot == nullptr)
     return StorageError::NOT_READY;
-  slot->op = RequestOp::FORMAT;
+  slot->op = op;
   // The target rides in dst_storage so the registry check, overlaps_active_() and the
   // completion drain treat it like any transfer; src is null and no handle is ever opened.
   slot->src_storage = nullptr;
@@ -500,6 +500,22 @@ StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCa
 #endif
   return StorageError::OK;
 }
+
+StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCallback &&on_done,
+                                         TransferJob *job_out) {
+  return this->submit_control_op_(RequestOp::FORMAT, target, std::move(on_done), job_out);
+}
+
+StorageError StorageWorker::async_mount(PathStorage *target, CompletionCallback &&on_done,
+                                        TransferJob *job_out) {
+  if (target == nullptr || target->as_mountable() == nullptr)
+    return StorageError::NOT_SUPPORTED;
+  // Same slot shape as FORMAT: target in dst_storage, no paths, no handles -- registry
+  // check, overlaps_active_(), has_active_task_io() and the completion drain treat it
+  // like any transfer. run_chunk_ resolves it back through as_mountable().
+  return this->submit_control_op_(RequestOp::MOUNT, target, std::move(on_done), job_out);
+}
+
 
 StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64_t address, uint64_t size,
                                         PathStorage *file_side, const char *file_path, bool erase_first, bool overwrite,
@@ -1733,6 +1749,18 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
       return;
     }
     finish_request(req, static_cast<FilesystemStorage *>(req.dst_storage)->format());
+    return;
+  }
+  if (req.op == RequestOp::MOUNT) {
+    // Same single-blocking-call shape as FORMAT: network mounts resolve, connect and probe --
+    // on task-safe devices that happens on the worker task, never on the main loop.
+    auto *ps = static_cast<PathStorage *>(req.dst_storage);
+    storage::MountableStorage *m = ps != nullptr ? ps->as_mountable() : nullptr;
+    if (m == nullptr) {
+      finish_request(req, StorageError::NOT_SUPPORTED);
+      return;
+    }
+    finish_request(req, m->mount());
     return;
   }
   if (req.op == RequestOp::RAW_READ_TO_FILE || req.op == RequestOp::RAW_WRITE_FROM_FILE ||
