@@ -78,37 +78,37 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   CallbackManager<void()> state_callback_;
 
-  DoorState door_state_{DoorState::CLOSED};
   float current_position_{0.0f};
-  // Position as reported by the bus controller, 0..200 across the full travel.
-  uint8_t position_raw_{0};
   // Position the door was told to travel to; 0.0 means no target is armed.
   float goto_position_{0.0f};
-  // Direction the door was started in for that target. A target armed while the door is still travelling the
-  // other way must not be judged by the direction the controller reports until the door has turned around.
-  DoorState goto_direction_{DoorState::STOPPED};
-  bool goto_under_way_{false};
-  bool valid_{false};
-  bool changed_{false};
 
   // Pending command / key-press state machine.
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_queued_at_{0};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
+
   // A command is "pressed" for this long before its end value is sent.
   uint16_t key_press_delay_ms_{100};
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
-
   // Previous broadcast register values (to detect high/low byte changes).
   uint16_t prev_position_reg_{0};
   // Sentinel the bus controller never reports, so the first broadcast is decoded even when it reads 0x0000.
   uint16_t prev_state_reg_{0xFFFF};
-
   // 0x17 write half: command register last written to COMMAND_REG by the bus controller. The read half echoes
   // its high-byte message counter and low-byte command back from STATE_REG.
   uint16_t command_reg_value_{0};
+
+  DoorState door_state_{DoorState::CLOSED};
+  // Direction the door was started in for that target. A target armed while the door is still travelling the
+  // other way must not be judged by the direction the controller reports until the door has turned around.
+  DoorState goto_direction_{DoorState::STOPPED};
+  // Position as reported by the bus controller, 0..200 across the full travel.
+  uint8_t position_raw_{0};
+  bool goto_under_way_{false};
+  bool valid_{false};
+  bool changed_{false};
 };
 
 }  // namespace esphome::hoermann_hcp
