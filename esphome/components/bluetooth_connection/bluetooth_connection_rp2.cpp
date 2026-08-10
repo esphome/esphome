@@ -128,31 +128,23 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       if (hci_event_gap_meta_get_subevent_code(packet) != GAP_SUBEVENT_LE_CONNECTION_COMPLETE) {
         break;
       }
-      bd_addr_t peer;
-      gap_subevent_le_connection_complete_get_peer_address(packet, peer);
       uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
       hci_con_handle_t con_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
-      // The stack-wide create-connection resolved either way (success, failure
-      // or cancel completion; all carry the peer address). Matched against the
-      // owner so a stale late completion cannot strip a live owner that has
-      // since re-issued for another peer — that would skip its cancel path and
-      // leave the stack initiating forever.
-      if (connect_owner != nullptr && memcmp(connect_owner->peer_addr_, peer, sizeof(bd_addr_t)) == 0) {
-        connect_owner = nullptr;
-      }
-      // Route to the engine that is waiting for this peer.
-      for (uint8_t i = 0; i < instance_count; i++) {
-        RP2GattClient *inst = instances[i];
-        if (inst->state_ == EngineState::CONNECTING && memcmp(inst->peer_addr_, peer, sizeof(bd_addr_t)) == 0) {
-          if (status == 0) {
-            // Stamp the handle here in the BTstack context: a disconnection
-            // racing the queued CONNECTED event arrives in this same context
-            // and must route by handle (it carries no address).
-            inst->con_handle_ = con_handle;
-          }
-          inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
-          break;
+      // Route by ownership, not address: exactly one create-connection exists
+      // stack-wide and gap_connect refuses a new one until this completion is
+      // processed, so the event belongs to the owner by construction. Cancel
+      // completions carry a zeroed peer address on this controller, so an
+      // address match would drop them and pin the owner until its backstop.
+      RP2GattClient *inst = connect_owner;
+      connect_owner = nullptr;
+      if (inst != nullptr) {
+        if (status == 0) {
+          // Stamp the handle here in the BTstack context: a disconnection
+          // racing the queued CONNECTED event arrives in this same context
+          // and must route by handle (it carries no address).
+          inst->con_handle_ = con_handle;
         }
+        inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
       }
       break;
     }
