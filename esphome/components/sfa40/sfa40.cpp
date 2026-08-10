@@ -62,8 +62,7 @@ bool SFA40Component::detect_protocol_() {
   if (this->get_register(SFA40_CMD_READ_ID_PROD, raw, 3, 5)) {
     this->protocol_version_ = ProtocolVersion::PRODUCTION;
     this->serial_number_ = raw_to_serial(raw, 3);
-    ESP_LOGD(TAG, "Detected production SFA40, serial number: %012" PRIX64,
-             this->serial_number_);
+    ESP_LOGD(TAG, "Detected production SFA40, serial number: %012" PRIX64, this->serial_number_);
     return true;
   }
   if (this->get_register(SFA40_CMD_READ_ID_B4, raw, 5, 5)) {
