@@ -653,6 +653,12 @@ void RP2GattClient::fail_connection_(uint8_t reason) {
     if (connect_owner == this) {
       connect_owner = nullptr;
     }
+    if (this->state_ == EngineState::CONNECTING && this->con_handle_ != HCI_CON_HANDLE_INVALID) {
+      // A success completion stamped the handle between the escalation
+      // decision and this lock: tear the link down before cleanup wipes the
+      // handle, or it leaks its pool block for the rest of the boot.
+      gap_disconnect(this->con_handle_);
+    }
   }
   this->cleanup_link_state_();
   this->release_scan_inhibit_();

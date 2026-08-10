@@ -7,13 +7,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from esphome.components import rp2040_ble
 from esphome.core import CORE
 
 from ..helpers import get_define_value
 
-WRAP_FLAGS = tuple(
-    f"-Wl,--wrap={symbol}" for symbol in rp2040_ble._BTSTACK_POOL_SYMBOLS
+# Spelled out rather than derived from rp2040_ble's symbol tuple, so a typo
+# in the component's list fails here instead of mirroring into the test.
+WRAP_FLAGS = (
+    "-Wl,--wrap=btstack_memory_gatt_client_get",
+    "-Wl,--wrap=btstack_memory_gatt_client_free",
+    "-Wl,--wrap=btstack_memory_hci_connection_get",
+    "-Wl,--wrap=btstack_memory_hci_connection_free",
 )
 
 
