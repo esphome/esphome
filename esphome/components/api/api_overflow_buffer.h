@@ -69,6 +69,10 @@ class APIOverflowBuffer {
   uint8_t head_{0};
   uint8_t tail_{0};
   uint8_t count_{0};
+  // Guards against re-entrant drains: socket->write() can re-enter the API
+  // send path (e.g. a log message emitted from an lwip callback), and a nested
+  // drain would free the entry the outer drain is still holding.
+  bool draining_{false};
 };
 
 }  // namespace esphome::api
