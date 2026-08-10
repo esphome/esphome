@@ -1235,6 +1235,8 @@ constexpr size_t MODEL_DOWNLOAD_CHUNK_SIZE = 1024;
 // Sanity bounds for the model parameters declared in the manifest.
 constexpr size_t MAX_SLIDING_WINDOW_SIZE = 50;
 constexpr size_t MAX_TENSOR_ARENA_SIZE = 1024 * 1024;
+// A hex-encoded SHA256 is always 64 characters. Anything else cannot be parsed for comparison.
+constexpr size_t SHA256_HEX_LENGTH = 64;
 
 // Verifies a buffer against an expected hex-encoded SHA256. A free function (not a method) so it can never
 // read VoiceAssistant state, and so the hasher stays within a single stack frame as the hardware-accelerated
@@ -1262,6 +1264,14 @@ void VoiceAssistant::cache_external_wake_words_(const std::vector<api::VoiceAssi
   for (const auto &ww : wake_words) {
     if (ww.model_type != "micro") {
       continue;  // microWakeWord only
+    }
+    // Without a usable hash the download can only ever fail verification, so reject the entry here rather
+    // than spending the transfer and the model buffer first and reporting it as a hash mismatch.
+    if (ww.model_hash.size() != SHA256_HEX_LENGTH) {
+      // The StringRef points into the receive buffer and is not null-terminated, so bound the format by size.
+      ESP_LOGW(TAG, "Ignoring external wake word %.*s: model_hash is missing or malformed",
+               static_cast<int>(ww.id.size()), ww.id.c_str());
+      continue;
     }
     // Copy every StringRef into an owning string; the proto StringRefs point into the receive buffer and
     // dangle once this handler returns.
