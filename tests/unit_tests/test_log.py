@@ -1,3 +1,6 @@
+from collections.abc import Generator
+import io
+import logging
 import os
 from pathlib import Path
 import pty
@@ -6,7 +9,29 @@ import sys
 
 import pytest
 
-from esphome.log import AnsiFore, AnsiStyle, color
+from esphome.core import CORE
+from esphome.log import AnsiFore, AnsiStyle, color, setup_log
+
+
+class _FakeTty(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.fixture
+def restore_logging_state() -> Generator[None, None, None]:
+    """Undo the global logging changes setup_log() makes."""
+    root = logging.getLogger()
+    handlers = root.handlers[:]
+    formatters = [handler.formatter for handler in handlers]
+    level = root.level
+    urllib3_level = logging.getLogger("urllib3").level
+    yield
+    root.handlers[:] = handlers
+    for handler, formatter in zip(handlers, formatters, strict=True):
+        handler.setFormatter(formatter)
+    root.setLevel(level)
+    logging.getLogger("urllib3").setLevel(urllib3_level)
 
 
 def _probe_command(fixture_path: Path, *args: str) -> list[str]:
@@ -164,3 +189,54 @@ def test_setup_log_tty_skips_colorama(fixture_path: Path) -> None:
     text = output.decode()
     assert "colorama_loaded=False" in text
     assert "\033[31mred\033[0m end" in text
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_dashboard_branch_skips_colorama_import(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> None:
+    """The dashboard side of the guard must not import colorama."""
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    monkeypatch.setattr(CORE, "dashboard", True)
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    setup_log()
+    assert "colorama" not in sys.modules
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_tty_branch_skips_colorama_import(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> None:
+    """The tty side of the guard must not import colorama."""
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    monkeypatch.setattr(sys, "stdout", _FakeTty())
+    monkeypatch.setattr(sys, "stderr", _FakeTty())
+    setup_log()
+    assert "colorama" not in sys.modules
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_redirected_branch_imports_colorama(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> None:
+    """Redirected streams must keep importing and initializing colorama."""
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    setup_log()
+    try:
+        assert "colorama" in sys.modules
+    finally:
+        # init() rebinds sys.stdout/stderr; restore them before monkeypatch
+        # puts the originals back.
+        sys.modules["colorama"].deinit()
