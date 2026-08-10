@@ -1,5 +1,6 @@
 #include "sfa40.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::sfa40 {
 
@@ -61,8 +62,8 @@ bool SFA40Component::detect_protocol_() {
   if (this->get_register(SFA40_CMD_READ_ID_PROD, raw, 3, 5)) {
     this->protocol_version_ = ProtocolVersion::PRODUCTION;
     this->serial_number_ = raw_to_serial(raw, 3);
-    ESP_LOGD(TAG, "Detected production SFA40, serial number: %012llX",
-             (unsigned long long) this->serial_number_);
+    ESP_LOGD(TAG, "Detected production SFA40, serial number: %012" PRIX64,
+             this->serial_number_);
     return true;
   }
   if (this->get_register(SFA40_CMD_READ_ID_B4, raw, 5, 5)) {
@@ -93,18 +94,16 @@ void SFA40Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   switch (this->protocol_version_) {
     case ProtocolVersion::PRODUCTION:
-      ESP_LOGCONFIG(TAG, "  Protocol: production");
-      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX",
-                    (unsigned long long) this->serial_number_);
+      ESP_LOGCONFIG(TAG, "  Protocol: production\n  Serial Number: %012" PRIX64, this->serial_number_);
       break;
     case ProtocolVersion::PROTOTYPE:
-      ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)");
-      ESP_LOGCONFIG(TAG, "  Marking: '%s'", this->device_marking_);
+      ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)\n  Marking: '%s'", this->device_marking_);
       break;
     default:
       ESP_LOGCONFIG(TAG, "  Protocol: (detecting...)");
       break;
   }
+  ESP_LOGCONFIG(TAG, "  Wait for ready: %s", YESNO(this->wait_for_ready_));
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -136,10 +135,10 @@ void SFA40Component::update() {
     const bool hcho_ready = (status & (STATUS_NOT_READY | STATUS_OUT_OF_SPEC)) == 0;
 
     if (this->formaldehyde_sensor_ != nullptr) {
-      if (!this->wait_for_ready_ || hcho_ready) {
-        this->formaldehyde_sensor_->publish_state(static_cast<float>(raw[0]) / 10.0f);
+      if (this->wait_for_ready_ && !hcho_ready) {
+        ESP_LOGD(TAG, "Skipping formaldehyde publish: sensor warming up");
       } else {
-        ESP_LOGD(TAG, "Skipping formaldehyde publish: sensor warming up (status=0x%02X)", status);
+        this->formaldehyde_sensor_->publish_state(static_cast<float>(raw[0]) / 10.0f);
       }
     }
 
@@ -151,11 +150,7 @@ void SFA40Component::update() {
       this->temperature_sensor_->publish_state(175.0f * (static_cast<float>(raw[2]) / 65535.0f) - 45.0f);
     }
 
-    if (this->wait_for_ready_ && !hcho_ready) {
-      this->status_set_warning();
-    } else {
-      this->status_clear_warning();
-    }
+    this->status_clear_warning();
   });
 }
 
