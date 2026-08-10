@@ -16,8 +16,8 @@ constexpr uint16_t COMMAND_REG = 0x9C41;
 constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
 
-// Simulated key-press duration in hoermann_hcp.cpp, plus margin for a loaded CI runner.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(150);
+// The tests shorten the key-press delay to zero, so the release only needs the millis() clock to tick on.
+constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
 
 RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   RegisterValues registers;
@@ -38,9 +38,12 @@ uint16_t poll_command(HoermannHcp &door) {
   return response.size() == 8u ? response[2] : 0xFFFF;
 }
 
-// Exposes the connection bookkeeping so the timeout cleanup can be driven without waiting it out.
+// Exposes the internal timings and the connection bookkeeping, so no test has to wait out a real delay.
 class TestableHoermannHcp : public HoermannHcp {
  public:
+  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
+
+  using HoermannHcp::connection_timeout_ms_;
   using HoermannHcp::set_valid_;
 };
 
@@ -109,7 +112,7 @@ TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
 
 // A command is held for the key-press duration, then released, and only then can the next one be queued.
 TEST(HoermannHcpReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   connect(door);
   door.open_door();
   EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
@@ -148,6 +151,25 @@ TEST(HoermannHcpReadWrite, ConnectionLossDropsThePendingCommand) {
   EXPECT_EQ(poll_command(door), 0x0220);
 }
 
+// The connection is dropped by update() once the controller stops polling, which is what releases a
+// command it never fetched in the field.
+TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect(door);
+  door.open_door();
+
+  // Still inside the window: the controller counts as present.
+  door.update();
+  ASSERT_TRUE(door.is_valid());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  door.update();
+  EXPECT_FALSE(door.is_valid());
+  // The pending command went with the connection instead of firing on the reconnecting poll.
+  EXPECT_EQ(poll_command(door), 0x0000);
+}
+
 // The 0x17 read half echoes the message counter and command byte written to COMMAND_REG, packed
 // differently per block length.
 TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
@@ -181,6 +203,16 @@ TEST(HoermannHcpWrite, BroadcastUpdatesStateAndPosition) {
   auto status = door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_FALSE(status.has_value());
   EXPECT_EQ(door.get_door_state(), DoorState::OPENING);
+  EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
+}
+
+// The first broadcast has to be decoded even when it carries the register's initial value, otherwise a
+// door parked mid-travel at boot keeps the CLOSED default and reports itself fully closed.
+TEST(HoermannHcpWrite, FirstBroadcastReportingAStopIsDecoded) {
+  HoermannHcp door;
+  auto status = door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0000}));
+  EXPECT_FALSE(status.has_value());
+  EXPECT_EQ(door.get_door_state(), DoorState::STOPPED);
   EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
 }
 
@@ -239,7 +271,7 @@ TEST(HoermannHcpPosition, HalfOpenTargetOpensTheDoor) {
 
 // The door has no notion of a target, so it is stopped with an impulse once it travels past the request.
 TEST(HoermannHcpPosition, TargetPositionStopsTheDoor) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
@@ -259,7 +291,7 @@ TEST(HoermannHcpPosition, TargetPositionStopsTheDoor) {
 // An impulse restarts a stopped door, so a frame reporting the stop and the target crossing at once
 // must be read as "already stopped" rather than "still opening".
 TEST(HoermannHcpPosition, StopReportedWithTheCrossingSendsNoImpulse) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);
@@ -277,7 +309,7 @@ TEST(HoermannHcpPosition, StopReportedWithTheCrossingSendsNoImpulse) {
 
 // A target the door never reaches is dropped once it comes to rest, so a later move is not cut short.
 TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorStopsShort) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   connect(door);
   door.set_position(0.5f);
   EXPECT_EQ(poll_command(door), 0x0210);

@@ -89,10 +89,15 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
+  // A command is "pressed" for this long before its end value is sent.
+  uint16_t key_press_delay_ms_{100};
+  // Drop the "connected" flag if the bus controller has not polled us for this long.
+  uint16_t connection_timeout_ms_{2000};
 
   // Previous broadcast register values (to detect high/low byte changes).
   uint16_t prev_position_reg_{0};
-  uint16_t prev_state_reg_{0};
+  // Sentinel the bus controller never reports, so the first broadcast is decoded even when it reads 0x0000.
+  uint16_t prev_state_reg_{0xFFFF};
 
   // 0x17 write half: command register last written to COMMAND_REG by the bus controller. The read half echoes
   // its high-byte message counter and low-byte command back from STATE_REG.
