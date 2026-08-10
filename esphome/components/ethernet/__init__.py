@@ -633,8 +633,11 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
-        # ENC28J60 was never built-in to IDF, so it has no Kconfig option
-        if idf_version() < cv.Version(6, 0, 0) and config[CONF_TYPE] != "ENC28J60":
+        # Types that are never built into IDF ship no Kconfig option at all
+        if (
+            idf_version() < cv.Version(6, 0, 0)
+            and config[CONF_TYPE] not in _ALWAYS_EXTERNAL_IDF_COMPONENTS
+        ):
             add_idf_sdkconfig_option(
                 f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
             )
