@@ -483,6 +483,12 @@ SPI_SCHEMA = _spi_schema()
 # of spec for it and makes the driver's CS hold time helper compute no hold
 SPI_SCHEMA_ENC28J60 = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
 
+# The CH390H/D rates SCK at 50 MHz typical and 72 MHz maximum with VDDIO at 3.3V,
+# so the shared 80 MHz ceiling is out of spec while the 26.67 MHz default is not.
+# CH390 datasheet v1.8, tables 9-4 and 9-5:
+# https://www.wch-ic.com/downloads/CH390DS1_PDF.html
+SPI_SCHEMA_CH390 = _spi_schema(max_clock=int(72e6))
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -497,7 +503,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
-            "CH390": SPI_SCHEMA,
+            "CH390": SPI_SCHEMA_CH390,
             "ENC28J60": SPI_SCHEMA_ENC28J60,
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
