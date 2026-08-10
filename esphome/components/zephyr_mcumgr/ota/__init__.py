@@ -27,6 +27,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -73,6 +74,7 @@ ZEPHYR_VARIANTS = (
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
 )
 
 # Families whose boards actually have a USB peripheral this CDC-ACM transport can
@@ -95,8 +97,8 @@ def _validate_platform(conf: ConfigType) -> ConfigType:
     if not (CORE.is_nrf52 or (CORE.is_zephyr and zephyr_variant() in ZEPHYR_VARIANTS)):
         raise cv.Invalid(
             "This feature is only available on nrf52 (platform: nrf52, or "
-            "platform: zephyr with variant: nrf52, nrf54l15, nrf54lm20a, or "
-            "efr32mg24)."
+            "platform: zephyr with variant: nrf52, nrf54l15, nrf54lm20a, efr32mg24, "
+            "rp2040, or rp2350)."
         )
     hw_uart = conf[CONF_TRANSPORT].get(CONF_HARDWARE_UART)
     if hw_uart in CDC_IDS and not (

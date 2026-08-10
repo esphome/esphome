@@ -41,6 +41,7 @@ from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
 from .const import (
+    BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
@@ -71,6 +72,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -152,6 +154,9 @@ class ZephyrData(TypedDict):
     )  # resolved zephyr: framework: source:, or None if unset
     bootloader: str
     variant: str | None
+    family: (
+        str | None
+    )  # variant's ZephyrVariant.family (e.g. "esp32"), or None if unfamilied
     framework_type: str  # resolved zephyr: framework: type: (e.g. "zephyr", "ncs")
     prj_conf: dict[str, dict[str, tuple[PrjConfValueType, bool]]]
     sysbuild_conf: dict[str, tuple[PrjConfValueType, bool]]
@@ -190,6 +195,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         sdk_source=None,
         bootloader=config[KEY_BOOTLOADER],
         variant=None,
+        family=None,
         # platform: nrf52 is inherently NCS-based (no alternate).
         framework_type="ncs",
         prj_conf={},
@@ -233,11 +239,7 @@ def zephyr_framework_type() -> str | None:
 
 def zephyr_variant_family() -> str | None:
     """Return the active variant's silicon family (e.g. "esp32"), or None if unset/unfamilied."""
-    variant = zephyr_variant()
-    if variant is None:
-        return None
-    variant_info = VARIANTS.get(variant)
-    return variant_info.family if variant_info is not None else None
+    return zephyr_data().get("family")
 
 
 def zephyr_dts_board_id(esphome_board: str) -> str:
@@ -581,10 +583,10 @@ def zephyr_to_code(config: ConfigType) -> None:
     ):
         zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem.
-    # RP2040 has no hardware RNG — the variant provides TEST_RANDOM_GENERATOR instead,
-    # and enabling ENTROPY_GENERATOR would try to select a nonexistent driver.
-    if zephyr_variant_family() != "rpi_pico":
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem. RP2040 has
+    # no hardware RNG; RP2350's does exist but Zephyr's driver for it hangs the whole boot
+    # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
+    if zephyr_variant() not in (ZEPHYR_VARIANT_RP2040, ZEPHYR_VARIANT_RP2350):
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -1126,6 +1128,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.rp2040 import config_schema as _rp2040_config_schema
 
         config = _rp2040_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RP2350:
+        from .variants.rp2350 import config_schema as _rp2350_config_schema
+
+        config = _rp2350_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     zephyr_data()[KEY_BOARD_ROOT] = board_root
@@ -1226,11 +1232,38 @@ async def to_code(config: ConfigType) -> None:
 
         await _rp2040_to_code(config)
         return
+    if variant == ZEPHYR_VARIANT_RP2350:
+        from .variants.rp2350 import to_code as _rp2350_to_code
+
+        await _rp2350_to_code(config)
+        return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 
 
+def _signed_image_flash_address(signed_hex: Path) -> int | None:
+    """Return the absolute flash address imgtool wrote the signed image at, by
+    reading the Intel HEX records at the top of the file -- signed.bin (raw binary)
+    carries no address of its own, and this is the build's own authoritative value
+    rather than one derived/guessed locally.
+    """
+    with Path(signed_hex).open(encoding="ascii") as f:
+        extended_line = f.readline().strip()
+        data_line = f.readline().strip()
+    # ":02" byte count, "0000" record address, "04" = extended linear address,
+    # followed by the upper 16 bits of the 32-bit address.
+    if not extended_line.startswith(":02000004"):
+        return None
+    upper16 = int(extended_line[9:13], 16)
+    # Data record: ":<len><addr16><00><data...><checksum>" -- addr16 is the low 16
+    # bits of this record's address, not necessarily 0 (e.g. non-64KB-aligned slots).
+    if len(data_line) < 9 or data_line[7:9] != "00":
+        return None
+    lower16 = int(data_line[3:7], 16)
+    return (upper16 << 16) | lower16
+
+
 def _upload_using_picotool() -> bool:
-    """Upload Zephyr firmware to RP2040 in BOOTSEL mode using picotool."""
+    """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
     import shutil
     import sys
 
@@ -1253,46 +1286,101 @@ def _upload_using_picotool() -> bool:
         )
         return False
 
-    elf = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.elf")
-    if not elf.is_file():
-        _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
-        return False
+    # sysbuild produces two separate images when mcuboot is enabled: the bootloader
+    # itself (linked to run from the start of flash) and the app, signed and linked
+    # to run from slot0_partition instead. Unlike a direct-boot image, the app alone
+    # has no valid image at the boot ROM's fixed entry address (flash offset 0), so
+    # both must be written -- Zephyr's own "uf2" runner doesn't handle this correctly
+    # either (its zephyr.uf2 output is always built from the unsigned binary).
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        mcuboot_elf = CORE.relative_build_path(".west_build/mcuboot/zephyr/zephyr.elf")
+        signed_bin = CORE.relative_build_path(
+            ".west_build/zephyr/zephyr/zephyr.signed.bin"
+        )
+        signed_hex = CORE.relative_build_path(
+            ".west_build/zephyr/zephyr/zephyr.signed.hex"
+        )
+        if (
+            not mcuboot_elf.is_file()
+            or not signed_bin.is_file()
+            or not signed_hex.is_file()
+        ):
+            _LOGGER.error("MCUboot firmware not found. Compile first.")
+            return False
+        address = _signed_image_flash_address(signed_hex)
+        if address is None:
+            _LOGGER.error(
+                "Could not determine the signed app image's flash address from %s.",
+                signed_hex,
+            )
+            return False
+        # (file, offset, execute-after-load) -- mcuboot first (no execute, so the
+        # device stays in BOOTSEL for the second write), then the signed app.
+        loads: list[tuple[Path, int | None, bool]] = [
+            (mcuboot_elf, None, False),
+            (signed_bin, address, True),
+        ]
+    else:
+        elf = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.elf")
+        if not elf.is_file():
+            _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
+            return False
+        loads = [(elf, None, True)]
 
     bootsel = detect_rp2040_bootsel(str(picotool))
     if bootsel.device_count == 0:
-        _LOGGER.error("No RP2040 device in BOOTSEL mode found.")
-        return False
-
-    _LOGGER.info("Uploading Zephyr firmware to RP2040 via picotool...")
-    try:
-        result = subprocess.run(
-            [str(picotool), "load", "-x", str(elf)],
-            stderr=subprocess.PIPE,
-            timeout=60,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        _LOGGER.error("picotool upload timed out after 60 seconds.")
-        return False
-    except OSError as err:
-        _LOGGER.error("Failed to run picotool: %s", err)
-        return False
-
-    if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace").strip()
-        if stderr:
-            for line in stderr.splitlines():
-                _LOGGER.error("picotool: %s", line)
-        if is_picotool_usb_permission_error(stderr):
-            msg = "Permission denied accessing USB device."
+        if bootsel.permission_error:
+            _LOGGER.error(
+                "A device in BOOTSEL mode was detected but could not be accessed "
+                "due to USB permissions."
+            )
             if sys.platform.startswith("linux"):
                 from esphome.__main__ import _RP2040_UDEV_HINT
 
-                msg += f" {_RP2040_UDEV_HINT}"
-            _LOGGER.error(msg)
+                _LOGGER.error(_RP2040_UDEV_HINT)
         else:
-            _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+            _LOGGER.error("No RP2040/RP2350 device in BOOTSEL mode found.")
         return False
+
+    for file_path, offset, execute in loads:
+        _LOGGER.info("Uploading %s via picotool...", file_path.name)
+        cmd = [str(picotool), "load"]
+        if offset is not None:
+            cmd += ["-o", hex(offset)]
+        if execute:
+            cmd.append("-x")
+        cmd.append(str(file_path))
+        try:
+            result = subprocess.run(
+                cmd,
+                stderr=subprocess.PIPE,
+                timeout=60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            _LOGGER.error("picotool upload timed out after 60 seconds.")
+            return False
+        except OSError as err:
+            _LOGGER.error("Failed to run picotool: %s", err)
+            return False
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            if stderr:
+                for line in stderr.splitlines():
+                    _LOGGER.error("picotool: %s", line)
+            if is_picotool_usb_permission_error(stderr):
+                msg = "Permission denied accessing USB device."
+                if sys.platform.startswith("linux"):
+                    from esphome.__main__ import _RP2040_UDEV_HINT
+
+                    msg += f" {_RP2040_UDEV_HINT}"
+                _LOGGER.error(msg)
+            else:
+                _LOGGER.error(
+                    "picotool upload failed (exit code %d).", result.returncode
+                )
+            return False
     return True
 
 
