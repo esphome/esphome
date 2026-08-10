@@ -61,9 +61,8 @@
 // are C headers consumed from C++ (a standard C-header-from-C++ pattern).
 // ---------------------------------------------------------------------------
 extern "C" {
-#include "ble_api.h"  // bk_ble_scan_start/stop, ble_entry, ble_set_notice_cb,
-                      // app_ble_get_idle_actv_idx_handle, struct scan_param,
-                      // recv_adv_t, ble_notice_t, BLE_5_REPORT_ADV, SCAN_ACTV
+#include "ble_api.h"  // ble_set_notice_cb, recv_adv_t, ble_notice_t,
+                      // BLE_5_REPORT_ADV (scan primitives live in bdk_scan.cpp)
 #ifdef BK72XX_BLE_HAS_COMMON_BDADDR
 #include "common_bt_defines.h"  // struct bd_addr
 // The controller's public BLE address, populated by the BDK during ble_entry().
@@ -286,8 +285,15 @@ void BK72xxBLE::resolve_mac_() {
 }
 
 // ---------------------------------------------------------------------------
-// Controller scan primitives
+// Scan reconciler
 // ---------------------------------------------------------------------------
+
+// Episode boundary: fresh teardown deadline and error bookkeeping.
+void BK72xxBLE::reset_teardown_episode_() {
+  this->teardown_since_ms_ = 0;
+  this->restarting_ = false;
+  this->last_release_err_ = 0;
+}
 
 ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active())
@@ -298,10 +304,7 @@ ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool acti
   // re-call observing an in-flight bring-up (last result PENDING) must not.
   if (this->last_result_ != ScanOpResult::PENDING || !this->scan_wanted_ || params != this->requested_) {
     this->pending_since_ms_ = App.get_loop_component_start_time();
-    this->teardown_since_ms_ = 0;
-    this->teardown_stuck_log_ms_ = 0;
-    this->restarting_ = false;
-    bdk_scan_clear_release_error();
+    this->reset_teardown_episode_();
   }
   this->scan_wanted_ = true;
   this->requested_ = params;
@@ -310,12 +313,9 @@ ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool acti
 
 void BK72xxBLE::scan_stop() {
   if (this->scan_wanted_) {
-    // A new teardown episode gets its own deadline; a stamp inherited from a
-    // stuck restart would fail the stop on its first advance.
-    this->teardown_since_ms_ = 0;
-    this->teardown_stuck_log_ms_ = 0;
-    this->restarting_ = false;
-    bdk_scan_clear_release_error();
+    // A stamp inherited from a stuck restart would fail the stop on its
+    // first advance.
+    this->reset_teardown_episode_();
   }
   this->scan_wanted_ = false;
   this->advance_();
@@ -334,10 +334,11 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
 }
 
 // Teardown is asynchronous: the handle is kept until an IDLE observation
-// confirms the radio is idle. A rejection WARNs once per episode and widens
-// the pump gate; the epilogue owns the stuck-teardown deadline.
+// confirms the radio is idle. A rejection WARNs once per failure streak and
+// widens the pump gate; the epilogue owns the stuck-teardown deadline.
 void BK72xxBLE::release_activity_(BdkActivityState state) {
-  const BdkOpResult result = bdk_scan_release(this->scan_activity_idx_, state == BdkActivityState::CREATED);
+  const BdkOpResult result =
+      bdk_scan_release(this->scan_activity_idx_, state == BdkActivityState::CREATED, &this->last_release_err_);
   if (result == BdkOpResult::OK) {
     this->release_warned_ = false;
     return;
@@ -346,7 +347,7 @@ void BK72xxBLE::release_activity_(BdkActivityState state) {
     // A hard error carries its code immediately; the 30 s stuck ERROR follows
     // if it persists.
     if (result == BdkOpResult::FAILED) {
-      ESP_LOGW(TAG, "Scan activity release failed (err %d); retrying", bdk_scan_last_release_error());
+      ESP_LOGW(TAG, "Scan activity release failed (err %d); retrying", this->last_release_err_);
     } else {
       ESP_LOGW(TAG, "Scan activity release rejected; retrying");
     }
@@ -354,13 +355,26 @@ void BK72xxBLE::release_activity_(BdkActivityState state) {
   }
 }
 
-// Stamp/track the teardown episode; true once it exceeds the deadline.
-bool BK72xxBLE::teardown_overdue_(uint32_t now) {
+// Stamp/track the teardown episode; once past the deadline, ERROR (re-logged
+// each interval) and report stuck.
+bool BK72xxBLE::teardown_stuck_(uint32_t now) {
   if (this->teardown_since_ms_ == 0) {
     this->teardown_since_ms_ = now;
+    this->teardown_stuck_log_ms_ = now;  // first ERROR fires at the deadline
     return false;
   }
-  return now - this->teardown_since_ms_ >= TEARDOWN_STUCK_ERROR_MS;
+  if (now - this->teardown_since_ms_ < TEARDOWN_STUCK_ERROR_MS)
+    return false;
+  if (now - this->teardown_stuck_log_ms_ >= TEARDOWN_STUCK_ERROR_MS) {
+    if (this->last_release_err_ != 0) {
+      ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (release err %d)", this->last_release_err_);
+    } else {
+      // No rejected release this episode: stuck waiting on the controller.
+      ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (controller busy)");
+    }
+    this->teardown_stuck_log_ms_ = now;
+  }
+  return true;
 }
 
 // One SDK operation per call toward the latched request; controller state is
@@ -383,10 +397,8 @@ ScanOpResult BK72xxBLE::advance_() {
     // settled, or e.g. a mode flip that settled back without ever reaching
     // IDLE). An IDLE read while an operation is in flight proves nothing —
     // a stop deferred there must keep its episode running.
-    this->teardown_since_ms_ = 0;
-    this->teardown_stuck_log_ms_ = 0;
+    this->reset_teardown_episode_();
     this->release_warned_ = false;
-    this->restarting_ = false;
   }
   if (this->restarting_ && (state == BdkActivityState::IDLE || state == BdkActivityState::CREATED)) {
     // The mode-change release is observed complete; the rest is a normal
@@ -409,17 +421,7 @@ ScanOpResult BK72xxBLE::advance_() {
       // flight (restarting_); either way the bring-up budget waits.
       if (this->scan_wanted_)
         this->pending_since_ms_ = now;
-      if (this->teardown_overdue_(now)) {
-        if (now - this->teardown_stuck_log_ms_ >= TEARDOWN_STUCK_ERROR_MS) {
-          const int err = bdk_scan_last_release_error();
-          if (err != 0) {
-            ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (release err %d)", err);
-          } else {
-            // No rejected release this episode: stuck waiting on the controller.
-            ESP_LOGE(TAG, "Scan teardown cannot proceed; scanner is stuck (controller busy)");
-          }
-          this->teardown_stuck_log_ms_ = now;
-        }
+      if (this->teardown_stuck_(now)) {
         // Terminal for stop AND restart: the tracker's backoff owns recovery
         // (a stop's release keeps re-driving from loop(); a restart is
         // re-requested through scan_start() with a fresh deadline).

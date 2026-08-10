@@ -102,25 +102,16 @@ BdkOpResult bdk_scan_start(uint8_t activity_idx, uint16_t interval, uint16_t win
   return BdkOpResult::OK;
 }
 
-// Last rejected release code, surfaced in the stuck-teardown ERROR.
-static int s_last_release_err = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-int bdk_scan_last_release_error() { return s_last_release_err; }
-
-BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
+BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created, int *err_out) {
   ble_err_t ret = created ? bk_ble_delete_scaning(activity_idx, nullptr) : bk_ble_scan_stop(activity_idx, nullptr);
-  if (ret == ERR_SUCCESS) {
-    s_last_release_err = 0;
+  *err_out = static_cast<int>(ret);
+  if (ret == ERR_SUCCESS)
     return BdkOpResult::OK;
-  }
-  s_last_release_err = static_cast<int>(ret);
-  // DEBUG on purpose: the reconciler WARNs once per episode and the stuck
+  // DEBUG on purpose: the reconciler WARNs once per streak and the stuck
   // ERROR carries this code — a per-retry ERROR would be unbounded.
   ESP_LOGD(TAG, "Scan release %s (err %d)", ret == ERR_BLE_STATUS ? "rejected" : "failed", static_cast<int>(ret));
   return ret == ERR_BLE_STATUS ? BdkOpResult::BUSY : BdkOpResult::FAILED;
 }
-
-void bdk_scan_clear_release_error() { s_last_release_err = 0; }
 
 }  // namespace esphome::bk72xx_ble
 

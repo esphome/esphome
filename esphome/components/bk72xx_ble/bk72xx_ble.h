@@ -116,7 +116,8 @@ class BK72xxBLE final : public Component {
   ScanOpResult advance_();
   ScanOpResult advance_stop_(BdkActivityState state, bool ready);
   ScanOpResult advance_start_(BdkActivityState state, bool ready);
-  bool teardown_overdue_(uint32_t now);
+  bool teardown_stuck_(uint32_t now);
+  void reset_teardown_episode_();
   void release_activity_(BdkActivityState state);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
@@ -140,14 +141,15 @@ class BK72xxBLE final : public Component {
   // PENDING means advance_() has more to do; loop() drives it, paced and
   // (for a bring-up) bounded.
   ScanOpResult last_result_{ScanOpResult::SETTLED};
+  bool release_warned_{false};  // gates the release WARN; widens the pump gate
+  bool restarting_{false};      // mode-change release in flight; teardown deadline governs until released
+  BLEComponentState state_{BLEComponentState::STATE_OFF};
+  bool enable_on_boot_{false};
   uint32_t last_advance_ms_{0};
   uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
   uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
-  bool release_warned_{false};         // gates the release WARN; widens the pump gate
-  bool restarting_{false};             // mode-change release in flight; teardown deadline governs until released
   uint32_t teardown_stuck_log_ms_{0};  // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
-  BLEComponentState state_{BLEComponentState::STATE_OFF};
-  bool enable_on_boot_{false};
+  int last_release_err_{0};            // SDK code of the episode's last failed release; 0 = none
 };
 
 }  // namespace esphome::bk72xx_ble

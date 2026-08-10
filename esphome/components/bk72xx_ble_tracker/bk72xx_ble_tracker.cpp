@@ -52,6 +52,12 @@ void BK72xxBLETracker::setup() {
   // BLE scan competes with the OTA flash writes. Mirrors esp32_ble_tracker.
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
+  // scan_requested_ check: an on_boot start_scan latched before this setup()
+  // must keep the retry loop running (rp2/ln882h parity).
+  if (!this->scan_continuous_ && !this->scan_requested_) {
+    // Nothing to time until an explicit start_scan(); it re-enables the loop.
+    this->disable_loop();
+  }
 }
 
 #ifdef USE_OTA_STATE_LISTENER
@@ -71,12 +77,14 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     if (this->scan_continuous_before_ota_) {
       this->scan_continuous_before_ota_ = false;
       this->scan_continuous_ = true;
+      this->enable_loop();  // stop_scan() parked it
     }
     // A one-shot request that was still pending (latched, retrying) when the
     // OTA paused scanning is re-latched, not dropped — loop() resumes the retry.
     if (this->scan_requested_before_ota_) {
       this->scan_requested_before_ota_ = false;
       this->scan_requested_ = true;
+      this->enable_loop();
     }
   }
 }
@@ -158,14 +166,16 @@ bool BK72xxBLETracker::try_start_with_backoff_(uint32_t now, bool force) {
   const auto hub = this->parent_->last_scan_result();
   if (hub == bk72xx_ble::ScanOpResult::PENDING)
     return false;
-  if (hub == bk72xx_ble::ScanOpResult::FAILED && this->start_attempt_open_) {
-    // Our bring-up gave up asynchronously; charge it to the backoff.
-    this->start_attempt_open_ = false;
-    this->count_failed_start_();
+  if (hub == bk72xx_ble::ScanOpResult::FAILED) {
+    if (this->start_attempt_open_) {
+      // Our bring-up gave up asynchronously; charge it to the backoff.
+      this->start_attempt_open_ = false;
+      this->count_failed_start_();
+    }
+    if ((!force || this->failed_start_count_ != 0) &&
+        now - this->last_scan_start_attempt_ < (SCAN_START_RETRY_MS << this->failed_start_count_))
+      return false;
   }
-  if (hub == bk72xx_ble::ScanOpResult::FAILED && (!force || this->failed_start_count_ != 0) &&
-      now - this->last_scan_start_attempt_ < (SCAN_START_RETRY_MS << this->failed_start_count_))
-    return false;
   this->start_scan_();
   if (!this->scan_running_) {
     if (this->parent_->last_scan_result() == bk72xx_ble::ScanOpResult::PENDING) {
@@ -259,6 +269,7 @@ void BK72xxBLETracker::start_scan() {
   // against a failing controller, repeated start_scan() calls are rate-limited
   // like any other attempt.
   this->scan_requested_ = true;
+  this->enable_loop();  // an idle one-shot tracker parked it in stop_scan_()
   this->try_start_with_backoff_(App.get_loop_component_start_time(), /* force= */ true);
 }
 
@@ -323,10 +334,14 @@ void BK72xxBLETracker::start_scan_() {
 void BK72xxBLETracker::stop_scan_() {
   this->start_attempt_open_ = false;  // an abandoned bring-up is not charged
   this->parent_->scan_stop();         // idempotent: releases whatever the hub holds
-  if (!this->scan_running_)
-    return;  // never ran: no on_scan_end
-  ESP_LOGD(TAG, "Scan stopped");
-  this->mark_scan_ended_(App.get_loop_component_start_time());
+  if (this->scan_running_) {
+    ESP_LOGD(TAG, "Scan stopped");
+    this->mark_scan_ended_(App.get_loop_component_start_time());
+  }
+  // Park when idle (the hub drives its own teardown); re-check because an
+  // on_scan_end automation may have restarted the scan.
+  if (!this->scan_continuous_ && !this->scan_running_ && !this->scan_requested_)
+    this->disable_loop();
 }
 
 // The period re-anchor keeps on_scan_end from double-firing in one iteration.
