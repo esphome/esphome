@@ -2331,13 +2331,13 @@ def _validate_no_slash(value):
     the visually similar Unicode FRACTION SLASH (U+2044) character.
     """
     if "/" in value:
-        # Remove before 2026.7.0
+        # Remove before 2027.7.0
         new_value = value.replace("/", FRACTION_SLASH)
         _LOGGER.warning(
             "'%s' contains '/' which is reserved as a URL path separator. "
             "Automatically replacing with '%s' (Unicode FRACTION SLASH). "
             "Please update your configuration. "
-            "This will become an error in ESPHome 2026.7.0.",
+            "This will become an error in ESPHome 2027.7.0.",
             value,
             new_value,
         )
