@@ -118,7 +118,10 @@ bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (!this->task_running_)
     return false;
-  // format()/mount() touch exactly one storage (the target in dst_storage), no file side.
+  // format()/mount() touch exactly one storage (the target in dst_storage), no file side. A
+  // network driver that reports STORAGE_CAP_IO_TASK_SAFE is asserting that its mount path
+  // (resolve/connect/TLS, i.e. its socket and lwip use) is safe to run from this background task;
+  // the worker takes that at face value, as it does for every other task-routed call.
   if (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)
     return (req.dst_storage->get_capabilities() & StorageCaps::STORAGE_CAP_IO_TASK_SAFE) != 0;
   // Every storage this op touches must be task-safe, or a background task would race the main
@@ -1754,6 +1757,8 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
   if (req.op == RequestOp::MOUNT) {
     // Same single-blocking-call shape as FORMAT: network mounts resolve, connect and probe --
     // on task-safe devices that happens on the worker task, never on the main loop.
+    // dst_storage is always a PathStorage* on the MOUNT path (submit_control_op_ stores the
+    // target there), so the cast is safe; as_mountable() below is the real capability gate.
     auto *ps = static_cast<PathStorage *>(req.dst_storage);
     storage::MountableStorage *m = ps != nullptr ? ps->as_mountable() : nullptr;
     if (m == nullptr) {
