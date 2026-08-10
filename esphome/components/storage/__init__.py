@@ -4,7 +4,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID as ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
