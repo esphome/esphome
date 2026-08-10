@@ -64,7 +64,6 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 # interval defaults to the BK reference scan rate — 100 ms with the shared 30 ms
 # window, a 30 % duty cycle. Converted to the controller's 0.625 ms BLE units in
 # to_code(). (LN882H's SDK recommends a different 100 / 50 ms = 50 %.)
-#
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
     "100ms", supports_active=True
 )
