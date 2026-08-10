@@ -40,6 +40,7 @@ ezb_af_ep_desc_t esphome_zb_zha_default_ep_desc_create(uint8_t ep_id, uint16_t d
       break;
     }
     default: {
+      // For other device IDs no macro exists, so we create an empty endpoint descriptor
       ezb_af_ep_config_t config = {
           .ep_id = ep_id,
           .app_profile_id = EZB_AF_HA_PROFILE_ID,
