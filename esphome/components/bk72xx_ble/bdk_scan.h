@@ -47,6 +47,9 @@ BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created);
 /// SDK code of the last failed release (0 = none since the last success);
 /// for the stuck-teardown ERROR.
 int bdk_scan_last_release_error();
+/// Episode boundary: forget the last release code so a stuck ERROR cannot
+/// quote an older episode.
+void bdk_scan_clear_release_error();
 
 }  // namespace esphome::bk72xx_ble
 

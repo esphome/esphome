@@ -133,6 +133,9 @@ void BK72xxBLETracker::loop() {
       return;
   }
   if (this->scan_running_ && now - this->scan_start_time_ >= this->scan_duration_) {
+    // A full-duration run proves the controller healthy even when duration is
+    // shorter than SCAN_STABLE_RESET_MS.
+    this->failed_start_count_ = 0;
     this->stop_scan_();
   }
 }

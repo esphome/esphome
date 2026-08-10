@@ -294,16 +294,27 @@ ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool acti
     this->enable();
 
   const ScanParams params{active, interval, window};
-  // A new episode refills the budget; a re-call observing an in-flight
-  // bring-up (last result PENDING) must not.
-  if (this->last_result_ != ScanOpResult::PENDING || !this->scan_wanted_ || params != this->requested_)
+  // A new episode refills the budget and gets a fresh teardown deadline; a
+  // re-call observing an in-flight bring-up (last result PENDING) must not.
+  if (this->last_result_ != ScanOpResult::PENDING || !this->scan_wanted_ || params != this->requested_) {
     this->pending_since_ms_ = App.get_loop_component_start_time();
+    this->teardown_since_ms_ = 0;
+    this->teardown_stuck_log_ms_ = 0;
+    bdk_scan_clear_release_error();
+  }
   this->scan_wanted_ = true;
   this->requested_ = params;
   return this->advance_();
 }
 
 void BK72xxBLE::scan_stop() {
+  if (this->scan_wanted_) {
+    // A new teardown episode gets its own deadline; a stamp inherited from a
+    // stuck restart would fail the stop on its first advance.
+    this->teardown_since_ms_ = 0;
+    this->teardown_stuck_log_ms_ = 0;
+    bdk_scan_clear_release_error();
+  }
   this->scan_wanted_ = false;
   this->advance_();
 }
@@ -395,7 +406,7 @@ ScanOpResult BK72xxBLE::advance_() {
         }
         // Terminal for stop AND restart: the tracker's backoff owns recovery
         // (a stop's release keeps re-driving from loop(); a restart is
-        // re-requested through scan_start(), one release attempt per retry).
+        // re-requested through scan_start() with a fresh deadline).
         result = ScanOpResult::FAILED;
       }
     }

@@ -114,14 +114,13 @@ BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created) {
     return BdkOpResult::OK;
   }
   s_last_release_err = static_cast<int>(ret);
-  if (ret == ERR_BLE_STATUS) {
-    // Transient (raced the BLE task); the reconciler paces and narrates it.
-    ESP_LOGD(TAG, "Scan release rejected (err %d)", static_cast<int>(ret));
-    return BdkOpResult::BUSY;
-  }
-  ESP_LOGE(TAG, "Scan release failed (err %d)", static_cast<int>(ret));
-  return BdkOpResult::FAILED;
+  // DEBUG on purpose: the reconciler WARNs once per episode and the stuck
+  // ERROR carries this code — a per-retry ERROR would be unbounded.
+  ESP_LOGD(TAG, "Scan release %s (err %d)", ret == ERR_BLE_STATUS ? "rejected" : "failed", static_cast<int>(ret));
+  return ret == ERR_BLE_STATUS ? BdkOpResult::BUSY : BdkOpResult::FAILED;
 }
+
+void bdk_scan_clear_release_error() { s_last_release_err = 0; }
 
 }  // namespace esphome::bk72xx_ble
 
