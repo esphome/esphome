@@ -1309,8 +1309,8 @@ void VoiceAssistant::restore_runtime_models_() {
     // Only re-download models the user had enabled before the reboot. Read the key directly: make_preference
     // allocates a backend that is never freed, and this runs for every advertised model on every request.
     bool enabled = false;
-    if (global_preferences->load_from_key(fnv1_hash(cached_ww.id), reinterpret_cast<uint8_t *>(&enabled),
-                                          sizeof(enabled)) &&
+    if (global_preferences->load_from_key(micro_wake_word::WakeWordModel::enabled_preference_key(cached_ww.id),
+                                          reinterpret_cast<uint8_t *>(&enabled), sizeof(enabled)) &&
         enabled) {
       ESP_LOGD(TAG, "Restoring runtime model %s", cached_ww.id.c_str());
       this->model_download_queue_.push_back(cached_ww);
@@ -1345,7 +1345,7 @@ void VoiceAssistant::erase_pending_wake_word_(const std::string &id) {
 void VoiceAssistant::mark_model_load_failed_(const std::string &id) {
   // Persist disabled so a broken model isn't retried on every boot, and drop the optimistic active entry so
   // HA sees the real (inactive) state.
-  auto pref = global_preferences->make_preference<bool>(fnv1_hash(id));
+  auto pref = global_preferences->make_preference<bool>(micro_wake_word::WakeWordModel::enabled_preference_key(id));
   bool enabled = false;
   pref.save(&enabled);
   this->erase_pending_wake_word_(id);

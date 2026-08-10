@@ -157,6 +157,13 @@ class WakeWordModel final : public StreamingModel {
 
   bool get_internal_only() { return this->internal_only_; }
 
+  /// @brief Derives the preference key holding a model's enabled state. This component owns the persistence
+  /// format, so anything reading or writing that state (voice_assistant restores downloaded models from it)
+  /// must derive the key through here rather than repeating the hash.
+  /// @param id (std::string) identifier for the model
+  /// @return The preference key for the model's enabled state
+  static uint32_t enabled_preference_key(const std::string &id) { return fnv1_hash(id); }
+
  protected:
   // Kept for runtime-downloaded models so the model buffer stays alive for the model's lifetime.
   // Null for compiled-in models (their data lives in flash).

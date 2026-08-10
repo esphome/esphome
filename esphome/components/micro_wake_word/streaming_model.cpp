@@ -270,7 +270,7 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
   this->current_stride_step_ = 0;
   this->internal_only_ = internal_only;
 
-  this->pref_ = global_preferences->make_preference<bool>(fnv1_hash(id));
+  this->pref_ = global_preferences->make_preference<bool>(WakeWordModel::enabled_preference_key(id));
   bool enabled;
   if (this->pref_.load(&enabled)) {
     // Use the enabled state loaded from flash
@@ -305,7 +305,7 @@ WakeWordModel::WakeWordModel(const std::string &id, std::shared_ptr<ModelData> m
   this->current_stride_step_ = 0;
   this->internal_only_ = false;  // Runtime models are always exposed to Home Assistant
 
-  this->pref_ = global_preferences->make_preference<bool>(fnv1_hash(id));
+  this->pref_ = global_preferences->make_preference<bool>(WakeWordModel::enabled_preference_key(id));
   bool enabled;
   if (this->pref_.load(&enabled)) {
     // Use the enabled state loaded from flash
