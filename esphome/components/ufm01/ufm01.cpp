@@ -329,21 +329,21 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
 
   if (this->passive_index_ < PASSIVE_FRAME_SIZE) {
     if (millis() - this->passive_start_ms_ < PASSIVE_READ_TIMEOUT_MS)
-      return PassiveReadResult::PENDING;
+      return PassiveReadResult::PASSIVE_READ_RESULT_PENDING;
     ESP_LOGD(TAG, "passive read timeout (%zu/%zu bytes)", this->passive_index_, PASSIVE_FRAME_SIZE);
-    return PassiveReadResult::FAILURE;
+    return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
   }
 
   if (!validate_passive_frame(this->passive_frame_)) {
     log_hex(this->passive_frame_, PASSIVE_FRAME_SIZE);
     ESP_LOGW(TAG, "invalid passive frame");
-    return PassiveReadResult::FAILURE;
+    return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
   }
 
   uint8_t active_frame[FRAME_SIZE];
   passive_no_id_to_active_frame(this->passive_frame_, active_frame);
   this->on_active_frame_(active_frame);
-  return PassiveReadResult::SUCCESS;
+  return PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS;
 }
 
 void UFM01Component::loop_startup_() {
@@ -410,15 +410,15 @@ void UFM01Component::loop_startup_() {
 
     case StartupPhase::PASSIVE_WAIT_REPLY:
       switch (this->continue_passive_read_()) {
-        case PassiveReadResult::PENDING:
+        case PassiveReadResult::PASSIVE_READ_RESULT_PENDING:
           return;
-        case PassiveReadResult::SUCCESS:
+        case PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS:
           ESP_LOGI(TAG, "UFM-01 using passive polling");
           this->operating_mode_ = OperatingMode::PASSIVE_POLL;
           this->passive_read_pending_ = false;
           this->last_poll_ms_ = millis();
           return;
-        case PassiveReadResult::FAILURE:
+        case PassiveReadResult::PASSIVE_READ_RESULT_FAILURE:
           ESP_LOGW(TAG, "Startup failed, retrying in %" PRIu32 " ms", STARTUP_RETRY_MS);
           this->startup_wait_ms_ = STARTUP_RETRY_MS;
           this->set_startup_phase_(StartupPhase::WAIT);
@@ -441,10 +441,10 @@ void UFM01Component::loop_active_stream_() {
 void UFM01Component::loop_passive_poll_() {
   if (this->passive_read_pending_) {
     const PassiveReadResult result = this->continue_passive_read_();
-    if (result == PassiveReadResult::PENDING)
+    if (result == PassiveReadResult::PASSIVE_READ_RESULT_PENDING)
       return;
     this->passive_read_pending_ = false;
-    if (result == PassiveReadResult::FAILURE)
+    if (result == PassiveReadResult::PASSIVE_READ_RESULT_FAILURE)
       this->status_set_warning("UFM-01 passive poll failed");
     return;
   }
