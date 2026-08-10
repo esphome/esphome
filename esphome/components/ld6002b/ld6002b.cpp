@@ -15,12 +15,16 @@ static constexpr uint32_t SETUP_DELAY_MS = 100;
 
 // Command/message types
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
+static constexpr uint16_t TYPE_SET_AREA = 0x0202;
 static constexpr uint16_t TYPE_SET_HOLD_DELAY = 0x0203;
 static constexpr uint16_t TYPE_SET_Z_RANGE = 0x0204;
 static constexpr uint16_t TYPE_SET_LOW_POWER_SLEEP = 0x0205;
 
 static constexpr uint16_t TYPE_REPORT_TARGET = 0x0A04;
 static constexpr uint16_t TYPE_REPORT_POINT_CLOUD = 0x0A08;
+static constexpr uint16_t TYPE_REPORT_AREA_PRESENCE = 0x0A0A;
+static constexpr uint16_t TYPE_REPORT_INTERFERENCE_AREAS = 0x0A0B;
+static constexpr uint16_t TYPE_REPORT_DETECTION_AREAS = 0x0A0C;
 static constexpr uint16_t TYPE_REPORT_DELAY = 0x0A0D;
 static constexpr uint16_t TYPE_REPORT_SENSITIVITY = 0x0A0E;
 static constexpr uint16_t TYPE_REPORT_TRIGGER = 0x0A0F;
@@ -32,6 +36,10 @@ static constexpr uint16_t TYPE_REPORT_WORK_MODE = 0x0A14;
 static constexpr uint16_t TYPE_QUERY_VERSION = 0xFFFF;
 
 // Control command values for TYPE_CONTROL
+static constexpr uint32_t CMD_AUTO_INTERFERENCE = 0x01;
+static constexpr uint32_t CMD_GET_AREAS = 0x02;
+static constexpr uint32_t CMD_CLEAR_INTERFERENCE = 0x03;
+static constexpr uint32_t CMD_RESET_DETECTION_AREA = 0x04;
 static constexpr uint32_t CMD_GET_DELAY = 0x05;
 static constexpr uint32_t CMD_POINT_CLOUD_ON = 0x06;
 static constexpr uint32_t CMD_POINT_CLOUD_OFF = 0x07;
@@ -55,13 +63,26 @@ static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
 static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
 static constexpr uint32_t CMD_RESET_UNATTENDED = 0x1A;
 
-static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
+static constexpr uint16_t TARGET_DATA_LEN = 20;         // x,y,z,dop_idx,cluster_id
+static constexpr uint16_t AREA_DATA_LEN = 24;           // 6 floats
+static constexpr uint16_t AREA_CONFIG_LEN = 28;         // int32 + 6 floats
+static constexpr uint16_t AREA_PRESENCE_ENTRY_LEN = 4;  // uint32 per detection area
+
+static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_area_0 for initial display
 
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
 static const char *control_command_name(uint32_t command) {
   switch (command) {
+    case CMD_AUTO_INTERFERENCE:
+      return "auto_interference";
+    case CMD_GET_AREAS:
+      return "get_areas";
+    case CMD_CLEAR_INTERFERENCE:
+      return "clear_interference";
+    case CMD_RESET_DETECTION_AREA:
+      return "reset_detection_area";
     case CMD_GET_DELAY:
       return "get_delay";
     case CMD_POINT_CLOUD_ON:
@@ -115,6 +136,8 @@ static const char *frame_type_name(uint16_t type) {
   switch (type) {
     case TYPE_CONTROL:
       return "control";
+    case TYPE_SET_AREA:
+      return "set_area";
     case TYPE_SET_HOLD_DELAY:
       return "set_hold_delay";
     case TYPE_SET_Z_RANGE:
@@ -125,6 +148,12 @@ static const char *frame_type_name(uint16_t type) {
       return "report_target";
     case TYPE_REPORT_POINT_CLOUD:
       return "report_point_cloud";
+    case TYPE_REPORT_AREA_PRESENCE:
+      return "report_area_presence";
+    case TYPE_REPORT_INTERFERENCE_AREAS:
+      return "report_interference_areas";
+    case TYPE_REPORT_DETECTION_AREAS:
+      return "report_detection_areas";
     case TYPE_REPORT_DELAY:
       return "report_delay";
     case TYPE_REPORT_SENSITIVITY:
@@ -150,6 +179,8 @@ static const char *frame_type_name(uint16_t type) {
 
 static bool is_expected_control_report(uint32_t command, uint16_t type) {
   switch (command) {
+    case CMD_GET_AREAS:
+      return type == TYPE_REPORT_INTERFERENCE_AREAS || type == TYPE_REPORT_DETECTION_AREAS;
     case CMD_GET_DELAY:
       return type == TYPE_REPORT_DELAY;
     case CMD_GET_SENSITIVITY:
@@ -198,6 +229,10 @@ void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[1] = (value >> 8) & 0xFF;
   data[2] = (value >> 16) & 0xFF;
   data[3] = (value >> 24) & 0xFF;
+}
+
+void LD6002BComponent::write_int32_le(uint8_t *data, int32_t value) {
+  write_u32_le(data, static_cast<uint32_t>(value));
 }
 
 void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
@@ -356,6 +391,37 @@ void LD6002BComponent::setup() {
       this->send_control_command_(CMD_GET_LOW_POWER);
     }
 
+    bool want_area_report = false;
+#ifdef USE_SENSOR
+    for (const auto &area : this->interference_areas_) {
+      if (area.x_min != nullptr || area.x_max != nullptr || area.y_min != nullptr || area.y_max != nullptr ||
+          area.z_min != nullptr || area.z_max != nullptr) {
+        want_area_report = true;
+        break;
+      }
+    }
+    if (!want_area_report) {
+      for (const auto &area : this->detection_areas_) {
+        if (area.x_min != nullptr || area.x_max != nullptr || area.y_min != nullptr || area.y_max != nullptr ||
+            area.z_min != nullptr || area.z_max != nullptr) {
+          want_area_report = true;
+          break;
+        }
+      }
+    }
+#endif
+#ifdef USE_NUMBER
+    if (this->area_x_min_number_ != nullptr || this->area_x_max_number_ != nullptr ||
+        this->area_y_min_number_ != nullptr || this->area_y_max_number_ != nullptr ||
+        this->area_z_min_number_ != nullptr || this->area_z_max_number_ != nullptr) {
+      want_area_report = true;
+    }
+#endif
+    if (want_area_report) {
+      this->send_control_command_(CMD_GET_AREAS);
+    }
+
+    this->init_area_id_pref_();
     this->init_version_pref_();
 
 #ifdef USE_TEXT_SENSOR
@@ -374,7 +440,7 @@ void LD6002BComponent::dump_config() {
                 this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
-    ESP_LOGCONFIG(TAG, "  Wake Pulse: %ums", this->wakeup_pulse_ms_);
+    ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
@@ -386,11 +452,30 @@ void LD6002BComponent::dump_config() {
     LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
     LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
   }
+  for (auto &area : this->interference_areas_) {
+    LOG_SENSOR("  ", "Interference Area X Min", area.x_min);
+    LOG_SENSOR("  ", "Interference Area X Max", area.x_max);
+    LOG_SENSOR("  ", "Interference Area Y Min", area.y_min);
+    LOG_SENSOR("  ", "Interference Area Y Max", area.y_max);
+    LOG_SENSOR("  ", "Interference Area Z Min", area.z_min);
+    LOG_SENSOR("  ", "Interference Area Z Max", area.z_max);
+  }
+  for (auto &area : this->detection_areas_) {
+    LOG_SENSOR("  ", "Detection Area X Min", area.x_min);
+    LOG_SENSOR("  ", "Detection Area X Max", area.x_max);
+    LOG_SENSOR("  ", "Detection Area Y Min", area.y_min);
+    LOG_SENSOR("  ", "Detection Area Y Max", area.y_max);
+    LOG_SENSOR("  ", "Detection Area Z Min", area.z_min);
+    LOG_SENSOR("  ", "Detection Area Z Max", area.z_max);
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     LOG_BINARY_SENSOR("  ", "Target Presence", this->target_presence_[i]);
+  }
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    LOG_BINARY_SENSOR("  ", "Detection Area Presence", this->area_presence_[i]);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -402,6 +487,12 @@ void LD6002BComponent::dump_config() {
   LOG_NUMBER("  ", "Z Min", this->z_min_number_);
   LOG_NUMBER("  ", "Z Max", this->z_max_number_);
   LOG_NUMBER("  ", "Low Power Sleep", this->low_power_sleep_number_);
+  LOG_NUMBER("  ", "Area X Min", this->area_x_min_number_);
+  LOG_NUMBER("  ", "Area X Max", this->area_x_max_number_);
+  LOG_NUMBER("  ", "Area Y Min", this->area_y_min_number_);
+  LOG_NUMBER("  ", "Area Y Max", this->area_y_max_number_);
+  LOG_NUMBER("  ", "Area Z Min", this->area_z_min_number_);
+  LOG_NUMBER("  ", "Area Z Max", this->area_z_max_number_);
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "Low Power", this->low_power_switch_);
@@ -412,6 +503,7 @@ void LD6002BComponent::dump_config() {
   LOG_SELECT("  ", "Sensitivity", this->sensitivity_select_);
   LOG_SELECT("  ", "Trigger Speed", this->trigger_speed_select_);
   LOG_SELECT("  ", "Installation Mode", this->installation_select_);
+  LOG_SELECT("  ", "Area ID", this->area_id_select_);
 #endif
 }
 
@@ -527,6 +619,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   }
   if (len == 0 && this->command_active_ && this->command_sent_ && type == this->active_command_.type) {
     ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
+    const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_in_flight_;
     // This settles one expected reply; the rest stay owed and become the debt for the next command.
     this->send_generation_++;
     this->stale_ack_type_ = type;
@@ -536,6 +629,10 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->command_sent_ = false;
     this->last_send_ms_ = 0;
     this->process_command_queue_();
+    if (refresh_areas) {
+      this->area_write_in_flight_ = false;
+      this->set_timeout(AREA_REFRESH_TIMEOUT, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
+    }
     return;
   }
 
@@ -556,6 +653,15 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
       break;
     case TYPE_REPORT_POINT_CLOUD:
       this->handle_point_cloud_(data, len);
+      break;
+    case TYPE_REPORT_AREA_PRESENCE:
+      this->handle_area_presence_(data, len);
+      break;
+    case TYPE_REPORT_INTERFERENCE_AREAS:
+      this->handle_area_report_(true, data, len);
+      break;
+    case TYPE_REPORT_DETECTION_AREAS:
+      this->handle_area_report_(false, data, len);
       break;
     case TYPE_REPORT_DELAY:
       this->handle_delay_report_(data, len);
@@ -654,8 +760,9 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
 
   this->target_presence_any_ = (reported > 0);
 #ifdef USE_BINARY_SENSOR
+  bool presence = this->target_presence_any_ || this->area_presence_any_;
   if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(this->target_presence_any_);
+    this->presence_binary_sensor_->publish_state(presence);
   }
 #endif
   this->update_work_mode_fallback_();
@@ -726,6 +833,84 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     }
   }
 #endif
+}
+
+// 0x0A0A carries one uint32 per detection area -- the protocol names the four
+// fields detection_state_area0..3 -- so this covers area ids 4..7 only.  The
+// interference areas have no presence report: a target inside one is what they
+// exist to suppress.
+void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
+  const uint16_t needed = AREA_COUNT * AREA_PRESENCE_ENTRY_LEN;
+  if (len < needed)
+    return;
+
+  this->area_presence_any_ = false;
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
+    bool present = state != 0;
+    this->area_presence_any_ = this->area_presence_any_ || present;
+#ifdef USE_BINARY_SENSOR
+    if (this->area_presence_[i] != nullptr) {
+      this->area_presence_[i]->publish_state(present);
+    }
+#endif
+  }
+
+#ifdef USE_BINARY_SENSOR
+  bool presence = this->target_presence_any_ || this->area_presence_any_;
+  if (this->presence_binary_sensor_ != nullptr) {
+    this->presence_binary_sensor_->publish_state(presence);
+  }
+#endif
+  this->update_work_mode_fallback_();
+}
+
+void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *data, uint16_t len) {
+  uint16_t needed = AREA_COUNT * AREA_DATA_LEN;
+  if (len < needed)
+    return;
+
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    uint16_t offset = i * AREA_DATA_LEN;
+    float x_min = read_f32_le(data + offset + 0);
+    float x_max = read_f32_le(data + offset + 4);
+    float y_min = read_f32_le(data + offset + 8);
+    float y_max = read_f32_le(data + offset + 12);
+    float z_min = read_f32_le(data + offset + 16);
+    float z_max = read_f32_le(data + offset + 20);
+
+#ifdef USE_SENSOR
+    AreaSensors &area = interference ? this->interference_areas_[i] : this->detection_areas_[i];
+    if (area.x_min != nullptr)
+      area.x_min->publish_state(x_min);
+    if (area.x_max != nullptr)
+      area.x_max->publish_state(x_max);
+    if (area.y_min != nullptr)
+      area.y_min->publish_state(y_min);
+    if (area.y_max != nullptr)
+      area.y_max->publish_state(y_max);
+    if (area.z_min != nullptr)
+      area.z_min->publish_state(z_min);
+    if (area.z_max != nullptr)
+      area.z_max->publish_state(z_max);
+#endif
+
+    AreaConfig &store = interference ? this->interference_area_values_[i] : this->detection_area_values_[i];
+    store.x_min = x_min;
+    store.x_max = x_max;
+    store.y_min = y_min;
+    store.y_max = y_max;
+    store.z_min = z_min;
+    store.z_max = z_max;
+
+    uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
+    bool selected_interference = selected_id < AREA_COUNT;
+    uint8_t selected_index = selected_interference ? selected_id : static_cast<uint8_t>(selected_id - AREA_COUNT);
+    if (selected_interference == interference && selected_index == i) {
+      this->update_area_numbers_(store);
+    }
+  }
+  this->try_apply_pending_area_(interference);
 }
 
 void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
@@ -815,13 +1000,24 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
 void LD6002BComponent::handle_work_mode_report_(const uint8_t *data, uint16_t len) {
   if (len < 1)
     return;
-#ifdef USE_TEXT_SENSOR
+  // Zero is the unattended half of this transition.  Read outside the text sensor's
+  // ifdef because the area sensors do not need one configured to have gone stale.
   const bool low_power = (data[0] == 0);
+#ifdef USE_TEXT_SENSOR
   if (this->work_mode_text_sensor_ != nullptr) {
     this->work_mode_reported_ = true;
     this->publish_work_mode_(low_power);
   }
 #endif
+  // Protocol V1.2 section 2.1.17: this message is sent only on the transition
+  // between the unattended low-power mode and normal operation, so a zero is the
+  // module stating that nobody is in any area.  Not while a target is still being
+  // tracked, though: the reset_unattended command is undocumented on whether it
+  // forces this report, and where two statements from the module disagree the live
+  // one wins.
+  if (low_power && !this->target_presence_any_) {
+    this->clear_area_presence_();
+  }
 }
 
 void LD6002BComponent::update_work_mode_fallback_() {
@@ -832,9 +1028,10 @@ void LD6002BComponent::update_work_mode_fallback_() {
   if (!this->low_power_reported_) {
     return;
   }
-  // Presence is only meaningful while the stream that maintains it runs; with it
-  // off there is nothing to weigh and low power alone decides.
-  const bool presence = this->target_display_enabled_ && this->target_presence_any_;
+  // Target presence is only meaningful while the stream that maintains it runs.
+  // Area presence keeps its own report, so it still counts with the target stream
+  // off and low power alone decides only when neither half has anything to say.
+  const bool presence = (this->target_display_enabled_ && this->target_presence_any_) || this->area_presence_any_;
   this->publish_work_mode_(this->low_power_enabled_ && !presence);
 #endif
 }
@@ -857,6 +1054,16 @@ void LD6002BComponent::publish_work_mode_(bool low_power) {
 void LD6002BComponent::publish_number_clamped_(number::Number *number, float value) {
   if (number == nullptr)
     return;
+  if (std::isnan(value)) {
+    // NAN is this component's "the module has not told us yet".  Publishing it on an
+    // entity that has never had a state would report a nan where unknown is the
+    // truth; on one that already shows a value it is the only way to say that value
+    // no longer describes the selected area.
+    if (number->has_state()) {
+      number->publish_state(value);
+    }
+    return;
+  }
   const float min_value = number->traits.get_min_value();
   const float max_value = number->traits.get_max_value();
   // Outside the declared range the user cannot write the value back, so publish
@@ -891,14 +1098,14 @@ void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len)
 #endif
 }
 
-void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
+bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
   if (len > CMD_MAX_DATA_LEN) {
     ESP_LOGW(TAG, "Command data too large: %u", len);
-    return;
+    return false;
   }
   if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
-    return;
+    return false;
   }
 
   PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
@@ -911,6 +1118,7 @@ void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
   this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
   this->cmd_count_++;
   this->process_command_queue_();
+  return true;
 }
 
 void LD6002BComponent::process_command_queue_() {
@@ -944,6 +1152,18 @@ void LD6002BComponent::process_command_queue_() {
                    active_control_command);
         } else {
           ESP_LOGW(TAG, "Command 0x%04X timed out", this->active_command_.type);
+        }
+        if (this->active_command_.type == TYPE_SET_AREA) {
+          this->area_write_in_flight_ = false;
+        }
+        // The deferred apply is waiting on the report this command would have
+        // brought back, and nothing else re-arms it.  Dropping it here is the
+        // difference between one apply lost to a timeout and one that rides in on
+        // an unrelated area report later, writing bounds the user has moved on from.
+        if (active_control_command == CMD_GET_AREAS && this->deferred_apply_pending_) {
+          this->deferred_apply_pending_ = false;
+          this->restore_deferred_edits_();
+          ESP_LOGW(TAG, "Area read timed out, dropping deferred area apply");
         }
         // A reply may still be in flight for the attempt we just gave up on, so carry one over as
         // debt rather than clearing the ledger, or that late ACK would retire the successor. Only
@@ -1067,10 +1287,10 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->last_traffic_ms_ = now;
 }
 
-void LD6002BComponent::send_control_command_(uint32_t command) {
+bool LD6002BComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
   write_u32_le(data, command);
-  this->queue_command_(TYPE_CONTROL, data, sizeof(data));
+  return this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
 void LD6002BComponent::send_z_range_() {
@@ -1088,6 +1308,64 @@ void LD6002BComponent::send_z_range_() {
   write_f32_le(data, this->z_min_);
   write_f32_le(data + 4, this->z_max_);
   this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
+}
+
+void LD6002BComponent::apply_area_config_() {
+  if (!this->area_id_set_) {
+    ESP_LOGW(TAG, "Area ID not selected; ignoring apply");
+    return;
+  }
+  if (this->area_id_ >= AREA_ID_COUNT) {
+    ESP_LOGW(TAG, "Invalid area id: %u", this->area_id_);
+    return;
+  }
+
+  const bool interference = this->area_id_ < AREA_COUNT;
+  const uint8_t index = interference ? this->area_id_ : static_cast<uint8_t>(this->area_id_ - AREA_COUNT);
+  AreaConfig desired = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  if (!std::isnan(this->area_x_min_))
+    desired.x_min = this->area_x_min_;
+  if (!std::isnan(this->area_x_max_))
+    desired.x_max = this->area_x_max_;
+  if (!std::isnan(this->area_y_min_))
+    desired.y_min = this->area_y_min_;
+  if (!std::isnan(this->area_y_max_))
+    desired.y_max = this->area_y_max_;
+  if (!std::isnan(this->area_z_min_))
+    desired.z_min = this->area_z_min_;
+  if (!std::isnan(this->area_z_max_))
+    desired.z_max = this->area_z_max_;
+
+  if (std::isnan(desired.x_min) || std::isnan(desired.x_max) || std::isnan(desired.y_min) ||
+      std::isnan(desired.y_max) || std::isnan(desired.z_min) || std::isnan(desired.z_max)) {
+    // Ask first: a read that never reached the queue would leave a deferral waiting
+    // on a report nobody requested, with the user's values already retired for it.
+    if (!this->send_control_command_(CMD_GET_AREAS)) {
+      ESP_LOGW(TAG, "Area read not queued; area config left unapplied");
+      return;
+    }
+    this->deferred_apply_pending_ = true;
+    this->pending_area_id_ = this->area_id_;
+    // The ledger, not the mirror: the mirror also carries whatever the module last
+    // reported for the axes the user never touched, and staging those would hand them
+    // back later wearing the user's badge -- a module value the next report is then
+    // kept away from.  Staging only what was actually typed is also what makes the
+    // replay's overlay right: the untouched axes come from the fresh report.  An
+    // empty ledger is a meaning rather than a gap, then: an apply with nothing
+    // staged rewrites the area exactly as the report just described it, which is
+    // what a direct apply with nothing staged already does.
+    this->pending_area_updates_ = this->area_edits_;
+    // Staged above, so they are the deferred apply's values now rather than an
+    // unsent edit.  Anything typed from here belongs to whatever the user does
+    // next, which may well be a different area.
+    this->area_edits_ = AreaConfig{};
+    ESP_LOGI(TAG, "Area config incomplete; requesting current areas before applying");
+    return;
+  }
+  // Only a write the module will actually see retires them.
+  if (this->queue_area_config_(this->area_id_, desired)) {
+    this->area_edits_ = AreaConfig{};
+  }
 }
 
 void LD6002BComponent::wake_() {
@@ -1124,6 +1402,30 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
       break;
     }
+    case NumberType::AREA_X_MIN:
+      this->area_x_min_ = value;
+      this->area_edits_.x_min = value;
+      break;
+    case NumberType::AREA_X_MAX:
+      this->area_x_max_ = value;
+      this->area_edits_.x_max = value;
+      break;
+    case NumberType::AREA_Y_MIN:
+      this->area_y_min_ = value;
+      this->area_edits_.y_min = value;
+      break;
+    case NumberType::AREA_Y_MAX:
+      this->area_y_max_ = value;
+      this->area_edits_.y_max = value;
+      break;
+    case NumberType::AREA_Z_MIN:
+      this->area_z_min_ = value;
+      this->area_edits_.z_min = value;
+      break;
+    case NumberType::AREA_Z_MAX:
+      this->area_z_max_ = value;
+      this->area_edits_.z_max = value;
+      break;
   }
 }
 
@@ -1154,7 +1456,177 @@ void LD6002BComponent::set_select_value(SelectType type, size_t index) {
         this->send_control_command_(CMD_INSTALL_SIDE);
       }
       break;
+    case SelectType::AREA_ID:
+      this->area_id_ = static_cast<uint8_t>(index);
+      this->area_id_set_ = true;
+      this->update_area_numbers_for_id_(this->area_id_);
+      this->save_area_id_pref_(this->area_id_);
+      break;
   }
+}
+
+void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
+  // A report refreshes every axis the user is not in the middle of changing.  An
+  // unapplied edit is the one value here the module cannot know about, so taking
+  // the report over it would discard what the user typed with nothing to show for it.
+  const AreaConfig &edits = this->area_edits_;
+  if (std::isnan(edits.x_min))
+    this->area_x_min_ = area.x_min;
+  if (std::isnan(edits.x_max))
+    this->area_x_max_ = area.x_max;
+  if (std::isnan(edits.y_min))
+    this->area_y_min_ = area.y_min;
+  if (std::isnan(edits.y_max))
+    this->area_y_max_ = area.y_max;
+  if (std::isnan(edits.z_min))
+    this->area_z_min_ = area.z_min;
+  if (std::isnan(edits.z_max))
+    this->area_z_max_ = area.z_max;
+  this->publish_area_numbers_();
+}
+
+// The mirror, not the report: an axis a report was kept away from has to keep its
+// displayed value too, or the entity and the value the next apply sends disagree.
+void LD6002BComponent::publish_area_numbers_() {
+#ifdef USE_NUMBER
+  this->publish_number_clamped_(this->area_x_min_number_, this->area_x_min_);
+  this->publish_number_clamped_(this->area_x_max_number_, this->area_x_max_);
+  this->publish_number_clamped_(this->area_y_min_number_, this->area_y_min_);
+  this->publish_number_clamped_(this->area_y_max_number_, this->area_y_max_);
+  this->publish_number_clamped_(this->area_z_min_number_, this->area_z_min_);
+  this->publish_number_clamped_(this->area_z_max_number_, this->area_z_max_);
+#endif
+}
+
+void LD6002BComponent::update_area_numbers_for_id_(uint8_t area_id) {
+  if (area_id >= AREA_ID_COUNT)
+    return;
+  const bool interference = area_id < AREA_COUNT;
+  const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
+  const AreaConfig &area = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  // The edits belonged to the area being navigated away from.
+  this->area_edits_ = AreaConfig{};
+  this->update_area_numbers_(area);
+}
+
+bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
+  // One frame carries all three pairs and cannot express a crossed one; the module
+  // would keep a box nothing can ever be inside.  Both callers arrive with the six
+  // bounds resolved, so this is the last place that can say no -- and the return
+  // value is how saying no reaches the caller, which must not then retire the edits
+  // the user still has to fix.
+  if (desired.x_min > desired.x_max || desired.y_min > desired.y_max || desired.z_min > desired.z_max) {
+    ESP_LOGW(TAG, "Area %u not written, min above max", area_id);
+    return false;
+  }
+  uint8_t data[AREA_CONFIG_LEN];
+  write_int32_le(data, static_cast<int32_t>(area_id));
+  write_f32_le(data + 4, desired.x_min);
+  write_f32_le(data + 8, desired.x_max);
+  write_f32_le(data + 12, desired.y_min);
+  write_f32_le(data + 16, desired.y_max);
+  write_f32_le(data + 20, desired.z_min);
+  write_f32_le(data + 24, desired.z_max);
+
+  if (!this->queue_command_(TYPE_SET_AREA, data, sizeof(data))) {
+    // Nothing is on its way, so the cache must not claim these bounds, the ack
+    // refresh must not be armed for an ack that cannot come, and the values stay
+    // the user's unsent edit.
+    return false;
+  }
+  this->area_write_in_flight_ = true;
+
+  const bool interference = area_id < AREA_COUNT;
+  const uint8_t index = interference ? area_id : static_cast<uint8_t>(area_id - AREA_COUNT);
+  AreaConfig &store = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+  store = desired;
+  // The six numbers show one area at a time, and a deferred apply can land here for
+  // an area the user has navigated away from.  Same question handle_area_report_
+  // asks before it touches them.
+  const uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
+  if (area_id == selected_id) {
+    this->update_area_numbers_(store);
+  }
+  return true;
+}
+
+void LD6002BComponent::try_apply_pending_area_(bool reported_interference) {
+  if (!this->deferred_apply_pending_) {
+    return;
+  }
+  if (this->pending_area_id_ >= AREA_ID_COUNT) {
+    this->deferred_apply_pending_ = false;
+    return;
+  }
+  const bool interference = this->pending_area_id_ < AREA_COUNT;
+  const uint8_t index =
+      interference ? this->pending_area_id_ : static_cast<uint8_t>(this->pending_area_id_ - AREA_COUNT);
+  AreaConfig desired = interference ? this->interference_area_values_[index] : this->detection_area_values_[index];
+
+  if (!std::isnan(this->pending_area_updates_.x_min))
+    desired.x_min = this->pending_area_updates_.x_min;
+  if (!std::isnan(this->pending_area_updates_.x_max))
+    desired.x_max = this->pending_area_updates_.x_max;
+  if (!std::isnan(this->pending_area_updates_.y_min))
+    desired.y_min = this->pending_area_updates_.y_min;
+  if (!std::isnan(this->pending_area_updates_.y_max))
+    desired.y_max = this->pending_area_updates_.y_max;
+  if (!std::isnan(this->pending_area_updates_.z_min))
+    desired.z_min = this->pending_area_updates_.z_min;
+  if (!std::isnan(this->pending_area_updates_.z_max))
+    desired.z_max = this->pending_area_updates_.z_max;
+
+  if (std::isnan(desired.x_min) || std::isnan(desired.x_max) || std::isnan(desired.y_min) ||
+      std::isnan(desired.y_max) || std::isnan(desired.z_min) || std::isnan(desired.z_max)) {
+    // Only the report covering this area's half can still fill it in, and there is
+    // exactly one of those per read.  Once it has landed with a bound still unknown,
+    // nothing further is coming and waiting means waiting forever.
+    if (reported_interference == interference) {
+      this->deferred_apply_pending_ = false;
+      this->restore_deferred_edits_();
+      ESP_LOGW(TAG, "Dropping deferred area apply, area report incomplete");
+    }
+    return;
+  }
+
+  const uint8_t area_id = this->pending_area_id_;
+  this->deferred_apply_pending_ = false;
+  if (!this->queue_area_config_(area_id, desired)) {
+    // Nothing was queued, so this is a drop like the other two: hand the staged
+    // values back rather than leaving them with no ledger to protect them.
+    this->restore_deferred_edits_();
+  }
+}
+
+void LD6002BComponent::init_area_id_pref_() {
+#ifdef USE_SELECT
+  if (this->area_id_select_ == nullptr) {
+    return;
+  }
+  this->area_id_pref_ = this->area_id_select_->make_entity_preference<uint8_t>();
+  this->area_id_pref_initialized_ = true;
+
+  uint8_t value = 0;
+  if (!this->area_id_pref_.load(&value) || value >= AREA_ID_COUNT) {
+    // No stored selection.  The numbers are about to display this area either way,
+    // so select it for real: a displayed area that apply_area then refuses to write
+    // is the one combination the user cannot make sense of.
+    value = AREA_ID_DEFAULT;
+  }
+  this->area_id_select_->publish_state(value);
+  this->area_id_ = value;
+  this->area_id_set_ = true;
+  this->update_area_numbers_for_id_(value);
+#endif
+}
+
+void LD6002BComponent::save_area_id_pref_(uint8_t value) {
+#ifdef USE_SELECT
+  if (!this->area_id_pref_initialized_) {
+    return;
+  }
+  this->area_id_pref_.save(&value);
+#endif
 }
 
 void LD6002BComponent::init_version_pref_() {
@@ -1211,6 +1683,74 @@ void LD6002BComponent::clear_target_slot_(uint8_t index) {
 }
 #endif
 
+void LD6002BComponent::restore_deferred_edits_() {
+  // The staged values become an unsent edit again, but only for the user who is
+  // still looking at the area they were staged for; anyone else's ledger belongs to
+  // the area they are on now.
+  const uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
+  if (this->pending_area_id_ != selected_id) {
+    return;
+  }
+  // Axis by axis rather than a whole-struct assignment: the user can have edited
+  // another bound while the deferral was in flight, and that edit is newer than
+  // anything the deferral staged.  Assigning over the ledger would drop it back to
+  // NaN and let the next report take the value away.  A live edit wins; only an axis
+  // with nothing in the ledger takes its staged value back.
+  //
+  // The mirror moves with the ledger, because on the report path handle_area_report_
+  // ran update_area_numbers_ before the replay, with the ledger still empty -- so the
+  // mirror already holds the module's bounds and both the entities and the next apply
+  // would build on them.  On the timeout path no report arrived, the mirror still
+  // holds the staged values, and this is an identity.
+  const AreaConfig &staged = this->pending_area_updates_;
+  if (std::isnan(this->area_edits_.x_min) && !std::isnan(staged.x_min)) {
+    this->area_edits_.x_min = staged.x_min;
+    this->area_x_min_ = staged.x_min;
+  }
+  if (std::isnan(this->area_edits_.x_max) && !std::isnan(staged.x_max)) {
+    this->area_edits_.x_max = staged.x_max;
+    this->area_x_max_ = staged.x_max;
+  }
+  if (std::isnan(this->area_edits_.y_min) && !std::isnan(staged.y_min)) {
+    this->area_edits_.y_min = staged.y_min;
+    this->area_y_min_ = staged.y_min;
+  }
+  if (std::isnan(this->area_edits_.y_max) && !std::isnan(staged.y_max)) {
+    this->area_edits_.y_max = staged.y_max;
+    this->area_y_max_ = staged.y_max;
+  }
+  if (std::isnan(this->area_edits_.z_min) && !std::isnan(staged.z_min)) {
+    this->area_edits_.z_min = staged.z_min;
+    this->area_z_min_ = staged.z_min;
+  }
+  if (std::isnan(this->area_edits_.z_max) && !std::isnan(staged.z_max)) {
+    this->area_edits_.z_max = staged.z_max;
+    this->area_z_max_ = staged.z_max;
+  }
+  this->publish_area_numbers_();
+}
+
+void LD6002BComponent::clear_area_presence_() {
+  if (!this->area_presence_any_) {
+    return;
+  }
+  // Nothing else corrects this: 0x0A0A carries no period the protocol states and no
+  // command stops it, so the module going unattended is the only moment the
+  // component can know a stored "occupied" has stopped being true.
+  this->area_presence_any_ = false;
+#ifdef USE_BINARY_SENSOR
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    if (this->area_presence_[i] != nullptr) {
+      this->area_presence_[i]->publish_state(false);
+    }
+  }
+  const bool presence = this->target_presence_any_ || this->area_presence_any_;
+  if (this->presence_binary_sensor_ != nullptr) {
+    this->presence_binary_sensor_->publish_state(presence);
+  }
+#endif
+}
+
 void LD6002BComponent::clear_target_state_() {
   // Nothing corrects any of this until the stream comes back.  The slot table goes
   // with it: slots key on cluster ids, which only track a person while reports are
@@ -1242,8 +1782,9 @@ void LD6002BComponent::clear_target_state_() {
   if (this->target_presence_any_) {
     this->target_presence_any_ = false;
 #ifdef USE_BINARY_SENSOR
+    bool presence = this->target_presence_any_ || this->area_presence_any_;
     if (this->presence_binary_sensor_ != nullptr) {
-      this->presence_binary_sensor_->publish_state(this->target_presence_any_);
+      this->presence_binary_sensor_->publish_state(presence);
     }
 #endif
     this->update_work_mode_fallback_();
@@ -1284,6 +1825,27 @@ void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
 
 void LD6002BComponent::press_button(ButtonType type) {
   switch (type) {
+    case ButtonType::APPLY_AREA:
+      this->apply_area_config_();
+      break;
+    case ButtonType::AUTO_INTERFERENCE:
+      this->send_control_command_(CMD_AUTO_INTERFERENCE);
+      // The module recomputes the interference areas without reporting them.
+      this->send_control_command_(CMD_GET_AREAS);
+      break;
+    case ButtonType::GET_AREAS:
+      this->send_control_command_(CMD_GET_AREAS);
+      break;
+    case ButtonType::CLEAR_INTERFERENCE:
+      this->send_control_command_(CMD_CLEAR_INTERFERENCE);
+      // The module rewrites the areas but does not report them, so ask for the new geometry the
+      // way the apply_area ack path does; the queue keeps it behind the command above.
+      this->send_control_command_(CMD_GET_AREAS);
+      break;
+    case ButtonType::RESET_DETECTION_AREA:
+      this->send_control_command_(CMD_RESET_DETECTION_AREA);
+      this->send_control_command_(CMD_GET_AREAS);
+      break;
     case ButtonType::GET_DELAY:
       this->send_control_command_(CMD_GET_DELAY);
       break;
