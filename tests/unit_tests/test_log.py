@@ -1,4 +1,5 @@
 from collections.abc import Generator
+import errno
 import io
 import logging
 import os
@@ -164,8 +165,9 @@ def _run_probe_on_pty(
 ) -> str:
     """Run the probe with stdout on a pty and return the decoded pty output.
 
-    With ``stderr_to_pty=False`` stderr goes to /dev/null instead, giving
-    the mixed tty/redirect stream combination.
+    With ``stderr_to_pty=False`` stderr goes to a pipe instead, giving the
+    mixed tty/redirect stream combination while keeping any traceback
+    available for the exit assertion.
     """
     # Unix-only; a module-level import would break test collection on
     # Windows, where all the callers are skipped anyway.
@@ -180,7 +182,7 @@ def _run_probe_on_pty(
             proc = subprocess.Popen(
                 _probe_command(fixture_path),
                 stdout=follower,
-                stderr=follower if stderr_to_pty else subprocess.DEVNULL,
+                stderr=follower if stderr_to_pty else subprocess.PIPE,
                 stdin=follower,
                 env=probe_env,
             )
@@ -192,13 +194,20 @@ def _run_probe_on_pty(
                 pytest.fail(f"pty probe produced no EOF in time; got {output!r}")
             try:
                 chunk = os.read(controller, 1024)
-            except OSError:
-                # macOS raises EIO once the child closes its end of the pty.
+            except OSError as err:
+                # macOS raises EIO once the child closes its end of the pty;
+                # anything else is a real failure, not end-of-stream.
+                if err.errno != errno.EIO:
+                    raise
                 break
             if not chunk:
                 break
             output += chunk
-        assert proc.wait(60) == 0
+        stderr_text = ""
+        if proc.stderr is not None:
+            stderr_text = proc.stderr.read().decode(errors="replace")
+            proc.stderr.close()
+        assert proc.wait(60) == 0, stderr_text
     finally:
         os.close(controller)
         if proc is not None and proc.poll() is None:
@@ -246,6 +255,9 @@ def test_setup_log_dashboard_branch_skips_colorama_import(
     """The dashboard side of the guard must not import colorama."""
     monkeypatch.delitem(sys.modules, "colorama", raising=False)
     monkeypatch.setattr(CORE, "dashboard", True)
+    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
+    # them here so setup_log()'s log-level side effects cannot leak into
+    # later tests.
     monkeypatch.setattr(CORE, "verbose", CORE.verbose)
     monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     setup_log()
@@ -260,6 +272,9 @@ def test_setup_log_tty_branch_skips_colorama_import(
 ) -> None:
     """The tty side of the guard must not import colorama."""
     monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
+    # them here so setup_log()'s log-level side effects cannot leak into
+    # later tests.
     monkeypatch.setattr(CORE, "verbose", CORE.verbose)
     monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     monkeypatch.setattr(sys, "stdout", _FakeTty())
@@ -276,6 +291,9 @@ def test_setup_log_redirected_branch_imports_colorama(
 ) -> None:
     """Redirected streams must keep importing and initializing colorama."""
     monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
+    # them here so setup_log()'s log-level side effects cannot leak into
+    # later tests.
     monkeypatch.setattr(CORE, "verbose", CORE.verbose)
     monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
@@ -286,5 +304,35 @@ def test_setup_log_redirected_branch_imports_colorama(
     finally:
         # init() rebinds sys.stdout/stderr; restore them before monkeypatch
         # puts the originals back.
+        if "colorama" in sys.modules:
+            sys.modules["colorama"].deinit()
+
+
+def test_setup_log_win32_always_imports_colorama(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> None:
+    """The Windows clause must init colorama even when both streams are ttys.
+
+    Old Windows consoles need colorama to translate ANSI escapes, so the
+    platform check has to win over the tty check.
+    """
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
+    # them here so setup_log()'s log-level side effects cannot leak into
+    # later tests.
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    # Both streams are ttys: without the platform clause this combination
+    # would skip colorama.
+    monkeypatch.setattr(sys, "stdout", _FakeTty())
+    monkeypatch.setattr(sys, "stderr", _FakeTty())
+    setup_log()
+    try:
+        assert "colorama" in sys.modules
+    finally:
+        # init() rebinds sys.stdout/stderr; restore them before monkeypatch
+        # puts the originals back. colorama itself keys off os.name, so on
+        # a POSIX host this init/deinit pair is a passthrough.
         if "colorama" in sys.modules:
             sys.modules["colorama"].deinit()
