@@ -131,10 +131,13 @@ void SFA40Component::update() {
     }
 
     const uint8_t status = raw[3] >> 8;
-    const bool hcho_ready = (status & (STATUS_NOT_READY | STATUS_OUT_OF_SPEC)) == 0;
+    const bool sensor_not_ready = (status & STATUS_NOT_READY) != 0;
+    const bool sensor_out_of_spec = (status & STATUS_OUT_OF_SPEC) != 0;
 
     if (this->formaldehyde_sensor_ != nullptr) {
-      if (this->wait_for_ready_ && !hcho_ready) {
+      if (sensor_out_of_spec) {
+        ESP_LOGW(TAG,"Skipping formaldehyde publish: sensor out of spec (status=0x%02X)",status);
+      } else if (this->wait_for_ready_ && sensor_not_ready) {
         ESP_LOGD(TAG, "Skipping formaldehyde publish: sensor warming up");
       } else {
         this->formaldehyde_sensor_->publish_state(static_cast<float>(raw[0]) / 10.0f);
