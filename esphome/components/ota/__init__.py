@@ -37,6 +37,28 @@ CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
+CONF_SWAP_METHOD = "swap_method"
+
+# Shared by every ota: platform that can run on Zephyr (platform: esphome and
+# platform: zephyr_mcumgr both end up pushing the very same MCUboot sysbuild
+# MCUBOOT_MODE_SWAP_* Kconfig choice symbol -- see
+# esphome.components.zephyr.mcuboot). Defined here, not in the zephyr package,
+# so that platform: esphome -- built on every platform, not just Zephyr -- can
+# use it without importing esphome.components.zephyr at module-load time.
+SWAP_METHOD_SCHEMA = {
+    cv.SplitDefault(
+        CONF_SWAP_METHOD,
+        zephyr="scratch",
+        zephyr_nrf52="offset",
+        zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
+        zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
+        # No scratch partition in this board's flash layout (boot/image-0/
+        # image-1/storage only) -- the generic zephyr="scratch" default above
+        # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
+        zephyr_efr32mg24="move",
+        zephyr_rp2040="offset",
+    ): cv.one_of("scratch", "move", "offset", lower=True),
+}
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
@@ -74,6 +96,22 @@ def _ota_final_validate(config):
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
                 raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+
+        # platform: esphome and platform: zephyr_mcumgr can both be configured at
+        # once, each with its own swap_method:. They're validated independently,
+        # but both push the same MCUboot sysbuild swap-mode choice symbol -- a
+        # mismatch would otherwise pass validation and silently write two
+        # different, mutually-exclusive symbols =y into sysbuild.conf.
+        methods = {
+            ota_conf[CONF_PLATFORM]: ota_conf[CONF_SWAP_METHOD]
+            for ota_conf in config
+            if CONF_SWAP_METHOD in ota_conf
+        }
+        if len(set(methods.values())) > 1:
+            raise cv.Invalid(
+                f"'{CONF_SWAP_METHOD}:' must be the same across every '{CONF_OTA}:' "
+                f"entry, got {methods}"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _ota_final_validate

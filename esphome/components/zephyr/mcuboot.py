@@ -3,35 +3,22 @@
 The MCUboot swap mode is a sysbuild-level choice, not scoped to whichever ota:
 platform happens to set it -- platform: esphome and platform: zephyr_mcumgr both end
 up pushing the very same MCUBOOT_MODE_SWAP_* sysbuild Kconfig symbol, so the
-swap_method: option, its per-variant validation, and the code that applies it all
-live here once instead of being duplicated per platform.
+per-variant validation and the code that applies it live here once instead of
+being duplicated per platform. The swap_method: schema itself lives in
+esphome.components.ota instead (see CONF_SWAP_METHOD/SWAP_METHOD_SCHEMA there):
+it has no zephyr dependency, and platform: esphome needs it at module-load
+time on every platform, not just Zephyr.
 """
 
+from esphome.components.ota import CONF_SWAP_METHOD
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.types import ConfigType
-
-CONF_SWAP_METHOD = "swap_method"
 
 _SYSBUILD_MODE = {
     "scratch": "MCUBOOT_MODE_SWAP_SCRATCH",
     "move": "MCUBOOT_MODE_SWAP_USING_MOVE",
     "offset": "MCUBOOT_MODE_SWAP_USING_OFFSET",
-}
-
-SWAP_METHOD_SCHEMA = {
-    cv.SplitDefault(
-        CONF_SWAP_METHOD,
-        zephyr="scratch",
-        zephyr_nrf52="offset",
-        zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
-        zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
-        # No scratch partition in this board's flash layout (boot/image-0/
-        # image-1/storage only) -- the generic zephyr="scratch" default above
-        # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
-        zephyr_efr32mg24="move",
-        zephyr_rp2040="offset",
-    ): cv.one_of("scratch", "move", "offset", lower=True),
 }
 
 
