@@ -15,7 +15,6 @@ test pins down *which* heavy modules must stay out entirely.
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -120,18 +119,17 @@ def test_watched_heavy_modules_exist() -> None:
 
 
 def _leaked_from_fixture(
-    fixture_path: Path, script_name: str, extra: tuple[str, ...] = ()
+    fixture_path: Path,
+    env: dict[str, str],
+    script_name: str,
+    extra: tuple[str, ...] = (),
 ) -> str:
     """Run a fixture script with the watched modules on argv.
 
-    Running a script file drops the cwd from sys.path, so prepend the
-    repo root for the child; a non-zero exit surfaces the child's stderr.
+    ``env`` comes from the ``probe_env`` fixture so the child can import
+    the repo checkout; a non-zero exit surfaces the child's stderr.
     """
     script = fixture_path / "lazy_imports" / script_name
-    python_path = str(Path(__file__).parents[2])
-    if ambient := os.environ.get("PYTHONPATH"):
-        python_path = os.pathsep.join((python_path, ambient))
-    env = os.environ | {"PYTHONPATH": python_path}
     result = subprocess.run(
         [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES, *extra],
         capture_output=True,
@@ -145,12 +143,13 @@ def _leaked_from_fixture(
 
 def test_storage_json_fast_path_does_not_import_heavy_modules(
     fixture_path: Path,
+    probe_env: dict[str, str],
 ) -> None:
     """``apply_to_core`` runs on the upload/logs fast path for every
     platform; parsing the stored framework version must not drag in the
     validation stack or the esp32 component package.
     """
-    leaked = _leaked_from_fixture(fixture_path, "storage_json_fast_path.py")
+    leaked = _leaked_from_fixture(fixture_path, probe_env, "storage_json_fast_path.py")
     assert not leaked, (
         f"storage_json.apply_to_core pulls in heavy modules: {leaked}. "
         "The upload/logs fast path skips validation; importing the "
@@ -160,12 +159,15 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
 
 def test_esptool_upload_fast_path_does_not_import_heavy_modules(
     fixture_path: Path,
+    probe_env: dict[str, str],
 ) -> None:
     """The esptool serial upload reads the esp32 variant from CORE.data;
     resolving it must not drag in the esp32 component package or the
     validation stack.
     """
-    leaked = _leaked_from_fixture(fixture_path, "esptool_upload_fast_path.py")
+    leaked = _leaked_from_fixture(
+        fixture_path, probe_env, "esptool_upload_fast_path.py"
+    )
     assert not leaked, (
         f"upload_using_esptool pulls in heavy modules: {leaked}. "
         "The upload fast path skips validation; importing the validation "
@@ -266,6 +268,7 @@ def test_yaml_util_does_not_import_heavy_modules() -> None:
 
 def test_upload_command_path_does_not_import_heavy_modules(
     fixture_path: Path,
+    probe_env: dict[str, str],
 ) -> None:
     """The single-config dispatch path checks the bundle suffix on every
     run; reading it from esphome.const must not drag in esphome.bundle
@@ -273,6 +276,7 @@ def test_upload_command_path_does_not_import_heavy_modules(
     """
     leaked = _leaked_from_fixture(
         fixture_path,
+        probe_env,
         "upload_command_fast_path.py",
         extra=BUNDLE_HEAVY_MODULES + CACHE_HIT_HEAVY_MODULES + STDLIB_FAST_PATH_MODULES,
     )
