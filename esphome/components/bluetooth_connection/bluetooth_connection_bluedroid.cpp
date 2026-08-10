@@ -346,6 +346,9 @@ ble_device_base::GattServiceTable BluedroidGattClient::table_view_() const {
           this->table_desc_total_};
 }
 
+// Lifetime: every teardown path (CLOSE_EVT, the safety timeout, stack-down,
+// passive DISCONNECT) routes through release_services(), so a materialized
+// table cannot outlive its link.
 void BluedroidGattClient::free_service_table_() {
   if (this->table_storage_ == nullptr) {
     return;
