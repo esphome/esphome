@@ -1,8 +1,9 @@
+#include "mitsubishi_cn105.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <numeric>
-#include "mitsubishi_cn105.h"
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -25,7 +26,7 @@ static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {0xCA, 0x01};
 static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
-static constexpr uint8_t STATUS_MSG_ROOM_TEMP = 0x03;
+static constexpr uint8_t STATUS_MSG_TELEMETRY = 0x03;
 
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
@@ -229,8 +230,8 @@ void MitsubishiCN105::did_transition_(State to) {
     case State::STATUS_UPDATED: {
       if (this->pending_updates_.any() && this->is_status_initialized()) {
         this->set_state_(State::APPLYING_SETTINGS);
-      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
-        this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMP;
+      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
+        this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
         this->set_state_(State::UPDATING_STATUS);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
@@ -264,16 +265,16 @@ void MitsubishiCN105::did_transition_(State to) {
   }
 }
 
-bool MitsubishiCN105::should_request_room_temperature_() const {
-  if (!this->is_room_temperature_enabled()) {
+bool MitsubishiCN105::should_request_telemetry_() const {
+  if (!this->is_telemetry_polling_enabled()) {
     return false;
   }
 
-  if (!this->last_room_temperature_update_ms_.has_value()) {
+  if (!this->last_telemetry_update_ms_.has_value()) {
     return true;
   }
 
-  return (get_loop_time_ms() - *this->last_room_temperature_update_ms_) >= this->room_temperature_min_interval_ms_;
+  return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
 }
 
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
@@ -327,7 +328,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
       previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
 
-  if (this->is_room_temperature_enabled()) {
+  if (this->is_telemetry_polling_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
   }
 
@@ -339,8 +340,8 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
     case STATUS_MSG_SETTINGS:
       return this->parse_status_settings_(payload, len);
 
-    case STATUS_MSG_ROOM_TEMP:
-      return this->parse_status_room_temperature_(payload, len);
+    case STATUS_MSG_TELEMETRY:
+      return this->parse_status_telemetry_(payload, len);
 
     default:
       ESP_LOGVV(TAG, "RX unsupported status msg type 0x%02X", msg_type);
@@ -384,14 +385,14 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
   return true;
 }
 
-bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, size_t len) {
+bool MitsubishiCN105::parse_status_telemetry_(const uint8_t *payload, size_t len) {
   if (len <= 5) {
-    ESP_LOGVV(TAG, "RX room temperature payload too short");
+    ESP_LOGVV(TAG, "RX telemetry payload too short");
     return false;
   }
 
   this->status_.room_temperature = decode_temperature(payload[2], payload[5], 10);
-  this->last_room_temperature_update_ms_ = get_loop_time_ms();
+  this->last_telemetry_update_ms_ = get_loop_time_ms();
 
   return true;
 }
