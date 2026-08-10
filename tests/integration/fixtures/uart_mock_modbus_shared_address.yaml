@@ -1,0 +1,160 @@
+esphome:
+  name: uart-mock-modbus-shared
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    auto_start: false
+    debug:
+    responses:
+      # Three sensors, one frame. At 0x9001 a U_WORD (1 register) and a U_DWORD (2 registers) share the
+      # start address but cannot merge, so the range widens to count 2. A third sensor at 0x9002 falls
+      # inside the widened range and must read its slice of the same response rather than splitting into
+      # a second overlapping poll. The single expect_tx pins the "one frame on the wire" contract - any
+      # duplicate or overlapping range would put an extra frame on the bus and fail to match.
+      - expect_tx: [0x01, 0x03, 0x90, 0x01, 0x00, 0x02, 0xB8, 0xCB] # Read holding 0x9001 count 2 on device 1
+        inject_rx: [0x01, 0x03, 0x04, 0x03, 0x97, 0x02, 0x91, 0x8B, 0x57] # 0x9001=0x0397, 0x9002=0x0291
+      # A force_new_range sensor at a HIGH address (0x30) sorts before the plain sensor at a LOW address
+      # (0x10). The two must poll as separate ranges: the covered branch's lower-bound check prevents the
+      # 0x10 sensor from being absorbed into the forced 0x30 range with a wrapped byte offset.
+      - expect_tx: [0x01, 0x03, 0x00, 0x30, 0x00, 0x01, 0x84, 0x05] # Read holding 0x30 count 1 (forced range)
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x11, 0x79, 0xD8] # 0x30 = 0x0111 = 273
+      - expect_tx: [0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF] # Read holding 0x10 count 1 (own range)
+        inject_rx: [0x01, 0x03, 0x02, 0x02, 0x22, 0x39, 0x3D] # 0x10 = 0x0222 = 546
+      # A wide sensor (U_QWORD at 0x100, 4 registers) followed by plain sensors at 0x101 and 0x103.
+      # None of them merge, so all three poll separately - exactly as before the range refactor. The
+      # 0x103 sensor sits at the wide range's tail address, so it must not anchor a re-use join on a
+      # mid-range predecessor and inherit its byte offset.
+      - expect_tx: [0x01, 0x03, 0x01, 0x00, 0x00, 0x04, 0x45, 0xF5] # Read holding 0x100 count 4
+        inject_rx: [0x01, 0x03, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x94, 0x3C] # = 100
+      - expect_tx: [0x01, 0x03, 0x01, 0x01, 0x00, 0x01, 0xD4, 0x36] # Read holding 0x101 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x41, 0x79, 0xE4] # 0x101 = 0x0141 = 321
+      - expect_tx: [0x01, 0x03, 0x01, 0x03, 0x00, 0x01, 0x75, 0xF6] # Read holding 0x103 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0xA5, 0x79, 0xAF] # 0x103 = 0x01A5 = 421
+      # A widened shared-address range at 0x200 plus a sensor at 0x201 carrying its own skip_updates.
+      # The sensor must keep its own range so the polling rates stay independent; if it were folded into
+      # the widened range it would decode 0x201 from THAT response (2, not 777) and drag the range's
+      # rate down to its own.
+      - expect_tx: [0x01, 0x03, 0x02, 0x00, 0x00, 0x02, 0xC5, 0xB3] # Read holding 0x200 count 2
+        inject_rx: [0x01, 0x03, 0x04, 0x01, 0x41, 0x00, 0x02, 0x2A, 0x1A] # 0x200=0x0141, 0x201=0x0002
+      - expect_tx: [0x01, 0x03, 0x02, 0x01, 0x00, 0x01, 0xD4, 0x72] # Read holding 0x201 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x03, 0x09, 0x78, 0xB2] # 0x201 = 0x0309 = 777
+
+modbus:
+  uart_id: virtual_uart_dev
+  send_wait_time: 200ms
+  turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    id: modbus_controller_ok
+    max_cmd_retries: 2
+    update_interval: never
+
+sensor:
+  # Word sensor at 0x9001 (1 register)
+  - platform: modbus_controller
+    name: "shared_word"
+    address: 0x9001
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # Dword sensor at the SAME address 0x9001 (2 registers) - non-mergeable, shares the range start
+  - platform: modbus_controller
+    name: "shared_dword"
+    address: 0x9001
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+  # Word sensor at 0x9002 - inside the widened range, reads bytes 2-3 of the same response
+  - platform: modbus_controller
+    name: "covered_word"
+    address: 0x9002
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # Forced sensor at a high address: sorts first, opens its own isolated range
+  - platform: modbus_controller
+    name: "forced_high"
+    address: 0x30
+    register_type: holding
+    value_type: U_WORD
+    force_new_range: true
+    modbus_controller_id: modbus_controller_ok
+  # Plain sensor at a lower address: must get its own range, never absorbed into the forced one
+  - platform: modbus_controller
+    name: "plain_low"
+    address: 0x10
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # Wide sensor spanning 0x100-0x103; the two sensors below sit inside its span but do not merge
+  - platform: modbus_controller
+    name: "wide_qword"
+    address: 0x100
+    register_type: holding
+    value_type: U_QWORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "inside_wide"
+    address: 0x101
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # At the wide range's tail address: must decode its own poll, not inherit a mid-range byte offset
+  - platform: modbus_controller
+    name: "tail_of_wide"
+    address: 0x103
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  # Shared address 0x200: the dword widens the range the word opened (or vice versa)
+  - platform: modbus_controller
+    name: "rate_word"
+    address: 0x200
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "rate_dword"
+    address: 0x200
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+  # Inside the widened range but with its own skip_updates: must NOT be folded in, or the two sensors
+  # above would silently drop to this sensor's polling rate
+  - platform: modbus_controller
+    name: "own_rate"
+    address: 0x201
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 100
+    modbus_controller_id: modbus_controller_ok
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          id(virtual_uart_dev).start_scenario();
+          id(modbus_controller_ok).set_update_interval(1000);
+          id(modbus_controller_ok).start_poller();
