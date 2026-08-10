@@ -185,8 +185,8 @@ def _rp2_config_schema() -> cv.All:
                         min=1,
                         max=max_conn,
                         msg=f"rp2 supports at most {max_conn} connection slot(s); "
-                        "the BTstack pool overrides in bluetooth_connection "
-                        f"are sized for {max_conn}",
+                        "the BTstack pool overrides in rp2040_ble are sized "
+                        f"for {max_conn}",
                     ),
                 ),
             }

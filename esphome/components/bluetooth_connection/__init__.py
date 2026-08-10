@@ -106,8 +106,11 @@ async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
 
 @dataclass(frozen=True)
 class _PlatformBackend:
-    """One platform's backend: codegen class, extra schema keys (lazy so the
-    platform stack is only imported when targeted), and stack registration."""
+    """One platform's backend: codegen class, extra schema keys, and stack
+    registration. The esp32 fragments import their stack lazily because those
+    imports register esp32-only automations as a side effect; rp2040_ble is
+    side-effect-free, so it is imported at module scope (the cap constant
+    needs it there anyway)."""
 
     backend_class: cg.MockObjClass
     schema_fragment: Callable[[], cv.Schema]
