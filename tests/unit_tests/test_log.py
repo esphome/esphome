@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pty
 import subprocess
 import sys
@@ -7,19 +8,18 @@ import pytest
 
 from esphome.log import AnsiFore, AnsiStyle, color
 
-# Prints whether setup_log() pulled in colorama, then a colored line so the
-# caller can observe whether ANSI codes survive to the stream. Run in a
-# subprocess because module imports are process-global.
-SETUP_LOG_PROBE = """
-import sys
-from esphome.core import CORE
-from esphome.log import setup_log
-{pre}
-setup_log()
-print("colorama_loaded=%s" % ("colorama" in sys.modules))
-print("\\033[31mred\\033[0m end")
-sys.stdout.flush()
-"""
+
+def _probe_command(fixture_path: Path, *args: str) -> list[str]:
+    """Build the command line for the setup_log probe fixture script."""
+    return [sys.executable, str(fixture_path / "log" / "setup_log_probe.py"), *args]
+
+
+def _probe_env() -> dict[str, str]:
+    """Running a script file drops the cwd from sys.path; add the repo root."""
+    python_path = str(Path(__file__).parents[2])
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    return os.environ | {"PYTHONPATH": python_path}
 
 
 def test_color_keep_returns_unchanged_message() -> None:
@@ -102,14 +102,15 @@ def test_ansi_fore_keep_is_enum_member() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
-def test_setup_log_redirected_output_strips_ansi() -> None:
+def test_setup_log_redirected_output_strips_ansi(fixture_path: Path) -> None:
     """A redirected run must keep colorama so ANSI codes are stripped."""
     result = subprocess.run(
-        [sys.executable, "-c", SETUP_LOG_PROBE.format(pre="")],
+        _probe_command(fixture_path),
         capture_output=True,
         text=True,
         timeout=60,
         check=False,
+        env=_probe_env(),
     )
     assert result.returncode == 0, result.stderr
     assert "colorama_loaded=True" in result.stdout
@@ -120,14 +121,15 @@ def test_setup_log_redirected_output_strips_ansi() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
-def test_setup_log_dashboard_skips_colorama() -> None:
+def test_setup_log_dashboard_skips_colorama(fixture_path: Path) -> None:
     """Dashboard runs escape their color codes, so colorama must not load."""
     result = subprocess.run(
-        [sys.executable, "-c", SETUP_LOG_PROBE.format(pre="CORE.dashboard = True")],
+        _probe_command(fixture_path, "--dashboard"),
         capture_output=True,
         text=True,
         timeout=60,
         check=False,
+        env=_probe_env(),
     )
     assert result.returncode == 0, result.stderr
     assert "colorama_loaded=False" in result.stdout
@@ -138,14 +140,15 @@ def test_setup_log_dashboard_skips_colorama() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
 )
-def test_setup_log_tty_skips_colorama() -> None:
+def test_setup_log_tty_skips_colorama(fixture_path: Path) -> None:
     """A terminal run must skip colorama and keep ANSI codes intact."""
     controller, follower = pty.openpty()
     proc = subprocess.Popen(
-        [sys.executable, "-c", SETUP_LOG_PROBE.format(pre="")],
+        _probe_command(fixture_path),
         stdout=follower,
         stderr=follower,
         stdin=follower,
+        env=_probe_env(),
     )
     os.close(follower)
     output = b""
