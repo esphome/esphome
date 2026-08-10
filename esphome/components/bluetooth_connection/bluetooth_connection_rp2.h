@@ -104,9 +104,10 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // the link stays READY while they run.
   enum class EngineState : uint8_t {
     IDLE,
-    CONNECTING,    // gap_connect issued, waiting for connection complete
-    MTU_EXCHANGE,  // link up, waiting for GATT_EVENT_MTU
-    READY,         // on_connection_state(true) delivered
+    CONNECT_PENDING,  // queued: another engine owns the stack-wide create-connection
+    CONNECTING,       // gap_connect issued, waiting for connection complete
+    MTU_EXCHANGE,     // link up, waiting for GATT_EVENT_MTU
+    READY,            // on_connection_state(true) delivered
     DISCONNECTING,
   };
 
@@ -143,6 +144,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int issue_descriptor_query_(uint16_t char_index);
   void finish_discovery_(int error);
   void fail_connection_(uint8_t reason);
+  int try_gap_connect_();
   void cleanup_link_state_();
   bool notify_subscribed_(uint16_t handle) const;
   static void can_write_no_rsp_trampoline(void *context);
@@ -214,6 +216,12 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   static btstack_packet_callback_registration_t hci_event_registration;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static btstack_packet_callback_registration_t sm_event_registration;
+  // The engine whose gap_connect is in flight: BTstack allows one outgoing LE
+  // create-connection stack-wide, and gap_connect_cancel is global, so only
+  // the owner may cancel. Written under BluetoothLock from the main loop,
+  // cleared in the BTstack context when the procedure resolves.
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static RP2GattClient *connect_owner;
 };
 
 }  // namespace esphome::bluetooth_connection

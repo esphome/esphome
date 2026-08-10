@@ -8,4 +8,4 @@ rp2_ble_tracker:
 
 bluetooth_proxy:
   active: true
-  connection_slots: 1
+  connection_slots: 3

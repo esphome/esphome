@@ -53,6 +53,7 @@ RP2GattClient *RP2GattClient::instances[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
 uint8_t RP2GattClient::instance_count = 0;
 btstack_packet_callback_registration_t RP2GattClient::hci_event_registration = {};
 btstack_packet_callback_registration_t RP2GattClient::sm_event_registration = {};
+RP2GattClient *RP2GattClient::connect_owner = nullptr;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static ESPBTUUID uuid_from_btstack(uint16_t uuid16, const uint8_t uuid128[16]) {
@@ -127,10 +128,19 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       gap_subevent_le_connection_complete_get_peer_address(packet, peer);
       uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
       hci_con_handle_t con_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
+      // The stack-wide create-connection resolved either way (success, failure
+      // or cancel completion); a pending engine's loop() may issue the next.
+      connect_owner = nullptr;
       // Route to the engine that is waiting for this peer.
       for (uint8_t i = 0; i < instance_count; i++) {
         RP2GattClient *inst = instances[i];
         if (inst->state_ == EngineState::CONNECTING && memcmp(inst->peer_addr_, peer, sizeof(bd_addr_t)) == 0) {
+          if (status == 0) {
+            // Stamp the handle here in the BTstack context: a disconnection
+            // racing the queued CONNECTED event arrives in this same context
+            // and must route by handle (it carries no address).
+            inst->con_handle_ = con_handle;
+          }
           inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
           break;
         }
@@ -138,19 +148,9 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       break;
     }
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
-      hci_con_handle_t con_handle = hci_event_disconnection_complete_get_connection_handle(packet);
-      RP2GattClient *inst = instance_for_con_handle(con_handle);
-      if (inst == nullptr && instance_count == 1) {
-        // The main loop may not have recorded the handle yet (the CONNECTED
-        // event is still queued); with a single engine the connecting
-        // instance is unambiguous, so route there to close the
-        // accept-then-drop window. With multiple engines the event has no
-        // address to match on, so it must be dropped instead of guessed.
-        RP2GattClient *candidate = instances[0];
-        if (candidate->con_handle_ == HCI_CON_HANDLE_INVALID && candidate->state_ != EngineState::IDLE) {
-          inst = candidate;
-        }
-      }
+      // Routable even against a still-queued CONNECTED event: the handle is
+      // stamped in this context at connection-complete time.
+      RP2GattClient *inst = instance_for_con_handle(hci_event_disconnection_complete_get_connection_handle(packet));
       if (inst != nullptr) {
         inst->enqueue_event_irq_(RP2GattEvent::DISCONNECTED, hci_event_disconnection_complete_get_reason(packet), 0);
       }
@@ -400,30 +400,48 @@ void RP2GattClient::loop() {
     ESP_LOGW(TAG, "Dropped %u GATT notifications (queue full)", notify_dropped);
   }
 
-  if (this->state_ == EngineState::CONNECTING || this->state_ == EngineState::MTU_EXCHANGE) {
+  if (this->state_ == EngineState::CONNECT_PENDING) {
+    if (millis() - this->connect_started_ > CONNECT_TIMEOUT_MS) {
+      // Never reached the radio; nothing stack-side to cancel.
+      ESP_LOGW(TAG, "Connect timeout (queued)");
+      this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
+    } else if (int err = this->try_gap_connect_(); err != 0) {
+      ESP_LOGW(TAG, "gap_connect failed, status=0x%02x", err);
+      this->fail_connection_(static_cast<uint8_t>(err));
+    }
+  } else if (this->state_ == EngineState::CONNECTING || this->state_ == EngineState::MTU_EXCHANGE) {
     uint32_t now = millis();
     if (now - this->connect_started_ > CONNECT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Connect timeout");
       if (this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID) {
+        bool cancel_sent = false;
         if (!this->connect_cancel_attempted_) {
           this->connect_cancel_attempted_ = true;
           BluetoothLock lock;
-          gap_connect_cancel();
+          // gap_connect_cancel is stack-global; only the engine whose
+          // create-connection is in flight may issue it.
+          if (connect_owner == this) {
+            gap_connect_cancel();
+            cancel_sent = true;
+          }
+        }
+        if (cancel_sent) {
           // The cancel produces a connection-complete event with a failure
           // status, which drives the normal failure path; restart the timer
           // so a lost event escalates below instead of wedging here.
           this->connect_started_ = now;
         } else {
-          // The cancel's completion never arrived: reclaim the slot and the
-          // scan rather than cancelling forever.
+          // Not the owner (the completion resolved but its event was
+          // dropped), or the cancel's completion never arrived: reclaim the
+          // slot and the scan rather than cancelling forever.
           this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
         }
       } else {
         // The link is up (MTU exchange stalled): tear it down properly so the
         // controller frees its side; the DISCONNECTING safety net below
         // reclaims state if the disconnection event is lost. Dropping engine
-        // state without gap_disconnect would leak the live link and the
-        // single GATT slot for the rest of the boot.
+        // state without gap_disconnect would leak the live link and this
+        // engine's GATT slot for the rest of the boot.
         this->gatt_disconnect();
       }
     }
@@ -563,6 +581,15 @@ void RP2GattClient::release_scan_inhibit_() {
 }
 
 void RP2GattClient::fail_connection_(uint8_t reason) {
+  {
+    // Timeout escalation can fire with the completion event lost; release the
+    // stack-wide connect slot so pending engines can proceed (a still-busy
+    // stack answers them with DISALLOWED and they keep pending).
+    BluetoothLock lock;
+    if (connect_owner == this) {
+      connect_owner = nullptr;
+    }
+  }
   this->cleanup_link_state_();
   this->release_scan_inhibit_();
   this->state_ = EngineState::IDLE;
@@ -838,22 +865,48 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   this->parent_->inhibit_scan();
   this->connect_cancel_attempted_ = false;
   this->cancel_requested_ = false;
+  // Bounds the queued wait; restarted when gap_connect is accepted so the
+  // radio attempt gets its full budget (HA's own ~20 s timeout arbitrates the
+  // sum via a disconnect request).
+  this->connect_started_ = millis();
+  if (int err = this->try_gap_connect_(); err != 0) {
+    ESP_LOGW(TAG, "gap_connect failed, status=0x%02x", err);
+    this->release_scan_inhibit_();
+    return err;
+  }
+  this->enable_loop();
+  return 0;
+}
+
+// One outgoing LE create-connection exists stack-wide: issue it if no other
+// engine owns it, otherwise park in CONNECT_PENDING for loop() to retry.
+// Returns nonzero only for hard failures (state untouched; caller cleans up).
+int RP2GattClient::try_gap_connect_() {
   uint8_t status;
   {
     BluetoothLock lock;
-    gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW, FAST_MIN_CONN_INTERVAL, FAST_MAX_CONN_INTERVAL,
-                                  0, FAST_CONN_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
-    status = gap_connect(this->peer_addr_, this->peer_addr_type_);
+    if (connect_owner != nullptr) {
+      status = ERROR_CODE_COMMAND_DISALLOWED;
+    } else {
+      gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW, FAST_MIN_CONN_INTERVAL,
+                                    FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
+      status = gap_connect(this->peer_addr_, this->peer_addr_type_);
+      if (status == 0) {
+        connect_owner = this;
+      }
+    }
   }
-  if (status != 0) {
-    ESP_LOGW(TAG, "gap_connect failed, status=0x%02x", status);
-    this->release_scan_inhibit_();
-    return status;
+  if (status == 0) {
+    this->state_ = EngineState::CONNECTING;
+    this->connect_started_ = millis();
+    return 0;
   }
-  this->state_ = EngineState::CONNECTING;
-  this->connect_started_ = millis();
-  this->enable_loop();
-  return 0;
+  if (status == ERROR_CODE_COMMAND_DISALLOWED) {
+    // Radio busy with another engine's connect; resolved from loop().
+    this->state_ = EngineState::CONNECT_PENDING;
+    return 0;
+  }
+  return status;
 }
 
 int RP2GattClient::gatt_disconnect() {
@@ -862,6 +915,19 @@ int RP2GattClient::gatt_disconnect() {
       return GATT_ERR_NOT_CONNECTED;
     case EngineState::DISCONNECTING:
       return 0;  // already on its way down
+    case EngineState::CONNECT_PENDING: {
+      // Nothing issued stack-side; complete via the queue like a refused
+      // gap_disconnect so the listener cannot re-enter disconnect mid-call.
+      {
+        BluetoothLock lock;
+        this->enqueue_event_irq_(RP2GattEvent::DISCONNECTED, HCI_REASON_CONNECTION_TIMEOUT, 0);
+      }
+      this->state_ = EngineState::DISCONNECTING;
+      this->disconnecting_started_ = millis();
+      this->release_scan_inhibit_();
+      this->enable_loop();
+      return 0;
+    }
     case EngineState::CONNECTING: {
       if (this->con_handle_ == HCI_CON_HANDLE_INVALID) {
         // The cancel can lose the race against a successful connection
@@ -871,8 +937,12 @@ int RP2GattClient::gatt_disconnect() {
         this->cancel_requested_ = true;
         this->connect_cancel_attempted_ = true;
         BluetoothLock lock;
-        gap_connect_cancel();
-        // Completion arrives as a failed connection-complete event.
+        // Owner: the cancel completes as a failed connection-complete. Not
+        // the owner (completion already resolved in the BTstack context): the
+        // queued event drives the same teardown, nothing to cancel.
+        if (connect_owner == this) {
+          gap_connect_cancel();
+        }
         return 0;
       }
       break;

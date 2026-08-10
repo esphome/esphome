@@ -36,9 +36,12 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
-# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1;
-# raising this needs an upstream change (the layer itself supports N).
-RP2_MAX_CONNECTIONS = 1
+# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1 and
+# MAX_NR_HCI_CONNECTIONS 2; for more than one slot, btstack_memory_rp2.cpp
+# replaces those pools via linker --wrap (add_btstack_pool_overrides), sized
+# from ESPHOME_BLE_GATT_CLIENT_COUNT. 3 matches the esp32 default and stays
+# within the controller's resources (MAX_NR_CONTROLLER_ACL_BUFFERS 3).
+RP2_MAX_CONNECTIONS = 3
 
 # Slot limits for the hub platforms running the connection-capable proxy;
 # the backend registry itself is _PLATFORM_BACKENDS below.
@@ -52,6 +55,27 @@ BluedroidGattClient = bluetooth_connection_ns.class_(
 )
 
 CONF_BACKEND_ID = "backend_id"
+
+# The four btstack_memory accessors whose static pools are baked into the
+# prebuilt liblwip-bt.a; every internal use crosses an object boundary in the
+# archive, so --wrap intercepts them all (see btstack_memory_rp2.cpp).
+_RP2_BTSTACK_POOL_SYMBOLS = (
+    "btstack_memory_gatt_client_get",
+    "btstack_memory_gatt_client_free",
+    "btstack_memory_hci_connection_get",
+    "btstack_memory_hci_connection_free",
+)
+
+
+def add_btstack_pool_overrides(slot_count: int) -> None:
+    """Emit the --wrap flags that swap the prebuilt BTstack pools for the
+    ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in btstack_memory_rp2.cpp.
+    No-op off rp2 and for single-slot builds, which fit the prebuilt pools
+    (and stay byte-identical to previous releases)."""
+    if not CORE.is_rp2 or slot_count <= 1:
+        return
+    for symbol in _RP2_BTSTACK_POOL_SYMBOLS:
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
 
 def _esp32_schema_fragment() -> cv.Schema:
@@ -168,6 +192,7 @@ SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
         PlatformFramework.ESP32_IDF,
     },
     "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
+    "btstack_memory_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
 }
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(SOURCE_FILE_FRAMEWORKS)
