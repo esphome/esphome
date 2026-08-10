@@ -509,10 +509,11 @@ async def test_uart_mock_modbus_client_typed(
     with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
     a read of unserved register 0x99 resolves via on_error with the device's exception code
     (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via
-    on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code), proving the bit-read request and typed error
-    delivery. A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12
-    chained inside its ack handler (-> multi_value = 222); a multi-coil write draws ILLEGAL_FUNCTION from
-    the register-only server (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
+    on_error with ILLEGAL_DATA_ADDRESS (= 2 -> coil_error_code) - the server supports coils but has none
+    configured, so the address is out of range - proving the bit-read request and typed error delivery.
+    A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12 chained
+    inside its ack handler (-> multi_value = 222); a multi-coil write likewise draws ILLEGAL_DATA_ADDRESS
+    from the register-only server (-> multi_coil_error = 2). A read whose count lambda returns 0 at runtime
     builds an empty (rejected) PDU, is refused at the hub door, and resolves via on_not_sent
     (-> not_sent_flag).
     """
@@ -533,9 +534,9 @@ async def test_uart_mock_modbus_client_typed(
             "typed_value": 777,
             "ack_flag": 1,
             "error_code": 2,
-            "coil_error_code": 1,
+            "coil_error_code": 2,
             "multi_value": 222,
-            "multi_coil_error": 1,
+            "multi_coil_error": 2,
             "not_sent_flag": 1,
         }
     )
