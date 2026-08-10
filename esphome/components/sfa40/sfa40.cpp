@@ -136,7 +136,7 @@ void SFA40Component::update() {
 
     if (this->formaldehyde_sensor_ != nullptr) {
       if (sensor_out_of_spec) {
-        ESP_LOGW(TAG,"Skipping formaldehyde publish: sensor out of spec (status=0x%02X)",status);
+        ESP_LOGW(TAG, "Skipping formaldehyde publish: sensor out of spec (status=0x%02X)", status);
       } else if (this->wait_for_ready_ && sensor_not_ready) {
         ESP_LOGD(TAG, "Skipping formaldehyde publish: sensor warming up");
       } else {
