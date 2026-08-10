@@ -163,11 +163,15 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
         // Addressed completion for a peer the owner is not connecting to: a
         // success delayed past a cancel and an ownership handoff (the cancel
         // idles the stack's request immediately) must not stamp the old
-        // procedure's link onto the new owner. Drop; the owner's own
-        // completion follows. Zero-address (cancel) completions need no such
-        // guard: BTstack only emits them while its request state is idle, and
-        // a new owner re-arms that state when it claims the token, so a stale
-        // cancel completion is swallowed by the stack, never re-attributed.
+        // procedure's link onto the new owner. Zero-address (cancel)
+        // completions need no such guard: BTstack only emits them while its
+        // request state is idle, and a new owner re-arms that state when it
+        // claims the token, so a stale cancel completion is swallowed by the
+        // stack, never re-attributed. A successful stale link still needs
+        // disposal (same hazard as the unowned branch below).
+        if (status == 0) {
+          gap_disconnect(con_handle);
+        }
         break;
       }
       connect_owner = nullptr;
@@ -541,14 +545,6 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
-        if (this->connection_type_ == ble_device_base::ConnectionType::V3_WITH_CACHE) {
-          // Cached connections never run discovery, so nothing consumes the
-          // FAST interval; settle to MEDIUM now (esp32 parity). Sustained
-          // FAST intervals starve WiFi on the shared CYW43 radio.
-          BluetoothLock lock;
-          gap_update_connection_parameters(this->con_handle_, MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0,
-                                           MEDIUM_CONN_TIMEOUT);
-        }
         this->listener_->on_connection_state(true, this->mtu_, 0);
       }
       break;
@@ -969,8 +965,17 @@ int RP2GattClient::try_gap_connect_() {
     if (connect_owner != nullptr) {
       status = ERROR_CODE_COMMAND_DISALLOWED;
     } else {
-      gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW, FAST_MIN_CONN_INTERVAL,
-                                    FAST_MAX_CONN_INTERVAL, 0, FAST_CONN_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
+      // esp32 parity: cached connections come up at MEDIUM already (nothing
+      // consumes the fast interval without a discovery phase), so there is no
+      // post-connect update procedure to race or silently lose; sustained
+      // FAST intervals also starve WiFi on the shared CYW43 radio.
+      // Without-cache runs FAST for discovery and steps down in
+      // finish_discovery_.
+      bool cached = this->connection_type_ == ble_device_base::ConnectionType::V3_WITH_CACHE;
+      gap_set_connection_parameters(CONN_SCAN_INTERVAL, CONN_SCAN_WINDOW,
+                                    cached ? MEDIUM_MIN_CONN_INTERVAL : FAST_MIN_CONN_INTERVAL,
+                                    cached ? MEDIUM_MAX_CONN_INTERVAL : FAST_MAX_CONN_INTERVAL, 0,
+                                    cached ? MEDIUM_CONN_TIMEOUT : FAST_CONN_TIMEOUT, CONN_CE_MIN, CONN_CE_MAX);
       status = gap_connect(this->peer_addr_, this->peer_addr_type_);
       if (status == 0) {
         connect_owner = this;

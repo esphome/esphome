@@ -105,8 +105,8 @@ class RP2GattClient final : public Component,
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
-  // Cached connections settle straight to MEDIUM parameters on link-up
-  // (esp32 parity); FAST is reserved for connect and discovery.
+  // Cached connections initiate at MEDIUM parameters (esp32 parity); FAST is
+  // reserved for the discovery phase of uncached connects.
   void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
   void release_services();
 
