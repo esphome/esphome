@@ -187,7 +187,8 @@ def run_west_flash(
         "-m",
         "west",
         "flash",
-        "--skip-rebuild",
+        # '--skip-rebuild' still works in west v1.5, but is deprecated.
+        "--no-rebuild",
         "-d",
         str(build_dir),
         "--esp-device",
@@ -196,6 +197,35 @@ def run_west_flash(
     if baud_rate:
         west_cmd += ["--esp-baud-rate", str(baud_rate)]
 
+    return run_command_ok(
+        west_cmd,
+        env=env,
+        stream_output=True,
+        cwd=str(framework_path),
+    )
+
+
+def run_west_flash_generic(
+    python_executable: Path,
+    framework_path: Path,
+    env: dict,
+    build_dir: Path,
+) -> bool:
+    """Flash a Zephyr target using the board's default west runner.
+
+    This is used by non-ESP32 Zephyr variants where flashing is typically
+    handled by probe-based runners configured by Zephyr (jlink, pyocd, etc.).
+    """
+    west_cmd = [
+        str(python_executable),
+        "-m",
+        "west",
+        "flash",
+        # '--skip-rebuild' still works in west v1.5, but is deprecated.
+        "--no-rebuild",
+        "-d",
+        str(build_dir),
+    ]
     return run_command_ok(
         west_cmd,
         env=env,
@@ -221,6 +251,7 @@ def run_west_flash_pyocd(
         "-m",
         "west",
         "flash",
+        # '--skip-rebuild' still works in west v1.5, but is deprecated.
         "--no-rebuild",
         "-d",
         str(build_dir),

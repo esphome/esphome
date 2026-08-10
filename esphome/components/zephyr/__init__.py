@@ -1332,11 +1332,36 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             raise EsphomeError("Zephyr pyocd flash failed")
         return True
 
+    # Non-ESP32 Zephyr variants (for example EFR32/nRF/RP2040 in SDK-Zephyr mode)
+    # are generally flashed by the board's default west runner (jlink, pyocd, etc.)
+    # rather than esptool over a selected serial port.
+    if zephyr_variant_family() != "esp32":
+        from esphome.upload_targets import PortType, get_port_type
+
+        if get_port_type(host) != PortType.SERIAL:
+            return False
+
+        from .build_zephyr import run_west_flash_generic
+        from .framework_west import check_and_install as west_install
+
+        version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+        variant_data = VARIANTS[zephyr_variant()]
+        _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
+        python_bin, framework_path, west_env = west_install(
+            sdk,
+            version,
+            zephyr_data()["west_version"],
+            zephyr_data()["ninja_version"],
+            zephyr_data()["sdk_source"],
+            config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        )
+        build_dir = CORE.relative_build_path(".west_build")
+        if not run_west_flash_generic(python_bin, framework_path, west_env, build_dir):
+            raise EsphomeError("Zephyr west flash failed")
+        return True
+
     # Every esp32-family variant flashes the same way: Zephyr's generic esp32
     # runner (runners/esp32.py, wrapping esptool) via `west flash`.
-    if zephyr_variant_family() != "esp32":
-        return False  # no custom uploader for this variant yet; fall through to default OTA
-
     from esphome.upload_targets import PortType, get_port_type
 
     if get_port_type(host) != PortType.SERIAL:
