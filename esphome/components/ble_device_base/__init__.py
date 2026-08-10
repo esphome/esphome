@@ -163,8 +163,9 @@ _request_gatt_connection_slot = cg.slot_counter(GATT_CLIENT_COUNT_DEFINE)
 
 def request_gatt_client() -> None:
     """Compile in the neutral GATT client contract (ble_gatt_client.h) and
-    claim one connection slot. Called by bluetooth_proxy once per connection
-    it instantiates on a hub platform."""
+    claim one compiled-in client slot (sizes ESPHOME_BLE_GATT_CLIENT_COUNT;
+    distinct from the proxy's validated connection budget). Called by
+    bluetooth_connection.new_gatt_backend() once per backend instance."""
     cg.add_define("USE_BLE_GATT_CLIENT")
     _request_gatt_connection_slot()
 

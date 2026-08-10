@@ -5,8 +5,6 @@
 #ifdef USE_BLUETOOTH_PROXY
 
 #include <array>
-#include <map>
-#include <vector>
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -17,11 +15,7 @@
 
 #include "esphome/components/ble_device_base/ble_hub_impl.h"
 
-#ifdef USE_ESP32
-#include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
-#elif defined(USE_BLE_GATT_CLIENT)
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
-#endif
 
 namespace esphome::bluetooth_proxy {
 
@@ -29,7 +23,6 @@ namespace esphome::bluetooth_proxy {
 // re-exported here so the proxy code reads unqualified.
 using bluetooth_connection::CONN_OK;
 using bluetooth_connection::conn_err_t;
-using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::GATT_NOT_CONNECTED;
 using bluetooth_connection::INIT_SENDING_SERVICES;
 
@@ -261,6 +254,10 @@ class BluetoothProxy final : public Component {
 
   // Group 4: 1-byte types grouped together
   bool active_;
+  // A dropped send (full TCP buffer) would leave the API client with a stale
+  // slot state forever; the cached response is current by construction, so
+  // retrying it from loop() is an idempotent resync.
+  bool connections_free_pending_{false};
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
 #ifndef USE_BLE_SCANNER_STATE_CALLBACK
