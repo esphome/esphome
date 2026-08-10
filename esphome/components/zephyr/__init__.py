@@ -1533,7 +1533,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if get_port_type(host) != PortType.SERIAL:
             return False
 
-        from .build_zephyr import run_west_flash_generic
+        from .build_zephyr import resolve_dev_id, run_west_flash_generic
         from .framework_west import check_and_install as west_install
 
         version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
@@ -1548,7 +1548,15 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
         )
         build_dir = CORE.relative_build_path(".west_build")
-        if not run_west_flash_generic(python_bin, framework_path, west_env, build_dir):
+        # Disambiguate which attached probe to flash when the board's default
+        # runner supports device IDs -- see resolve_dev_id() for why this can't
+        # just always be forwarded, and #85 for the multi-probe problem it fixes.
+        dev_id = resolve_dev_id(build_dir, host)
+        if dev_id:
+            _LOGGER.info("Selecting probe %s (port %s) for west flash", dev_id, host)
+        if not run_west_flash_generic(
+            python_bin, framework_path, west_env, build_dir, dev_id
+        ):
             raise EsphomeError("Zephyr west flash failed")
         return True
 
