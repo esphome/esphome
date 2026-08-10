@@ -133,9 +133,7 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (this->parent_->is_status_initialized()) {
-    this->apply_values_();
-  }
+  this->parent_->publish_status();
 }
 
 void MitsubishiCN105Climate::apply_values_() {
