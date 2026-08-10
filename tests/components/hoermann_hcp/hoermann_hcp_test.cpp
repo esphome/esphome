@@ -170,6 +170,25 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
   EXPECT_EQ(poll_command(door), 0x0000);
 }
 
+// Status broadcasts alone keep the connection alive, so a command the controller never fetches has to
+// expire on its own; otherwise it blocks every later command until the bus goes quiet entirely.
+TEST(HoermannHcpReadWrite, UnfetchedCommandExpiresWhileConnected) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect(door);
+  door.open_door();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  // A status broadcast refreshes the connection without ever fetching the command.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  door.update();
+  ASSERT_TRUE(door.is_valid());
+
+  // With the stale command gone, the door accepts commands again.
+  door.close_door();
+  EXPECT_EQ(poll_command(door), 0x0220);
+}
+
 // The 0x17 read half echoes the message counter and command byte written to COMMAND_REG, packed
 // differently per block length.
 TEST(HoermannHcpReadWrite, CommandRegisterIsEchoedBack) {
