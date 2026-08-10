@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    SWAP_METHOD_SCHEMA,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.components.zephyr import (
     VARIANTS,
     HexValue,
@@ -117,7 +122,7 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.one_of(*UARTS, upper=True),
                 }
             ),
-            **mcuboot.SWAP_METHOD_SCHEMA,
+            **SWAP_METHOD_SCHEMA,
         }
     )
     .extend(BASE_OTA_SCHEMA)
