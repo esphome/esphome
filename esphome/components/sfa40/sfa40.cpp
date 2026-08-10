@@ -91,9 +91,20 @@ void SFA40Component::dump_config() {
     }
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Protocol: %s",
-                this->protocol_version_ == ProtocolVersion::PRODUCTION ? "production" : "prototype (B4)");
-  ESP_LOGCONFIG(TAG, "  Wait for ready: %s", ONOFF(this->wait_for_ready_));
+  switch (this->protocol_version_) {
+    case ProtocolVersion::PRODUCTION:
+      ESP_LOGCONFIG(TAG, "  Protocol: production");
+      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX",
+                    (unsigned long long) this->serial_number_);
+      break;
+    case ProtocolVersion::PROTOTYPE:
+      ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)");
+      ESP_LOGCONFIG(TAG, "  Marking: '%s'", this->device_marking_);
+      break;
+    default:
+      ESP_LOGCONFIG(TAG, "  Protocol: (detecting...)");
+      break;
+  }
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
