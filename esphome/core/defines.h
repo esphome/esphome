@@ -546,6 +546,13 @@
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
 #endif
 
+// Emitted for every rpi_pico-family variant (RP2040/RP2350) -- lets logger_zephyr.cpp's
+// USB_CDC poll loop detect a 1200-baud "touch" and reboot into BOOTSEL without the
+// physical button, backed by Zephyr's retention bootmode API.
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO
+#define USE_ZEPHYR_BOOTSEL_TOUCH
+#endif
+
 // Emitted by logger/__init__.py when hardware_uart: USB_SERIAL_JTAG is selected --
 // ESP32-H2's controller is a standard Zephyr UART device, not USB CDC-ACM.
 // esp32_c6 doesn't implement this yet.

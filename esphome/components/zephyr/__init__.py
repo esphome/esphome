@@ -568,6 +568,40 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every rpi_pico-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RPI_PICO")
+        # Lets logger_zephyr.cpp's USB_CDC poll loop detect a host opening the port at
+        # 1200 baud (the cross-ecosystem "magic baud rate" convention) and reboot into
+        # the ROM USB bootloader (BOOTSEL) without needing the physical button --
+        # backed entirely by already-merged Zephyr infrastructure (subsys/retention's
+        # bootmode API + the RP2 SoC's own PRE_KERNEL_2 hook that acts on it).
+        #
+        # Applied directly rather than via the upstream `rp2-boot-mode-retention`
+        # snippet: that snippet's board-matching regex (`.*/rp2350b?/.*`) doesn't
+        # account for the "A package" qualifier real RP2350 boards use
+        # (`xiao_rp2350/rp2350a/m33`), so its devicetree overlay silently never
+        # applies there, and CONFIG_RETENTION_BOOT_MODE gets silently dropped for
+        # lack of the "zephyr,boot-mode" chosen node it depends on.
+        boot_mode_dtsi = (
+            "rp2040-boot-mode-retention"
+            if zephyr_variant() == ZEPHYR_VARIANT_RP2040
+            else "rp2350-boot-mode-retention"
+        )
+        boot_mode_overlay = f"#include <vendor/raspberrypi/{boot_mode_dtsi}.dtsi>"
+        # When mcuboot is enabled, it -- not the app -- is what runs first on the next
+        # boot after the app calls bootmode_set()+sys_reboot(). The RP2 SoC's own
+        # PRE_KERNEL_2 hook that reads the retained flag and jumps into the ROM USB
+        # bootloader has to run inside mcuboot's own boot sequence, since mcuboot
+        # decides whether to chain-load the app at all -- so mcuboot's own build needs
+        # this Kconfig/overlay applied too (image="mcuboot"), or nothing ever reads the
+        # flag and mcuboot just boots the app slot as normal.
+        images = ("",)
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            images = ("", "mcuboot")
+        for image in images:
+            zephyr_add_prj_conf("RETAINED_MEM", True, image=image)
+            zephyr_add_prj_conf("RETENTION", True, image=image)
+            zephyr_add_prj_conf("RETENTION_BOOT_MODE", True, image=image)
+            zephyr_add_overlay(boot_mode_overlay, image)
+        cg.add_build_flag("-DUSE_ZEPHYR_BOOTSEL_TOUCH")
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
@@ -1262,24 +1296,74 @@ def _signed_image_flash_address(signed_hex: Path) -> int | None:
     return (upper16 << 16) | lower16
 
 
-def _upload_using_picotool() -> bool:
-    """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
+def _find_picotool() -> Path | None:
     import shutil
     import sys
 
-    from esphome.util import (
-        PICOTOOL_PACKAGE,
-        detect_rp2040_bootsel,
-        is_picotool_usb_permission_error,
-    )
+    from esphome.util import PICOTOOL_PACKAGE
 
     binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
     pio_packages = Path.home() / ".platformio" / "packages"
     picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
     if not picotool.is_file():
         picotool = Path(shutil.which(binary_name) or "")
+    return picotool if picotool and picotool.is_file() else None
 
-    if not picotool or not picotool.is_file():
+
+def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
+    """Trigger an RP2040/RP2350 running ESPHome's own firmware (with
+    USE_ZEPHYR_BOOTSEL_TOUCH's poll loop active) to reboot into BOOTSEL, by briefly
+    opening its USB CDC serial port at 1200 baud -- the cross-ecosystem "magic baud
+    rate" convention -- then waiting for it to re-enumerate in BOOTSEL mode.
+    """
+    import time
+
+    import serial
+
+    from esphome.util import detect_rp2040_bootsel
+
+    picotool = _find_picotool()
+    if picotool is None:
+        return False
+
+    # A board already sitting in BOOTSEL before the touch can't be our target -- it's
+    # reachable right now as a live serial port, which a BOOTSEL-mode device never is.
+    # Snapshot that count so we can tell "our target rebooted into BOOTSEL" (count went
+    # up by exactly one) apart from "the touch didn't work and we're just still seeing
+    # whatever stray device was already there" (count unchanged) or "more than one
+    # device showed up" (ambiguous -- can't tell picotool which one is ours).
+    before_count = detect_rp2040_bootsel(str(picotool)).device_count
+
+    try:
+        with serial.Serial(port, baudrate=1200):
+            pass
+    except serial.SerialException as err:
+        _LOGGER.warning("Could not open %s at 1200 baud: %s", port, err)
+        return False
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        after_count = detect_rp2040_bootsel(str(picotool)).device_count
+        if after_count == before_count + 1:
+            return True
+        if after_count > before_count + 1:
+            _LOGGER.error(
+                "Multiple RP2040/RP2350 devices appeared in BOOTSEL mode after the "
+                "reboot touch -- cannot identify which one is the target device."
+            )
+            return False
+        time.sleep(0.5)
+    return False
+
+
+def _upload_using_picotool() -> bool:
+    """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
+    import sys
+
+    from esphome.util import detect_rp2040_bootsel, is_picotool_usb_permission_error
+
+    picotool = _find_picotool()
+    if picotool is None:
         _LOGGER.error(
             "picotool not found. Install it via PlatformIO (rp2040 platform) "
             "or your system package manager."
@@ -1420,8 +1504,25 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             raise EsphomeError("Zephyr pyocd flash failed")
         return True
 
-    # Non-ESP32 Zephyr variants (for example EFR32/nRF/RP2040 in SDK-Zephyr mode)
-    # are generally flashed by the board's default west runner (jlink, pyocd, etc.)
+    # rpi_pico-family variants (RP2040/RP2350) given a normal serial port instead of
+    # BOOTSEL: the board's default west runner (uf2) only works once already in
+    # BOOTSEL, so trigger that ourselves first via the 1200-baud touch (see
+    # USE_ZEPHYR_BOOTSEL_TOUCH), then flash the same way `--device BOOTSEL` would.
+    if zephyr_variant_family() == "rpi_pico":
+        from esphome.upload_targets import PortType, get_port_type
+
+        if get_port_type(host) != PortType.SERIAL:
+            return False
+
+        if not _touch_1200_baud_reboot(host):
+            raise EsphomeError(
+                f"Could not trigger a BOOTSEL reboot on {host}. Manually put the "
+                "device into BOOTSEL mode (hold BOOTSEL while plugging in) and retry."
+            )
+        return _upload_using_picotool()
+
+    # Non-ESP32 Zephyr variants (for example EFR32/nRF in SDK-Zephyr mode) are
+    # generally flashed by the board's default west runner (jlink, pyocd, etc.)
     # rather than esptool over a selected serial port.
     if zephyr_variant_family() != "esp32":
         from esphome.upload_targets import PortType, get_port_type
