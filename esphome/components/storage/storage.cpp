@@ -199,8 +199,17 @@ bool StorageRegistry::is_registered(const Storage *s) const {
 size_t StorageRegistry::snapshot_(Storage **out) const {
   size_t n = 0;
   for (auto *s : this->storages_) {
-    if (n >= STORAGE_MAX_DEVICES)
-      break;  // codegen sizes both to device_count, so this cannot trip in a real build
+    if (n >= STORAGE_MAX_DEVICES) {
+      // codegen sizes STORAGE_MAX_DEVICES to device_count, so a real build never truncates; a
+      // stale or absent define (clang-tidy, IDE) would, and silently dropping devices from every
+      // enumeration is worth one diagnosable line.
+      static bool logged = false;
+      if (!logged) {
+        logged = true;
+        ESP_LOGE(TAG, "storage snapshot truncated at %u devices -- STORAGE_MAX_DEVICES too small", (unsigned) STORAGE_MAX_DEVICES);
+      }
+      break;
+    }
     out[n++] = s;
   }
   return n;
@@ -489,12 +498,19 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
       return err;
     }
     if (bytes_transferred == 0)
-      break;  // EOF before stat()-reported size -- return what we got
+      break;  // EOF before the stat()-reported size; caught by the short-read check after the loop
     total_read += bytes_transferred;
     App.feed_wdt();
   }
   storage->close(handle);
 
+  if (total_read < buf_size) {
+    // The buffer was sized from stat(); a short read means the file ended before its reported
+    // size, so the whole-file read the caller asked for cannot be honored -- returning OK with a
+    // truncated buffer would let it pass as complete. A concurrent writer that shrank the file
+    // lands here too; the caller can re-stat and retry.
+    return StorageError::READ_ERROR;
+  }
   out = std::move(buf);
   *size = total_read;
   return StorageError::OK;
@@ -537,11 +553,18 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
     if (err != StorageError::OK)
       return err;
     if (bytes_transferred == 0)
-      break;  // EOF before stat()-reported size -- return what we got
+      break;  // EOF before the stat()-reported size; caught by the short-read check after the loop
     total_read += bytes_transferred;
     App.feed_wdt();
   }
 
+  if (total_read < buf_size) {
+    // The buffer was sized from stat(); a short read means the file ended before its reported
+    // size, so the whole-file read the caller asked for cannot be honored -- returning OK with a
+    // truncated buffer would let it pass as complete. A concurrent writer that shrank the file
+    // lands here too; the caller can re-stat and retry.
+    return StorageError::READ_ERROR;
+  }
   out = std::move(buf);
   *size = total_read;
   return StorageError::OK;
