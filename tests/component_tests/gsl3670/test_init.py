@@ -254,6 +254,31 @@ def test_config_seeed_model_applies_defaults(tmp_path: Path) -> None:
     assert CONF_RESET_PIN in result
 
 
+def test_config_guition_model_applies_defaults(tmp_path: Path) -> None:
+    """The GUITION model populates transform and calibration defaults."""
+    fw = _write_firmware(tmp_path)
+    result = gsl.CONFIG_SCHEMA(
+        {
+            "model": "guition-jc8012p4a1",
+            "firmware": {"file": str(fw)},
+        }
+    )
+    assert result[CONF_MODEL] == "GUITION-JC8012P4A1"
+    # Transform defaults from the model.
+    assert result[CONF_TRANSFORM] == {
+        "swap_xy": True,
+        "mirror_x": True,
+        "mirror_y": False,
+    }
+    # Calibration defaults from the model.
+    assert result[CONF_CALIBRATION]["x_min"] == 20
+    assert result[CONF_CALIBRATION]["x_max"] == 880
+    assert result[CONF_CALIBRATION]["y_min"] == 20
+    assert result[CONF_CALIBRATION]["y_max"] == 1648
+    assert result[CONF_INTERRUPT_PIN]["number"] == 21
+    assert result[CONF_RESET_PIN]["number"] == 22
+
+
 def test_config_rejects_non_dict() -> None:
     """A non-dict configuration is rejected."""
     with pytest.raises(cv.Invalid, match="expected a dictionary"):

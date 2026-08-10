@@ -4,7 +4,12 @@ import logging
 from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.network import add_use_address, ip_address_literal
+from esphome.components.network import (
+    add_use_address,
+    get_network_priority,
+    get_priority_interfaces_from_full_config,
+    ip_address_literal,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -50,7 +55,6 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CONFLICTS_WITH = ["wifi"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
 
@@ -433,37 +437,48 @@ GENERIC_SCHEMA = cv.All(
     cv.only_on([Platform.ESP32]),
 )
 
-SPI_SCHEMA = cv.All(
-    BASE_SCHEMA.extend(
-        cv.Schema(
-            {
-                cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
-                cv.Required(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
-                cv.Required(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
-                cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
-                cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-                cv.SplitDefault(CONF_CLOCK_SPEED, esp32="26.67MHz"): cv.All(
-                    cv.only_on_esp32,
-                    cv.frequency,
-                    cv.int_range(int(8e6), int(80e6)),
-                ),
-                cv.Optional(CONF_INTERFACE): cv.All(
-                    cv.only_on_esp32,
-                    cv.one_of(*SPI_INTERFACE_MAP.keys(), lower=True),
-                ),
-                # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
-                cv.Optional(CONF_POLLING_INTERVAL): cv.All(
-                    cv.only_on_esp32,
-                    cv.positive_time_period_milliseconds,
-                    cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
-                ),
-            }
+
+def _spi_schema(default_clock: str = "26.67MHz", max_clock: int = int(80e6)):
+    return cv.All(
+        BASE_SCHEMA.extend(
+            cv.Schema(
+                {
+                    cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Required(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
+                    cv.Required(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Optional(
+                        CONF_INTERRUPT_PIN
+                    ): pins.internal_gpio_input_pin_number,
+                    cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+                    cv.SplitDefault(CONF_CLOCK_SPEED, esp32=default_clock): cv.All(
+                        cv.only_on_esp32,
+                        cv.frequency,
+                        cv.int_range(int(8e6), max_clock),
+                    ),
+                    cv.Optional(CONF_INTERFACE): cv.All(
+                        cv.only_on_esp32,
+                        cv.one_of(*SPI_INTERFACE_MAP.keys(), lower=True),
+                    ),
+                    # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
+                    cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                        cv.only_on_esp32,
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
+                    ),
+                }
+            ),
         ),
-    ),
-    cv.only_on([Platform.ESP32, Platform.RP2]),
-    _validate_spi_interface,
-)
+        cv.only_on([Platform.ESP32, Platform.RP2]),
+        _validate_spi_interface,
+    )
+
+
+SPI_SCHEMA = _spi_schema()
+
+# The ENC28J60's SCK maximum is 20 MHz, so the shared 26.67 MHz default is out
+# of spec for it and makes the driver's CS hold time helper compute no hold
+SPI_SCHEMA_ENC28J60 = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -479,7 +494,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
-            "ENC28J60": SPI_SCHEMA,
+            "ENC28J60": SPI_SCHEMA_ENC28J60,
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "LAN8670": RMII_SCHEMA,
@@ -535,6 +550,14 @@ def phy_register(address: int, value: int, page: int):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    # Apply network priority before register_component (which emits the user's
+    # explicit setup_priority: if set) so that, as in wifi, an explicit
+    # setup_priority: still wins over the network-priority-derived value.
+    prio = get_network_priority("ethernet")
+    if prio is not None:
+        cg.set_setup_priority(var, prio)
+
     await cg.register_component(var, config)
 
     if CORE.is_esp32:
@@ -644,8 +667,9 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Register Ethernet with the esp32 sdkconfig reconciler, which disables the
-    # WiFi stack and WiFi/BT coexistence when Ethernet is used without WiFi.
+    # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
+    # WiFi stack and WiFi/BT coexistence only when Ethernet runs without WiFi,
+    # so multi-interface configs (network: priority: with both) keep WiFi.
     request_ethernet()
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
@@ -732,6 +756,22 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
+    # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
+    if "wifi" in fv.full_config.get():
+        priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
+        missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
+        if missing and priority_ifaces:
+            # A priority list exists but is incomplete: point at what to add.
+            raise cv.Invalid(
+                "When ethernet and wifi are used together, 'network: priority:' must "
+                f"list both interfaces; missing: {', '.join(missing)}"
+            )
+        if missing:
+            raise cv.Invalid(
+                "Component ethernet cannot be used together with component wifi "
+                "unless both are listed under 'network: priority:'"
+            )
+
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
     return config
