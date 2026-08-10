@@ -110,35 +110,16 @@ uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
   return static_cast<uint32_t>((static_cast<uint64_t>(random_uint32()) * max_offset) >> 32);
 }
 
-// Check if a retry was already cancelled in items_ or to_add_
-// Extracted from set_timer_common_ to reduce code size - retry path is cold and deprecated
-// Remove before 2026.8.0 along with all retry code
-bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name,
-                                           uint32_t hash_or_id) {
-  for (auto *container : {&this->items_, &this->to_add_}) {
-    for (auto *item : *container) {
-      if (item != nullptr && this->is_item_removed_locked_(item) &&
-          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
-                                     /* match_retry= */ true, /* skip_removed= */ false)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 // Common implementation for both timeout and interval
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                      std::function<void()> &&func, bool is_retry, bool skip_cancel,
-                                      const LogString *source) {
+                                      std::function<void()> &&func, bool skip_cancel, const LogString *source) {
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
       LockGuard guard{this->lock_};
-      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
-                                /* find_first= */ true);
+      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
     }
     return;
   }
@@ -156,22 +137,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     delay = 1;
   }
 
-  // Take lock early to protect scheduler_item_pool_head_ access and retry-cancelled check
+  // Take lock early to protect scheduler_item_pool_head_ access
   LockGuard guard{this->lock_};
-
-  // For retries, check if there's a cancelled timeout first - before allocating an item.
-  // Skip check for anonymous retries (STATIC_STRING with nullptr) - they can't be cancelled by name
-  // Skip check for defer (delay=0) - deferred retries bypass the cancellation check
-  if (is_retry && delay != 0 && (name_type != NameType::STATIC_STRING || static_name != nullptr) &&
-      type == SchedulerItem::TIMEOUT &&
-      this->is_retry_cancelled_locked_(component, name_type, static_name, hash_or_id)) {
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    SchedulerNameLog skip_name_log;
-    ESP_LOGD(TAG, "Skipping retry '%s' - found cancelled item",
-             skip_name_log.format(name_type, static_name, hash_or_id));
-#endif
-    return;
-  }
 
   // Create and populate the scheduler item
   SchedulerItem *item = this->get_item_from_pool_locked_();
@@ -192,7 +159,6 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   new (&item->callback) std::function<void()>(std::move(func));
   // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
   this->set_item_removed_(item, false);
-  item->is_retry = is_retry;
 
   // Determine target container: defer_queue_ for deferred items, to_add_ for everything else.
   // Using a pointer lets both paths share the cancel + push_back epilogue.
@@ -234,8 +200,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
   // Anonymous items (STATIC_STRING with nullptr) can never match anything, so skip the scan.
   if (!skip_cancel && (name_type != NameType::STATIC_STRING || static_name != nullptr)) {
-    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
-                              /* find_first= */ true);
+    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* find_first= */ true);
   }
   target->push_back(item);
   if (target == &this->to_add_) {
@@ -300,125 +265,6 @@ bool HOT Scheduler::cancel_interval(const void *self) {
   return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
                             SchedulerItem::INTERVAL);
 }
-
-// Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
-// Remove before 2026.8.0 along with all retry code.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-struct RetryArgs {
-  // Ordered to minimize padding on 32-bit systems
-  std::function<RetryResult(uint8_t)> func;
-  Component *component;
-  Scheduler *scheduler;
-  // Union for name storage - only one is used based on name_type
-  union {
-    const char *static_name;  // For STATIC_STRING
-    uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
-  } name_;
-  uint32_t current_interval;
-  float backoff_increase_factor;
-  Scheduler::NameType name_type;  // Discriminator for name_ union
-  uint8_t retry_countdown;
-};
-
-void retry_handler(const std::shared_ptr<RetryArgs> &args) {
-  RetryResult const retry_result = args->func(--args->retry_countdown);
-  if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
-    return;
-  // second execution of `func` happens after `initial_wait_time`
-  // args->name_ is owned by the shared_ptr<RetryArgs>
-  // which is captured in the lambda and outlives the SchedulerItem
-  const char *static_name = (args->name_type == Scheduler::NameType::STATIC_STRING) ? args->name_.static_name : nullptr;
-  uint32_t hash_or_id = (args->name_type != Scheduler::NameType::STATIC_STRING) ? args->name_.hash_or_id : 0;
-  args->scheduler->set_timer_common_(
-      args->component, Scheduler::SchedulerItem::TIMEOUT, args->name_type, static_name, hash_or_id,
-      args->current_interval, [args]() { retry_handler(args); },
-      /* is_retry= */ true);
-  // backoff_increase_factor applied to third & later executions
-  args->current_interval *= args->backoff_increase_factor;
-}
-
-void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, const char *static_name,
-                                      uint32_t hash_or_id, uint32_t initial_wait_time, uint8_t max_attempts,
-                                      std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  this->cancel_retry_(component, name_type, static_name, hash_or_id);
-
-  if (initial_wait_time == SCHEDULER_DONT_RUN)
-    return;
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  {
-    SchedulerNameLog name_log;
-    ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
-              name_log.format(name_type, static_name, hash_or_id), initial_wait_time, max_attempts,
-              backoff_increase_factor);
-  }
-#endif
-
-  if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
-             (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
-    backoff_increase_factor = 1;
-  }
-
-  auto args = std::make_shared<RetryArgs>();
-  args->func = std::move(func);
-  args->component = component;
-  args->scheduler = this;
-  args->name_type = name_type;
-  if (name_type == NameType::STATIC_STRING) {
-    args->name_.static_name = static_name;
-  } else {
-    args->name_.hash_or_id = hash_or_id;
-  }
-  args->current_interval = initial_wait_time;
-  args->backoff_increase_factor = backoff_increase_factor;
-  args->retry_countdown = max_attempts;
-
-  // First execution of `func` immediately - use set_timer_common_ with is_retry=true
-  this->set_timer_common_(
-      component, SchedulerItem::TIMEOUT, name_type, static_name, hash_or_id, 0, [args]() { retry_handler(args); },
-      /* is_retry= */ true);
-}
-
-void HOT Scheduler::set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                              std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  this->set_retry_common_(component, NameType::STATIC_STRING, name, 0, initial_wait_time, max_attempts, std::move(func),
-                          backoff_increase_factor);
-}
-
-bool HOT Scheduler::cancel_retry_(Component *component, NameType name_type, const char *static_name,
-                                  uint32_t hash_or_id) {
-  return this->cancel_item_(component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
-                            /* match_retry= */ true);
-}
-bool HOT Scheduler::cancel_retry(Component *component, const char *name) {
-  return this->cancel_retry_(component, NameType::STATIC_STRING, name, 0);
-}
-
-void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
-                              float backoff_increase_factor) {
-  this->set_retry_common_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), initial_wait_time,
-                          max_attempts, std::move(func), backoff_increase_factor);
-}
-
-bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  return this->cancel_retry_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name));
-}
-
-void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                              std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  this->set_retry_common_(component, NameType::NUMERIC_ID, nullptr, id, initial_wait_time, max_attempts,
-                          std::move(func), backoff_increase_factor);
-}
-
-bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
-  return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
-}
-
-#pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -806,11 +652,11 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
 
 // Common implementation for cancel operations - handles locking
 bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                                 SchedulerItem::Type type, bool match_retry) {
+                                 SchedulerItem::Type type) {
   LockGuard guard{this->lock_};
   // Public cancel path uses default find_first=false to cancel ALL matches because
   // DelayAction parallel mode (skip_cancel=true) can create multiple items with the same key.
-  return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, match_retry);
+  return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
 }
 
 // Helper to cancel matching items - must be called with lock held.
@@ -822,11 +668,10 @@ bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const
 size_t Scheduler::mark_matching_items_removed_slow_locked_(std::vector<SchedulerItem *> &container,
                                                            Component *component, NameType name_type,
                                                            const char *static_name, uint32_t hash_or_id,
-                                                           SchedulerItem::Type type, bool match_retry,
-                                                           bool find_first) {
+                                                           SchedulerItem::Type type, bool find_first) {
   size_t count = 0;
   for (auto *item : container) {
-    if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+    if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type)) {
       this->set_item_removed_(item, true);
       if (find_first)
         return 1;
@@ -837,8 +682,7 @@ size_t Scheduler::mark_matching_items_removed_slow_locked_(std::vector<Scheduler
 }
 
 bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type, const char *static_name,
-                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
-                                        bool find_first) {
+                                        uint32_t hash_or_id, SchedulerItem::Type type, bool find_first) {
   // Early return if static string name is invalid
   if (name_type == NameType::STATIC_STRING && static_name == nullptr) {
     return false;
@@ -850,7 +694,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
     total_cancelled += this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_type, static_name,
-                                                                 hash_or_id, type, match_retry, find_first);
+                                                                 hash_or_id, type, find_first);
     if (find_first && total_cancelled > 0)
       return true;
   }
@@ -863,7 +707,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // Only the main loop in call() should recycle items after execution completes.
   {
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
-                                                                      hash_or_id, type, match_retry, find_first);
+                                                                      hash_or_id, type, find_first);
     total_cancelled += heap_cancelled;
     this->to_remove_add_locked_(heap_cancelled);
     if (find_first && total_cancelled > 0)
@@ -872,7 +716,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
 
   // Cancel items in to_add_
   total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_type, static_name,
-                                                               hash_or_id, type, match_retry, find_first);
+                                                               hash_or_id, type, find_first);
 
   return total_cancelled > 0;
 }

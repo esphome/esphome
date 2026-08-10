@@ -7,6 +7,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 #ifdef USE_ESP32
 
 namespace esphome::esp32_improv {
@@ -40,6 +44,15 @@ void ESP32ImprovComponent::setup() {
   }
 #endif
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
+
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      ESP_LOGD(TAG, "Provisioning window closed; stopping Improv");
+      this->stop();
+    });
+  }
+#endif
 
   // Start with loop disabled - will be enabled by start() when needed
   this->disable_loop();
@@ -282,6 +295,15 @@ void ESP32ImprovComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
+#ifdef USE_PROVISIONING
+  // Don't (re)start advertising once the provisioning window has closed - e.g. when
+  // wifi tries to restart Improv after the window expired at runtime.
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
+    return;
+  }
+#endif
+
   ESP_LOGD(TAG, "Setting Improv to start");
   this->should_start_ = true;
   this->enable_loop();
@@ -338,6 +360,15 @@ void ESP32ImprovComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
+#ifdef USE_PROVISIONING
+        if (provisioning::global_provisioning_manager != nullptr &&
+            provisioning::global_provisioning_manager->closed()) {
+          ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
+          this->set_error_(improv::ERROR_NOT_AUTHORIZED);
+          this->incoming_data_.clear();
+          return;
+        }
+#endif
         if (wifi::global_wifi_component->is_disabled()) {
           // Wi-Fi is disabled, so we can't provision. Respond immediately
           // instead of letting the client wait out its provisioning timeout.
