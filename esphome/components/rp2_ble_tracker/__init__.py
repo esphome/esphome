@@ -12,6 +12,7 @@ Scan modes:
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
 from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -21,8 +22,6 @@ from esphome.const import (
     CONF_INTERVAL,
 )
 from esphome.types import ConfigType
-
-CONF_RP2040_BLE_ID = "rp2040_ble_id"
 
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
@@ -56,6 +55,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_RP2_BLE_TRACKER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

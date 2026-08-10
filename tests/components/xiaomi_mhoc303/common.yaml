@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: xiaomi_mhoc303
+    ble_hub_id: ble_tracker_hub
     mac_address: E7:50:59:32:A0:1C
     temperature:
       name: MHO-C303 Temperature

@@ -17,7 +17,6 @@
 namespace esphome::rp2_ble_tracker {
 
 class RP2BLETracker : public Component,
-                      public ble_device_base::BLEHub,
                       public rp2040_ble::BLEScanListener,
                       public Parented<rp2040_ble::RP2040BLE>
 #ifdef USE_OTA_STATE_LISTENER
@@ -51,27 +50,33 @@ class RP2BLETracker : public Component,
   void stop_scan();
 
   // ---- ble_device_base::BLEHub contract ----
-  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override {
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
     this->listeners_.push_back(listener);
 #endif
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
     this->raw_advertisement_callback_ = callback;
   }
-  ble_device_base::HubCapabilities get_capabilities() const override {
+  static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // BTstack delivers scan responses as separate advertisement reports rather
     // than merging them into the advertisement — consumers relying on
     // scan-response fields (device names) get them only where the receiver
-    // merges per address (Home Assistant does). No GATT path yet.
-    return {.active_scan = true, .merges_scan_response = false, .gatt = false, .scan_mode_switch = true};
+    // merges per address (Home Assistant does). GATT is available when the
+    // BTstack connection backend is compiled in (bluetooth_proxy active).
+#ifdef USE_BLE_GATT_CLIENT
+    constexpr bool has_gatt = true;
+#else
+    constexpr bool has_gatt = false;
+#endif
+    return {.active_scan = true, .merges_scan_response = false, .gatt = has_gatt, .scan_mode_switch = true};
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
-  void get_adapter_mac(uint8_t out[6]) override { this->parent_->get_mac_msb_first(out); }
-  bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return this->scan_active_; }
-  bool request_scan_mode(bool active) override;
+  void get_adapter_mac(uint8_t out[6]) { this->parent_->get_mac_msb_first(out); }
+  bool scan_running() { return this->scan_running_; }
+  bool scan_active() { return this->scan_active_; }
+  bool request_scan_mode(bool active);
 
   // ---- rp2040_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main loop — the
