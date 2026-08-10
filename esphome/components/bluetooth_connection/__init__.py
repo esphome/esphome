@@ -92,6 +92,10 @@ async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
+    from esphome.components import ota
+
+    # The backend drops its link when an OTA starts (esp32 tracker parity).
+    ota.request_ota_state_listeners()
     # More than one backend outgrows the prebuilt BTstack pools: swap them for
     # the ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in rp2040_ble's
     # btstack_memory.cpp. Keyed to backend registrations (the same event that
