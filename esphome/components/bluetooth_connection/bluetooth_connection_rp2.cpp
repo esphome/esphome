@@ -907,12 +907,16 @@ int RP2GattClient::try_gap_connect_() {
       status = gap_connect(this->peer_addr_, this->peer_addr_type_);
       if (status == 0) {
         connect_owner = this;
+        // Still under the lock: a synthesized failure completion can fire in
+        // the BTstack context the instant it releases, and completion routing
+        // requires CONNECTING — set after the fact, the event is discarded
+        // and the engine burns its whole budget waiting for it.
+        this->state_ = EngineState::CONNECTING;
+        this->connect_started_ = millis();
       }
     }
   }
   if (status == 0) {
-    this->state_ = EngineState::CONNECTING;
-    this->connect_started_ = millis();
     return 0;
   }
   if (status == ERROR_CODE_COMMAND_DISALLOWED) {
