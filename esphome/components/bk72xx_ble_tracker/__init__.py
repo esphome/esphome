@@ -25,6 +25,7 @@ from esphome.components.ble_device_base import automation as ble_automation
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTIVE,
     CONF_CONTINUOUS,
     CONF_DURATION,
     CONF_ID,
@@ -146,6 +147,9 @@ async def stop_scan_action_to_code(
 async def to_code(config: ConfigType) -> None:
     # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
     cg.add_define("USE_BK72XX_BLE_TRACKER")
+    # Compiles the shared adv + scan-response merge (the BDK delivers the pair
+    # as separate reports).
+    cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -164,6 +168,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
 
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         await ble_automation.advertise_trigger_to_code(conf, var)

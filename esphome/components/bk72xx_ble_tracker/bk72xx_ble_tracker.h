@@ -21,6 +21,7 @@
 //       window:      30ms
 //       duration:    5min
 //       continuous:  true
+//       active:      true
 
 #pragma once
 
@@ -29,6 +30,7 @@
 #include "esphome/components/bk72xx_ble/bk72xx_ble.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
+#include "esphome/components/ble_device_base/scan_response_merger.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -69,6 +71,12 @@ class BK72xxBLETracker : public Component,
   void set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { this->scan_window_ = scan_window; }
   void set_scan_duration(uint32_t scan_duration) { this->scan_duration_ = scan_duration; }
+  /// Set from YAML (scan_parameters.active); runtime mode requests change
+  /// only the resolved mode.
+  void set_scan_active(bool scan_active) {
+    this->scan_active_ = scan_active;
+    this->scan_active_configured_ = scan_active;
+  }
   /// Set from YAML (scan_parameters.continuous); also the value
   /// configured_continuous() reports and a bare start_scan action restores.
   void set_configured_continuous(bool scan_continuous) {
@@ -93,27 +101,19 @@ class BK72xxBLETracker : public Component,
 
   // ---- ble_device_base::BLEHub contract ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    this->listeners_.push_back(listener);
-#endif
+    this->dispatcher_.register_listener(listener);
   }
   void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
-    this->raw_advertisement_callback_ = callback;
+    this->dispatcher_.set_raw_advertisement_callback(callback);
   }
   static constexpr ble_device_base::HubCapabilities get_capabilities() {
-    // The Beken BDK exposes no active-scan path (passive scanning only), so the
-    // controller never solicits scan responses and never merges them; consumers
-    // relying on scan-response fields (device names) get them only where the
-    // receiver merges per address (Home Assistant does). No GATT client either.
-    // scan_mode_switch stays false for the same reason: with no active-scan
-    // path there is no mode to switch to.
-    return {.active_scan = false, .merges_scan_response = false, .gatt = false, .scan_mode_switch = false};
+    // Active scanning is driven through bk72xx_ble's reconciler because the BDK
+    // API itself is passive-only. The controller delivers scan responses as
+    // separate reports; this tracker merges the pair before delivery (shared
+    // ScanResponseMerger, Bluedroid semantics). No GATT client.
+    return {.active_scan = true, .merges_scan_response = true, .gatt = false, .scan_mode_switch = true};
   }
-  bool request_scan_mode(bool active) {
-    // Passive-only controller: a passive request is already honored, an active
-    // one cannot be.
-    return !active;
-  }
+  bool request_scan_mode(bool active);
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
   void get_adapter_mac(uint8_t out[6]) {
@@ -123,7 +123,7 @@ class BK72xxBLETracker : public Component,
       out[i] = mac[5 - i];
   }
   bool scan_running() { return this->scan_running_; }
-  bool scan_active() { return false; }  // BK72xx scan is passive-only
+  bool scan_active() { return this->scan_active_; }
 
   // ---- bk72xx_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the
@@ -133,15 +133,20 @@ class BK72xxBLETracker : public Component,
  protected:
   void start_scan_();
   void stop_scan_();
-  /// Attempt a rate-limited (re)start; returns true when the scan is running,
-  /// which means the caller must not compare its cached millis() against the
-  /// timestamps start_scan_() just refreshed. force bypasses the rate gate for
-  /// an explicit user start only while the failure streak is clean; a failing
-  /// controller rate-limits forced attempts too. Failure accounting always runs.
+  void fire_scan_end_();
+  void mark_scan_ended_(uint32_t now);
+  /// Stamp-and-start for every controller scan attempt, so the retry rate
+  /// limit covers all callers.
+  bk72xx_ble::ScanOpResult controller_scan_start_();
+  /// Rate-limited (re)start; true when the scan is running (the caller must
+  /// not reuse a `now` older than the stamps this refreshed). Force and
+  /// backoff rules are documented at the definition.
   bool try_start_with_backoff_(uint32_t now, bool force = false);
+  void count_failed_start_();
 
   bool scan_running_{false};
-  bool scan_requested_{false};  // latched start_scan() request not yet running; loop() retries with backoff
+  bool scan_requested_{false};      // latched start_scan() request not yet running; loop() retries with backoff
+  bool start_attempt_open_{false};  // charge a later FAILED observation to the backoff exactly once
   // Defaults: the BK reference — 30 % duty cycle
   // (interval 100 ms / window 30 ms), in 0.625 ms BLE units.
   uint32_t scan_interval_{160};  // 160 × 0.625 ms = 100 ms
@@ -149,30 +154,27 @@ class BK72xxBLETracker : public Component,
   uint32_t scan_duration_{300000};
   bool scan_continuous_{true};
   bool scan_continuous_configured_{true};  // YAML value; stop_scan() must not lose it
+  bool scan_active_{true};                 // resolved mode; see scan_parameters.active
+  bool scan_active_configured_{true};      // YAML value; runtime requests must not lose it
 #ifdef USE_OTA_STATE_LISTENER
   bool scan_continuous_before_ota_{false};  // continuous mode saved at OTA start, restored on OTA failure
   bool scan_requested_before_ota_{false};   // pending one-shot latch saved at OTA start, re-latched on OTA failure
 #endif
   uint32_t scan_start_time_{0};
 
-  uint32_t last_scan_start_attempt_{0};  // millis() of last start_scan_() attempt; rate-limits retries
-  uint8_t failed_start_count_{0};        // consecutive failed starts; drives the retry backoff (reset on success)
-  uint32_t scan_period_start_{0};        // millis() at start of current scan period; used to rate-limit on_scan_end()
+  uint32_t last_scan_start_attempt_{0};  // last controller start attempt, any caller; rate-limits retries
+  uint8_t failed_start_count_{0};        // failed starts AND drops; backoff shift, cleared after a stable run (loop())
+  uint32_t scan_period_start_{0};        // loop-clock start of the scan period; rate-limits on_scan_end()
   bool scan_started_once_{false};        // true after first successful scan start; gates the period timer
 
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Parsed-advertisement consumers registered through ble_device_base.
-  // Codegen-sized: no heap allocation, no std::vector template instantiations.
-  StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-#endif
-
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
-  // in ble_device_base, identical output on every tracker backend. Guarded like
-  // its only writer so a no-listener build does not carry an unused vector.
-  ble_device_base::DiscoveredDeviceLog discovered_log_{};
-#endif
+  // Shared adv + scan-response merge and frame dispatch (ble_device_base).
+  // All calls run on the main task (the controller queue already crossed
+  // tasks). Merger clock: stash_adv() reads the PARENT's cached loop time
+  // (on_scan_report runs inside bk72xx_ble's queue drain), sweep() this
+  // component's — same App.loop() pass, so the delta stays non-negative and
+  // the 300 ms timeout holds.
+  ble_device_base::ScanResponseMerger merger_;
+  ble_device_base::AdvDispatcher dispatcher_;
 };
 
 }  // namespace esphome::bk72xx_ble_tracker
