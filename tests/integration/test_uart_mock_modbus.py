@@ -774,15 +774,20 @@ async def test_uart_mock_modbus_broadcast_write(
     """
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    tracker = SensorTracker(["reg_u_word", "srv1_written", "srv2_written"])
+    tracker = SensorTracker(
+        ["reg_u_word", "srv1_written", "srv2_written", "broadcast_accepted"]
+    )
     poll_before = tracker.expect("reg_u_word", 919)
     written = tracker.expect_all({"srv1_written": 777, "srv2_written": 777})
+    # queue_pdu() must accept the broadcast into the machine (return true), the answer this PR adds.
+    accepted = tracker.expect("broadcast_accepted", 1)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(accepted, "broadcast_accepted")
         await tracker.await_change(poll_before, "reg_u_word")
         await tracker.await_all(written)
         # Polling must continue after the broadcast (a burned timeout stalls it).

@@ -127,6 +127,10 @@ sensor:
     name: "srv2_written"
     lambda: return id(srv2_reg);
     update_interval: 0.2s
+  # Whether the hub accepted the broadcast into the transmit queue (the bool queue_pdu() returns).
+  - platform: template
+    name: "broadcast_accepted"
+    id: broadcast_accepted
 
 button:
   - platform: template
@@ -140,4 +144,7 @@ button:
           // Broadcast (address 0) write single register: reg 0x10 = 777 on every server.
           // PDU is function code + data (no address/CRC); the hub prepends address 0 and appends CRC.
           const uint8_t pdu[] = {0x06, 0x00, 0x10, 0x03, 0x09};
-          id(virtual_modbus_client)->send_pdu(0x00, pdu);
+          // queue_pdu() returns whether the broadcast was accepted into the machine (the answer this PR
+          // makes meaningful); publish it so the test asserts the accept, not just the servers' writes.
+          bool accepted = id(virtual_modbus_client)->queue_pdu(0x00, pdu);
+          id(broadcast_accepted).publish_state(accepted ? 1.0f : 0.0f);

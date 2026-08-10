@@ -814,6 +814,25 @@ TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {
   EXPECT_EQ(hub.entries(), 0u);  // the entry is gone
 }
 
+// An exception-flagged custom code (0x80 bit set) is not a real request: is_function_code_custom() masks
+// the bit away and would accept it, but the broadcast guard excludes it, matching classify()'s handling
+// of an exception-flagged write.
+TEST(ModbusClientHubBroadcast, RefusesExceptionFlaggedCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t exception_custom[] = {0xC1, 0x01, 0x02};  // 0x41 | 0x80: custom code with the exception bit
+  EXPECT_FALSE(device.queue_pdu(exception_custom));       // refused: exception-flagged, never a real broadcast
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
+}
+
 namespace {
 // tx_blocked() clear for send_next_frame_'s gate, then blocked for send_frame_'s post-delay re-check.
 class RejectPostDelayHub : public NoResponseProbeHub {
