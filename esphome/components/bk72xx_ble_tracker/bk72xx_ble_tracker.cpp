@@ -343,14 +343,15 @@ void BK72xxBLETracker::fire_scan_end_() {
   this->dispatcher_.on_scan_end();
 }
 
+// true = request latched, not applied: the reconciler applies it
+// asynchronously and loop() recovers a failed re-arm (ln882h parity).
 bool BK72xxBLETracker::request_scan_mode(bool active) {
   if (this->scan_active_ == active)
     return true;
   this->scan_active_ = active;
   ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
   // The controller reconciler restarts a running scan itself; the scan stays
-  // logically running and loop() recovers a failed re-arm. An idle scanner
-  // picks the mode up on its next start.
+  // logically running. An idle scanner picks the mode up on its next start.
   if (this->scan_running_)
     this->controller_scan_start_();
   return true;

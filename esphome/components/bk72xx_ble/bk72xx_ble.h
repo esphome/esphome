@@ -144,6 +144,7 @@ class BK72xxBLE final : public Component {
   uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
   uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
   bool release_warned_{false};         // gates the release WARN; widens the pump gate
+  bool restarting_{false};             // mode-change release in flight; teardown deadline governs until released
   uint32_t teardown_stuck_log_ms_{0};  // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};

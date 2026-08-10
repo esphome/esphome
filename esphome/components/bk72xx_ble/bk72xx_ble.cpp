@@ -300,6 +300,7 @@ ScanOpResult BK72xxBLE::scan_start(uint16_t interval, uint16_t window, bool acti
     this->pending_since_ms_ = App.get_loop_component_start_time();
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_log_ms_ = 0;
+    this->restarting_ = false;
     bdk_scan_clear_release_error();
   }
   this->scan_wanted_ = true;
@@ -313,6 +314,7 @@ void BK72xxBLE::scan_stop() {
     // stuck restart would fail the stop on its first advance.
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_log_ms_ = 0;
+    this->restarting_ = false;
     bdk_scan_clear_release_error();
   }
   this->scan_wanted_ = false;
@@ -335,12 +337,19 @@ bool BK72xxBLE::flush_pending_stop(uint32_t timeout_ms) {
 // confirms the radio is idle. A rejection WARNs once per episode and widens
 // the pump gate; the epilogue owns the stuck-teardown deadline.
 void BK72xxBLE::release_activity_(BdkActivityState state) {
-  if (bdk_scan_release(this->scan_activity_idx_, state == BdkActivityState::CREATED) == BdkOpResult::OK) {
+  const BdkOpResult result = bdk_scan_release(this->scan_activity_idx_, state == BdkActivityState::CREATED);
+  if (result == BdkOpResult::OK) {
     this->release_warned_ = false;
     return;
   }
   if (!this->release_warned_) {
-    ESP_LOGW(TAG, "Scan activity release rejected; retrying");
+    // A hard error carries its code immediately; the 30 s stuck ERROR follows
+    // if it persists.
+    if (result == BdkOpResult::FAILED) {
+      ESP_LOGW(TAG, "Scan activity release failed (err %d); retrying", bdk_scan_last_release_error());
+    } else {
+      ESP_LOGW(TAG, "Scan activity release rejected; retrying");
+    }
     this->release_warned_ = true;
   }
 }
@@ -377,11 +386,18 @@ ScanOpResult BK72xxBLE::advance_() {
     this->teardown_since_ms_ = 0;
     this->teardown_stuck_log_ms_ = 0;
     this->release_warned_ = false;
+    this->restarting_ = false;
+  }
+  if (this->restarting_ && (state == BdkActivityState::IDLE || state == BdkActivityState::CREATED)) {
+    // The mode-change release is observed complete; the rest is a normal
+    // bring-up on a fresh budget.
+    this->restarting_ = false;
+    this->pending_since_ms_ = now;
   }
   // Not chained to the clear above: a bring-up waiting at IDLE (create still
   // in flight) must keep spending its budget.
   if (result == ScanOpResult::PENDING) {
-    if (this->scan_wanted_ && state != BdkActivityState::STARTED) {
+    if (this->scan_wanted_ && state != BdkActivityState::STARTED && !this->restarting_) {
       // A downed radio spends the bring-up budget; exhausting it hands
       // recovery to the tracker's backoff.
       if (now - this->pending_since_ms_ >= RECONCILE_PENDING_TIMEOUT_MS) {
@@ -389,8 +405,8 @@ ScanOpResult BK72xxBLE::advance_() {
         result = ScanOpResult::FAILED;
       }
     } else {
-      // A teardown is pending: a stop, or a mode change waiting to restart a
-      // radio that is still up (which also re-anchors the bring-up budget).
+      // A teardown is pending: a stop, or a mode-change release still in
+      // flight (restarting_); either way the bring-up budget waits.
       if (this->scan_wanted_)
         this->pending_since_ms_ = now;
       if (this->teardown_overdue_(now)) {
@@ -447,6 +463,7 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
       // Invalidate so a flip back to the old params cannot SETTLE against the
       // activity being deleted (interval 0 never matches a real request).
       this->applied_.interval = 0;
+      this->restarting_ = true;
     }
     return ScanOpResult::PENDING;
   }
