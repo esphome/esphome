@@ -31,6 +31,10 @@
 namespace esphome::ld6002b {
 
 static constexpr uint8_t MAX_TARGETS = 3;
+static constexpr uint8_t AREA_COUNT = 4;
+// Interference areas own ids 0..AREA_COUNT-1 and detection areas the next four, so
+// this is the whole id space TYPE_SET_AREA accepts.
+static constexpr uint8_t AREA_ID_COUNT = AREA_COUNT * 2;
 static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
 static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
@@ -41,12 +45,19 @@ enum class NumberType : uint8_t {
   Z_MIN,
   Z_MAX,
   LOW_POWER_SLEEP,
+  AREA_X_MIN,
+  AREA_X_MAX,
+  AREA_Y_MIN,
+  AREA_Y_MAX,
+  AREA_Z_MIN,
+  AREA_Z_MAX,
 };
 
 enum class SelectType : uint8_t {
   SENSITIVITY,
   TRIGGER_SPEED,
   INSTALLATION_MODE,
+  AREA_ID,
 };
 
 enum class SwitchType : uint8_t {
@@ -56,6 +67,11 @@ enum class SwitchType : uint8_t {
 };
 
 enum class ButtonType : uint8_t {
+  APPLY_AREA,
+  AUTO_INTERFERENCE,
+  GET_AREAS,
+  CLEAR_INTERFERENCE,
+  RESET_DETECTION_AREA,
   GET_DELAY,
   GET_SENSITIVITY,
   GET_TRIGGER_SPEED,
@@ -76,7 +92,24 @@ struct TargetSensors {
   sensor::Sensor *cluster_id{nullptr};
 };
 
+struct AreaSensors {
+  sensor::Sensor *x_min{nullptr};
+  sensor::Sensor *x_max{nullptr};
+  sensor::Sensor *y_min{nullptr};
+  sensor::Sensor *y_max{nullptr};
+  sensor::Sensor *z_min{nullptr};
+  sensor::Sensor *z_max{nullptr};
+};
 #endif
+
+struct AreaConfig {
+  float x_min{NAN};
+  float x_max{NAN};
+  float y_min{NAN};
+  float y_max{NAN};
+  float z_min{NAN};
+  float z_max{NAN};
+};
 
 struct VersionPref {
   char value[20];
@@ -122,6 +155,67 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
       return;
     this->targets_[target].cluster_id = sensor;
   }
+  void set_interference_area_x_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].x_min = sensor;
+  }
+  void set_interference_area_x_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].x_max = sensor;
+  }
+  void set_interference_area_y_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].y_min = sensor;
+  }
+  void set_interference_area_y_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].y_max = sensor;
+  }
+  void set_interference_area_z_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].z_min = sensor;
+  }
+  void set_interference_area_z_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->interference_areas_[area].z_max = sensor;
+  }
+
+  void set_detection_area_x_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].x_min = sensor;
+  }
+  void set_detection_area_x_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].x_max = sensor;
+  }
+  void set_detection_area_y_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].y_min = sensor;
+  }
+  void set_detection_area_y_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].y_max = sensor;
+  }
+  void set_detection_area_z_min_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].z_min = sensor;
+  }
+  void set_detection_area_z_max_sensor(uint8_t area, sensor::Sensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->detection_areas_[area].z_max = sensor;
+  }
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -130,6 +224,11 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
     if (target >= MAX_TARGETS)
       return;
     this->target_presence_[target] = sensor;
+  }
+  void set_area_presence_binary_sensor(uint8_t area, binary_sensor::BinarySensor *sensor) {
+    if (area >= AREA_COUNT)
+      return;
+    this->area_presence_[area] = sensor;
   }
 #endif
 
@@ -143,12 +242,20 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_z_min_number(number::Number *number) { this->z_min_number_ = number; }
   void set_z_max_number(number::Number *number) { this->z_max_number_ = number; }
   void set_low_power_sleep_number(number::Number *number) { this->low_power_sleep_number_ = number; }
+
+  void set_area_x_min_number(number::Number *number) { this->area_x_min_number_ = number; }
+  void set_area_x_max_number(number::Number *number) { this->area_x_max_number_ = number; }
+  void set_area_y_min_number(number::Number *number) { this->area_y_min_number_ = number; }
+  void set_area_y_max_number(number::Number *number) { this->area_y_max_number_ = number; }
+  void set_area_z_min_number(number::Number *number) { this->area_z_min_number_ = number; }
+  void set_area_z_max_number(number::Number *number) { this->area_z_max_number_ = number; }
 #endif
 
 #ifdef USE_SELECT
   void set_sensitivity_select(select::Select *select) { this->sensitivity_select_ = select; }
   void set_trigger_speed_select(select::Select *select) { this->trigger_speed_select_ = select; }
   void set_installation_select(select::Select *select) { this->installation_select_ = select; }
+  void set_area_id_select(select::Select *select) { this->area_id_select_ = select; }
 #endif
 
 #ifdef USE_SWITCH
@@ -176,6 +283,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
   void handle_point_cloud_(const uint8_t *data, uint16_t len);
+  void handle_area_presence_(const uint8_t *data, uint16_t len);
+  void handle_area_report_(bool interference, const uint8_t *data, uint16_t len);
   void handle_delay_report_(const uint8_t *data, uint16_t len);
   void handle_sensitivity_report_(const uint8_t *data, uint16_t len);
   void handle_trigger_speed_report_(const uint8_t *data, uint16_t len);
@@ -189,22 +298,35 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void publish_work_mode_(bool low_power);
   // Drops every target-derived reading and the slot table they are indexed by.
   void clear_target_state_();
+  void clear_area_presence_();
+  void restore_deferred_edits_();
+  void publish_area_numbers_();
 #ifdef USE_SENSOR
   void clear_target_slot_(uint8_t index);
 #endif
 #ifdef USE_NUMBER
   void publish_number_clamped_(number::Number *number, float value);
 #endif
+  void update_area_numbers_(const AreaConfig &area);
+  void update_area_numbers_for_id_(uint8_t area_id);
+  bool queue_area_config_(uint8_t area_id, const AreaConfig &desired);
+  void try_apply_pending_area_(bool reported_interference);
+  void init_area_id_pref_();
+  void save_area_id_pref_(uint8_t value);
   void init_version_pref_();
   void save_version_pref_(const char *value);
 
-  void queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
+  // Returns whether the command was queued: it is dropped, with a log line, when
+  // the payload is too long or the ring is full.
+  bool queue_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void process_command_queue_();
   void send_command_(uint16_t type, const uint8_t *data, uint8_t len);
   void send_command_internal_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
   void write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track);
-  void send_control_command_(uint32_t command);
+  // Returns whether the command reached the queue; see queue_command_.
+  bool send_control_command_(uint32_t command);
   void send_z_range_();
+  void apply_area_config_();
   void wake_();
 
   static uint16_t read_u16_be(const uint8_t *data);
@@ -212,16 +334,20 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
+  static void write_int32_le(uint8_t *data, int32_t value);
   static void write_f32_le(uint8_t *data, float value);
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
   sensor::Sensor *target_count_sensor_{nullptr};
   sensor::Sensor *point_count_sensor_{nullptr};
+  std::array<AreaSensors, AREA_COUNT> interference_areas_{};
+  std::array<AreaSensors, AREA_COUNT> detection_areas_{};
 #endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   std::array<binary_sensor::BinarySensor *, MAX_TARGETS> target_presence_{};
+  std::array<binary_sensor::BinarySensor *, AREA_COUNT> area_presence_{};
 #endif
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *work_mode_text_sensor_{nullptr};
@@ -234,11 +360,21 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   number::Number *z_min_number_{nullptr};
   number::Number *z_max_number_{nullptr};
   number::Number *low_power_sleep_number_{nullptr};
+
+  number::Number *area_x_min_number_{nullptr};
+  number::Number *area_x_max_number_{nullptr};
+  number::Number *area_y_min_number_{nullptr};
+  number::Number *area_y_max_number_{nullptr};
+  number::Number *area_z_min_number_{nullptr};
+  number::Number *area_z_max_number_{nullptr};
 #endif
 #ifdef USE_SELECT
   select::Select *sensitivity_select_{nullptr};
   select::Select *trigger_speed_select_{nullptr};
   select::Select *installation_select_{nullptr};
+  select::Select *area_id_select_{nullptr};
+  ESPPreferenceObject area_id_pref_{};
+  bool area_id_pref_initialized_{false};
 #endif
 #ifdef USE_SWITCH
   switch_::Switch *low_power_switch_{nullptr};
@@ -264,9 +400,13 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
-  // Sized for the boot burst: with every platform configured, setup() enqueues
-  // roughly ten GET/config commands back to back before the first ack lands.
-  static constexpr uint8_t CMD_QUEUE_SIZE = 16;
+  // Sized for the two bursts that reach it, both counted as what is still queued
+  // once the first command is dequeued: boot leaves 11 with every platform
+  // configured, and pressing all fourteen buttons before an ack lands leaves 15.
+  // Neither overflowed 16, but one free slot is not headroom, and overflowing is a
+  // dropped command with only a log line to show for it.  Costs 256 bytes more per
+  // configured instance, and this component is MULTI_CONF.
+  static constexpr uint8_t CMD_QUEUE_SIZE = 24;
   static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 300;
   // A sleeping module consumes the first frame to wake and answers only the one after it.
   static constexpr uint32_t CMD_FIRST_ACK_TIMEOUT_MS = 600;
@@ -276,6 +416,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // Named so a repeated press replaces its own pending timeout instead of stacking
   // another, and so the command path can cancel it when it takes the pin over.
   static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
+  // Named so a burst of writes collapses to one read once they settle, rather than
+  // one read per write.
+  static constexpr const char *AREA_REFRESH_TIMEOUT = "area_refresh";
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
@@ -307,6 +450,24 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
   float z_min_{NAN};
   float z_max_{NAN};
+  float area_x_min_{NAN};
+  float area_x_max_{NAN};
+  float area_y_min_{NAN};
+  float area_y_max_{NAN};
+  float area_z_min_{NAN};
+  float area_z_max_{NAN};
+  // What the user has typed and not yet applied; NaN per axis means "nothing of
+  // mine here, take the module's value".  Same sentinel shape as
+  // pending_area_updates_.  Exactly two things empty it: the area_id select moving
+  // to another area, and an apply that was accepted.  A write the bounds guard
+  // refused leaves it alone, and a deferred apply that had to be dropped hands its
+  // staged values back here -- but only while the user is still on the area they
+  // were staged for.  Either way the values stay the user's to fix.
+  AreaConfig area_edits_{};
+  std::array<AreaConfig, AREA_COUNT> interference_area_values_{};
+  std::array<AreaConfig, AREA_COUNT> detection_area_values_{};
+  uint8_t area_id_{0xFF};
+  bool area_id_set_{false};
 
   // Which person owns each target_N slot, so a slot survives the module re-sorting its array.
   std::array<int32_t, MAX_TARGETS> slot_cluster_{};
@@ -318,9 +479,14 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // The report handlers read these and drop anything a stopped stream still emits.
   bool target_display_enabled_{false};
   bool point_cloud_enabled_{false};
+  bool area_presence_any_{false};
+  bool area_write_in_flight_{false};
   bool work_mode_reported_{false};
   bool low_power_enabled_{false};
   bool low_power_reported_{false};
+  bool deferred_apply_pending_{false};
+  uint8_t pending_area_id_{0xFF};
+  AreaConfig pending_area_updates_{};
   bool last_work_mode_valid_{false};
   bool last_work_mode_low_power_{false};
 

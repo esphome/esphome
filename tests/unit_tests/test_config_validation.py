@@ -932,7 +932,7 @@ def test_string_no_slash__slash_replaced_with_warning(
     actual = cv.string_no_slash(value)
     assert actual == expected
     assert "reserved as a URL path separator" in caplog.text
-    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+    assert "will become an error in ESPHome 2027.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:

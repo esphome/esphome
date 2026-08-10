@@ -426,6 +426,20 @@ TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
+// --- packed bit helpers ------------------------------------------------------
+
+TEST(ModbusHelpersTest, PackBitsAppendsToContainer) {
+  // Bits are packed LSB first: the first value is bit 0 of the first byte, and the push_back
+  // overload appends packed bytes onto a growable container preserving existing content.
+  std::vector<bool> bits{true, false, true, true, false, false, false, false, true, true};
+  std::vector<uint8_t> out{0x55};  // pre-existing content must be preserved
+  pack_bits(out, bits);
+  ASSERT_EQ(out.size(), 3u);  // leading byte + 2 packed bytes (10 bits)
+  EXPECT_EQ(out[0], 0x55);
+  EXPECT_EQ(out[1], 0x0D);  // 0b00001101
+  EXPECT_EQ(out[2], 0x03);  // bits 8 and 9 -> bits 0,1 of second byte
+}
+
 // --- typed builders ----------------------------------------------------------
 
 TEST(ModbusTypedBuilders, ReadPduWireBytes) {

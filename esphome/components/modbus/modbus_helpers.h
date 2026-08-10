@@ -273,6 +273,29 @@ inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
 ESPDEPRECATED("Use bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
 inline bool coil_from_vector(int coil, std::span<const uint8_t> data) { return bit_from_packed(coil, data); }
 
+/** Append packed bytes (LSB first) for the given bits onto a growable byte container.
+ * push_back-based so callers can build a payload incrementally (e.g. a std::vector<uint8_t>
+ * with no fixed upper bound). A non-byte-aligned count appends n+1 bytes, the last holding
+ * the remaining bits in its low positions.
+ * @param out destination byte container exposing push_back(uint8_t)
+ * @param bits container of bool exposing range-based iteration
+ */
+template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits) {
+  uint8_t byte = 0;
+  uint8_t bit = 0;
+  for (bool b : bits) {
+    if (b)
+      byte |= (1 << bit);
+    if (++bit == 8) {
+      out.push_back(byte);
+      byte = 0;
+      bit = 0;
+    }
+  }
+  if (bit != 0)  // flush the final partial byte
+    out.push_back(byte);
+}
+
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
  * the result is then shifted right by the position if the first right set bit in the mask
