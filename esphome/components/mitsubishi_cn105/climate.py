@@ -26,6 +26,7 @@ from . import (
     register_mitsubishi_cn105_device,
 )
 
+# Legacy climate-owned hub compatibility. Remove in 2027.2.0.
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["climate"]
 
@@ -50,6 +51,7 @@ LegacySetRemoteTemperatureAction = mitsubishi_ns.class_(
     cg.Parented.template(MitsubishiCN105Climate),
 )
 
+# Legacy climate action compatibility. Remove in 2027.2.0.
 LegacyClearRemoteTemperatureAction = mitsubishi_ns.class_(
     "LegacyClearRemoteTemperatureAction",
     automation.Action,
@@ -161,7 +163,7 @@ FINAL_VALIDATE_SCHEMA = _legacy_final_validate
 async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     climate_config = config.copy()
-    # The climate is not a PollingComponent; update_interval belongs to the hub.
+    # update_interval configures the protocol hub, not the climate entity.
     climate_config.pop(CONF_UPDATE_INTERVAL, None)
     await cg.register_component(var, climate_config)
     if CONF_MITSUBISHI_CN105_ID in config:
@@ -194,6 +196,7 @@ LEGACY_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
     }
 )
 
+# Legacy climate action compatibility. Remove in 2027.2.0.
 LEGACY_CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Climate),
@@ -214,6 +217,13 @@ async def legacy_remote_temperature_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    _LOGGER.warning(
+        "The 'climate.%s.set_remote_temperature' action is deprecated. Use "
+        "'%s.set_remote_temperature' instead. It will be removed in ESPHome "
+        "2027.2.0.",
+        DOMAIN,
+        DOMAIN,
+    )
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
@@ -234,6 +244,13 @@ async def legacy_clear_temperature_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    _LOGGER.warning(
+        "The 'climate.%s.clear_remote_temperature' action is deprecated. Use "
+        "'%s.clear_remote_temperature' instead. It will be removed in ESPHome "
+        "2027.2.0.",
+        DOMAIN,
+        DOMAIN,
+    )
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

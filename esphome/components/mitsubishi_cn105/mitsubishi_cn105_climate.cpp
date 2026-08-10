@@ -2,8 +2,6 @@
 
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
 namespace esphome::mitsubishi_cn105 {
 
 static const char *const TAG = "mitsubishi_cn105.climate";
