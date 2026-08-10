@@ -19,20 +19,18 @@ from esphome.const import (
     CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TYPE,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_ESP32,
-    PLATFORM_RP2,
+    PlatformFramework,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
+
+from ..types import SetCoreConfigCallable
 
 
 @pytest.fixture(autouse=True)
-def esp32_platform() -> None:
+def esp32_platform(set_core_config: SetCoreConfigCallable) -> None:
     # The raw-gattc node family gates through BLE_CLIENT_SCHEMA's
     # _legacy_engine_only choke point; these schema tests exercise the esp32 arm.
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_ESP32
+    set_core_config(PlatformFramework.ESP32_IDF)
 
 
 DESCRIPTOR_CONFIG: ConfigType = {
@@ -99,11 +97,13 @@ def test_notify_unchanged_without_on_notify() -> None:
     assert notify_from_on_notify(config)[CONF_NOTIFY] is False
 
 
-def test_legacy_node_choke_point_rejects_other_platforms() -> None:
+def test_legacy_node_choke_point_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     from esphome.components import ble_client
     from esphome.core import ID
 
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     with pytest.raises(cv.Invalid, match="not been migrated"):
         ble_client._legacy_engine_only(ID("x"))
     # Through the public schema too, so removing the cv.All wiring fails here.
@@ -111,12 +111,14 @@ def test_legacy_node_choke_point_rejects_other_platforms() -> None:
         ble_client.BLE_CLIENT_SCHEMA({})
 
 
-def test_neutral_arm_rejects_esp32_only_keys() -> None:
+def test_neutral_arm_rejects_esp32_only_keys(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     # Pins the schema split's rejection side: the legacy-only keys must not
     # leak into the neutral arm.
     from esphome.components import ble_client
 
-    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
+    set_core_config(PlatformFramework.RP2_ARDUINO)
     for key in ("name", "on_passkey_request", "on_passkey_notification"):
         with pytest.raises(cv.Invalid):
             ble_client.CONFIG_SCHEMA({"mac_address": "AA:BB:CC:DD:EE:FF", key: "x"})
