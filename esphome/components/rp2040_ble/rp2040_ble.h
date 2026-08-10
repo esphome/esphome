@@ -91,12 +91,24 @@ class RP2040BLE final : public Component {
   /// (0.625 ms). Returns false until the stack is ACTIVE (callers retry — the
   /// tracker's rate-limited retry loop); powering the stack on stays with the
   /// user (enable_on_boot or an explicit enable() call). The controller keeps
-  /// no scan state: a disable()/enable() power cycle ends the scan, and the
-  /// caller must call scan_start() again once the stack is back to ACTIVE
-  /// (the tracker's loop() reconciliation does exactly that).
+  /// no scan state across power cycles: a disable()/enable() cycle ends the
+  /// scan, and the caller must call scan_start() again once the stack is back
+  /// to ACTIVE (the tracker's loop() reconciliation does exactly that).
+  /// While a GATT connect attempt has the scan inhibited, the desired scan is
+  /// remembered and started physically when the inhibit is released.
   bool scan_start(uint16_t interval, uint16_t window, bool active);
   /// Stop the controller scan (no-op when not scanning).
   void scan_stop();
+
+#ifdef USE_BLE_GATT_CLIENT
+  /// Pause the physical scan for the duration of a GATT connect attempt
+  /// (initiating and scanning contend for the radio). The desired scan state
+  /// set through scan_start()/scan_stop() is remembered and reconciled by
+  /// release_scan_inhibit(). Holders must guarantee the release on every
+  /// abort path (the GATT engine reclaims via its connect timeout).
+  void inhibit_scan();
+  void release_scan_inhibit();
+#endif
 
  protected:
   static void packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size);
@@ -128,6 +140,16 @@ class RP2040BLE final : public Component {
   bool enable_on_boot_{true};
   bool btstack_initialized_{false};
   bool active_logged_{false};
+#ifdef USE_BLE_GATT_CLIENT
+  // Remembered scan intent, so connect attempts can pause the physical scan
+  // and restore it afterwards without involving the tracker. Counted so
+  // overlapping connect attempts compose once multiple slots exist.
+  uint16_t scan_interval_{0};
+  uint16_t scan_window_{0};
+  uint8_t scan_inhibit_count_{0};
+  bool scan_active_mode_{false};
+  bool scan_desired_{false};
+#endif
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
