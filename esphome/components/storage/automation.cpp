@@ -739,11 +739,38 @@ bool check_file_exists(const std::string &path) {
   return found;
 }
 
-void perform_mount(MountableStorage *target, bool mount) {
-  StorageError err = mount ? target->mount() : target->unmount();
-  if (err != StorageError::OK) {
-    ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(err));
+static void mount_fire(bool mount, StorageError result) {
+  if (result != StorageError::OK) {
+    ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(result));
   }
+}
+
+void perform_mount(PathStorage *target, bool mount) {
+  MountableStorage *m = target->as_mountable();
+  if (m == nullptr) {
+    ESP_LOGE(TAG, "target is not mountable");
+    return;
+  }
+  if (mount) {
+#ifdef USE_STORAGE_WORKER
+    // Async-first, the perform_format_async() shape: the worker routes the blocking
+    // resolve/connect/probe work to its task when the driver reports task-safety and the
+    // platform has one, and loop-slices it otherwise -- capabilities decide, not the caller.
+    if (global_storage_worker != nullptr) {
+      StorageError err = global_storage_worker->async_mount(
+          target, [](StorageError r) { mount_fire(true, r); }, nullptr);
+      if (err != StorageError::OK)
+        mount_fire(true, err);  // could not queue -- report inline
+      return;
+    }
+#endif
+    mount_fire(true, m->mount());
+    return;
+  }
+  // Unmount stays synchronous by design: drivers quiesce the worker inside unmount(), and the
+  // quiesce drain is owned by the main loop -- running it on the worker task would deadlock
+  // the drain against itself.
+  mount_fire(false, m->unmount());
 }
 
 static void format_fire(Trigger<std::string> *on_complete, StorageError result) {
