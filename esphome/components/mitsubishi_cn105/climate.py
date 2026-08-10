@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_SUPPORTED_SWING_MODES,
     CONF_TEMPERATURE,
+    CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
 )
 from esphome.core import CORE, ID
@@ -89,6 +90,33 @@ _BASE_SCHEMA = climate.climate_schema(MitsubishiCN105Climate).extend(
 
 _HUB_SCHEMA = _BASE_SCHEMA.extend(MITSUBISHI_CN105_DEVICE_SCHEMA)
 
+# Hub options accepted in the legacy climate-owned configuration. When a
+# top-level hub exists, leaving these on the climate is always a migration
+# mistake and the generic schema error does not explain where they belong.
+# Legacy climate-owned hub compatibility. Remove in 2027.2.0.
+_LEGACY_HUB_KEYS = (
+    CONF_CURRENT_TEMPERATURE_MIN_INTERVAL,
+    CONF_UART_ID,
+    CONF_UPDATE_INTERVAL,
+)
+
+
+# Legacy climate-owned hub compatibility. Remove in 2027.2.0.
+def _validate_no_legacy_hub_keys(config: ConfigType) -> ConfigType:
+    legacy_keys = [key for key in _LEGACY_HUB_KEYS if key in config]
+    if not legacy_keys:
+        return config
+
+    keys = ", ".join(f"'{key}'" for key in legacy_keys)
+    message = f"{keys} must be moved under the top-level '{DOMAIN}:' block"
+    if CONF_CURRENT_TEMPERATURE_MIN_INTERVAL in legacy_keys:
+        message += (
+            f"; rename '{CONF_CURRENT_TEMPERATURE_MIN_INTERVAL}' to "
+            "'telemetry_request_min_interval' there"
+        )
+    raise cv.Invalid(message)
+
+
 # Legacy climate-owned hub compatibility. Remove in 2027.2.0.
 _LEGACY_SCHEMA = (
     _BASE_SCHEMA.extend(uart.UART_DEVICE_SCHEMA)
@@ -107,7 +135,7 @@ def CONFIG_SCHEMA(config: ConfigType) -> ConfigType:
     if config is SCHEMA_EXTRACT:
         return _HUB_SCHEMA
     if CONF_MITSUBISHI_CN105_ID in config or _has_top_level_hub_config():
-        return _HUB_SCHEMA(config)
+        return _HUB_SCHEMA(_validate_no_legacy_hub_keys(config))
     return _LEGACY_SCHEMA(config)
 
 
