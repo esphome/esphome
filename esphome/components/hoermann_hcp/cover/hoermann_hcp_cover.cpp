@@ -15,20 +15,29 @@ cover::CoverTraits HoermannHcpCover::get_traits() {
 }
 
 void HoermannHcpCover::setup() {
+  // Nothing is published before the bus controller is heard from, and the untouched position reads as fully
+  // open, so flag the entity until the first contact clears it again.
+  this->status_set_warning("waiting for the bus controller");
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
 void HoermannHcpCover::dump_config() { LOG_COVER("", "Hoermann HCP Cover", this); }
 
 void HoermannHcpCover::control(const cover::CoverCall &call) {
+  bool accepted = true;
   if (call.get_stop()) {
-    this->parent_->stop_door();
+    accepted = this->parent_->stop_door();
   }
   if (call.get_toggle().has_value()) {
-    this->parent_->impulse_door();
+    accepted = this->parent_->impulse_door();
   }
-  if (call.get_position().has_value()) {
-    this->parent_->set_position(call.get_position().value());
+  if (const auto &position = call.get_position(); position.has_value()) {
+    accepted = this->parent_->set_position(position.value());
+  }
+  if (!accepted) {
+    // The command never reached the door, so publish the unchanged state over the one the caller assumed.
+    ESP_LOGW(TAG, "Command was not accepted by the door");
+    this->publish_state(false);
   }
 }
 

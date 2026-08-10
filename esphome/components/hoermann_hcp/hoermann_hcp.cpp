@@ -48,7 +48,14 @@ void HoermannHcp::update() {
     ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
     this->next_command_ = nullptr;
     this->command_written_at_ = 0;
-    this->goto_position_ = 0.0f;
+    this->clear_goto_position_();
+  }
+  // A target waits for a door still travelling the other way to turn around. If it never does, the target has
+  // to go as well, otherwise it would cut a later move short. The connection timeout doubles as that window.
+  if (this->goto_position_ != 0.0f && !this->goto_under_way_ &&
+      millis() - this->command_queued_at_ > this->connection_timeout_ms_) {
+    ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
+    this->clear_goto_position_();
   }
   if (this->changed_) {
     this->changed_ = false;
@@ -180,12 +187,13 @@ void HoermannHcp::on_door_position_changed_(uint16_t old_value, uint16_t new_val
 
   this->position_raw_ = new_value & 0x00FF;
   this->update_current_position_();
-  if (this->goto_position_ == 0.0f)
+  // Until the door actually travels the way it was told to, its position says nothing about the target.
+  if (this->goto_position_ == 0.0f || !this->goto_under_way_)
     return;
 
   // The door only knows "open" and "close", so a half-open target is reached by stopping it on the way.
-  const bool reached = (this->door_state_ == DoorState::CLOSING && this->current_position_ <= this->goto_position_) ||
-                       (this->door_state_ == DoorState::OPENING && this->current_position_ >= this->goto_position_);
+  const bool reached = this->goto_direction_ == DoorState::OPENING ? this->current_position_ >= this->goto_position_
+                                                                   : this->current_position_ <= this->goto_position_;
   if (reached)
     this->stop_door();
 }
@@ -243,45 +251,45 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
     return false;
   }
   // A new command supersedes any half-open target the door was still travelling to.
-  this->goto_position_ = 0.0f;
+  this->clear_goto_position_();
   this->next_command_ = &command;
   this->command_queued_at_ = millis();
   return true;
 }
 
-void HoermannHcp::open_door() { this->queue_command_(COMMAND_OPEN); }
-void HoermannHcp::close_door() { this->queue_command_(COMMAND_CLOSE); }
-void HoermannHcp::impulse_door() { this->queue_command_(COMMAND_IMPULSE); }
+bool HoermannHcp::open_door() { return this->queue_command_(COMMAND_OPEN); }
+bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
+bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
 
-void HoermannHcp::stop_door() {
+bool HoermannHcp::stop_door() {
   if (!is_moving(this->door_state_)) {
-    this->goto_position_ = 0.0f;
-    return;
+    this->clear_goto_position_();
+    return true;
   }
   // On success queue_command_() clears the target; on refusal it stays armed so the next position retries.
-  this->queue_command_(COMMAND_IMPULSE);
+  return this->queue_command_(COMMAND_IMPULSE);
 }
 
-void HoermannHcp::set_position(float position) {
+bool HoermannHcp::set_position(float position) {
   // The first and last movement segments are inconsistent on some doors, so snap to fully open/closed.
-  if (position <= 0.05f) {
-    this->close_door();
-    return;
-  }
-  if (position >= 0.95f) {
-    this->open_door();
-    return;
-  }
+  if (position <= 0.05f)
+    return this->close_door();
+  if (position >= 0.95f)
+    return this->open_door();
   if (position == this->current_position_) {
     // Asking the door to travel to where it already is means stopping it.
-    this->stop_door();
-    return;
+    return this->stop_door();
   }
 
   // The door itself has no notion of a target, so it is started in the right direction and stopped on the way.
   const bool opening = position > this->current_position_;
-  if (this->queue_command_(opening ? COMMAND_OPEN : COMMAND_CLOSE))
-    this->goto_position_ = position;
+  if (!this->queue_command_(opening ? COMMAND_OPEN : COMMAND_CLOSE))
+    return false;
+  this->goto_position_ = position;
+  this->goto_direction_ = opening ? DoorState::OPENING : DoorState::CLOSING;
+  // A door already travelling that way is on its way; one moving the other way has to turn around first.
+  this->goto_under_way_ = this->door_state_ == this->goto_direction_;
+  return true;
 }
 
 void HoermannHcp::record_response_() {
@@ -302,7 +310,7 @@ void HoermannHcp::set_valid_(bool valid) {
   // Drop what the controller never fetched, so it neither blocks later commands nor fires on reconnect.
   this->next_command_ = nullptr;
   this->command_written_at_ = 0;
-  this->goto_position_ = 0.0f;
+  this->clear_goto_position_();
 }
 
 void HoermannHcp::set_door_state_(DoorState state) {
@@ -310,9 +318,14 @@ void HoermannHcp::set_door_state_(DoorState state) {
     return;
   this->door_state_ = state;
   this->changed_ = true;
-  // The door came to rest without reaching the target, so the request it belonged to is over.
-  if (!is_moving(state))
-    this->goto_position_ = 0.0f;
+  if (this->goto_position_ != 0.0f) {
+    if (state == this->goto_direction_) {
+      this->goto_under_way_ = true;
+    } else if (this->goto_under_way_ && !is_moving(state)) {
+      // The door came to rest without reaching the target, so the request it belonged to is over.
+      this->clear_goto_position_();
+    }
+  }
   this->update_current_position_();
 }
 
@@ -337,6 +350,11 @@ void HoermannHcp::set_current_position_(float position) {
     this->current_position_ = position;
     this->changed_ = true;
   }
+}
+
+void HoermannHcp::clear_goto_position_() {
+  this->goto_position_ = 0.0f;
+  this->goto_under_way_ = false;
 }
 
 }  // namespace esphome::hoermann_hcp

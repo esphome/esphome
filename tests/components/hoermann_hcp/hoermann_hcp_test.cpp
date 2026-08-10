@@ -346,4 +346,82 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorStopsShort) {
   EXPECT_EQ(poll_command(door), 0x0000);
 }
 
+// A target armed while the door is still travelling the other way must not be judged by that old direction,
+// otherwise the very next position it reports counts as reached and stops the door where it stands.
+TEST(HoermannHcpPosition, TargetArmedWhileMovingTheOtherWayWaitsForTheTurnaround) {
+  TestableHoermannHcp door;
+  connect(door);
+  // The door is closing, passing 60/200 = 0.3.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
+
+  door.set_position(0.5f);
+  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  EXPECT_EQ(poll_command(door), 0x0110);  // COMMAND_OPEN released
+
+  // Still closing at 58/200 = 0.29: below the target, but not on the way to it.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003A, 0x0200}));
+  EXPECT_EQ(poll_command(door), 0x0000);
+
+  // Now opening at 62/200 = 0.31, still short of the target.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0000);
+
+  // Past the target at 110/200 = 0.55, so the door is stopped.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+}
+
+// A motor turning around can report a momentary stop; dropping the target there would let the door run on
+// to the end stop that the reversing command asked for.
+TEST(HoermannHcpPosition, MomentaryStopWhileTurningAroundKeepsTheTarget) {
+  TestableHoermannHcp door;
+  connect(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
+
+  door.set_position(0.5f);
+  EXPECT_EQ(poll_command(door), 0x0210);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  EXPECT_EQ(poll_command(door), 0x0110);
+
+  // The stop reported on the way from closing to opening.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0000}));
+  ASSERT_EQ(door.get_door_state(), DoorState::STOPPED);
+
+  // The door then opens and still has to be stopped at the requested position.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0000);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0240);
+}
+
+// A door that never turns around has to lose the target as well, otherwise it would cut a later move short.
+TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
+
+  door.set_position(0.5f);
+  EXPECT_EQ(poll_command(door), 0x0210);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  EXPECT_EQ(poll_command(door), 0x0110);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  // The door ignored the command and closed all the way. Its broadcast keeps the connection alive, so the
+  // target is the only thing that may expire here.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x4000}));
+  door.update();
+  ASSERT_TRUE(door.is_valid());
+  ASSERT_EQ(door.get_door_state(), DoorState::CLOSED);
+
+  // A later manual open must run freely instead of being stopped at the abandoned target.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
+  EXPECT_EQ(poll_command(door), 0x0000);
+}
+
 }  // namespace esphome::hoermann_hcp

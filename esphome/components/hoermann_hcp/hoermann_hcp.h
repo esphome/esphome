@@ -49,11 +49,12 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
                                                    modbus::RegisterValues &registers) override;
 
   // Control functions. Positions follow the cover convention: 0.0 is fully closed, 1.0 fully open.
-  void open_door();
-  void close_door();
-  void impulse_door();
-  void stop_door();
-  void set_position(float position);
+  // They return false when the bus controller cannot be asked right now, so the caller can react.
+  bool open_door();
+  bool close_door();
+  bool impulse_door();
+  bool stop_door();
+  bool set_position(float position);
 
   // State accessors used by child entities.
   DoorState get_door_state() const { return this->door_state_; }
@@ -73,6 +74,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void set_current_position_(float position);
   // Recomputes the reported position from position_raw_ and the current door state.
   void update_current_position_();
+  void clear_goto_position_();
 
   CallbackManager<void()> state_callback_;
 
@@ -82,6 +84,10 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint8_t position_raw_{0};
   // Position the door was told to travel to; 0.0 means no target is armed.
   float goto_position_{0.0f};
+  // Direction the door was started in for that target. A target armed while the door is still travelling the
+  // other way must not be judged by the direction the controller reports until the door has turned around.
+  DoorState goto_direction_{DoorState::STOPPED};
+  bool goto_under_way_{false};
   bool valid_{false};
   bool changed_{false};
 
