@@ -429,8 +429,12 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
       return ScanOpResult::SETTLED;
     // Running with different mode or parameters: tear down (the SDK stop
     // chain also deletes the activity) and recreate on a later advance.
-    if (ready)
+    if (ready) {
       this->release_activity_(state);
+      // Invalidate so a flip back to the old params cannot SETTLE against the
+      // activity being deleted (interval 0 never matches a real request).
+      this->applied_.interval = 0;
+    }
     return ScanOpResult::PENDING;
   }
   if (!ready) {
