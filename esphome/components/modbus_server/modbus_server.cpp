@@ -33,6 +33,12 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
            "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);
 
+  // No registers configured (e.g. a bits-only server) and no courtesy default: this device does not implement
+  // the register-read function, so answer ILLEGAL_FUNCTION. A populated map with a wrong address answers
+  // ILLEGAL_DATA_ADDRESS below.
+  if (this->server_registers_.empty() && !this->server_courtesy_response_.enabled)
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
   const uint32_t end_address = static_cast<uint32_t>(start_address) + number_of_registers;
   uint32_t current_address = start_address;
   while (current_address < end_address) {
@@ -112,6 +118,11 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   ESP_LOGV(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%zX.",
            this->address_, start_address, registers.size());
 
+  // No registers configured (e.g. a bits-only server): this device does not implement the register-write
+  // function, so answer ILLEGAL_FUNCTION rather than ILLEGAL_DATA_ADDRESS.
+  if (this->server_registers_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
   auto for_each_register =
       [this, start_address,
        &registers](const std::function<bool(ServerRegister *, uint16_t register_offset)> &callback) -> bool {
@@ -186,6 +197,11 @@ modbus::ResponseStatus ModbusServer::on_read_bits(uint16_t start_address, modbus
   ESP_LOGV(TAG, "Received read coils/discrete inputs for device 0x%X. Start address: 0x%X. Count: 0x%X.",
            this->address_, start_address, bits.size());
 
+  // No bits configured: this device does not implement the coil/discrete-input function, so answer
+  // ILLEGAL_FUNCTION. A populated table with a wrong address answers ILLEGAL_DATA_ADDRESS below.
+  if (this->server_bits_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
   for (uint16_t i = 0; i < bits.size(); i++) {
     const uint16_t address = static_cast<uint16_t>(start_address + i);  // range pre-checked by the hub
     ServerBit *server_bit = this->find_bit_(address);
@@ -207,13 +223,20 @@ modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modb
   ESP_LOGV(TAG, "Received write coils for device 0x%X. Start address: 0x%X. Count: 0x%X.", this->address_,
            start_address, bits.size());
 
+  // No bits configured: this device does not implement the coil function, so answer ILLEGAL_FUNCTION rather
+  // than ILLEGAL_DATA_ADDRESS.
+  if (this->server_bits_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
   // Pre-flight: every targeted bit must exist and be writable, so we never apply a partial write
   // before discovering a problem (mirrors the register write's two passes).
   for (uint16_t i = 0; i < bits.size(); i++) {
     const uint16_t address = static_cast<uint16_t>(start_address + i);
     ServerBit *server_bit = this->find_bit_(address);
     if (server_bit == nullptr || !server_bit->write_lambda) {
-      ESP_LOGW(TAG, "No writable bit at 0x%04X. Sending exception response.", address);
+      // Only VERBOSE: one handler serves both addressed and broadcast writes, and rejecting a broadcast for
+      // bits this device does not map is routine. The hub logs the outcome with the context it has.
+      ESP_LOGV(TAG, "No writable bit at 0x%04X; write request rejected before applying any bit.", address);
       return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
   }

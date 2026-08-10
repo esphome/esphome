@@ -105,13 +105,27 @@ TEST(ModbusServerWrite, UnwritableRegisterRejected) {
     EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
-// An address with no registered register yields ILLEGAL_DATA_ADDRESS.
+// A write to an address not covered by any configured register (on a populated server) yields
+// ILLEGAL_DATA_ADDRESS.
 TEST(ModbusServerWrite, UnmatchedAddressRejected) {
   ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.write_lambda = [](int64_t) { return true; };
+  server.add_server_register(&reg);
+
   auto status = server.on_write_registers(0x0005, make_registers({0x1234}));
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
     EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// A server with no registers configured does not implement the register-write function: ILLEGAL_FUNCTION.
+TEST(ModbusServerWrite, EmptyServerRejectsWithIllegalFunction) {
+  ModbusServer server;
+  auto status = server.on_write_registers(0x0000, make_registers({0x1234}));
+  ASSERT_TRUE(status.has_value());
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_FUNCTION);
 }
 
 // A write_lambda failing at runtime is the one non-atomic case: the earlier register is already
@@ -248,14 +262,29 @@ TEST(ModbusServerRead, CourtesyDefaultForUnregistered) {
   EXPECT_EQ(out[1], 0xABCD);
 }
 
-// An unregistered address with courtesy disabled is rejected.
+// An unregistered address on a populated server (courtesy disabled) is rejected with ILLEGAL_DATA_ADDRESS.
 TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
   ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.read_lambda = []() -> int64_t { return 0x1234; };
+  server.add_server_register(&reg);
+
   RegisterValues out;
   auto status = server.on_read_registers(0x0005, 1, out);
   ASSERT_TRUE(status.has_value());
   if (status.has_value())
     EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// A server with no registers configured (courtesy disabled) does not implement the register-read
+// function: ILLEGAL_FUNCTION.
+TEST(ModbusServerRead, EmptyServerRejectsWithIllegalFunction) {
+  ModbusServer server;
+  RegisterValues out;
+  auto status = server.on_read_registers(0x0005, 1, out);
+  ASSERT_TRUE(status.has_value());
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ExceptionCode::ILLEGAL_FUNCTION);
 }
 
 // A register read lambda returning an empty optional declines the read: the whole request is
