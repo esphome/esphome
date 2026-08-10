@@ -109,3 +109,14 @@ def test_legacy_node_choke_point_rejects_other_platforms() -> None:
     # Through the public schema too, so removing the cv.All wiring fails here.
     with pytest.raises(cv.Invalid, match="not been migrated"):
         ble_client.BLE_CLIENT_SCHEMA({})
+
+
+def test_neutral_arm_rejects_esp32_only_keys() -> None:
+    # Pins the schema split's rejection side: the legacy-only keys must not
+    # leak into the neutral arm.
+    from esphome.components import ble_client
+
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_RP2
+    for key in ("name", "on_passkey_request", "on_passkey_notification"):
+        with pytest.raises(cv.Invalid):
+            ble_client.CONFIG_SCHEMA({"mac_address": "AA:BB:CC:DD:EE:FF", key: "x"})
