@@ -1,7 +1,7 @@
-// Hub-platform connection wrapper (USE_RP2 hub builds today).
+// The proxy's per-slot connection wrapper, shared by every platform.
 #include "bluetooth_connection_hub.h"
 
-#if !defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -26,11 +26,11 @@ void BluetoothConnection::set_address(uint64_t address) {
   format_mac_addr_upper(mac, this->address_str_);
 }
 
-void BluetoothConnection::start_connect_() {
-  // No connect timeout here (esp32 parity): the client's own timeout or
-  // the api-gone sweep drives disconnect().
+void BluetoothConnection::initiate_connection(uint8_t address_type) {
+  // No connect timeout here: the API client's own timeout or the api-gone
+  // sweep drives disconnect().
   this->state_ = ClientState::CONNECTING;
-  int err = this->backend_->connect(this->address_, this->remote_addr_type_);
+  int err = this->backend_->connect(this->address_, address_type);
   if (err != 0) {
     ESP_LOGW(TAG, "[%d] [%s] connect failed, err=%d", this->connection_index_, this->address_str_, err);
     this->reset_connection_(err);
@@ -38,40 +38,21 @@ void BluetoothConnection::start_connect_() {
 }
 
 void BluetoothConnection::disconnect() {
-  // Idempotent like the esp32 class: the proxy's teardown loop calls this
-  // every 100 ms while the API subscriber is gone, and a repeat call must not
-  // reach the backend (whose busy error would free the slot mid-teardown).
+  // Idempotent: the proxy's teardown loop calls this every 100 ms while the
+  // API subscriber is gone, and a repeat call reaching the backend would
+  // re-arm its teardown timer so the safety timeout never fires.
   if (this->state_ == ClientState::IDLE || this->state_ == ClientState::DISCONNECTING) {
     return;
   }
-  int err = this->backend_->disconnect();
-  if (err == GATT_NOT_CONNECTED) {
-    // Backend already idle: free the slot so the client is not stuck.
-    ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle", this->connection_index_, this->address_str_);
+  int err = this->backend_->gatt_disconnect();
+  if (err != 0) {
+    // Nonzero means nothing to tear down (both backends): free the slot.
+    // Accepted teardowns always reach a terminal report.
+    ESP_LOGW(TAG, "[%d] [%s] disconnect while backend idle, err=%d", this->connection_index_, this->address_str_, err);
     this->reset_connection_(err);
     return;
   }
-  if (err != 0) {
-    // Transient refusal: stay DISCONNECTING and let the safety timeout
-    // arbitrate rather than freeing a slot whose teardown is unresolved.
-    // Latch the refusal unless a GATT cause is already recorded (first wins).
-    ESP_LOGW(TAG, "[%d] [%s] disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
-    if (this->pending_error_ == 0) {
-      this->pending_error_ = err;
-    }
-  }
   this->state_ = ClientState::DISCONNECTING;
-  this->disconnecting_started_ = millis();
-}
-
-void BluetoothConnection::check_disconnect_timeout_() {
-  // Safety net mirroring the esp32 base class: if the backend's disconnect
-  // completion is lost, force the slot free instead of leaking it.
-  static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
-  if (this->state_ == ClientState::DISCONNECTING && millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "[%d] [%s] Disconnect timeout, freeing slot", this->connection_index_, this->address_str_);
-    this->reset_connection_(GATT_NOT_CONNECTED);
-  }
 }
 
 void BluetoothConnection::on_pairing_result(int status) {
@@ -96,32 +77,24 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->proxy_->reset_connection_slot_(this, reason);
 }
 
-// ---- backend event sink ----
+// ---- backend event listener ----
 
 void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int error) {
   if (connected && this->address_ == 0) {
     // Late completion for a slot that was already freed: nothing to report,
     // and the api-gone sweep or a new reservation owns the slot now.
-    int err = this->backend_->disconnect();
-    if (err != 0 && err != GATT_NOT_CONNECTED) {
-      // Log only: re-arming a freed slot could clobber a new reservation.
-      ESP_LOGW(TAG, "[%d] freed-slot disconnect refused, err=%d", this->connection_index_, err);
-    }
+    // Return ignored: nonzero just means the backend was already idle, and
+    // re-arming a freed slot could clobber a new reservation.
+    this->backend_->gatt_disconnect();
     return;
   }
   if (connected && this->state_ == ClientState::DISCONNECTING) {
     // The link came up after a disconnect request won the race; finish the
     // teardown instead of reporting a connection the client no longer wants.
-    int err = this->backend_->disconnect();
-    // Fresh teardown attempt: give it the full safety window.
-    this->disconnecting_started_ = millis();
-    if (err == GATT_NOT_CONNECTED) {
+    int err = this->backend_->gatt_disconnect();
+    if (err != 0) {
       // Nothing left to tear down after all.
       this->reset_connection_(err);
-    } else if (err != 0) {
-      // Transient refusal while the link is up: keep DISCONNECTING and let
-      // the safety timeout arbitrate (same policy as disconnect()).
-      ESP_LOGW(TAG, "[%d] [%s] teardown disconnect failed, err=%d", this->connection_index_, this->address_str_, err);
     }
     return;
   }
@@ -130,7 +103,10 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
     if (this->connection_type_ == ConnectionType::V3_WITH_CACHE) {
       // The API client has the services cached; never discover them. No
       // discovery phase needs the fast interval, so settle straight into the
-      // shared steady-state parameters (same lifecycle place as esp32).
+      // shared steady-state parameters. On esp32 the backend already set the
+      // same values as prefer-params before opening, so this request is
+      // usually redundant there - kept because rp2 has no prefer-params and
+      // the explicit update is its only path to the steady-state interval.
       this->state_ = ClientState::ESTABLISHED;
       int param_err = this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
                                                                ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
@@ -145,14 +121,13 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
       return;
     }
     // V3_WITHOUT_CACHE: discover services first — the connected response is
-    // sent when discovery completes, mirroring the esp32 flow (MTU + services
-    // before the response).
+    // sent when discovery completes (MTU + services before the response).
     this->state_ = ClientState::CONNECTED;
     int err = this->backend_->discover_services();
     if (err != 0) {
       ESP_LOGW(TAG, "[%d] [%s] discover_services failed, err=%d", this->connection_index_, this->address_str_, err);
       // Latch the real cause for the disconnect report.
-      this->pending_error_ = err;
+      this->latch_pending_error_(err);
       this->disconnect();
     }
     return;
@@ -171,7 +146,7 @@ void BluetoothConnection::on_service_discovery_done(int error) {
     ESP_LOGW(TAG, "[%d] [%s] Service discovery failed, err=%d", this->connection_index_, this->address_str_, error);
     // Carry the GATT error into the disconnection report so the client sees
     // the real cause instead of a generic HCI reason.
-    this->pending_error_ = error;
+    this->latch_pending_error_(error);
     this->disconnect();
     return;
   }
@@ -334,9 +309,9 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // The subscriber vanished mid-stream: park the cursor at done WITHOUT
-  // sending services-done (esp32 parity — a resubscribing client gets
-  // silence and its 30 s timeout, never an authoritative partial list) and
-  // free the table; the api-gone sweep tears the connection down anyway.
+  // sending services-done (a resubscribing client gets silence and its 30 s
+  // timeout, never an authoritative partial list) and free the table; the
+  // api-gone sweep tears the connection down anyway.
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
@@ -380,8 +355,7 @@ void BluetoothConnection::send_service_for_discovery_() {
     if (char_count != 0 && service.first_characteristic + char_count > table.characteristic_count) {
       ESP_LOGE(TAG, "[%d] [%s] Characteristic range out of bounds (service %d), aborting stream",
                this->connection_index_, this->address_str_, this->send_service_);
-      this->send_service_ = DONE_SENDING_SERVICES;
-      this->disconnect();
+      this->abort_service_stream(ble_device_base::GATT_ERR_UNLIKELY);
       return;
     }
     if (char_count > 0) {
@@ -397,8 +371,7 @@ void BluetoothConnection::send_service_for_discovery_() {
         if (desc_count != 0 && chr.first_descriptor + desc_count > table.descriptor_count) {
           ESP_LOGE(TAG, "[%d] [%s] Descriptor range out of bounds (service %d), aborting stream",
                    this->connection_index_, this->address_str_, this->send_service_);
-          this->send_service_ = DONE_SENDING_SERVICES;
-          this->disconnect();
+          this->abort_service_stream(ble_device_base::GATT_ERR_UNLIKELY);
           return;
         }
         if (desc_count == 0) {
@@ -433,4 +406,4 @@ void BluetoothConnection::send_service_for_discovery_() {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // !USE_ESP32 && USE_BLE_GATT_CLIENT
+#endif  // BLUETOOTH_CONNECTION_HAS_GATT

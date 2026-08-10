@@ -1941,7 +1941,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
-            print(
+            safe_print(
                 color(
                     AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
@@ -1954,7 +1954,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
             )
@@ -2001,7 +2001,9 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             > 1
         ):
-            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            safe_print(
+                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
+            )
             return 1
 
         new_raw = re.sub(
@@ -2019,7 +2021,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
     # would otherwise just re-flash the same hostname).
     if new_name == old_name:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2029,7 +2031,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
     if new_path.resolve() == CORE.config_path.resolve():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2037,7 +2039,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
         return 1
     if new_path.exists():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"Cannot rename: {new_path} already exists. "
@@ -2045,7 +2047,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
         )
         return 1
-    print(
+    safe_print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
@@ -2054,7 +2056,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
-        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
+        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
         return 1
 
@@ -2080,7 +2082,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.config_path != new_path:
         CORE.config_path.unlink()
 
-    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
+    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 
