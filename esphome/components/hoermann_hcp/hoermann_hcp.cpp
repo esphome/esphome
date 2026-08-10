@@ -7,11 +7,6 @@ namespace esphome::hoermann_hcp {
 
 static const char *const TAG = "hoermann_hcp";
 
-// Simulated key-press duration: a command is "pressed" for this long before its end value is sent.
-static constexpr uint32_t SIMULATE_KEY_PRESS_DELAY_MS = 100;
-// Drop the "connected" flag if the bus controller has not polled us for this long.
-static constexpr uint32_t CONNECTION_TIMEOUT_MS = 2000;
-
 // Hoermann HCP holding-register blocks.
 static constexpr uint16_t COMMAND_REG = 0x9C41;    // Commands written by the bus controller
 static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back by the bus controller
@@ -44,7 +39,7 @@ static bool is_moving(DoorState state) {
 
 void HoermannHcp::update() {
   // Time out the connection flag if the bus controller stopped polling.
-  if (this->valid_ && millis() - this->last_response_ > CONNECTION_TIMEOUT_MS) {
+  if (this->valid_ && millis() - this->last_response_ > this->connection_timeout_ms_) {
     this->set_valid_(false);
   }
   if (this->changed_) {
@@ -62,12 +57,12 @@ void HoermannHcp::dump_config() {
 
 modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                               modbus::RegisterValues &registers) {
-  this->record_response_();
-
   if (start_address != STATE_REG) {
     ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
     return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
+
+  this->record_response_();
 
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
   // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
@@ -112,19 +107,26 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
 modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
                                                        const modbus::RegisterValues &registers) {
-  this->record_response_();
-
   if (start_address == COMMAND_REG) {
     // 0x17 write half: stash the command register so the following read half can echo its message counter and
     // command byte back from STATE_REG. The hub always runs the write before the read within one request.
+    this->record_response_();
     this->command_reg_value_ = registers[0];
     return {};
   }
 
   if (start_address != BROADCAST_REG) {
-    ESP_LOGW(TAG, "Unknown write address 0x%04X", start_address);
+    // The hub hands every broadcast to every device, so a frame meant for another node is ordinary traffic
+    // here: it must neither count as contact with our controller nor warn once per frame.
+    if (this->broadcast_write_) {
+      ESP_LOGV(TAG, "Ignoring broadcast write to address 0x%04X", start_address);
+    } else {
+      ESP_LOGW(TAG, "Unknown write address 0x%04X", start_address);
+    }
     return modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
+
+  this->record_response_();
 
   // Door status broadcast. Each handler compares the previous register value with the new one to detect
   // high/low byte changes, so the previous values are tracked between broadcasts. The state is decoded first
@@ -152,7 +154,7 @@ void HoermannHcp::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg
     reg_plus3 = this->next_command_->reg_plus3_start;
     this->command_written_at_ = millis();
     ESP_LOGI(TAG, "Sending '%s' command to door", this->next_command_->name);
-  } else if (millis() - this->command_written_at_ > SIMULATE_KEY_PRESS_DELAY_MS) {
+  } else if (millis() - this->command_written_at_ > this->key_press_delay_ms_) {
     // Enough time passed: present the "key released" values and clear the command.
     reg_plus2 = this->next_command_->reg_plus2_end;
     reg_plus3 = this->next_command_->reg_plus3_end;
