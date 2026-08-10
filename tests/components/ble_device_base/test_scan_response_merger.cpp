@@ -179,5 +179,15 @@ TEST_F(ScanResponseMergerTest, UnboundMergerDropsInsteadOfCrashing) {
   EXPECT_TRUE(unbound.empty());
 }
 
+TEST_F(ScanResponseMergerTest, PartialBindIsTreatedAsUnbound) {
+  ScanResponseMerger partial;
+  partial.bind(&this->dispatcher_, nullptr, "test");
+  std::vector<uint8_t> data(20, 0xAA);
+  partial.submit_scan_rsp(MAC_A, -70, 0, data.data(), data.size());
+  partial.stash_adv(MAC_A, -40, 0, data.data(), data.size(), 0);
+  partial.flush();  // dropped, not dispatched through half a binding
+  EXPECT_TRUE(this->raw_.frames.empty());
+}
+
 }  // namespace
 }  // namespace esphome::ble_device_base::testing
