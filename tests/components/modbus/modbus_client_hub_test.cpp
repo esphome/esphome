@@ -792,6 +792,28 @@ TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
   EXPECT_EQ(device.sent_count_, 0);  // never transmitted
 }
 
+// The counterpart to RefusesReadBroadcast: a custom (user-defined) function code carries no reply the
+// hub knows how to expect, so a broadcast of one is accepted and completes fire-and-forget like a write.
+TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t custom[] = {0x41, 0x01, 0x02};  // FC 0x41: first user-defined function code space
+  ASSERT_TRUE(device.queue_pdu(custom));        // accepted: a custom code is not a read
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);  // the entry is gone
+}
+
 namespace {
 // tx_blocked() clear for send_next_frame_'s gate, then blocked for send_frame_'s post-delay re-check.
 class RejectPostDelayHub : public NoResponseProbeHub {

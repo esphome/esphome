@@ -176,7 +176,8 @@ struct ModbusDeviceCommand {
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
   // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with NO terminal
   // callback and the sweep erases it. Unlike response()/error()/timed_out(), it delivers nothing.
-  // Broadcasts are write-only (reads are refused at queue_pdu()), so pending is always 1 - clear it.
+  // A broadcast only carries a write or a custom code (reads are refused at queue_pdu()), and every such
+  // code caps pending at 1, so pending is always 1 here - clear it.
   void complete_broadcast() {
     this->state = FrameState::RETIRED;
     this->pending = 0;
@@ -280,7 +281,8 @@ class ModbusClientHub : public Modbus {
   };
   /// Queue a request. The name says queue, not send: the frame is appended to the transmit queue and
   /// goes out later from loop(), so a true return means accepted into the machine (it will resolve in
-  /// exactly one terminal callback), NOT that anything reached the wire - that is on_sent(). False means
+  /// exactly one terminal callback - except a broadcast (address 0), which is never answered and so gets
+  /// only on_sent()), NOT that anything reached the wire - that is on_sent(). False means
   /// it never entered the machine at all (empty or oversize PDU, full queue, anonymous or over-cap
   /// duplicate) and no callback of any kind will follow; the false return is the whole story.
   bool queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
@@ -521,8 +523,9 @@ class ModbusClientDevice {
         this);
   }
   /// See ModbusClientHub::queue_pdu(): true = accepted into the queue and a terminal callback will
-  /// follow, false = refused at the door and nothing further happens. Neither means the frame is on
-  /// the wire; on_sent() reports that.
+  /// follow (except a broadcast (address 0), which is never answered and so gets only on_sent()),
+  /// false = refused at the door and nothing further happens. Neither means the frame is on the wire;
+  /// on_sent() reports that.
   bool queue_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
     return this->parent_->queue_pdu(this->address_, pdu, this, options);
   }
@@ -538,8 +541,9 @@ class ModbusClientDevice {
     this->parent_->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
   // The typed request builders below all queue through queue_pdu(), so they share its contract: true
-  // means the request is queued and will resolve in exactly one terminal callback, false means it was
-  // refused outright with no callback. Neither says the frame has been transmitted - on_sent() does.
+  // means the request is queued and will resolve in exactly one terminal callback (except a broadcast
+  // (address 0), which is never answered and so gets only on_sent()), false means it was refused outright
+  // with no callback. Neither says the frame has been transmitted - on_sent() does.
   // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
   // create_read_pdu() rejects into an empty PDU and queue_pdu() refuses with a false return.
   bool read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,

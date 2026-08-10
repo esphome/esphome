@@ -906,10 +906,11 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
   // A broadcast (address 0) is never answered (Modbus 4.1), so it is only meaningful for a command that
-  // changes state. Refuse a broadcast whose function code is a read - it could never deliver a result - so
-  // the caller learns via the false return (and on_not_sent). Writes, 0x17, and custom codes pass through.
-  if (address == BROADCAST_ADDRESS && helpers::is_function_code_read(pdu[0])) {
-    ESP_LOGW(TAG, "Broadcast refused for read function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
+  // changes state. Refuse a broadcast that expects a reply - anything but a write or a custom/vendor code -
+  // as it could never deliver a result, so the caller learns via the false return (and on_not_sent).
+  if (address == BROADCAST_ADDRESS && ModbusDeviceCommand::classify(pdu[0]) != CommandPriority::WRITE &&
+      !helpers::is_function_code_custom(pdu[0])) {
+    ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
     return false;
   }
 

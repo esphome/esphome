@@ -64,7 +64,8 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
  protected:
   /// The hub refuses some sends at the door with no callback (a duplicate write already pending, a full
   /// queue, or an empty PDU - which is how the create_*_pdu() builders reject out-of-spec input). Every
-  /// send still gets exactly one outcome, so resolve refusals here via on_not_sent.
+  /// send still gets exactly one outcome (a broadcast (address 0) is the exception - never answered, it
+  /// resolves through on_sent() alone), so resolve refusals here via on_not_sent.
   /// Takes a span, not a PduBuffer: the builders return right-sized buffers (a read PDU is 5 bytes), and
   /// a PduBuffer parameter would widen each one to the 253-byte maximum just to cross the call.
   void send_or_resolve_(std::span<const uint8_t> pdu) {
