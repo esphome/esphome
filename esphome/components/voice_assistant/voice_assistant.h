@@ -381,8 +381,9 @@ class VoiceAssistant final : public Component {
   // Used from the background download task, not just the main loop, so that a download never blocks the loop.
   http_request::HttpRequestComponent *http_request_{nullptr};
 
-  /* Runtime model management. Every member and method below is touched only on the main loop; the
-     background download task communicates results back via defer() with everything captured by value. */
+  /* Runtime model management. Everything below is touched only on the main loop, except model_load_task (the
+     background task body), which reads http_request_ off the loop and hands results back via defer() with
+     everything captured by value. */
 
   // External wake words advertised by Home Assistant, rebuilt from each configuration request so stale
   // entries drop out. Ownership of a loaded model itself lives in the WakeWordModel (micro_wake_word owns it).
