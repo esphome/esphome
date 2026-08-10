@@ -41,7 +41,7 @@ class SnifferStatsProbe : public SnifferStats {
 
 }  // namespace
 
-// rs485-zbj: a forum report claimed the periodic sniffer dump stayed capped at 32 bytes
+// A forum report claimed the periodic sniffer dump stayed capped at 32 bytes
 // even with payload_capture_bytes: 48 set, despite dump_frames showing the full frame.
 // The console dump the reporter saw is dump_payloads_()'s hex+ASCII "payloads:" line, a
 // SEPARATE formatting step from what record() captures -- proving record()'s capture isn't
