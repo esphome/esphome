@@ -75,9 +75,12 @@ class ESPHomeLogFormatter(logging.Formatter):
 
 
 def _is_tty(stream: TextIO | None) -> bool:
-    # A stream can be missing entirely (e.g. started with the fd closed);
-    # treat that like a redirect so colorama's own None handling applies.
-    return stream is not None and stream.isatty()
+    # A stream can be missing, closed, or not a real file object; colorama
+    # tolerates all three, so treat them like a redirect and let its own
+    # handling apply.
+    if stream is None or getattr(stream, "closed", True):
+        return False
+    return hasattr(stream, "isatty") and stream.isatty()
 
 
 def setup_log(

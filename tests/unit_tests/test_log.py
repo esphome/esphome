@@ -159,15 +159,16 @@ def test_setup_log_dashboard_skips_colorama(
     assert "\033[31mred\033[0m end" in result.stdout
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
-)
-def test_setup_log_tty_skips_colorama(
-    fixture_path: Path, probe_env: dict[str, str]
-) -> None:
-    """A terminal run must skip colorama and keep ANSI codes intact."""
+def _run_probe_on_pty(
+    fixture_path: Path, probe_env: dict[str, str], *, stderr_to_pty: bool
+) -> str:
+    """Run the probe with stdout on a pty and return the decoded pty output.
+
+    With ``stderr_to_pty=False`` stderr goes to /dev/null instead, giving
+    the mixed tty/redirect stream combination.
+    """
     # Unix-only; a module-level import would break test collection on
-    # Windows, where the whole module is skipped anyway.
+    # Windows, where all the callers are skipped anyway.
     import pty
 
     controller, follower = pty.openpty()
@@ -179,7 +180,7 @@ def test_setup_log_tty_skips_colorama(
             proc = subprocess.Popen(
                 _probe_command(fixture_path),
                 stdout=follower,
-                stderr=follower,
+                stderr=follower if stderr_to_pty else subprocess.DEVNULL,
                 stdin=follower,
                 env=probe_env,
             )
@@ -203,8 +204,36 @@ def test_setup_log_tty_skips_colorama(
         if proc is not None and proc.poll() is None:
             proc.kill()
             proc.wait()
-    text = output.decode()
+    return output.decode()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
+)
+def test_setup_log_tty_skips_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """A terminal run must skip colorama and keep ANSI codes intact."""
+    text = _run_probe_on_pty(fixture_path, probe_env, stderr_to_pty=True)
     assert "colorama_loaded=False" in text
+    assert "\033[31mred\033[0m end" in text
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
+)
+def test_setup_log_mixed_streams_init_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """A tty stdout with a redirected stderr must still initialize colorama.
+
+    The guard requires both streams to be a tty; collapsing it to a
+    single-stream check would stop stripping ANSI from a redirected
+    stderr while stdout is a terminal.
+    """
+    text = _run_probe_on_pty(fixture_path, probe_env, stderr_to_pty=False)
+    assert "colorama_loaded=True" in text
+    # stdout is a tty, so colorama leaves its codes alone.
     assert "\033[31mred\033[0m end" in text
 
 
@@ -246,6 +275,7 @@ def test_setup_log_redirected_branch_imports_colorama(
     monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
 ) -> None:
     """Redirected streams must keep importing and initializing colorama."""
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
     monkeypatch.setattr(CORE, "verbose", CORE.verbose)
     monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
@@ -256,4 +286,5 @@ def test_setup_log_redirected_branch_imports_colorama(
     finally:
         # init() rebinds sys.stdout/stderr; restore them before monkeypatch
         # puts the originals back.
-        sys.modules["colorama"].deinit()
+        if "colorama" in sys.modules:
+            sys.modules["colorama"].deinit()
