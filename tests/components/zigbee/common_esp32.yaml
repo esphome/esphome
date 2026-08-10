@@ -7,7 +7,7 @@ binary_sensor:
     report: "default"
     device_class: occupancy
     cluster: default
-    endpoint: 1
+    endpoint: 3
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
@@ -33,6 +33,16 @@ sensor:
     unit_of_measurement: "lx"
     endpoint: 2
     use_device_type: true
+    cluster: default
+  - platform: template
+    name: "pressure_sensor"
+    unit_of_measurement: Pa
+    device_class: pressure
+    cluster: default
+  - platform: template
+    name: "flow_sensor"
+    unit_of_measurement: L/h
+    device_class: volume_flow_rate
     cluster: default
 
 zigbee:

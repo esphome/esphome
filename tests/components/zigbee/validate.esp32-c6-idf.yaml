@@ -1,5 +1,5 @@
 packages:
-  - !include common_esp32.yaml
+  zigbee: !include common_esp32.yaml
 
 sensor:
   - platform: template
@@ -9,11 +9,6 @@ sensor:
     cluster: default
     endpoint: 2
     use_device_type: false
-  - platform: template
-    name: "pressure_sensor"
-    unit_of_measurement: Pa
-    device_class: pressure
-    cluster: default
   - platform: template
     name: "pm25_sensor"
     unit_of_measurement: 'µg/m³'
@@ -25,7 +20,12 @@ sensor:
     device_class: carbon_dioxide
     cluster: default
   - platform: template
-    name: "flow_sensor"
-    unit_of_measurement: L/h
+    name: "pressure_sensor2"
+    unit_of_measurement: hPa
+    device_class: pressure
+    cluster: default
+  - platform: template
+    name: "flow_sensor2"
+    unit_of_measurement: m³/h
     device_class: volume_flow_rate
     cluster: default
