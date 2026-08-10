@@ -10,6 +10,7 @@ not be part of a unit test suite.
 """
 
 from collections.abc import Generator
+import os
 from pathlib import Path
 import sys
 from unittest.mock import Mock, patch
@@ -38,6 +39,19 @@ def fixture_path() -> Path:
     Location of all fixture files.
     """
     return here / "fixtures"
+
+
+@pytest.fixture
+def probe_env() -> dict[str, str]:
+    """Environment for running fixture probe scripts as subprocesses.
+
+    Running a script file drops the cwd from sys.path, so prepend the
+    repo root for the child.
+    """
+    python_path = str(package_root)
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    return os.environ | {"PYTHONPATH": python_path}
 
 
 @pytest.fixture
