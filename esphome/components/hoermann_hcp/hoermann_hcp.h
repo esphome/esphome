@@ -21,14 +21,12 @@ enum class DoorState : uint8_t {
   STOPPED,
 };
 
-// A HCP command is a simulated key press: the "start" values are presented to the bus controller, then after a
-// short delay the "end" values, mimicking a button being pressed and released.
+// A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
+// short delay the released value. The second command register remains zero.
 struct HoermannHcpCommand {
   const char *name;
-  uint16_t reg_plus2_start;
-  uint16_t reg_plus2_end;
-  uint16_t reg_plus3_start;
-  uint16_t reg_plus3_end;
+  uint16_t pressed_value;
+  uint16_t released_value;
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
@@ -41,22 +39,20 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
     this->state_callback_.add(std::forward<F>(callback));
   }
 
-  // Modbus server callbacks. The bus controller polls state and pushes commands with READ_WRITE_MULTIPLE_REGISTERS
-  // (0x17) and broadcasts status with WRITE_MULTIPLE_REGISTERS (0x10). For 0x17 the hub calls the write half first
-  // (which stores the command register), then the read half (which echoes it back from STATE_REG).
+  // Modbus server callbacks. The bus controller pushes commands and polls state with 0x17 (the hub runs the write
+  // half first, storing the command register that the read half echoes back) and broadcasts status with 0x10.
   modbus::ResponseStatus on_write_registers(uint16_t start_address, const modbus::RegisterValues &registers) override;
   modbus::ResponseStatus on_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
                                                    modbus::RegisterValues &registers) override;
 
-  // Control functions. Positions follow the cover convention: 0.0 is fully closed, 1.0 fully open.
-  // They return false when the bus controller cannot be asked right now, so the caller can react.
+  // Positions follow the cover convention: 0.0 is fully closed, 1.0 fully open. These return false when the bus
+  // controller cannot be asked right now, so the caller can react.
   bool open_door();
   bool close_door();
   bool impulse_door();
   bool stop_door();
   bool set_position(float position);
 
-  // State accessors used by child entities.
   DoorState get_door_state() const { return this->door_state_; }
   float get_current_position() const { return this->current_position_; }
   bool is_valid() const { return this->valid_; }
@@ -65,22 +61,23 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
-  void get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3);
-  void on_door_position_changed_(uint16_t old_value, uint16_t new_value);
-  void on_current_state_changed_(uint16_t old_value, uint16_t new_value);
+  // Appends the two key-press registers and advances the pending command's press/release state.
+  void push_command_registers_(modbus::RegisterValues &registers);
+  void on_position_reg_(uint16_t value);
+  void on_state_reg_(uint16_t value);
 
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
-  void set_current_position_(float position);
   // Recomputes the reported position from position_raw_ and the current door state.
   void update_current_position_();
-  void clear_goto_position_();
+  bool has_target_() const { return this->target_position_ != 0.0f; }
+  void clear_target_();
 
   CallbackManager<void()> state_callback_;
 
   float current_position_{0.0f};
   // Position the door was told to travel to; 0.0 means no target is armed.
-  float goto_position_{0.0f};
+  float target_position_{0.0f};
 
   // Pending command / key-press state machine.
   const HoermannHcpCommand *next_command_{nullptr};
@@ -92,21 +89,20 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint16_t key_press_delay_ms_{100};
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
-  // Previous broadcast register values (to detect high/low byte changes).
-  uint16_t prev_position_reg_{0};
-  // Sentinel the bus controller never reports, so the first broadcast is decoded even when it reads 0x0000.
+  // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when
+  // it reads 0x0000.
   uint16_t prev_state_reg_{0xFFFF};
-  // 0x17 write half: command register last written to COMMAND_REG by the bus controller. The read half echoes
-  // its high-byte message counter and low-byte command back from STATE_REG.
+  // 0x17 write half: command register last written to COMMAND_REG. The read half echoes its high-byte message
+  // counter and low-byte command back from STATE_REG.
   uint16_t command_reg_value_{0};
 
   DoorState door_state_{DoorState::CLOSED};
-  // Direction the door was started in for that target. A target armed while the door is still travelling the
-  // other way must not be judged by the direction the controller reports until the door has turned around.
-  DoorState goto_direction_{DoorState::STOPPED};
+  // Direction the door was started in for the current target. A target armed while the door is still travelling
+  // the other way must not be judged by the reported direction until the door has turned around.
+  DoorState target_direction_{DoorState::STOPPED};
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
-  bool goto_under_way_{false};
+  bool target_started_{false};
   bool valid_{false};
   bool changed_{false};
 };
