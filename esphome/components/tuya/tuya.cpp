@@ -303,6 +303,22 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
       }
       break;
+    case TuyaCommandType::GMT_TIME_QUERY:
+#ifdef USE_TIME
+      if (this->time_id_ != nullptr) {
+        this->send_gmt_time_();
+
+        if (!this->gmt_time_sync_callback_registered_) {
+          // tuya mcu supports time, so we let them know when our time changed
+          this->time_id_->add_on_time_sync_callback([this] { this->send_gmt_time_(); });
+          this->gmt_time_sync_callback_registered_ = true;
+        }
+      } else
+#endif
+      {
+        ESP_LOGW(TAG, "GMT_TIME_QUERY is not handled because time is not configured");
+      }
+      break;
     case TuyaCommandType::VACUUM_MAP_UPLOAD:
       this->send_command_(
           TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
@@ -608,6 +624,25 @@ void Tuya::send_local_time_() {
     payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   }
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::LOCAL_TIME_QUERY, .payload = payload});
+}
+void Tuya::send_gmt_time_() {
+  std::vector<uint8_t> payload;
+  ESPTime now = this->time_id_->utcnow();
+  if (now.is_valid()) {
+    uint8_t year = now.year - 2000;
+    uint8_t month = now.month;
+    uint8_t day_of_month = now.day_of_month;
+    uint8_t hour = now.hour;
+    uint8_t minute = now.minute;
+    uint8_t second = now.second;
+    ESP_LOGD(TAG, "Sending gmt time");
+    payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second};
+  } else {
+    // By spec we need to notify MCU that the time was not obtained if this is a response to a query
+    ESP_LOGW(TAG, "Sending missing gmt time");
+    payload = std::vector<uint8_t>{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  }
+  this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GMT_TIME_QUERY, .payload = payload});
 }
 #endif
 

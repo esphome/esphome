@@ -1,5 +1,5 @@
-# Advertisement-only proxy on the rp2 BLE hub — the one non-esp32 platform the
-# proxy admits today (active-scan-capable), and a target CI fully compiles.
+# Full proxy on the rp2 BLE hub: active defaults to true here (esp32 parity),
+# so this compiles the BTstack GATT client backend and one connection slot.
 # No explicit ble_hub_id: the generated binding resolves the single declared
 # hub, and an inline id here would collide with rp2_ble_tracker's own fixture
 # once CI merges both components into one grouped rp2040-ard build (grouped
