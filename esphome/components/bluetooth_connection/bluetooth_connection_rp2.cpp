@@ -134,12 +134,24 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       }
       uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
       hci_con_handle_t con_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
-      // Route by ownership, not address: exactly one create-connection exists
-      // stack-wide and gap_connect refuses a new one until this completion is
-      // processed, so the event belongs to the owner by construction. Cancel
-      // completions carry a zeroed peer address on this controller, so an
-      // address match would drop them and pin the owner until its backstop.
+      bd_addr_t peer;
+      gap_subevent_le_connection_complete_get_peer_address(packet, peer);
+      // Route by ownership, not address: gap_connect refuses a new
+      // create-connection until the previous completion is processed, so the
+      // event belongs to the owner by construction. Cancel completions carry
+      // a zeroed peer address on this controller, so an address match would
+      // drop them and pin the owner until its backstop.
       RP2GattClient *inst = connect_owner;
+      static constexpr bd_addr_t ZERO_ADDR = {};
+      if (inst != nullptr && memcmp(peer, ZERO_ADDR, sizeof(bd_addr_t)) != 0 &&
+          memcmp(inst->peer_addr_, peer, sizeof(bd_addr_t)) != 0) {
+        // Addressed completion for a peer the owner is not connecting to: a
+        // success delayed past a cancel and an ownership handoff (the cancel
+        // idles the stack's request immediately) must not stamp the old
+        // procedure's link onto the new owner. Drop; the owner's own
+        // completion follows.
+        break;
+      }
       connect_owner = nullptr;
       if (inst != nullptr) {
         if (status == 0) {
