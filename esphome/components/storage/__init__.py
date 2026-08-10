@@ -641,7 +641,9 @@ def _exactly_one_step_kind(config: ConfigType) -> ConfigType:
     if CONF_GROUP in config and CONF_REGEX not in config:
         raise cv.Invalid("'group' is only valid with 'regex'")
     if CONF_TRIM in config and not config[CONF_TRIM]:
-        raise cv.Invalid("'trim' must be true; remove the step entirely to skip trimming")
+        raise cv.Invalid(
+            "'trim' must be true; remove the step entirely to skip trimming"
+        )
     return config
 
 
