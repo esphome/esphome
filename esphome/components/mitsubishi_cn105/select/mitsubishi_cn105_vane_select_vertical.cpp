@@ -23,6 +23,7 @@ void MitsubishiCN105VerticalVaneDirectionSelect::setup() {
 void MitsubishiCN105VerticalVaneDirectionSelect::control(size_t index) {
   if (index < VALUES.size()) {
     this->parent_->set_vane_mode(VALUES[index]);
+    this->parent_->publish_status();
   }
 }
 

@@ -65,6 +65,40 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
   EXPECT_EQ(ctx.select.active_index(), std::optional{modes.size() - 1});
 }
 
+TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ControlPublishesSelectAndClimateThroughHub) {
+  VerticalVaneDirectionSelectTestContext ctx;
+  MitsubishiCN105Climate climate_entity;
+  climate_entity.set_parent(&ctx.hub);
+  climate_entity.set_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+
+  ctx.hub.mutable_status().room_temperature = 20.0f;
+  climate_entity.setup();
+
+  ctx.select.control(6);
+  EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{6});
+  EXPECT_EQ(climate_entity.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+
+  ctx.select.control(3);
+  EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{3});
+  EXPECT_EQ(climate_entity.swing_mode, climate::CLIMATE_SWING_OFF);
+}
+
+TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ClimateControlPublishesSelectThroughHub) {
+  VerticalVaneDirectionSelectTestContext ctx;
+  MitsubishiCN105Climate climate_entity;
+  climate_entity.set_parent(&ctx.hub);
+  climate_entity.set_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+
+  ctx.hub.mutable_status().room_temperature = 20.0f;
+  climate_entity.setup();
+
+  climate_entity.make_call().set_swing_mode(climate::CLIMATE_SWING_VERTICAL).perform();
+  EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{6});
+
+  climate_entity.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
+  EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{0});
+}
+
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNotPublishSelectState) {
   VerticalVaneDirectionSelectTestContext ctx;
 

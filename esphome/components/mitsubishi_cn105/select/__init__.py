@@ -15,19 +15,8 @@ DEPENDENCIES = ["mitsubishi_cn105"]
 
 CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
 
-MitsubishiCN105 = mitsubishi_ns.class_("MitsubishiCN105")
-VerticalVaneDirection = MitsubishiCN105.enum("VaneMode", True)
-
 # The insertion order must match VALUES in mitsubishi_cn105_vane_select_vertical.cpp.
-VERTICAL_VANE_DIRECTIONS = {
-    "Auto": VerticalVaneDirection.AUTO,
-    "1": VerticalVaneDirection.POSITION_1,
-    "2": VerticalVaneDirection.POSITION_2,
-    "3": VerticalVaneDirection.POSITION_3,
-    "4": VerticalVaneDirection.POSITION_4,
-    "5": VerticalVaneDirection.POSITION_5,
-    "Swing": VerticalVaneDirection.SWING,
-}
+VERTICAL_VANE_DIRECTIONS = ["Auto", "1", "2", "3", "4", "5", "Swing"]
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     "MitsubishiCN105VerticalVaneDirectionSelect",
@@ -53,6 +42,6 @@ async def to_code(config: ConfigType) -> None:
         await select.register_select(
             var,
             vertical_vane_direction,
-            options=list(VERTICAL_VANE_DIRECTIONS),
+            options=VERTICAL_VANE_DIRECTIONS,
         )
         await register_mitsubishi_cn105_device(var, config)
