@@ -461,18 +461,19 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   return pdu;
 }
 
-// Validate one register block for a client builder: a non-zero count within max_count that does not run
-// past the 16-bit address space (register count × 2 stays within MAX_PDU_SIZE as a result). On failure it
-// logs the reason and returns false, on which the caller returns an empty PDU. `role` names the block in
+// Validate one register block for a client builder: a non-zero quantity within max_quantity that does not
+// run past the 16-bit address space (register count × 2 stays within MAX_PDU_SIZE as a result). On failure
+// it logs the reason and returns false, on which the caller returns an empty PDU. `role` names the block in
 // the log ("Read"/"Write").
-static bool register_block_in_range(const LogString *role, uint16_t start_address, size_t count, uint16_t max_count) {
-  if (count == 0 || count > max_count) {
-    ESP_LOGE(TAG, "%s count %zu out of range [1, %u], dropping request", LOG_STR_ARG(role), count, max_count);
+static bool register_block_in_range(const LogString *role, uint16_t start_address, size_t quantity,
+                                    uint16_t max_quantity) {
+  if (quantity == 0 || quantity > max_quantity) {
+    ESP_LOGE(TAG, "%s count %zu out of range [1, %u], dropping request", LOG_STR_ARG(role), quantity, max_quantity);
     return false;
   }
-  if (!address_range_fits(start_address, count)) {
+  if (!address_range_fits(start_address, quantity)) {
     ESP_LOGE(TAG, "%s of %zu registers at %u runs past the 16-bit address space, dropping request", LOG_STR_ARG(role),
-             count, start_address);
+             quantity, start_address);
     return false;
   }
   return true;
