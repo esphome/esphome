@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import esphome.codegen as cg
+from esphome.components import rp2040_ble
 from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -37,11 +38,11 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
 # arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1 and
-# MAX_NR_HCI_CONNECTIONS 2; for more than one backend, btstack_memory_rp2.cpp
-# replaces those pools via linker --wrap (emitted by _rp2_register), sized
-# from ESPHOME_BLE_GATT_CLIENT_COUNT. 3 matches the esp32 default and stays
-# within the controller's resources (MAX_NR_CONTROLLER_ACL_BUFFERS 3).
-RP2_MAX_CONNECTIONS = 3
+# MAX_NR_HCI_CONNECTIONS 2; for more than one backend, rp2040_ble's
+# btstack_memory.cpp replaces those pools via linker --wrap (requested by
+# _rp2_register), sized from ESPHOME_BLE_GATT_CLIENT_COUNT. The cap itself
+# belongs to the platform stack that owns the pools.
+RP2_MAX_CONNECTIONS = rp2040_ble.MAX_CONNECTIONS
 
 # Slot limits for the hub platforms running the connection-capable proxy;
 # the backend registry itself is _PLATFORM_BACKENDS below.
@@ -57,16 +58,6 @@ BluedroidGattClient = bluetooth_connection_ns.class_(
 CONF_BACKEND_ID = "backend_id"
 
 DOMAIN = "bluetooth_connection"
-
-# The four btstack_memory accessors whose static pools are baked into the
-# prebuilt liblwip-bt.a; every internal use crosses an object boundary in the
-# archive, so --wrap intercepts them all (see btstack_memory_rp2.cpp).
-_RP2_BTSTACK_POOL_SYMBOLS = (
-    "btstack_memory_gatt_client_get",
-    "btstack_memory_gatt_client_free",
-    "btstack_memory_hci_connection_get",
-    "btstack_memory_hci_connection_free",
-)
 
 
 @dataclass
@@ -87,8 +78,6 @@ def _esp32_schema_fragment() -> cv.Schema:
 
 
 def _rp2_schema_fragment() -> cv.Schema:
-    from esphome.components import rp2040_ble
-
     return cv.Schema(
         {cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE)}
     )
@@ -103,18 +92,15 @@ async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
-    from esphome.components import rp2040_ble
-
     # More than one backend outgrows the prebuilt BTstack pools: swap them for
-    # the ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in btstack_memory_rp2.cpp.
-    # Keyed to backend registrations (the same event that grows the count that
-    # sizes the pools), so single-backend builds emit no flags and stay
-    # byte-identical to previous releases.
+    # the ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in rp2040_ble's
+    # btstack_memory.cpp. Keyed to backend registrations (the same event that
+    # grows the count that sizes the pools), so single-backend builds emit no
+    # flags and stay byte-identical to previous releases.
     data = _get_data()
     data.rp2_backend_count += 1
     if data.rp2_backend_count == 2:
-        for symbol in _RP2_BTSTACK_POOL_SYMBOLS:
-            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+        rp2040_ble.add_btstack_pool_overrides()
     await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
 
 
@@ -205,7 +191,6 @@ SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
         PlatformFramework.ESP32_IDF,
     },
     "bluetooth_connection_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
-    "btstack_memory_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
 }
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(SOURCE_FILE_FRAMEWORKS)

@@ -1,12 +1,13 @@
 // Replaces the gatt_client / hci_connection static pools baked into
 // arduino-pico's prebuilt liblwip-bt.a (built with MAX_NR_GATT_CLIENTS 1,
 // MAX_NR_HCI_CONNECTIONS 2) with pools sized from ESPHOME_BLE_GATT_CLIENT_COUNT.
-// bluetooth_connection/__init__.py emits the matching -Wl,--wrap flags only
-// when more than one backend registers; single-backend builds emit no flags
-// and this file compiles to nothing, leaving the prebuilt pools in charge.
-// Layout safety: the framework defines ENABLE_CLASSIC / ENABLE_BLE for
-// every user TU whenever PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH is set
-// (rp2040_ble always sets it), so sizeof() here matches the archive.
+// add_btstack_pool_overrides() in this component's codegen emits the matching
+// -Wl,--wrap flags, requested by bluetooth_connection when more than one GATT
+// backend registers; single-backend builds emit no flags and this file
+// compiles to nothing, leaving the prebuilt pools in charge. Layout safety:
+// the framework defines ENABLE_CLASSIC / ENABLE_BLE for every user TU
+// whenever PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH is set (this component
+// always sets it), so sizeof() here matches the archive.
 
 #include "esphome/core/defines.h"
 
@@ -16,7 +17,7 @@
 
 #include <cstring>
 
-namespace esphome::bluetooth_connection {
+namespace esphome::rp2040_ble {
 namespace {
 
 // Pinned against arduino-pico 6.0.0's prebuilt archives: a framework bump (or
@@ -112,6 +113,6 @@ void __wrap_btstack_memory_hci_connection_free(hci_connection_t *hci_connection)
 }  // extern "C"
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 
-}  // namespace esphome::bluetooth_connection
+}  // namespace esphome::rp2040_ble
 
 #endif  // USE_RP2040_BLE && USE_BLE_GATT_CLIENT && ESPHOME_BLE_GATT_CLIENT_COUNT > 1

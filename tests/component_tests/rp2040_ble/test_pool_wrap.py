@@ -7,13 +7,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from esphome.components import bluetooth_connection
+from esphome.components import rp2040_ble
 from esphome.core import CORE
 
 from ..helpers import get_define_value
 
 WRAP_FLAGS = tuple(
-    f"-Wl,--wrap={symbol}" for symbol in bluetooth_connection._RP2_BTSTACK_POOL_SYMBOLS
+    f"-Wl,--wrap={symbol}" for symbol in rp2040_ble._BTSTACK_POOL_SYMBOLS
 )
 
 
