@@ -70,23 +70,19 @@ extern "C" hci_connection_t *__real_btstack_memory_hci_connection_get(void);
 extern "C" void __real_btstack_memory_hci_connection_free(hci_connection_t *hci_connection);
 
 namespace {
-// Never called: the linker silently ignores --wrap for an unreferenced
-// symbol, and __real_* only resolves while --wrap is in effect — so these
-// references turn "pools compiled but a flag not emitted" into a link error
-// instead of a silent fallback to the prebuilt one-client pool. One anchor
-// per wrapped symbol, so dropping any single flag fails loudly.
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-[[gnu::used]] void (*const WRAP_ACTIVE_CHECKS[])() = {
-    reinterpret_cast<void (*)()>(&__real_btstack_memory_gatt_client_get),
-    reinterpret_cast<void (*)()>(&__real_btstack_memory_gatt_client_free),
-    reinterpret_cast<void (*)()>(&__real_btstack_memory_hci_connection_get),
-    reinterpret_cast<void (*)()>(&__real_btstack_memory_hci_connection_free),
-};
+// Fails the link if the corresponding --wrap flag is missing: __real_* only
+// exists while --wrap is in effect, and each wrap function anchors its own
+// symbol so dropping any single flag fails loudly. A code reference is used
+// because the framework links with --gc-sections, which discards an
+// unreferenced data anchor regardless of [[gnu::used]] (and this toolchain
+// does not emit SHF_GNU_RETAIN for [[gnu::retain]]).
+template<typename T> void anchor_wrap(T *symbol) { asm volatile("" ::"r"(symbol)); }
 }  // namespace
 
 extern "C" {
 
 gatt_client_t *__wrap_btstack_memory_gatt_client_get(void) {
+  anchor_wrap(&__real_btstack_memory_gatt_client_get);
   void *buffer = btstack_memory_pool_get(&gatt_client_pool);
   if (buffer != nullptr) {
     memset(buffer, 0, sizeof(gatt_client_t));
@@ -95,10 +91,12 @@ gatt_client_t *__wrap_btstack_memory_gatt_client_get(void) {
 }
 
 void __wrap_btstack_memory_gatt_client_free(gatt_client_t *gatt_client) {
+  anchor_wrap(&__real_btstack_memory_gatt_client_free);
   btstack_memory_pool_free(&gatt_client_pool, gatt_client);
 }
 
 hci_connection_t *__wrap_btstack_memory_hci_connection_get(void) {
+  anchor_wrap(&__real_btstack_memory_hci_connection_get);
   void *buffer = btstack_memory_pool_get(&hci_connection_pool);
   if (buffer != nullptr) {
     memset(buffer, 0, sizeof(hci_connection_t));
@@ -107,6 +105,7 @@ hci_connection_t *__wrap_btstack_memory_hci_connection_get(void) {
 }
 
 void __wrap_btstack_memory_hci_connection_free(hci_connection_t *hci_connection) {
+  anchor_wrap(&__real_btstack_memory_hci_connection_free);
   btstack_memory_pool_free(&hci_connection_pool, hci_connection);
 }
 

@@ -609,8 +609,11 @@ void RP2GattClient::release_scan_inhibit_() {
 void RP2GattClient::fail_connection_(uint8_t reason) {
   {
     // Timeout escalation can fire with the completion event lost; release the
-    // stack-wide connect slot so pending engines can proceed (a still-busy
-    // stack answers them with DISALLOWED and they keep pending).
+    // stack-wide connect slot so pending engines can proceed. Until the old
+    // completion is processed, gap_connect answers any peer with DISALLOWED
+    // (the request-level guard in hci.c); a cancel idles that request
+    // immediately, and a late addressed completion from the old procedure is
+    // then dropped by the owner-peer cross-check in the handler.
     BluetoothLock lock;
     if (connect_owner == this) {
       connect_owner = nullptr;
