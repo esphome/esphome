@@ -3300,9 +3300,8 @@ def copy_files():
         downloads: list[external_files.RemoteFile] = []
         for name, url in remote:
             cache_path = external_files.compute_local_file_path(KEY_ESP32, url)
-            # Nothing downstream verifies these bytes, so a copy that could
-            # not be revalidated is an error rather than a silent fallback,
-            # matching the old always-download behavior on network failure.
+            # Unverifiable bytes: an unrevalidated copy is an error, matching
+            # the old always-download behavior on network failure.
             downloads.append(
                 external_files.RemoteFile(url, cache_path, allow_stale=False)
             )

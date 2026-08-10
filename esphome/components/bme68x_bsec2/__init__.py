@@ -103,14 +103,14 @@ def download_bme68x_blob(config):
 
 
 # Shared by the schema and the prefetch hook so they cannot drift.
-_DEFAULT_OPERATING_AGE = "28d"
-_DEFAULT_SAMPLE_RATE = "LP"
-_DEFAULT_SUPPLY_VOLTAGE = "3.3V"
 _MODEL_VALIDATOR = cv.one_of(*MODEL_OPTIONS, lower=True)
 _ALGORITHM_OUTPUT_VALIDATOR = cv.enum(ALGORITHM_OUTPUT_OPTIONS, lower=True)
-_OPERATING_AGE_VALIDATOR = cv.enum(OPERATING_AGE_OPTIONS, lower=True)
-_SAMPLE_RATE_VALIDATOR = cv.enum(SAMPLE_RATE_OPTIONS, upper=True)
-_VOLTAGE_VALIDATOR = cv.enum(VOLTAGE_OPTIONS, upper=True)
+# Key -> (validator, default) for the defaulted options that select the blob.
+_BLOB_OPTIONS = {
+    CONF_OPERATING_AGE: (cv.enum(OPERATING_AGE_OPTIONS, lower=True), "28d"),
+    CONF_SAMPLE_RATE: (cv.enum(SAMPLE_RATE_OPTIONS, upper=True), "LP"),
+    CONF_SUPPLY_VOLTAGE: (cv.enum(VOLTAGE_OPTIONS, upper=True), "3.3V"),
+}
 
 
 def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
@@ -121,17 +121,10 @@ def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
     """
     try:
         spec = {
-            CONF_MODEL: _MODEL_VALIDATOR(str(entry.get(CONF_MODEL, ""))),
-            CONF_OPERATING_AGE: _OPERATING_AGE_VALIDATOR(
-                str(entry.get(CONF_OPERATING_AGE, _DEFAULT_OPERATING_AGE))
-            ),
-            CONF_SAMPLE_RATE: _SAMPLE_RATE_VALIDATOR(
-                str(entry.get(CONF_SAMPLE_RATE, _DEFAULT_SAMPLE_RATE))
-            ),
-            CONF_SUPPLY_VOLTAGE: _VOLTAGE_VALIDATOR(
-                str(entry.get(CONF_SUPPLY_VOLTAGE, _DEFAULT_SUPPLY_VOLTAGE))
-            ),
+            key: validator(str(entry.get(key, default)))  # pylint: disable=not-callable
+            for key, (validator, default) in _BLOB_OPTIONS.items()
         }
+        spec[CONF_MODEL] = _MODEL_VALIDATOR(str(entry.get(CONF_MODEL, "")))
         if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
             spec[CONF_ALGORITHM_OUTPUT] = _ALGORITHM_OUTPUT_VALIDATOR(
                 str(algorithm_output)
@@ -170,15 +163,10 @@ CONFIG_SCHEMA_BASE = (
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             cv.Required(CONF_MODEL): _MODEL_VALIDATOR,
             cv.Optional(CONF_ALGORITHM_OUTPUT): _ALGORITHM_OUTPUT_VALIDATOR,
-            cv.Optional(
-                CONF_OPERATING_AGE, default=_DEFAULT_OPERATING_AGE
-            ): _OPERATING_AGE_VALIDATOR,
-            cv.Optional(
-                CONF_SAMPLE_RATE, default=_DEFAULT_SAMPLE_RATE
-            ): _SAMPLE_RATE_VALIDATOR,
-            cv.Optional(
-                CONF_SUPPLY_VOLTAGE, default=_DEFAULT_SUPPLY_VOLTAGE
-            ): _VOLTAGE_VALIDATOR,
+            **{
+                cv.Optional(key, default=default): validator
+                for key, (validator, default) in _BLOB_OPTIONS.items()
+            },
             cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"

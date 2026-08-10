@@ -108,10 +108,8 @@ def get_firmware(value: ConfigType) -> list[HexInt] | None:
             path.unlink(missing_ok=True)
             raise cv.Invalid(f"Hash mismatch for {url}: {actual} != {expected}")
     else:
-        # Cached by URL and revalidated with a conditional request instead
-        # of being downloaded again on every run. Without a hash nothing
-        # downstream can verify the bytes, so a copy that could not be
-        # revalidated is an error rather than a silent fallback.
+        # No hash to verify the bytes, so an unrevalidated copy is an
+        # error rather than a silent fallback.
         firmware_data = external_files.download_content(
             url,
             _firmware_path(url, None),
@@ -132,8 +130,7 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
     if not isinstance(url, str):
         return None
     sha = sha if isinstance(sha, str) else None
-    # Without a hash nothing downstream can verify the bytes, so the
-    # prefetch applies the same strict no-stale policy as the validator.
+    # No hash means no stale copies, matching the validator's policy.
     return RemoteFile(url, _firmware_path(url, sha), allow_stale=sha is not None)
 
 

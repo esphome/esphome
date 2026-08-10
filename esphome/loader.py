@@ -142,16 +142,12 @@ class ComponentManifest:
     ) -> Callable[[list[ConfigType]], Iterable[list["RemoteFile"]]] | None:
         """Optional `PREFETCH_FILES` hook for batched remote file downloads.
 
-        A generator called once per run with the component's raw,
-        pre-schema config entries. Each yield is one stage: a list of
-        :class:`esphome.external_files.RemoteFile` downloaded in one
-        parallel pass across all components before schema validation. The
-        generator resumes after the stage's downloads finish, so a later
-        stage may derive URLs from earlier files' content; most components
-        yield a single batch. Best effort: the hook must skip anything it
-        does not understand. On platform components the hook usually lives
-        on the platform sub-module, which receives only its own entries; a
-        domain-module hook receives every entry.
+        A generator called once per run with the component's raw, pre-schema
+        config entries; each yield is a stage of ``RemoteFile`` downloaded in
+        one parallel pass before schema validation, so a later stage may
+        derive URLs from earlier files' content. Best effort: skip anything
+        unrecognized. On platform components, place it on the platform
+        sub-module; a domain-module hook receives every entry.
         """
         return getattr(self.module, "PREFETCH_FILES", None)
 

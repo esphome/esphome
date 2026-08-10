@@ -729,19 +729,14 @@ _MAX_PREFETCH_STAGES = 10
 class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
     """Batch-download remote files referenced by the raw config.
 
-    Components opt in with a ``PREFETCH_FILES`` generator hook (see
-    ``ComponentManifest.prefetch_files``); each round, the batches yielded
-    across all domains download in one parallel pass, so per-entry schema
-    validators find a warm cache instead of fetching one file at a time.
-
-    The priority must sit between AutoLoadValidationStep (-1.0) and
-    MetadataValidationStep (-2.0): metadata steps push priority-0 schema
-    steps that pop immediately, so before any metadata step is the only
-    point where every domain's raw entry list is still intact.
-
-    Best effort: hook errors and download failures are only logged here.
-    Failed downloads are memoized per run, so the per-entry validators
-    surface the recorded failure with the proper config path.
+    Each round, the batches yielded by every ``PREFETCH_FILES`` hook (see
+    ``ComponentManifest.prefetch_files``) download in one parallel pass, so
+    per-entry schema validators find a warm cache. Must run between
+    AutoLoadValidationStep (-1.0) and MetadataValidationStep (-2.0):
+    metadata steps push priority-0 schema steps that pop immediately, so
+    this is the last point where every raw entry list is intact. Best
+    effort: failures are logged and memoized per run; the per-entry
+    validators stay authoritative.
     """
 
     priority = -1.5
@@ -836,9 +831,8 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
         try:
             external_files.download_content_many(items, description="remote file(s)")
         except cv.Invalid as err:
-            # INFO, not DEBUG: the per-entry validator surfaces the memoized
-            # failure with the correct config path, but only if its cache
-            # path matches the extractor's; this line is the trace if not.
+            # INFO: the trace if an extractor's cache path ever drifts from
+            # its validator's, hiding the memoized failure replay.
             _LOGGER.info("Remote file prefetch download failed: %s", err)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             # The batch downloader itself broke; make it visible.

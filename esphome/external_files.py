@@ -33,9 +33,8 @@ class RemoteFile:
 
     url: str
     path: Path
-    # False when nothing downstream can verify the bytes (e.g. firmware
-    # without a checksum): a copy that cannot be revalidated is then an
-    # error instead of a silent fallback.
+    # False when nothing downstream can verify the bytes; a copy that
+    # cannot be revalidated is then an error, not a silent fallback.
     allow_stale: bool = True
 
 
@@ -239,11 +238,9 @@ def download_content(
 ) -> bytes:
     """Download `url` into `path` and return the bytes, using the cache.
 
-    When the network fails but an on-disk copy exists, the copy is served
-    with a warning; callers that cannot verify the bytes downstream pass
-    ``allow_stale=False`` to fail instead. With ``CORE.skip_external_update``
-    the on-disk copy is always served. Callers that only warm the cache
-    pass ``return_content=False`` to skip the disk read on cache hits.
+    On network failure an on-disk copy is served with a warning, unless
+    ``allow_stale=False``. ``CORE.skip_external_update`` always serves the
+    copy. ``return_content=False`` skips the disk read on cache hits.
     """
 
     # Deferred so configs with no remote files skip the heavy import.
@@ -344,21 +341,10 @@ def download_content_many(
 ) -> None:
     """Run `download_content` for each `RemoteFile` concurrently.
 
-    `description` names the kind of files in the progress log line, e.g.
-    "wake word manifest(s)". Each file's own `allow_stale` is forwarded
-    to `download_content`.
-
-    Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
-    files where the HEAD round-trip dominates. All workers run to
-    completion before this returns; every `cv.Invalid` raised by a worker
-    is collected and surfaced together as `cv.MultipleInvalid` so the user
-    sees every broken file in a single validation pass instead of fixing
-    them one round-trip at a time.
-
-    Items are de-duplicated by `path` -- two callers asking for the same
-    cache file (e.g. the same URL referenced twice in a config) would
-    otherwise race on `download_content`'s non-atomic write. When the
-    same `path` appears more than once, the last URL wins and a strict
+    `description` names the files in the progress log line. All workers run
+    to completion; every `cv.Invalid` raised is surfaced together as
+    `cv.MultipleInvalid`. Items dedupe by `path` (avoiding write races on
+    the same cache file); the last URL wins and a strict
     `allow_stale=False` from any duplicate is kept.
     """
     seen: dict[Path, RemoteFile] = {}
