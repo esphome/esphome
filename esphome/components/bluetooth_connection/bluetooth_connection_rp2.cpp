@@ -973,8 +973,10 @@ int RP2GattClient::gatt_disconnect() {
   }
   uint8_t status = ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER;
   if (this->con_handle_ != HCI_CON_HANDLE_INVALID) {
-    BluetoothLock lock;
-    status = gap_disconnect(this->con_handle_);
+    {
+      BluetoothLock lock;
+      status = gap_disconnect(this->con_handle_);
+    }
     if (status != 0) {
       ESP_LOGW(TAG, "[%u] gap_disconnect failed, status=0x%02x", this->engine_index_, status);
     }

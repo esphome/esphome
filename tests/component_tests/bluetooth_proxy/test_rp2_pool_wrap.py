@@ -27,6 +27,17 @@ def test_default_slots_emit_the_pool_wrap(
     assert get_define_value("BLUETOOTH_PROXY_MAX_CONNECTIONS") == "3"
 
 
+def test_two_slots_emit_the_pool_wrap(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    # Two slots: the wrap pools are smaller than the cap, sized from the count.
+    generate_main(component_config_path("rp2_proxy_two_slots.yaml"))
+    assert all(flag in CORE.build_flags for flag in WRAP_FLAGS)
+    assert get_define_value("ESPHOME_BLE_GATT_CLIENT_COUNT") == "2"
+    assert get_define_value("BLUETOOTH_PROXY_MAX_CONNECTIONS") == "2"
+
+
 def test_single_slot_keeps_the_prebuilt_pools(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

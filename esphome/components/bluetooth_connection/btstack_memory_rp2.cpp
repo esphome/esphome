@@ -60,17 +60,28 @@ struct PoolInit {
 }  // namespace
 
 // Exact semantics of btstack_memory.c's static-pool arm: zeroed block on
-// success, NULL when exhausted; free returns the block to the pool.
+// success, NULL when exhausted; free returns the block to the pool. The
+// prebuilt pools stay resident in .bss (~7.4 KB, kept live by
+// btstack_memory_init in the archive) — dead weight here, not a leak.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" gatt_client_t *__real_btstack_memory_gatt_client_get(void);
+extern "C" void __real_btstack_memory_gatt_client_free(gatt_client_t *gatt_client);
+extern "C" hci_connection_t *__real_btstack_memory_hci_connection_get(void);
+extern "C" void __real_btstack_memory_hci_connection_free(hci_connection_t *hci_connection);
 
 namespace {
 // Never called: the linker silently ignores --wrap for an unreferenced
-// symbol, and __real_* only resolves while --wrap is in effect — so this
-// reference turns "pools compiled but flags not emitted" into a link error
-// instead of a silent fallback to the prebuilt one-client pool.
+// symbol, and __real_* only resolves while --wrap is in effect — so these
+// references turn "pools compiled but a flag not emitted" into a link error
+// instead of a silent fallback to the prebuilt one-client pool. One anchor
+// per wrapped symbol, so dropping any single flag fails loudly.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-[[gnu::used]] gatt_client_t *(*const WRAP_ACTIVE_CHECK)() = &__real_btstack_memory_gatt_client_get;
+[[gnu::used]] void (*const WRAP_ACTIVE_CHECKS[])() = {
+    reinterpret_cast<void (*)()>(&__real_btstack_memory_gatt_client_get),
+    reinterpret_cast<void (*)()>(&__real_btstack_memory_gatt_client_free),
+    reinterpret_cast<void (*)()>(&__real_btstack_memory_hci_connection_get),
+    reinterpret_cast<void (*)()>(&__real_btstack_memory_hci_connection_free),
+};
 }  // namespace
 
 extern "C" {
