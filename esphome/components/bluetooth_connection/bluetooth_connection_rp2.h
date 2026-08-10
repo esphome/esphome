@@ -19,6 +19,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
 #include <btstack.h>
 
 #include <array>
@@ -71,7 +75,13 @@ static constexpr uint8_t RP2_GATT_EVENT_QUEUE_SIZE = 8;
 // full 512 B ATT payload, so depth buys burst tolerance at ~516 B per slot.
 static constexpr uint8_t RP2_GATT_NOTIFY_QUEUE_SIZE = 4;
 
-class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040BLE> {
+class RP2GattClient final : public Component,
+                            public Parented<rp2040_ble::RP2040BLE>
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                            public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void loop() override;
@@ -99,6 +109,12 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // (esp32 parity); FAST is reserved for connect and discovery.
   void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
   void release_services();
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Drop the connection while an OTA runs (esp32 parity): an active link
+  // competes with the transfer for the shared radio.
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
  protected:
   // Link/engine state. Discovery and GATT ops have their own cursors below —

@@ -104,8 +104,23 @@ void RP2GattClient::setup() {
     }
   }
 
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
+
   this->disable_loop();
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void RP2GattClient::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  // esp32 parity (its tracker disconnects every client at OTA start): free
+  // the shared radio for the transfer. No restore needed; the client
+  // reconnects, and on success the device reboots anyway.
+  if (state == ota::OTA_STARTED && this->state_ != EngineState::IDLE) {
+    this->gatt_disconnect();
+  }
+}
+#endif
 
 float RP2GattClient::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
@@ -446,39 +461,41 @@ void RP2GattClient::loop() {
     uint32_t budget = cancel_in_flight ? CONNECT_CANCEL_TIMEOUT_MS : CONNECT_TIMEOUT_MS;
     if (now - this->connect_started_ > budget) {
       ESP_LOGW(TAG, "[%u] Connect timeout", this->engine_index_);
-      if (this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID) {
-        if (!this->connect_cancel_attempted_) {
-          this->connect_cancel_attempted_ = true;
-          BluetoothLock lock;
+      bool link_up = this->state_ != EngineState::CONNECTING;
+      bool cancel_sent = false;
+      if (!link_up) {
+        BluetoothLock lock;
+        // Handle check under the lock: a success completion can stamp it in
+        // the BTstack context right up to this point, and escalating past a
+        // live link would orphan it (the queued CONNECTED event is dropped
+        // by the state guard once fail_connection_ runs).
+        link_up = this->con_handle_ != HCI_CON_HANDLE_INVALID;
+        if (!link_up && connect_owner == this) {
           // gap_connect_cancel is stack-global; only the engine whose
-          // create-connection is in flight may issue it.
-          if (connect_owner == this) {
-            gap_connect_cancel();
-            // The cancel produces a connection-complete event with a failure
-            // status, which drives the normal failure path; restart the timer
-            // so a lost event escalates on the short cancel budget instead of
-            // wedging here.
-            this->connect_started_ = now;
-            return;
-          }
+          // create-connection is in flight may issue it. First timeout:
+          // cancel and give the completion a grace period. Second: the
+          // completion was lost, re-issue the cancel in case the procedure
+          // still runs (a no-op on an idle stack), then escalate.
+          gap_connect_cancel();
+          cancel_sent = !this->connect_cancel_attempted_;
         }
-        {
-          // The cancel's completion never arrived: re-issue it in case the
-          // procedure still runs (a no-op on an idle stack), then reclaim the
-          // slot and the scan rather than cancelling forever.
-          BluetoothLock lock;
-          if (connect_owner == this) {
-            gap_connect_cancel();
-          }
-        }
-        this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
-      } else {
-        // The link is up (MTU exchange stalled): tear it down properly so the
-        // controller frees its side; the DISCONNECTING safety net below
-        // reclaims state if the disconnection event is lost. Dropping engine
-        // state without gap_disconnect would leak the live link and this
-        // engine's GATT slot for the rest of the boot.
+        this->connect_cancel_attempted_ = true;
+      }
+      if (link_up) {
+        // The link is up (stamped mid-timeout or MTU exchange stalled): tear
+        // it down properly so the controller frees its side; the
+        // DISCONNECTING safety net below reclaims state if the disconnection
+        // event is lost. Dropping engine state without gap_disconnect would
+        // leak the live link and this engine's GATT slot for the rest of the
+        // boot.
         this->gatt_disconnect();
+      } else if (cancel_sent) {
+        // The cancel produces a connection-complete event with a failure
+        // status, which drives the normal failure path; restart the timer so
+        // a lost event escalates on the short cancel budget.
+        this->connect_started_ = now;
+      } else {
+        this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
       }
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
