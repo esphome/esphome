@@ -133,23 +133,24 @@ class BK72xxBLE final : public Component {
   // allocate() returns nullptr before push() can fail. This prevents leaking a
   // pool slot on a failed push and keeps release() off the producer path.
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
-  uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
-  uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
-  bool scan_wanted_{false};  // the latched request is to scan (vs stopped)
-  ScanParams requested_{};   // latched by scan_start()
-  ScanParams applied_{};     // last params we commanded; mismatch with requested_ restarts
-  // PENDING means advance_() has more to do; loop() drives it, paced and
-  // (for a bring-up) bounded.
-  ScanOpResult last_result_{ScanOpResult::SETTLED};
-  bool release_warned_{false};  // gates the release WARN; widens the pump gate
-  bool restarting_{false};      // mode-change release in flight; teardown deadline governs until released
-  BLEComponentState state_{BLEComponentState::STATE_OFF};
-  bool enable_on_boot_{false};
+  // Largest-to-smallest: padding only at the tail, absorbed by future byte fields.
   uint32_t last_advance_ms_{0};
   uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
   uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
   uint32_t teardown_stuck_log_ms_{0};  // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
   int last_release_err_{0};            // SDK code of the episode's last failed release; 0 = none
+  ScanParams requested_{};             // latched by scan_start()
+  ScanParams applied_{};               // last params we commanded; mismatch with requested_ restarts
+  uint8_t ble_mac_[6]{0};              // LSB-first (BLE convention)
+  uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
+  bool scan_wanted_{false};     // the latched request is to scan (vs stopped)
+  bool release_warned_{false};  // gates the release WARN; widens the pump gate
+  bool restarting_{false};      // mode-change release in flight; teardown deadline governs until released
+  bool enable_on_boot_{false};
+  // PENDING means advance_() has more to do; loop() drives it, paced and
+  // (for a bring-up) bounded.
+  ScanOpResult last_result_{ScanOpResult::SETTLED};
+  BLEComponentState state_{BLEComponentState::STATE_OFF};
 };
 
 }  // namespace esphome::bk72xx_ble
