@@ -26,6 +26,7 @@ from . import (
     register_mitsubishi_cn105_device,
 )
 
+DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["climate"]
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,10 +65,10 @@ def _has_top_level_hub_config() -> bool:
 # Legacy climate-owned hub compatibility. Remove in 2027.2.0.
 def _prepare_legacy_hub_config(config: ConfigType) -> ConfigType:
     _LOGGER.warning(
-        "Configuring Mitsubishi CN105 UART/protocol options under "
-        "'climate.mitsubishi_cn105' is deprecated. Use top-level "
-        "'%s:' and reference it with '%s:' instead. Will be removed in "
-        "ESPHome 2027.2.0.",
+        "Defining 'climate.mitsubishi_cn105' without a top-level '%s:' hub is "
+        "deprecated. Declare '%s:' and reference it with '%s:' instead. Will "
+        "be removed in ESPHome 2027.2.0.",
+        DOMAIN,
         DOMAIN,
         CONF_MITSUBISHI_CN105_ID,
     )

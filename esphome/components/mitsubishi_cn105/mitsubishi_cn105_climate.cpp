@@ -56,6 +56,9 @@ void MitsubishiCN105Climate::dump_config() { LOG_CLIMATE("", "Mitsubishi CN105 C
 
 void MitsubishiCN105Climate::setup() {
   this->parent_->add_on_status_callback([this]() { this->apply_values_(); });
+  if (this->parent_->is_status_initialized()) {
+    this->apply_values_();
+  }
 }
 
 climate::ClimateTraits MitsubishiCN105Climate::traits() {
