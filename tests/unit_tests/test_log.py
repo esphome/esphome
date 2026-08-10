@@ -3,9 +3,10 @@ import io
 import logging
 import os
 from pathlib import Path
-import pty
+import select
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -37,14 +38,6 @@ def restore_logging_state() -> Generator[None, None, None]:
 def _probe_command(fixture_path: Path, *args: str) -> list[str]:
     """Build the command line for the setup_log probe fixture script."""
     return [sys.executable, str(fixture_path / "log" / "setup_log_probe.py"), *args]
-
-
-def _probe_env() -> dict[str, str]:
-    """Running a script file drops the cwd from sys.path; add the repo root."""
-    python_path = str(Path(__file__).parents[2])
-    if ambient := os.environ.get("PYTHONPATH"):
-        python_path = os.pathsep.join((python_path, ambient))
-    return os.environ | {"PYTHONPATH": python_path}
 
 
 def test_color_keep_returns_unchanged_message() -> None:
@@ -127,7 +120,9 @@ def test_ansi_fore_keep_is_enum_member() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
-def test_setup_log_redirected_output_strips_ansi(fixture_path: Path) -> None:
+def test_setup_log_redirected_output_strips_ansi(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
     """A redirected run must keep colorama so ANSI codes are stripped."""
     result = subprocess.run(
         _probe_command(fixture_path),
@@ -135,7 +130,7 @@ def test_setup_log_redirected_output_strips_ansi(fixture_path: Path) -> None:
         text=True,
         timeout=60,
         check=False,
-        env=_probe_env(),
+        env=probe_env,
     )
     assert result.returncode == 0, result.stderr
     assert "colorama_loaded=True" in result.stdout
@@ -146,7 +141,9 @@ def test_setup_log_redirected_output_strips_ansi(fixture_path: Path) -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
-def test_setup_log_dashboard_skips_colorama(fixture_path: Path) -> None:
+def test_setup_log_dashboard_skips_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
     """Dashboard runs escape their color codes, so colorama must not load."""
     result = subprocess.run(
         _probe_command(fixture_path, "--dashboard"),
@@ -154,7 +151,7 @@ def test_setup_log_dashboard_skips_colorama(fixture_path: Path) -> None:
         text=True,
         timeout=60,
         check=False,
-        env=_probe_env(),
+        env=probe_env,
     )
     assert result.returncode == 0, result.stderr
     assert "colorama_loaded=False" in result.stdout
@@ -165,27 +162,47 @@ def test_setup_log_dashboard_skips_colorama(fixture_path: Path) -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
 )
-def test_setup_log_tty_skips_colorama(fixture_path: Path) -> None:
+def test_setup_log_tty_skips_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
     """A terminal run must skip colorama and keep ANSI codes intact."""
+    # Unix-only; a module-level import would break test collection on
+    # Windows, where the whole module is skipped anyway.
+    import pty
+
     controller, follower = pty.openpty()
-    proc = subprocess.Popen(
-        _probe_command(fixture_path),
-        stdout=follower,
-        stderr=follower,
-        stdin=follower,
-        env=_probe_env(),
-    )
-    os.close(follower)
+    proc = None
     output = b""
+    deadline = time.monotonic() + 60
     try:
-        while chunk := os.read(controller, 1024):
+        try:
+            proc = subprocess.Popen(
+                _probe_command(fixture_path),
+                stdout=follower,
+                stderr=follower,
+                stdin=follower,
+                env=probe_env,
+            )
+        finally:
+            os.close(follower)
+        while True:
+            timeout = deadline - time.monotonic()
+            if timeout <= 0 or not select.select([controller], [], [], timeout)[0]:
+                pytest.fail(f"pty probe produced no EOF in time; got {output!r}")
+            try:
+                chunk = os.read(controller, 1024)
+            except OSError:
+                # macOS raises EIO once the child closes its end of the pty.
+                break
+            if not chunk:
+                break
             output += chunk
-    except OSError:
-        # macOS raises EIO once the child closes its end of the pty.
-        pass
+        assert proc.wait(60) == 0
     finally:
         os.close(controller)
-    assert proc.wait(60) == 0
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
     text = output.decode()
     assert "colorama_loaded=False" in text
     assert "\033[31mred\033[0m end" in text

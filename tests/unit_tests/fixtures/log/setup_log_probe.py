@@ -16,6 +16,6 @@ if "--dashboard" in sys.argv:
 
 setup_log()
 
-print("colorama_loaded=%s" % ("colorama" in sys.modules))
+print(f"colorama_loaded={'colorama' in sys.modules}")
 print("\033[31mred\033[0m end")
 sys.stdout.flush()

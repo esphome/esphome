@@ -1,6 +1,7 @@
 from enum import Enum
 import logging
 import sys
+from typing import TextIO
 
 from esphome.core import CORE
 
@@ -73,6 +74,12 @@ class ESPHomeLogFormatter(logging.Formatter):
         return message
 
 
+def _is_tty(stream: TextIO | None) -> bool:
+    # A stream can be missing entirely (e.g. started with the fd closed);
+    # treat that like a redirect so colorama's own None handling applies.
+    return stream is not None and stream.isatty()
+
+
 def setup_log(
     log_level: int = logging.INFO,
     include_timestamp: bool = False,
@@ -83,7 +90,7 @@ def setup_log(
     # use colorama as a plain passthrough; skip the import there (it pulls
     # in ctypes, ~3ms on every CLI invocation).
     if sys.platform == "win32" or not (
-        CORE.dashboard or (sys.stdout.isatty() and sys.stderr.isatty())
+        CORE.dashboard or (_is_tty(sys.stdout) and _is_tty(sys.stderr))
     ):
         import colorama
 
