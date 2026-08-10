@@ -37,6 +37,12 @@ inline bool is_function_code_write(uint8_t function_code) {
          masked_function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
 }
 
+// True if [start_address, start_address + count) fits within the 16-bit Modbus address space. The 32-bit
+// promotion is the overflow guard - a 16-bit sum could wrap and pass.
+inline bool address_range_fits(uint16_t start_address, size_t count) {
+  return uint32_t(start_address) + count <= 0x10000u;
+}
+
 inline bool is_function_code_exception(uint8_t function_code) {
   return (static_cast<uint8_t>(function_code) & FUNCTION_CODE_EXCEPTION_MASK) != 0;
 }

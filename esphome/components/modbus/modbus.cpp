@@ -379,7 +379,7 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
 }
 
 ResponseStatus ModbusServerHub::check_register_range_(uint16_t start_address, uint16_t number_of_registers) {
-  if ((uint32_t) start_address + number_of_registers > 0x10000u) {
+  if (!helpers::address_range_fits(start_address, number_of_registers)) {
     ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
              number_of_registers);
     return ExceptionCode::ILLEGAL_DATA_ADDRESS;
@@ -1117,8 +1117,13 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
       std::span<const uint16_t> register_span(registers.data(), registers.size());
       if (function_code == FunctionCode::READ_INPUT_REGISTERS) {
         this->on_read_input_registers(start_address, register_span, status);
-      } else {
+      } else if (function_code == FunctionCode::READ_HOLDING_REGISTERS ||
+                 function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS) {
         this->on_read_holding_registers(start_address, register_span, status);
+      } else {
+        // Unreachable for the current case labels; match explicitly so a function code added to this group
+        // later is diverted to on_custom_response() rather than silently delivered as a holding read.
+        this->on_custom_response(request_pdu, response_pdu, status);
       }
       break;
     }
