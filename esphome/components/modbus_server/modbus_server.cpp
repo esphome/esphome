@@ -79,7 +79,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
     if (!read_value.has_value()) {
       ESP_LOGW(TAG, "Register read at 0x%04X declined to produce a value. Sending exception response.",
                server_register->address);
-      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
     const int64_t value = *read_value;
     char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
@@ -191,12 +191,12 @@ modbus::ResponseStatus ModbusServer::on_read_bits(uint16_t start_address, modbus
     ServerBit *server_bit = this->find_bit_(address);
     if (server_bit == nullptr || !server_bit->read_lambda) {
       ESP_LOGW(TAG, "No readable bit at 0x%04X. Sending exception response.", address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
     const optional<bool> value = server_bit->read_lambda(address);
     if (!value.has_value()) {
       ESP_LOGW(TAG, "Bit read at 0x%04X declined to produce a value. Sending exception response.", address);
-      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
     bits.set(i, *value);
   }
@@ -214,7 +214,7 @@ modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modb
     ServerBit *server_bit = this->find_bit_(address);
     if (server_bit == nullptr || !server_bit->write_lambda) {
       ESP_LOGW(TAG, "No writable bit at 0x%04X. Sending exception response.", address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
   }
 
@@ -224,7 +224,7 @@ modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modb
     const uint16_t address = static_cast<uint16_t>(start_address + i);
     if (!this->find_bit_(address)->write_lambda(address, bits[i])) {
       ESP_LOGW(TAG, "A bit write callback failed mid-sequence; earlier writes were already applied.");
-      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
   }
   return {};
