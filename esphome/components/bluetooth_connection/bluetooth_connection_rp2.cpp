@@ -25,6 +25,9 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // and keeps the scan inhibited, so the engine cancels after 20 s. The
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
+// Pending engines re-attempt gap_connect on this cadence instead of every
+// loop pass: the DISALLOWED path (teardown overlap) takes BluetoothLock.
+static constexpr uint32_t CONNECT_RETRY_INTERVAL_MS = 50;
 // Can-send windows normally open within a connection interval (tens of ms).
 static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 500;
 
@@ -84,6 +87,7 @@ void RP2GattClient::setup() {
     // One locked section: the slot store lands before the count bump, and a
     // live HCI handler (N > 1 builds) cannot read a half-written registry.
     BluetoothLock lock;
+    this->engine_index_ = instance_count;
     instances[instance_count] = this;
     instance_count++;
     // One HCI event handler for all engine instances (BTstack supports
@@ -129,8 +133,13 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       uint8_t status = gap_subevent_le_connection_complete_get_status(packet);
       hci_con_handle_t con_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
       // The stack-wide create-connection resolved either way (success, failure
-      // or cancel completion); a pending engine's loop() may issue the next.
-      connect_owner = nullptr;
+      // or cancel completion; all carry the peer address). Matched against the
+      // owner so a stale late completion cannot strip a live owner that has
+      // since re-issued for another peer — that would skip its cancel path and
+      // leave the stack initiating forever.
+      if (connect_owner != nullptr && memcmp(connect_owner->peer_addr_, peer, sizeof(bd_addr_t)) == 0) {
+        connect_owner = nullptr;
+      }
       // Route to the engine that is waiting for this peer.
       for (uint8_t i = 0; i < instance_count; i++) {
         RP2GattClient *inst = instances[i];
@@ -392,26 +401,30 @@ void RP2GattClient::loop() {
   if (dropped > 0) {
     // Control events must not be lost; the connection state is no longer
     // trustworthy — recover with a forced teardown.
-    ESP_LOGE(TAG, "Dropped %u GATT control events, disconnecting", dropped);
+    ESP_LOGE(TAG, "[%u] Dropped %u GATT control events, disconnecting", this->engine_index_, dropped);
     this->gatt_disconnect();
   }
   uint16_t notify_dropped = this->notify_queue_.get_and_reset_dropped_count();
   if (notify_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u GATT notifications (queue full)", notify_dropped);
+    ESP_LOGW(TAG, "[%u] Dropped %u GATT notifications (queue full)", this->engine_index_, notify_dropped);
   }
 
   if (this->state_ == EngineState::CONNECT_PENDING) {
-    if (millis() - this->connect_started_ > CONNECT_TIMEOUT_MS) {
+    uint32_t now = millis();
+    if (now - this->connect_started_ > CONNECT_TIMEOUT_MS) {
       // Never reached the radio; nothing stack-side to cancel.
-      ESP_LOGW(TAG, "Connect timeout (queued)");
+      ESP_LOGW(TAG, "[%u] Connect timeout (queued)", this->engine_index_);
       this->fail_connection_(HCI_REASON_CONNECTION_TIMEOUT);
-    } else if (int err = this->try_gap_connect_(); err != 0) {
-      this->fail_connection_(static_cast<uint8_t>(err));
+    } else if (now - this->connect_retry_ms_ >= CONNECT_RETRY_INTERVAL_MS) {
+      this->connect_retry_ms_ = now;
+      if (int err = this->try_gap_connect_(); err != 0) {
+        this->fail_connection_(static_cast<uint8_t>(err));
+      }
     }
   } else if (this->state_ == EngineState::CONNECTING || this->state_ == EngineState::MTU_EXCHANGE) {
     uint32_t now = millis();
     if (now - this->connect_started_ > CONNECT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Connect timeout");
+      ESP_LOGW(TAG, "[%u] Connect timeout", this->engine_index_);
       if (this->state_ == EngineState::CONNECTING && this->con_handle_ == HCI_CON_HANDLE_INVALID) {
         if (!this->connect_cancel_attempted_) {
           this->connect_cancel_attempted_ = true;
@@ -442,7 +455,7 @@ void RP2GattClient::loop() {
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
     if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
+      ESP_LOGW(TAG, "[%u] Disconnect timeout, forcing idle", this->engine_index_);
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
   } else if (this->state_ == EngineState::READY && this->op_type_ == OpType::WRITE_CHAR_NO_RSP &&
@@ -458,7 +471,7 @@ void RP2GattClient::loop() {
       }
     }
     if (timed_out) {
-      ESP_LOGW(TAG, "Deferred write timeout, handle=0x%04x", this->op_handle_);
+      ESP_LOGW(TAG, "[%u] Deferred write timeout, handle=0x%04x", this->engine_index_, this->op_handle_);
       this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
     }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
@@ -479,7 +492,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::MTU_EXCHANGED:
       if (this->state_ == EngineState::MTU_EXCHANGE) {
         this->mtu_ = event.value;
-        ESP_LOGD(TAG, "MTU %u", this->mtu_);
+        ESP_LOGD(TAG, "[%u] MTU %u", this->engine_index_, this->mtu_);
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
@@ -527,7 +540,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
     return;
   }
   if (status != 0) {
-    ESP_LOGW(TAG, "Connect failed, status=0x%02x", status);
+    ESP_LOGW(TAG, "[%u] Connect failed, status=0x%02x", this->engine_index_, status);
     this->fail_connection_(status);
     return;
   }
@@ -551,7 +564,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   }
   this->con_handle_ = con_handle;
   this->state_ = EngineState::MTU_EXCHANGE;
-  ESP_LOGD(TAG, "Link up, handle=0x%04x, negotiating MTU", con_handle);
+  ESP_LOGD(TAG, "[%u] Link up, handle=0x%04x, negotiating MTU", this->engine_index_, con_handle);
   BluetoothLock lock;
   // One wildcard listener covers notifications/indications for every
   // characteristic on this connection; the CCCD writes come from the API
@@ -598,9 +611,9 @@ void RP2GattClient::cleanup_link_state_() {
   while ((stale = this->notify_queue_.pop()) != nullptr) {
     this->notify_pool_.release(stale);
   }
-  // The wildcard listener is registered on the normal connect path right
-  // after con_handle_ is recorded; the cancel branch tears down before
-  // registering, where stop_listening on an unregistered entry is a no-op.
+  // con_handle_ may be stamped in the BTstack context before the main loop
+  // registers the listener, so a valid handle does not imply a registration;
+  // stop_listening on an unregistered entry is a benign no-op.
   if (this->con_handle_ != HCI_CON_HANDLE_INVALID) {
     BluetoothLock lock;
     gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
@@ -617,7 +630,7 @@ void RP2GattClient::handle_disconnected_(uint8_t reason) {
   if (this->state_ == EngineState::IDLE) {
     return;
   }
-  ESP_LOGD(TAG, "Disconnected, reason=0x%02x", reason);
+  ESP_LOGD(TAG, "[%u] Disconnected, reason=0x%02x", this->engine_index_, reason);
   this->fail_connection_(reason);
 }
 
@@ -675,7 +688,7 @@ int RP2GattClient::discover_services() {
     RAMAllocator<ServiceArena> allocator(RAMAllocator<ServiceArena>::ALLOC_INTERNAL);
     this->arena_ = allocator.allocate(1);
     if (this->arena_ == nullptr) {
-      ESP_LOGE(TAG, "Service table allocation failed");
+      ESP_LOGE(TAG, "[%u] Service table allocation failed", this->engine_index_);
       return ble_device_base::GATT_ERR_NO_MEMORY;
     }
     new (this->arena_) ServiceArena();
@@ -781,8 +794,8 @@ void RP2GattClient::advance_discovery_(uint8_t att_status) {
 
 void RP2GattClient::finish_discovery_(int error) {
   this->discovery_phase_ = DiscoveryPhase::NONE;
-  ESP_LOGD(TAG, "Discovery done (err=%d): %u services, %u characteristics, %u descriptors", error, this->service_count_,
-           this->char_count_, this->desc_count_);
+  ESP_LOGD(TAG, "[%u] Discovery done (err=%d): %u services, %u characteristics, %u descriptors", this->engine_index_,
+           error, this->service_count_, this->char_count_, this->desc_count_);
   if (error == 0 && this->truncated_) {
     // A partial table must not stream: V3 clients cache the database
     // permanently, so an incomplete one would be wrong forever.
@@ -907,7 +920,7 @@ int RP2GattClient::try_gap_connect_() {
     this->state_ = EngineState::CONNECT_PENDING;
     return 0;
   }
-  ESP_LOGW(TAG, "gap_connect failed, status=0x%02x", status);
+  ESP_LOGW(TAG, "[%u] gap_connect failed, status=0x%02x", this->engine_index_, status);
   return status;
 }
 
@@ -948,7 +961,7 @@ int RP2GattClient::gatt_disconnect() {
     BluetoothLock lock;
     status = gap_disconnect(this->con_handle_);
     if (status != 0) {
-      ESP_LOGW(TAG, "gap_disconnect failed, status=0x%02x", status);
+      ESP_LOGW(TAG, "[%u] gap_disconnect failed, status=0x%02x", this->engine_index_, status);
     }
   }
   if (status != 0) {

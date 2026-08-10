@@ -19,6 +19,20 @@
 namespace esphome::bluetooth_connection {
 namespace {
 
+// Pinned against arduino-pico 6.0.0's prebuilt archives: a framework bump (or
+// a changed ENABLE_* macro) shifting the struct layout must fail the build
+// here, not overrun the pool blocks at runtime. Sizes differ per core
+// architecture (measured from each archive's own storage symbols). GCC only:
+// the clang-tidy frontend lays these structs out differently, and the guard
+// targets the real link.
+#ifndef __clang__
+#ifdef __riscv
+static_assert(sizeof(gatt_client_t) == 140 && sizeof(hci_connection_t) == 3740, "BTstack layout changed");
+#else
+static_assert(sizeof(gatt_client_t) == 128 && sizeof(hci_connection_t) == 3688, "BTstack layout changed");
+#endif
+#endif  // __clang__
+
 // One gatt_client_t per configured connection slot. An hci_connection_t is
 // held from gap_connect() to DISCONNECTION_COMPLETE (scanning holds none);
 // +1 mirrors the prebuilt library's own headroom (2 connections for 1 GATT
@@ -48,6 +62,17 @@ struct PoolInit {
 // Exact semantics of btstack_memory.c's static-pool arm: zeroed block on
 // success, NULL when exhausted; free returns the block to the pool.
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" gatt_client_t *__real_btstack_memory_gatt_client_get(void);
+
+namespace {
+// Never called: the linker silently ignores --wrap for an unreferenced
+// symbol, and __real_* only resolves while --wrap is in effect — so this
+// reference turns "pools compiled but flags not emitted" into a link error
+// instead of a silent fallback to the prebuilt one-client pool.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+[[gnu::used]] gatt_client_t *(*const WRAP_ACTIVE_CHECK)() = &__real_btstack_memory_gatt_client_get;
+}  // namespace
+
 extern "C" {
 
 gatt_client_t *__wrap_btstack_memory_gatt_client_get(void) {

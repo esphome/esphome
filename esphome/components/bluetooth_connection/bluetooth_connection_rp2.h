@@ -173,6 +173,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
 
   // Group 3: 4-byte types
   uint32_t connect_started_{0};
+  uint32_t connect_retry_ms_{0};  // last CONNECT_PENDING gap_connect attempt
   uint32_t disconnecting_started_{0};
   uint32_t write_no_rsp_started_{0};
 
@@ -193,7 +194,8 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // listener's deliveries on this list (esp32 parity for enable=false).
   std::array<uint16_t, RP2_GATT_MAX_NOTIFY_SUBSCRIPTIONS> notify_subscriptions_{};
   uint8_t notify_subscription_count_{0};
-  bd_addr_t peer_addr_{};  // MSB-first, as gap_connect expects
+  uint8_t engine_index_{0};  // position in instances[]; tags log lines per slot
+  bd_addr_t peer_addr_{};    // MSB-first, as gap_connect expects
   bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
   EngineState state_{EngineState::IDLE};
   DiscoveryPhase discovery_phase_{DiscoveryPhase::NONE};
