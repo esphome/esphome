@@ -128,9 +128,7 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", supports_active=True
-)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("320ms")
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.

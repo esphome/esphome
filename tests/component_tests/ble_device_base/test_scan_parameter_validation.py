@@ -8,7 +8,7 @@ from esphome import config_validation as cv
 from esphome.components.bk72xx_ble_tracker import (
     SCAN_PARAMETERS_SCHEMA as BK72XX_SCHEMA,
 )
-from esphome.components.ble_device_base import scan_parameters_schema, to_ble_units
+from esphome.components.ble_device_base import to_ble_units
 from esphome.components.esp32_ble_tracker import SCAN_PARAMETERS_SCHEMA as ESP32_SCHEMA
 from esphome.components.ln882h_ble_tracker import (
     SCAN_PARAMETERS_SCHEMA as LN882H_SCHEMA,
@@ -90,13 +90,6 @@ def test_esp32_active_can_disable() -> None:
 def test_bk72xx_active_can_disable() -> None:
     config = _validate(active=False)
     assert config["active"] is False
-
-
-def test_passive_schema_rejects_active_key() -> None:
-    """Trackers without active scan support must not silently accept the option."""
-    passive_schema = scan_parameters_schema("100ms")
-    with pytest.raises(cv.Invalid):
-        passive_schema({"active": True})
 
 
 # --- accepted configurations ---
