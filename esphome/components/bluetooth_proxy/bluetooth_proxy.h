@@ -243,6 +243,8 @@ class BluetoothProxy final : public Component {
   void clear_pending_disconnection_(uint64_t address);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
+  /// Low 48 bits of a pool entry: the address, 0 when the entry is free.
+  static constexpr uint64_t PENDING_ADDRESS_MASK = 0x0000FFFFFFFFFFFFULL;
 #endif
 
   // Memory optimized layout for 32-bit systems
@@ -255,8 +257,11 @@ class BluetoothProxy final : public Component {
   // Address-keyed pool of owed freed-slot connected=false notifications
   // (0 = free entry); loop() resends. Proxy-only state, kept off
   // BluetoothConnection; entries are not tied to slot indices.
+  // A BLE address is 48 bits, so the reason rides in the top 16 bits of the
+  // same word and the pool costs one word per slot instead of two. Every
+  // reason that reaches here is an esp_gatt_status_t, an esp_gatt_conn_reason_t,
+  // a generic ESP_ERR_* (0x101..0x110) or -1, all inside int16_t.
   std::array<uint64_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
-  std::array<conn_err_t, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnection_errors_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
 

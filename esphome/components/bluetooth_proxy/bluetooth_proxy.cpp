@@ -196,18 +196,19 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
 }
 
 void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t error) {
+  // Reason in the top 16 bits, address in the low 48 (see pending_disconnections_).
+  const uint64_t entry = address | (static_cast<uint64_t>(static_cast<uint16_t>(error)) << 48);
   for (uint8_t i = 0; i < this->connection_count_; i++) {
-    if (this->pending_disconnections_[i] == 0 || this->pending_disconnections_[i] == address) {
-      this->pending_disconnections_[i] = address;
-      this->pending_disconnection_errors_[i] = error;
+    const uint64_t owed = this->pending_disconnections_[i] & PENDING_ADDRESS_MASK;
+    if (owed == 0 || owed == address) {
+      this->pending_disconnections_[i] = entry;
       return;
     }
   }
   // Every entry is owed: evict the first so the newest loss is not silent too.
   ESP_LOGW(TAG, "Owed disconnect dropped (0x%llx), retry pool full",
-           (unsigned long long) this->pending_disconnections_[0]);
-  this->pending_disconnections_[0] = address;
-  this->pending_disconnection_errors_[0] = error;
+           (unsigned long long) (this->pending_disconnections_[0] & PENDING_ADDRESS_MASK));
+  this->pending_disconnections_[0] = entry;
 }
 
 void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
@@ -215,7 +216,7 @@ void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
   // the new connection. No early exit: duplicate reservations can leave the
   // address latched on more than one slot.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
-    if (this->pending_disconnections_[i] == address) {
+    if ((this->pending_disconnections_[i] & PENDING_ADDRESS_MASK) == address) {
       this->pending_disconnections_[i] = 0;
     }
   }
@@ -583,9 +584,10 @@ void BluetoothProxy::loop() {
     if (this->connections_[i]->send_service_ == SERVICES_DONE_PENDING) {
       this->connections_[i]->send_services_done_();
     }
-    if (this->pending_disconnections_[i] != 0 &&
-        this->send_device_connection(this->pending_disconnections_[i], false, 0,
-                                     this->pending_disconnection_errors_[i])) {
+    const uint64_t owed = this->pending_disconnections_[i];
+    if ((owed & PENDING_ADDRESS_MASK) != 0 &&
+        this->send_device_connection(owed & PENDING_ADDRESS_MASK, false, 0,
+                                     static_cast<int16_t>(owed >> 48))) {
       this->pending_disconnections_[i] = 0;
     }
   }
