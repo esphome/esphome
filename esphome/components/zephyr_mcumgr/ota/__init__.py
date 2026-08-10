@@ -1,9 +1,15 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    SWAP_METHOD_SCHEMA,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.components.zephyr import (
     VARIANTS,
     HexValue,
+    mcuboot,
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -116,12 +122,14 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.one_of(*UARTS, upper=True),
                 }
             ),
+            **SWAP_METHOD_SCHEMA,
         }
     )
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
     _validate_platform,
+    mcuboot.validate_swap_method,
 )
 
 
@@ -163,6 +171,8 @@ async def to_code(config: ConfigType) -> None:
     await ota_to_code(var, config)
 
     await cg.register_component(var, config)
+
+    mcuboot.apply_swap_method(config)
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
