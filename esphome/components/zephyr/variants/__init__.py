@@ -353,6 +353,7 @@ def set_core_data(
         sdk_source=sdk_source,
         bootloader=bootloader,
         variant=variant_name,
+        family=VARIANTS[variant_name].family,
         framework_type=framework_type,
         prj_conf=prj_conf if prj_conf is not None else {},
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
@@ -442,6 +443,7 @@ _VARIANT_MODULES = [
     "nrf54lm20a",
     "efr32mg24",
     "rp2040",
+    "rp2350",
 ]
 
 

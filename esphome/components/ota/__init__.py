@@ -57,6 +57,7 @@ SWAP_METHOD_SCHEMA = {
         # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
         zephyr_efr32mg24="move",
         zephyr_rp2040="offset",
+        zephyr_rp2350="offset",
     ): cv.one_of("scratch", "move", "offset", lower=True),
 }
 

@@ -49,12 +49,14 @@ def _set_non_nrf52_target_platform() -> None:
 def _empty_zephyr_data(
     variant: str | None = None, framework_type: str = "zephyr"
 ) -> dict:
+    variant_info = VARIANTS.get(variant) if variant is not None else None
     return {
         "board": "some_board",
         "board_root": None,
         "sdk_source": None,
         "bootloader": "none",
         "variant": variant,
+        "family": variant_info.family if variant_info is not None else None,
         "framework_type": framework_type,
         "west_version": None,
         "ninja_version": None,

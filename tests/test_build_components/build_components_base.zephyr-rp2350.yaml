@@ -1,0 +1,19 @@
+esphome:
+  name: componenttestrp2350
+  friendly_name: $component_name
+
+zephyr:
+  variant: RP2350
+  board: rpi_pico2/rp2350a/m33/w/mcuboot
+  advanced:
+    bootloader: mcuboot
+
+logger:
+  level: VERY_VERBOSE
+  baud_rate: 0
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
