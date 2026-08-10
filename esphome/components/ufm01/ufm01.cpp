@@ -343,7 +343,7 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
   uint8_t active_frame[FRAME_SIZE];
   passive_no_id_to_active_frame(this->passive_frame_, active_frame);
   this->on_active_frame_(active_frame);
-  return PassiveReadResult::SUCCESS;
+  return PassiveReadResult::COMPLETE;
 }
 
 void UFM01Component::loop_startup_() {
@@ -412,7 +412,7 @@ void UFM01Component::loop_startup_() {
       switch (this->continue_passive_read_()) {
         case PassiveReadResult::PENDING:
           return;
-        case PassiveReadResult::SUCCESS:
+        case PassiveReadResult::COMPLETE:
           ESP_LOGI(TAG, "UFM-01 using passive polling");
           this->operating_mode_ = OperatingMode::PASSIVE_POLL;
           this->passive_read_pending_ = false;

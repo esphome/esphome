@@ -41,7 +41,7 @@ enum class StartupPhase : uint8_t {
 
 enum class PassiveReadResult : uint8_t {
   PENDING = 0,
-  SUCCESS = 1,
+  COMPLETE = 1,
   FAILURE = 2,
 };
 

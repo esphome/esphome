@@ -35,7 +35,7 @@ TEST_F(UFM01Test, ValidPassiveFrameReadSuccess) {
   this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
   this->ufm01_.prepare_passive_read();
 
-  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::SUCCESS);
+  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::COMPLETE);
   EXPECT_EQ(this->ufm01_.passive_index(), PASSIVE_FRAME_SIZE);
   EXPECT_NE(this->ufm01_.last_valid_frame_ms(), 0u);
 }
@@ -56,7 +56,7 @@ TEST_F(UFM01Test, PassiveReadResyncsAfterGarbagePrefix) {
   this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
   this->ufm01_.prepare_passive_read();
 
-  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::SUCCESS);
+  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::COMPLETE);
 }
 
 TEST_F(UFM01Test, PassiveReadResyncsOnSecondStartByte) {
@@ -65,7 +65,7 @@ TEST_F(UFM01Test, PassiveReadResyncsOnSecondStartByte) {
   this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
   this->ufm01_.prepare_passive_read();
 
-  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::SUCCESS);
+  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::COMPLETE);
 }
 
 TEST_F(UFM01Test, PassiveReadPendingWhenPartial) {
@@ -77,7 +77,7 @@ TEST_F(UFM01Test, PassiveReadPendingWhenPartial) {
   EXPECT_LT(this->ufm01_.passive_index(), PASSIVE_FRAME_SIZE);
 
   this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin() + 10, frame.end()));
-  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::SUCCESS);
+  EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::COMPLETE);
 }
 
 }  // namespace esphome::ufm01::testing
