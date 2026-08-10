@@ -13,6 +13,7 @@ import sys
 import time
 from typing import IO, TYPE_CHECKING
 
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import ProgressBar, rmtree
 
 if TYPE_CHECKING:
@@ -755,6 +756,8 @@ def download_with_resume(
 
     from esphome.core import EsphomeError
 
+    ensure_happy_eyeballs()
+
     dest = Path(dest)
     part = dest.with_name(dest.name + ".part")
     meta = part.with_name(part.name + ".meta")
@@ -921,6 +924,8 @@ def download_from_mirrors(
     import requests
 
     from esphome.core import EsphomeError
+
+    ensure_happy_eyeballs()
 
     # 1. Classify the target: filesystem path or open file object
     path_target: Path | None = None
