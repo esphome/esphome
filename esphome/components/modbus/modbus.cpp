@@ -664,7 +664,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       // always fits: the parse above caps the count, and a static_assert bounds that against MAX_RAW_SIZE.
       const uint8_t byte_count = static_cast<uint8_t>(packed_bit_bytes(number_of_bits));
       response_buffer[response_len++] = byte_count;
-      std::span<uint8_t> packed_out(response_buffer + response_len, byte_count);
+      // Take the packed-bytes span off a span that knows response_buffer's real size, so a future non-zero
+      // response_len (e.g. a prefix written before the packed data) is a bounds error, not a silent overrun.
+      std::span<uint8_t> packed_out = std::span<uint8_t>(response_buffer).subspan(response_len, byte_count);
       std::fill(packed_out.begin(), packed_out.end(), 0);
       MutablePackedBits bits(packed_out, number_of_bits);
       if (static_cast<FunctionCode>(function_code) == FunctionCode::READ_COILS) {

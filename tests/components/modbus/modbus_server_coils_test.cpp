@@ -65,6 +65,19 @@ class DualReadDevice : public ModbusServerDevice {
   int discrete_reads{0};
 };
 
+// Overrides only on_read_bits() - the shared fallback the header documents that on_read_coils() and
+// on_read_discrete_inputs() default to. Both FC 0x01 and FC 0x02 must reach it.
+class BitsOnlyDevice : public ModbusServerDevice {
+ public:
+  explicit BitsOnlyDevice(uint8_t address) { this->set_address(address); }
+  ResponseStatus on_read_bits(uint16_t start_address, MutablePackedBits bits) override {
+    this->calls++;
+    bits.set(0, true);  // set bit 0 so the response proves the fallback ran
+    return std::nullopt;
+  }
+  int calls{0};
+};
+
 using testing::RecordingUART;
 
 // Exposes the client-frame parser so a fully CRC-framed request can be pushed through the hub.
@@ -126,6 +139,35 @@ TEST(ModbusServerCoils, ReadCoilsReturnsPackedBits) {
   EXPECT_EQ(f.uart.written[2], 2u);    // byte count
   EXPECT_EQ(f.uart.written[3], 0x0D);  // coils 0,2,3
   EXPECT_EQ(f.uart.written[4], 0x02);  // coil 9 -> bit 1 of byte 1
+}
+
+// A device overriding only on_read_bits() - the documented fallback - still serves both FC 0x01 (coils)
+// and FC 0x02 (discrete inputs), since on_read_coils()/on_read_discrete_inputs() default to it.
+TEST(ModbusServerCoils, ReadBitsFallbackServesBothCoilsAndDiscreteInputs) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+  hub.prime_send_timestamps_for_test();
+  BitsOnlyDevice device{0x05};
+  hub.register_device(&device);
+
+  const uint8_t pdu_data[] = {0x00, 0x00, 0x00, 0x01};  // start 0x0000, quantity 1
+
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x05, static_cast<uint8_t>(FunctionCode::READ_COILS), pdu_data,
+                                                     sizeof(pdu_data)));
+  EXPECT_EQ(device.calls, 1);
+  // address(1) + fc(1) + byte count(1) + packed(1) + CRC(2); bit 0 set -> 0x01
+  ASSERT_EQ(uart.written.size(), 6u);
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(FunctionCode::READ_COILS));
+  EXPECT_EQ(uart.written[3], 0x01);
+
+  uart.written.clear();
+  ASSERT_TRUE(hub.process_full_client_frame_for_test(0x05, static_cast<uint8_t>(FunctionCode::READ_DISCRETE_INPUTS),
+                                                     pdu_data, sizeof(pdu_data)));
+  EXPECT_EQ(device.calls, 2);
+  ASSERT_EQ(uart.written.size(), 6u);
+  EXPECT_EQ(uart.written[1], static_cast<uint8_t>(FunctionCode::READ_DISCRETE_INPUTS));
+  EXPECT_EQ(uart.written[3], 0x01);
 }
 
 // A multiple-coil write hands the handler the packed wire bytes and echoes the request header.

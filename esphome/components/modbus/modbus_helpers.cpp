@@ -69,8 +69,10 @@ uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
     case FunctionCode::WRITE_SINGLE_REGISTER:
       return 5;  // function(1) + output/register address(2) + value(2)
     case FunctionCode::WRITE_MULTIPLE_COILS:
+      // function(1) + start address(2) + quantity(2) + byte count(1) + packed coil data (8 coils per byte).
+      return 6 + (size > 5 ? std::min(frame[5], uint8_t(packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE))) : 0);
     case FunctionCode::WRITE_MULTIPLE_REGISTERS:
-      // function(1) + start address(2) + quantity(2) + byte count(1) + data
+      // function(1) + start address(2) + quantity(2) + byte count(1) + register data (2 bytes per register).
       return 6 + (size > 5 ? std::min(frame[5], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
     case FunctionCode::READ_FILE_RECORD:
