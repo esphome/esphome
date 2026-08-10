@@ -34,7 +34,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_TO,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -452,7 +452,11 @@ async def to_code(config: ConfigType) -> None:
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
     # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
-    cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
+    # Only emit it when a driver actually registered a device; with none (every config in
+    # tests/components/storage/) storage.h keeps its own >0 fallback, so the header comment
+    # that the fallback is unreachable in real builds stays true.
+    if device_count > 0:
+        cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
@@ -478,7 +482,7 @@ async def to_code(config: ConfigType) -> None:
             raw = config[CONF_TASK_STACK_SIZE]
             budget = int(raw * _WALK_STACK_HEADROOM)
             if needed > raw:
-                raise cv.Invalid(
+                raise EsphomeError(
                     f"storage: a {_MAX_RECURSION_DEPTH}-level tree walk with path_max {path_max} "
                     f"needs roughly {needed} bytes of stack, which exceeds task_stack_size ({raw}) "
                     f"and would overflow it at runtime. Raise task_stack_size."

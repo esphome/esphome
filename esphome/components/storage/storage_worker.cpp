@@ -294,6 +294,11 @@ bool StorageWorker::has_active_task_io(const storage::Storage *storage) const {
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
                                     const char *dst_path, CompletionCallback &&on_done, TransferJob *job_out,
                                     bool overwrite) {
+  // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs,
+  // so a queued request would never complete. Reject up front so callers chaining on the
+  // completion learn the worker is unusable instead of hanging forever.
+  if (this->is_failed())
+    return StorageError::NOT_READY;
   this->ensure_started_();
 
   if (strlen(src_path) >= STORAGE_WORKER_MAX_PATH || strlen(dst_path) >= STORAGE_WORKER_MAX_PATH)
@@ -368,8 +373,11 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->file_done = 0;
   slot->file_total = 0;
   // Bump the generation on claim (skipping 0) so stale TransferJob handles from a previous
-  // occupant of this slot stop resolving. Main loop only -- submissions never race each other.
-  if (++slot->generation == 0)
+  // occupant of this slot stop resolving. Masked to 24 bits: make_transfer_job() packs it above
+  // the 8-bit slot index, so an unmasked 32-bit counter would truncate on claim and never match
+  // again after ~16.7M claims. Main loop only -- submissions never race each other.
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr) {
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -436,6 +444,11 @@ StorageError StorageWorker::async_raw_erase(RawStorage *device, uint64_t address
 
 StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target, CompletionCallback &&on_done,
                                                TransferJob *job_out) {
+  // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs,
+  // so a queued request would never complete. Reject up front so callers chaining on the
+  // completion learn the worker is unusable instead of hanging forever.
+  if (this->is_failed())
+    return StorageError::NOT_READY;
   this->ensure_started_();
   TransferRequest *slot = nullptr;
   for (auto &req : this->pool_) {
@@ -480,7 +493,8 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   slot->waiting_logged = false;
   slot->last_progress_ms = millis();
   slot->progress_mark = 0;
-  if (++slot->generation == 0)
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -522,6 +536,11 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
                                         PathStorage *file_side, const char *file_path, bool erase_first, bool overwrite,
                                         CompletionCallback &&on_done, TransferJob *job_out, bool force_sliced,
                                         uint8_t verify_passes) {
+  // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs,
+  // so a queued request would never complete. Reject up front so callers chaining on the
+  // completion learn the worker is unusable instead of hanging forever.
+  if (this->is_failed())
+    return StorageError::NOT_READY;
   this->ensure_started_();
   if (strlen(file_path) >= STORAGE_WORKER_MAX_PATH)
     return StorageError::INVALID_ARGS;
@@ -572,7 +591,8 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   const bool file_fs = file_side != nullptr && file_side->get_storage_type() == StorageType::FILESYSTEM;
   slot->src_is_fs = file_fs && file_is_src;
   slot->dst_is_fs = file_fs && !file_is_src;
-  if (++slot->generation == 0)
+  slot->generation = (slot->generation + 1) & 0xFFFFFF;
+  if (slot->generation == 0)
     slot->generation = 1;
   if (job_out != nullptr)
     *job_out = make_transfer_job(slot->generation, slot - this->pool_.begin());
@@ -672,7 +692,13 @@ bool StorageWorker::get_transfer_status(TransferJob job, TransferStatus *out) co
   // poll frame, never out-of-bounds (copy is bounded, termination forced below).
   out->file[0] = '\0';
   if (state == RequestState::RUNNING && req.file_total.load() != 0) {
-    const char *slash = strrchr(req.src_path, '/');
+    // Bounded reverse scan (not strrchr): src_path may be mid-rewrite by the worker task, so
+    // stop at the buffer end even if the terminator was momentarily clobbered.
+    const char *slash = nullptr;
+    for (size_t i = 0; i < sizeof(req.src_path) && req.src_path[i] != '\0'; i++) {
+      if (req.src_path[i] == '/')
+        slash = &req.src_path[i];
+    }
     strncpy(out->file, slash != nullptr ? slash + 1 : req.src_path, sizeof(out->file) - 1);
     out->file[sizeof(out->file) - 1] = '\0';
   }
@@ -1291,6 +1317,12 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
         req.pre_phase_done = false;
         return;
       }
+      // Only NOT_FOUND means the destination is absent; any other stat error must fail here rather
+      // than skip the overwrite and is-a-directory guards and write over an existing file.
+      if (derr != StorageError::OK && derr != StorageError::NOT_FOUND) {
+        finish_request(req, derr);
+        return;
+      }
       if (derr == StorageError::OK) {
         if (!req.overwrite) {
           finish_request(req, StorageError::ALREADY_EXISTS);
@@ -1308,8 +1340,12 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
         req.pre_phase_done = false;
         return;
       }
-      if (serr != StorageError::OK || src_st.is_dir) {
-        finish_request(req, serr != StorageError::OK ? StorageError::NOT_FOUND : StorageError::INVALID_ARGS);
+      if (serr != StorageError::OK) {
+        finish_request(req, serr);  // real error, not a blanket NOT_FOUND
+        return;
+      }
+      if (src_st.is_dir) {
+        finish_request(req, StorageError::INVALID_ARGS);
         return;
       }
       req.bytes_total.store(src_st.size);
@@ -1515,7 +1551,8 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
     }
   }
   if (err != StorageError::OK || moved == 0) {
-    finish_request(req, err != StorageError::OK ? err : StorageError::WRITE_ERROR);
+    StorageError zero_err = to_file ? StorageError::READ_ERROR : StorageError::WRITE_ERROR;
+    finish_request(req, err != StorageError::OK ? err : zero_err);
     return;
   }
   req.offset += moved;
@@ -1791,7 +1828,9 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
       return;
     }
     if (serr != StorageError::OK) {
-      finish_request(req, StorageError::NOT_FOUND);
+      // Propagate the real error: a permission failure, corrupt medium or unmounted device must
+      // not be reported as "does not exist". The driver already maps errno via error_from_errno.
+      finish_request(req, serr);
       return;
     }
     const bool src_is_dir = src_st.is_dir;
@@ -1805,6 +1844,13 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
     StorageError derr = req.dst_storage->stat(req.dst_path, &dst_st);
     if (this->wait_for_network_ready_(req, derr, req.dst_storage)) {
       req.pre_phase_done = false;
+      return;
+    }
+    // Only NOT_FOUND means "destination absent"; any other stat failure (PERMISSION_DENIED,
+    // READ_ERROR, CORRUPT, NOT_READY) must fail the request, not fall through and overwrite a file
+    // the ALREADY_EXISTS guard was meant to protect.
+    if (derr != StorageError::OK && derr != StorageError::NOT_FOUND) {
+      finish_request(req, derr);
       return;
     }
     if (derr == StorageError::OK && !explicit_tree) {
@@ -2119,7 +2165,7 @@ static void run_stream_step(StreamRequest &req) {
       if (err == StorageError::OK)
         req.offset += bytes_read;
       if (req.bytes_transferred_out != nullptr)
-        *req.bytes_transferred_out = bytes_read;
+        *req.bytes_transferred_out = (err == StorageError::OK) ? bytes_read : 0;
       req.pending_read_buf = nullptr;
       req.pending_len = 0;
       req.result = err;
@@ -2247,6 +2293,11 @@ StreamRequest *StorageWorker::stream_for_handle_(const StreamHandle &handle) {
 
 StorageError StorageWorker::begin_write(PathStorage *storage, const char *path, StreamHandle *out_handle,
                                         CompletionCallback &&on_open) {
+  // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs,
+  // so a queued request would never complete. Reject up front so callers chaining on the
+  // completion learn the worker is unusable instead of hanging forever.
+  if (this->is_failed())
+    return StorageError::NOT_READY;
   this->ensure_started_();
   if (strlen(path) >= STORAGE_WORKER_MAX_PATH)
     return StorageError::INVALID_ARGS;
