@@ -242,12 +242,12 @@ class BluetoothProxy final : public Component {
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
+  // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
+  // start on an even word, closing two alignment holes.
+  uint32_t last_advertisement_flush_time_{0};
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
-
-  // Group 3: 4-byte types
-  uint32_t last_advertisement_flush_time_{0};
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;

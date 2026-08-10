@@ -8,7 +8,8 @@ namespace esphome::ble_device_base {
 
 void ScanResponseMerger::deliver_(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data,
                                   uint8_t data_len, bool raw_only) {
-  if (this->dispatcher_ == nullptr)
+  // A partial bind is treated as unbound; never dereference half a binding.
+  if (this->dispatcher_ == nullptr || this->scan_continuous_ == nullptr)
     return;
   this->dispatcher_->dispatch(mac, rssi, addr_type, data, data_len, raw_only,
                               *this->scan_continuous_ ? nullptr : this->log_tag_);

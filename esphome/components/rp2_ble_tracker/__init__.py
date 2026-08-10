@@ -41,9 +41,7 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 # to_code(). `active` defaults on for esp32_ble_tracker parity; it adds scan
 # request TX and roughly doubles the reports through the queue, so
 # `active: false` is the lighter choice when scan response data is not needed.
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", supports_active=True
-)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
 
 CONFIG_SCHEMA = cv.Schema(
     {
