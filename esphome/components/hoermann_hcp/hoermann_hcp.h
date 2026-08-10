@@ -87,6 +87,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   // Pending command / key-press state machine.
   const HoermannHcpCommand *next_command_{nullptr};
+  uint32_t command_queued_at_{0};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
   // A command is "pressed" for this long before its end value is sent.
