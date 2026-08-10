@@ -206,7 +206,8 @@ size_t StorageRegistry::snapshot_(Storage **out) const {
       static bool logged = false;
       if (!logged) {
         logged = true;
-        ESP_LOGE(TAG, "storage snapshot truncated at %u devices -- STORAGE_MAX_DEVICES too small", (unsigned) STORAGE_MAX_DEVICES);
+        ESP_LOGE(TAG, "storage snapshot truncated at %u devices -- STORAGE_MAX_DEVICES too small",
+                 (unsigned) STORAGE_MAX_DEVICES);
       }
       break;
     }
