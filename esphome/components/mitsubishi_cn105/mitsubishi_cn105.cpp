@@ -228,6 +228,10 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
+      if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS) {
+        this->sent_updates_.clear(UpdateFlag::POWER, UpdateFlag::TEMPERATURE, UpdateFlag::MODE, UpdateFlag::FAN,
+                                  UpdateFlag::VANE, UpdateFlag::WIDE_VANE);
+      }
       if (this->pending_updates_.any() && this->is_status_initialized()) {
         this->set_state_(State::APPLYING_SETTINGS);
       } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
@@ -257,6 +261,8 @@ void MitsubishiCN105::did_transition_(State to) {
     case State::READ_TIMEOUT:
       this->frame_parser_.reset();
       this->status_update_wait_credit_ms_ = 0;
+      this->sent_updates_.clear(UpdateFlag::POWER, UpdateFlag::TEMPERATURE, UpdateFlag::MODE, UpdateFlag::FAN,
+                                UpdateFlag::VANE, UpdateFlag::WIDE_VANE);
       this->set_state_(State::CONNECTING);
       break;
 
@@ -355,30 +361,30 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  if (!this->pending_updates_.contains(UpdateFlag::POWER)) {
+  if (!this->has_outstanding_update_(UpdateFlag::POWER)) {
     this->status_.power_on = payload[2] != 0;
   }
 
   this->use_temperature_encoding_b_ = payload[10] != 0;
-  if (!this->pending_updates_.contains(UpdateFlag::TEMPERATURE)) {
+  if (!this->has_outstanding_update_(UpdateFlag::TEMPERATURE)) {
     this->status_.target_temperature = decode_temperature(-payload[4], payload[10], TARGET_TEMPERATURE_ENC_A_OFFSET);
   }
 
-  if (!this->pending_updates_.contains(UpdateFlag::MODE)) {
+  if (!this->has_outstanding_update_(UpdateFlag::MODE)) {
     const bool i_see = payload[3] > 0x08;
     this->status_.mode = PROTOCOL_MODE_MAP.lookup(payload[3] - (i_see ? 0x08 : 0));
   }
 
-  if (!this->pending_updates_.contains(UpdateFlag::FAN)) {
+  if (!this->has_outstanding_update_(UpdateFlag::FAN)) {
     this->status_.fan_mode = PROTOCOL_FAN_MODE_MAP.lookup(payload[5]);
   }
 
-  if (!this->pending_updates_.contains(UpdateFlag::VANE)) {
+  if (!this->has_outstanding_update_(UpdateFlag::VANE)) {
     this->status_.vane_mode = PROTOCOL_VANE_MODE_MAP.lookup(payload[6]);
   }
 
   this->set_wide_vane_high_bit_ = (payload[9] & 0xF0) == 0x80;
-  if (!this->pending_updates_.contains(UpdateFlag::WIDE_VANE)) {
+  if (!this->has_outstanding_update_(UpdateFlag::WIDE_VANE)) {
     this->status_.wide_vane_mode = PROTOCOL_WIDE_VANE_MODE_MAP.lookup(payload[9] & 0x0F);
   }
 
@@ -487,6 +493,7 @@ void MitsubishiCN105::apply_settings_() {
     if (this->pending_updates_.contains(UpdateFlag::POWER)) {
       payload[1] |= 0x01;
       payload[3] = this->status_.power_on ? 0x01 : 0x00;
+      this->sent_updates_.set(UpdateFlag::POWER);
     }
 
     if (this->pending_updates_.contains(UpdateFlag::TEMPERATURE)) {
@@ -497,21 +504,25 @@ void MitsubishiCN105::apply_settings_() {
         payload[5] =
             static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
       }
+      this->sent_updates_.set(UpdateFlag::TEMPERATURE);
     }
 
     if (this->pending_updates_.contains(UpdateFlag::MODE) &&
         PROTOCOL_MODE_MAP.reverse_lookup(this->status_.mode, payload[4])) {
       payload[1] |= 0x02;
+      this->sent_updates_.set(UpdateFlag::MODE);
     }
 
     if (this->pending_updates_.contains(UpdateFlag::FAN) &&
         PROTOCOL_FAN_MODE_MAP.reverse_lookup(this->status_.fan_mode, payload[6])) {
       payload[1] |= 0x08;
+      this->sent_updates_.set(UpdateFlag::FAN);
     }
 
     if (this->pending_updates_.contains(UpdateFlag::VANE) &&
         PROTOCOL_VANE_MODE_MAP.reverse_lookup(this->status_.vane_mode, payload[7])) {
       payload[1] |= 0x10;
+      this->sent_updates_.set(UpdateFlag::VANE);
     }
 
     if (this->pending_updates_.contains(UpdateFlag::WIDE_VANE) &&
@@ -520,6 +531,7 @@ void MitsubishiCN105::apply_settings_() {
       if (this->set_wide_vane_high_bit_) {
         payload[13] |= 0x80;
       }
+      this->sent_updates_.set(UpdateFlag::WIDE_VANE);
     }
 
     this->pending_updates_.clear(UpdateFlag::POWER, UpdateFlag::TEMPERATURE, UpdateFlag::MODE, UpdateFlag::FAN,

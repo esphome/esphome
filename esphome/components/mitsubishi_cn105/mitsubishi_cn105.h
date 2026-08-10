@@ -157,6 +157,9 @@ class MitsubishiCN105 {
   bool should_request_telemetry_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
+  bool has_outstanding_update_(UpdateFlag flag) const {
+    return this->pending_updates_.contains(flag) || this->sent_updates_.contains(flag);
+  }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
@@ -175,6 +178,7 @@ class MitsubishiCN105 {
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
+  UpdateFlags sent_updates_;
   bool use_temperature_encoding_b_{false};
   bool set_wide_vane_high_bit_{false};
   FrameParser frame_parser_;
