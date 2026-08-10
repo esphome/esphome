@@ -13,6 +13,7 @@ platformio==6.1.19
 esptool==5.3.1
 click==8.3.3
 aioesphomeapi==45.7.0
+aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
 zeroconf==0.150.0
 puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
@@ -33,4 +34,4 @@ filelock==3.32.2  # inter-process locks (PlatformIO cache heal, git clone cache)
 pyparsing >= 3.3.2
 
 # For autocompletion
-argcomplete>=3.7.0
+argcomplete>=3.7.2

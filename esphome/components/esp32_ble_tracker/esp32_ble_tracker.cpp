@@ -271,7 +271,9 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
   // Safe because ESP32BLETracker (singleton) outlives all registered clients.
   client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
-  this->recalculate_advertisement_parser_types();
+  // Registration is add-only, so the flag is a monotonic OR.
+  if (client->wants_parsed_advertisements())
+    this->parse_advertisements_ = true;
 #endif
 }
 
@@ -283,48 +285,11 @@ void ESP32BLETracker::register_listener(ble_device_base::ESPBTDeviceListener *li
 #endif
 }
 
-void ESP32BLETracker::get_adapter_mac(uint8_t out[6]) {
-  get_mac_address_raw(out);  // WiFi base MAC, MSB-first
-  // BT MAC = base MAC + 2 on the last octet only, wrapping without carry —
-  // exactly ESP-IDF's esp_read_mac(ESP_MAC_BT): mac[5] += MAC_ADDR_UNIVERSE_BT_OFFSET.
-  out[5] += 2;
-}
-
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   listener->set_parent(this);
   this->listeners_.push_back(listener);
-  this->recalculate_advertisement_parser_types();
-#endif
-}
-
-void ESP32BLETracker::recalculate_advertisement_parser_types() {
-  this->raw_advertisements_ = false;
-  this->parse_advertisements_ = false;
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Neutral (BLEHub) listeners are parsed-advertisement consumers and are not in
-  // listeners_; without this, any later esp32-path registration (e.g. the proxy's
-  // GATT clients) would recompute the flags and silently drop parsed dispatch.
-  if (!this->neutral_listeners_.empty())
-    this->parse_advertisements_ = true;
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      this->parse_advertisements_ = true;
-    } else {
-      this->raw_advertisements_ = true;
-    }
-  }
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  for (auto *client : this->clients_) {
-    if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      this->parse_advertisements_ = true;
-    } else {
-      this->raw_advertisements_ = true;
-    }
-  }
+  this->parse_advertisements_ = true;
 #endif
 }
 
@@ -422,9 +387,9 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
   this->state_version_++;
-#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
-  for (auto *listener : this->scanner_state_listeners_) {
-    listener->on_scanner_state(state);
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  if (this->scanner_state_callback_.is_set()) {
+    this->scanner_state_callback_.invoke(state);
   }
 #endif
 }
@@ -462,18 +427,15 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
 #endif  // USE_ESP32_BLE_DEVICE
 
 void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
-  // Process raw advertisements
-  if (this->raw_advertisements_) {
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-    for (auto *listener : this->listeners_) {
-      listener->parse_devices(&scan_result, 1);
-    }
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-    for (auto *client : this->clients_) {
-      client->parse_devices(&scan_result, 1);
-    }
-#endif
+  // Neutral raw-advertisement subscriber (the bluetooth_proxy path).
+  if (this->raw_advertisement_callback_.is_set()) {
+    ble_device_base::RawAdvertisement adv;
+    adv.address = esp32_ble::ble_addr_to_uint64(scan_result.bda);
+    adv.data = scan_result.ble_adv;
+    adv.data_len = static_cast<uint16_t>(scan_result.adv_data_len) + scan_result.scan_rsp_len;
+    adv.rssi = scan_result.rssi;
+    adv.addr_type = scan_result.ble_addr_type;
+    this->raw_advertisement_callback_.invoke(adv);
   }
 
   // Process parsed advertisements

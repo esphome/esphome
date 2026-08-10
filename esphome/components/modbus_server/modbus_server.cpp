@@ -145,7 +145,9 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         }
         return true;
       })) {
-    ESP_LOGW(TAG, "Write request rejected before applying any register. Sending exception response.");
+    // Only VERBOSE: one handler serves both addressed and broadcast writes, and rejecting a broadcast for
+    // registers this device does not map is routine. The hub logs the outcome with the context it has.
+    ESP_LOGV(TAG, "Write request rejected before applying any register.");
     return precheck;
   }
 
