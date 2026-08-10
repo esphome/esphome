@@ -10,9 +10,12 @@ static const char *const TAG = "sfa40";
 static const uint16_t SFA40_CMD_START_MEASUREMENT = 0x00AC;
 static const uint16_t SFA40_CMD_STOP_MEASUREMENT = 0x50D2;
 static const uint16_t SFA40_CMD_READ_MEASURE_PROD = 0xC0EB;
+// B4 (engineering-sample) command codes. Commands from here: https://github.com/DFRobot/DFRobot_SFA40
 static const uint16_t SFA40_CMD_READ_MEASURE_B4 = 0xE06D;
 static const uint16_t SFA40_CMD_READ_ID_PROD = 0x02CE;
 static const uint16_t SFA40_CMD_READ_ID_B4 = 0x0559;
+static const uint8_t STATUS_NOT_READY = 0x01;
+static const uint8_t STATUS_OUT_OF_SPEC = 0x02;
 
 static uint64_t raw_to_serial(const uint16_t *raw, size_t words) {
   uint64_t serial = 0;
@@ -22,7 +25,10 @@ static uint64_t raw_to_serial(const uint16_t *raw, size_t words) {
   return serial;
 }
 
-static void raw_to_marking(const uint16_t *raw, size_t words, char *out) {
+static void raw_to_marking(const uint16_t *raw, size_t words, char *out, size_t out_len) {
+  if (out_len < words * 2 + 1) {
+    return;
+  }
   for (size_t i = 0; i < words; i++) {
     out[i * 2] = static_cast<char>(raw[i] >> 8);
     out[i * 2 + 1] = static_cast<char>(raw[i] & 0xFF);
@@ -55,13 +61,14 @@ bool SFA40Component::detect_protocol_() {
   if (this->get_register(SFA40_CMD_READ_ID_PROD, raw, 3, 5)) {
     this->protocol_version_ = ProtocolVersion::PRODUCTION;
     this->serial_number_ = raw_to_serial(raw, 3);
-    ESP_LOGD(TAG, "Detected production SFA40");
+    ESP_LOGD(TAG, "Detected production SFA40, serial number: %012llX",
+             (unsigned long long) this->serial_number_);
     return true;
   }
   if (this->get_register(SFA40_CMD_READ_ID_B4, raw, 5, 5)) {
     this->protocol_version_ = ProtocolVersion::PROTOTYPE;
-    raw_to_marking(raw, 5, this->device_marking_);
-    ESP_LOGD(TAG, "Detected engineering-sample SFA40");
+    raw_to_marking(raw, 5, this->device_marking_, sizeof(this->device_marking_));
+    ESP_LOGD(TAG, "Detected engineering-sample SFA40, marking: '%s'", this->device_marking_);
     return true;
   }
   return false;
@@ -84,20 +91,9 @@ void SFA40Component::dump_config() {
     }
   }
   LOG_UPDATE_INTERVAL(this);
-  switch (this->protocol_version_) {
-    case ProtocolVersion::PRODUCTION:
-      ESP_LOGCONFIG(TAG, "  Protocol: production");
-      ESP_LOGCONFIG(TAG, "  Serial Number: %012llX",
-                    (unsigned long long) this->serial_number_);
-      break;
-    case ProtocolVersion::PROTOTYPE:
-      ESP_LOGCONFIG(TAG, "  Protocol: prototype (B4)");
-      ESP_LOGCONFIG(TAG, "  Marking: '%s'", this->device_marking_);
-      break;
-    default:
-      ESP_LOGCONFIG(TAG, "  Protocol: (detecting...)");
-      break;
-  }
+  ESP_LOGCONFIG(TAG, "  Protocol: %s",
+                this->protocol_version_ == ProtocolVersion::PRODUCTION ? "production" : "prototype (B4)");
+  ESP_LOGCONFIG(TAG, "  Wait for ready: %s", ONOFF(this->wait_for_ready_));
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -126,7 +122,7 @@ void SFA40Component::update() {
     }
 
     const uint8_t status = raw[3] >> 8;
-    const bool hcho_ready = (status & 0x03) == 0;
+    const bool hcho_ready = (status & (STATUS_NOT_READY | STATUS_OUT_OF_SPEC)) == 0;
 
     if (this->formaldehyde_sensor_ != nullptr) {
       if (!this->wait_for_ready_ || hcho_ready) {

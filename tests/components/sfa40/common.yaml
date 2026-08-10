@@ -1,6 +1,7 @@
 sensor:
   - platform: sfa40
     i2c_id: i2c_bus
+    wait_for_ready: false
     formaldehyde:
       name: SFA40 formaldehyde
     temperature:

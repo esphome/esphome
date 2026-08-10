@@ -33,7 +33,7 @@ class SFA40Component final : public PollingComponent, public sensirion_common::S
     bool detect_protocol_();
     ProtocolVersion protocol_version_{UNKNOWN};
     ErrorCode error_code_{UNKNOWN_ERROR};
-    char device_marking_[32] = {0};
+    char device_marking_[11]{};
     bool initialized_{false};
     bool wait_for_ready_{true};
     uint64_t serial_number_{0};
