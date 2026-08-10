@@ -82,6 +82,16 @@ inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 // send_service_ cursor states; >= 0 is the next service index to stream.
 static constexpr int DONE_SENDING_SERVICES = -2;
 static constexpr int INIT_SENDING_SERVICES = -3;
+static constexpr int SERVICES_DONE_PENDING = -4;  // all batches delivered, done-message still owed
+// Every sentinel must stay below the >= 0 streaming gate and clear of
+// GATT_NOT_CONNECTED (-1) so cursor and error values can never be confused.
+static_assert(DONE_SENDING_SERVICES < 0 && INIT_SENDING_SERVICES < 0 && SERVICES_DONE_PENDING < 0);
+static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVICES != GATT_NOT_CONNECTED &&
+              SERVICES_DONE_PENDING != GATT_NOT_CONNECTED);
+// Owed-done retries stop here (~3 s at the 100 ms drain cadence): a done
+// delivered near the client's 30 s timeout could land on a fresh request's
+// empty accumulator and cache as an empty database.
+static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 
