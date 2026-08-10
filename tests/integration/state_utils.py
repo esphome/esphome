@@ -387,8 +387,9 @@ class SensorStateCollector:
 class SensorTracker:
     """Data-driven sensor state tracker with expected-value futures.
 
-    Tracks sensor state updates and resolves futures when sensors report
-    specific expected values. Eliminates per-sensor future boilerplate.
+    Tracks sensor and binary sensor state updates and resolves futures when
+    they report specific expected values. Eliminates per-sensor future
+    boilerplate.
 
     Usage::
 
@@ -421,7 +422,10 @@ class SensorTracker:
 
     def on_state(self, state: EntityState) -> None:
         """State callback suitable for ``subscribe_states``."""
-        if not isinstance(state, SensorState) or state.missing_state:
+        if (
+            not isinstance(state, (SensorState, BinarySensorState))
+            or state.missing_state
+        ):
             return
         sensor_name = self.key_to_sensor.get(state.key)
         if not sensor_name or sensor_name not in self.sensor_states:
