@@ -1,12 +1,23 @@
 ---
 name: Publish Release
 
+# Releases (production and beta) are named after the version they publish.
+# Dev builds are named after the dated dev tag, which is passed in by the
+# nightly workflow because a run name cannot compute it itself.
+run-name: ${{ github.event.inputs.tag || github.event.release.tag_name || format('Manual build ({0})', github.ref_name) }}
+
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Tag to build. Only supported on dev, where the nightly workflow
+          uses it. Leave empty to build the version from esphome/const.py
+          with today's date appended.
+        required: false
+        default: ""
   release:
     types: [published]
-  schedule:
-    - cron: "0 2 * * *"
 
 permissions:
   contents: read  # actions/checkout for all jobs; deploy jobs add their own scopes when they need to write
@@ -23,6 +34,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Get tag
         id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         # yamllint disable rule:line-length
         run: |
           if [[ "${{ github.event_name }}" = "release" ]]; then
@@ -34,12 +47,23 @@ jobs:
               ENVIRONMENT="production"
             fi
           else
-            TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
-            today="$(date --utc '+%Y%m%d')"
-            TAG="${TAG}${today}"
             BRANCH=${GITHUB_REF#refs/heads/}
+            # The nightly workflow passes the finished tag so that the run name
+            # matches what is built. Without it, work it out here.
+            TAG="${INPUT_TAG}"
+            if [[ -n "$TAG" && "$BRANCH" != "dev" ]]; then
+              echo "::error::The tag input is only supported on dev. A build from ${BRANCH} has to use the tag worked out here, which carries the branch name, so that it cannot publish over the dev, beta, latest or stable images."
+              exit 1
+            fi
+            if [[ -z "$TAG" ]]; then
+              TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
+              today="$(date --utc '+%Y%m%d')"
+              TAG="${TAG}${today}"
+              if [[ "$BRANCH" != "dev" ]]; then
+                TAG="${TAG}-${BRANCH}"
+              fi
+            fi
             if [[ "$BRANCH" != "dev" ]]; then
-              TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
               ENVIRONMENT=""
             else

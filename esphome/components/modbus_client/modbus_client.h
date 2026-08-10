@@ -33,7 +33,11 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   /// The frame was written to the wire: fires once per transmission, before any reply, and never for a
   /// send that ended in on_not_sent. request_pdu is the PDU sent (function code + data).
   void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_trigger_.trigger(request_pdu); }
-  /// Never reached the wire (tx queue full, cleared, or a duplicate write dropped by the hub's dedup).
+  /// Never reached the wire, from either of two sources. The hub calls this for a request it accepted
+  /// and then dropped, which happens only when clear_tx_queue_for_address() retires it - a modbus
+  /// device going offline, say. Everything the hub refuses at the door instead returns false from
+  /// queue_pdu() with no callback at all, so send_or_resolve_() below turns those into this same
+  /// callback: a full queue, a duplicate write, or an empty PDU from a rejecting builder.
   void on_not_sent(std::span<const uint8_t> request_pdu) override { this->not_sent_trigger_.trigger(request_pdu); }
   /// A Modbus exception reply. Lives here beside its trigger so every action subclass gets the pairing:
   /// register_client_action() wires on_error for all of them, so a derived class must not have to
@@ -64,7 +68,7 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   /// Takes a span, not a PduBuffer: the builders return right-sized buffers (a read PDU is 5 bytes), and
   /// a PduBuffer parameter would widen each one to the 253-byte maximum just to cross the call.
   void send_or_resolve_(std::span<const uint8_t> pdu) {
-    if (!this->send_pdu(pdu))
+    if (!this->queue_pdu(pdu))
       this->on_not_sent(pdu);
   }
 
@@ -107,7 +111,9 @@ template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<
 /// valid for the duration of the trigger. (For a typed-built request the gate can only divert on the
 /// response, never with an exception status - real device exceptions arrive via on_error, which
 /// ClientActionBase already routes straight to its trigger, so the typed callbacks below only ever see a
-/// success status.)
+/// success status.) Each typed callback still checks succeeded() before firing its trigger: that branch
+/// is unreachable today, and is kept so a future change to that interception cannot silently deliver an
+/// exception as a successful reply.
 template<typename... Ts> class TypedClientActionBase : public ClientActionBase<Ts...> {
  public:
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_custom_response_trigger() {
@@ -127,11 +133,6 @@ template<typename... Ts> class TypedClientActionBase : public ClientActionBase<T
   }
 
  protected:
-  /// Defensive assertion, not a live branch: ClientActionBase::on_error intercepts every exception reply
-  /// before the dispatch runs, so a typed callback below is only ever reached with a success status. Kept
-  /// so a future change to that interception cannot silently deliver an exception as a successful reply.
-  bool is_success_(modbus::ResponseStatus status) { return !status.has_value(); }
-
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> custom_response_trigger_;
   bool custom_response_handled_{false};
 };
@@ -154,7 +155,7 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
   }
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                          modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger(registers);
   }
 
@@ -181,7 +182,7 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
   }
   void on_read_bits(modbus::EntityType entity_type, uint16_t start_address, modbus::PackedBits bits,
                     modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger(bits);
   }
 
@@ -204,7 +205,7 @@ template<typename... Ts> class WriteSingleRegisterAction : public TypedClientAct
         modbus::helpers::create_write_single_register_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_register(uint16_t address, uint16_t value, modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger();
   }
 
@@ -226,7 +227,7 @@ template<typename... Ts> class WriteSingleCoilAction : public TypedClientActionB
         modbus::helpers::create_write_single_coil_pdu(this->start_address_.value(x...), this->value_.value(x...)));
   }
   void on_write_single_coil(uint16_t address, bool value, modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger();
   }
 
@@ -270,7 +271,7 @@ template<typename... Ts> class WriteMultipleRegistersAction : public TypedClient
   }
   void on_write_multiple_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                    modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger();
   }
 
@@ -318,7 +319,7 @@ template<typename... Ts> class WriteMultipleCoilsAction : public TypedClientActi
   }
   void on_write_multiple_coils(uint16_t start_address, modbus::PackedBits bits,
                                modbus::ResponseStatus status) override {
-    if (this->is_success_(status))
+    if (modbus::succeeded(status))
       this->response_trigger_.trigger();
   }
 

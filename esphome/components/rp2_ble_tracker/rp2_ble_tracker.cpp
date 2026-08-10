@@ -24,6 +24,9 @@ void RP2BLETracker::setup() {
   // Receive the controller's scan reports; the controller queues them from the
   // BTstack packet handler (IRQ) and delivers here on the main loop.
   this->parent_->register_scan_listener(this);
+  // Merged (and unmerged) frames go to the shared dispatcher; scan_continuous_
+  // is read at each delivery to decide unclaimed-device logging.
+  this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
 #ifdef USE_OTA_STATE_LISTENER
   // Pause scanning while an OTA update is in flight — the BLE scan competes with
   // the OTA download on the shared CYW43 radio. Mirrors esp32_ble_tracker.
@@ -64,6 +67,10 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
 
 void RP2BLETracker::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+  // Deliver held scannable advertisements whose scan response never arrived —
+  // unmerged after the merger's timeout.
+  if (!this->merger_.empty())
+    this->merger_.sweep(now);
   if (this->scan_running_ && !this->parent_->is_active()) {
     // The controller was disabled underneath us (e.g. a lambda calling
     // rp2040_ble's disable()); the scan died with the stack. Reconcile so the
@@ -119,30 +126,32 @@ void RP2BLETracker::dump_config() {
                 YESNO(this->scan_continuous_));
 }
 
-void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
-  // Raw callback (the raw-advertisement path).
-  if (this->raw_advertisement_callback_.is_set()) {
-    const ble_device_base::RawAdvertisement adv{.address = ble_device_base::mac_lsb_first_to_uint64(report.mac),
-                                                .data = report.data,
-                                                .data_len = report.data_len,
-                                                .rssi = report.rssi,
-                                                .addr_type = report.addr_type};
-    this->raw_advertisement_callback_.invoke(adv);
-  }
+// GAP advertising event types as BTstack reports them (Core spec advertising
+// report event types; the tracker deliberately does not include BTstack
+// headers). ADV_IND and ADV_SCAN_IND are the scannable types.
+static constexpr uint8_t ADV_EVENT_TYPE_ADV_IND = 0;
+static constexpr uint8_t ADV_EVENT_TYPE_ADV_SCAN_IND = 2;
+static constexpr uint8_t ADV_EVENT_TYPE_SCAN_RSP = 4;
 
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  ble_device_base::ESPBTDevice device;
-  device.from_scan_result(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
-  bool found = false;
-  for (auto *listener : this->listeners_) {
-    if (listener->parse_device(device))
-      found = true;
+// Demux advertisements vs scan responses into the shared merger: BTstack
+// delivers the pair as separate reports; a scannable advertisement is held
+// until its scan response arrives and delivered as one merged frame.
+void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
+  if (report.adv_event_type == ADV_EVENT_TYPE_SCAN_RSP) {
+    this->merger_.submit_scan_rsp(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
+    return;
   }
-  // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
-  // it and the scan is one-shot (continuous scans would spam).
-  if (!found && !this->scan_continuous_)
-    this->discovered_log_.log_device(TAG, device);
-#endif  // ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
+  // Stash only while an active scan runs: a passive scan never gets a
+  // response, and after a stop nothing would sweep the merger, so a late
+  // report would surface minutes later as a fresh advertisement.
+  if (this->scan_running_ && this->scan_active_ &&
+      (report.adv_event_type == ADV_EVENT_TYPE_ADV_IND || report.adv_event_type == ADV_EVENT_TYPE_ADV_SCAN_IND)) {
+    this->merger_.stash_adv(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
+                            App.get_loop_component_start_time());
+    return;
+  }
+  this->dispatcher_.dispatch(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
+                             /*raw_only=*/false, this->scan_continuous_ ? nullptr : TAG);
 }
 
 void RP2BLETracker::start_scan() {
@@ -229,11 +238,10 @@ void RP2BLETracker::stop_scan_() {
 }
 
 void RP2BLETracker::fire_scan_end_() {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  for (auto *listener : this->listeners_)
-    listener->on_scan_end();
-  this->discovered_log_.clear();  // reset per-scan "Found device" dedup (esp32_ble_tracker parity)
-#endif
+  // Deliver held advertisements whose scan response never came (unmerged)
+  // BEFORE on_scan_end fires.
+  this->merger_.flush();
+  this->dispatcher_.on_scan_end();
 }
 
 }  // namespace esphome::rp2_ble_tracker

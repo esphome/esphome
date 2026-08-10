@@ -4,6 +4,7 @@
 
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
+#include "esphome/components/ble_device_base/scan_response_merger.h"
 #include "esphome/components/rp2040_ble/rp2040_ble.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -51,25 +52,22 @@ class RP2BLETracker : public Component,
 
   // ---- ble_device_base::BLEHub contract ----
   void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    this->listeners_.push_back(listener);
-#endif
+    this->dispatcher_.register_listener(listener);
   }
   void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
-    this->raw_advertisement_callback_ = callback;
+    this->dispatcher_.set_raw_advertisement_callback(callback);
   }
   static constexpr ble_device_base::HubCapabilities get_capabilities() {
-    // BTstack delivers scan responses as separate advertisement reports rather
-    // than merging them into the advertisement — consumers relying on
-    // scan-response fields (device names) get them only where the receiver
-    // merges per address (Home Assistant does). GATT is available when the
-    // BTstack connection backend is compiled in (bluetooth_proxy active).
+    // BTstack delivers scan responses as separate advertisement reports; this
+    // tracker merges the pair before delivery (shared ScanResponseMerger,
+    // Bluedroid semantics). GATT is available when the BTstack connection
+    // backend is compiled in (bluetooth_proxy active).
 #ifdef USE_BLE_GATT_CLIENT
     constexpr bool has_gatt = true;
 #else
     constexpr bool has_gatt = false;
 #endif
-    return {.active_scan = true, .merges_scan_response = false, .gatt = has_gatt, .scan_mode_switch = true};
+    return {.active_scan = true, .merges_scan_response = true, .gatt = has_gatt, .scan_mode_switch = true};
   }
   // The controller stores the address in printable (MSB-first) order, which is
   // exactly what the contract wants.
@@ -104,16 +102,13 @@ class RP2BLETracker : public Component,
   bool scan_pending_before_ota_{false};     // one-shot scan in flight at OTA start, resumed on OTA failure
 #endif
 
-  ble_device_base::RawAdvertisementCallback raw_advertisement_callback_{};
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Parsed-advertisement consumers registered through ble_device_base.
-  // Codegen-sized: no heap allocation, no std::vector template instantiations.
-  StaticVector<ble_device_base::ESPBTDeviceListener *, ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT> listeners_;
-  // Per-period "Found device" DEBUG log with MAC dedup — shared implementation
-  // in ble_device_base, identical output on every tracker backend. Guarded like
-  // its only writer so a no-listener build does not carry an unused vector.
-  ble_device_base::DiscoveredDeviceLog discovered_log_{};
-#endif
+  // Shared adv + scan-response merge and frame dispatch (ble_device_base).
+  // All calls run on the main loop. Merger clock: stash_adv() reads the
+  // PARENT's cached loop time (on_scan_report runs inside rp2040_ble's queue
+  // drain), sweep() this component's — same App.loop() pass, so the delta
+  // stays non-negative and the 300 ms timeout holds.
+  ble_device_base::ScanResponseMerger merger_;
+  ble_device_base::AdvDispatcher dispatcher_;
 };
 
 }  // namespace esphome::rp2_ble_tracker
