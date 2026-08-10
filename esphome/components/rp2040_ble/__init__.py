@@ -57,17 +57,23 @@ def consume_connection_slots(
     return _consume_connection_slots
 
 
+def validate_connection_slots() -> None:
+    """Fail when consumers claimed more slots than the platform cap."""
+    # Skip in testing mode to allow component grouping (esp32_ble parity).
+    if CORE.testing_mode:
+        return
+    used = CORE.data.get(KEY_RP2040_BLE, {}).get(KEY_USED_CONNECTION_SLOTS, [])
+    if len(used) > MAX_CONNECTIONS:
+        raise cv.Invalid(
+            f"BLE components require {len(used)} connection slots but the "
+            f"rp2 maximum is {MAX_CONNECTIONS}. "
+            f"Components: {', '.join(used)}"
+        )
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     _validate_board(config)
-    # Skip in testing mode to allow component grouping (esp32_ble parity).
-    if not CORE.testing_mode:
-        used = CORE.data.get(KEY_RP2040_BLE, {}).get(KEY_USED_CONNECTION_SLOTS, [])
-        if len(used) > MAX_CONNECTIONS:
-            raise cv.Invalid(
-                f"BLE components require {len(used)} connection slots but the "
-                f"rp2 maximum is {MAX_CONNECTIONS}. "
-                f"Components: {', '.join(used)}"
-            )
+    validate_connection_slots()
     return config
 
 
