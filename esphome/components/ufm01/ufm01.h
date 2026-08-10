@@ -40,9 +40,9 @@ enum class StartupPhase : uint8_t {
 };
 
 enum class PassiveReadResult : uint8_t {
-  PENDING = 0,
-  COMPLETE = 1,
-  FAILURE = 2,
+  PASSIVE_READ_RESULT_PENDING = 0,
+  PASSIVE_READ_RESULT_SUCCESS = 1,
+  PASSIVE_READ_RESULT_FAILURE = 2,
 };
 
 class UFM01Component : public uart::UARTDevice, public Component {
