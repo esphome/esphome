@@ -11,6 +11,8 @@
 
 #include <cstdint>
 
+#include "bdk_scan.h"
+
 namespace esphome::bk72xx_ble {
 
 enum class BLEComponentState : uint8_t {
@@ -19,11 +21,32 @@ enum class BLEComponentState : uint8_t {
   ACTIVE,
 };
 
+/// Outcome of one reconciliation step.
+enum class ScanOpResult : uint8_t {
+  SETTLED,  ///< The request is reached: scan observed running, or stopped
+            ///< with the activity fully released.
+  PENDING,  ///< A step is in flight; loop() keeps advancing — call
+            ///< scan_start() again to learn the outcome.
+  FAILED,   ///< The controller rejected a step; retry later.
+};
+
+/// One scan request: mode plus timing, in BLE units (0.625 ms).
+struct ScanParams {
+  bool active;
+  uint16_t interval;
+  uint16_t window;
+  bool operator==(const ScanParams &) const = default;
+};
+
 /// One advertisement report from the controller.
 struct BLEScanReport {
   uint8_t mac[6];  // LSB-first, as the controller delivers it
   int8_t rssi;     // signed dBm
   uint8_t addr_type;
+  // GAPM report info byte (recv_adv_t.evt_type): bits 0-2 report type
+  // (1 = legacy adv, 3 = legacy scan response), bit 5 scannable — lets the
+  // tracker's merger tell the two frames apart.
+  uint8_t evt_type;
   uint8_t data_len;  // bytes valid in data[]
   uint8_t data[62];  // legacy advertisement (31) + scan response (31)
 
@@ -69,18 +92,33 @@ class BK72xxBLE final : public Component {
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
 #endif
 
-  /// Start the controller scan. Interval/window are in BLE units (0.625 ms).
-  /// Enables the stack first if needed. Returns false on controller failure.
-  bool scan_start(uint16_t interval, uint16_t window);
-  /// Stop the controller scan (no-op when not scanning).
+  /// Request a scan (interval/window in 0.625 ms BLE units); enables the
+  /// stack first if needed. PENDING until the scan is observed running —
+  /// loop() keeps advancing, call again to learn the outcome.
+  ScanOpResult scan_start(uint16_t interval, uint16_t window, bool active);
+  /// Request the scanner stopped and the activity released; steps that
+  /// cannot run yet are completed from loop().
   void scan_stop();
+  /// Drive a requested stop until the radio is observed idle, bounded by
+  /// timeout_ms (for OTA). Returns false if it still has not settled.
+  bool flush_pending_stop(uint32_t timeout_ms);
+  /// Last reconciliation outcome; on FAILED the consumer's retry policy owns
+  /// recovery.
+  ScanOpResult last_scan_result() const { return this->last_result_; }
 
   /// Internal: buffer one controller report (BDK notice callback, BLE task
   /// context — bounded copy under the scheduler lock, nothing else).
-  void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, const uint8_t *data, uint16_t data_len);
+  void enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t addr_type, uint8_t evt_type, const uint8_t *data,
+                           uint16_t data_len);
 
  protected:
   void resolve_mac_();
+  ScanOpResult advance_();
+  ScanOpResult advance_stop_(BdkActivityState state, bool ready);
+  ScanOpResult advance_start_(BdkActivityState state, bool ready);
+  bool teardown_stuck_(uint32_t now);
+  void reset_teardown_episode_();
+  void release_activity_(BdkActivityState state);
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   // Codegen-sized: no heap allocation, no std::vector template instantiation —
@@ -95,10 +133,24 @@ class BK72xxBLE final : public Component {
   // allocate() returns nullptr before push() can fail. This prevents leaking a
   // pool slot on a failed push and keeps release() off the producer path.
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
-  uint8_t ble_mac_[6]{0};  // LSB-first (BLE convention)
-  uint8_t scan_actv_idx_{0xFF};
-  BLEComponentState state_{BLEComponentState::STATE_OFF};
+  // Largest-to-smallest: padding only at the tail, absorbed by future byte fields.
+  uint32_t last_advance_ms_{0};
+  uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
+  uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
+  uint32_t teardown_stuck_log_ms_{0};  // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
+  int last_release_err_{0};            // SDK code of the episode's last failed release; 0 = none
+  ScanParams requested_{};             // latched by scan_start()
+  ScanParams applied_{};               // last params we commanded; mismatch with requested_ restarts
+  uint8_t ble_mac_[6]{0};              // LSB-first (BLE convention)
+  uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
+  bool scan_wanted_{false};     // the latched request is to scan (vs stopped)
+  bool release_warned_{false};  // gates the release WARN; widens the pump gate
+  bool restarting_{false};      // mode-change release in flight; teardown deadline governs until released
   bool enable_on_boot_{false};
+  // PENDING means advance_() has more to do; loop() drives it, paced and
+  // (for a bring-up) bounded.
+  ScanOpResult last_result_{ScanOpResult::SETTLED};
+  BLEComponentState state_{BLEComponentState::STATE_OFF};
 };
 
 }  // namespace esphome::bk72xx_ble

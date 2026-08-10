@@ -1676,7 +1676,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-    this->save_fast_connect_settings_();
+    this->save_fast_connect_settings_(this->wifi_bssid(), get_wifi_channel());
 #endif
 
     this->release_scan_results_();
@@ -2301,9 +2301,7 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
   return false;
 }
 
-void WiFiComponent::save_fast_connect_settings_() {
-  bssid_t bssid = wifi_bssid();
-  uint8_t channel = get_wifi_channel();
+void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel) {
   // selected_sta_index_ is always valid here (called only after successful connection)
   // Fallback to 0 is defensive programming for robustness
   int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
@@ -2415,6 +2413,25 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_target_bssid_ = {};
   this->roaming_state_ = RoamingState::IDLE;
 }
+
+#ifdef USE_ESP32
+void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
+  // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
+  // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
+  // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
+  // untouched so an in-flight roaming scan is not orphaned. The BSSID and
+  // channel both come from the connected event so the saved pair is consistent:
+  // the radio may be off-channel during a roaming scan, and a later queued
+  // event may have moved the driver on again by the time this one is processed.
+  this->roaming_last_check_ = App.get_loop_component_start_time();
+  this->roaming_attempts_ = 0;
+  this->roaming_scan_end_ = 0;
+  this->clear_all_bssid_priorities_();
+#ifdef USE_WIFI_FAST_CONNECT
+  this->save_fast_connect_settings_(bssid, channel);
+#endif
+}
+#endif
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {

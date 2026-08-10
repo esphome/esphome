@@ -200,6 +200,7 @@ SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
     "bluetooth_connection_hub.cpp": {
         PlatformFramework.RP2_ARDUINO,
         PlatformFramework.LN882X_ARDUINO,
+        PlatformFramework.BK72XX_ARDUINO,
         PlatformFramework.ESP32_ARDUINO,
         PlatformFramework.ESP32_IDF,
     },

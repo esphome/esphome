@@ -11,7 +11,8 @@
 
 namespace esphome::modbus::helpers {
 
-inline bool is_function_code_read(uint8_t function_code) {
+// Pure read codes (0x01-0x04): they only read, so they are idempotent and safe to retry.
+inline bool is_function_code_read_only(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::READ_COILS ||
          masked_function_code == FunctionCode::READ_DISCRETE_INPUTS ||
@@ -19,12 +20,27 @@ inline bool is_function_code_read(uint8_t function_code) {
          masked_function_code == FunctionCode::READ_INPUT_REGISTERS;
 }
 
+// Codes whose response carries read-back data: the pure reads plus 0x17, which reads and writes at once.
+inline bool is_function_code_read(uint8_t function_code) {
+  return is_function_code_read_only(function_code) ||
+         static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK) == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+}
+
+// Codes that mutate registers or coils: the pure writes, 0x16 mask-write, and 0x17 read/write multiple.
 inline bool is_function_code_write(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::WRITE_SINGLE_COIL ||
          masked_function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
          masked_function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
+         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS ||
+         masked_function_code == FunctionCode::MASK_WRITE_REGISTER ||
+         masked_function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+}
+
+// True if [start_address, start_address + count) fits within the 16-bit Modbus address space. The 32-bit
+// promotion is the overflow guard - a 16-bit sum could wrap and pass.
+inline bool address_range_fits(uint16_t start_address, size_t count) {
+  return uint32_t(start_address) + count <= 0x10000u;
 }
 
 inline bool is_function_code_exception(uint8_t function_code) {
@@ -90,8 +106,8 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
 }
 
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
- * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
- * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
+ * read responses (0x01-0x04 and 0x17) also after the byte-count byte. Response 0x14 also carries a
+ * byte-count byte, but that code is not implemented and its count byte is left in the payload. For
  * an exception PDU the payload is the exception code byte (the read check must not see the masked
  * function code, or an exception-of-read would classify as a read and return an empty span). Returns an
  * empty span if the PDU is too short.
@@ -257,6 +273,29 @@ inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
 ESPDEPRECATED("Use bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
 inline bool coil_from_vector(int coil, std::span<const uint8_t> data) { return bit_from_packed(coil, data); }
 
+/** Append packed bytes (LSB first) for the given bits onto a growable byte container.
+ * push_back-based so callers can build a payload incrementally (e.g. a std::vector<uint8_t>
+ * with no fixed upper bound). A non-byte-aligned count appends n+1 bytes, the last holding
+ * the remaining bits in its low positions.
+ * @param out destination byte container exposing push_back(uint8_t)
+ * @param bits container of bool exposing range-based iteration
+ */
+template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits) {
+  uint8_t byte = 0;
+  uint8_t bit = 0;
+  for (bool b : bits) {
+    if (b)
+      byte |= (1 << bit);
+    if (++bit == 8) {
+      out.push_back(byte);
+      byte = 0;
+      bit = 0;
+    }
+  }
+  if (bit != 0)  // flush the final partial byte
+    out.push_back(byte);
+}
+
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
  * the result is then shifted right by the position if the first right set bit in the mask
@@ -408,6 +447,21 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
+
+/** Create modbus read/write multiple registers command
+ *  Function 0x17 Read/Write Multiple Registers
+ * Writes write_values then reads read_count registers in one transaction (write first, per Modbus 6.17);
+ * the response carries only the read registers.
+ * @param read_start_address modbus address of the first register to read back
+ * @param read_count number of registers to read (at most MAX_NUM_OF_REGISTERS_TO_READ)
+ * @param write_start_address modbus address of the first register to write
+ * @param write_values register values to write; the register count is write_values.size() (at most
+ *               MAX_NUM_OF_REGISTERS_TO_WRITE_RW). Any contiguous uint16_t container converts.
+ * @return PDU (function code + data, no address, no CRC); an empty PDU on any out-of-range input
+ */
+PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,
+                                                   uint16_t write_start_address,
+                                                   std::span<const uint16_t> write_values);
 
 /** Create modbus write single register command
  *  Function 0x06 Write Single Register
