@@ -45,7 +45,6 @@ namespace esphome::bk72xx_ble_tracker {
 // ---------------------------------------------------------------------------
 
 class BK72xxBLETracker : public Component,
-                         public ble_device_base::BLEHub,
                          public bk72xx_ble::BLEScanListener,
                          public Parented<bk72xx_ble::BK72xxBLE>
 #ifdef USE_OTA_STATE_LISTENER
@@ -93,15 +92,15 @@ class BK72xxBLETracker : public Component,
   void stop_scan();
 
   // ---- ble_device_base::BLEHub contract ----
-  void register_listener(ble_device_base::ESPBTDeviceListener *listener) override {
+  void register_listener(ble_device_base::ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
     this->listeners_.push_back(listener);
 #endif
   }
-  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) override {
+  void set_raw_advertisement_callback(ble_device_base::RawAdvertisementCallback callback) {
     this->raw_advertisement_callback_ = callback;
   }
-  ble_device_base::HubCapabilities get_capabilities() const override {
+  static constexpr ble_device_base::HubCapabilities get_capabilities() {
     // The Beken BDK exposes no active-scan path (passive scanning only), so the
     // controller never solicits scan responses and never merges them; consumers
     // relying on scan-response fields (device names) get them only where the
@@ -110,21 +109,21 @@ class BK72xxBLETracker : public Component,
     // path there is no mode to switch to.
     return {.active_scan = false, .merges_scan_response = false, .gatt = false, .scan_mode_switch = false};
   }
-  bool request_scan_mode(bool active) override {
+  bool request_scan_mode(bool active) {
     // Passive-only controller: a passive request is already honored, an active
     // one cannot be.
     return !active;
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
-  void get_adapter_mac(uint8_t out[6]) override {
+  void get_adapter_mac(uint8_t out[6]) {
     uint8_t mac[6];
     this->parent_->get_mac_lsb_first(mac);
     for (int i = 0; i < 6; i++)
       out[i] = mac[5 - i];
   }
-  bool scan_running() override { return this->scan_running_; }
-  bool scan_active() override { return false; }  // BK72xx scan is passive-only
+  bool scan_running() { return this->scan_running_; }
+  bool scan_active() { return false; }  // BK72xx scan is passive-only
 
   // ---- bk72xx_ble::BLEScanListener ----
   // Delivered by the controller's loop() on the ESPHome main task — the
