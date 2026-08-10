@@ -426,6 +426,20 @@ TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
+// --- packed bit helpers ------------------------------------------------------
+
+TEST(ModbusHelpersTest, PackBitsAppendsToContainer) {
+  // Bits are packed LSB first: the first value is bit 0 of the first byte, and the push_back
+  // overload appends packed bytes onto a growable container preserving existing content.
+  std::vector<bool> bits{true, false, true, true, false, false, false, false, true, true};
+  std::vector<uint8_t> out{0x55};  // pre-existing content must be preserved
+  pack_bits(out, bits);
+  ASSERT_EQ(out.size(), 3u);  // leading byte + 2 packed bytes (10 bits)
+  EXPECT_EQ(out[0], 0x55);
+  EXPECT_EQ(out[1], 0x0D);  // 0b00001101
+  EXPECT_EQ(out[2], 0x03);  // bits 8 and 9 -> bits 0,1 of second byte
+}
+
 // --- typed builders ----------------------------------------------------------
 
 TEST(ModbusTypedBuilders, ReadPduWireBytes) {
@@ -467,6 +481,71 @@ TEST(ModbusTypedBuilders, WriteRegistersPduRejectsOverLimit) {
   EXPECT_TRUE(create_write_registers_pdu(0x0000, values).empty());
   values.pop_back();
   EXPECT_FALSE(create_write_registers_pdu(0x0000, values).empty());
+}
+
+TEST(ModbusTypedBuilders, ReadWriteMultipleRegistersPduWireBytes) {
+  const uint16_t write_values[] = {0x000B, 0x0016};
+  // Read 2 registers at 0x0010, write 2 registers at 0x0020.
+  auto pdu = create_read_write_multiple_registers_pdu(0x0010, 2, 0x0020, write_values);
+  const std::vector<uint8_t> expected{0x17, 0x00, 0x10, 0x00, 0x02, 0x00, 0x20,
+                                      0x00, 0x02, 0x04, 0x00, 0x0B, 0x00, 0x16};
+  EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
+  EXPECT_TRUE(is_client_pdu_standard(pdu.data(), pdu.size()));
+}
+
+TEST(ModbusTypedBuilders, ReadWriteMultipleRegistersPduRejectsOutOfRange) {
+  const uint16_t one_value[] = {0x0001};
+  const uint16_t two_values[] = {0x0001, 0x0002};
+  // Read count out of range (zero and above the read ceiling).
+  EXPECT_TRUE(create_read_write_multiple_registers_pdu(0x0000, 0, 0x0020, one_value).empty());
+  EXPECT_TRUE(
+      create_read_write_multiple_registers_pdu(0x0000, MAX_NUM_OF_REGISTERS_TO_READ + 1, 0x0020, one_value).empty());
+  // Write count out of range (empty, and above the read/write ceiling which is lower than a plain write).
+  EXPECT_TRUE(create_read_write_multiple_registers_pdu(0x0000, 1, 0x0020, std::span<const uint16_t>()).empty());
+  std::vector<uint16_t> too_many(MAX_NUM_OF_REGISTERS_TO_WRITE_RW + 1, 0xAAAA);
+  EXPECT_TRUE(create_read_write_multiple_registers_pdu(0x0000, 1, 0x0020, too_many).empty());
+  // Both blocks at their respective ceilings are accepted.
+  std::vector<uint16_t> at_write_limit(MAX_NUM_OF_REGISTERS_TO_WRITE_RW, 0xAAAA);
+  EXPECT_FALSE(
+      create_read_write_multiple_registers_pdu(0x0000, MAX_NUM_OF_REGISTERS_TO_READ, 0x0020, at_write_limit).empty());
+  // A block that runs past the 16-bit address space is refused (read block, then write block).
+  EXPECT_TRUE(create_read_write_multiple_registers_pdu(0xFFFF, 2, 0x0020, one_value).empty());
+  EXPECT_TRUE(create_read_write_multiple_registers_pdu(0x0000, 2, 0xFFFF, two_values).empty());
+  // Accept boundary: a block ending exactly at 0x10000 (last register 0xFFFF) still fits.
+  EXPECT_FALSE(create_read_write_multiple_registers_pdu(0xFFFE, 2, 0x0000, one_value).empty());  // read ends at 0x10000
+  EXPECT_FALSE(
+      create_read_write_multiple_registers_pdu(0x0000, 1, 0xFFFF, one_value).empty());  // write ends at 0x10000
+}
+
+TEST(ModbusFunctionCodeClass, ReadWriteMultipleCountsAsBothReadAndWrite) {
+  const auto rw = static_cast<uint8_t>(FC::READ_WRITE_MULTIPLE_REGISTERS);
+  // 0x17 both reads and writes, but it is not a pure (retry-safe) read.
+  EXPECT_TRUE(is_function_code_read(rw));
+  EXPECT_TRUE(is_function_code_write(rw));
+  EXPECT_FALSE(is_function_code_read_only(rw));
+  // Pure reads are read and read-only, never write.
+  const auto rd = static_cast<uint8_t>(FC::READ_HOLDING_REGISTERS);
+  EXPECT_TRUE(is_function_code_read(rd));
+  EXPECT_TRUE(is_function_code_read_only(rd));
+  EXPECT_FALSE(is_function_code_write(rd));
+  // Plain writes are write only.
+  const auto wr = static_cast<uint8_t>(FC::WRITE_MULTIPLE_REGISTERS);
+  EXPECT_TRUE(is_function_code_write(wr));
+  EXPECT_FALSE(is_function_code_read(wr));
+  EXPECT_FALSE(is_function_code_read_only(wr));
+  // Mask-write register mutates via read-modify-write, so it classes as a write, never a read.
+  const auto mask = static_cast<uint8_t>(FC::MASK_WRITE_REGISTER);
+  EXPECT_TRUE(is_function_code_write(mask));
+  EXPECT_FALSE(is_function_code_read(mask));
+  EXPECT_FALSE(is_function_code_read_only(mask));
+}
+
+TEST(ModbusCreateClientPdu, ReadWriteMultipleReturnsEmpty) {
+  // The generic builder cannot express 0x17's two blocks; callers use the dedicated builder instead.
+  const uint16_t values[] = {0x0001};
+  EXPECT_TRUE(create_client_pdu(FC::READ_WRITE_MULTIPLE_REGISTERS, 0x0000, 1, reinterpret_cast<const uint8_t *>(values),
+                                sizeof(values))
+                  .empty());
 }
 
 TEST(ModbusTypedBuilders, FloatToPayloadAppendsToExistingContent) {

@@ -1,7 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
-#include <utility>
 #include <vector>
 
 #include "esphome/core/progmem.h"
@@ -46,9 +45,20 @@ class MiddlewareHandler : public AsyncWebHandler {
 };
 
 #ifdef USE_WEBSERVER_AUTH
+// All fields point to string literals in generated code; nothing is copied.
 struct Credentials {
-  std::string username;
-  std::string password;
+#if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
+  const char *username{nullptr};
+  const char *password{nullptr};
+  bool is_set() const { return username != nullptr; }
+#else
+  // base64("username:password"), precomputed at codegen time. Used by every non-ESP32 basic
+  // auth build. The ESP8266 and RP2040 core libb64 wraps base64 output every 72 chars, so
+  // letting the library encode and compare fails for long credentials; instead the header
+  // payload is compared against this hash.
+  const char *basic_auth_hash{nullptr};
+  bool is_set() const { return basic_auth_hash != nullptr; }
+#endif
 };
 
 class AuthMiddlewareHandler : public MiddlewareHandler {
@@ -57,10 +67,14 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
       : MiddlewareHandler(next), credentials_(credentials) {}
 
   bool check_auth(AsyncWebServerRequest *request) {
-    bool success = request->authenticate(credentials_->username.c_str(), credentials_->password.c_str());
+    // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
+    // compiled out. On ESP32 our own server picks the scheme internally.
+#if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
+    bool success = request->authenticate(credentials_->username, credentials_->password);
+#else
+    bool success = request->authenticate(credentials_->basic_auth_hash);
+#endif
     if (!success) {
-      // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
-      // compiled out. On ESP32 our own server picks the scheme internally.
 #if USE_ESP32
       request->requestAuthentication();
 #elif defined(USE_WEBSERVER_AUTH_DIGEST)
@@ -125,8 +139,12 @@ class WebServerBase final {
   AsyncWebServer *get_server() const { return this->server_; }
 
 #ifdef USE_WEBSERVER_AUTH
-  void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
-  void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
+#if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
+  void set_auth_username(const char *auth_username) { credentials_.username = auth_username; }
+  void set_auth_password(const char *auth_password) { credentials_.password = auth_password; }
+#else
+  void set_auth_basic_hash(const char *hash) { credentials_.basic_auth_hash = hash; }
+#endif
 #endif
 
   void add_handler(AsyncWebHandler *handler);

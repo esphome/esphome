@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
@@ -427,14 +429,15 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  uint8_t *p = cmd.payload.init((values.size() + 7) / 8);
-  memset(p, 0, (values.size() + 7) / 8);
-  size_t bit = 0;
-  for (auto coil : values) {
-    if (coil) {
-      p[bit / 8] |= (1 << (bit % 8));
-    }
-    bit++;
+  // Pack through the shared bit view (MutablePackedBits) so the coil wire layout lives in one place
+  // instead of an open-coded loop.
+  const size_t byte_count = modbus::packed_bit_bytes(values.size());
+  uint8_t *p = cmd.payload.init(byte_count);
+  memset(p, 0, byte_count);
+  modbus::MutablePackedBits bits(std::span<uint8_t>(p, byte_count), static_cast<uint16_t>(values.size()));
+  for (size_t i = 0; i != values.size(); i++) {
+    if (values[i])
+      bits.set(i, true);
   }
   return cmd;
 }

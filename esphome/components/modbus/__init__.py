@@ -28,6 +28,7 @@ MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000
 MAX_NUM_OF_COILS_TO_WRITE = 1968
 MAX_NUM_OF_REGISTERS_TO_READ = 125
 MAX_NUM_OF_REGISTERS_TO_WRITE = 123
+MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)

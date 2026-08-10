@@ -151,9 +151,7 @@ struct ModbusDeviceCommand {
   static CommandPriority classify(uint8_t function_code) {
     if (helpers::is_function_code_exception(function_code))
       return CommandPriority::READ;
-    const auto code = static_cast<FunctionCode>(function_code);
-    if (helpers::is_function_code_write(function_code) || code == FunctionCode::MASK_WRITE_REGISTER ||
-        code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS) {
+    if (helpers::is_function_code_write(function_code)) {
       return CommandPriority::WRITE;
     }
     return CommandPriority::READ;
@@ -162,7 +160,7 @@ struct ModbusDeviceCommand {
   // Requests this entry can serve: a standard read twice (run plus one re-run), everything else once.
   uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
-    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read(fc);
+    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read_only(fc);
     return (requeueable && !this->continuous) ? 2 : 1;
   }
   // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
@@ -361,9 +359,27 @@ class ModbusServerHub : public Modbus {
   // Appends the big-endian register values in values to registers, in host byte order.
   void assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
-  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
-  ResponseStatus check_register_range_(uint16_t start_address, uint16_t number_of_registers);
+  // Returns std::nullopt if [start_address, start_address + count) fits in the 16-bit address space,
+  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required - a broadcast
+  // write is never answered, so the check cannot send it itself. Shared by the register and
+  // coil/discrete-input handlers, which all address the same 16-bit space.
+  ResponseStatus check_address_range_(uint16_t start_address, uint16_t count);
+
+  // Parses a read request PDU (start address(2) + quantity(2)), shared by the register and
+  // coil/discrete-input reads so the two cannot drift apart. max_entities is the protocol ceiling for the
+  // function code; entity_name only labels the rejection log.
+  ResponseStatus parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities, const LogString *entity_name,
+                                     uint16_t &start_address, uint16_t &count);
+
+  // Parses a single-coil write PDU (FC 0x05), which carries a 2-byte on/off value rather than packed
+  // bytes. The caller packs value into a byte it owns to build the PackedBits view the handlers take.
+  ResponseStatus parse_write_single_coil_(std::span<const uint8_t> data, uint16_t &start_address, bool &value);
+
+  // Parses a multiple-coil write PDU (FC 0x0F) into a packed-bit view pointing straight into the receive
+  // buffer, so the coil values are never copied. Both coil parsers are shared by the addressed and
+  // broadcast paths so the two validate identically.
+  ResponseStatus parse_write_multiple_coils_(std::span<const uint8_t> data, uint16_t &start_address, uint16_t &count,
+                                             std::span<const uint8_t> &packed_bytes);
 
   // Builds the body of a register read response (byte count followed by the big-endian register values) into
   // response_buffer. Shared by every function code that answers with register values, so the read reply stays
@@ -374,6 +390,9 @@ class ModbusServerHub : public Modbus {
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  // Sends and logs the exception reply when status holds one; returns true if the request was rejected.
+  // Every parse and handler rejection funnels through here, so the reply and its log cannot drift apart.
+  bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
@@ -573,6 +592,16 @@ class ModbusClientDevice {
   bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
     return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
+  /// FC 0x17: the read-back is delivered through on_read_holding_registers() (the response carries only the
+  /// read registers, the same wire shape as a holding-register read). A device exception - typically a
+  /// rejected write half - arrives at that same on_read_holding_registers() with the error in its status,
+  /// exactly as success does, so a subclass overriding that one callback handles both outcomes and never
+  /// needs to also override on_error().
+  bool read_write_multiple_registers(uint16_t read_start_address, uint16_t read_count, uint16_t write_start_address,
+                                     std::span<const uint16_t> write_values) {
+    return this->queue_pdu(helpers::create_read_write_multiple_registers_pdu(read_start_address, read_count,
+                                                                             write_start_address, write_values));
+  }
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
@@ -644,18 +673,26 @@ class ModbusServerDevice {
   virtual ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ExceptionCode::ILLEGAL_FUNCTION;
   };
-  // Hub entry point for broadcast (address 0) writes, which are never answered.
-  ResponseStatus on_broadcast_write_registers(uint16_t start_address, const RegisterValues &registers) {
-    this->broadcast_write_ = true;
-    ResponseStatus status = this->on_write_registers(start_address, registers);
-    this->broadcast_write_ = false;
-    return status;
-  }
+  /// Coil/discrete-input reads: set the requested bits (bit 0 = the coil at start_address) with
+  /// bits.set(). The view covers bits.size() pre-zeroed bits and writes land directly in the hub's
+  /// response buffer (no copy); it is only valid during the call.
+  virtual ResponseStatus on_read_bits(uint16_t start_address, MutablePackedBits bits) {
+    return ExceptionCode::ILLEGAL_FUNCTION;
+  };
+  virtual ResponseStatus on_read_coils(uint16_t start_address, MutablePackedBits bits) {
+    return this->on_read_bits(start_address, bits);
+  };
+  virtual ResponseStatus on_read_discrete_inputs(uint16_t start_address, MutablePackedBits bits) {
+    return this->on_read_bits(start_address, bits);
+  };
+  /// Coil writes deliver the values as a PackedBits view over the hub's receive buffer (only valid
+  /// during the call). A single-coil write (FC 0x05) arrives as bits.size() == 1.
+  virtual ResponseStatus on_write_coils(uint16_t start_address, PackedBits bits) {
+    return ExceptionCode::ILLEGAL_FUNCTION;
+  };
 
  protected:
   uint8_t address_{0};
-  // Set while handling a broadcast write: the caller sends no reply, so a rejection has no wire consequence.
-  bool broadcast_write_{false};
 };
 
 }  // namespace esphome::modbus
