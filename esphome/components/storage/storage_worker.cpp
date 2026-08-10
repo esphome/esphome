@@ -509,8 +509,7 @@ StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCa
   return this->submit_control_op_(RequestOp::FORMAT, target, std::move(on_done), job_out);
 }
 
-StorageError StorageWorker::async_mount(PathStorage *target, CompletionCallback &&on_done,
-                                        TransferJob *job_out) {
+StorageError StorageWorker::async_mount(PathStorage *target, CompletionCallback &&on_done, TransferJob *job_out) {
   if (target == nullptr || target->as_mountable() == nullptr)
     return StorageError::NOT_SUPPORTED;
   // Same slot shape as FORMAT: target in dst_storage, no paths, no handles -- registry
@@ -518,7 +517,6 @@ StorageError StorageWorker::async_mount(PathStorage *target, CompletionCallback 
   // like any transfer. run_chunk_ resolves it back through as_mountable().
   return this->submit_control_op_(RequestOp::MOUNT, target, std::move(on_done), job_out);
 }
-
 
 StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64_t address, uint64_t size,
                                         PathStorage *file_side, const char *file_path, bool erase_first, bool overwrite,

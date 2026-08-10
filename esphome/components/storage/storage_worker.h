@@ -597,8 +597,8 @@ class StorageWorker : public PollingComponent {
   storage::StorageError tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told);
 
  protected:
-  storage::StorageError submit_control_op_(RequestOp op, storage::PathStorage *target,
-                                           CompletionCallback &&on_done, TransferJob *job_out);
+  storage::StorageError submit_control_op_(RequestOp op, storage::PathStorage *target, CompletionCallback &&on_done,
+                                           TransferJob *job_out);
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,
                                 storage::PathStorage *dst, const char *dst_path, CompletionCallback &&on_done,
                                 TransferJob *job_out = nullptr, bool overwrite = false);
