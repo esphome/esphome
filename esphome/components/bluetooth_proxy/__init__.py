@@ -152,8 +152,8 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
 def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
     GATT client backend in bluetooth_connection. Multi-slot builds replace the
-    prebuilt library's one-client BTstack pools via linker --wrap (emitted by
-    bluetooth_connection's backend registration)."""
+    prebuilt library's one-client BTstack pools via linker --wrap, owned by
+    rp2040_ble and requested when a second backend registers."""
     connection_schema = bluetooth_connection.hub_connection_schema(PLATFORM_RP2)
 
     def populate_connections(config: ConfigType) -> ConfigType:
