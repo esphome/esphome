@@ -8,10 +8,11 @@ namespace esphome::modbus::helpers {
 static const char *const TAG = "modbus_helpers";
 
 // A quantity/address pair is standard when the quantity is non-zero, within the per-table maximum,
-// and the range [start_address, start_address + quantity) stays inside the 16-bit address space
-// (the 32-bit promotion is the overflow guard - a 16-bit sum could wrap and pass).
+// and the range [start_address, start_address + quantity) stays inside the 16-bit address space.
+// Non-logging twin of register_block_in_range(): the same three predicates for the parser side, taking a
+// uint16_t quantity. register_block_in_range() is the builder-side variant that also logs which half failed.
 static bool quantity_in_range(uint16_t start_address, uint16_t quantity, uint16_t max_quantity) {
-  return quantity != 0 && quantity <= max_quantity && uint32_t(start_address) + quantity <= 0x10000u;
+  return quantity != 0 && quantity <= max_quantity && address_range_fits(start_address, quantity);
 }
 
 // The spec allows exactly ON (0xFF00) and OFF (0x0000) for a single-coil value, on the request and
@@ -69,8 +70,10 @@ uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
     case FunctionCode::WRITE_SINGLE_REGISTER:
       return 5;  // function(1) + output/register address(2) + value(2)
     case FunctionCode::WRITE_MULTIPLE_COILS:
+      // function(1) + start address(2) + quantity(2) + byte count(1) + packed coil data (8 coils per byte).
+      return 6 + (size > 5 ? std::min(frame[5], uint8_t(packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE))) : 0);
     case FunctionCode::WRITE_MULTIPLE_REGISTERS:
-      // function(1) + start address(2) + quantity(2) + byte count(1) + data
+      // function(1) + start address(2) + quantity(2) + byte count(1) + register data (2 bytes per register).
       return 6 + (size > 5 ? std::min(frame[5], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
     case FunctionCode::READ_FILE_RECORD:
@@ -305,16 +308,20 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
   return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
+// Append a 16-bit value to a PDU in big-endian (wire) byte order.
+template<size_t CAP> static void append_pdu_word(StaticVector<uint8_t, CAP> &pdu, uint16_t value) {
+  pdu.push_back(value >> 8);
+  pdu.push_back(value >> 0);
+}
+
 // Every request PDU opens with the same 5-byte layout: function code, then two big-endian 16-bit
 // fields (start address + quantity for reads and multi-writes, address + value for single writes).
 template<size_t CAP>
 static void append_pdu_header(StaticVector<uint8_t, CAP> &pdu, FunctionCode function_code, uint16_t first,
                               uint16_t second) {
   pdu.push_back(static_cast<uint8_t>(function_code));
-  pdu.push_back(first >> 8);
-  pdu.push_back(first >> 0);
-  pdu.push_back(second >> 8);
-  pdu.push_back(second >> 0);
+  append_pdu_word(pdu, first);
+  append_pdu_word(pdu, second);
 }
 
 // Zero the unused bits of a multi-coil write's final data byte, as the spec requires. Kept in one
@@ -333,7 +340,7 @@ ReadPdu create_read_pdu(FunctionCode function_code, uint16_t start_address, uint
     ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
     return pdu;
   }
-  if (uint32_t(start_address) + number_of_entities > 0x10000u) {
+  if (!address_range_fits(start_address, number_of_entities)) {
     ESP_LOGE(TAG, "Read of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
              start_address);
     return pdu;
@@ -376,7 +383,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
   // Generic entry point; prefer the direction- and type-specific builders (create_read_pdu(),
   // create_write_registers_pdu(), etc.) which bound their inputs per spec.
-  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
+  if (is_function_code_read_only(static_cast<uint8_t>(function_code))) {
     if (values != nullptr || values_len > 0) {
       ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
                static_cast<uint8_t>(function_code));
@@ -415,7 +422,7 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
              static_cast<uint8_t>(function_code));
     return pdu;
   }
-  if (!is_single && uint32_t(start_address) + number_of_entities > 0x10000u) {
+  if (!is_single && !address_range_fits(start_address, number_of_entities)) {
     ESP_LOGE(TAG, "Write of %u entities at %u runs past the 16-bit address space, dropping request", number_of_entities,
              start_address);
     return pdu;
@@ -458,29 +465,59 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
   return pdu;
 }
 
+// Validate one register block for a client builder: a non-zero quantity within max_quantity that does not
+// run past the 16-bit address space (register count × 2 stays within MAX_PDU_SIZE as a result). On failure
+// it logs the reason and returns false, on which the caller returns an empty PDU. `role` names the block in
+// the log ("Read"/"Write"). Logging twin of quantity_in_range(): the same three predicates, split so each
+// failure names its reason, and taking size_t so an oversize span is caught before any narrowing.
+static bool register_block_in_range(const LogString *role, uint16_t start_address, size_t quantity,
+                                    uint16_t max_quantity) {
+  if (quantity == 0 || quantity > max_quantity) {
+    ESP_LOGE(TAG, "%s count %zu out of range [1, %u], dropping request", LOG_STR_ARG(role), quantity, max_quantity);
+    return false;
+  }
+  if (!address_range_fits(start_address, quantity)) {
+    ESP_LOGE(TAG, "%s of %zu registers at %u runs past the 16-bit address space, dropping request", LOG_STR_ARG(role),
+             quantity, start_address);
+    return false;
+  }
+  return true;
+}
+
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
   PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
-  if (values.empty()) {
-    ESP_LOGE(TAG, "No values provided for write multiple registers, dropping request");
-    return pdu;
-  }
-  // Byte count is registers × 2 (per spec); bounding the register count keeps the PDU within MAX_PDU_SIZE.
-  if (values.size() > MAX_NUM_OF_REGISTERS_TO_WRITE) {
-    ESP_LOGE(TAG, "values.size() %zu exceeds maximum registers to write %u, dropping request", values.size(),
-             MAX_NUM_OF_REGISTERS_TO_WRITE);
-    return pdu;
-  }
-  if (uint32_t(start_address) + values.size() > 0x10000u) {
-    ESP_LOGE(TAG, "Write of %zu registers at %u runs past the 16-bit address space, dropping request", values.size(),
-             start_address);
+  if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), MAX_NUM_OF_REGISTERS_TO_WRITE)) {
     return pdu;
   }
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
   pdu.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
   for (auto v : values) {
-    auto decoded_value = decode_value(v);
-    pdu.push_back(decoded_value[0]);
-    pdu.push_back(decoded_value[1]);
+    append_pdu_word(pdu, v);
+  }
+  return pdu;
+}
+
+PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,
+                                                   uint16_t write_start_address,
+                                                   std::span<const uint16_t> write_values) {
+  PduBuffer pdu;
+  if (!register_block_in_range(LOG_STR("Read"), read_start_address, read_count, MAX_NUM_OF_REGISTERS_TO_READ)) {
+    return pdu;
+  }
+  if (!register_block_in_range(LOG_STR("Write"), write_start_address, write_values.size(),
+                               MAX_NUM_OF_REGISTERS_TO_WRITE_RW)) {
+    return pdu;
+  }
+  // fc + read start(2) + read qty(2) + write start(2) + write qty(2) + write byte count(1) + write values.
+  const auto write_count = static_cast<uint16_t>(write_values.size());
+  pdu.push_back(static_cast<uint8_t>(FunctionCode::READ_WRITE_MULTIPLE_REGISTERS));
+  append_pdu_word(pdu, read_start_address);
+  append_pdu_word(pdu, read_count);
+  append_pdu_word(pdu, write_start_address);
+  append_pdu_word(pdu, write_count);
+  pdu.push_back(static_cast<uint8_t>(write_count * 2));  // byte count
+  for (auto v : write_values) {
+    append_pdu_word(pdu, v);
   }
   return pdu;
 }
@@ -510,7 +547,7 @@ static void build_write_coils_pdu(PduBuffer &pdu, uint16_t start_address, Packed
     ESP_LOGE(TAG, "count %u exceeds maximum coils to write %u, dropping request", count, MAX_NUM_OF_COILS_TO_WRITE);
     return;
   }
-  if (uint32_t(start_address) + count > 0x10000u) {
+  if (!address_range_fits(start_address, count)) {
     ESP_LOGE(TAG, "Write of %u coils at %u runs past the 16-bit address space, dropping request", count, start_address);
     return;
   }
@@ -546,12 +583,7 @@ static PduBuffer create_write_coils_pdu_from_bools(uint16_t start_address, const
     return pdu;
   }
   CoilPackBuffer packed;
-  for (size_t i = 0; i != count; i++) {
-    if (i % 8 == 0)
-      packed.push_back(0);
-    if (values[i])
-      packed[i / 8] |= (1 << (i % 8));
-  }
+  pack_bits(packed, values);
   build_write_coils_pdu(pdu, start_address, PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), count));
   return pdu;
 }

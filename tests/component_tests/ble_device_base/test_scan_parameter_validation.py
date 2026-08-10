@@ -16,8 +16,8 @@ from esphome.components.ln882h_ble_tracker import (
 from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA as RP2_SCHEMA
 
 
-def _validate(**kwargs: str) -> dict:
-    """Run a scan_parameters config through a passive tracker's real schema."""
+def _validate(**kwargs: str | bool) -> dict:
+    """Run a scan_parameters config through the bk72xx tracker's real schema."""
     return BK72XX_SCHEMA(kwargs)
 
 
@@ -48,11 +48,12 @@ def test_to_ble_units_truncates() -> None:
 
 
 def test_bk72xx_defaults_are_valid() -> None:
-    """bk72xx pins the BK reference rate: 100 ms interval, shared 30 ms window."""
+    """bk72xx pins the BK reference rate — 100 ms interval, shared 30 ms window —
+    and exposes active (default on, like every active-capable tracker)."""
     config = _validate()
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
-    assert "active" not in config
+    assert config["active"] is True
 
 
 def test_esp32_defaults_are_valid() -> None:
@@ -86,10 +87,9 @@ def test_esp32_active_can_disable() -> None:
     assert config["active"] is False
 
 
-def test_passive_schema_rejects_active_key() -> None:
-    """Trackers without active scan support must not silently accept the option."""
-    with pytest.raises(cv.Invalid):
-        _validate(active="true")
+def test_bk72xx_active_can_disable() -> None:
+    config = _validate(active=False)
+    assert config["active"] is False
 
 
 # --- accepted configurations ---
