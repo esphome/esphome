@@ -946,6 +946,11 @@ int RP2GattClient::gatt_disconnect() {
         // attempt, so a lost completion escalates on the next timeout tick.
         this->cancel_requested_ = true;
         this->connect_cancel_attempted_ = true;
+        // Grace period for the cancel completion: the client's disconnect
+        // often lands right at the engine's own deadline, and without the
+        // restart the loop timeout fires first and reports before the
+        // completion can finish the teardown cleanly.
+        this->connect_started_ = millis();
         BluetoothLock lock;
         // Owner: the cancel completes as a failed connection-complete. Not
         // the owner (completion already resolved in the BTstack context): the
