@@ -2,9 +2,9 @@
 // arduino-pico's prebuilt liblwip-bt.a (built with MAX_NR_GATT_CLIENTS 1,
 // MAX_NR_HCI_CONNECTIONS 2) with pools sized from ESPHOME_BLE_GATT_CLIENT_COUNT.
 // bluetooth_connection/__init__.py emits the matching -Wl,--wrap flags only
-// when more than one connection slot is configured; single-slot builds emit no
-// flags and this file compiles to nothing, leaving the prebuilt pools in
-// charge. Layout safety: the framework defines ENABLE_CLASSIC / ENABLE_BLE for
+// when more than one backend registers; single-backend builds emit no flags
+// and this file compiles to nothing, leaving the prebuilt pools in charge.
+// Layout safety: the framework defines ENABLE_CLASSIC / ENABLE_BLE for
 // every user TU whenever PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH is set
 // (rp2040_ble always sets it), so sizeof() here matches the archive.
 
@@ -19,34 +19,29 @@
 namespace esphome::bluetooth_connection {
 namespace {
 
-// One gatt_client_t per configured connection slot.
-constexpr int GATT_CLIENT_POOL_SIZE = ESPHOME_BLE_GATT_CLIENT_COUNT;
-// An hci_connection_t is held from gap_connect() to DISCONNECTION_COMPLETE
-// (scanning holds none); +1 mirrors the prebuilt library's own headroom
-// (2 connections for 1 GATT client) so a teardown/re-connect overlap can
-// never starve a slot.
+// One gatt_client_t per configured connection slot. An hci_connection_t is
+// held from gap_connect() to DISCONNECTION_COMPLETE (scanning holds none);
+// +1 mirrors the prebuilt library's own headroom (2 connections for 1 GATT
+// client) so a teardown/re-connect overlap can never starve a slot.
 constexpr int HCI_CONNECTION_POOL_SIZE = ESPHOME_BLE_GATT_CLIENT_COUNT + 1;
 
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-gatt_client_t gatt_client_storage[GATT_CLIENT_POOL_SIZE];
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables,cert-err58-cpp)
+gatt_client_t gatt_client_storage[ESPHOME_BLE_GATT_CLIENT_COUNT];
 btstack_memory_pool_t gatt_client_pool;
 hci_connection_t hci_connection_storage[HCI_CONNECTION_POOL_SIZE];
 btstack_memory_pool_t hci_connection_pool;
-bool pools_ready = false;
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-// Lazy one-time init instead of a global constructor: every caller (hci.c /
-// gatt_client.c inside the prebuilt archive) runs in BTstack's single
-// serialized context, so a plain flag is race-free and no static-init-order
-// hazard exists.
-void ensure_pools() {
-  if (pools_ready)
-    return;
-  btstack_memory_pool_create(&gatt_client_pool, gatt_client_storage, GATT_CLIENT_POOL_SIZE, sizeof(gatt_client_t));
-  btstack_memory_pool_create(&hci_connection_pool, hci_connection_storage, HCI_CONNECTION_POOL_SIZE,
-                             sizeof(hci_connection_t));
-  pools_ready = true;
-}
+// Static init: pool_create only links a free list through its own storage,
+// and BTstack first allocates long after static construction.
+struct PoolInit {
+  PoolInit() {
+    btstack_memory_pool_create(&gatt_client_pool, gatt_client_storage, ESPHOME_BLE_GATT_CLIENT_COUNT,
+                               sizeof(gatt_client_t));
+    btstack_memory_pool_create(&hci_connection_pool, hci_connection_storage, HCI_CONNECTION_POOL_SIZE,
+                               sizeof(hci_connection_t));
+  }
+} pool_init;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables,cert-err58-cpp)
 
 }  // namespace
 
@@ -56,7 +51,6 @@ void ensure_pools() {
 extern "C" {
 
 gatt_client_t *__wrap_btstack_memory_gatt_client_get(void) {
-  ensure_pools();
   void *buffer = btstack_memory_pool_get(&gatt_client_pool);
   if (buffer != nullptr) {
     memset(buffer, 0, sizeof(gatt_client_t));
@@ -69,7 +63,6 @@ void __wrap_btstack_memory_gatt_client_free(gatt_client_t *gatt_client) {
 }
 
 hci_connection_t *__wrap_btstack_memory_hci_connection_get(void) {
-  ensure_pools();
   void *buffer = btstack_memory_pool_get(&hci_connection_pool);
   if (buffer != nullptr) {
     memset(buffer, 0, sizeof(hci_connection_t));

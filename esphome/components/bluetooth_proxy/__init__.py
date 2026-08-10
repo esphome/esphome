@@ -153,8 +153,8 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
 def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
     GATT client backend in bluetooth_connection. Multi-slot builds replace the
-    prebuilt library's one-client BTstack pools via linker --wrap
-    (bluetooth_connection.add_btstack_pool_overrides)."""
+    prebuilt library's one-client BTstack pools via linker --wrap (emitted by
+    bluetooth_connection's backend registration)."""
     connection_schema = bluetooth_connection.hub_connection_schema(PLATFORM_RP2)
 
     def populate_connections(config: ConfigType) -> ConfigType:
@@ -207,8 +207,6 @@ async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     # this define whenever a proxy is present (zero on advertisement-only
     # hubs); sized here so it can never diverge from the loop below.
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", len(connections))
-    # Multi-slot rp2 builds outgrow the prebuilt BTstack pools; no-op elsewhere.
-    bluetooth_connection.add_btstack_pool_overrides(len(connections))
     for connection_conf in connections:
         backend = await bluetooth_connection.new_gatt_backend(connection_conf)
         connection = cg.new_Pvariable(connection_conf[CONF_ID])

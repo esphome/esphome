@@ -37,8 +37,8 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
 # arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1 and
-# MAX_NR_HCI_CONNECTIONS 2; for more than one slot, btstack_memory_rp2.cpp
-# replaces those pools via linker --wrap (add_btstack_pool_overrides), sized
+# MAX_NR_HCI_CONNECTIONS 2; for more than one backend, btstack_memory_rp2.cpp
+# replaces those pools via linker --wrap (emitted by _rp2_register), sized
 # from ESPHOME_BLE_GATT_CLIENT_COUNT. 3 matches the esp32 default and stays
 # within the controller's resources (MAX_NR_CONTROLLER_ACL_BUFFERS 3).
 RP2_MAX_CONNECTIONS = 3
@@ -56,6 +56,8 @@ BluedroidGattClient = bluetooth_connection_ns.class_(
 
 CONF_BACKEND_ID = "backend_id"
 
+DOMAIN = "bluetooth_connection"
+
 # The four btstack_memory accessors whose static pools are baked into the
 # prebuilt liblwip-bt.a; every internal use crosses an object boundary in the
 # archive, so --wrap intercepts them all (see btstack_memory_rp2.cpp).
@@ -67,15 +69,15 @@ _RP2_BTSTACK_POOL_SYMBOLS = (
 )
 
 
-def add_btstack_pool_overrides(slot_count: int) -> None:
-    """Emit the --wrap flags that swap the prebuilt BTstack pools for the
-    ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in btstack_memory_rp2.cpp.
-    No-op off rp2 and for single-slot builds, which fit the prebuilt pools
-    (and stay byte-identical to previous releases)."""
-    if not CORE.is_rp2 or slot_count <= 1:
-        return
-    for symbol in _RP2_BTSTACK_POOL_SYMBOLS:
-        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+@dataclass
+class _ConnectionData:
+    rp2_backend_count: int = 0
+
+
+def _get_data() -> _ConnectionData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _ConnectionData()
+    return CORE.data[DOMAIN]
 
 
 def _esp32_schema_fragment() -> cv.Schema:
@@ -103,6 +105,16 @@ async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
 async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
     from esphome.components import rp2040_ble
 
+    # More than one backend outgrows the prebuilt BTstack pools: swap them for
+    # the ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in btstack_memory_rp2.cpp.
+    # Keyed to backend registrations (the same event that grows the count that
+    # sizes the pools), so single-backend builds emit no flags and stay
+    # byte-identical to previous releases.
+    data = _get_data()
+    data.rp2_backend_count += 1
+    if data.rp2_backend_count == 2:
+        for symbol in _RP2_BTSTACK_POOL_SYMBOLS:
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
     await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
 
 
