@@ -246,20 +246,36 @@ def test_setup_log_mixed_streams_init_colorama(
     assert "\033[31mred\033[0m end" in text
 
 
+@pytest.fixture
+def colorama_probe(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> Generator[None, None, None]:
+    """Shared preamble for the in-process guard-branch tests.
+
+    Clears colorama from sys.modules so the assertions prove what
+    setup_log() itself did, and snapshots CORE.verbose/quiet, which is
+    not a no-op: CORE.reset() does not restore them, so without the
+    snapshot setup_log()'s log-level side effects would leak into later
+    tests.
+    """
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    yield
+    # init() rebinds sys.stdout/stderr; restore them before monkeypatch
+    # puts the originals back.
+    if (colorama := sys.modules.get("colorama")) is not None:
+        colorama.deinit()
+
+
 @pytest.mark.skipif(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
 def test_setup_log_dashboard_branch_skips_colorama_import(
-    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
 ) -> None:
     """The dashboard side of the guard must not import colorama."""
-    monkeypatch.delitem(sys.modules, "colorama", raising=False)
     monkeypatch.setattr(CORE, "dashboard", True)
-    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
-    # them here so setup_log()'s log-level side effects cannot leak into
-    # later tests.
-    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
-    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     setup_log()
     assert "colorama" not in sys.modules
 
@@ -268,15 +284,9 @@ def test_setup_log_dashboard_branch_skips_colorama_import(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
 def test_setup_log_tty_branch_skips_colorama_import(
-    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
 ) -> None:
     """The tty side of the guard must not import colorama."""
-    monkeypatch.delitem(sys.modules, "colorama", raising=False)
-    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
-    # them here so setup_log()'s log-level side effects cannot leak into
-    # later tests.
-    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
-    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     monkeypatch.setattr(sys, "stdout", _FakeTty())
     monkeypatch.setattr(sys, "stderr", _FakeTty())
     setup_log()
@@ -287,52 +297,49 @@ def test_setup_log_tty_branch_skips_colorama_import(
     sys.platform == "win32", reason="colorama always initializes on Windows"
 )
 def test_setup_log_redirected_branch_imports_colorama(
-    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
 ) -> None:
     """Redirected streams must keep importing and initializing colorama."""
-    monkeypatch.delitem(sys.modules, "colorama", raising=False)
-    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
-    # them here so setup_log()'s log-level side effects cannot leak into
-    # later tests.
-    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
-    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     monkeypatch.setattr(sys, "stdout", io.StringIO())
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     setup_log()
-    try:
-        assert "colorama" in sys.modules
-    finally:
-        # init() rebinds sys.stdout/stderr; restore them before monkeypatch
-        # puts the originals back.
-        if "colorama" in sys.modules:
-            sys.modules["colorama"].deinit()
+    assert "colorama" in sys.modules
+
+
+@pytest.mark.parametrize("broken", ["missing", "closed"])
+def test_setup_log_broken_streams_import_colorama(
+    broken: str, monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """A missing or closed stream counts as a redirect and must not crash.
+
+    colorama tolerates both, so setup_log() has to reach its init rather
+    than raise inside the tty probe.
+    """
+    if broken == "missing":
+        stream = None
+    else:
+        stream = io.StringIO()
+        stream.close()
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stderr", stream)
+    setup_log()
+    assert "colorama" in sys.modules
 
 
 def test_setup_log_win32_always_imports_colorama(
-    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
 ) -> None:
     """The Windows clause must init colorama even when both streams are ttys.
 
     Old Windows consoles need colorama to translate ANSI escapes, so the
-    platform check has to win over the tty check.
+    platform check has to win over the tty check. colorama itself keys
+    off os.name, so on a POSIX host its init/deinit pair is a
+    passthrough.
     """
-    monkeypatch.delitem(sys.modules, "colorama", raising=False)
     monkeypatch.setattr(sys, "platform", "win32")
-    # Not a no-op: CORE.reset() does not restore verbose/quiet, so snapshot
-    # them here so setup_log()'s log-level side effects cannot leak into
-    # later tests.
-    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
-    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
     # Both streams are ttys: without the platform clause this combination
     # would skip colorama.
     monkeypatch.setattr(sys, "stdout", _FakeTty())
     monkeypatch.setattr(sys, "stderr", _FakeTty())
     setup_log()
-    try:
-        assert "colorama" in sys.modules
-    finally:
-        # init() rebinds sys.stdout/stderr; restore them before monkeypatch
-        # puts the originals back. colorama itself keys off os.name, so on
-        # a POSIX host this init/deinit pair is a passthrough.
-        if "colorama" in sys.modules:
-            sys.modules["colorama"].deinit()
+    assert "colorama" in sys.modules
