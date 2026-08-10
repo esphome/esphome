@@ -11,8 +11,6 @@ import os
 from pathlib import Path
 import time
 
-import requests
-
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
@@ -35,6 +33,10 @@ class RemoteFile:
 
     url: str
     path: Path
+    # False when nothing downstream can verify the bytes (e.g. firmware
+    # without a checksum): a copy that cannot be revalidated is then an
+    # error instead of a silent fallback.
+    allow_stale: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +137,9 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
 def has_remote_file_changed(
     url: str, local_file_path: Path, timeout: int = NETWORK_TIMEOUT
 ) -> bool:
+    # Deferred so configs with no remote files skip the heavy import.
+    import requests
+
     ensure_happy_eyeballs()
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
@@ -241,6 +246,9 @@ def download_content(
     pass ``return_content=False`` to skip the disk read on cache hits.
     """
 
+    # Deferred so configs with no remote files skip the heavy import.
+    import requests
+
     def _cached() -> bytes:
         return path.read_bytes() if return_content else b""
 
@@ -250,7 +258,7 @@ def download_content(
     fresh_paths = run_data.fresh_paths
     if path in fresh_paths and path.exists():
         return _cached()
-    if path in run_data.stale_paths and path.exists() and allow_stale:
+    if allow_stale and path in run_data.stale_paths and path.exists():
         # Strict callers fall through to try the network themselves.
         _LOGGER.info("Using cached copy of %s that could not be revalidated", url)
         return _cached()
@@ -333,13 +341,12 @@ def download_content_many(
     timeout: int = NETWORK_TIMEOUT,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
     description: str = "remote file(s)",
-    allow_stale: bool = True,
 ) -> None:
     """Run `download_content` for each `RemoteFile` concurrently.
 
     `description` names the kind of files in the progress log line, e.g.
-    "wake word manifest(s)". `allow_stale` is forwarded to
-    `download_content` for every file.
+    "wake word manifest(s)". Each file's own `allow_stale` is forwarded
+    to `download_content`.
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
     files where the HEAD round-trip dominates. All workers run to
@@ -351,9 +358,15 @@ def download_content_many(
     Items are de-duplicated by `path` -- two callers asking for the same
     cache file (e.g. the same URL referenced twice in a config) would
     otherwise race on `download_content`'s non-atomic write. When the
-    same `path` appears more than once, the last URL wins.
+    same `path` appears more than once, the last URL wins and a strict
+    `allow_stale=False` from any duplicate is kept.
     """
-    unique = list({file.path: file for file in items}.values())
+    seen: dict[Path, RemoteFile] = {}
+    for file in items:
+        if (prior := seen.get(file.path)) is not None and not prior.allow_stale:
+            file = RemoteFile(file.url, file.path, allow_stale=False)
+        seen[file.path] = file
+    unique = list(seen.values())
     if not unique:
         return
     ensure_happy_eyeballs()
@@ -361,7 +374,11 @@ def download_content_many(
 
     def _download_one(file: RemoteFile) -> None:
         download_content(
-            file.url, file.path, timeout, allow_stale=allow_stale, return_content=False
+            file.url,
+            file.path,
+            timeout,
+            allow_stale=file.allow_stale,
+            return_content=False,
         )
 
     if len(unique) == 1:

@@ -30,7 +30,11 @@ def test_prefetch_explicit_url_without_sha(setup_core: Path) -> None:
     entries = [{"firmware": {"url": url, "update": True}}]
     stages = list(shd.PREFETCH_FILES(entries))
     key = external_files.url_cache_key(url)
-    assert stages == [[RemoteFile(url, shd._firmware_cache_path(key))]]
+    # No sha means the bytes cannot be verified, so the prefetch itself
+    # must carry the validator's strict no-stale policy.
+    assert stages == [
+        [RemoteFile(url, shd._firmware_cache_path(key), allow_stale=False)]
+    ]
 
 
 def test_prefetch_skips_no_update(setup_core: Path) -> None:

@@ -495,23 +495,30 @@ def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
     parses the now-cached CSS for the ttf URLs it names.
     """
     stage1: list[RemoteFile] = []
-    stale_gfonts: list[ConfigType] = []
+    # Keyed by cache path: the same font at several sizes is one download,
+    # one freshness stat, and one stage-two CSS parse.
+    stale_gfonts: dict[Path, ConfigType] = {}
+    seen_web: set[Path] = set()
     for spec in _iter_remote_specs(entries):
         if spec[CONF_TYPE] == TYPE_WEB:
-            stage1.append(RemoteFile(spec[CONF_URL], _web_font_path(spec)))
-        elif not external_files.is_file_recent(
-            _gfonts_ttf_path(spec), spec[CONF_REFRESH]
+            if (path := _web_font_path(spec)) not in seen_web:
+                seen_web.add(path)
+                stage1.append(RemoteFile(spec[CONF_URL], path))
+        elif (css_path := _gfonts_css_path(spec)) not in stale_gfonts and (
+            not external_files.is_file_recent(
+                _gfonts_ttf_path(spec), spec[CONF_REFRESH]
+            )
         ):
-            stale_gfonts.append(spec)
-            stage1.append(RemoteFile(_gfonts_css_url(spec), _gfonts_css_path(spec)))
+            stale_gfonts[css_path] = spec
+            stage1.append(RemoteFile(_gfonts_css_url(spec), css_path))
     yield stage1
 
     yield [
         RemoteFile(ttf_url, _gfonts_ttf_path(spec))
-        for spec in stale_gfonts
+        for css_path, spec in stale_gfonts.items()
         # Only trust CSS that stage one actually refreshed this run; a
         # leftover from an earlier run may name a rotated ttf URL.
-        if external_files.is_fresh_this_run(css_path := _gfonts_css_path(spec))
+        if external_files.is_fresh_this_run(css_path)
         and css_path.exists()
         and (ttf_url := _parse_gfonts_css(css_path.read_text("utf-8", "replace")))
         is not None

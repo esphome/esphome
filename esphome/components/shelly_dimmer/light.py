@@ -131,7 +131,10 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
         url, sha = known
     if not isinstance(url, str):
         return None
-    return RemoteFile(url, _firmware_path(url, sha if isinstance(sha, str) else None))
+    sha = sha if isinstance(sha, str) else None
+    # Without a hash nothing downstream can verify the bytes, so the
+    # prefetch applies the same strict no-stale policy as the validator.
+    return RemoteFile(url, _firmware_path(url, sha), allow_stale=sha is not None)
 
 
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)

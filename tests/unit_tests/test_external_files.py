@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import time
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,19 +27,21 @@ def _seed_etag(cache_file: Path, etag: str) -> Path:
 
 @pytest.fixture
 def mock_requests_head() -> MagicMock:
-    """Patch `external_files.requests.head` so the conditional HEAD-request
-    validator can be tested without doing real HTTP.
+    """Patch `requests.head` so the conditional HEAD-request validator can
+    be tested without doing real HTTP. Patched on the requests module
+    because external_files imports it lazily inside the function.
     """
-    with patch("esphome.external_files.requests.head") as m:
+    with patch("requests.head") as m:
         yield m
 
 
 @pytest.fixture
 def mock_requests_get() -> MagicMock:
-    """Patch `external_files.requests.get` so the download path can be
-    tested without doing real HTTP.
+    """Patch `requests.get` so the download path can be tested without
+    doing real HTTP. Patched on the requests module because
+    external_files imports it lazily inside the function.
     """
-    with patch("esphome.external_files.requests.get") as m:
+    with patch("requests.get") as m:
         yield m
 
 
@@ -611,9 +614,8 @@ def test_download_content_many_runs_in_parallel(
     def slow_download(
         url: str,
         path: Path,
-        timeout: int,
-        allow_stale: bool = True,
-        return_content: bool = True,
+        *args: Any,
+        **kwargs: Any,
     ) -> bytes:
         # If calls were serial this would deadlock (third caller never arrives
         # while the first is blocked at the barrier).
@@ -640,9 +642,8 @@ def test_download_content_many_propagates_single_error(
     def fake_download(
         url: str,
         path: Path,
-        timeout: int,
-        allow_stale: bool = True,
-        return_content: bool = True,
+        *args: Any,
+        **kwargs: Any,
     ) -> bytes:
         if url.endswith("bad"):
             raise Invalid(f"could not download {url}")
@@ -669,9 +670,8 @@ def test_download_content_many_aggregates_multiple_errors(
     def fake_download(
         url: str,
         path: Path,
-        timeout: int,
-        allow_stale: bool = True,
-        return_content: bool = True,
+        *args: Any,
+        **kwargs: Any,
     ) -> bytes:
         if url.endswith("ok"):
             return b""
@@ -1007,23 +1007,36 @@ def test_allow_stale_false_rejects_head_failure_fallback(
     mock_requests_get.assert_not_called()
 
 
-def test_download_content_many_forwards_allow_stale(
+def test_download_content_many_forwards_per_file_allow_stale(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
-    """allow_stale reaches download_content on both dispatch paths."""
-    single = [external_files.RemoteFile("https://example.com/a", setup_core / "a")]
-    external_files.download_content_many(single, allow_stale=False)
-    assert mock_download_content.call_args.kwargs["allow_stale"] is False
-
-    many = [
-        external_files.RemoteFile("https://example.com/b", setup_core / "b"),
-        external_files.RemoteFile("https://example.com/c", setup_core / "c"),
+    """Each RemoteFile's own allow_stale reaches download_content."""
+    files = [
+        external_files.RemoteFile("https://example.com/a", setup_core / "a"),
+        external_files.RemoteFile(
+            "https://example.com/b", setup_core / "b", allow_stale=False
+        ),
     ]
-    external_files.download_content_many(many, allow_stale=False)
-    assert all(
-        call.kwargs["allow_stale"] is False
-        for call in mock_download_content.call_args_list[1:]
-    )
+    external_files.download_content_many(files)
+    forwarded = {
+        call.args[1]: call.kwargs["allow_stale"]
+        for call in mock_download_content.call_args_list
+    }
+    assert forwarded == {setup_core / "a": True, setup_core / "b": False}
+
+
+def test_download_content_many_dedupe_keeps_strictest(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """A strict duplicate wins over a permissive one for the same path."""
+    path = setup_core / "fw.bin"
+    files = [
+        external_files.RemoteFile("https://example.com/fw", path, allow_stale=False),
+        external_files.RemoteFile("https://example.com/fw", path),
+    ]
+    external_files.download_content_many(files)
+    mock_download_content.assert_called_once()
+    assert mock_download_content.call_args.kwargs["allow_stale"] is False
 
 
 def test_successful_head_revalidation_clears_stale(

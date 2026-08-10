@@ -798,7 +798,7 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
         # fetched.
         for _ in range(_MAX_PREFETCH_STAGES):
             if not active:
-                return
+                break
             items: list[RemoteFile] = []
             still_active: list[tuple[str, Iterator[list[RemoteFile]]]] = []
             for name, generator in active:

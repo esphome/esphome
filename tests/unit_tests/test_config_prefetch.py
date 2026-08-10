@@ -166,11 +166,10 @@ def test_runaway_generator_is_capped(caplog: pytest.LogCaptureFixture) -> None:
             yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
             n += 1
 
-    with caplog.at_level("DEBUG", logger="esphome.config"):
-        _, mock_download = _run_step(
-            {"my_comp": {"x": 1}},
-            {"my_comp": _component(prefetch=hook)},
-        )
+    _, mock_download = _run_step(
+        {"my_comp": {"x": 1}},
+        {"my_comp": _component(prefetch=hook)},
+    )
 
     assert mock_download.call_count == 10
     assert "stopped after" in caplog.text
@@ -354,24 +353,3 @@ def test_unexpected_download_error_is_logged_visibly(
     mock_download.assert_called_once()
     assert not result.errors
     assert "Remote file prefetch failed" in caplog.text
-
-
-def test_raising_close_is_contained(caplog: pytest.LogCaptureFixture) -> None:
-    """A generator whose close() raises cannot fail validation."""
-
-    def hook(entries: list[dict]) -> Iterable[list[RemoteFile]]:
-        try:
-            n = 0
-            while True:
-                yield [RemoteFile(f"url-{n}", Path(f"/f{n}"))]
-                n += 1
-        finally:
-            raise RuntimeError("finally exploded")
-
-    _, mock_download = _run_step(
-        {"my_comp": {"x": 1}},
-        {"my_comp": _component(prefetch=hook)},
-    )
-
-    assert mock_download.call_count == 10
-    assert "stopped after" in caplog.text

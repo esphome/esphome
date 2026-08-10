@@ -3300,14 +3300,16 @@ def copy_files():
         downloads: list[external_files.RemoteFile] = []
         for name, url in remote:
             cache_path = external_files.compute_local_file_path(KEY_ESP32, url)
-            downloads.append(external_files.RemoteFile(url, cache_path))
-            sources[name] = cache_path
-        try:
             # Nothing downstream verifies these bytes, so a copy that could
             # not be revalidated is an error rather than a silent fallback,
             # matching the old always-download behavior on network failure.
+            downloads.append(
+                external_files.RemoteFile(url, cache_path, allow_stale=False)
+            )
+            sources[name] = cache_path
+        try:
             external_files.download_content_many(
-                downloads, description="extra build file(s)", allow_stale=False
+                downloads, description="extra build file(s)"
             )
         except cv.MultipleInvalid as e:
             details = "; ".join(str(err) for err in e.errors)
