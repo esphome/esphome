@@ -407,14 +407,16 @@ async def to_code(config):
         # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
         # out. Basic is the current default (the absence of this define); an explicit
         # 'type: digest' opts in early. Default changes to digest in 2027.1.0.
-        if auth.get(CONF_TYPE) == AUTH_TYPE_DIGEST:
+        is_digest = auth.get(CONF_TYPE) == AUTH_TYPE_DIGEST
+        if is_digest:
             cg.add_define("USE_WEBSERVER_AUTH_DIGEST")
-        if auth.get(CONF_TYPE) == AUTH_TYPE_DIGEST or CORE.is_esp32:
+        if is_digest or CORE.is_esp32:
             cg.add(paren.set_auth_username(auth[CONF_USERNAME]))
             cg.add(paren.set_auth_password(auth[CONF_PASSWORD]))
         else:
-            # The ESP8266 and RP2040 core base64 encoders wrap output every 72 chars,
-            # which breaks ESPAsyncWebServer's basic auth compare for long credentials.
+            # Every non-ESP32 basic auth build takes this path. The ESP8266 and RP2040
+            # core base64 encoders wrap output every 72 chars, which breaks
+            # ESPAsyncWebServer's basic auth compare for long credentials.
             # Precompute the hash here and let C++ compare the raw header payload.
             basic_hash = base64.b64encode(
                 f"{auth[CONF_USERNAME]}:{auth[CONF_PASSWORD]}".encode()

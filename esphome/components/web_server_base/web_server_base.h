@@ -1,7 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
-#include <utility>
 #include <vector>
 
 #include "esphome/core/progmem.h"
@@ -53,9 +52,10 @@ struct Credentials {
   const char *password{nullptr};
   bool is_set() const { return username != nullptr; }
 #else
-  // base64("username:password"), precomputed at codegen time. The ESP8266 and RP2040 core
-  // libb64 wraps base64 output every 72 chars, so letting the library encode and compare
-  // fails for long credentials; instead the header payload is compared against this hash.
+  // base64("username:password"), precomputed at codegen time. Used by every non-ESP32 basic
+  // auth build. The ESP8266 and RP2040 core libb64 wraps base64 output every 72 chars, so
+  // letting the library encode and compare fails for long credentials; instead the header
+  // payload is compared against this hash.
   const char *basic_auth_hash{nullptr};
   bool is_set() const { return basic_auth_hash != nullptr; }
 #endif
@@ -69,19 +69,20 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
   bool check_auth(AsyncWebServerRequest *request) {
     // The scheme is chosen at build time (USE_WEBSERVER_AUTH_DIGEST); the unused path is
     // compiled out. On ESP32 our own server picks the scheme internally.
-#if USE_ESP32
+#if USE_ESP32 || defined(USE_WEBSERVER_AUTH_DIGEST)
     bool success = request->authenticate(credentials_->username, credentials_->password);
-    if (!success)
-      request->requestAuthentication();
-#elif defined(USE_WEBSERVER_AUTH_DIGEST)
-    bool success = request->authenticate(credentials_->username, credentials_->password);
-    if (!success)
-      request->requestAuthentication(nullptr, true);
 #else
     bool success = request->authenticate(credentials_->basic_auth_hash);
-    if (!success)
+#endif
+    if (!success) {
+#if USE_ESP32
+      request->requestAuthentication();
+#elif defined(USE_WEBSERVER_AUTH_DIGEST)
+      request->requestAuthentication(nullptr, true);
+#else
       request->requestAuthentication(nullptr, false);
 #endif
+    }
     return success;
   }
 
