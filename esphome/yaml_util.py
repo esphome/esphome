@@ -1349,6 +1349,8 @@ class ESPHomeDumper(yaml.SafeDumper):
         return super().increase_indent(flow, False)
 
 
+# Mirrored by compiled_config._json_default: a new representer that keeps a
+# type round-trippable (like Lambda's) needs a sentinel there too.
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
 )

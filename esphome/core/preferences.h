@@ -45,8 +45,18 @@ extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-no
 }  // namespace esphome
 #endif
 
+namespace esphome {
+static_assert(PreferencesContract<ESPPreferences>,
+              "The platform's preferences manager is missing part of the ESPPreferences surface "
+              "(esphome/core/preference_backend.h)");
+}  // namespace esphome
+
 #ifdef USE_PREFERENCE_KEY_LOOKUP
 namespace esphome {
+static_assert(PreferencesKeyLookupContract<ESPPreferences>,
+              "This platform emits USE_PREFERENCE_KEY_LOOKUP but its preferences manager does not provide "
+              "load_from_key() (esphome/core/preference_backend.h)");
+
 /// Copy preference data stored under old_key into new_pref (created for new_key) if the keys
 /// differ and new_pref has no data yet. scratch must hold at least size bytes.
 /// Returns true when scratch holds the entity's current data (loaded or just migrated).

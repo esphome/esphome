@@ -19,10 +19,9 @@ class HoermannHcpCover : public cover::Cover, public Component {
 
  protected:
   void update_from_state_();
-  HoermannHcp *parent_;
+  HoermannHcp *const parent_;
   // NAN until the first position is observed, so no direction is inferred from a baseline that never existed.
   float previous_position_{NAN};
-  cover::CoverOperation previous_operation_{cover::COVER_OPERATION_IDLE};
 };
 
 }  // namespace esphome::hoermann_hcp

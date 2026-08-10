@@ -55,6 +55,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_RP2_BLE_TRACKER")
+    # Compiles the shared adv + scan-response merge (BTstack delivers the pair
+    # as separate reports).
+    cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

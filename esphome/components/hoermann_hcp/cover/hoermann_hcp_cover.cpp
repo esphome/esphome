@@ -7,7 +7,7 @@ namespace esphome::hoermann_hcp {
 static const char *const TAG = "hoermann_hcp.cover";
 
 cover::CoverTraits HoermannHcpCover::get_traits() {
-  auto traits = cover::CoverTraits();
+  cover::CoverTraits traits;
   traits.set_supports_position(true);
   traits.set_supports_stop(true);
   traits.set_supports_toggle(true);
@@ -15,20 +15,26 @@ cover::CoverTraits HoermannHcpCover::get_traits() {
 }
 
 void HoermannHcpCover::setup() {
+  // Nothing is published before the bus controller is heard from, and the untouched position reads as fully
+  // open, so flag the entity until the first contact clears it again.
+  this->status_set_warning("waiting for the bus controller");
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
 void HoermannHcpCover::dump_config() { LOG_COVER("", "Hoermann HCP Cover", this); }
 
 void HoermannHcpCover::control(const cover::CoverCall &call) {
-  if (call.get_stop()) {
-    this->parent_->stop_door();
-  }
-  if (call.get_toggle().has_value()) {
-    this->parent_->impulse_door();
-  }
-  if (call.get_position().has_value()) {
-    this->parent_->set_position(call.get_position().value());
+  bool accepted = true;
+  if (call.get_stop())
+    accepted &= this->parent_->stop_door();
+  if (call.get_toggle().has_value())
+    accepted &= this->parent_->impulse_door();
+  if (const auto position = call.get_position())
+    accepted &= this->parent_->set_position(*position);
+  if (!accepted) {
+    // The command never reached the door, so publish the unchanged state over the one the caller assumed.
+    ESP_LOGW(TAG, "Command was not accepted by the door");
+    this->publish_state(false);
   }
 }
 
@@ -40,14 +46,14 @@ void HoermannHcpCover::update_from_state_() {
     this->previous_position_ = NAN;
     if (this->current_operation != cover::COVER_OPERATION_IDLE) {
       this->current_operation = cover::COVER_OPERATION_IDLE;
-      this->previous_operation_ = cover::COVER_OPERATION_IDLE;
       this->publish_state();
     }
     return;
   }
   this->status_clear_warning();
 
-  float current_position = this->parent_->get_current_position();
+  const auto previous_operation = this->current_operation;
+  const float current_position = this->parent_->get_current_position();
   switch (this->parent_->get_door_state()) {
     case DoorState::OPENING:
       this->current_operation = cover::COVER_OPERATION_OPENING;
@@ -70,11 +76,9 @@ void HoermannHcpCover::update_from_state_() {
   this->previous_position_ = current_position;
 
   // Compare against the position last published, which starts at COVER_OPEN rather than at zero.
-  const bool position_changed = this->position != current_position;
+  const bool changed = this->position != current_position || previous_operation != this->current_operation;
   this->position = current_position;
-  const bool operation_changed = this->previous_operation_ != this->current_operation;
-  this->previous_operation_ = this->current_operation;
-  if (operation_changed || position_changed) {
+  if (changed) {
     // The bus reports the position on every broadcast, so nothing here is worth restoring from flash.
     this->publish_state(false);
   }

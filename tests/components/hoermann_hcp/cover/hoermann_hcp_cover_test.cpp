@@ -9,6 +9,7 @@ using modbus::RegisterValues;
 namespace {
 
 constexpr uint16_t COMMAND_REG = 0x9C41;
+constexpr uint16_t STATE_REG = 0x9CB9;
 constexpr uint16_t BROADCAST_REG = 0x9D31;
 
 RegisterValues make_registers(std::initializer_list<uint16_t> values) {
@@ -16,6 +17,18 @@ RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   for (uint16_t value : values)
     registers.push_back(value);
   return registers;
+}
+
+// The door only accepts commands once the bus controller has actually talked to it.
+void connect(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
+
+// Runs one command poll (write 2 / read 8) and returns the register carrying the key-press value.
+uint16_t poll_command(HoermannHcp &door) {
+  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  EXPECT_EQ(response.size(), 8u);
+  return response.size() == 8u ? response[2] : 0xFFFF;
 }
 
 }  // namespace
@@ -71,6 +84,91 @@ TEST(HoermannHcpCoverTest, FirstDirectionlessMoveDoesNotGuessADirection) {
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0500}));
   door.update();
   EXPECT_EQ(cover.current_operation, cover::COVER_OPERATION_IDLE);
+}
+
+// A cover.open arrives as a position of 1.0, so it has to reach the door as a plain open command rather
+// than as a target the door would be stopped at.
+TEST(HoermannHcpCoverTest, OpenCommandOpensTheDoor) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  connect(door);
+
+  cover.make_call().set_command_open().perform();
+  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+}
+
+// The same for cover.close, which arrives as a position of 0.0.
+TEST(HoermannHcpCoverTest, CloseCommandClosesTheDoor) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  connect(door);
+
+  cover.make_call().set_command_close().perform();
+  EXPECT_EQ(poll_command(door), 0x0220);  // COMMAND_CLOSE pressed
+}
+
+TEST(HoermannHcpCoverTest, ToggleCommandSendsAnImpulse) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  connect(door);
+
+  cover.make_call().set_command_toggle().perform();
+  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+}
+
+TEST(HoermannHcpCoverTest, StopCommandStopsAMovingDoor) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  connect(door);
+  // The door is opening, so it takes an impulse to stop it.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+
+  cover.make_call().set_command_stop().perform();
+  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+}
+
+// A position between the end stops starts the door in the right direction; it is stopped there later.
+TEST(HoermannHcpCoverTest, PositionCommandStartsTheDoorTowardsTheTarget) {
+  HoermannHcp door;  // starts out fully closed
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  connect(door);
+
+  cover.make_call().set_position(0.5f).perform();
+  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+}
+
+// A command the door cannot take is assumed to have worked by whoever sent it, so the unchanged state has
+// to be published back over that assumption.
+TEST(HoermannHcpCoverTest, RefusedCommandPublishesTheUnchangedState) {
+  HoermannHcp door;  // never contacted by a bus controller
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  int publishes = 0;
+  cover.add_on_state_callback([&publishes]() { publishes++; });
+
+  cover.make_call().set_command_close().perform();
+
+  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(publishes, 1);
+  EXPECT_FLOAT_EQ(cover.position, cover::COVER_OPEN);
+}
+
+// Nothing is published before the bus controller is heard from, so a door that never reaches the bus would
+// otherwise sit at its fully open default and look healthy.
+TEST(HoermannHcpCoverTest, MissingBusControllerIsFlaggedUntilFirstContact) {
+  HoermannHcp door;
+  HoermannHcpCover cover(&door);
+  cover.setup();
+  EXPECT_TRUE(cover.status_has_warning());
+
+  connect(door);
+  door.update();
+  EXPECT_FALSE(cover.status_has_warning());
 }
 
 }  // namespace esphome::hoermann_hcp
