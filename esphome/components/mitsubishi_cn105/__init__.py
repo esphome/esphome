@@ -105,32 +105,6 @@ CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
 )
 
 
-async def set_remote_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-    parent: MockObj,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(parent))
-
-    temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
-    cg.add(var.set_temperature(temperature))
-
-    return var
-
-
-async def clear_remote_temperature_action_to_code(
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    parent: MockObj,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    cg.add(var.set_parent(parent))
-    return var
-
-
 @automation.register_action(
     f"{DOMAIN}.set_remote_temperature",
     SetRemoteTemperatureAction,
@@ -143,10 +117,11 @@ async def remote_temperature_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    return await set_remote_temperature_action_to_code(
-        config, action_id, template_arg, args, parent
-    )
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
+    cg.add(var.set_temperature(temperature))
+    return var
 
 
 @automation.register_action(
@@ -161,7 +136,6 @@ async def clear_temperature_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    parent = await cg.get_variable(config[CONF_ID])
-    return await clear_remote_temperature_action_to_code(
-        action_id, template_arg, parent
-    )
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var

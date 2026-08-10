@@ -164,12 +164,12 @@ class MitsubishiCN105 {
 
   uart::UARTDevice &device_;
   // Default 1s; legacy climate-owned hub compatibility relies on this when update_interval is omitted.
-  // Remove legacy note in 2027.1.0.
+  // Remove legacy note in 2027.2.0.
   uint32_t update_interval_ms_{1000};
   uint32_t status_update_wait_credit_ms_{0};
   uint32_t operation_start_ms_{0};
   // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
-  // omitted. Remove legacy note in 2027.1.0.
+  // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
   std::optional<uint32_t> last_telemetry_update_ms_;
   Status status_{};
