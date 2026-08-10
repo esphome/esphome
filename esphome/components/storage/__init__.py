@@ -129,7 +129,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _collect_mount_paths(fragment: object, where: str, out: list[tuple[str, str]]) -> None:
+def _collect_mount_paths(
+    fragment: object, where: str, out: list[tuple[str, str]]
+) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
