@@ -149,19 +149,29 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
         // success delayed past a cancel and an ownership handoff (the cancel
         // idles the stack's request immediately) must not stamp the old
         // procedure's link onto the new owner. Drop; the owner's own
-        // completion follows.
+        // completion follows. Zero-address (cancel) completions need no such
+        // guard: BTstack only emits them while its request state is idle, and
+        // a new owner re-arms that state when it claims the token, so a stale
+        // cancel completion is swallowed by the stack, never re-attributed.
         break;
       }
       connect_owner = nullptr;
-      if (inst != nullptr) {
+      if (inst == nullptr) {
         if (status == 0) {
-          // Stamp the handle here in the BTstack context: a disconnection
-          // racing the queued CONNECTED event arrives in this same context
-          // and must route by handle (it carries no address).
-          inst->con_handle_ = con_handle;
+          // Nobody owns this late link (the owner escalated first): tear it
+          // down here or the hci_connection_t leaks and the peer answers
+          // DISALLOWED until reboot.
+          gap_disconnect(con_handle);
         }
-        inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
+        break;
       }
+      if (status == 0) {
+        // Stamp the handle here in the BTstack context: a disconnection
+        // racing the queued CONNECTED event arrives in this same context
+        // and must route by handle (it carries no address).
+        inst->con_handle_ = con_handle;
+      }
+      inst->enqueue_event_irq_(RP2GattEvent::CONNECTED, status, con_handle);
       break;
     }
     case HCI_EVENT_DISCONNECTION_COMPLETE: {
@@ -634,12 +644,17 @@ void RP2GattClient::cleanup_link_state_() {
   }
   // con_handle_ may be stamped in the BTstack context before the main loop
   // registers the listener, so a valid handle does not imply a registration;
-  // stop_listening on an unregistered entry is a benign no-op.
-  if (this->con_handle_ != HCI_CON_HANDLE_INVALID) {
+  // stop_listening on an unregistered entry is a benign no-op. One lock
+  // scope around check and reset so an IRQ stamp cannot land in between
+  // (unreachable today — ownership is released before cleanup — but the
+  // invariant lives three functions away).
+  {
     BluetoothLock lock;
-    gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
+    if (this->con_handle_ != HCI_CON_HANDLE_INVALID) {
+      gatt_client_stop_listening_for_characteristic_value_updates(&this->notification_registration_);
+    }
+    this->con_handle_ = HCI_CON_HANDLE_INVALID;
   }
-  this->con_handle_ = HCI_CON_HANDLE_INVALID;
   this->notify_subscription_count_ = 0;
   this->cancel_requested_ = false;
   this->op_type_ = OpType::NONE;
