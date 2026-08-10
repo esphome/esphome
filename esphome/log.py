@@ -1,5 +1,6 @@
 from enum import Enum
 import logging
+import sys
 
 from esphome.core import CORE
 
@@ -76,9 +77,17 @@ def setup_log(
     log_level: int = logging.INFO,
     include_timestamp: bool = False,
 ) -> None:
-    import colorama
+    # colorama translates ANSI escapes for old Windows consoles and strips
+    # them from redirected output. POSIX terminals render ANSI natively, and
+    # dashboard runs escape their color codes before printing, so both would
+    # use colorama as a plain passthrough; skip the import there (it pulls
+    # in ctypes, ~3ms on every CLI invocation).
+    if sys.platform == "win32" or not (
+        CORE.dashboard or (sys.stdout.isatty() and sys.stderr.isatty())
+    ):
+        import colorama
 
-    colorama.init()
+        colorama.init()
 
     # Setup logging - will map log level from string to constant
     logging.basicConfig(level=log_level)
