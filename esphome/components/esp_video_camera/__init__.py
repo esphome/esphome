@@ -40,6 +40,7 @@ CONF_XCLK_PIN = "xclk_pin"
 CONF_XCLK_FREQUENCY = "xclk_frequency"
 CONF_ENABLE_XCLK = "enable_xclk"
 CONF_ENABLE_UVC = "enable_uvc"
+CONF_USB_PERIPHERAL_MAP = "usb_peripheral_map"
 
 # Output formats each supported sensor ships in esp_cam_sensor 2.3.0.
 #
@@ -241,6 +242,13 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ENABLE_XCLK, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_UVC, default=False): cv.boolean,
+            # The ESP32-P4 has two USB controllers, and a board wires its host
+            # connector to one of them. 0 is the target default -- the
+            # High-Speed one -- which is right for most boards; a bit mask
+            # (0x1, 0x2, ...) names a specific controller for those it is not.
+            cv.Optional(CONF_USB_PERIPHERAL_MAP, default=0): cv.hex_int_range(
+                min=0, max=0xFF
+            ),
         }
     )
     .extend(cv.ENTITY_BASE_SCHEMA)
@@ -284,6 +292,7 @@ async def to_code(config):
     cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
     cg.add(var.set_enable_xclk_init(config[CONF_ENABLE_XCLK]))
     cg.add(var.set_enable_uvc(config[CONF_ENABLE_UVC]))
+    cg.add(var.set_usb_peripheral_map(config[CONF_USB_PERIPHERAL_MAP]))
 
     cg.add(var.set_device(config[CONF_DEVICE]))
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))

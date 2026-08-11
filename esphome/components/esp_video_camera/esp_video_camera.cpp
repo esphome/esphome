@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 
 #include "esp_heap_caps.h"
+#include "esp_idf_version.h"   // ESP_IDF_VERSION, for usb_host_config_t::peripheral_map
 #include "esp_log.h"           // esp_log_level_set()
 #include "esp_memory_utils.h"  // esp_ptr_external_ram()
 
@@ -406,6 +407,13 @@ bool ESPVideoCamera::init_pipeline_() {
     usb_host_config_t host_config = {};
     host_config.skip_phy_setup = false;
     host_config.intr_flags = ESP_INTR_FLAG_LEVEL1;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+    // The ESP32-P4 has two USB controllers and a board wires its host connector
+    // to one of them. Zero means "the default", which on a High-Speed capable
+    // target is the High-Speed one -- so a board whose host port hangs off the
+    // Full-Speed controller enumerates nothing until this names it instead.
+    host_config.peripheral_map = this->usb_peripheral_map_;
+#endif
     esp_err_t host_ret = usb_host_install(&host_config);
     if (host_ret == ESP_OK) {
       xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 5, nullptr, tskNO_AFFINITY);

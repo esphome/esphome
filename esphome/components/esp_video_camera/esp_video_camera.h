@@ -67,6 +67,7 @@ class ESPVideoCamera : public camera::Camera {
   void set_xclk_freq(uint32_t freq) { this->xclk_freq_ = freq; }
   void set_enable_xclk_init(bool enable) { this->enable_xclk_init_ = enable; }
   void set_enable_uvc(bool enable) { this->enable_uvc_ = enable; }
+  void set_usb_peripheral_map(unsigned map) { this->usb_peripheral_map_ = map; }
 
   // Camera platform configuration ----------------------------------------------
   void set_device(const std::string &device) { this->device_ = device; }
@@ -119,6 +120,10 @@ class ESPVideoCamera : public camera::Camera {
   uint32_t xclk_freq_{24000000};
   bool enable_xclk_init_{false};
   bool enable_uvc_{false};
+  // Which of the ESP32-P4's two USB controllers the host port hangs off. Zero
+  // is the target's default (the High-Speed one), which is right for most
+  // boards; a bit mask names a specific controller for those it is not.
+  unsigned usb_peripheral_map_{0};
   bool pipeline_ready_{false};
 
   // Camera platform
