@@ -71,8 +71,10 @@ void BluetoothProxy::send_polled_scanner_state_() {
 
 void BluetoothProxy::setup() {
   // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
   this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
+#endif
 
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->hub_->scan_active();
@@ -128,6 +130,7 @@ void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *typ
   ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
 }
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
                                                 const char *type) {
   this->log_not_connected_gatt_(action, type);
@@ -136,6 +139,7 @@ void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handl
     this->log_reply_dropped_("Not-connected");
   }
 }
+#endif
 
 void BluetoothProxy::log_advertisement_flush_() {
   ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
@@ -587,6 +591,7 @@ void BluetoothProxy::loop() {
     return;
   this->last_advertisement_flush_time_ = now;
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
     // Resend a dropped slot-state update, paced by the 100 ms gate so the
     // retry does not hammer the congestion it exists to survive; the
@@ -595,6 +600,7 @@ void BluetoothProxy::loop() {
     this->connections_free_pending_ = false;
     this->send_connections_free(this->api_connection_);
   }
+#endif
 
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
@@ -654,28 +660,10 @@ void BluetoothProxy::loop() {
   this->flush_pending_advertisements_();
 }
 
-#ifndef BLUETOOTH_CONNECTION_HAS_GATT
-
-// Advertisement-only proxy: no connection backend on this platform, or
-// active: false. get_feature_flags() then omits FEATURE_ACTIVE_CONNECTIONS,
-// so a client treats the proxy as passive and never sends a connection or
-// GATT request. These exist only because the api layer dispatches them
-// unconditionally; answering would link response encoders this build has no
-// use for.
-
-void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {}
-void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {}
-void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {}
-
-#endif  // !BLUETOOTH_CONNECTION_HAS_GATT
-
 void BluetoothProxy::reset_owed_replies_() {
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   this->connections_free_pending_ = false;
+#endif
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // subscribe_api_connection() re-drives this from the hub immediately after,
   // so clearing it here costs nothing and keeps the list exhaustive.
@@ -730,6 +718,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   this->reset_owed_replies_();
 }
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::send_connections_free() {
   if (this->api_connection_ != nullptr) {
     this->send_connections_free(this->api_connection_);
@@ -833,6 +822,7 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
     this->log_reply_dropped_("Clear-cache");
   }
 }
+#endif
 #endif
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -24,7 +24,7 @@
 // builds get the clean-error handlers instead. Address-scoped maintenance
 // (unpair, cache clear) still works there through the per-platform free
 // functions below.
-#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY_CONNECTIONS)
 #define BLUETOOTH_CONNECTION_HAS_GATT
 #endif
 

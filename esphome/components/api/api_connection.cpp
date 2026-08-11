@@ -1236,6 +1236,7 @@ void APIConnection::on_subscribe_bluetooth_le_advertisements_request(
 void APIConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void APIConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -1268,14 +1269,17 @@ void APIConnection::on_subscribe_bluetooth_connections_free_request() {
     this->on_fatal_error();
   }
 }
+#endif
 
 void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
 }
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
 }
+#endif
 #endif
 
 #ifdef USE_VOICE_ASSISTANT

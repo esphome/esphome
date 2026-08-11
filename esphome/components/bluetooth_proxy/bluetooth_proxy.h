@@ -118,6 +118,7 @@ class BluetoothProxy final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI - 1.0f; }
 #endif  // !USE_ESP32
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
   void bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg);
@@ -126,6 +127,7 @@ class BluetoothProxy final : public Component {
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
   void bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg);
+#endif
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
@@ -138,6 +140,7 @@ class BluetoothProxy final : public Component {
   /// False only when a subscriber refused the frame; true = delivered or
   /// nobody subscribed. Request-answer callers ignore the result (client
   /// timeouts cover those); only reset_connection_slot_ latches for retry.
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
@@ -145,6 +148,7 @@ class BluetoothProxy final : public Component {
   bool send_gatt_services_done(uint64_t address);
   /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+#endif
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   /// No default error: the drain rebuilds success as (error == CONN_OK), so a
@@ -324,15 +328,19 @@ class BluetoothProxy final : public Component {
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;
+#endif
 
   // Group 4: 1-byte types grouped together
   bool active_;
   // A dropped send (full TCP buffer) would leave the API client with a stale
   // slot state forever; the cached response is current by construction, so
   // retrying it from loop() is an idempotent resync.
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool connections_free_pending_{false};
+#endif
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
