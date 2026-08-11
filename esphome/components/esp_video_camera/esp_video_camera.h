@@ -163,6 +163,10 @@ class ESPVideoCamera : public camera::Camera {
   // One-shot: dump the rejected buffer's placement on the first encoder QBUF
   // failure of a capture, not on every frame.
   bool logged_qbuf_failure_{false};
+  // How long a capture may run without producing anything before saying so, and
+  // a one-shot so it is said once per capture rather than every iteration.
+  static constexpr uint32_t NO_FRAME_WARNING_MS = 5000;
+  bool warned_no_frames_{false};
 
   // Consumers (bit masks indexed by camera::CameraRequester). Written from the
   // requesting task, read by loop() in the main task, hence atomic. Everything

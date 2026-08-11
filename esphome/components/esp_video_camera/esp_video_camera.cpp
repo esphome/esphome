@@ -531,6 +531,18 @@ void ESPVideoCamera::loop() {
     this->loop_direct_capture_();
   }
 
+  // STREAMON succeeding only means the source accepted the request, not that it
+  // is sending anything. An empty queue is indistinguishable from "no frame
+  // yet" one poll at a time, so a source that never delivers is otherwise
+  // completely silent -- the only symptom is a consumer timing out somewhere
+  // else entirely.
+  if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
+      (millis() - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
+    this->warned_no_frames_ = true;
+    ESP_LOGW(TAG, "Streaming from %s for %us without a single frame; the source accepted the format but sends nothing",
+             this->resolved_device_.c_str(), (unsigned) (NO_FRAME_WARNING_MS / 1000));
+  }
+
   // Keep dequeuing and re-queuing while idle so the buffers stay in flight;
   // deliver_frame_() drops the frames instead of copying them. Only tear the
   // pipeline down once nobody has come back for a while (CAPTURE_IDLE_TIMEOUT_MS).
@@ -910,6 +922,7 @@ bool ESPVideoCamera::start_capture_() {
   this->stats_frames_ = 0;
   this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
+  this->warned_no_frames_ = false;
   return true;
 }
 
