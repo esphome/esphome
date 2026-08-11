@@ -107,6 +107,21 @@ def test_main_reports_rather_than_raises_when_draining_fails(
     assert "Could not write out remaining output" in capfd.readouterr().err
 
 
+def test_main_survives_a_drain_failure_with_nowhere_to_report_it(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """With no real stderr to report to, cleanup still must not raise.
+
+    ``sys.__stderr__`` is None on some interpreters, and ``print(file=None)``
+    falls back to ``sys.stdout``, which here is the shim wrapping the stream
+    that just failed.
+    """
+    monkeypatch.setattr(sys, "__stderr__", None)
+    _prepare_main(monkeypatch, fixture_path / "espidf" / "closing_probe.py")
+
+    assert runner.main() == 0
+
+
 def test_main_still_filters_a_drained_partial_line(
     monkeypatch: pytest.MonkeyPatch, fixture_path: Path
 ) -> None:

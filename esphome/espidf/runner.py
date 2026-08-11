@@ -90,6 +90,7 @@ def main() -> int:
         sys.path.pop(0)
     # ---- end sys.path fix-up -----------------------------------------------
 
+    import contextlib
     import os
     from pathlib import Path
     import re
@@ -271,10 +272,17 @@ def main() -> int:
         for shim in (stdout_shim, stderr_shim):
             try:
                 shim.drain()
-            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-                print(
-                    f"Could not write out remaining output: {err}", file=sys.__stderr__
-                )
+            except (OSError, ValueError) as err:
+                # Saying so must not raise either. Under the dashboard our
+                # stdout and stderr are the same pipe, so whatever broke the
+                # drain has most likely broken the report as well, and
+                # ``sys.__stderr__`` is None on some interpreters.
+                if (real_stderr := sys.__stderr__) is not None:
+                    with contextlib.suppress(OSError, ValueError):
+                        print(
+                            f"Could not write out remaining output: {err}",
+                            file=real_stderr,
+                        )
     return 0
 
 

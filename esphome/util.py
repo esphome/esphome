@@ -254,11 +254,16 @@ def drain_quietly(stream: RedirectText) -> None:
     is already on its way out. Letting a broken pipe or a closed stream raise
     here would replace that result with an unrelated traceback, and would
     also skip draining the other stream.
+
+    Only the stream-is-unusable errors are caught. The held line is usually
+    the one saying why a command failed, so losing it is worth a warning
+    rather than a debug line, and anything else going wrong here (a line
+    callback raising, say) is a bug that should still be seen.
     """
     try:
         stream.drain()
-    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        _LOGGER.debug("Could not write out remaining output: %s", err)
+    except (OSError, ValueError) as err:
+        _LOGGER.warning("Could not write out remaining output: %s", err)
 
 
 def run_external_command(

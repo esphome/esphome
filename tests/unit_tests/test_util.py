@@ -711,14 +711,23 @@ def test_run_external_command_survives_a_command_that_swaps_stdout(
 def test_drain_quietly_reports_instead_of_raising(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A broken stream during cleanup is logged, not raised."""
-    caplog.set_level(logging.DEBUG, logger=util.__name__)
+    """A broken stream during cleanup is reported, not raised."""
+    caplog.set_level(logging.WARNING, logger=util.__name__)
     stream = MagicMock()
     stream.drain.side_effect = BrokenPipeError("pipe is gone")
 
     util.drain_quietly(stream)
 
     assert "pipe is gone" in caplog.text
+
+
+def test_drain_quietly_lets_other_errors_through() -> None:
+    """Only an unusable stream is tolerated; a bug still has to be visible."""
+    stream = MagicMock()
+    stream.drain.side_effect = TypeError("a line callback is broken")
+
+    with pytest.raises(TypeError):
+        util.drain_quietly(stream)
 
 
 def test_run_external_process_line_callbacks() -> None:
