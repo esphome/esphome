@@ -1,4 +1,4 @@
-"""Write a form feed part way through the output, as some toolchains do.
+"""Write a form feed part way through the output.
 
 Run through ``esphome/espidf/runner.py`` by test_espidf_runner.py. A form
 feed is not a line terminator here, so everything written must still come
