@@ -806,6 +806,10 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     this->log_reply_deferred_("Unpair", address);
   } else if (!this->pending_unpairing_.matches(address)) {
     this->log_reply_displaced_("Unpair", this->pending_unpairing_.address(), address);
+  } else if (this->pending_unpairing_.error() == CONN_OK) {
+    // A retry against the already-removed bond reports failure; the owed
+    // success is the answer the client needs, so keep it.
+    return;
   }
   this->pending_unpairing_.set(address, error);
 }
