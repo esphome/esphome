@@ -24,7 +24,9 @@ namespace esphome::bluetooth_proxy {
 using bluetooth_connection::CONN_OK;
 using bluetooth_connection::conn_err_t;
 using bluetooth_connection::GATT_NOT_CONNECTED;
+using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::INIT_SENDING_SERVICES;
+using bluetooth_connection::SERVICES_DONE_PENDING;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
@@ -56,6 +58,43 @@ enum BluetoothProxyFeature : uint32_t {
 enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
+
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+/// One owed freed-slot connected=false notification in a single word: the
+/// 48-bit address in the low bits, the sign-extending 16-bit reason on top.
+/// Every reason that reaches the pool (esp_gatt_status_t,
+/// esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits int16_t.
+class PendingDisconnect {
+ public:
+  constexpr void set(uint64_t address, conn_err_t error) {
+    // Mask: the address originates from the client, and a stray high bit
+    // must not corrupt the reason.
+    this->word_ = (address & ADDRESS_MASK) | (static_cast<uint64_t>(static_cast<uint16_t>(error)) << 48);
+  }
+  constexpr void clear() { this->word_ = 0; }
+  // Whole-word test: set() is only ever given a live (nonzero) address.
+  constexpr bool empty() const { return this->word_ == 0; }
+  // Masked like set(), so a stray high bit cannot defeat the pool lookups.
+  constexpr bool matches(uint64_t address) const { return this->address() == (address & ADDRESS_MASK); }
+  constexpr uint64_t address() const { return this->word_ & ADDRESS_MASK; }
+  constexpr conn_err_t error() const { return static_cast<int16_t>(this->word_ >> 48); }
+
+ private:
+  static constexpr uint64_t ADDRESS_MASK = 0x0000FFFFFFFFFFFFULL;
+  uint64_t word_{0};
+};
+// Pin the packing at compile time: mask and sign round-trip for every
+// reachable shape (negative, GATT status, ESP_ERR_* range, stray high bit).
+constexpr bool pending_disconnect_round_trips(uint64_t address, uint64_t expected_address, conn_err_t error) {
+  PendingDisconnect p;
+  p.set(address, error);
+  return p.address() == expected_address && p.error() == error && !p.empty() && p.matches(address);
+}
+static_assert(pending_disconnect_round_trips(0x0000112233445566ULL, 0x0000112233445566ULL, -1));
+static_assert(pending_disconnect_round_trips(0x0000FFFFFFFFFFFFULL, 0x0000FFFFFFFFFFFFULL, 0x8F));
+static_assert(pending_disconnect_round_trips(0xABCD112233445566ULL, 0x0000112233445566ULL, 0x110));
+static_assert(PendingDisconnect{}.empty());
+#endif
 
 class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
@@ -97,10 +136,14 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
+  /// False only when a subscriber refused the frame; true = delivered or
+  /// nobody subscribed. Request-answer callers ignore the result (client
+  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
-  void send_gatt_services_done(uint64_t address);
+  /// Same convention as send_device_connection: false only on a refused frame.
+  bool send_gatt_services_done(uint64_t address);
   void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
@@ -172,7 +215,9 @@ class BluetoothProxy final : public Component {
 
  protected:
   bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
-#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  void send_scanner_state_(ble_device_base::ScannerState state);
+#else
   void send_polled_scanner_state_();
 #endif
   void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
@@ -231,6 +276,10 @@ class BluetoothProxy final : public Component {
   /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
   /// discovery and retry, rather than being told a partial list is complete.
   void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
+  /// Drop any owed freed-slot notification for this address (client reconnected).
+  void clear_pending_disconnection_(uint64_t address);
+  /// Pool a refused freed-slot notification for the paced drain.
+  void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
   // Memory optimized layout for 32-bit systems
@@ -240,6 +289,10 @@ class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
+  // Address-keyed pool of owed freed-slot notifications; loop() resends.
+  // Proxy-only state, kept off BluetoothConnection; entries are not tied to
+  // slot indices.
+  std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
@@ -260,7 +313,11 @@ class BluetoothProxy final : public Component {
   bool connections_free_pending_{false};
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
-#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // A dropped push (full TX buffer) is re-queried from the hub and resent
+  // from loop(); the hub's current state is idempotent by construction.
+  bool scanner_state_pending_{false};
+#else
   bool last_scan_running_{false};  // Last scanner state reported to the subscriber
 #endif
 };
