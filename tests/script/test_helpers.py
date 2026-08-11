@@ -1853,127 +1853,127 @@ def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) ->
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
 
 
-def test_clean_build_cache_if_moved_creates_cache_and_marker(
+def test_clean_build_dir_if_moved_creates_folder_and_marker(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """A missing cache dir is created and stamped with this tree's root."""
+    """A missing build folder is created and stamped with this tree's root."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
+    build_dir = tmp_path / "build"
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
-    assert cache_dir.is_dir()
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert build_dir.is_dir()
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
 
 
-def test_clean_build_cache_if_moved_keeps_matching_cache(
+def test_clean_build_dir_if_moved_keeps_matching_folder(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """A cache stamped with this tree's root is left untouched."""
+    """A build folder stamped with this tree's root is left untouched."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
-    (cache_dir / ".tree.json").write_text(json.dumps(str(tmp_path)), encoding="utf-8")
-    sentinel = cache_dir / "cached.o"
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / ".tree.json").write_text(json.dumps(str(tmp_path)), encoding="utf-8")
+    sentinel = build_dir / "cached.o"
     sentinel.write_text("keep me", encoding="utf-8")
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
     assert sentinel.read_text(encoding="utf-8") == "keep me"
 
 
-def test_clean_build_cache_if_moved_clears_foreign_cache(
+def test_clean_build_dir_if_moved_clears_foreign_folder(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """A cache stamped with another tree's root is removed and re-stamped."""
+    """A build folder stamped with another tree's root is removed and re-stamped."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
-    (cache_dir / ".tree.json").write_text(
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / ".tree.json").write_text(
         json.dumps("/some/other/tree"), encoding="utf-8"
     )
-    sentinel = cache_dir / "cached.o"
+    sentinel = build_dir / "cached.o"
     sentinel.write_text("stale", encoding="utf-8")
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
     assert not sentinel.exists()
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
 
 
-def test_clean_build_cache_if_moved_clears_unmarked_cache(
+def test_clean_build_dir_if_moved_clears_unmarked_folder(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """An existing cache with no marker is treated as foreign and removed."""
+    """An existing build folder with no marker is treated as foreign and removed."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
-    sentinel = cache_dir / "cached.o"
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    sentinel = build_dir / "cached.o"
     sentinel.write_text("stale", encoding="utf-8")
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
     assert not sentinel.exists()
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
 
 
-def test_clean_build_cache_if_moved_ignores_empty_unmarked_dir(
+def test_clean_build_dir_if_moved_ignores_empty_unmarked_dir(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """An empty, unmarked cache dir is just stamped - no rebuild message."""
+    """An empty, unmarked build folder is just stamped - no rebuild message."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
     captured = capsys.readouterr()
-    assert "Rebuilding build cache" not in captured.out
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert "Rebuilding build folder" not in captured.out
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
 
 
-def test_clean_build_cache_if_moved_logs_unreadable_marker(
+def test_clean_build_dir_if_moved_logs_unreadable_marker(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A marker that exists but cannot be read is logged, not silently eaten."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
     # A directory named .tree.json makes read_text raise IsADirectoryError (OSError)
-    (cache_dir / ".tree.json").mkdir()
+    (build_dir / ".tree.json").mkdir()
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
     # The IO problem is surfaced on stderr, not swallowed
     assert ".tree.json" in capsys.readouterr().err
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
 
 
-def test_clean_build_cache_if_moved_raises_when_removal_fails(
+def test_clean_build_dir_if_moved_raises_when_removal_fails(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """A failed removal of a foreign cache must abort, not silently reuse it."""
+    """A failed removal of a foreign build folder must abort, not silently reuse it."""
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
-    (cache_dir / ".tree.json").write_text(
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / ".tree.json").write_text(
         json.dumps("/some/other/tree"), encoding="utf-8"
     )
-    (cache_dir / "stale_subdir").mkdir()
+    (build_dir / "stale_subdir").mkdir()
 
     def fail_rmtree(*args: object, **kwargs: object) -> None:
         raise OSError("device busy")
@@ -1981,38 +1981,38 @@ def test_clean_build_cache_if_moved_raises_when_removal_fails(
     monkeypatch.setattr(helpers.shutil, "rmtree", fail_rmtree)
 
     with pytest.raises(OSError, match="device busy"):
-        helpers.clean_build_cache_if_moved(cache_dir)
+        helpers.clean_build_dir_if_moved(build_dir)
 
 
-def test_clean_build_cache_if_moved_keeps_directory_identity(
+def test_clean_build_dir_if_moved_keeps_directory_identity(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    """Clearing a foreign cache must not delete and recreate the directory.
+    """Clearing a foreign build folder must not delete and recreate the directory.
 
     CI bind-mounts the build directory, and removing a mount point fails
     with EBUSY, so the directory itself has to survive the clearing.
     """
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
-    cache_dir = tmp_path / "build"
-    cache_dir.mkdir()
-    (cache_dir / ".tree.json").write_text(
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / ".tree.json").write_text(
         json.dumps("/some/other/tree"), encoding="utf-8"
     )
-    (cache_dir / "stale_subdir").mkdir()
-    (cache_dir / "stale_subdir" / "cached.o").write_text("stale", encoding="utf-8")
-    # A symlink to a directory outside the cache: the link must be removed
+    (build_dir / "stale_subdir").mkdir()
+    (build_dir / "stale_subdir" / "cached.o").write_text("stale", encoding="utf-8")
+    # A symlink to a directory outside the build folder: the link must be removed
     # without following it into the target
     outside_dir = tmp_path / "outside"
     outside_dir.mkdir()
     (outside_dir / "keep.txt").write_text("keep me", encoding="utf-8")
-    (cache_dir / "dir_link").symlink_to(outside_dir)
-    inode_before = cache_dir.stat().st_ino
+    (build_dir / "dir_link").symlink_to(outside_dir)
+    inode_before = build_dir.stat().st_ino
 
-    helpers.clean_build_cache_if_moved(cache_dir)
+    helpers.clean_build_dir_if_moved(build_dir)
 
-    assert cache_dir.stat().st_ino == inode_before
-    assert [p.name for p in cache_dir.iterdir()] == [".tree.json"]
-    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+    assert build_dir.stat().st_ino == inode_before
+    assert [p.name for p in build_dir.iterdir()] == [".tree.json"]
+    assert json.loads((build_dir / ".tree.json").read_text(encoding="utf-8")) == str(
         tmp_path
     )
     assert (outside_dir / "keep.txt").read_text(encoding="utf-8") == "keep me"

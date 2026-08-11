@@ -40,7 +40,7 @@ from script.analyze_component_buses import (
     uses_local_file_references,
 )
 from script.helpers import (
-    clean_build_cache_if_moved,
+    clean_build_dir_if_moved,
     components_conflict,
     get_component_test_files,
     is_validate_only_file,
@@ -1052,7 +1052,7 @@ def test_components(
     build_components_dir = repo_root / "tests" / "test_build_components"
     build_dir = build_components_dir / "build"
     # Caches embed absolute paths; drop them if this tree is not where they were built.
-    clean_build_cache_if_moved(build_dir)
+    clean_build_dir_if_moved(build_dir)
 
     # Get platform base files
     platform_bases = get_platform_base_files(build_components_dir)

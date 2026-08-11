@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 from helpers import (
-    clean_build_cache_if_moved,
+    clean_build_dir_if_moved,
     get_all_dependencies,
     root_path as _root_path,
 )
@@ -462,7 +462,7 @@ def build_and_run(
         return EXIT_SKIPPED
 
     # Caches embed absolute paths; drop them if this tree is not where they were built.
-    clean_build_cache_if_moved(tests_dir / ".esphome")
+    clean_build_dir_if_moved(tests_dir / ".esphome")
 
     # Remove components that do not have files
     components = filter_components_with_files(selected_components, tests_dir)

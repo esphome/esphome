@@ -24,53 +24,53 @@ temp_folder = str(Path(root_path) / ".temp")
 temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 
-# Records which source tree created a build cache. Named ``.tree.json`` (a tiny
+# Records which source tree created a build folder. Named ``.tree.json`` (a tiny
 # JSON document) so that ``esphome clean``, which keeps ``*.json`` files, does
-# not delete it - otherwise the next run would see an unmarked cache and rebuild
+# not delete it - otherwise the next run would see an unmarked folder and rebuild
 # it needlessly.
-CACHE_TREE_MARKER = ".tree.json"
+BUILD_TREE_MARKER = ".tree.json"
 
 
-def clean_build_cache_if_moved(cache_dir: Path) -> None:
-    """Remove a test build cache that was created in a different source tree.
+def clean_build_dir_if_moved(build_dir: Path) -> None:
+    """Clear a test build folder that was created in a different source tree.
 
-    PlatformIO and ESP-IDF caches embed absolute source paths, so a cache
-    created in another tree (a different git worktree, or a directory that
-    was copied or renamed) silently compiles that other tree's sources while
+    PlatformIO and ESP-IDF build folders embed absolute source paths, so one
+    created in another tree (a different git worktree, or a directory that was
+    copied or renamed) silently compiles that other tree's sources while
     appearing to test this one. A marker file records which tree created the
-    cache; on mismatch the cache is removed so it rebuilds from this tree.
+    folder; on mismatch the folder is cleared so it rebuilds from this tree.
     """
-    marker = cache_dir / CACHE_TREE_MARKER
-    if cache_dir.is_dir():
+    marker = build_dir / BUILD_TREE_MARKER
+    if build_dir.is_dir():
         reason: str | None = None
         try:
             recorded = json.loads(marker.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            # No marker: a cache created before this check existed, or one whose
-            # marker another tool removed. Rebuild only if it holds something -
-            # an empty directory is nothing to warn about.
-            if any(cache_dir.iterdir()):
+            # No marker: a build folder created before this check existed, or one
+            # whose marker another tool removed. Rebuild only if it holds
+            # something - an empty directory is nothing to warn about.
+            if any(build_dir.iterdir()):
                 reason = "it carries no source-tree marker"
         except (OSError, ValueError) as err:
             # Unreadable or corrupt marker: rebuild to be safe, but surface the
-            # problem on stderr so a recurring failure is not read as a cache miss.
-            print(f"Cannot read build cache marker {marker}: {err}", file=sys.stderr)
+            # problem on stderr so a recurring failure stays visible.
+            print(f"Cannot read build folder marker {marker}: {err}", file=sys.stderr)
             reason = "its source-tree marker could not be read"
         else:
             if recorded != root_path:
                 reason = f"it was created in another source tree ({recorded})"
         if reason is not None:
-            print(f"Rebuilding build cache because {reason}: {cache_dir}")
-            # Clear the contents but keep cache_dir itself: CI bind-mounts this
+            print(f"Rebuilding build folder because {reason}: {build_dir}")
+            # Clear the contents but keep build_dir itself: CI bind-mounts this
             # directory, and removing a mount point fails with EBUSY.
             # A partial removal still aborts loudly: the surviving stale marker
-            # would otherwise let every later run silently reuse the wrong-tree cache
-            for entry in cache_dir.iterdir():
+            # would otherwise let every later run silently reuse the wrong-tree folder
+            for entry in build_dir.iterdir():
                 if entry.is_dir() and not entry.is_symlink():
                     shutil.rmtree(entry)
                 else:
                     entry.unlink()
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    build_dir.mkdir(parents=True, exist_ok=True)
     if not marker.exists():
         marker.write_text(json.dumps(root_path), encoding="utf-8")
 
