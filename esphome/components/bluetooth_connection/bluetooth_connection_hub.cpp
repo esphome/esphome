@@ -185,9 +185,13 @@ void BluetoothConnection::on_service_discovery_done(int error) {
 
 void BluetoothConnection::flush_owed_replies_() {
   // Connected first: the client should never see services-done or an ack for
-  // a link it has not been told is up.
+  // a link it has not been told is up. Structural, not size-dependent: a
+  // still-owed connected reply defers the smaller sends to the next tick.
   if (this->connected_reply_owed_) {
     this->send_connected_reply_();
+    if (this->connected_reply_owed_) {
+      return;
+    }
   }
   if (this->send_service_ == SERVICES_DONE_PENDING) {
     this->send_services_done_();

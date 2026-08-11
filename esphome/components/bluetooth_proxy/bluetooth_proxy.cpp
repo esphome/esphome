@@ -640,10 +640,12 @@ void BluetoothProxy::loop() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->flush_owed_replies_();
   }
-  // Address-keyed, not slot-keyed, so it gets its own loop. Not pre-cleared:
+  // Address-keyed, not slot-keyed, so it gets its own loop; bounded by
+  // connection_count_ like the latch and clear helpers. Not pre-cleared:
   // the sender clears on success and re-latches on refusal, keeping the
   // latch's leading-edge warn honest (same shape as the unpair drain).
-  for (auto &owed : this->pending_disconnections_) {
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto &owed = this->pending_disconnections_[i];
     if (owed.empty())
       continue;
     this->send_device_disconnected_(owed.address(), owed.error());
