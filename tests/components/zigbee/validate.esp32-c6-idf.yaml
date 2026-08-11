@@ -29,3 +29,8 @@ sensor:
     unit_of_measurement: m³/h
     device_class: volume_flow_rate
     cluster: default
+  - platform: template
+    name: "atmospheric_pressure_sensor"
+    unit_of_measurement: hPa
+    device_class: atmospheric_pressure
+    cluster: default
