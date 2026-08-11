@@ -656,74 +656,21 @@ void BluetoothProxy::loop() {
 
 #ifndef BLUETOOTH_CONNECTION_HAS_GATT
 
-// Advertisement-only proxy. GATT client connections are excluded at compile
-// time (no connection backend on this platform, or active: false), so every
-// connection-oriented request is answered with a clean error instead of
-// silence, and Home Assistant treats the proxy as passive.
+// Advertisement-only proxy: no connection backend on this platform, or
+// active: false. get_feature_flags() then omits FEATURE_ACTIVE_CONNECTIONS,
+// so a client treats the proxy as passive and never sends a connection or
+// GATT request. These exist only because the api layer dispatches them
+// unconditionally; answering would link response encoders this build has no
+// use for.
 
-void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
-  switch (msg.request_type) {
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
-      ESP_LOGW(TAG, "Active connections are not supported on this platform");
-      if (!this->send_device_connection(msg.address, false, 0, GATT_NOT_CONNECTED)) {
-        this->log_reply_dropped_("Connection");
-      }
-      break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
-      // Not an error: the device is already disconnected, which is the requested state.
-      if (!this->send_device_connection(msg.address, false)) {
-        this->log_reply_dropped_("Connection");
-      }
-      this->send_connections_free();
-      break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
-      // Pairing needs a connection stack, so get_feature_flags() never
-      // advertises FEATURE_PAIRING or FEATURE_CACHE_CLEARING on this arm and
-      // a client does not send these. Listed so the switch stays total.
-      break;
-  }
-}
-
-void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "descriptor");
-}
-
-void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "descriptor");
-}
-
-void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, 0, "get", "services");
-}
-
-void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "notify", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
-  if (this->api_connection_ == nullptr)
-    return;
-  // Not latched (esp32 parity): the request is idempotent, so a drop resolves
-  // via the client timeout and a retry gives the same answer. Still reported.
-  api::BluetoothSetConnectionParamsResponse resp;
-  resp.address = msg.address;
-  resp.error = GATT_NOT_CONNECTED;
-  if (!this->api_connection_->send_message(resp)) {
-    this->log_reply_dropped_("Connection-params");
-  }
-}
+void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {}
+void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {}
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
 
