@@ -295,6 +295,8 @@ class BluetoothProxy final : public Component {
 
   /// Drop everything the ending session was owed. One list, so a new latch is
   /// one edit rather than two call sites where an omission looks deliberate.
+  /// Drops state only, never sends: api_connection_ is the departing
+  /// subscriber on subscribe and nullptr on unsubscribe.
   void reset_owed_replies_();
   /// Report a reply we deliberately do not latch, so no drop is silent.
   /// Latched replies report their own leading edge instead.
