@@ -65,24 +65,13 @@ TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
   EXPECT_EQ(pressed_2, 0x0200);
 }
 
-// The door offers only a toggle, so a request that already matches must queue nothing.
-TEST(HoermannHcpLightTest, RequestMatchingTheLampQueuesNothing) {
+// The door offers only a toggle, so the platform decides whether one is needed; the hub always sends it.
+TEST(HoermannHcpLightTest, ToggleIsSentEvenWhenTheLampIsAlreadyOff) {
   HoermannHcp door;
   connect(door);
   ASSERT_FALSE(door.is_light_on());
 
-  EXPECT_TRUE(door.turn_light(false));
-  auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0000);
-  EXPECT_EQ(pressed_2, 0x0000);
-}
-
-// A request that differs from the lamp state is sent as a toggle.
-TEST(HoermannHcpLightTest, RequestDifferingFromTheLampSendsAToggle) {
-  HoermannHcp door;
-  connect(door);
-
-  EXPECT_TRUE(door.turn_light(true));
+  EXPECT_TRUE(door.toggle_light());
   auto [pressed, pressed_2] = poll_command(door);
   EXPECT_EQ(pressed, 0x0100);
   EXPECT_EQ(pressed_2, 0x0200);
@@ -91,7 +80,6 @@ TEST(HoermannHcpLightTest, RequestDifferingFromTheLampSendsAToggle) {
 // Without a bus controller the command cannot be delivered, and the caller is told.
 TEST(HoermannHcpLightTest, LampCommandIsRefusedWhileDisconnected) {
   HoermannHcp door;
-  EXPECT_FALSE(door.turn_light(true));
   EXPECT_FALSE(door.toggle_light());
 }
 

@@ -260,9 +260,6 @@ bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
 bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
 bool HoermannHcp::toggle_light() { return this->queue_command_(COMMAND_TOGGLE_LAMP); }
 
-// The door only offers a toggle, so a request matching the current state is already satisfied.
-bool HoermannHcp::turn_light(bool on) { return on == this->light_on_ || this->queue_command_(COMMAND_TOGGLE_LAMP); }
-
 bool HoermannHcp::stop_door() {
   if (!is_moving(this->door_state_)) {
     this->clear_target_();

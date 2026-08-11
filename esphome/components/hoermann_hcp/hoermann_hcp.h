@@ -56,7 +56,6 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool stop_door();
   bool set_position(float position);
   bool toggle_light();
-  bool turn_light(bool on);
 
   DoorState get_door_state() const { return this->door_state_; }
   float get_current_position() const { return this->current_position_; }

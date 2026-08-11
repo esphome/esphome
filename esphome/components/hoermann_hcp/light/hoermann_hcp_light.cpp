@@ -21,7 +21,7 @@ void HoermannHcpLight::setup_state(light::LightState *state) { this->light_state
 void HoermannHcpLight::write_state(light::LightState *state) {
   bool binary;
   state->current_values_as_binary(&binary);
-  if (this->parent_->turn_light(binary)) {
+  if (binary == this->parent_->is_light_on() || this->parent_->toggle_light()) {
     this->reported_on_ = binary;
     return;
   }
