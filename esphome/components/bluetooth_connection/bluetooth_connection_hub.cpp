@@ -21,7 +21,7 @@ void BluetoothConnection::set_address(uint64_t address) {
     this->address_str_[0] = '\0';
     return;
   }
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   ble_device_base::uint64_to_mac_msb_first(address, mac);
   format_mac_addr_upper(mac, this->address_str_);
 }
