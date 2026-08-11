@@ -111,7 +111,7 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNo
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, HubPublishesVaneStateForEveryValidSnapshot) {
   TestableMitsubishiCN105Component hub;
   size_t callback_count = 0;
-  VerticalVaneMode callback_direction = VERTICAL_VANE_MODE_UNKNOWN;
+  std::optional<VerticalVaneMode> callback_direction;
   hub.add_on_vane_state_callback([&](const VaneState &state) {
     callback_count++;
     callback_direction = state.vertical.direction;
@@ -123,7 +123,7 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, HubPublishesVaneStateForEv
   hub.publish_status();
 
   EXPECT_EQ(callback_count, 2);
-  EXPECT_EQ(callback_direction, VERTICAL_VANE_MODE_POSITION_4);
+  EXPECT_EQ(callback_direction, std::optional{VERTICAL_VANE_MODE_POSITION_4});
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing
