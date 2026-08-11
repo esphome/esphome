@@ -758,7 +758,11 @@ class TestSafePrint:
         enough output piled up to fill it.
         """
         buf = io.BytesIO()
-        piped_stream = io.TextIOWrapper(buf, encoding="utf-8", line_buffering=False)
+        # newline="\n" keeps Windows from rewriting the terminator to "\r\n";
+        # this test is about flushing, not about line endings.
+        piped_stream = io.TextIOWrapper(
+            buf, encoding="utf-8", newline="\n", line_buffering=False
+        )
         monkeypatch.setattr(sys, "stdout", piped_stream)
 
         util.safe_print("live log line")
