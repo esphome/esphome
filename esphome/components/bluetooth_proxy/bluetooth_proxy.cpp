@@ -387,7 +387,7 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
 
   auto err = connection->read_characteristic(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -400,7 +400,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
 
   auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -413,7 +413,7 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
 
   auto err = connection->read_descriptor(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -426,7 +426,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
 
   auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -477,7 +477,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 
   auto err = connection->notify_characteristic(msg.handle, msg.enable);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -596,6 +596,9 @@ void BluetoothProxy::loop() {
     auto *connection = this->connections_[i];
     if (connection->send_service_ == SERVICES_DONE_PENDING) {
       connection->send_services_done_();
+    }
+    if (connection->has_pending_ack_()) {
+      connection->flush_pending_ack_();
     }
     auto &owed = this->pending_disconnections_[i];
     if (!owed.empty() && this->send_device_connection(owed.address(), false, 0, owed.error())) {
@@ -716,6 +719,8 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
       // Neither a partial stream's tail nor an owed done belongs to the new
       // session; silence (the client's timeout) arbitrates.
       this->connections_[i]->park_service_stream_();
+      // An ack owed to the previous subscriber means nothing to the new one.
+      this->connections_[i]->clear_pending_ack_();
     }
     this->pending_disconnections_.fill({});
 #endif
@@ -776,14 +781,14 @@ bool BluetoothProxy::send_gatt_services_done(uint64_t address) {
   return this->api_connection_->send_message(call);
 }
 
-void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {
+bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {
   if (this->api_connection_ == nullptr)
-    return;
+    return true;  // Nobody subscribed: nothing is owed, only a refused frame reports false
   api::BluetoothGATTErrorResponse call;
   call.address = address;
   call.handle = handle;
   call.error = error;
-  this->api_connection_->send_message(call);
+  return this->api_connection_->send_message(call);
 }
 
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
