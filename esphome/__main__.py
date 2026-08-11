@@ -2531,11 +2531,11 @@ def _warn_if_source_tree_mismatch() -> None:
         return
 
     _LOGGER.warning(
-        "Running a different source tree than the current directory:\n"
-        "  running:   %s\n"
-        "  cwd is in: %s\n"
-        "The editable install points at the first tree, so its sources are used.\n"
-        "Run 'python -m esphome' from the second tree to use that one instead.",
+        "Running ESPHome from a different checkout than the one you are in:\n"
+        "  running from: %s\n"
+        "  you are in:   %s\n"
+        "The editable install points at the first, so its sources are used.\n"
+        "Run 'python -m esphome' from the second to use that one instead.",
         running,
         standing_in,
     )
