@@ -239,10 +239,8 @@ uint32_t IDFUARTComponent::line_inversion_mask_() {
 }
 
 esp_err_t IDFUARTComponent::apply_line_settings_() {
-  // Everything here is reset by uart_param_config(): its internal uart_hal_init()
-  // restores the default port mode (dropping RS485 half-duplex), and future IDF
-  // versions may reset more. This must therefore run after every uart_param_config()
-  // call — at driver install and on live reconfiguration alike.
+  // uart_param_config()'s internal uart_hal_init() resets these, so re-apply after
+  // every uart_param_config() call (driver install and live reconfiguration alike).
   esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
@@ -279,20 +277,24 @@ void IDFUARTComponent::apply_settings_live() {
     this->load_settings(false);
     return;
   }
-  // uart_param_config() touches only registers, not the driver object or its ring
-  // buffers, so tasks blocked in uart_read_bytes()/uart_write_bytes() are undisturbed.
-  // The new framing takes effect immediately (mid-byte corruption is possible), which
-  // is inherent to live reconfiguration; hosts normally re-code the line at port-open.
+  // Leaves the driver ring buffers alone (blocked read/write tasks are undisturbed)
+  // but flushes both hardware FIFOs, discarding in-flight bytes -- inherent to live
+  // reconfiguration; hosts normally re-code the line at port-open before data flows.
   uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
     // Unachievable baud rates land here with the registers already reset (via the
-    // internal uart_hal_init()); restore the last framing that worked.
+    // internal uart_hal_init()). Restore the last framing that worked; if that also
+    // fails (or none is recorded yet) the port is left reset -- mark failed.
     ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
              this->last_good_baud_);
     this->baud_rate_ = this->last_good_baud_;
     uart_config = this->get_config_();
-    uart_param_config(this->uart_num_, &uart_config);
+    if (this->last_good_baud_ == 0 || uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
+      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure");
+      this->mark_failed();
+      return;
+    }
   } else {
     this->last_good_baud_ = this->baud_rate_;
   }

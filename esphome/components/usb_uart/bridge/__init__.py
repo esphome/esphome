@@ -86,7 +86,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         owned_id = str(config[conf_key])
         for domain, domain_conf in fv.full_config.get().items():
             # Bridge-vs-bridge sharing is already rejected above.
-            if domain == "bridge":
+            if domain == BRIDGE_DOMAIN:
                 continue
             if _subtree_references_uart(domain_conf, owned_id):
                 raise cv.Invalid(

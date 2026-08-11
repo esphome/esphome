@@ -203,9 +203,9 @@ void USBUARTBridge::set_line_coding() {
   }
 
   if (changed) {
-    ESP_LOGV(TAG, "Line coding: baud=%" PRIu32 ", data_bits=%u, stop_bits=%u, parity=%u", baud,
-             this->uart_parent_->get_data_bits(), this->uart_parent_->get_stop_bits(),
-             static_cast<uint8_t>(this->uart_parent_->get_parity()));
+    ESP_LOGV(TAG, "Line coding: baud=%" PRIu32 ", data_bits=%u, stop_bits=%u, parity=%u",
+             this->uart_parent_->get_baud_rate(), this->uart_parent_->get_data_bits(),
+             this->uart_parent_->get_stop_bits(), static_cast<uint8_t>(this->uart_parent_->get_parity()));
     // Coalesce rapid line-coding updates from the host.
     this->reload_requested_at_ = millis();
     this->reload_pending_ = true;
@@ -237,7 +237,7 @@ void USBUARTBridge::uart_tx_task_fn(void *arg) {
 void USBUARTBridge::uart_rx_task_() {
   TaskHandle_t usb_tx_handle = this->usb_tx_task_handle_;
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
-  uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
+  uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
   // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
   uint32_t tx_full_log_ms = millis() - LOG_THROTTLE_MS;
   uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
@@ -287,7 +287,7 @@ void USBUARTBridge::uart_rx_task_() {
 
 void USBUARTBridge::uart_tx_task_() {
   RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
-  uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
+  uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
   uint8_t *data_to_uart = this->uart_tx_buffer_.get();
   const size_t buf_size = this->uart_tx_buffer_size_;
   size_t rx_size;

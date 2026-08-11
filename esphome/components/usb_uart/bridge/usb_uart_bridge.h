@@ -10,7 +10,7 @@
 
 namespace esphome::usb_uart_bridge {
 
-class USBUARTBridge : public Component {
+class USBUARTBridge final : public Component {
  public:
   USBUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent,
                 size_t uart_rx_buffer_size, size_t uart_tx_buffer_size)

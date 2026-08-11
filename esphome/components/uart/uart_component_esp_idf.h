@@ -55,10 +55,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   /**
    * Apply the current framing settings (baud rate, parity, data/stop bits) to the
    * already-installed driver without the driver delete/reinstall that load_settings()
-   * performs. uart_param_config() only rewrites the peripheral framing registers and
-   * leaves the RX/TX ring buffers intact, so this is safe to call while other tasks
-   * are blocked in uart_read_bytes()/uart_write_bytes(). Falls back to a full reload
-   * if the driver is not currently installed.
+   * performs. The driver ring buffers and any tasks blocked in
+   * uart_read_bytes()/uart_write_bytes() survive, but uart_param_config() flushes
+   * both hardware FIFOs, so up to a FIFO's worth of in-flight bytes is discarded in
+   * each direction. Falls back to a full reload if the driver is not installed.
    */
   void apply_settings_live();
 
