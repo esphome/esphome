@@ -429,9 +429,9 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif  // !USE_ETHERNET_SPI
 
   // use ESP internal eth mac
-  uint8_t mac_addr[6];
+  uint8_t mac_addr[MAC_ADDRESS_SIZE];
   if (this->fixed_mac_.has_value()) {
-    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+    memcpy(mac_addr, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
   } else {
     esp_read_mac(mac_addr, ESP_MAC_ETH);
   }
@@ -926,7 +926,7 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
     // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
     if (this->fixed_mac_.has_value()) {
-      memcpy(mac, this->fixed_mac_->data(), 6);
+      memcpy(mac, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
     } else {
       esp_read_mac(mac, ESP_MAC_ETH);
     }
@@ -944,7 +944,7 @@ std::string EthernetComponent::get_eth_mac_address_pretty() {
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

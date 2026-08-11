@@ -187,20 +187,25 @@ def main() -> int:
 
             if self._filter_pattern is None:
                 self._stream.write(data)
-                return len(data)
+            else:
+                self._line_buffer += data
+                for line in self._line_buffer.splitlines(keepends=True):
+                    if "\n" not in line and "\r" not in line:
+                        # Incomplete — hold until we see a terminator.
+                        self._line_buffer = line
+                        break
+                    self._line_buffer = ""
 
-            self._line_buffer += data
-            for line in self._line_buffer.splitlines(keepends=True):
-                if "\n" not in line and "\r" not in line:
-                    # Incomplete — hold until we see a terminator.
-                    self._line_buffer = line
-                    break
-                self._line_buffer = ""
+                    stripped = ansi_escape.sub("", line).rstrip()
+                    if self._filter_pattern.match(stripped) is not None:
+                        continue
+                    self._stream.write(line)
 
-                stripped = ansi_escape.sub("", line).rstrip()
-                if self._filter_pattern.match(stripped) is not None:
-                    continue
-                self._stream.write(line)
+            # We tell idf.py it is talking to a terminal, so it sends progress
+            # bars and cursor moves. Our own stdout is usually a pipe, which is
+            # block buffered, so without this the build looks frozen until
+            # 8 KiB of output piles up.
+            self._stream.flush()
             return len(data)
 
     if len(sys.argv) < 2:
