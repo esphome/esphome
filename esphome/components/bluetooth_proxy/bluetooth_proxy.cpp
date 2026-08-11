@@ -206,7 +206,7 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
 
 void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t error) {
   // Match before free entry so one address never occupies two pool slots.
-  PendingDisconnect *free_entry = nullptr;
+  PendingReply *free_entry = nullptr;
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto &owed = this->pending_disconnections_[i];
     if (owed.matches(address)) {
