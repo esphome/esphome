@@ -338,9 +338,7 @@ void Tormatic::send_gate_command_(GateStatus s) {
   this->send_message_(COMMAND, req);
 }
 
-void Tormatic::set_light_state(bool state) {
-  this->send_light_command_(state);
-}
+void Tormatic::set_light_state(bool state) { this->send_light_command_(state); }
 
 void Tormatic::send_light_command_(bool state) {
   ESP_LOGI(TAG, "Sending light command %s", state ? "ON" : "OFF");
