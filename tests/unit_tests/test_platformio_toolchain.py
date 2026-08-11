@@ -347,7 +347,9 @@ def test_run_platformio_cli_flags_an_esp32_arduino_build(
     """The runner filters output in a subprocess with no configured CORE.
 
     It offers the out-of-flash tip from there, so it needs to be told which
-    platform this is; anything else must not be flagged.
+    platform this is; anything else must not be flagged. The variable is
+    seeded first, so an inherited one has to be cleared rather than passed
+    through to a build it does not suit.
     """
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.data[KEY_CORE] = {
@@ -355,15 +357,14 @@ def test_run_platformio_cli_flags_an_esp32_arduino_build(
         KEY_TARGET_FRAMEWORK: framework,
     }
 
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop(ESP32_ARDUINO_ENV, None)
+    with patch.dict(os.environ, {ESP32_ARDUINO_ENV: "1"}, clear=False):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli("test", "arg")
 
         env = mock_run_external_process.call_args[1]["env"]
         assert env.get(ESP32_ARDUINO_ENV) == expected
-        # Never leaks into our own environment.
-        assert ESP32_ARDUINO_ENV not in os.environ
+        # Only the subprocess env is touched; ours is left as it was.
+        assert os.environ[ESP32_ARDUINO_ENV] == "1"
 
 
 def test_run_platformio_cli_sets_environment_variables(

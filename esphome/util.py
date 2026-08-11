@@ -535,9 +535,11 @@ def is_esp32_arduino_build() -> bool:
     """
     from esphome.core import CORE
 
-    if CORE.data.get(const.KEY_CORE, {}).get(const.KEY_TARGET_PLATFORM) is None:
+    try:
+        return CORE.is_esp32 and CORE.using_arduino
+    except KeyError:
+        # Nothing configured this CORE, so we are in the runner subprocess.
         return os.environ.get(ESP32_ARDUINO_ENV) == "1"
-    return CORE.is_esp32 and CORE.using_arduino
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:

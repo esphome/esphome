@@ -352,6 +352,10 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # CORE to ask which platform this is, so tell it.
     if is_esp32_arduino_build():
         env[ESP32_ARDUINO_ENV] = "1"
+    else:
+        # Clear an inherited one, so a stray value in our own environment
+        # cannot make the runner offer the tip for a build it does not suit.
+        env.pop(ESP32_ARDUINO_ENV, None)
 
     return run_external_process(*cmd, env=env, **kwargs)
 
