@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import json
 import os
@@ -86,6 +87,48 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
+def test_collect_filtered_files_exclude_pattern_in_subdir(tmp_path):
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert str(kept) in result
+    assert str(excluded) not in result
+
+
+def test_collect_filtered_files_exclude_unnormalized_glob_output(tmp_path, monkeypatch):
+    # On Windows, glob keeps the pattern's literal separators for non-wildcard
+    # path components, so the "+" wildcard pattern and the "-" literal pattern
+    # yield the same file spelled differently and the exclude set difference
+    # misses it. Backslash is a regular filename character on POSIX (such paths
+    # fail the final is_file filter), so reproduce the unnormalized-output
+    # mismatch portably with dot segments, which normpath also collapses.
+    src = tmp_path / "lib" / "src"
+    src.mkdir(parents=True)
+    kept = src / "a.c"
+    excluded = src / "hasty.c"
+    kept.write_text("int a;")
+    excluded.write_text("int b;")
+
+    real_glob = glob.glob
+
+    def unnormalized_glob(pattern, recursive=False):
+        if "*" in pattern:
+            base = str(tmp_path)
+            return [base + "/lib/./src/a.c", base + "/lib/./src/hasty.c"]
+        return real_glob(pattern, recursive=recursive)
+
+    monkeypatch.setattr(glob, "glob", unnormalized_glob)
+
+    result = collect_filtered_files(tmp_path, ["+<lib/src/*.c>", "-<lib/src/hasty.c>"])
+    assert [Path(r).name for r in result] == ["a.c"]
+    assert str(kept) in result
+
+
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
@@ -112,6 +155,62 @@ def test_generate_cmakelists_txt_basic(tmp_component):
     assert "main.c" in content
 
 
+def test_generate_cmakelists_txt_external_source_uses_absolute_paths(
+    tmp_component, tmp_path
+):
+    # A local library's sources live outside the component dir (source_path),
+    # so SRCS and INCLUDE_DIRS must be emitted as absolute paths into it.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "include").mkdir()
+    (source / "src" / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_src = str((source / "src" / "thing.cpp").resolve()).replace("\\", "/")
+    abs_inc = str((source / "include").resolve()).replace("\\", "/")
+    assert abs_src in content
+    assert abs_inc in content
+    # Nothing was copied into the component dir.
+    assert not (tmp_component.path / "src").exists()
+
+
+def test_generate_cmakelists_txt_external_source_absolutises_link_dirs(
+    tmp_component, tmp_path
+):
+    # A local library's relative -L path must be made absolute against its own
+    # directory so it resolves from the component cache dir.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "src" / "thing.cpp").write_text("int t;")
+    (source / "libs").mkdir()
+    tmp_component.source_path = source
+    tmp_component.data = {"build": {"flags": ["-Llibs"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_lib = str((source / "libs").resolve()).replace("\\", "/")
+    assert "target_link_directories" in content
+    assert abs_lib in content
+
+
+def test_generate_cmakelists_txt_external_source_root_srcdir(tmp_component, tmp_path):
+    # An external source with files at its root (no src/ or include/ dir):
+    # the src-dir search falls through to "." and the missing include dirs are
+    # filtered out.
+    source = tmp_path / "flat_lib"
+    source.mkdir()
+    (source / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert str((source / "thing.cpp").resolve()).replace("\\", "/") in content
+
+
 def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     src_dir = tmp_component.path / "src"
     src_dir.mkdir()
@@ -126,28 +225,96 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     }
 
     content = generate_cmakelists_txt(tmp_component)
-    sep = "\\\\" if os.name == "nt" else "/"
+    # Paths are always emitted with forward slashes so the CMakeLists is
+    # portable; on Windows os.path.relpath would otherwise yield backslashes
+    # that break CMake's list re-parsing.
     assert (
         content
-        == f"""idf_component_register(
-  SRCS "src{sep}main.c"
+        == """idf_component_register(
+  SRCS "src/main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
+  REQUIRES dep ${ESPHOME_PROJECT_MANAGED_COMPONENTS} ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}
 )
-target_compile_options(${{COMPONENT_LIB}} PUBLIC
+target_compile_options(${COMPONENT_LIB} PUBLIC
   "-DTEST"
 )
-target_compile_options(${{COMPONENT_LIB}} PRIVATE
+target_compile_options(${COMPONENT_LIB} PRIVATE
   "-Wall"
 )
-target_link_directories(${{COMPONENT_LIB}} INTERFACE
+target_link_directories(${COMPONENT_LIB} INTERFACE
   "lib"
 )
-target_link_libraries(${{COMPONENT_LIB}} INTERFACE
+target_link_libraries(${COMPONENT_LIB} INTERFACE
   "mylib"
 )
 """
     )
+
+
+def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
+    tmp_component, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # os.path.relpath yields backslash paths on Windows, which CMake rejects
+    # when it re-parses the SRCS list (e.g. "\b" in "src\backend" is an invalid
+    # character escape). Simulate that output and confirm the generated
+    # CMakeLists normalizes the separators to forward slashes.
+    src_dir = tmp_component.path / "src" / "backend"
+    src_dir.mkdir(parents=True)
+    (src_dir / "cipher.c").write_text("int f() {}")
+
+    tmp_component.data = {}
+
+    monkeypatch.setattr("esphome.espidf.component.os.sep", "\\")
+    monkeypatch.setattr(
+        "esphome.espidf.component.os.path.relpath",
+        lambda *args, **kwargs: "src\\backend\\cipher.c",
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert 'SRCS "src/backend/cipher.c"' in content
+    assert "\\" not in content
+
+
+def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
+    # PlatformIO shell-lexes each build.flags entry, so a single entry can
+    # carry a flag and its argument. The generated CMakeLists must emit them
+    # as separate compile options, not one argument with an embedded space.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {"build": {"flags": ["-include cp_custom_alloc.h", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-include cp_custom_alloc.h"' not in content
+    assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
+def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
+    # Space-separated -I/-L/-l entries routed to INCLUDE_DIRS and the link
+    # handling before the shlex split was added; splitting must not leak
+    # them into raw compile options.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    (tmp_component.path / "extra_inc").mkdir()
+
+    tmp_component.data = {
+        "build": {"flags": ["-I extra_inc", "-L extra_lib", "-l extralib", "-DTEST"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'INCLUDE_DIRS "src" "extra_inc"' in content
+    assert 'target_link_directories(${COMPONENT_LIB} INTERFACE\n  "extra_lib"\n)' in (
+        content
+    )
+    assert 'target_link_libraries(${COMPONENT_LIB} INTERFACE\n  "extralib"\n)' in (
+        content
+    )
+    assert '"-I"' not in content
+    assert '"-L"' not in content
+    assert '"-l"' not in content
 
 
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
@@ -351,35 +518,165 @@ empty=
 
 
 def test_node_key_git_with_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#v1.2.3"
     )
     assert key == "foo/bar"
-    assert is_git is True
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", "v1.2.3")
 
 
 def test_node_key_git_branch_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#some-branch"
     )
-    assert (key, is_git, locator[1]) == ("foo/bar", True, "some-branch")
+    assert (key, kind, locator[1]) == ("foo/bar", "git", "some-branch")
 
 
 def test_node_key_git_no_ref():
-    _key, is_git, locator = _node_key("name", None, "https://github.com/foo/bar.git")
-    assert is_git is True
+    _key, kind, locator = _node_key("name", None, "https://github.com/foo/bar.git")
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", None)
 
 
+def test_node_key_url_in_name_is_git():
+    # add_library("https://github.com/x/y", None): PlatformIO accepted a bare
+    # git URL as the library name, so the converter must too.
+    key, kind, locator = _node_key("https://github.com/pstolarz/OneWireNg", None, None)
+    assert key == "pstolarz/OneWireNg"
+    assert kind == "git"
+    assert locator == ("https://github.com/pstolarz/OneWireNg", None)
+
+
+def test_node_key_url_in_name_with_ref():
+    key, kind, locator = _node_key("https://github.com/foo/bar.git#v1.2.3", None, None)
+    assert (key, kind, locator) == (
+        "foo/bar",
+        "git",
+        ("https://github.com/foo/bar.git", "v1.2.3"),
+    )
+
+
+def test_node_key_url_in_name_git_plus_prefix():
+    key, kind, locator = _node_key("git+https://github.com/foo/bar", None, None)
+    assert (key, kind, locator) == (
+        "foo/bar",
+        "git",
+        ("https://github.com/foo/bar", None),
+    )
+
+
+def test_node_key_git_plus_prefix_in_repository():
+    _key, kind, locator = _node_key("name", None, "git+https://github.com/foo/bar")
+    assert (kind, locator) == ("git", ("https://github.com/foo/bar", None))
+
+
+def test_node_key_custom_name_equals_url_is_git():
+    key, kind, locator = _node_key(
+        "OneWireNg=https://github.com/pstolarz/OneWireNg", None, None
+    )
+    assert (key, kind, locator) == (
+        "pstolarz/OneWireNg",
+        "git",
+        ("https://github.com/pstolarz/OneWireNg", None),
+    )
+
+
+def test_node_key_url_in_name_with_query_containing_equals():
+    # A bare URL whose query string contains ``=`` must not be split by the
+    # CustomName=URL handling.
+    key, kind, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, kind, locator) == (
+        "x/y",
+        "git",
+        ("https://host/x/y.git?ref=main", None),
+    )
+
+
+def test_node_key_file_url_in_repository_is_local():
+    # A plain file:// entry (PlatformIO's spelling for a local library folder)
+    # resolves as a local directory, keeping the custom name as the key. The
+    # path is the OS-native form of the URL (backslashes on Windows).
+    key, kind, (path, ref) = _node_key(
+        "TeslaBLE", None, "file:///config/esphome/lib_dev"
+    )
+    assert (key, kind, ref) == ("TeslaBLE", "local", None)
+    assert Path(path) == Path("/config/esphome/lib_dev")
+
+
+def test_node_key_bare_file_url_is_local_named_for_dir():
+    # Without a custom name the directory's own name becomes the key.
+    key, kind, (path, ref) = _node_key(None, None, "file:///opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_custom_name_equals_file_url_is_local():
+    key, kind, (path, ref) = _node_key("Foo=file:///opt/mylib", None, None)
+    assert (key, kind, ref) == ("Foo", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_file_url_localhost_host_is_local():
+    # A localhost host is ignored; only the path identifies the directory.
+    key, kind, (path, ref) = _node_key(None, None, "file://localhost/opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+@pytest.mark.parametrize(
+    "url", ["file://server/share/lib", "file://lib_dev", "file://../mylib"]
+)
+def test_node_key_file_url_with_host_rejected(url: str) -> None:
+    # A real host, or a relative path whose first segment parses as the host,
+    # is rejected rather than silently resolved to the wrong directory.
+    with pytest.raises(RuntimeError, match="Unsupported host in file://"):
+        _node_key(None, None, url)
+
+
+@pytest.mark.parametrize("url", ["file:lib_dev", "file:./lib", "file:///"])
+def test_node_key_file_url_must_be_absolute(url: str) -> None:
+    # A relative path (no host, e.g. file:lib_dev) or a bare root (file:///)
+    # is rejected rather than resolved against the cwd or yielding an empty name.
+    with pytest.raises(RuntimeError, match="must be an absolute"):
+        _node_key(None, None, url)
+
+
+def test_node_key_git_plus_file_url_stays_git():
+    # git+file:// is an explicit local git repo, not a plain directory.
+    _key, kind, locator = _node_key("X", None, "git+file:///srv/foo.git")
+    assert kind == "git"
+    assert locator == ("file:///srv/foo.git", None)
+
+
+@pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
+def test_node_key_malformed_url_in_name_raises(name: str) -> None:
+    # A name that was clearly meant to be a URL but does not parse must fail
+    # fast instead of degrading to a confusing registry lookup error.
+    with pytest.raises(RuntimeError, match="Invalid PIO library URL"):
+        _node_key(name, None, None)
+
+
+def test_node_key_name_with_equals_but_no_url_is_registry():
+    key, kind, locator = _node_key("FOO=BAR", "1.0", None)
+    assert (key, kind, locator) == ("FOO=BAR", "registry", (None, "FOO=BAR"))
+
+
+def test_node_key_version_url_still_ignored_when_name_plain():
+    # A version that is a URL is handled by the dependency walk, not here;
+    # a plain name must stay a registry spec regardless of version shape.
+    key, kind, _locator = _node_key("bar", "https://github.com/foo/bar", None)
+    assert (key, kind) == ("bar", "registry")
+
+
 def test_node_key_registry_owner_name():
-    key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
-    assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
+    key, kind, locator = _node_key("foo/bar", "^1.0.0", None)
+    assert (key, kind, locator) == ("foo/bar", "registry", ("foo", "bar"))
 
 
 def test_node_key_registry_bare_name():
-    key, is_git, locator = _node_key("bar", "1.0", None)
-    assert (key, is_git, locator) == ("bar", False, (None, "bar"))
+    key, kind, locator = _node_key("bar", "1.0", None)
+    assert (key, kind, locator) == ("bar", "registry", (None, "bar"))
 
 
 def test_normalize_dependencies_none():

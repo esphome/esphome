@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
 )
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,12 +63,33 @@ CHIPSETS = {
 }
 
 CONF_IS_WRGB = "is_wrgb"
+CONF_RGBW_ORDER = "rgbw_order"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
 CONF_RESET_HIGH = "reset_high"
 CONF_RESET_LOW = "reset_low"
+
+
+def _validate_rgbw_order(value: str) -> str:
+    value = cv.string(value).upper()
+    if len(value) != 4 or set(value) != set("RGBW"):
+        raise cv.Invalid("RGBW order must be a permutation of RGBW")
+    return value
+
+
+def _split_rgbw_order(rgbw_order: str) -> tuple[str, int]:
+    return rgbw_order.replace("W", ""), rgbw_order.index("W")
+
+
+def _validate_rgbw_order_exclusivity(config: ConfigType) -> ConfigType:
+    if CONF_RGBW_ORDER in config and (config[CONF_IS_RGBW] or config[CONF_IS_WRGB]):
+        raise cv.Invalid(
+            f"'{CONF_RGBW_ORDER}' cannot be used with '{CONF_IS_RGBW}' or "
+            f"'{CONF_IS_WRGB}'"
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -80,7 +102,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-            cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
+            cv.Optional(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
+            cv.Optional(CONF_RGBW_ORDER): _validate_rgbw_order,
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
@@ -130,6 +153,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
+    cv.has_exactly_one_key(CONF_RGB_ORDER, CONF_RGBW_ORDER),
+    _validate_rgbw_order_exclusivity,
 )
 
 
@@ -173,9 +198,14 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
-    cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
-    cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
+    if (rgbw_order := config.get(CONF_RGBW_ORDER)) is not None:
+        rgb_order, white_index = _split_rgbw_order(rgbw_order)
+        cg.add(var.set_rgb_order(RGB_ORDERS[rgb_order]))
+        cg.add(var.set_rgbw_order(white_index))
+    else:
+        cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
+        cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
+        cg.add(var.set_is_wrgb(config[CONF_IS_WRGB]))
     cg.add(var.set_use_psram(config[CONF_USE_PSRAM]))
     cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
     if CONF_USE_DMA in config:

@@ -456,9 +456,58 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+// Read a request header value portably across the Arduino and ESP-IDF web servers.
+// Returns an empty string when the header is absent (only allocates when a value is present).
+static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
+#ifdef USE_ESP32
+  // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
+  optional<std::string> value = request->get_header(name);
+  return value.has_value() ? std::move(*value) : std::string();
+#else
+  // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
+  const AsyncWebHeader *header = request->getHeader(name);
+  return header != nullptr ? std::string(header->value().c_str()) : std::string();
+#endif
+}
+
+bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
+  // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
+  if (origin.empty())
+    return true;
+
+  // Same-origin: the Origin authority (scheme stripped) matches the Host the request was sent to.
+  // This covers the device's own IP, mDNS name, or DNS name without knowing any at compile time.
+  const size_t scheme_sep = origin.find("://");
+  if (scheme_sep != std::string::npos) {
+    const std::string host = get_request_header(request, "Host");
+    if (!host.empty() && origin.compare(scheme_sep + 3, std::string::npos, host) == 0)
+      return true;
+  }
+
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Otherwise the origin must be explicitly allowed via configuration.
+  for (const char *allowed_origin : this->allowed_origins_) {
+    // A single "*" entry allows any origin.
+    if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
+      return true;
+    if (origin == allowed_origin)
+      return true;
+  }
+#endif
+  return false;
+}
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+  const std::string origin = get_request_header(request, "Origin");
+  if (!this->is_request_origin_allowed_(request, origin)) {
+    request->send(403);
+    return;
+  }
+
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
+  // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
@@ -509,26 +558,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   size_t device_len = device_name ? strlen(device_name) : 0;
 #endif
 
-  // Single stack buffer for both id formats - ArduinoJson copies the string before we overwrite
+  // Stack buffer for the id - ArduinoJson copies the string before it goes out of scope
   // Buffer sizes use constants from entity_base.h validated in core/config.py
   // Note: Device name uses ESPHOME_FRIENDLY_NAME_MAX_LEN (sub-device max 120), not ESPHOME_DEVICE_NAME_MAX_LEN
   // (hostname)
-  // Without USE_DEVICES: legacy id ({prefix}-{object_id}) is the largest format
-  // With USE_DEVICES: name_id ({prefix}/{device}/{name}) is the largest format
-  static constexpr size_t LEGACY_ID_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN;
 #ifdef USE_DEVICES
   static constexpr size_t ID_BUF_SIZE =
-      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1,
-               LEGACY_ID_SIZE);
+      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #else
-  static constexpr size_t ID_BUF_SIZE =
-      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1, LEGACY_ID_SIZE);
+  static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
   char id_buf[ID_BUF_SIZE];
   memcpy(id_buf, prefix, prefix_len);  // NOLINT(bugprone-not-null-terminated-result)
 
-  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
-  // Remove in 2026.8.0 when id switches to new format permanently
   char *p = id_buf + prefix_len;
   *p++ = '/';
 #ifdef USE_DEVICES
@@ -540,12 +582,6 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 #endif
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
-  root[ESPHOME_F("name_id")] = id_buf;
-
-  // id: old format {prefix}-{object_id} for backward compatibility
-  // Will switch to new format in 2026.8.0 - reuses prefix already in id_buf
-  id_buf[prefix_len] = '-';
-  obj->write_object_id_to(id_buf + prefix_len + 1, ID_BUF_SIZE - prefix_len - 1);
   root[ESPHOME_F("id")] = id_buf;
 
   if (start_config == DETAIL_ALL) {
@@ -1079,6 +1115,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
   if (obj->get_traits().get_supports_tilt())
     root[ESPHOME_F("tilt")] = obj->tilt;
   if (start_config == DETAIL_ALL) {
+    root[ESPHOME_F("assumed_state")] = obj->get_traits().get_is_assumed_state();
     this->add_sorting_info_(root, obj);
   }
 
@@ -1858,7 +1895,7 @@ json::SerializationBuffer<> WebServer::alarm_control_panel_json_(alarm_control_p
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "alarm-control-panel",
+  set_json_icon_state_value(root, obj, "alarm_control_panel",
                             json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -2448,6 +2485,21 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+  // Private Network Access preflight carries a cross-origin Origin by design; its handler does the
+  // origin check itself, so let it run before the general enforcement below.
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
+    this->handle_pna_cors_request(request);
+    return;
+  }
+#endif
+
+  // Reject cross-origin browser requests unless the origin is explicitly allowed.
+  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
+    request->send(403);
+    return;
+  }
+
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
@@ -2465,13 +2517,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
-    return;
-  }
-#endif
-
-#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
-    this->handle_pna_cors_request(request);
     return;
   }
 #endif

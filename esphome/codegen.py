@@ -49,10 +49,13 @@ from esphome.cpp_helpers import (  # noqa: F401
     build_registry_entry,
     build_registry_list,
     extract_registry_entry_config,
+    get_slot_count,
     gpio_pin_expression,
     past_safe_mode,
     register_component,
     register_parented,
+    set_setup_priority,
+    slot_counter,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,

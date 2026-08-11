@@ -1,8 +1,6 @@
 #include "xiaomi_lywsdcgq.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_lywsdcgq {
 
 static const char *const TAG = "xiaomi_lywsdcgq";
@@ -14,7 +12,7 @@ void XiaomiLYWSDCGQ::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiLYWSDCGQ::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -55,5 +53,3 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 }  // namespace esphome::xiaomi_lywsdcgq
-
-#endif
