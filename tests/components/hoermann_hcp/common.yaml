@@ -1,0 +1,8 @@
+hoermann_hcp:
+  id: hoermann_hcp_hub
+  modbus_id: modbus_server_bus
+
+cover:
+  - platform: hoermann_hcp
+    name: Garage Door
+    device_class: garage
