@@ -111,11 +111,9 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNo
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, HubPublishesVaneStateForEveryValidSnapshot) {
   TestableMitsubishiCN105Component hub;
   size_t callback_count = 0;
-  MitsubishiCN105Component *callback_hub = nullptr;
   VerticalVaneMode callback_direction = VERTICAL_VANE_MODE_UNKNOWN;
   hub.add_on_vane_state_callback([&](const VaneState &state) {
     callback_count++;
-    callback_hub = &state.hub;
     callback_direction = state.vertical.direction;
   });
 
@@ -125,7 +123,6 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, HubPublishesVaneStateForEv
   hub.publish_status();
 
   EXPECT_EQ(callback_count, 2);
-  EXPECT_EQ(callback_hub, &hub);
   EXPECT_EQ(callback_direction, VERTICAL_VANE_MODE_POSITION_4);
 }
 

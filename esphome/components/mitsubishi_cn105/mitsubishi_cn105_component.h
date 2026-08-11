@@ -9,8 +9,6 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-class MitsubishiCN105Component;
-
 enum VerticalVaneMode : uint8_t {
   VERTICAL_VANE_MODE_AUTO = static_cast<uint8_t>(MitsubishiCN105::VaneMode::AUTO),
   VERTICAL_VANE_MODE_POSITION_1 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_1),
@@ -27,7 +25,6 @@ struct VaneState {
     VerticalVaneMode direction;
   };
 
-  MitsubishiCN105Component &hub;
   Vertical vertical;
 };
 
@@ -74,7 +71,6 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
   void publish_status_() {
     this->status_callback_.call();
     this->vane_state_callback_.call(VaneState{
-        .hub = *this,
         .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
     });
   }
