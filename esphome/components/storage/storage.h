@@ -641,7 +641,7 @@ StorageError error_from_errno(int err, bool writing);
 // (NOT_READY, READ_ERROR, PERMISSION_DENIED, ...) also returns false but is surfaced via
 // err_out so callers can distinguish "file is absent" from "medium is unmounted/faulted"
 // before deciding to create/overwrite or to report 'not found'.
-bool exists(PathStorage *storage, const char *path, StorageError *err_out = nullptr);
+bool exists(PathStorage *storage, const char *path, StorageError *err_out);
 StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
 
 // Deleter that frees memory obtained from RAMAllocator<uint8_t> (malloc/heap_caps_malloc_prefer)

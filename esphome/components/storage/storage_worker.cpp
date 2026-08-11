@@ -2333,6 +2333,11 @@ StorageError StorageWorker::begin_write(PathStorage *storage, const char *path, 
 
 StorageError StorageWorker::begin_read(PathStorage *storage, const char *path, StreamHandle *out_handle,
                                        CompletionCallback &&on_open) {
+  // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs, so a
+  // queued request would never complete. Reject up front so a caller chaining on on_open learns the
+  // worker is unusable instead of hanging forever with a claimed slot.
+  if (this->is_failed())
+    return StorageError::NOT_READY;
   this->ensure_started_();
   if (strlen(path) >= STORAGE_WORKER_MAX_PATH)
     return StorageError::INVALID_ARGS;

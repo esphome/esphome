@@ -388,14 +388,14 @@ def _resolve_path_max(config: ConfigType) -> int:
         try:
             # A name plus its terminator is the longest single component FATFS will hand back.
             bounds.append(int(lfn) + 1)
-        except (TypeError, ValueError):
-            _LOGGER.warning(
-                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number -- using %d for the "
-                "path bound instead",
-                lfn,
-                _DEFAULT_PATH_MAX,
-            )
-            bounds.append(_DEFAULT_PATH_MAX)
+        except (TypeError, ValueError) as exc:
+            # A non-numeric CONFIG_FATFS_MAX_LFN is a configuration error, not a value to guess a
+            # bound for: a wrong guess sizes USE_STORAGE_PATH_MAX too small and fails legitimate
+            # paths with INVALID_ARGS only at runtime on the device.
+            raise EsphomeError(
+                f"storage: CONFIG_FATFS_MAX_LFN is {lfn!r}, which is not a number -- set it to the "
+                "FatFs long-filename limit (an integer) in sdkconfig_options"
+            ) from exc
     return max(bounds) if bounds else _DEFAULT_PATH_MAX
 
 
