@@ -150,8 +150,12 @@ void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handl
 }
 #endif
 
-void BluetoothProxy::log_advertisement_flush_() {
-  ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
+void BluetoothProxy::log_advertisement_flush_(bool sent) {
+  if (sent) {
+    ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
+  } else {
+    ESP_LOGV(TAG, "Batch of %u BLE advertisements dropped, TCP buffer full", this->response_.advertisements_len);
+  }
 }
 
 void BluetoothProxy::dump_config() {

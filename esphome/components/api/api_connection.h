@@ -169,12 +169,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Returns whether this client has subscribed to Home Assistant actions; the message
   // is only handed to the send path when subscribed. A true return does not guarantee
   // delivery - it lets the caller warn when no connected client has the subscription.
-  bool send_homeassistant_action(const HomeassistantActionRequest &call) {
-    if (!this->flags_.service_call_subscription)
-      return false;
-    this->send_message(call);
-    return true;
-  }
+  bool send_homeassistant_action(const HomeassistantActionRequest &call);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -198,10 +193,7 @@ class APIConnection final : public APIServerConnectionBase {
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
-  void send_time_request() {
-    GetTimeRequest req;
-    this->send_message(req);
-  }
+  void send_time_request();
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
@@ -337,7 +329,9 @@ class APIConnection final : public APIServerConnectionBase {
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
-  template<typename T> bool send_message(const T &msg) {
+  /// Returns false as soon as the TCP buffer is full. Marked nodiscard so we
+  /// have no silent failures: every caller must handle (or log) a refusal.
+  template<typename T> [[nodiscard]] bool send_message(const T &msg) {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
     } else {

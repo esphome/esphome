@@ -123,7 +123,9 @@ void APIServer::setup() {
         // Best-effort: if the send buffer is full the reason is dropped, but the
         // client still learns the window is closed when it reconnects (rejected at
         // hello) or via the socket close.
-        c->send_message(req);
+        if (!c->send_message(req)) {
+          ESP_LOGV(TAG, "Disconnect request dropped, TCP buffer full");
+        }
       }
     });
   }
@@ -394,8 +396,11 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
-  for (auto &c : this->active_clients())
-    c->send_message(msg);
+  for (auto &c : this->active_clients()) {
+    if (!c->send_message(msg)) {
+      ESP_LOGV(TAG, "Z-Wave frame dropped, TCP buffer full");
+    }
+  }
 }
 #endif
 
@@ -576,7 +581,9 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       for (auto &c : this->active_clients()) {
         DisconnectRequest req;
-        c->send_message(req);
+        if (!c->send_message(req)) {
+          ESP_LOGV(TAG, "Disconnect request dropped, TCP buffer full");
+        }
       }
     });
   }
