@@ -351,6 +351,11 @@ async def to_code(config):
         ],
     )
 
+    # newlib-nano is the default libc for the arduino-pico toolchain and its
+    # printf silently drops %f unless _printf_float is force-linked. Components
+    # use %f widely in logging, so pull it in.
+    cg.add_build_flag("-Wl,-u,_printf_float")
+
     # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
     # (~9.2 KB). See printf_stubs.cpp for implementation.
     if config.get(CONF_ENABLE_FULL_PRINTF):

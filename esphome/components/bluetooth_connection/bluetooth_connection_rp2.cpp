@@ -1,8 +1,11 @@
 #include "bluetooth_connection_rp2.h"
 
+#include "bluetooth_connection.h"
+
 #if defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <BluetoothLock.h>
@@ -23,7 +26,6 @@ using ble_device_base::GATT_ERR_NO_MEMORY;
 // and keeps the scan inhibited, so the engine cancels after 20 s. The
 // disconnect timeout mirrors the esp32 CLOSE_EVT safety net.
 static constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
-static constexpr uint32_t DISCONNECT_TIMEOUT_MS = 10000;
 // Can-send windows normally open within a connection interval (tens of ms).
 static constexpr uint32_t WRITE_NO_RSP_TIMEOUT_MS = 500;
 
@@ -51,6 +53,7 @@ using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 RP2GattClient *RP2GattClient::instances[ESPHOME_BLE_GATT_CLIENT_COUNT] = {};
 uint8_t RP2GattClient::instance_count = 0;
 btstack_packet_callback_registration_t RP2GattClient::hci_event_registration = {};
+btstack_packet_callback_registration_t RP2GattClient::sm_event_registration = {};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static ESPBTUUID uuid_from_btstack(uint16_t uuid16, const uint8_t uuid128[16]) {
@@ -88,6 +91,8 @@ void RP2GattClient::setup() {
     if (hci_event_registration.callback == nullptr) {
       hci_event_registration.callback = &RP2GattClient::hci_packet_handler;
       hci_add_event_handler(&hci_event_registration);
+      sm_event_registration.callback = &RP2GattClient::sm_packet_handler;
+      sm_add_event_handler(&sm_event_registration);
     }
   }
 
@@ -149,6 +154,38 @@ void RP2GattClient::hci_packet_handler(uint8_t type, uint16_t channel, uint8_t *
       }
       if (inst != nullptr) {
         inst->enqueue_event_irq_(RP2GattEvent::DISCONNECTED, hci_event_disconnection_complete_get_reason(packet), 0);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void RP2GattClient::sm_packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, uint16_t size) {
+  if (type != HCI_EVENT_PACKET) {
+    return;
+  }
+  switch (hci_event_packet_get_type(packet)) {
+    case SM_EVENT_JUST_WORKS_REQUEST:
+      // Confirming from the SM callback is the intended BTstack pattern.
+      // Unscoped on purpose: no peripheral role exists in-tree, and scoping
+      // would drop a request racing the queued CONNECTED event.
+      sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+      break;
+    case SM_EVENT_PAIRING_COMPLETE: {
+      RP2GattClient *inst = instance_for_con_handle(sm_event_pairing_complete_get_handle(packet));
+      if (inst != nullptr) {
+        inst->enqueue_event_irq_(RP2GattEvent::PAIRING_RESULT, sm_event_pairing_complete_get_status(packet), 0);
+      }
+      break;
+    }
+    case SM_EVENT_REENCRYPTION_COMPLETE: {
+      // A bonded peer re-encrypts instead of pairing; BTstack emits only this
+      // event on that path, so it answers the PAIR request too.
+      RP2GattClient *inst = instance_for_con_handle(sm_event_reencryption_complete_get_handle(packet));
+      if (inst != nullptr) {
+        inst->enqueue_event_irq_(RP2GattEvent::PAIRING_RESULT, sm_event_reencryption_complete_get_status(packet), 0);
       }
       break;
     }
@@ -346,7 +383,7 @@ void RP2GattClient::loop() {
 
   RP2GattNotifyEvent *notify;
   while ((notify = this->notify_queue_.pop()) != nullptr) {
-    if (this->listener_ != nullptr && this->notify_subscribed_(notify->handle)) {
+    if (this->notify_subscribed_(notify->handle)) {
       this->listener_->on_notify_data(notify->handle, notify->data, notify->len);
     }
     this->notify_pool_.release(notify);
@@ -357,7 +394,7 @@ void RP2GattClient::loop() {
     // Control events must not be lost; the connection state is no longer
     // trustworthy — recover with a forced teardown.
     ESP_LOGE(TAG, "Dropped %u GATT control events, disconnecting", dropped);
-    this->disconnect();
+    this->gatt_disconnect();
   }
   uint16_t notify_dropped = this->notify_queue_.get_and_reset_dropped_count();
   if (notify_dropped > 0) {
@@ -388,11 +425,11 @@ void RP2GattClient::loop() {
         // reclaims state if the disconnection event is lost. Dropping engine
         // state without gap_disconnect would leak the live link and the
         // single GATT slot for the rest of the boot.
-        this->disconnect();
+        this->gatt_disconnect();
       }
     }
   } else if (this->state_ == EngineState::DISCONNECTING) {
-    if (millis() - this->disconnecting_started_ > DISCONNECT_TIMEOUT_MS) {
+    if (millis() - this->disconnecting_started_ > ble_device_base::GATT_DISCONNECT_TIMEOUT_MS) {
       ESP_LOGW(TAG, "Disconnect timeout, forcing idle");
       this->handle_disconnected_(HCI_REASON_CONNECTION_TIMEOUT);
     }
@@ -410,9 +447,7 @@ void RP2GattClient::loop() {
     }
     if (timed_out) {
       ESP_LOGW(TAG, "Deferred write timeout, handle=0x%04x", this->op_handle_);
-      if (this->listener_ != nullptr) {
-        this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
-      }
+      this->listener_->on_write_result(this->op_handle_, GATT_CLIENT_BUSY);
     }
   } else if (this->state_ == EngineState::IDLE || (this->state_ == EngineState::READY && !this->op_in_flight_() &&
                                                    this->event_queue_.empty() && this->notify_queue_.empty())) {
@@ -436,9 +471,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
-        if (this->listener_ != nullptr) {
-          this->listener_->on_connection_state(true, this->mtu_, 0);
-        }
+        this->listener_->on_connection_state(true, this->mtu_, 0);
       }
       break;
     case RP2GattEvent::QUERY_COMPLETE:
@@ -446,6 +479,9 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
       break;
     case RP2GattEvent::WRITE_NO_RSP_DONE:
       this->finish_write_no_rsp_(event.status);
+      break;
+    case RP2GattEvent::PAIRING_RESULT:
+      this->listener_->on_pairing_result(event.status);
       break;
   }
 }
@@ -471,9 +507,7 @@ void RP2GattClient::finish_write_no_rsp_(uint8_t status) {
     return;
   }
   this->op_type_ = OpType::NONE;
-  if (this->listener_ != nullptr) {
-    this->listener_->on_write_result(this->op_handle_, status);
-  }
+  this->listener_->on_write_result(this->op_handle_, status);
 }
 
 void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
@@ -533,9 +567,7 @@ void RP2GattClient::fail_connection_(uint8_t reason) {
   this->cleanup_link_state_();
   this->release_scan_inhibit_();
   this->state_ = EngineState::IDLE;
-  if (this->listener_ != nullptr) {
-    this->listener_->on_connection_state(false, 0, reason);
-  }
+  this->listener_->on_connection_state(false, 0, reason);
 }
 
 void RP2GattClient::cleanup_link_state_() {
@@ -578,9 +610,6 @@ void RP2GattClient::handle_query_complete_(uint8_t att_status) {
   if (this->op_type_ != OpType::NONE && this->op_type_ != OpType::WRITE_CHAR_NO_RSP) {
     OpType op = this->op_type_;
     this->op_type_ = OpType::NONE;
-    if (this->listener_ == nullptr) {
-      return;
-    }
     switch (op) {
       case OpType::READ_CHAR:
       case OpType::READ_DESC:
@@ -753,9 +782,7 @@ void RP2GattClient::finish_discovery_(int error) {
   if (error != 0) {
     this->release_services();
   }
-  if (this->listener_ != nullptr) {
-    this->listener_->on_service_discovery_done(error);
-  }
+  this->listener_->on_service_discovery_done(error);
 }
 
 ble_device_base::GattServiceTable RP2GattClient::get_service_table() {
@@ -830,7 +857,7 @@ int RP2GattClient::connect(uint64_t address, uint8_t addr_type) {
   return 0;
 }
 
-int RP2GattClient::disconnect() {
+int RP2GattClient::gatt_disconnect() {
   switch (this->state_) {
     case EngineState::IDLE:
       return GATT_ERR_NOT_CONNECTED;
@@ -947,7 +974,7 @@ int RP2GattClient::write_characteristic(uint16_t handle, const uint8_t *data, ui
         return 0;
       }
     }
-    if (status == 0 && this->listener_ != nullptr) {
+    if (status == 0) {
       this->listener_->on_write_result(handle, 0);
     }
     return status;
@@ -1019,6 +1046,15 @@ int RP2GattClient::write_descriptor(uint16_t handle, const uint8_t *data, uint16
   return 0;
 }
 
+int RP2GattClient::pair() {
+  if (this->state_ != EngineState::READY) {
+    return GATT_ERR_NOT_CONNECTED;
+  }
+  BluetoothLock lock;
+  sm_request_pairing(this->con_handle_);  // void API; completion via SM events
+  return 0;
+}
+
 int RP2GattClient::notify_characteristic(uint16_t handle, bool enable) {
   if (this->state_ != EngineState::READY) {
     return GATT_ERR_NOT_CONNECTED;
@@ -1040,9 +1076,7 @@ int RP2GattClient::notify_characteristic(uint16_t handle, bool enable) {
       }
     }
   }
-  if (this->listener_ != nullptr) {
-    this->listener_->on_notify_state(handle, enable, 0);
-  }
+  this->listener_->on_notify_state(handle, enable, 0);
   return 0;
 }
 
@@ -1062,6 +1096,30 @@ int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_
   }
   BluetoothLock lock;
   return gap_update_connection_parameters(this->con_handle_, min_interval, max_interval, latency, timeout);
+}
+
+conn_err_t unpair_device(uint64_t address) {
+  uint8_t mac[MAC_ADDRESS_SIZE];
+  ble_device_base::uint64_to_mac_msb_first(address, mac);
+  bool found = false;
+  BluetoothLock lock;
+  // Exhaustive: the db keys on (type, address), so stale entries can share
+  // the same address bytes under different types.
+  for (int i = 0; i < le_device_db_max_count(); i++) {
+    int addr_type = 0;
+    bd_addr_t addr;
+    le_device_db_info(i, &addr_type, addr, nullptr);
+    if (addr_type != BD_ADDR_TYPE_UNKNOWN && memcmp(addr, mac, sizeof(bd_addr_t)) == 0) {
+      le_device_db_remove(i);
+      found = true;
+    }
+  }
+  if (found) {
+    return CONN_OK;
+  }
+  // No bond for this address; the shared error domain has no closer code
+  // (esp32 parity: its remove-bond call also errors for an unknown address).
+  return GATT_NOT_CONNECTED;
 }
 
 }  // namespace esphome::bluetooth_connection
