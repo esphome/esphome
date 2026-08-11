@@ -338,6 +338,13 @@ void Tormatic::send_gate_command_(GateStatus s) {
   this->send_message_(COMMAND, req);
 }
 
+void Tormatic::send_light_command_(bool state) {
+  ESP_LOGI(TAG, "Sending light command %s", state ? "ON" : "OFF");
+
+  LightCommand req(state);
+  this->send_message_(COMMAND, req);
+}
+
 template<typename T> void Tormatic::send_message_(MessageType t, T req) {
   MessageHeader hdr(t, ++this->seq_tx_, sizeof(req));
 
