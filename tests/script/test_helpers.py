@@ -1901,6 +1901,10 @@ def test_run_gh_command_success() -> None:
             " but wanted to match api.github.com"
         ),
         'Post "https://api.github.com/graphql": EOF',
+        (
+            "error connecting to api.github.com\n"
+            "check your internet connection or https://githubstatus.com"
+        ),
     ],
 )
 def test_run_gh_command_retries_transient_error(second_error: str) -> None:

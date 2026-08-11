@@ -480,6 +480,10 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
     r"|timed out|timeout"
     r"|connection (?:reset|refused|closed)"
     r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
     r"|failed to verify certificate"
     # Go reports a server-closed connection as 'Post "<url>": EOF'; the
     # quote-and-colon anchor keeps a URL or message body containing the
