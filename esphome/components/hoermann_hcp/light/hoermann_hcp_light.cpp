@@ -28,8 +28,7 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   // rather than a request. Spending that allowance on whichever branch runs keeps a later real request out of it.
   const bool restore_replay = !this->boot_replay_done_;
   this->boot_replay_done_ = true;
-  // A publish of ours arrives back here as an ordinary write, and must not be reported as a refused request.
-  const bool echo = this->republishing_;
+  const bool republished = this->republishing_;
   this->republishing_ = false;
   if (restore_replay) {
     ESP_LOGD(TAG, "Ignoring the restored state, the door decides what the lamp is doing");
@@ -37,6 +36,9 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   if (!this->parent_->is_light_known()) {
     // Commanding a lamp that has not been read could switch off one that is already on, so pull the entity
     // back to the last lamp state known, which before anything has ever been read is off.
+    // A publish of ours comes back here carrying the value it published, and is not a request to report. Writes
+    // coalesce, so checking the value as well as the flag keeps a request that overtook the publish visible.
+    const bool echo = republished && binary == this->parent_->is_light_on();
     if (!restore_replay && !echo)
       ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
     if (binary != this->parent_->is_light_on())

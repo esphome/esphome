@@ -30,8 +30,8 @@ struct LightFixture {
   CountingHoermannHcpLight output{&door};
   light::LightState state{&output};
 
-  LightFixture() {
-    this->state.set_restore_mode(light::LIGHT_ALWAYS_OFF);
+  explicit LightFixture(light::LightRestoreMode restore_mode = light::LIGHT_ALWAYS_OFF) {
+    this->state.set_restore_mode(restore_mode);
     this->output.setup();
     // setup() queues the restored state for write_state(); the first settle() below delivers it, which is the
     // boot ordering tests need to be able to place around the bus controller coming up.
@@ -625,6 +625,19 @@ TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarme
   ASSERT_EQ(door.pending_light_toggles(), 1);
   door.update();
   EXPECT_EQ(door.pending_light_toggles(), 1);
+}
+
+// A restore mode that boots the entity on replays a lit state the door has never confirmed, so it has to be
+// adopted back to what is known rather than turned into a command.
+TEST(HoermannHcpLightPlatformTest, RestoredOnStateIsAdoptedNotCommanded) {
+  LightFixture fixture{light::LIGHT_ALWAYS_ON};
+  connect_controller(fixture.door);
+  fixture.settle();
+
+  auto [idle, idle_2] = poll_command(fixture.door);
+  EXPECT_EQ(idle, 0x0000);
+  EXPECT_EQ(idle_2, 0x0000);
+  EXPECT_FALSE(fixture.entity_on());
 }
 
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.

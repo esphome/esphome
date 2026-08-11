@@ -23,7 +23,8 @@ class HoermannHcpLight : public light::LightOutput, public Component {
   light::LightState *light_state_{nullptr};
   // Set by the first write_state(), which is always the restored state replayed on boot.
   bool boot_replay_done_{false};
-  // Set while a publish of ours is on its way back into write_state().
+  // Set while a publish of ours is on its way back into write_state(), so the echo is not reported as a second
+  // refused request.
   bool republishing_{false};
 };
 
