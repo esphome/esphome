@@ -65,10 +65,10 @@ from .const_esp32 import (
 from .zigbee_ep_esp32 import (
     ANALOG_INPUT_EP,
     BINARY_INPUT_EP,
+    BINARY_SENSOR_EP_CONFIGS,
+    SENSOR_EP_CONFIGS,
     add_ep,
-    binary_sensor_ep_configs,
     create_ep,
-    sensor_ep_configs,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -207,12 +207,12 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     dev_class = config.get(CONF_DEVICE_CLASS)
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     if config[CONF_CLUSTER] == "default":
-        if dev_class not in sensor_ep_configs:
+        if dev_class not in SENSOR_EP_CONFIGS:
             raise cv.Invalid(
                 "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(sensor_ep_configs)}. Use 'cluster: basic' otherwise."
+                f"Supported: {', '.join(SENSOR_EP_CONFIGS)}. Use 'cluster: basic' otherwise."
             )
-        ep = copy.deepcopy(sensor_ep_configs[dev_class])
+        ep = copy.deepcopy(SENSOR_EP_CONFIGS[dev_class])
         if unit not in ep[ALLOWED_UNITS]:
             raise cv.Invalid(
                 f"Device class '{dev_class}' requires one of units {', '.join(ep[ALLOWED_UNITS])}."
@@ -259,12 +259,12 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     dev_class = config.get(CONF_DEVICE_CLASS)
     if config[CONF_CLUSTER] == "default":
-        if dev_class in binary_sensor_ep_configs:
-            ep = copy.deepcopy(binary_sensor_ep_configs[dev_class])
+        if dev_class in BINARY_SENSOR_EP_CONFIGS:
+            ep = copy.deepcopy(BINARY_SENSOR_EP_CONFIGS[dev_class])
         else:
             raise cv.Invalid(
                 "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(binary_sensor_ep_configs)}. Use 'cluster: basic' otherwise."
+                f"Supported: {', '.join(BINARY_SENSOR_EP_CONFIGS)}. Use 'cluster: basic' otherwise."
             )
     else:
         ep = copy.deepcopy(BINARY_INPUT_EP)

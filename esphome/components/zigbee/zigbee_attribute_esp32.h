@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <type_traits>
 
 #include "esphome/core/automation.h"
@@ -96,7 +97,7 @@ template<typename T> T ZigbeeAttribute::scale_value_(float value) {
         scaled > static_cast<float>(std::numeric_limits<T>::max())) {
       return this->invalid_value_<T>();  // 0x8000 / 0xFFFF / 0 for map & enum
     }
-    return static_cast<T>(scaled);
+    return static_cast<T>(lroundf(scaled));
   }
   return static_cast<T>(this->scale_ * value);
 }

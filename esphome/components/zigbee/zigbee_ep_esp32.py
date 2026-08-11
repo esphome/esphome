@@ -107,7 +107,7 @@ BINARY_INPUT_EP = {
     ],
 }
 
-sensor_ep_configs: dict[str, dict[str, Any]] = {
+SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
     DEVICE_CLASS_TEMPERATURE: {
         ALLOWED_UNITS: [UNIT_CELSIUS],
         DEVICE_TYPE: "TEMPERATURE_SENSOR",
@@ -168,7 +168,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
     },
     DEVICE_CLASS_PRESSURE: {
         ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
-        DEVICE_TYPE: "PRESSURE_SENSOR",
+        DEVICE_TYPE: "PRESSURE_SENSOR",  # Sensor that measures pressure of liquids like water
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PRESSURE_MEASUREMENT",
@@ -226,7 +226,8 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
                             Lambda(
                                 "if (x < 0.0f || std::isnan(x)) return 0xFFFF;"  # NaN
                                 " if (x < 1.0f) return 0;"  # too small to measure
-                                " return (uint16_t)(log10(x)*10000 + 1);"
+                                " const float v = log10(x)*10000 + 1;"
+                                " return v > 65534.0f ? 0xFFFE : (uint16_t) v;"  # clamp to 0xFFFE if too large
                             )
                         ),
                         CONF_DEVICE: None,
@@ -279,7 +280,7 @@ sensor_ep_configs: dict[str, dict[str, Any]] = {
     },
 }
 
-binary_sensor_ep_configs: dict[str, dict[str, Any]] = {
+BINARY_SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
     DEVICE_CLASS_OCCUPANCY: {
         DEVICE_TYPE: "OCCUPANCY_SENSOR",
         CONF_CLUSTERS: [
