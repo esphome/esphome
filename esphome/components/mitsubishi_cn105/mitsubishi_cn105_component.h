@@ -69,9 +69,11 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
  protected:
   void publish_status_() {
     this->status_callback_.call();
-    this->vane_state_callback_.call(VaneState{
-        .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
-    });
+    if (this->status().vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
+      this->vane_state_callback_.call(VaneState{
+          .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+      });
+    }
   }
 
   MitsubishiCN105 hp_;
