@@ -679,20 +679,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       this->send_connections_free();
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-      this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
+      // Pairing needs a connection stack, so get_feature_flags() never
+      // advertises FEATURE_PAIRING or FEATURE_CACHE_CLEARING on this arm and
+      // a client does not send these. Listed so the switch stays total.
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
-      // Address-scoped maintenance needs no connection slot: real on esp32
-      // (Bluedroid bond table), the stub elsewhere keeps the old error reply.
-      conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
-      this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
-      break;
-    }
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
-      conn_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
-      this->send_device_clear_cache(msg.address, ret == CONN_OK, ret);
-      break;
-    }
   }
 }
 
@@ -836,6 +828,7 @@ bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err
   return this->api_connection_->send_message(call);
 }
 
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
@@ -893,6 +886,7 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
     this->log_reply_dropped_("Clear-cache");
   }
 }
+#endif
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

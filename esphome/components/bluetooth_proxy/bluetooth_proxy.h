@@ -145,11 +145,13 @@ class BluetoothProxy final : public Component {
   bool send_gatt_services_done(uint64_t address);
   /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   /// No default error: the drain rebuilds success as (error == CONN_OK), so a
   /// caller that omitted it would have a reported failure resent as a success.
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error);
   void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
+#endif
 
   void bluetooth_scanner_set_mode(bool active);
 
