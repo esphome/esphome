@@ -6840,17 +6840,41 @@ def test_warn_source_tree_mismatch_silent_in_subdirectory(
     assert not caplog.text
 
 
-def test_warn_source_tree_mismatch_silent_via_symlinked_path(
+def test_warn_source_tree_mismatch_warns_when_stat_fails_on_other_tree(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Reaching the running tree by another path is the same tree, not a mismatch."""
-    tree = _make_checkout(tmp_path / "main")
-    link = tmp_path / "link"
-    link.symlink_to(tree, target_is_directory=True)
-    monkeypatch.chdir(link)
-    monkeypatch.setattr(main, "__file__", str(tree / "esphome" / "__main__.py"))
+    """The samefile() fallback must still warn when the trees really differ."""
+    standing_in = _make_checkout(tmp_path / "worktree")
+    running = _make_checkout(tmp_path / "main")
+    monkeypatch.chdir(standing_in)
+    monkeypatch.setattr(main, "__file__", str(running / "esphome" / "__main__.py"))
+
+    def raise_oserror(self: Path, other: Path) -> bool:
+        raise OSError("stat failed")
+
+    monkeypatch.setattr(Path, "samefile", raise_oserror)
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert "worktree" in caplog.text
+
+
+def test_warn_source_tree_mismatch_silent_when_cwd_is_gone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A deleted working directory must not turn the diagnostic into a traceback."""
+    running = _make_checkout(tmp_path / "main")
+    monkeypatch.setattr(main, "__file__", str(running / "esphome" / "__main__.py"))
+
+    def raise_filenotfound() -> Path:
+        raise FileNotFoundError("cwd is gone")
+
+    monkeypatch.setattr(Path, "cwd", staticmethod(raise_filenotfound))
 
     with caplog.at_level(logging.WARNING):
         main._warn_if_source_tree_mismatch()

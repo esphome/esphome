@@ -2518,7 +2518,10 @@ def _warn_if_source_tree_mismatch() -> None:
     compiles, sources the user is not looking at. Only fires inside a checkout,
     so ordinary installs never see it.
     """
-    cwd = Path.cwd()
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return  # working directory is gone; a diagnostic must not break startup
     for candidate in (cwd, *cwd.parents):
         if (candidate / "esphome" / "__main__.py").is_file():
             standing_in = candidate.resolve()
@@ -2527,9 +2530,10 @@ def _warn_if_source_tree_mismatch() -> None:
         return  # not inside a checkout; nothing to compare against
 
     running = Path(__file__).resolve().parent.parent
-    # samefile() compares device and inode, so a case-insensitive filesystem
-    # (macOS) reaching the same directory by differently cased paths is not
-    # reported as a mismatch. Falls back to comparing paths if either is gone.
+    # Both sides are resolved, so on a case-sensitive filesystem this matches
+    # plain equality. samefile() compares device and inode, which additionally
+    # covers a case-insensitive filesystem (macOS) reaching one directory by
+    # differently cased paths. Falls back to equality if either path is gone.
     try:
         same = standing_in.samefile(running)
     except OSError:
@@ -2541,7 +2545,7 @@ def _warn_if_source_tree_mismatch() -> None:
         "Running ESPHome from a different checkout than the one you are in:\n"
         "  running from: %s\n"
         "  you are in:   %s\n"
-        "The editable install points at the first, so its sources are used.\n"
+        "The installed esphome resolves to the first, so its sources are used.\n"
         "Run 'python -m esphome' from the second to use that one instead.",
         running,
         standing_in,
