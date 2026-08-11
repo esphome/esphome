@@ -596,9 +596,9 @@ void BluetoothProxy::loop() {
 
   if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
     // Resend a dropped slot-state update, paced by the 100 ms gate so the
-    // retry does not hammer the congestion it exists to survive; the
-    // advertisement-only arm answers DISCONNECT requests with this message
-    // too, so the drain compiles on every proxy build.
+    // retry does not hammer the congestion it exists to survive. Every build
+    // sends this at subscribe time (api_connection.cpp), so the drain
+    // compiles on every proxy build.
     this->connections_free_pending_ = false;
     this->send_connections_free(this->api_connection_);
   }
@@ -830,8 +830,8 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   this->pending_unpairing_.set(address, error);
 }
 
-// Shared by both platform paths: the neutral bluetooth_device_request() uses it to
-// answer a clear-cache request with a clean error, so it must not be esp32-guarded.
+// GATT arm only: the advertisement-only arm no longer dispatches CLEAR_CACHE,
+// so its response encoder would be dead weight there.
 void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
