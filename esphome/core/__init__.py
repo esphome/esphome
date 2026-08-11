@@ -886,6 +886,11 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
     @property
+    def is_configured(self) -> bool:
+        """Whether anything has set this CORE up for a target."""
+        return KEY_CORE in self.data
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 
