@@ -77,4 +77,11 @@ class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
   MitsubishiCN105Component component_;
 };
 
+class TestableMitsubishiCN105Component : public MitsubishiCN105Component {
+ public:
+  MitsubishiCN105::Status &mutable_status() { return const_cast<MitsubishiCN105::Status &>(this->status()); }
+
+  void notify_status() { this->status_callback_.call(); }
+};
+
 }  // namespace esphome::mitsubishi_cn105::testing

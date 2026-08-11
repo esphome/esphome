@@ -9,6 +9,24 @@
 
 namespace esphome::mitsubishi_cn105 {
 
+enum VerticalVaneMode : uint8_t {
+  VERTICAL_VANE_MODE_AUTO = static_cast<uint8_t>(MitsubishiCN105::VaneMode::AUTO),
+  VERTICAL_VANE_MODE_POSITION_1 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_1),
+  VERTICAL_VANE_MODE_POSITION_2 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_2),
+  VERTICAL_VANE_MODE_POSITION_3 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_3),
+  VERTICAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_4),
+  VERTICAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_5),
+  VERTICAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::VaneMode::SWING),
+};
+
+struct VaneState {
+  struct Vertical {
+    VerticalVaneMode direction;
+  };
+
+  Vertical vertical;
+};
+
 class MitsubishiCN105Component : public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Component() : hp_(*this) {}
@@ -38,15 +56,29 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
     this->status_callback_.add(std::forward<F>(callback));
   }
 
+  template<typename F> void add_on_vane_state_callback(F &&callback) {
+    this->vane_state_callback_.add(std::forward<F>(callback));
+  }
+
   void publish_status() {
     if (this->is_status_initialized()) {
-      this->status_callback_.call();
+      this->notify_status_listeners_();
     }
   }
 
  protected:
+  void notify_status_listeners_() {
+    this->status_callback_.call();
+    if (this->status().vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
+      this->vane_state_callback_.call(VaneState{
+          .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+      });
+    }
+  }
+
   MitsubishiCN105 hp_;
   CallbackManager<void()> status_callback_;
+  LazyCallbackManager<void(const VaneState &)> vane_state_callback_;
 };
 
 }  // namespace esphome::mitsubishi_cn105

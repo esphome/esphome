@@ -3,13 +3,6 @@
 
 namespace esphome::mitsubishi_cn105::testing {
 
-class TestableMitsubishiCN105Component : public MitsubishiCN105Component {
- public:
-  MitsubishiCN105::Status &mutable_status() { return const_cast<MitsubishiCN105::Status &>(this->status()); }
-
-  void notify_status() { this->status_callback_.call(); }
-};
-
 class TestableMitsubishiCN105VerticalVaneDirectionSelect : public MitsubishiCN105VerticalVaneDirectionSelect {
  public:
   using MitsubishiCN105VerticalVaneDirectionSelect::control;
