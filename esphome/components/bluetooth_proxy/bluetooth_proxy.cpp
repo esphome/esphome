@@ -135,7 +135,7 @@ void BluetoothProxy::dump_config() {
   // Print configured facts. dump_config runs right after setup, before the
   // radio is up, so live scan state would always read "stopped" here — the
   // loop's BluetoothScannerStateResponse carries the changing value instead.
-  char mac_str[18];
+  char mac_str[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   this->get_bluetooth_mac_address_pretty(mac_str);
   const char *mac_out = mac_str[0] != '\0' ? mac_str : "unavailable (adapter not up yet)";
   const char *scan_mode = this->configured_scan_active_ ? "active" : "passive";

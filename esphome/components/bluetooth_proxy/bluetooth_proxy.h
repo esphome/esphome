@@ -10,6 +10,7 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
@@ -158,8 +159,8 @@ class BluetoothProxy final : public Component {
     return flags;
   }
 
-  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
-    uint8_t mac[6] = {};
+  void get_bluetooth_mac_address_pretty(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> output) {
+    uint8_t mac[MAC_ADDRESS_SIZE] = {};
     this->hub_->get_adapter_mac(mac);
     // Unavailable -> empty string: some hubs (rp2040's BTstack) only learn
     // the address once the link layer is up, and report all-zero until then.
