@@ -6,10 +6,13 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
+#include "mitsubishi_cn105_swing_mode_manager.h"
 
 namespace esphome::mitsubishi_cn105 {
 
-class MitsubishiCN105Climate : public climate::Climate, public Component, public Parented<MitsubishiCN105Component> {
+class MitsubishiCN105Climate final : public climate::Climate,
+                                     public Component,
+                                     public Parented<MitsubishiCN105Component> {
  public:
   void setup() override;
   void dump_config() override;
@@ -25,14 +28,12 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
  protected:
   void apply_values_();
 
-  climate::ClimateSwingModeMask supported_swing_modes_{};
-  MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
-  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
+  SwingModeManager swing_mode_manager_;
 };
 
 // Legacy climate action compatibility. Remove in 2027.2.0.
 template<typename... Ts>
-class LegacySetRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+class LegacySetRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
  public:
   TEMPLATABLE_VALUE(float, temperature)
 
@@ -41,7 +42,7 @@ class LegacySetRemoteTemperatureAction : public Action<Ts...>, public Parented<M
 
 // Legacy climate action compatibility. Remove in 2027.2.0.
 template<typename... Ts>
-class LegacyClearRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+class LegacyClearRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
  public:
   void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
