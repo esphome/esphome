@@ -141,6 +141,20 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     this->pending_ack_error_ = error;
   }
   void clear_pending_ack_() { this->pending_ack_ = PendingAck::PENDING_ACK_NONE; }
+  /// Drop an owed reply once the client asks again about the same handle.
+  ///
+  /// Without this the retry is unbounded in a way that can do real harm: a
+  /// client whose write times out re-issues it, and the drain could then
+  /// deliver the *old* reply against the *new* request. API clients match a
+  /// reply by (address, handle), so the retried operation would be reported
+  /// as complete before the peripheral has answered it. Dropping the stale
+  /// reply restores the pre-latch outcome for that case, a timeout, which is
+  /// wrong but honest.
+  void supersede_pending_ack_(uint16_t handle) {
+    if (this->has_pending_ack_() && this->pending_ack_handle_ == handle) {
+      this->clear_pending_ack_();
+    }
+  }
   bool has_pending_ack_() const { return this->pending_ack_ != PendingAck::PENDING_ACK_NONE; }
   /// Report a refused service batch on the stall's leading edge only. The
   /// batch itself is never lost - the caller rewinds the cursor and the next

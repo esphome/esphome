@@ -16,6 +16,10 @@ static const char *const TAG = "bluetooth_connection";
 void BluetoothConnection::set_address(uint64_t address) {
   // Keep the proxy's pre-allocated connections-free message in step
   this->proxy_->update_address_slot_(this->address_, address);
+  // The slot is changing hands, so anything owed belonged to the old address.
+  // reset_connection_() already clears on the ordinary teardown path; this is
+  // the choke point that covers every other way a slot is reassigned or freed.
+  this->clear_pending_ack_();
   this->address_ = address;
   if (address == 0) {
     this->address_str_[0] = '\0';
@@ -187,16 +191,27 @@ bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_e
   auto *api_connection = this->proxy_->get_api_connection();
   if (api_connection == nullptr)
     return true;  // Nobody subscribed: nothing is owed
-  if (kind == PendingAck::PENDING_ACK_WRITE) {
-    api::BluetoothGATTWriteResponse resp;
-    resp.address = this->address_;
-    resp.handle = handle;
-    return api_connection->send_message(resp);
+  switch (kind) {
+    case PendingAck::PENDING_ACK_WRITE: {
+      api::BluetoothGATTWriteResponse resp;
+      resp.address = this->address_;
+      resp.handle = handle;
+      return api_connection->send_message(resp);
+    }
+    case PendingAck::PENDING_ACK_NOTIFY: {
+      api::BluetoothGATTNotifyResponse resp;
+      resp.address = this->address_;
+      resp.handle = handle;
+      return api_connection->send_message(resp);
+    }
+    case PendingAck::PENDING_ACK_NONE:
+    case PendingAck::PENDING_ACK_ERROR:  // returned above
+      return true;
   }
-  api::BluetoothGATTNotifyResponse resp;
-  resp.address = this->address_;
-  resp.handle = handle;
-  return api_connection->send_message(resp);
+  // Every enumerator is listed and there is no default label, so adding one
+  // without a branch is a -Wswitch warning rather than a silent notify reply.
+  // This return only satisfies -Wreturn-type.
+  return true;
 }
 
 void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
@@ -211,6 +226,10 @@ void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t
 }
 
 void BluetoothConnection::flush_pending_ack_() {
+  // Local guard: the proxy drain pre-checks, but this must be a no-op on its
+  // own rather than relying on a caller in another file.
+  if (!this->has_pending_ack_())
+    return;
   if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
     this->clear_pending_ack_();
   }
@@ -297,6 +316,7 @@ conn_err_t BluetoothConnection::check_connected_op_(const char *action, const ch
 conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
   if (conn_err_t err = this->check_connected_op_("read", "characteristic"); err != CONN_OK)
     return err;
+  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_characteristic(handle);
 }
@@ -305,6 +325,7 @@ conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint
                                                      bool response) {
   if (conn_err_t err = this->check_connected_op_("write", "characteristic"); err != CONN_OK)
     return err;
+  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_characteristic(handle, data, static_cast<uint16_t>(length), response);
 }
@@ -312,6 +333,7 @@ conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint
 conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
   if (conn_err_t err = this->check_connected_op_("read", "descriptor"); err != CONN_OK)
     return err;
+  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_descriptor(handle);
 }
@@ -322,6 +344,7 @@ conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t 
                                                  bool /*response*/) {
   if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
     return err;
+  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_descriptor(handle, data, static_cast<uint16_t>(length));
 }
@@ -329,6 +352,7 @@ conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t 
 conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
   if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
+  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
            enable ? "Registering for" : "Unregistering for", handle);
   return this->backend_->notify_characteristic(handle, enable);
