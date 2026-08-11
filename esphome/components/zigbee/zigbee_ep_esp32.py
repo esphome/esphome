@@ -227,7 +227,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                                 "if (x < 0.0f || std::isnan(x)) return 0xFFFF;"  # NaN
                                 " if (x < 1.0f) return 0;"  # too small to measure
                                 " const float v = log10(x)*10000 + 1;"
-                                " return v > 65534.0f ? 0xFFFE : (uint16_t) v;"  # clamp to 0xFFFE if too large
+                                " return v > 65534.0f ? 0xFFFE : (uint16_t) lroundf(v);"  # clamp to 0xFFFE if too large
                             )
                         ),
                         CONF_DEVICE: None,
