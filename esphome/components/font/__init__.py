@@ -36,6 +36,7 @@ from esphome.const import (
     CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -319,6 +320,7 @@ def download_gfont(value):
     if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
         try:
+            ensure_happy_eyeballs()
             req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:

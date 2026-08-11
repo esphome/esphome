@@ -110,8 +110,12 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as cert_file,
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as key_file,
             ):
                 try:
                     cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))

@@ -27,6 +27,8 @@ class APIServerConnectionBase {
   void on_ping_response(){};
   void on_device_info_request(){};
 
+  void on_device_capabilities_request(){};
+
   void on_list_entities_request(){};
 
   void on_subscribe_states_request(){};
