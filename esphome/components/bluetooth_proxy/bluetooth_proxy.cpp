@@ -679,11 +679,7 @@ void BluetoothProxy::loop() {
 // unconditionally; answering would link response encoders this build has no
 // use for.
 
-void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
-  // One diagnostic line without linking an encoder; the feature flags told
-  // the client not to send this.
-  ESP_LOGW(TAG, "Connection request for %012" PRIX64 " ignored, no connection support", msg.address);
-}
+void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {}
 void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {}
 void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {}
 void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {}
