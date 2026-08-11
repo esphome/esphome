@@ -230,8 +230,15 @@ void BluetoothConnection::flush_pending_ack_() {
     return;
   if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
     this->clear_pending_ack_();
+    return;
   }
-  // Still refused: stays owed for the next paced drain.
+  if (++this->pending_ack_retries_ >= PENDING_ACK_RETRY_LIMIT) {
+    // Undeliverable: past here the client has given up and may have re-asked,
+    // and a late reply would answer the new request instead of this one.
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%2X undeliverable, abandoning", this->connection_index_,
+             this->address_str_, this->pending_ack_handle_);
+    this->clear_pending_ack_();
+  }
 }
 
 void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
