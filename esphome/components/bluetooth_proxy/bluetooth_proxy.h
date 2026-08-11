@@ -300,8 +300,11 @@ class BluetoothProxy final : public Component {
   /// subscriber on subscribe and nullptr on unsubscribe.
   void reset_owed_replies_();
   /// Report a reply we deliberately do not latch, so no drop is silent.
-  /// Latched replies report their own leading edge instead.
-  void log_reply_dropped_(const char *what);
+  void log_reply_dropped_(const char *what, uint64_t address);
+  /// A latched reply's leading edge; the drain's re-refusals stay quiet.
+  void log_reply_deferred_(const char *what, uint64_t address);
+  /// A latched reply lost to a newer one for a different address.
+  void log_reply_displaced_(const char *what, uint64_t owed, uint64_t address);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
