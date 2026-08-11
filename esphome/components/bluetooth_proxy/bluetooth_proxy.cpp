@@ -606,14 +606,11 @@ void BluetoothProxy::loop() {
     }
   }
 
-  // An owed unpair reply. Cleared first, so another refusal re-latches through
-  // the sender; the success flag is recomputed as (error == 0), which is what
-  // every caller passed.
+  // An owed unpair reply. Not pre-cleared: the sender clears on success and
+  // re-latches on refusal, keeping its leading-edge warn guard honest.
   if (!this->pending_unpairing_.empty()) {
-    uint64_t address = this->pending_unpairing_.address();
     conn_err_t error = this->pending_unpairing_.error();
-    this->pending_unpairing_.clear();
-    this->send_device_unpairing(address, error == CONN_OK, error);
+    this->send_device_unpairing(this->pending_unpairing_.address(), error == CONN_OK, error);
   }
 #endif
 
