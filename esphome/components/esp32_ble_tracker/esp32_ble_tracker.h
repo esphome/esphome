@@ -200,7 +200,7 @@ class ESP32BLETracker final : public Component,
     return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
             /* scan_mode_switch = */ false};
   }
-  void get_adapter_mac(uint8_t out[6]) { this->parent_->get_mac_msb_first(out); }
+  void get_adapter_mac(uint8_t out[MAC_ADDRESS_SIZE]) { this->parent_->get_mac_msb_first(out); }
   bool scan_running() { return this->scanner_state_ == ScannerState::RUNNING; }
   bool scan_active() { return this->scan_active_; }
   // The mode is driven through this tracker's own API (see get_capabilities);

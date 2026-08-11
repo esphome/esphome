@@ -38,6 +38,12 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
     this->status_callback_.add(std::forward<F>(callback));
   }
 
+  void publish_status() {
+    if (this->is_status_initialized()) {
+      this->status_callback_.call();
+    }
+  }
+
  protected:
   MitsubishiCN105 hp_;
   CallbackManager<void()> status_callback_;

@@ -120,7 +120,7 @@ class ScanResponseMerger {
   // as ESP-IDF delivers on ESP32.
   struct PendingAdv {
     bool used{false};
-    uint8_t mac[6];
+    uint8_t mac[MAC_ADDRESS_SIZE];
     uint8_t addr_type;
     int8_t rssi;
     uint8_t data_len;  // <= sizeof(data)
