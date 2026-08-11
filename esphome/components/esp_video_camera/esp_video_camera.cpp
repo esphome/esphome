@@ -791,8 +791,19 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
     fmt.fmt.pix.height = height;
   }
   fmt.fmt.pix.field = V4L2_FIELD_NONE;
-  if (ioctl(this->capture_fd_, VIDIOC_S_FMT, &fmt) < 0)
+  if (ioctl(this->capture_fd_, VIDIOC_S_FMT, &fmt) < 0) {
+    // A MIPI sensor rejects any size but its own and keeps streaming the one it
+    // has, so there this is only worth a warning. A USB camera is different:
+    // S_FMT is what picks its stream format and frame interval, and without it
+    // STREAMON has nothing to negotiate with -- "Could not find requested frame
+    // format". Reading a plausible format back afterwards does not mean the
+    // device accepted anything, so do not let that paper over it.
+    if (this->is_uvc_device_()) {
+      ESP_LOGE(TAG, "VIDIOC_S_FMT failed on the USB camera (%s); it never agreed a stream format", strerror(errno));
+      return false;
+    }
     ESP_LOGW(TAG, "VIDIOC_S_FMT (best-effort resolution) failed: %s", strerror(errno));
+  }
 
   // Read back the format actually negotiated by the sensor/ISP. A device that
   // cannot honour the request keeps its own format instead of failing loudly, so
@@ -920,7 +931,11 @@ bool ESPVideoCamera::start_direct_capture_() {
     return false;
   }
   set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
-  if (!this->configure_capture_format_(V4L2_PIX_FMT_MJPEG))
+  // JPEG, not MJPEG: esp_video's UVC driver maps a camera's MJPEG stream onto
+  // V4L2_PIX_FMT_JPEG and rejects V4L2_PIX_FMT_MJPEG outright, so asking for
+  // MJPEG loses the S_FMT and leaves the stream unnegotiated. The payload is
+  // the same either way.
+  if (!this->configure_capture_format_(V4L2_PIX_FMT_JPEG))
     return false;
   if (!this->setup_capture_buffers_())
     return false;
