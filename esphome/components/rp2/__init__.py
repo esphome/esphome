@@ -402,11 +402,10 @@ LWIP_TCP_WND = "(4*TCP_MSS)"
 # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
 LWIP_TCP_SND_QUEUELEN = 17
 
-# MEMP_NUM_TCP_SEG: segment pool shared by every PCB, so it cannot be the
-# per-PCB queue length — lwIP's sanity check only demands >=, which is the
-# floor for a single connection. 2× lets two PCBs queue fully before the rest
-# start seeing ERR_MEM. Measured at 20 bytes per entry on this build, so the
-# whole pool is under 700 bytes.
+# MEMP_NUM_TCP_SEG: pool shared by every PCB, so it must not be the per-PCB
+# queue length — lwIP's sanity check only demands >=, the floor for a single
+# connection. 2× lets two PCBs fill up before the rest see ERR_MEM. Measured
+# at 20 bytes per entry, so under 700 bytes total.
 LWIP_MEMP_NUM_TCP_SEG = 2 * LWIP_TCP_SND_QUEUELEN
 
 # PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
@@ -414,23 +413,18 @@ LWIP_MEMP_NUM_TCP_SEG = 2 * LWIP_TCP_SND_QUEUELEN
 # copies into PBUF_RAM out of MEM_SIZE.
 LWIP_PBUF_POOL_SIZE = 16
 
-# MEM_SIZE: the lwIP heap that backs PBUF_RAM, which is where tcp_write()
-# copies outgoing data.
+# MEM_SIZE: lwIP heap backing PBUF_RAM, where tcp_write() copies outgoing
+# data. TCP_OVERSIZE defaults to TCP_MSS, so each queued segment takes a full
+# MSS block whatever was written (pbuf 16 + PBUF_TRANSPORT 54 + MSS 1460 +
+# block header ≈ 1.5KB); a PCB at a full TCP_SND_BUF holds four, ~6KB.
 #
-# TCP_OVERSIZE defaults to TCP_MSS, so every queued segment takes a full
-# MSS-sized block no matter how little was written: struct pbuf (16) +
-# PBUF_TRANSPORT offset (54) + TCP_MSS (1460) + the heap block header, about
-# 1.5KB each. A PCB at a full TCP_SND_BUF holds four of them, ~6KB.
+# Two of those is ~12KB of arduino-pico's 16KB heap and already fails: mem.c
+# is first-fit, so a *contiguous* 1.5KB block must be free, and at 75%
+# occupancy interleaved with ARP/DHCP/DNS/mDNS the largest run collapses well
+# before the total does — hence the intermittent failures. With rp2's
+# max_connections of 4, a third sender has nothing left.
 #
-# Two of those is ~12KB of arduino-pico's 16KB heap, and that is already
-# failing: mem.c is first-fit, so what has to be free is a *contiguous* 1.5KB
-# block, and at 75% occupancy interleaved with the small allocations (ARP
-# output queue, DHCP/DNS, mDNS TX) the largest run collapses long before the
-# total does. That is why the failure looks intermittent. With api's
-# max_connections on rp2 at 4, a third sender has nothing left to take. It
-# surfaces as ERR_MEM from tcp_write(), then a refused send_message().
-#
-# 32KB is arduino-pico's own next tier (its __LWIP_MEMMULT=2 boards).
+# 32KB is arduino-pico's own next tier (__LWIP_MEMMULT=2 boards).
 # Must stay under 64000 or lwIP widens mem_size_t to u32_t.
 LWIP_MEM_SIZE = 32768
 
@@ -495,26 +489,21 @@ def _configure_lwip() -> None:
       PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
       a low-priority pendsv IRQ. The pico-sdk explicitly blocks
       MEM_LIBC_MALLOC=1 because libc malloc uses mutexes (unsafe in IRQ).
-    ** MEMP_MEM_MALLOC must stay 0, and the reason is IRQ safety, not size.
-      memp_malloc() pops the pool free list inside SYS_ARCH_PROTECT, but
-      lwIP's heap picks its protection from LWIP_ALLOW_MEM_FREE_FROM_OTHER_
-      CONTEXT (default 0), so under NO_SYS=1 mem_malloc()/mem_free() run
-      with no protection at all. Setting MEMP_MEM_MALLOC=1 also moves the
-      allocation outside the guard entirely (memp.c calls mem_malloc before
-      SYS_ARCH_PROTECT). RX pbufs would then be allocated from the pendsv
-      IRQ on the same unguarded free list the main loop uses for
-      tcp_write(), which corrupts the heap. Tried on hardware; it faults
-      within seconds on CYW43. Ethernet survives only because that path
-      polls from the main loop and never runs a second context.
-    *** ESP8266/ESP32 ship MEMP_MEM_MALLOC=1, so their pool entries are
-      allocated on demand and the MEMP_NUM_* and PBUF_POOL_SIZE values are
-      labels rather than caps; MEM_LIBC_MALLOC=1 in turn points that heap at
-      the system heap. Ours are hard limits, because both flags are 0 here.
-      Do not copy their numbers without that in mind.
-    **** MEMP_NUM_TCP_SEG is a *global* pool while TCP_SND_QUEUELEN is
-      *per-PCB*, so it must not be sized to the per-PCB value: one busy
-      connection would drain it for every other PCB. 2× covers two PCBs at
-      full depth, and MEM_SIZE is the real backing limit past that.
+    ** MEMP_MEM_MALLOC must stay 0 for IRQ safety, not size. memp_malloc()
+      pops the pool free list inside SYS_ARCH_PROTECT, but lwIP's heap takes
+      its protection from LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT (default 0),
+      so under NO_SYS=1 mem_malloc()/mem_free() are unprotected — and memp.c
+      calls mem_malloc() outside the guard anyway. RX pbufs would then be
+      allocated from the pendsv IRQ on the same unguarded free list the main
+      loop uses for tcp_write(). Tried on hardware: faults within seconds on
+      CYW43. Ethernet survives only because it polls from the main loop.
+    *** ESP8266/ESP32 ship MEMP_MEM_MALLOC=1, so their pool entries come from
+      the heap on demand and MEMP_NUM_*/PBUF_POOL_SIZE are labels, not caps
+      (MEM_LIBC_MALLOC=1 points that heap at the system heap). Both flags are
+      0 here, so ours are hard limits; don't copy their numbers.
+    **** MEMP_NUM_TCP_SEG is *global* while TCP_SND_QUEUELEN is *per-PCB*, so
+      sizing it to the per-PCB value lets one busy connection drain it for
+      every other. 2× covers two PCBs; MEM_SIZE is the real limit past that.
     ***** opt.h default; arduino-pico doesn't override MEMP_NUM_TCP_PCB_LISTEN.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP / 2 TCP_LISTEN.
