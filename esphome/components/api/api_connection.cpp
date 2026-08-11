@@ -23,8 +23,12 @@
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -195,6 +199,29 @@ APIConnection::~APIConnection() {
 #endif
 }
 
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+void APIConnection::upgrade_helper_to_noise_() {
+  // The client opened with a Noise hello while this device has no encryption
+  // key set. Replace the plaintext helper with a Noise helper so the key can
+  // be provisioned over an encrypted channel: the noise context PSK is all
+  // zeros when unprovisioned, and NNpsk0 still runs a fresh ephemeral X25519
+  // exchange, so a passive listener cannot read the session. A publicly known
+  // PSK authenticates nobody; this protects against sniffing only.
+  auto *plaintext = static_cast<APIPlaintextFrameHelper *>(this->helper_.get());
+  uint8_t header[3];
+  uint8_t header_len = plaintext->get_consumed_header(header);
+  auto *noise = new APINoiseFrameHelper(plaintext->release_socket_for_switch(), this->parent_->get_noise_ctx());
+  // Carry over the peername-based client name (Hello has not arrived yet)
+  const char *name = plaintext->get_client_name();
+  noise->set_client_name(name, strlen(name));
+  this->helper_.reset(noise);  // destroys the plaintext helper
+  APIError err = noise->init_from_handoff(header, header_len);
+  if (err != APIError::OK) {
+    this->fatal_error_with_log_(LOG_STR("Noise handoff failed"), err);
+  }
+}
+#endif  // USE_API_NOISE && USE_API_PLAINTEXT
+
 void APIConnection::destroy_active_iterator_() {
   switch (this->active_iterator_) {
     case ActiveIterator::LIST_ENTITIES:
@@ -253,6 +280,15 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+        // Checked inside the error branch to keep the hot err == OK path
+        // free of it; this can only fire on the first bytes of a plaintext
+        // helper on an unprovisioned device
+        if (err == APIError::PROTOCOL_SWITCH_TO_NOISE) {
+          this->upgrade_helper_to_noise_();
+          return;
+        }
+#endif
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
@@ -375,7 +411,7 @@ void APIConnection::finalize_iterator_sync_() {
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
   size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = this->get_max_batch_size_();
+  size_t max_batch = MAX_INITIAL_PER_BATCH;
   while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
     iterator.advance();
   }
@@ -405,7 +441,7 @@ void APIConnection::on_disconnect_response() {
 uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
-  msg.key = entity->get_object_id_hash();
+  msg.key = entity->get_entity_key();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
@@ -416,17 +452,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
-  msg.key = entity->get_object_id_hash();
-
-  // API 1.14+ clients compute object_id client-side from the entity name
-  // For older clients, we must send object_id for backward compatibility
-  // See: https://github.com/esphome/backlog/issues/76
-  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer is called
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  if (!conn->client_supports_api_version(1, 14)) {
-    msg.object_id = entity->get_object_id_to(object_id_buf);
-  }
+  msg.key = entity->get_entity_key();
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -769,6 +795,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -1115,7 +1142,7 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = camera::Camera::instance()->get_entity_key();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
@@ -1303,7 +1330,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(
+    const VoiceAssistantConfigurationRequest & /*msg*/) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
@@ -1314,22 +1342,6 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(const Voice
 
   auto &config = voice_assistant::global_voice_assistant->get_configuration();
   for (auto &wake_word : config.available_wake_words) {
-    resp.available_wake_words.emplace_back();
-    auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.id = StringRef(wake_word.id);
-    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
-    for (const auto &lang : wake_word.trained_languages) {
-      resp_wake_word.trained_languages.push_back(lang);
-    }
-  }
-
-  // Filter external wake words
-  for (auto &wake_word : msg.external_wake_words) {
-    if (wake_word.model_type != "micro") {
-      // microWakeWord only
-      continue;
-    }
-
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
     resp_wake_word.id = StringRef(wake_word.id);
@@ -1358,7 +1370,7 @@ void APIConnection::on_voice_assistant_set_configuration(const VoiceAssistantSet
 
 #ifdef USE_ZWAVE_PROXY
 void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
-  zwave_proxy::global_zwave_proxy->send_frame(msg.data, msg.data_len);
+  zwave_proxy::global_zwave_proxy->send_frame(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
@@ -1443,6 +1455,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
   msg.supported_features = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   return fill_and_encode_entity_info(wh, msg, conn, remaining_size);
 }
 
@@ -1531,8 +1544,8 @@ void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigure
              static_cast<uint32_t>(proxies.size()));
     return;
   }
-  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
-                                   msg.data_size);
+  proxies[msg.instance]->configure(this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity),
+                                   msg.stop_bits, msg.data_size);
 }
 
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
@@ -1541,7 +1554,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
+  proxies[msg.instance]->write_from_client(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
@@ -1550,7 +1563,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(msg.line_states);
+  proxies[msg.instance]->set_modem_pins(this, msg.line_states);
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
@@ -1721,18 +1734,25 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
-  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
-  if (!this->client_supports_api_version(1, 14)) {
-    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
-             this->client_api_version_major_, this->client_api_version_minor_);
-  }
-
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 14;
+  resp.api_version_minor = 15;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
+
+#ifdef USE_PROVISIONING
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    // The provisioning window has closed without the device being provisioned.
+    // Acknowledge the hello so the client can read the server name, then request
+    // disconnect with the reason. Authentication is intentionally not completed.
+    this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
+    this->send_message(resp);
+    DisconnectRequest req;
+    req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+    return this->send_message(req);
+  }
+#endif
 
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
@@ -1752,9 +1772,8 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_AREAS
   resp.suggested_area = StringRef(App.get_area());
 #endif
-  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char mac_address[18];
-  uint8_t mac[6];
+  char mac_address[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
@@ -1769,7 +1788,7 @@ bool APIConnection::send_device_info_response_() {
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
 #define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_BK72XX)
 #define ESPHOME_MANUFACTURER "Beken"
@@ -1830,8 +1849,7 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char bluetooth_mac[18];
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.bluetooth_mac_address = StringRef(bluetooth_mac);
 #endif
@@ -1854,6 +1872,12 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  // No key from YAML: while no key is set, the key can be provisioned over a
+  // zero-PSK Noise connection. Gated on the YAML define (not the plaintext
+  // one) so this advertisement survives the plaintext removal in 2027.2.0.
+  resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
+#endif
 #endif
 #ifdef USE_DEVICES
   size_t device_index = 0;
@@ -1879,12 +1903,42 @@ bool APIConnection::send_device_info_response_() {
 
   return this->send_message(resp);
 }
+bool APIConnection::send_device_capabilities_response_() {
+  // These are the same values DeviceInfoResponse still reports for older clients. Keep the blocks
+  // below in sync with send_device_info_response_() until those copies are removed.
+  DeviceCapabilitiesResponse resp;
+#ifdef USE_BLUETOOTH_PROXY
+  resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
+  resp.bluetooth_proxy.mac_address = StringRef(bluetooth_mac);
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant.feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy.feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_proxy.home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+  }
+#endif
+  return this->send_message(resp);
+}
 void APIConnection::on_hello_request(const HelloRequest &msg) {
   if (!this->send_hello_response_(msg)) {
     this->on_fatal_error();
   }
 }
-void APIConnection::on_disconnect_request() {
+void APIConnection::on_disconnect_request(const DisconnectRequest & /*msg*/) {
+  // The reason is informational when a client disconnects us; we always ack and close.
   if (!this->send_disconnect_response_()) {
     this->on_fatal_error();
   }
@@ -1896,6 +1950,11 @@ void APIConnection::on_ping_request() {
 }
 void APIConnection::on_device_info_request() {
   if (!this->send_device_info_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_device_capabilities_request() {
+  if (!this->send_device_capabilities_response_()) {
     this->on_fatal_error();
   }
 }
@@ -2012,6 +2071,15 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
 
+#ifdef USE_PROVISIONING
+  // Refuse to set a key once the provisioning window has closed (defense in depth;
+  // such connections are already rejected at hello).
+  if (provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed()) {
+    ESP_LOGW(TAG, "Provisioning closed; rejecting key set");
+    return this->send_message(resp);
+  }
+#endif
+
   psk_t psk{};
   if (msg.key_len == 0) {
     if (this->parent_->clear_noise_psk(true)) {
@@ -2021,10 +2089,21 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
+  } else if (APINoiseContext::is_all_zeros(psk)) {
+    // Accepting the reserved provisioning PSK would report success without
+    // enabling encryption (or silently clear an existing key)
+    ESP_LOGW(TAG, "Rejecting all-zero encryption key");
   } else if (!this->parent_->save_noise_psk(psk, true)) {
     ESP_LOGW(TAG, "Failed to save encryption key");
   } else {
     resp.success = true;
+#ifdef USE_API_PLAINTEXT
+    if (this->helper_->frame_footer_size() == 0) {
+      // Plaintext transport has no frame footer; Noise always has the MAC footer.
+      // Remove after 2027.2.0 together with plaintext support on keyless devices.
+      ESP_LOGW(TAG, "Key received over plaintext; deprecated, will be removed in 2027.2.0");
+    }
+#endif
   }
 
   return this->send_message(resp);

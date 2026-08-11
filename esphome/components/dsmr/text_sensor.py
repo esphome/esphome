@@ -14,6 +14,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("p1_version"): text_sensor.text_sensor_schema(),
         cv.Optional("p1_version_be"): text_sensor.text_sensor_schema(),
         cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_switch_position"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff_il"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),

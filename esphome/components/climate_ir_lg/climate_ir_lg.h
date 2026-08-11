@@ -10,7 +10,7 @@ namespace esphome::climate_ir_lg {
 const uint8_t TEMP_MIN = 18;  // Celsius
 const uint8_t TEMP_MAX = 30;  // Celsius
 
-class LgIrClimate : public climate_ir::ClimateIR {
+class LgIrClimate final : public climate_ir::ClimateIR {
  public:
   LgIrClimate()
       : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,

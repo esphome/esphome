@@ -14,6 +14,7 @@ import requests
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import write_file
 from esphome.types import ConfigType
 
@@ -92,6 +93,7 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
 def has_remote_file_changed(
     url: str, local_file_path: Path, timeout: int = NETWORK_TIMEOUT
 ) -> bool:
+    ensure_happy_eyeballs()
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
@@ -158,6 +160,7 @@ def compute_local_file_dir(domain: str) -> Path:
 
 
 def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> bytes:
+    ensure_happy_eyeballs()
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
         return path.read_bytes()
@@ -165,11 +168,8 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
         _LOGGER.debug("Remote file has not changed %s", url)
         return path.read_bytes()
 
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
+    _LOGGER.info("Downloading %s", url)
+    _LOGGER.debug("Saving to %s", path)
 
     try:
         req = requests.get(
@@ -210,8 +210,12 @@ def download_content_many(
     items: Iterable[tuple[str, Path]],
     timeout: int = NETWORK_TIMEOUT,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+    description: str = "remote file(s)",
 ) -> None:
     """Run `download_content` for each (url, path) pair concurrently.
+
+    `description` names the kind of files in the progress log line, e.g.
+    "wake word manifest(s)".
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
     files where the HEAD round-trip dominates. All workers run to
@@ -230,6 +234,8 @@ def download_content_many(
     seen: dict[Path, str] = {path: url for url, path in items}
     if not seen:
         return
+    ensure_happy_eyeballs()
+    _LOGGER.info("Checking %d %s for updates", len(seen), description)
     if len(seen) == 1:
         path, url = next(iter(seen.items()))
         download_content(url, path, timeout)
