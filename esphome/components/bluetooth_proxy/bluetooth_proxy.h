@@ -139,10 +139,10 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// False only when a subscriber refused the frame; true = delivered or
   /// nobody subscribed. Refusals latch in send_device_disconnected_() and
   /// send_connected_reply_(); other callers report via log_reply_dropped_().
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
@@ -251,16 +251,11 @@ class BluetoothProxy final : public Component {
   void log_connection_info_(BluetoothConnection *connection, const char *message);
   void log_not_connected_gatt_(const char *action, const char *type);
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
-#endif
 
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// Keep the pre-allocated connections-free message in step when a
   /// connection slot changes address (0 = free). Called from the connection
   /// classes' set_address().
-  // maybe_unused + guard: in a passive proxy (active: false) MAX is 0, the
-  // body is removed, and the free < MAX compare would trip -Wtype-limits.
-  void update_address_slot_([[maybe_unused]] uint64_t old_address, [[maybe_unused]] uint64_t new_address) {
-#if BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
+  void update_address_slot_(uint64_t old_address, uint64_t new_address) {
     auto &resp = this->connections_free_response_;
     if (new_address == 0 && old_address != 0) {
       if (resp.free < BLUETOOTH_PROXY_MAX_CONNECTIONS) {
@@ -277,7 +272,6 @@ class BluetoothProxy final : public Component {
       }
       this->replace_allocated_slot_(0, new_address);
     }
-#endif  // BLUETOOTH_PROXY_MAX_CONNECTIONS > 0
   }
   void replace_allocated_slot_(uint64_t find_value, uint64_t set_value);
   void log_slot_accounting_mismatch_();
@@ -347,10 +341,10 @@ class BluetoothProxy final : public Component {
 
   // Group 4: 1-byte types grouped together
   bool active_;
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   // A dropped send (full TCP buffer) would leave the API client with a stale
   // slot state forever; the cached response is current by construction, so
   // retrying it from loop() is an idempotent resync.
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool connections_free_pending_{false};
   uint8_t connection_count_{0};
 #endif
