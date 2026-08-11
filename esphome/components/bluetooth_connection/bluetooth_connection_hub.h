@@ -177,6 +177,9 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// interrupted stream must never be declared complete (the client's
   /// timeout arbitrates), and an owed done is dropped with it.
   void park_service_stream_() {
+    // Agree with reset_connection_(): a stall flag left set would swallow the
+    // next session's leading-edge warning.
+    this->batch_stalled_ = false;
     if (this->send_service_ >= 0) {
       this->backend_->release_services();
       this->send_service_ = DONE_SENDING_SERVICES;
@@ -199,10 +202,10 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bluetooth_proxy::BluetoothProxy *proxy_{nullptr};
   ble_device_base::BLEGattConnection *backend_{nullptr};
 
-  // Group 2: 2-byte types (pending_ack_handle_ lands in existing padding)
+  // Group 2: 2-byte types. Exactly 4 bytes, so address_ below stays
+  // 8-aligned with no padding (the vptr makes Group 1 12 bytes, not 8).
   int16_t send_service_{INIT_SENDING_SERVICES};
   uint16_t mtu_{ble_device_base::DEFAULT_ATT_MTU};
-  uint16_t pending_ack_handle_{0};
 
   // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};
@@ -213,8 +216,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
+  // Parked here rather than in Group 2: address_str_ ends 2-aligned, so this
+  // uses tail slack instead of pushing address_ out by 6 bytes of padding.
+  uint16_t pending_ack_handle_{0};
 
-  // Group 5: bit-packed tail. pending_ack_error_ already took the object
+  // Group 5: bit-packed tail. pending_ack_error_ takes the 8-aligned object
   // from 48 to 56, so the third tail byte is free; first two stay packed.
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
@@ -233,6 +239,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
 };
+
+// Pins the layout the field grouping above is arranged for: putting
+// pending_ack_handle_ in Group 2 instead pushes address_ out by 6 bytes of
+// padding and takes this to 64 (the vptr makes Group 1 12 bytes, not 8).
+static_assert(sizeof(BluetoothConnection) <= 56, "BluetoothConnection layout regressed");
 
 }  // namespace esphome::bluetooth_connection
 
