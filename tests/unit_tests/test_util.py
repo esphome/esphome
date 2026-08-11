@@ -480,6 +480,31 @@ def test_redirect_text_drain_is_a_no_op_when_nothing_is_held() -> None:
     assert buf.getvalue() == "complete line\n"
 
 
+def test_redirect_text_adds_flash_size_help(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An out-of-flash error gets the how-to-fix note appended."""
+    monkeypatch.setattr(
+        util, "get_esp32_arduino_flash_error_help", lambda: "TIP: switch to esp-idf\n"
+    )
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("Error: The program size is greater than maximum allowed\n")
+
+    assert "Error: The program size" in buf.getvalue()
+    assert "TIP: switch to esp-idf" in buf.getvalue()
+
+
+def test_redirect_text_skips_flash_size_help_on_other_platforms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The note is ESP32-with-Arduino only, so elsewhere the line stands alone."""
+    monkeypatch.setattr(util, "get_esp32_arduino_flash_error_help", lambda: None)
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("Error: The program size is greater than maximum allowed\n")
+
+    assert buf.getvalue() == "Error: The program size is greater than maximum allowed\n"
+
+
 def test_redirect_text_callback_called_on_matching_line() -> None:
     """Test that a line callback is called and its output is written."""
     results: list[str] = []
@@ -641,6 +666,24 @@ def test_run_external_command_drains_on_early_exit(
 
     assert rc == 3
     assert "Fatal: bailing out" in capsys.readouterr().out
+
+
+def test_run_external_command_capture_stdout_has_nothing_to_drain() -> None:
+    """With ``capture_stdout`` the buffer is a plain StringIO, not a wrapper.
+
+    Nothing holds a partial line in that case, so the drain has to skip it
+    rather than reach for a method that is not there.
+    """
+
+    def fake_main() -> int:
+        print("captured output", end="")
+        return 0
+
+    out = util.run_external_command(
+        fake_main, "fake", capture_stdout=True, filter_lines=["ignore me"]
+    )
+
+    assert out == "captured output"
 
 
 def test_run_external_process_line_callbacks() -> None:

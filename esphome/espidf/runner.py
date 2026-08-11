@@ -207,7 +207,8 @@ def main() -> int:
                 data = data.decode(errors="replace")
 
             if self._filter_pattern is None:
-                self._stream.write(data)
+                # Nothing to match against, so no need to wait for a full line.
+                self._emit(data)
             else:
                 self._line_buffer += data
                 for line in self._line_buffer.splitlines(keepends=True):
