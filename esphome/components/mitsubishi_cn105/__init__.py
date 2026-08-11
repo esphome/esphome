@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
@@ -13,6 +13,7 @@ DOMAIN = "mitsubishi_cn105"
 
 CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
+CONF_VANE = "vane"
 
 mitsubishi_ns = cg.esphome_ns.namespace(DOMAIN)
 
@@ -21,6 +22,8 @@ MitsubishiCN105Component = mitsubishi_ns.class_(
     cg.Component,
     uart.UARTDevice,
 )
+
+VaneState = mitsubishi_ns.struct("VaneState")
 
 SetRemoteTemperatureAction = mitsubishi_ns.class_(
     "SetRemoteTemperatureAction",
@@ -42,6 +45,11 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_TELEMETRY_REQUEST_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
+            cv.Optional(CONF_VANE): cv.Schema(
+                {
+                    cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+                }
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -80,6 +88,15 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]
         )
     )
+    if on_state := config.get(CONF_VANE, {}).get(CONF_ON_STATE):
+        cg.add_global(mitsubishi_ns.using)
+        for conf in on_state:
+            await automation.build_callback_automation(
+                var,
+                "add_on_vane_state_callback",
+                [(VaneState.operator("const").operator("ref"), "x")],
+                conf,
+            )
 
 
 REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(

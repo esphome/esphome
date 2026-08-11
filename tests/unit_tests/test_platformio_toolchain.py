@@ -16,9 +16,10 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
 from esphome.platformio import runner, toolchain
-from esphome.util import FlashImage
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -326,6 +327,66 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
     """
     with pytest.raises(EsphomeError):
         _ = toolchain.IDEData({"extra": None}).extra_flash_images
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework", "expected"),
+    [
+        ("esp32", "arduino", "1"),
+        ("esp32", "esp-idf", None),
+        ("esp8266", "arduino", None),
+    ],
+)
+def test_run_platformio_cli_flags_an_esp32_arduino_build(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    framework: str,
+    expected: str | None,
+) -> None:
+    """Only an ESP32 Arduino build is flagged, and an inherited one is cleared."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: framework,
+    }
+
+    with patch.dict(os.environ, {ESP32_ARDUINO_ENV: "1"}, clear=False):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert env.get(ESP32_ARDUINO_ENV) == expected
+        # Only the subprocess env is touched; ours is left as it was.
+        assert os.environ[ESP32_ARDUINO_ENV] == "1"
+
+
+def test_run_platformio_cli_ignores_an_inherited_flag_without_core(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """An inherited flag must not end up answering for CORE."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data.pop(KEY_CORE, None)
+
+    with patch.dict(os.environ, {ESP32_ARDUINO_ENV: "1"}, clear=False):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert ESP32_ARDUINO_ENV not in env
+
+
+def test_run_platformio_cli_raises_on_a_half_filled_core(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """A CORE set up but left incomplete must surface, not fall back."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {}
+
+    with patch.dict(os.environ, {}, clear=False):
+        mock_run_external_process.return_value = 0
+        with pytest.raises(KeyError):
+            toolchain.run_platformio_cli("test", "arg")
 
 
 def test_run_platformio_cli_sets_environment_variables(
