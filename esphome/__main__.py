@@ -2,37 +2,31 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime
 import functools
-import getpass
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import time
 from typing import Protocol
 
-import argcomplete
-
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
-import esphome.codegen as cg
-from esphome.config import iter_component_configs, read_config, strip_default_ids
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
+    BUNDLE_EXTENSION,
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -52,6 +46,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -59,6 +55,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -488,8 +485,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -622,6 +617,8 @@ def _resolve_network_devices(
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
+    from datetime import datetime
+
     from aioesphomeapi import LogParser
     import serial
 
@@ -634,18 +631,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
-
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -685,11 +673,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -704,6 +688,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
 
 def _wrap_to_code(name, comp, yaml_util):
+    import esphome.codegen as cg
+
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -739,6 +725,7 @@ def write_cpp(config: ConfigType) -> int:
 
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
+    from esphome.config import iter_component_configs
 
     _LOGGER.info("Generating C++ source...")
 
@@ -931,9 +918,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
@@ -987,6 +975,8 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -1024,6 +1014,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
+    import subprocess
+
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -1130,6 +1122,8 @@ def check_permissions(port: str):
                 "the USB cable can be used for data and is not a power-only cable."
             )
         if not (os.access(port, os.R_OK | os.W_OK)):
+            import getpass
+
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
@@ -1142,12 +1136,11 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1407,12 +1400,11 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
@@ -1430,7 +1422,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     if has_api() and (
         network_devices := _resolve_network_devices(devices, config, args)
     ):
-        from esphome.components.api.client import run_logs
+        from esphome.api_client import run_logs
 
         return run_logs(
             config,
@@ -1464,6 +1456,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.config import strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1713,7 +1706,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+    from esphome.bundle import ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
@@ -1948,7 +1941,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
-            print(
+            safe_print(
                 color(
                     AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
@@ -1961,7 +1954,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
             )
@@ -2008,7 +2001,9 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             > 1
         ):
-            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            safe_print(
+                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
+            )
             return 1
 
         new_raw = re.sub(
@@ -2026,7 +2021,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
     # would otherwise just re-flash the same hostname).
     if new_name == old_name:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2036,7 +2031,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
     if new_path.resolve() == CORE.config_path.resolve():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2044,7 +2039,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
         return 1
     if new_path.exists():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"Cannot rename: {new_path} already exists. "
@@ -2052,7 +2047,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
         )
         return 1
-    print(
+    safe_print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
@@ -2061,7 +2056,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
-        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
+        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
         return 1
 
@@ -2087,7 +2082,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.config_path != new_path:
         CORE.config_path.unlink()
 
-    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
+    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 
@@ -2498,7 +2493,12 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    argcomplete.autocomplete(parser)
+    # argcomplete only does anything when the shell-completion machinery
+    # invokes us with _ARGCOMPLETE set; skip the import otherwise.
+    if "_ARGCOMPLETE" in os.environ:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
 
     if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
         args, unknown_args = parser.parse_known_args(arguments)
@@ -2558,10 +2558,11 @@ def run_esphome(argv):
         return 0
 
     # Bundle support: if the configuration is a .esphomebundle, extract it
-    # and rewrite conf_path to the extracted YAML config.
-    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+    # and rewrite conf_path to the extracted YAML config. The suffix check
+    # stays inline so the ordinary run never imports esphome.bundle.
+    if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        from esphome.bundle import prepare_bundle_for_compile
 
-    if is_bundle_path(conf_path):
         _LOGGER.info("Extracting config bundle %s...", conf_path)
         conf_path = prepare_bundle_for_compile(conf_path)
         # Update the argument so downstream code sees the extracted path
@@ -2597,9 +2598,13 @@ def run_esphome(argv):
             )
 
     if config is None:
+        from esphome.config import read_config
+
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
+            # Snapshot only needed by `esphome config --no-defaults`.
+            snapshot_user_config=getattr(args, "no_defaults", False),
         )
         # Refresh the cache so the next upload/logs hits the fast path
         # instead of re-running read_config. Skip when the storage
