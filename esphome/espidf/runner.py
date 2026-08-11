@@ -228,13 +228,17 @@ def main() -> int:
                 # Nothing to match against, so no need to wait for a full line.
                 self._emit(data)
             else:
-                self._line_buffer += data
-                for line in self._line_buffer.splitlines(keepends=True):
-                    if "\n" not in line and "\r" not in line:
-                        # Incomplete — hold until we see a terminator.
-                        self._line_buffer = line
-                        break
+                lines = (self._line_buffer + data).splitlines(keepends=True)
+                # Only the last piece can be unfinished; hold that one and
+                # write out the rest. Checking every piece instead used to
+                # stop at the first one that ended on a character
+                # ``str.splitlines`` counts as a break but we do not, such as
+                # a form feed, and throw away every complete line behind it.
+                if lines and not lines[-1].endswith(("\n", "\r")):
+                    self._line_buffer = lines.pop()
+                else:
                     self._line_buffer = ""
+                for line in lines:
                     self._emit(line)
 
             # We tell idf.py it is talking to a terminal, so it sends progress

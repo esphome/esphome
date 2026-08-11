@@ -443,6 +443,42 @@ def test_redirect_text_flushes_so_piped_output_streams() -> None:
     assert buf.getvalue() == b"Writing at 0x00010000 (50%)\r"
 
 
+@pytest.mark.parametrize(
+    "break_char",
+    ["\x0c", "\x0b", "\x1c", "\x1d", "\x1e", "\x85", " ", " "],
+    ids=["formfeed", "vtab", "fs", "gs", "rs", "nel", "lsep", "psep"],
+)
+def test_redirect_text_keeps_output_after_an_exotic_break_character(
+    break_char: str,
+) -> None:
+    r"""Only ``\n`` and ``\r`` end a line; the rest is ordinary text.
+
+    ``str.splitlines`` treats all of these as line breaks. Splitting on them
+    used to strand the fragment in the buffer and drop every complete line
+    that came after it, which for a form feed in toolchain output meant
+    losing the rest of the build log.
+    """
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write(f"first{break_char}second\nthird\n")
+
+    assert buf.getvalue() == f"first{break_char}second\nthird\n"
+
+
+def test_redirect_text_treats_crlf_as_one_terminator() -> None:
+    r"""``\r\n``, a lone ``\r`` and a lone ``\n`` each end exactly one line."""
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("one\r\ntwo\rthree\nfour")
+
+    # "four" has no terminator yet, so it is held back.
+    assert buf.getvalue() == "one\r\ntwo\rthree\n"
+
+    redirect.drain()
+
+    assert buf.getvalue() == "one\r\ntwo\rthree\nfour\n"
+
+
 def test_redirect_text_drain_releases_held_partial_line() -> None:
     """A last line with no terminator must still reach the user.
 

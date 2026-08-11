@@ -71,6 +71,17 @@ def test_main_filters_noise_and_flushes_each_write(
     assert output.endswith("still going\n")
 
 
+def test_main_keeps_output_after_a_form_feed(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """A form feed is text, not a line break, so nothing after it is lost."""
+    buf, _stream = _run_main(monkeypatch, fixture_path / "espidf" / "formfeed_probe.py")
+
+    assert buf.getvalue().decode("utf-8") == (
+        "Compiling main.cpp\npage one\x0cpage two\n[2/9] Building C object\n"
+    )
+
+
 def test_main_drains_a_partial_line_when_the_build_dies(
     monkeypatch: pytest.MonkeyPatch, fixture_path: Path
 ) -> None:
