@@ -13,7 +13,6 @@ light::LightTraits HoermannHcpLight::get_traits() {
 }
 
 void HoermannHcpLight::setup() {
-  this->parent_->register_light();
   // Nothing is known about the lamp until the bus controller is heard from, so flag the entity until then.
   this->status_set_warning(LOG_STR("waiting for the bus controller"));
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
@@ -25,42 +24,25 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   bool binary;
   state->current_values_as_binary(&binary);
   // LightState::setup() always performs a call, so the very first write here is the restored state coming back
-  // rather than a request. Spending that allowance on whichever branch runs keeps a later real request out of it.
-  const bool restore_replay = !this->boot_replay_done_;
+  // rather than a request.
+  const bool restored = !this->boot_replay_done_;
   this->boot_replay_done_ = true;
-  const bool republished = this->republishing_;
-  this->republishing_ = false;
-  if (restore_replay) {
+  const bool heading_on = this->parent_->is_light_heading_on();
+  if (binary == heading_on)
+    return;
+  if (restored) {
     ESP_LOGD(TAG, "Ignoring the restored state, the door decides what the lamp is doing");
+  } else if (!this->parent_->is_light_known()) {
+    // Commanding a lamp that has not been read could switch off one that is already on.
+    ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
+  } else if (this->parent_->cancel_light_toggle() || this->parent_->toggle_light()) {
+    // A toggle the controller has not fetched is withdrawn outright rather than fought with a second one.
+    return;
+  } else {
+    ESP_LOGW(TAG, "Light command was not accepted by the door");
   }
-  if (!this->parent_->is_light_known()) {
-    // Commanding a lamp that has not been read could switch off one that is already on, so pull the entity
-    // back to the last lamp state known, which before anything has ever been read is off.
-    // A publish of ours comes back here carrying the value it published, and is not a request to report. Writes
-    // coalesce, so checking the value as well as the flag keeps a request that overtook the publish visible.
-    const bool echo = republished && binary == this->parent_->is_light_on();
-    if (!restore_replay && !echo)
-      ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
-    if (binary != this->parent_->is_light_on())
-      this->publish_lamp_state_(this->parent_->is_light_on());
-    return;
-  }
-  // Each toggle on its way inverts the lamp, and the lamp reads as its old self until the door reports it, so
-  // the request has to be judged against where the toggles are taking it rather than where it is.
-  const bool effective_on = this->parent_->is_light_on() != (this->parent_->pending_light_toggles() % 2 != 0);
-  if (restore_replay) {
-    if (binary != effective_on)
-      this->publish_lamp_state_(effective_on);
-    return;
-  }
-  if (binary == effective_on)
-    return;
-  if (this->parent_->cancel_light_toggle())
-    return;
-  if (this->parent_->toggle_light())
-    return;
-  ESP_LOGW(TAG, "Light command was not accepted by the door");
-  this->publish_lamp_state_(effective_on);
+  // Nothing was sent, so the entity has to go back to showing the lamp rather than the request.
+  this->publish_lamp_state_(heading_on);
 }
 
 void HoermannHcpLight::update_from_state_() {
@@ -76,16 +58,13 @@ void HoermannHcpLight::update_from_state_() {
     return;
   }
   this->status_clear_warning();
-  // A toggle on its way will invert the lamp, so what it reads now is not what to settle on.
-  if (this->parent_->pending_light_toggles() != 0)
-    return;
-  if (this->light_state_->remote_values.is_on() != this->parent_->is_light_on())
-    this->publish_lamp_state_(this->parent_->is_light_on());
+  const bool heading_on = this->parent_->is_light_heading_on();
+  if (this->light_state_->remote_values.is_on() != heading_on)
+    this->publish_lamp_state_(heading_on);
 }
 
 // Re-enters write_state(), where the request then matches the lamp and queues nothing.
 void HoermannHcpLight::publish_lamp_state_(bool on) {
-  this->republishing_ = true;
   auto call = this->light_state_->make_call();
   call.set_state(on);
   // The bus reports the lamp on every broadcast, so nothing here is worth restoring from flash.

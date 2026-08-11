@@ -213,12 +213,12 @@ TEST(HoermannHcpLightPlatformTest, BroadcastDuringPendingToggleKeepsTheCommand) 
   fixture.bring_up();
 
   fixture.command(true);
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
 
   // A door movement sets changed_, firing the state callback while the toggle is still queued.
   fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
 
-  EXPECT_TRUE(fixture.door.is_light_toggle_pending());
+  EXPECT_TRUE(fixture.door.is_light_toggle_pending_());
   EXPECT_TRUE(fixture.entity_on());
 }
 
@@ -251,7 +251,7 @@ TEST(HoermannHcpLightPlatformTest, RefusedPressAfterFetchShowsWhereTheLampIsHead
 
   fixture.command(true);
   poll_command(fixture.door);  // the controller fetches the press, so it can no longer be cancelled
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
 
   fixture.command(false);
   EXPECT_TRUE(fixture.entity_on());
@@ -275,7 +275,7 @@ TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLamp
   poll_command(fixture.door);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   poll_command(fixture.door);  // release, so nothing is pending any more
-  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending_());
   ASSERT_FALSE(fixture.door.is_light_on());  // the lamp has still not been reported
 
   fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
@@ -291,7 +291,7 @@ TEST(HoermannHcpLightPlatformTest, DroppedToggleReturnsTheEntityToTheLamp) {
   fixture.bring_up();
 
   fixture.command(true);
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
   EXPECT_TRUE(fixture.entity_on());
 
   // The controller keeps broadcasting but never fetches the command, so the connection stays up.
@@ -299,7 +299,7 @@ TEST(HoermannHcpLightPlatformTest, DroppedToggleReturnsTheEntityToTheLamp) {
   fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   fixture.pump();
 
-  EXPECT_FALSE(fixture.door.is_light_toggle_pending());
+  EXPECT_FALSE(fixture.door.is_light_toggle_pending_());
   EXPECT_FALSE(fixture.entity_on());
 }
 
@@ -311,7 +311,7 @@ TEST(HoermannHcpLightPlatformTest, ToggleLostWithTheConnectionReturnsTheEntityTo
   fixture.bring_up();
 
   fixture.command(true);
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   fixture.pump();  // the connection times out and the command goes with it
@@ -370,13 +370,13 @@ TEST(HoermannHcpLightPlatformTest, ThirdTapWithTwoTogglesOutstandingIsHonoured) 
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   poll_command(fixture.door);  // the first toggle is released but not reported back
   fixture.command(false);
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
-  ASSERT_EQ(fixture.door.pending_light_toggles(), 2);
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
+  ASSERT_EQ(fixture.door.light_toggles_in_flight_, 2);
 
   // Two toggles cancel out, so asking for on again means withdrawing the second one.
   fixture.command(true);
-  EXPECT_FALSE(fixture.door.is_light_toggle_pending());
-  EXPECT_EQ(fixture.door.pending_light_toggles(), 1);
+  EXPECT_FALSE(fixture.door.is_light_toggle_pending_());
+  EXPECT_EQ(fixture.door.light_toggles_in_flight_, 1);
   EXPECT_TRUE(fixture.entity_on());
 }
 
@@ -442,7 +442,7 @@ TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterReleaseQueuesASecondTogg
   poll_command(fixture.door);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
   poll_command(fixture.door);  // released, so nothing is pending and the lamp is still unreported
-  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending_());
   ASSERT_FALSE(fixture.door.is_light_on());
 
   fixture.command(false);
@@ -515,7 +515,7 @@ TEST(HoermannHcpLightPlatformTest, ToggleTheDoorIgnoresStopsBeingWaitedFor) {
 
   fixture.command(true);
   consume_command(fixture.door);  // the door takes press and release, then does nothing
-  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending_());
   EXPECT_TRUE(fixture.entity_on());
 
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
@@ -576,14 +576,14 @@ TEST(HoermannHcpLightPlatformTest, WithdrawingALaterToggleKeepsTheWatchdogArmed)
   fixture.command(true);
   consume_command(fixture.door);  // the first toggle is released but never reported back
   fixture.command(false);
-  ASSERT_EQ(fixture.door.pending_light_toggles(), 2);
+  ASSERT_EQ(fixture.door.light_toggles_in_flight_, 2);
   fixture.command(true);  // withdraws the second, leaving the first outstanding
-  ASSERT_EQ(fixture.door.pending_light_toggles(), 1);
+  ASSERT_EQ(fixture.door.light_toggles_in_flight_, 1);
 
   // The door still says nothing about the lamp, so the wait has to time out on its own.
   std::this_thread::sleep_for(std::chrono::milliseconds(30));
   fixture.report_lamp(false);
-  EXPECT_EQ(fixture.door.pending_light_toggles(), 0);
+  EXPECT_EQ(fixture.door.light_toggles_in_flight_, 0);
   EXPECT_FALSE(fixture.entity_on());
 }
 
@@ -610,11 +610,11 @@ TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarme
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.toggle_light());
-  ASSERT_EQ(door.pending_light_toggles(), 1);
+  ASSERT_EQ(door.light_toggles_in_flight_, 1);
 
   // The lamp is switched at the door before the queued toggle is even fetched, which settles the count.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
-  ASSERT_EQ(door.pending_light_toggles(), 0);
+  ASSERT_EQ(door.light_toggles_in_flight_, 0);
 
   consume_command(door);
   EXPECT_EQ(door.light_toggle_released_at_, 0u);
@@ -639,10 +639,10 @@ TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   fixture.bring_up();
 
   fixture.command(true);
-  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending_());
 
   fixture.command(false);
-  EXPECT_FALSE(fixture.door.is_light_toggle_pending());
+  EXPECT_FALSE(fixture.door.is_light_toggle_pending_());
   EXPECT_FALSE(fixture.entity_on());
 
   // Nothing is left for the controller to fetch, so the lamp stays off as asked.

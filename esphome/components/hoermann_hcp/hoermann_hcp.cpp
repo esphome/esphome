@@ -171,13 +171,9 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
   if (registers.size() > 6) {
     this->on_light_reg_(registers[6]);
   } else if (!this->short_broadcast_logged_) {
+    // The light entity flags itself when the lamp is never reported, so this is only the detail behind it.
     this->short_broadcast_logged_ = true;
-    const unsigned count = static_cast<unsigned>(registers.size());
-    if (this->light_registered_) {
-      ESP_LOGW(TAG, "Broadcast of %u registers carries no lamp state, so the light cannot be controlled", count);
-    } else {
-      ESP_LOGD(TAG, "Broadcast of %u registers carries no lamp state", count);
-    }
+    ESP_LOGD(TAG, "Broadcast of %u registers carries no lamp state", static_cast<unsigned>(registers.size()));
   }
   return {};
 }
@@ -296,12 +292,12 @@ bool HoermannHcp::toggle_light() {
   this->light_toggles_in_flight_++;
   return true;
 }
-bool HoermannHcp::is_light_toggle_pending() const { return this->next_command_ == &COMMAND_TOGGLE_LAMP; }
+bool HoermannHcp::is_light_toggle_pending_() const { return this->next_command_ == &COMMAND_TOGGLE_LAMP; }
 
 bool HoermannHcp::cancel_light_toggle() {
   // Once the pressed value has been presented the key press is already on the wire, so only an untouched
   // command can be withdrawn.
-  if (!this->is_light_toggle_pending() || this->command_written_at_ != 0)
+  if (!this->is_light_toggle_pending_() || this->command_written_at_ != 0)
     return false;
   ESP_LOGD(TAG, "Cancelling '%s' command the controller had not fetched", this->next_command_->name);
   this->drop_command_();
@@ -365,7 +361,7 @@ void HoermannHcp::set_valid_(bool valid) {
 }
 
 void HoermannHcp::drop_command_() {
-  if (this->is_light_toggle_pending()) {
+  if (this->is_light_toggle_pending_()) {
     // A lamp toggle says nothing about where the door was going, so it leaves the target alone.
     this->light_toggle_settled_();
   } else {
