@@ -96,25 +96,30 @@ def test_runner_streams_output_before_the_build_finishes(
     with subprocess.Popen(
         [sys.executable, str(runner_py), str(probe)],
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        # Keep stderr: if the runner dies on startup, its traceback is the
+        # only clue about why no line showed up.
+        stderr=subprocess.PIPE,
         env=probe_env,
         text=True,
     ) as proc:
+        first_line: list[str] = []
+        reader = threading.Thread(
+            target=lambda: first_line.append(proc.stdout.readline()), daemon=True
+        )
         try:
-            first_line: list[str] = []
-            reader = threading.Thread(
-                target=lambda: first_line.append(proc.stdout.readline())
-            )
-            reader.daemon = True
             reader.start()
             reader.join(FIRST_LINE_TIMEOUT)
+            still_running = proc.poll() is None
 
             # The probe sleeps for a minute after writing, so reaching us at
             # all means the line was flushed rather than released at exit.
-            assert first_line == ["Compiling main.cpp\n"]
-            assert proc.poll() is None
+            assert first_line == ["Compiling main.cpp\n"], (
+                f"runner stderr: {'' if still_running else proc.stderr.read()}"
+            )
+            assert still_running
         finally:
-            # Kill before leaving the block so the reader thread sees EOF and
-            # finishes before ``Popen`` closes the pipe under it.
             proc.kill()
             proc.wait()
+            # Join before leaving the block, so the reader is done rather than
+            # racing ``Popen`` closing the pipe under it.
+            reader.join(1.0)
