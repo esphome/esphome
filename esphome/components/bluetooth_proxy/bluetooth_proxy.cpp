@@ -707,9 +707,13 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 void BluetoothProxy::reset_owed_replies_() {
   this->connections_free_pending_ = false;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  // subscribe_api_connection() re-drives this from the hub immediately after,
-  // so clearing it here costs nothing and keeps the list exhaustive.
+  // Owed on unsubscribe; on subscribe the trailing send_scanner_state_()
+  // re-drives it from the hub, so clearing it there is free.
   this->scanner_state_pending_ = false;
+#else
+  // Force a poll-arm mismatch: a frame refused at subscribe time could
+  // otherwise match the stale detector and never be retried.
+  this->last_scan_running_ = !this->hub_->scan_running();
 #endif
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   this->pending_unpairing_.clear();
