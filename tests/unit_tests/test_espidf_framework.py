@@ -178,6 +178,11 @@ def test_clone_idf_with_submodules_without_ref(tmp_path: Path) -> None:
     assert calls[-1][:5] == ["git", "submodule", "update", "--init", "--recursive"]
     assert not any(c[1] == "fetch" for c in calls)
     assert not any(c[1] == "reset" for c in calls)
+    # The clone must retry transient network failures and clean up a
+    # partial destination between attempts
+    clone_kwargs = run_git_command_mock.call_args_list[0].kwargs
+    assert clone_kwargs["network"] is True
+    assert clone_kwargs["retry_cleanup"] == framework_path
 
 
 def test_clone_idf_with_submodules_with_ref(tmp_path: Path) -> None:
@@ -205,6 +210,13 @@ def test_clone_idf_with_submodules_with_ref(tmp_path: Path) -> None:
     ]
     assert calls[2] == ["git", "reset", "--hard", "FETCH_HEAD"]
     assert calls[3][:5] == ["git", "submodule", "update", "--init", "--recursive"]
+    # Clone and fetch talk to the network and must carry the retry flag;
+    # the local reset must not
+    kwargs = [c.kwargs for c in run_git_command_mock.call_args_list]
+    assert kwargs[0]["network"] is True
+    assert kwargs[0]["retry_cleanup"] == framework_path
+    assert kwargs[1]["network"] is True
+    assert "network" not in kwargs[2]
 
 
 def test_clone_idf_with_submodules_raises_when_tree_missing(

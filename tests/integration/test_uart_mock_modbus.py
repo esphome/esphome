@@ -837,6 +837,44 @@ async def test_uart_mock_modbus_fairness(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_broadcast_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A client broadcast write (address 0) reaches every server and costs no timeout.
+
+    The scenario button sends a broadcast single-register write of 777 to register
+    0x10; both servers must apply it. The client's normal polling sensor must keep
+    updating, and no modbus warnings may appear - the pre-broadcast-support behavior
+    parked the frame in the waiting slot until the send-wait timeout, which surfaced
+    here as 'Stop waiting for response' warnings and a stalled poll.
+    """
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["reg_u_word", "srv1_written", "srv2_written", "broadcast_accepted"]
+    )
+    poll_before = tracker.expect("reg_u_word", 919)
+    written = tracker.expect_all({"srv1_written": 777, "srv2_written": 777})
+    # queue_pdu() must accept the broadcast into the machine (return true), the answer this PR adds.
+    accepted = tracker.expect("broadcast_accepted", 1)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(accepted, "broadcast_accepted")
+        await tracker.await_change(poll_before, "reg_u_word")
+        await tracker.await_all(written)
+        # Polling must continue after the broadcast (a burned timeout stalls it).
+        poll_after = tracker.expect("reg_u_word", 919)
+        await tracker.await_change(poll_after, "reg_u_word", timeout=3.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_client_read_write(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
