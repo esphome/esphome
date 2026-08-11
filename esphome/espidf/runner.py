@@ -149,8 +149,9 @@ def main() -> int:
           other control characters count too. Any piece whose
           ANSI-stripped, right-stripped form matches one of
           ``filter_lines`` is dropped.
-        * Only the final piece can be an unfinished line. It is held in a
-          buffer until a ``\\n`` or ``\\r`` arrives.
+        * Only the final piece can still be waiting for more text, so
+          that one is held until a ``\\n`` or ``\\r`` arrives. A piece
+          that ended on one of the other breaks goes out as it is.
 
         Mirrors the matching semantics of ``esphome.util.RedirectText``
         so filter patterns behave identically in both the PlatformIO
@@ -230,13 +231,16 @@ def main() -> int:
                 self._emit(data)
             else:
                 lines = (self._line_buffer + data).splitlines(keepends=True)
-                # Only the last piece can be an unfinished line, so hold
-                # that one and write out the rest.
+                # Every piece but the last ends with something
+                # ``str.splitlines`` treats as a break, so only the last one
+                # can still be waiting for more text. Hold that one, write
+                # out the rest.
                 #
-                # ``str.splitlines`` also breaks on characters we do not
-                # treat as line endings, such as a form feed. Checking every
-                # piece used to stop at the first of those and drop every
-                # complete line behind it.
+                # Some of those breaks are not line endings to us, a form
+                # feed for one, so a piece can go out without ending in a
+                # newline. That beats what we did before, which was to stop
+                # at the first such piece and drop every complete line
+                # behind it.
                 if lines and not lines[-1].endswith(("\n", "\r")):
                     self._line_buffer = lines.pop()
                 else:
