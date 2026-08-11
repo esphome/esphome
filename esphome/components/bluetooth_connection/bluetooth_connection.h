@@ -87,6 +87,11 @@ static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVIC
 // delivered near the client's 30 s timeout could land on a fresh request's
 // empty accumulator and cache as an empty database.
 static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
+// Owed-ack retries stop on the same reasoning and cadence. supersede only
+// fires once the proxy processes the client's re-request, so a drain that
+// beats that processing could resolve the new request with the old reply;
+// an age bound is what closes that, not the supersede.
+static constexpr uint8_t PENDING_ACK_RETRY_LIMIT = 30;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 

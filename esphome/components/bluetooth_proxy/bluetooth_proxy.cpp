@@ -788,23 +788,16 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   call.success = success;
   call.error = error;
 
-  // Advertisement-only builds keep no retry state, so only the latch is
-  // conditional; the report is not.
-  bool sent = this->api_connection_->send_message(call);
-  if (!sent) {
-    this->log_reply_dropped_("Unpair");
-  }
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-  if (sent) {
+  if (this->api_connection_->send_message(call)) {
     // A later unpair landing for an address that still has one owed would
     // otherwise have the drain repeat it.
     if (this->pending_unpairing_.matches(address)) {
       this->pending_unpairing_.clear();
     }
-  } else {
-    this->pending_unpairing_.set(address, error);
+    return;
   }
-#endif
+  this->log_reply_dropped_("Unpair");
+  this->pending_unpairing_.set(address, error);
 }
 
 // Shared by both platform paths: the neutral bluetooth_device_request() uses it to
