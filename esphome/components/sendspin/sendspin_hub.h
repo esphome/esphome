@@ -155,9 +155,18 @@ class SendspinHub final : public Component,
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
   }
+
+  /// @brief Registers a callback that fires when the connection is lost and the cached controller state is dropped.
+  template<typename F> void add_controller_state_clear_callback(F &&callback) {
+    this->controller_state_clear_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  /// @brief Registers a callback that fires when the server sends metadata.
+  ///
+  /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -220,14 +229,20 @@ class SendspinHub final : public Component,
 
   void on_controller_state(const sendspin::ServerStateControllerObject &state) override;
 
-  // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  void on_controller_state_clear() override;
+
+  // Callback fan-out to child components; they filter as needed. Only a media_player subscribes, while the switch
+  // action and the media source enable the controller role without one, so keep the idle cost to a single pointer.
+  LazyCallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  LazyCallbackManager<void()> controller_state_clear_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
   sendspin::MetadataRole *metadata_role_{nullptr};
 
   void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  void on_metadata_clear() override;
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
