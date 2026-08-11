@@ -50,6 +50,12 @@
 #include "esp_eth_enc28j60.h"
 #endif
 
+// CH390 headers exist on all IDF versions (always an external component)
+#ifdef USE_ETHERNET_CH390
+#include "esp_eth_mac_ch390.h"
+#include "esp_eth_phy_ch390.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -215,6 +221,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_ENC28J60)
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_CH390)
+  eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -236,6 +244,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   // time (t10, 210 ns) after the last clock or MAC/MII register reads fail ("wrong chip ID")
   enc28j60_config.spi_devcfg->cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time((this->clock_speed_ + 999999) / 1000000);
   enc28j60_config.int_gpio_num = this->interrupt_pin_;
+#elif defined(USE_ETHERNET_CH390)
+  ch390_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ch390_config.poll_period_ms = this->polling_interval_;
+#endif
 #endif
 
   phy_config.phy_addr = this->phy_addr_spi_;
@@ -360,6 +373,12 @@ void EthernetComponent::ethernet_lazy_init_() {
       this->phy_ = esp_eth_phy_new_enc28j60(&phy_config);
       break;
     }
+#elif defined(USE_ETHERNET_CH390)
+    case ETHERNET_TYPE_CH390: {
+      mac = esp_eth_mac_new_ch390(&ch390_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ch390(&phy_config);
+      break;
+    }
 #endif
 #endif
     default: {
@@ -410,9 +429,9 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif  // !USE_ETHERNET_SPI
 
   // use ESP internal eth mac
-  uint8_t mac_addr[6];
+  uint8_t mac_addr[MAC_ADDRESS_SIZE];
   if (this->fixed_mac_.has_value()) {
-    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+    memcpy(mac_addr, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
   } else {
     esp_read_mac(mac_addr, ESP_MAC_ETH);
   }
@@ -518,6 +537,10 @@ void EthernetComponent::dump_config() {
 #elif defined(USE_ETHERNET_ENC28J60)
     case ETHERNET_TYPE_ENC28J60:
       eth_type = "ENC28J60";
+      break;
+#elif defined(USE_ETHERNET_CH390)
+    case ETHERNET_TYPE_CH390:
+      eth_type = "CH390";
       break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
@@ -903,7 +926,7 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
     // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
     if (this->fixed_mac_.has_value()) {
-      memcpy(mac, this->fixed_mac_->data(), 6);
+      memcpy(mac, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
     } else {
       esp_read_mac(mac, ESP_MAC_ETH);
     }
@@ -921,7 +944,7 @@ std::string EthernetComponent::get_eth_mac_address_pretty() {
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

@@ -422,6 +422,26 @@ def _make_redirect(
     return redirect, buf
 
 
+def test_redirect_text_flushes_so_piped_output_streams() -> None:
+    """Regression: in-process esptool progress must reach the pipe right away.
+
+    ``run_external_command`` runs esptool inside our own process, so its
+    progress output goes through ``RedirectText.write``. That used to be
+    flushed only because ``colorama.init()`` wrapped stdout in a stream that
+    flushed after every write.
+    """
+    buf = io.BytesIO()
+    piped_stream = io.TextIOWrapper(
+        buf, encoding="utf-8", newline="\n", line_buffering=False
+    )
+    redirect = util.RedirectText(piped_stream)
+
+    redirect.write("Writing at 0x00010000 (50%)\r")
+
+    # No explicit flush here on purpose: RedirectText has to do it.
+    assert buf.getvalue() == b"Writing at 0x00010000 (50%)\r"
+
+
 def test_redirect_text_callback_called_on_matching_line() -> None:
     """Test that a line callback is called and its output is written."""
     results: list[str] = []
@@ -561,7 +581,7 @@ def test_run_external_process_line_callbacks() -> None:
             return "PROCESS CALLBACK\n"
         return None
 
-    with patch("esphome.util.subprocess.run") as mock_run:
+    with patch("subprocess.run") as mock_run:
 
         def run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
             # Simulate subprocess writing to the stdout RedirectText
@@ -635,7 +655,7 @@ def test_detect_rp2040_bootsel_found() -> None:
     """Test BOOTSEL device detection when device is present."""
     mock_result = MagicMock()
     mock_result.stdout = b"Device Information\n type: RP2040\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 1
     assert result.permission_error is False
@@ -645,7 +665,7 @@ def test_detect_rp2040_bootsel_multiple() -> None:
     """Test BOOTSEL detection with multiple devices."""
     mock_result = MagicMock()
     mock_result.stdout = b"type: RP2040\ntype: RP2350\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 2
     assert result.permission_error is False
@@ -658,7 +678,7 @@ def test_detect_rp2040_bootsel_none() -> None:
         b"No accessible RP2040/RP2350 devices in BOOTSEL mode were found.\n"
     )
     mock_result.stderr = b""
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is False
@@ -675,7 +695,7 @@ def test_detect_rp2040_bootsel_permission_error() -> None:
         b"but picotool was unable to connect. "
         b"Maybe try 'sudo' or check your permissions.\n"
     )
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is True
@@ -686,7 +706,7 @@ def test_detect_rp2040_bootsel_libusb_access_error() -> None:
     mock_result = MagicMock()
     mock_result.stdout = b""
     mock_result.stderr = b"LIBUSB_ERROR_ACCESS\n"
-    with patch("esphome.util.subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is True
@@ -694,7 +714,7 @@ def test_detect_rp2040_bootsel_libusb_access_error() -> None:
 
 def test_detect_rp2040_bootsel_oserror() -> None:
     """Test BOOTSEL detection handles OSError."""
-    with patch("esphome.util.subprocess.run", side_effect=OSError("not found")):
+    with patch("subprocess.run", side_effect=OSError("not found")):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is False
@@ -703,7 +723,7 @@ def test_detect_rp2040_bootsel_oserror() -> None:
 def test_detect_rp2040_bootsel_timeout() -> None:
     """Test BOOTSEL detection handles timeout."""
     with patch(
-        "esphome.util.subprocess.run",
+        "subprocess.run",
         side_effect=subprocess.TimeoutExpired("picotool", 10),
     ):
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
@@ -745,6 +765,31 @@ class TestSafePrint:
         util.safe_print("\033[0;32mhi\033[0m")
         assert capsys.readouterr().out == "\\033[0;32mhi\\033[0m\n"
 
+    def test_flushes_so_piped_output_streams(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: each line must reach the OS pipe right away.
+
+        The dashboard runs ``esphome logs`` with stdout as a pipe, which
+        Python block buffers at 8 KiB. Log lines used to be flushed only
+        because ``colorama.init()`` wrapped stdout in a stream that flushed
+        after every write; once that wrapping was skipped for dashboard runs
+        the lines sat in the buffer and the log view stayed empty until
+        enough output piled up to fill it.
+        """
+        buf = io.BytesIO()
+        # newline="\n" keeps Windows from rewriting the terminator to "\r\n";
+        # this test is about flushing, not about line endings.
+        piped_stream = io.TextIOWrapper(
+            buf, encoding="utf-8", newline="\n", line_buffering=False
+        )
+        monkeypatch.setattr(sys, "stdout", piped_stream)
+
+        util.safe_print("live log line")
+
+        # No explicit flush here on purpose: safe_print has to do it.
+        assert buf.getvalue() == b"live log line\n"
+
     def test_fallback_writes_string_not_bytes_repr(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -764,7 +809,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("bars: \u2582\u2584\u2586\u2588 done")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Output is a clean line, not the bytes repr.
@@ -789,7 +834,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("\033[0;32m\u2582\u2584\u2586\u2588\033[0m")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Dashboard escaping turned ESC into literal "\033" (5 chars), which

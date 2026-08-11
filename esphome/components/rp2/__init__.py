@@ -173,14 +173,9 @@ def get_download_types(storage_json):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # The most recent releases have not been uploaded to platformio so grabbing them directly from
-    # the GitHub release is one path forward for now.
+    # The framework-arduinopico package is no longer published to the PlatformIO
+    # registry, so install the framework straight from the GitHub release
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
-
-    # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
-    # a PIO earlephilhower/framework-arduinopico value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-    # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
 def _parse_platform_version(value):
@@ -198,19 +193,20 @@ def _parse_platform_version(value):
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
+# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
+# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 6, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 6, 1), None),
+        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 0, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -354,6 +350,11 @@ async def to_code(config):
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
         ],
     )
+
+    # newlib-nano is the default libc for the arduino-pico toolchain and its
+    # printf silently drops %f unless _printf_float is force-linked. Components
+    # use %f widely in logging, so pull it in.
+    cg.add_build_flag("-Wl,-u,_printf_float")
 
     # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
     # (~9.2 KB). See printf_stubs.cpp for implementation.

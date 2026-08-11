@@ -1,11 +1,10 @@
 import collections
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -88,8 +87,11 @@ def safe_print(message="", end="\n"):
         except UnicodeEncodeError:
             pass
 
+    # Always flush: stdout is block buffered when it is a pipe (the dashboard
+    # runs us that way), so live log lines would otherwise sit in the buffer
+    # for a long time instead of streaming out.
     try:
-        print(message, end=end)
+        print(message, end=end, flush=True)
         return
     except UnicodeEncodeError:
         pass
@@ -105,6 +107,7 @@ def safe_print(message="", end="\n"):
         print(
             message.encode(encoding, "backslashreplace").decode(encoding),
             end=end,
+            flush=True,
         )
         return
     except UnicodeEncodeError:
@@ -114,9 +117,10 @@ def safe_print(message="", end="\n"):
         print(
             message.encode("ascii", "backslashreplace").decode("ascii"),
             end=end,
+            flush=True,
         )
     except UnicodeEncodeError:
-        print("Cannot print line because of invalid locale!")
+        print("Cannot print line because of invalid locale!", flush=True)
 
 
 def safe_input(prompt=""):
@@ -212,6 +216,11 @@ class RedirectText:
         else:
             self._write_color_replace(s)
 
+        # Same reason as safe_print: the dashboard gives us a pipe, which is
+        # block buffered, so in-process esptool progress would not show up
+        # until the buffer filled.
+        self._out.flush()
+
         # write() returns the number of characters written
         # Let's print the number of characters of the original string in order to not confuse
         # any caller.
@@ -289,6 +298,9 @@ def run_external_command(
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
+    # Deferred: an OTA upload/logs run never spawns an external process.
+    import subprocess
+
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -329,13 +341,6 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
-def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
-
-
 # Custom OrderedDict with nicer repr method for debugging
 class OrderedDict(collections.OrderedDict):
     def __repr__(self):
@@ -356,7 +361,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     return sorted(files)
 
 
-def filter_yaml_files(files: list[Path]) -> list[Path]:
+def filter_yaml_files(files: Iterable[Path]) -> list[Path]:
     return [
         f
         for f in files
@@ -450,6 +455,8 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     Returns a BootselResult with the number of devices found (by counting
     'type:' lines in output), and whether a permission error was detected.
     """
+    import subprocess
+
     try:
         result = subprocess.run(
             [str(picotool_path), "info", "-d"],

@@ -52,7 +52,11 @@ float ADCSensor::sample() {
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);
     delay(1);
-    adc_select_input(4);
+    // The on-die temperature sensor sits on the last ADC channel, and which one
+    // that is depends on the chip: input 4 on RP2040 and RP2350A, but input 8 on
+    // RP2350B, which has eight external channels instead of four. The SDK
+    // resolves it for the target being built, so do not hardcode it.
+    adc_select_input(ADC_TEMPERATURE_CHANNEL_NUM);
 
     for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
       raw = adc_read();
