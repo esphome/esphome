@@ -330,7 +330,10 @@ async def test_uart_mock_modbus_server_controller(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
@@ -392,7 +395,12 @@ async def test_uart_mock_modbus_server_controller_write(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        entities = await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the baseline can already be in the
+        # states the device sends on connect; matching it there saves waiting for
+        # the next poll
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
 
         # Wait for initial baseline values to confirm the controller <-> server
         # connection is working before issuing writes
@@ -456,7 +464,11 @@ async def test_uart_mock_modbus_server_controller_bits(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        entities = await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot and binary sensors drop repeats, so the
+        # baseline can arrive only in the states the device sends on connect
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
 
         # Wait for initial baseline values to confirm the controller <-> server
         # connection is working before issuing writes
@@ -491,7 +503,10 @@ async def test_uart_mock_modbus_server_controller_multiple(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
