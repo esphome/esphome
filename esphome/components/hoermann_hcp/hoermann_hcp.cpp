@@ -72,7 +72,7 @@ void HoermannHcp::update() {
   }
   // A target waits for a door still travelling the other way to turn around. If it never does, the target has
   // to go as well, otherwise it would cut a later move short. The connection timeout doubles as that window.
-  if (this->has_target_() && !this->target_started_ && now - this->command_queued_at_ > this->connection_timeout_ms_) {
+  if (this->has_target_() && !this->target_started_ && now - this->target_queued_at_ > this->connection_timeout_ms_) {
     ESP_LOGW(TAG, "Door did not start moving towards the requested position, dropping it");
     this->clear_target_();
   }
@@ -296,6 +296,7 @@ bool HoermannHcp::set_position(float position) {
   if (!this->queue_command_(opening ? COMMAND_OPEN : COMMAND_CLOSE))
     return false;
   this->target_position_ = position;
+  this->target_queued_at_ = millis();
   this->target_direction_ = opening ? DoorState::OPENING : DoorState::CLOSING;
   // A door already travelling that way is on its way; one moving the other way has to turn around first.
   this->target_started_ = this->door_state_ == this->target_direction_;

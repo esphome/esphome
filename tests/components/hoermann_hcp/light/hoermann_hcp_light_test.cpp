@@ -46,6 +46,8 @@ RegisterValues lamp_broadcast(uint16_t lamp_reg) {
 class TestableHoermannHcp : public HoermannHcp {
  public:
   TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
+
+  using HoermannHcp::connection_timeout_ms_;
 };
 
 // Enough elapsed time for a zero-length key press to count as held; millis() has 1 ms resolution.
@@ -146,6 +148,29 @@ TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
   EXPECT_EQ(pressed_2, 0x0000);
 }
 
+// The target's start deadline is its own, so toggling the lamp cannot keep a stale target alive.
+TEST(HoermannHcpLightTest, LampToggleDoesNotExtendTheTargetWatchdog) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect(door);
+  // The door is closing, so an opening target is armed but not yet under way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
+  ASSERT_TRUE(door.set_position(0.5f));
+  consume_command(door);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  ASSERT_TRUE(door.toggle_light());
+  consume_command(door);
+  door.update();
+
+  // The target expired on its own schedule, so a later opening move runs freely.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0050, 0x0100}));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  auto [pressed, pressed_2] = poll_command(door);
+  EXPECT_EQ(pressed, 0x0000);
+  EXPECT_EQ(pressed_2, 0x0000);
+}
+
 // Without a bus controller the command cannot be delivered, and the caller is told.
 TEST(HoermannHcpLightTest, LampCommandIsRefusedWhileDisconnected) {
   HoermannHcp door;
@@ -210,6 +235,52 @@ TEST(HoermannHcpLightPlatformTest, RefusedCommandRepublishesTheLamp) {
 
   fixture.command(true);
   EXPECT_FALSE(fixture.entity_on());
+}
+
+// A reversing press once the toggle is already on the wire cannot stop it, so the entity has to end up
+// showing the lamp rather than the request that was refused.
+TEST(HoermannHcpLightPlatformTest, RefusedPressAfterFetchShowsWhereTheLampIsHeading) {
+  LightFixture fixture;
+  connect(fixture.door);
+
+  fixture.command(true);
+  poll_command(fixture.door);  // the controller fetches the press, so it can no longer be cancelled
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+
+  fixture.command(false);
+  EXPECT_TRUE(fixture.entity_on());
+
+  // A door movement while the refused toggle is still on the wire must not pull the entity back either.
+  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  fixture.door.update();
+  for (int i = 0; i < 4; i++)
+    fixture.state.loop();
+  EXPECT_TRUE(fixture.entity_on());
+
+  // The toggle lands and the door confirms it; the entity must already agree.
+  fixture.report_lamp(true);
+  EXPECT_TRUE(fixture.entity_on());
+}
+
+// The lamp is only reported some time after the key press is released, so an unrelated door broadcast in
+// that gap must not publish the state the lamp is about to leave.
+TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLampReports) {
+  LightFixture fixture;
+  connect(fixture.door);
+
+  fixture.command(true);
+  poll_command(fixture.door);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(fixture.door);  // release, so nothing is pending any more
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  ASSERT_FALSE(fixture.door.is_light_on());  // the lamp has still not been reported
+
+  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  fixture.door.update();
+  for (int i = 0; i < 4; i++)
+    fixture.state.loop();
+
+  EXPECT_TRUE(fixture.entity_on());
 }
 
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.
