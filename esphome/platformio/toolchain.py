@@ -350,7 +350,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # falls back to this same variable; reading what we are about to write
     # would let a stray value in our own environment answer for us. Clear an
     # inherited one so it cannot reach a build it does not suit.
-    if KEY_CORE in CORE.data and CORE.is_esp32 and CORE.using_arduino:
+    if CORE.is_configured and CORE.is_esp32 and CORE.using_arduino:
         env[ESP32_ARDUINO_ENV] = "1"
     else:
         env.pop(ESP32_ARDUINO_ENV, None)

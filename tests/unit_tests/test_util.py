@@ -550,6 +550,25 @@ def test_flash_error_help_reads_the_env_var_when_core_is_unconfigured(
     assert "esp-idf" in help_msg
 
 
+def test_is_esp32_arduino_build_raises_on_a_half_filled_core(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A CORE that was set up but left incomplete is a bug, so it must raise.
+
+    Only a CORE nobody set up at all means we are in a runner subprocess.
+    Treating a half filled in one the same way would quietly answer a real
+    build from the environment.
+    """
+    from esphome.const import KEY_CORE
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "data", {KEY_CORE: {}})
+    monkeypatch.setenv(util.ESP32_ARDUINO_ENV, "1")
+
+    with pytest.raises(KeyError):
+        util.is_esp32_arduino_build()
+
+
 @pytest.mark.parametrize(
     ("platform", "framework", "expected"),
     [

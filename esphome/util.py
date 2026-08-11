@@ -535,11 +535,11 @@ def is_esp32_arduino_build() -> bool:
     """
     from esphome.core import CORE
 
-    if const.KEY_CORE not in CORE.data:
-        # Nothing configured this CORE, so we are in the runner subprocess.
-        # Test only for the section, not the keys inside it: a CORE that was
-        # set up but left half filled in is a bug, and should say so rather
-        # than quietly fall back to what the environment claims.
+    if not CORE.is_configured:
+        # Nothing set this CORE up, so we are in the runner subprocess. Note
+        # that a CORE which was set up but left half filled in still counts
+        # as configured, so reading from it raises rather than quietly
+        # falling back to what the environment claims.
         return os.environ.get(ESP32_ARDUINO_ENV) == "1"
     return CORE.is_esp32 and CORE.using_arduino
 

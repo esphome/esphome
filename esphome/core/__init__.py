@@ -886,6 +886,17 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
     @property
+    def is_configured(self) -> bool:
+        """Whether anything has set this CORE up for a target.
+
+        Our runner subprocesses get a fresh CORE that nobody configures, so
+        code that also runs there has to be able to tell. This reports only
+        whether setup happened at all; a CORE that was set up but left half
+        filled in is a bug, and reading from it should still raise.
+        """
+        return KEY_CORE in self.data
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 

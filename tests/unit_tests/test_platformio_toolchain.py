@@ -387,6 +387,19 @@ def test_run_platformio_cli_ignores_an_inherited_flag_without_core(
         assert ESP32_ARDUINO_ENV not in env
 
 
+def test_run_platformio_cli_raises_on_a_half_filled_core(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """A CORE set up but left incomplete must surface, not fall back."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {}
+
+    with patch.dict(os.environ, {}, clear=False):
+        mock_run_external_process.return_value = 0
+        with pytest.raises(KeyError):
+            toolchain.run_platformio_cli("test", "arg")
+
+
 def test_run_platformio_cli_sets_environment_variables(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
