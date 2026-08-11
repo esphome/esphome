@@ -397,6 +397,8 @@ void BluedroidGattClient::deliver_pending_search_() {
 // which proxy builds compile without a materializer.
 static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.stream_service_batch(conn); });
 
+// Bound by the SERVICE STREAMING HAZARD note at the top of
+// bluetooth_connection_hub.cpp: never skip a batch, never send done early.
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
