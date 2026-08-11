@@ -5,7 +5,9 @@ mitsubishi_cn105:
   telemetry_request_min_interval: 120s
   vane:
     on_state:
-      - logger.log: "TRIGGER: vane on_state"
+      - logger.log:
+          format: "TRIGGER: vane on_state direction=%u"
+          args: ["static_cast<unsigned>(x.vertical.direction)"]
 
 climate:
   - platform: mitsubishi_cn105
