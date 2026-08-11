@@ -42,19 +42,17 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   if (this->parent_->cancel_light_toggle()) {
     // Withdrawn before the controller saw it, so the lamp stays where it is and nothing is outstanding.
     this->awaiting_lamp_ = false;
-    this->shown_on_ = binary;
-    return;
-  }
-  if (this->parent_->toggle_light()) {
-    this->shown_on_ = binary;
+  } else if (this->parent_->toggle_light()) {
     this->awaiting_lamp_ = true;
+  } else {
+    ESP_LOGW(TAG, "Light command was not accepted by the door");
+    // The toggle already on the wire will still land, so show where the lamp is heading rather than the refused
+    // request. Re-entering write_state() with that value then matches and queues nothing.
+    this->awaiting_lamp_ = true;
+    this->publish_lamp_state_(effective_on);
     return;
   }
-  ESP_LOGW(TAG, "Light command was not accepted by the door");
-  // The toggle already on the wire will still land, so show where the lamp is heading rather than the refused
-  // request. Re-entering write_state() with that value then matches and queues nothing.
-  this->awaiting_lamp_ = true;
-  this->publish_lamp_state_(effective_on);
+  this->shown_on_ = binary;
 }
 
 void HoermannHcpLight::update_from_state_() {
@@ -67,13 +65,10 @@ void HoermannHcpLight::update_from_state_() {
   this->status_clear_warning();
   const bool dropped = this->parent_->take_light_command_dropped();
   const bool lamp_on = this->parent_->is_light_on();
-  if (this->awaiting_lamp_) {
-    // The entity is showing a request the lamp has not caught up with. Reconciling against the lamp now would
-    // undo it, so wait for the lamp to confirm it or for the hub to say the command never got out.
-    if (lamp_on != this->shown_on_ && !dropped)
-      return;
-    this->awaiting_lamp_ = false;
-  }
+  // Keep showing the requested state until the lamp confirms it or the hub reports that the command was dropped.
+  if (this->awaiting_lamp_ && lamp_on != this->shown_on_ && !dropped)
+    return;
+  this->awaiting_lamp_ = false;
   this->synced_ = true;
   if (this->shown_on_ != lamp_on)
     this->publish_lamp_state_(lamp_on);

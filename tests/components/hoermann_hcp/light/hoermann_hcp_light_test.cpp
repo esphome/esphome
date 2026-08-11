@@ -24,7 +24,7 @@ RegisterValues make_registers(std::initializer_list<uint16_t> values) {
 }
 
 // The door only accepts commands once the bus controller has actually talked to it.
-void connect(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
+void connect_controller(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
 
 // Runs one command poll (write 2 / read 8) and returns both key-press registers.
 std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
@@ -77,7 +77,7 @@ struct LightFixture {
   // Brings the bus controller up and lets the platform read the lamp once, which is what a device does before
   // any user command can arrive.
   void bring_up() {
-    ::esphome::hoermann_hcp::connect(this->door);
+    connect_controller(this->door);
     this->pump();
   }
 
@@ -89,11 +89,13 @@ struct LightFixture {
     this->settle();
   }
 
-  // Delivers a lamp broadcast and runs the hub's notification pass.
-  void report_lamp(bool on) {
-    this->door.on_write_registers(BROADCAST_REG, lamp_broadcast(on ? 0x0010 : 0x0000));
+  // Delivers a status broadcast and runs the hub's notification pass.
+  void report_broadcast(const RegisterValues &registers) {
+    this->door.on_write_registers(BROADCAST_REG, registers);
     this->pump();
   }
+
+  void report_lamp(bool on) { this->report_broadcast(lamp_broadcast(on ? 0x0010 : 0x0000)); }
 
   // Runs the hub's notification pass and lets the resulting publishes settle.
   void pump() {
@@ -126,7 +128,7 @@ TEST(HoermannHcpLightTest, LampStateIsDecodedFromTheBroadcast) {
 // The lamp command is the only one that drives the second command register, on both halves of the press.
 TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   ASSERT_FALSE(door.is_light_on());
   ASSERT_TRUE(door.toggle_light());
 
@@ -148,7 +150,7 @@ TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
 // Toggling the lamp must not disturb a cover position the door is still travelling to.
 TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
   ASSERT_TRUE(door.set_position(0.5f));
@@ -169,7 +171,7 @@ TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
 // door a little overshoot but never loses the stop.
 TEST(HoermannHcpLightTest, LampToggleDelaysButDoesNotLoseTheTargetStop) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
   ASSERT_TRUE(door.set_position(0.5f));
@@ -195,7 +197,7 @@ TEST(HoermannHcpLightTest, LampToggleDelaysButDoesNotLoseTheTargetStop) {
 TEST(HoermannHcpLightTest, LampToggleDoesNotExtendTheTargetWatchdog) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 20;
-  connect(door);
+  connect_controller(door);
   // The door is closing, so an opening target is armed but not yet under way.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
   ASSERT_TRUE(door.set_position(0.5f));
@@ -250,10 +252,7 @@ TEST(HoermannHcpLightPlatformTest, BroadcastDuringPendingToggleKeepsTheCommand) 
   ASSERT_TRUE(fixture.door.is_light_toggle_pending());
 
   // A door movement sets changed_, firing the state callback while the toggle is still queued.
-  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
-  fixture.door.update();
-  for (int i = 0; i < 4; i++)
-    fixture.state.loop();
+  fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
 
   EXPECT_TRUE(fixture.door.is_light_toggle_pending());
   EXPECT_TRUE(fixture.entity_on());
@@ -294,10 +293,7 @@ TEST(HoermannHcpLightPlatformTest, RefusedPressAfterFetchShowsWhereTheLampIsHead
   EXPECT_TRUE(fixture.entity_on());
 
   // A door movement while the refused toggle is still on the wire must not pull the entity back either.
-  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
-  fixture.door.update();
-  for (int i = 0; i < 4; i++)
-    fixture.state.loop();
+  fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
   EXPECT_TRUE(fixture.entity_on());
 
   // The toggle lands and the door confirms it; the entity must already agree.
@@ -318,10 +314,7 @@ TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLamp
   ASSERT_FALSE(fixture.door.is_light_toggle_pending());
   ASSERT_FALSE(fixture.door.is_light_on());  // the lamp has still not been reported
 
-  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
-  fixture.door.update();
-  for (int i = 0; i < 4; i++)
-    fixture.state.loop();
+  fixture.report_broadcast(make_registers({0x0000, 0x0064, 0x0100}));
 
   EXPECT_TRUE(fixture.entity_on());
 }
@@ -360,7 +353,7 @@ TEST(HoermannHcpLightPlatformTest, ToggleLostWithTheConnectionReturnsTheEntityTo
   fixture.pump();  // the connection times out and the command goes with it
   ASSERT_FALSE(fixture.door.is_valid());
 
-  connect(fixture.door);
+  connect_controller(fixture.door);
   fixture.pump();
   EXPECT_FALSE(fixture.entity_on());
 }
@@ -370,12 +363,11 @@ TEST(HoermannHcpLightPlatformTest, ToggleLostWithTheConnectionReturnsTheEntityTo
 TEST(HoermannHcpLightPlatformTest, RestoredStateOnBootDoesNotCommandTheLamp) {
   LightFixture fixture;
   // The controller is already up and reporting the lamp lit before the entity's first loop.
-  connect(fixture.door);
+  connect_controller(fixture.door);
   fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   ASSERT_TRUE(fixture.door.is_light_on());
 
-  for (int i = 0; i < 4; i++)
-    fixture.state.loop();
+  fixture.settle();
   auto [idle, idle_2] = poll_command(fixture.door);
   EXPECT_EQ(idle, 0x0000);
   EXPECT_EQ(idle_2, 0x0000);
