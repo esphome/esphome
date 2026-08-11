@@ -289,8 +289,13 @@ class BluetoothProxy final : public Component {
   void clear_pending_disconnection_(uint64_t address);
   /// Send connected=false and pool it for the paced drain if refused. A
   /// dropped disconnect desynchronises the proxy: the client keeps a link it
-  /// believes is live and every operation on it times out.
+  /// believes is live and every operation on it times out. Unsolicited and
+  /// drained notifications only; request answers use the variant below.
   void send_device_disconnected_(uint64_t address, conn_err_t error = CONN_OK);
+  /// Answer a request with connected=false. Never pools: a refusal falls back
+  /// to the client's request timeout, keeping the pool for the unsolicited
+  /// notifications the client cannot recover on its own.
+  void answer_device_disconnected_(uint64_t address);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif

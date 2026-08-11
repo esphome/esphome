@@ -244,6 +244,18 @@ void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
   }
 }
 
+void BluetoothProxy::answer_device_disconnected_(uint64_t address) {
+  if (this->send_device_connection(address, false)) {
+    // A landed answer satisfies any owed notification for the address; a
+    // drained duplicate would follow it otherwise.
+    this->clear_pending_disconnection_(address);
+    return;
+  }
+  // Not latched: the client's own request timeout arbitrates, and pooling
+  // these would let a request retry loop displace an unsolicited disconnect.
+  this->log_reply_dropped_("Disconnect", address);
+}
+
 void BluetoothProxy::send_device_disconnected_(uint64_t address, conn_err_t error) {
   if (this->send_device_connection(address, false, 0, error)) {
     // A later disconnect landing for an address that still has one owed would
@@ -305,13 +317,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
-        this->send_device_disconnected_(msg.address);
+        this->answer_device_disconnected_(msg.address);
         return;
       }
       if (!msg.has_address_type) {
         ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
                  connection->address_str());
-        this->send_device_disconnected_(msg.address);
+        this->answer_device_disconnected_(msg.address);
         return;
       }
       if (connection->state() == ClientState::CONNECTED || connection->state() == ClientState::ESTABLISHED) {
@@ -343,7 +355,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       auto *connection = this->get_connection_(msg.address, false);
       if (connection == nullptr) {
-        this->send_device_disconnected_(msg.address);
+        this->answer_device_disconnected_(msg.address);
         this->send_connections_free();
         return;
       }
@@ -351,7 +363,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->disconnect();
       } else {
         connection->set_address(0);
-        this->send_device_disconnected_(msg.address);
+        this->answer_device_disconnected_(msg.address);
         this->send_connections_free();
       }
       break;
@@ -395,7 +407,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       ESP_LOGE(TAG, "V1 connections removed");
-      this->send_device_disconnected_(msg.address);
+      this->answer_device_disconnected_(msg.address);
       break;
     }
   }
