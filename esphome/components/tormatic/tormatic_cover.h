@@ -19,6 +19,9 @@ class Tormatic final : public cover::Cover, public uart::UARTDevice, public Poll
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
 
+  // Used by the separate TormaticLightSwitch entity.
+  void set_light_state(bool state);
+
   void publish_state(bool save = true, uint32_t ratelimit = 0);
 
   cover::CoverTraits get_traits() override;
