@@ -1,4 +1,24 @@
 // The proxy's per-slot connection wrapper, shared by every platform.
+//
+// SERVICE STREAMING HAZARD - read before touching the streaming code here or
+// in the platform streamers (bluetooth_connection_bluedroid.cpp).
+//
+// A V3 client caches the service list it receives as the device's complete,
+// permanent database. Nothing on the wire marks a list as partial, so a
+// stream that is truncated, has a skipped batch, or is terminated early
+// would be cached whole and poison every later session with the device.
+//
+// The rule: it is always better to send nothing and let the client time out
+// than to let services-done follow an incomplete stream. Concretely:
+//   - a refused batch rewinds the cursor and is retried, never skipped;
+//   - services-done is sent only after every batch was accepted;
+//   - every interruption (subscriber lost or swapped, backend abort,
+//     bounds-check failure) parks or aborts WITHOUT services-done and drops
+//     any owed done;
+//   - a new GetServices supersedes an owed done, so a stale done can never
+//     land on a fresh request's empty accumulator and cache it as empty.
+// The client only caches a list terminated by services-done within the same
+// request; timeouts, disconnects and errors raise instead of caching.
 #include "bluetooth_connection_hub.h"
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
