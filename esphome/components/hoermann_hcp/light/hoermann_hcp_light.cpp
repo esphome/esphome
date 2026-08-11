@@ -13,6 +13,8 @@ light::LightTraits HoermannHcpLight::get_traits() {
 }
 
 void HoermannHcpLight::setup() {
+  // Nothing is known about the lamp until the bus controller is heard from, so flag the entity until then.
+  this->status_set_warning("waiting for the bus controller");
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
@@ -21,7 +23,11 @@ void HoermannHcpLight::setup_state(light::LightState *state) { this->light_state
 void HoermannHcpLight::write_state(light::LightState *state) {
   bool binary;
   state->current_values_as_binary(&binary);
-  if (binary == this->parent_->is_light_on() || this->parent_->toggle_light()) {
+  // A queued toggle has not reached the lamp yet but will invert it, so the request has to be judged against
+  // where the lamp is heading. Skipping a matching request is also what stops the state callback from
+  // toggling the lamp back and forth forever.
+  const bool effective_on = this->parent_->is_light_on() != this->parent_->is_light_toggle_pending();
+  if (binary == effective_on || this->parent_->cancel_light_toggle() || this->parent_->toggle_light()) {
     this->reported_on_ = binary;
     return;
   }
@@ -30,17 +36,24 @@ void HoermannHcpLight::write_state(light::LightState *state) {
 }
 
 void HoermannHcpLight::update_from_state_() {
-  if (this->light_state_ == nullptr || !this->parent_->is_valid())
+  if (this->light_state_ == nullptr)
     return;
+  if (!this->parent_->is_valid()) {
+    this->status_set_warning("bus controller not responding");
+    return;
+  }
+  this->status_clear_warning();
   if (this->reported_on_ != this->parent_->is_light_on())
     this->publish_light_state_();
 }
 
-// Re-enters write_state(), where the request then matches the door and queues nothing.
+// Re-enters write_state(), where the request then matches the lamp and queues nothing.
 void HoermannHcpLight::publish_light_state_() {
   this->reported_on_ = this->parent_->is_light_on();
   auto call = this->light_state_->make_call();
   call.set_state(this->reported_on_);
+  // The bus reports the lamp on every broadcast, so nothing here is worth restoring from flash.
+  call.set_save(false);
   call.perform();
 }
 

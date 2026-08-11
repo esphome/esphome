@@ -17,6 +17,8 @@ static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0210, 0x0110};
 static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0220, 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140};
+// Unlike the door commands this drives the second register, and its pressed value looks like a released one
+// under their scheme. Values taken from the reference implementation (esphome-hcpbridge).
 static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
@@ -63,6 +65,8 @@ void HoermannHcp::update() {
     this->next_command_ = nullptr;
     this->command_written_at_ = 0;
     this->clear_target_();
+    // Children may have assumed the command would land, so let them re-derive from the door.
+    this->changed_ = true;
   }
   // A target waits for a door still travelling the other way to turn around. If it never does, the target has
   // to go as well, otherwise it would cut a later move short. The connection timeout doubles as that window.
@@ -228,15 +232,9 @@ void HoermannHcp::on_state_reg_(uint16_t value) {
     ESP_LOGW(TAG, "Unknown door state 0x%02X", state);
 }
 
-// Low byte of register 6 carries the lamp state.
-void HoermannHcp::on_light_reg_(uint16_t value) {
-  const uint16_t previous = this->prev_light_reg_;
-  this->prev_light_reg_ = value;
-  if ((previous & 0x00FF) == (value & 0x00FF))
-    return;
-  const uint16_t low = value & 0x00FF;
-  this->set_light_on_(low == 0x14 || low == 0x10);
-}
+// Low byte of register 6: bit 0x10 is the lamp, bit 0x04 the relay. The reference implementation records
+// 0x00, 0x04, 0x10 and 0x14, so only the lamp bit decides here.
+void HoermannHcp::on_light_reg_(uint16_t value) { this->set_light_on_((value & 0x0010) != 0); }
 
 bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
   if (!this->valid_) {
@@ -259,6 +257,17 @@ bool HoermannHcp::open_door() { return this->queue_command_(COMMAND_OPEN); }
 bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
 bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
 bool HoermannHcp::toggle_light() { return this->queue_command_(COMMAND_TOGGLE_LAMP); }
+bool HoermannHcp::is_light_toggle_pending() const { return this->next_command_ == &COMMAND_TOGGLE_LAMP; }
+
+bool HoermannHcp::cancel_light_toggle() {
+  // Once the pressed value has been presented the key press is already on the wire, so only an untouched
+  // command can be withdrawn.
+  if (!this->is_light_toggle_pending() || this->command_written_at_ != 0)
+    return false;
+  ESP_LOGD(TAG, "Cancelling '%s' command the controller had not fetched", this->next_command_->name);
+  this->next_command_ = nullptr;
+  return true;
+}
 
 bool HoermannHcp::stop_door() {
   if (!is_moving(this->door_state_)) {

@@ -22,12 +22,11 @@ enum class DoorState : uint8_t {
 };
 
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
-// short delay the released value. The second command register remains zero.
+// short delay the released value. Each half also carries a second register, which only the lamp command uses.
 struct HoermannHcpCommand {
   const char *name;
   uint16_t pressed_value;
   uint16_t released_value;
-  // Second command register. Only the lamp command drives it; the door commands leave it at zero.
   uint16_t pressed_value_2{0x0000};
   uint16_t released_value_2{0x0000};
 };
@@ -61,6 +60,11 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   float get_current_position() const { return this->current_position_; }
   bool is_valid() const { return this->valid_; }
   bool is_light_on() const { return this->light_on_; }
+  // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
+  bool is_light_toggle_pending() const;
+  // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
+  // instead of fighting it. Returns false if there is nothing to cancel.
+  bool cancel_light_toggle();
 
  protected:
   void record_response_();
@@ -102,7 +106,6 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // 0x17 write half: command register last written to COMMAND_REG. The read half echoes its high-byte message
   // counter and low-byte command back from STATE_REG.
   uint16_t command_reg_value_{0};
-  uint16_t prev_light_reg_{0};
 
   DoorState door_state_{DoorState::CLOSED};
   // Direction the door was started in for the current target. A target armed while the door is still travelling
