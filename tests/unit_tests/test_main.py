@@ -18,6 +18,7 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
+from esphome import __main__ as main
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -6760,3 +6761,80 @@ def test_check_permissions_unreadable_port() -> None:
         pytest.raises(EsphomeError, match="read or write permission"),
     ):
         check_permissions("/dev/ttyUSB99")
+
+
+def _make_checkout(root: Path) -> Path:
+    """Create a directory that looks like an esphome checkout."""
+    (root / "esphome").mkdir(parents=True)
+    (root / "esphome" / "__main__.py").write_text("", encoding="utf-8")
+    return root
+
+
+def test_warn_source_tree_mismatch_warns_for_other_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Standing in a checkout other than the one being run warns."""
+    standing_in = _make_checkout(tmp_path / "worktree")
+    running = _make_checkout(tmp_path / "main")
+    monkeypatch.chdir(standing_in)
+    monkeypatch.setattr(main, "__file__", str(running / "esphome" / "__main__.py"))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert "worktree" in caplog.text
+    assert "main" in caplog.text
+
+
+def test_warn_source_tree_mismatch_silent_in_same_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Standing in the tree that is running is the normal case and is silent."""
+    tree = _make_checkout(tmp_path / "main")
+    monkeypatch.chdir(tree)
+    monkeypatch.setattr(main, "__file__", str(tree / "esphome" / "__main__.py"))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert not caplog.text
+
+
+def test_warn_source_tree_mismatch_silent_outside_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An ordinary install run from a config directory never warns."""
+    running = _make_checkout(tmp_path / "main")
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    monkeypatch.chdir(config_dir)
+    monkeypatch.setattr(main, "__file__", str(running / "esphome" / "__main__.py"))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert not caplog.text
+
+
+def test_warn_source_tree_mismatch_silent_in_subdirectory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A subdirectory of the running tree resolves to that tree, so no warning."""
+    tree = _make_checkout(tmp_path / "main")
+    subdir = tree / "esphome" / "components"
+    subdir.mkdir(parents=True)
+    monkeypatch.chdir(subdir)
+    monkeypatch.setattr(main, "__file__", str(tree / "esphome" / "__main__.py"))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert not caplog.text

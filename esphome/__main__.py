@@ -2509,6 +2509,37 @@ def parse_args(argv):
     return parser.parse_args(arguments)
 
 
+def _warn_if_source_tree_mismatch() -> None:
+    """Warn when the checkout the user is standing in is not the one being run.
+
+    An editable install records one absolute path, so a venv shared between git
+    worktrees (or reused after a checkout is copied or renamed) keeps importing
+    the tree it was installed from. Every command then silently runs, and
+    compiles, sources the user is not looking at. Only fires inside a checkout,
+    so ordinary installs never see it.
+    """
+    cwd = Path.cwd()
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / "esphome" / "__main__.py").is_file():
+            standing_in = candidate.resolve()
+            break
+    else:
+        return  # not inside a checkout; nothing to compare against
+
+    running = Path(__file__).resolve().parent.parent
+    if standing_in == running:
+        return
+
+    _LOGGER.warning(
+        "Running ESPHome from %s, but the current directory is inside %s. "
+        "The editable install points at the first tree, so this command is using "
+        "its sources. Run 'python -m esphome' from %s to use that tree instead.",
+        running,
+        standing_in,
+        standing_in,
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
@@ -2527,6 +2558,7 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
