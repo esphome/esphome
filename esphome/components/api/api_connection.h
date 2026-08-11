@@ -266,6 +266,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_disconnect_request(const DisconnectRequest &msg);
   void on_ping_request();
   void on_device_info_request();
+  void on_device_capabilities_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -385,6 +386,7 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_disconnect_response_();
   bool send_ping_response_();
   bool send_device_info_response_();
+  bool send_device_capabilities_response_();
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
 #endif

@@ -5,31 +5,18 @@
 #ifdef USE_BLUETOOTH_PROXY
 
 #include <array>
-#include <map>
-#include <vector>
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 
-#ifdef USE_ESP32
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_hub_impl.h"
 
-#include "esphome/components/bluetooth_connection/bluetooth_connection_esp32.h"
-
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#include <esp_bt.h>
-#endif
-#include <esp_bt_device.h>
-#else
-#include "esphome/components/ble_device_base/ble_hub.h"
-#ifdef USE_BLE_GATT_CLIENT
 #include "esphome/components/bluetooth_connection/bluetooth_connection_hub.h"
-#endif
-#endif  // USE_ESP32
 
 namespace esphome::bluetooth_proxy {
 
@@ -37,9 +24,10 @@ namespace esphome::bluetooth_proxy {
 // re-exported here so the proxy code reads unqualified.
 using bluetooth_connection::CONN_OK;
 using bluetooth_connection::conn_err_t;
-using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::GATT_NOT_CONNECTED;
+using bluetooth_connection::DONE_SENDING_SERVICES;
 using bluetooth_connection::INIT_SENDING_SERVICES;
+using bluetooth_connection::SERVICES_DONE_PENDING;
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 using BluetoothConnection = bluetooth_connection::BluetoothConnection;
@@ -72,26 +60,51 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-#ifdef USE_ESP32
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
-                             public esp32_ble_tracker::BLEScannerStateListener,
-                             public Component {
-#else
-class BluetoothProxy final : public Component {
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+/// One owed freed-slot connected=false notification in a single word: the
+/// 48-bit address in the low bits, the sign-extending 16-bit reason on top.
+/// Every reason that reaches the pool (esp_gatt_status_t,
+/// esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits int16_t.
+class PendingDisconnect {
+ public:
+  constexpr void set(uint64_t address, conn_err_t error) {
+    // Mask: the address originates from the client, and a stray high bit
+    // must not corrupt the reason.
+    this->word_ = (address & ADDRESS_MASK) | (static_cast<uint64_t>(static_cast<uint16_t>(error)) << 48);
+  }
+  constexpr void clear() { this->word_ = 0; }
+  // Whole-word test: set() is only ever given a live (nonzero) address.
+  constexpr bool empty() const { return this->word_ == 0; }
+  // Masked like set(), so a stray high bit cannot defeat the pool lookups.
+  constexpr bool matches(uint64_t address) const { return this->address() == (address & ADDRESS_MASK); }
+  constexpr uint64_t address() const { return this->word_ & ADDRESS_MASK; }
+  constexpr conn_err_t error() const { return static_cast<int16_t>(this->word_ >> 48); }
+
+ private:
+  static constexpr uint64_t ADDRESS_MASK = 0x0000FFFFFFFFFFFFULL;
+  uint64_t word_{0};
+};
+// Pin the packing at compile time: mask and sign round-trip for every
+// reachable shape (negative, GATT status, ESP_ERR_* range, stray high bit).
+constexpr bool pending_disconnect_round_trips(uint64_t address, uint64_t expected_address, conn_err_t error) {
+  PendingDisconnect p;
+  p.set(address, error);
+  return p.address() == expected_address && p.error() == error && !p.empty() && p.matches(address);
+}
+static_assert(pending_disconnect_round_trips(0x0000112233445566ULL, 0x0000112233445566ULL, -1));
+static_assert(pending_disconnect_round_trips(0x0000FFFFFFFFFFFFULL, 0x0000FFFFFFFFFFFFULL, 0x8F));
+static_assert(pending_disconnect_round_trips(0xABCD112233445566ULL, 0x0000112233445566ULL, 0x110));
+static_assert(PendingDisconnect{}.empty());
 #endif
+
+class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Allow the connection to update connections_free_response_
   friend bluetooth_connection::BluetoothConnection;
 #endif
  public:
   BluetoothProxy();
-#ifdef USE_ESP32
-#ifdef USE_ESP32_BLE_DEVICE
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-#endif
-  bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
-  esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
-#endif  // USE_ESP32
+  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   void dump_config() override;
   void setup() override;
   void loop() override;
@@ -100,7 +113,6 @@ class BluetoothProxy final : public Component {
   void register_connection(BluetoothConnection *connection);
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 #ifndef USE_ESP32
-  void set_ble_hub(ble_device_base::BLEHub *hub) { this->hub_ = hub; }
   // Run after the hub's setup() (the trackers use AFTER_WIFI): setup() below
   // snapshots scan_active()/scan_running() and installs the raw callback, and
   // the BLEHub contract does not promise those are settled any earlier than
@@ -125,10 +137,14 @@ class BluetoothProxy final : public Component {
     return this->api_connection_ != nullptr && this->api_connection_->client_supports_api_version(1, 12);
   }
 
-  void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
+  /// False only when a subscriber refused the frame; true = delivered or
+  /// nobody subscribed. Request-answer callers ignore the result (client
+  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
-  void send_gatt_services_done(uint64_t address);
+  /// Same convention as send_device_connection: false only on a refused frame.
+  bool send_gatt_services_done(uint64_t address);
   void send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
@@ -138,11 +154,6 @@ class BluetoothProxy final : public Component {
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
-
-#ifdef USE_ESP32
-  /// BLEScannerStateListener interface
-  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
-#endif
 
   uint32_t get_legacy_version() const {
     if (!this->active_) {
@@ -169,7 +180,7 @@ class BluetoothProxy final : public Component {
     // scan_mode_switch is the capability bit for exactly that (#18079) —
     // active_scan alone is not enough, a hub may support active scanning yet
     // refuse the runtime switch.
-    if (this->hub_->get_capabilities().scan_mode_switch) {
+    if (ble_device_base::BLEHub::get_capabilities().scan_mode_switch) {
       flags |= BluetoothProxyFeature::FEATURE_STATE_AND_MODE;
     }
 #endif
@@ -191,38 +202,26 @@ class BluetoothProxy final : public Component {
     return flags;
   }
 
-  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
-#ifdef USE_ESP32
-    const uint8_t *mac = esp_bt_dev_get_address();
-    if (mac != nullptr) {
-      format_mac_addr_upper(mac, output.data());
-    } else {
-      output[0] = '\0';
-    }
-#else
-    uint8_t mac[6] = {};
+  void get_bluetooth_mac_address_pretty(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> output) {
+    uint8_t mac[MAC_ADDRESS_SIZE] = {};
     this->hub_->get_adapter_mac(mac);
-    // Mirror the esp32 arm's unavailable -> empty-string fallback: some hubs
-    // (rp2040's BTstack) only learn the address once the link layer is up, and
-    // report all-zero until then.
-    bool nonzero = false;
-    for (uint8_t b : mac)
-      nonzero |= b != 0;
-    if (nonzero) {
+    // Unavailable -> empty string: some hubs (rp2040's BTstack) only learn
+    // the address once the link layer is up, and report all-zero until then.
+    if (mac_address_is_valid(mac)) {
       format_mac_addr_upper(mac, output.data());
     } else {
       output[0] = '\0';
     }
-#endif
   }
 
  protected:
-#ifdef USE_ESP32
-  void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
+  bool send_bluetooth_scanner_state_(ble_device_base::ScannerState state);
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  void send_scanner_state_(ble_device_base::ScannerState state);
 #else
-  void send_bluetooth_scanner_state_();
-  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
+  void send_polled_scanner_state_();
 #endif
+  void on_raw_advertisement_(const ble_device_base::RawAdvertisement &raw);
 
   /// Caller must ensure api_connection_ is non-null and API server is connected.
   void flush_pending_advertisements_() {
@@ -278,6 +277,10 @@ class BluetoothProxy final : public Component {
   /// a 30-second timeout (DEFAULT_BLE_TIMEOUT) to detect incomplete service
   /// discovery and retry, rather than being told a partial list is complete.
   void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
+  /// Drop any owed freed-slot notification for this address (client reconnected).
+  void clear_pending_disconnection_(uint64_t address);
+  /// Pool a refused freed-slot notification for the paced drain.
+  void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
   // Memory optimized layout for 32-bit systems
@@ -287,25 +290,35 @@ class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
+  // Address-keyed pool of owed freed-slot notifications; loop() resends.
+  // Proxy-only state, kept off BluetoothConnection; entries are not tied to
+  // slot indices.
+  std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
 #endif
-#ifndef USE_ESP32
   ble_device_base::BLEHub *hub_{nullptr};
-#endif
+  // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
+  // start on an even word, closing two alignment holes.
+  uint32_t last_advertisement_flush_time_{0};
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
-
-  // Group 3: 4-byte types
-  uint32_t last_advertisement_flush_time_{0};
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;
 
   // Group 4: 1-byte types grouped together
   bool active_;
+  // A dropped send (full TCP buffer) would leave the API client with a stale
+  // slot state forever; the cached response is current by construction, so
+  // retrying it from loop() is an idempotent resync.
+  bool connections_free_pending_{false};
   uint8_t connection_count_{0};
   bool configured_scan_active_{false};  // Configured scan mode from YAML
-#ifndef USE_ESP32
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // A dropped push (full TX buffer) is re-queried from the hub and resent
+  // from loop(); the hub's current state is idempotent by construction.
+  bool scanner_state_pending_{false};
+#else
   bool last_scan_running_{false};  // Last scanner state reported to the subscriber
 #endif
 };

@@ -16,10 +16,15 @@
 #include <esp_err.h>
 #endif
 
-// A GATT connection backend exists in this build: esp32 (Bluedroid) or a hub
-// platform with the neutral GATT client compiled in. Single-sourced here so
-// the proxy and this component cannot drift.
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
+// The connection-aware API request handlers are compiled: a GATT backend is
+// wired by codegen (one slot per connection). This is the single spelling of
+// that predicate - the hub wrapper and the API request handlers gate on it.
+// The wrapper serves the proxy's API surface, so it compiles only when a
+// backend AND the proxy are present; advertisement-only and backend-only
+// builds get the clean-error handlers instead. Address-scoped maintenance
+// (unpair, cache clear) still works there through the per-platform free
+// functions below.
+#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 #define BLUETOOTH_CONNECTION_HAS_GATT
 #endif
 
@@ -48,26 +53,45 @@ static constexpr conn_err_t GATT_NOT_CONNECTED = ble_device_base::GATT_ERR_NOT_C
 
 // What the platform's connection backend supports beyond GATT operations;
 // the proxy derives its feature flags and legacy version from these.
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
 static constexpr bool SUPPORTS_PAIRING = true;
 static constexpr bool SUPPORTS_CACHE_CLEARING = true;
+#elif defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
+// The rp2 BTstack backend pairs (just works + bonding); it has no service
+// cache to clear. Keyed on the backend, not the generic client define, so a
+// future backend without pairing keeps the stub arm below.
+static constexpr bool SUPPORTS_PAIRING = true;
+static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #else
 static constexpr bool SUPPORTS_PAIRING = false;
 static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
 conn_err_t unpair_device(uint64_t address);
-conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
+#endif
+#ifdef USE_ESP32
+conn_err_t clear_gatt_cache(uint64_t address);
+#else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
 
 // send_service_ cursor states; >= 0 is the next service index to stream.
 static constexpr int DONE_SENDING_SERVICES = -2;
 static constexpr int INIT_SENDING_SERVICES = -3;
+static constexpr int SERVICES_DONE_PENDING = -4;  // all batches delivered, done-message still owed
+// Every sentinel must stay below the >= 0 streaming gate and clear of
+// GATT_NOT_CONNECTED (-1) so cursor and error values can never be confused.
+static_assert(DONE_SENDING_SERVICES < 0 && INIT_SENDING_SERVICES < 0 && SERVICES_DONE_PENDING < 0);
+static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVICES != GATT_NOT_CONNECTED &&
+              SERVICES_DONE_PENDING != GATT_NOT_CONNECTED);
+// Owed-done retries stop here (~3 s at the 100 ms drain cadence): a done
+// delivered near the client's 30 s timeout could land on a fresh request's
+// empty accumulator and cache as an empty database.
+static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 

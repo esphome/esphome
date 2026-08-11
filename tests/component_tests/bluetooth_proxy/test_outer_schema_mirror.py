@@ -15,6 +15,13 @@ import voluptuous as vol
 from esphome import config_validation as cv
 from esphome.components.bluetooth_proxy import CONFIG_SCHEMA, _esp32_config_schema
 
+
+def _esp32_schema_keys() -> dict[str, object]:
+    # The builder names its platform explicitly, so no CORE state is needed
+    # (this also mirrors how the language-schema dumper calls it).
+    return _keys(_schema_of(_esp32_config_schema()))
+
+
 # esp32-schema keys with no place in the outer schema: COMPONENT_SCHEMA
 # plumbing (derived, so a future core key does not fail this component's test),
 # generated IDs (not user-walkable options), and connections (must validate
@@ -38,7 +45,7 @@ def _keys(schema: vol.Schema) -> dict[str, object]:
 
 def test_outer_scalar_keys_exist_in_esp32_schema() -> None:
     outer = _keys(_schema_of(CONFIG_SCHEMA))
-    esp32 = _keys(_schema_of(_esp32_config_schema()))
+    esp32 = _esp32_schema_keys()
     missing = set(outer) - set(esp32)
     assert not missing, (
         f"outer CONFIG_SCHEMA declares {sorted(missing)} which the esp32 schema "
@@ -51,7 +58,7 @@ def test_esp32_scalars_all_walkable() -> None:
     """Every non-generated esp32 scalar option must appear in the outer schema
     (connections is deliberately excluded — it must validate exactly once)."""
     outer = _keys(_schema_of(CONFIG_SCHEMA))
-    esp32 = _keys(_schema_of(_esp32_config_schema()))
+    esp32 = _esp32_schema_keys()
     scalar = {
         name
         for name, key in esp32.items()

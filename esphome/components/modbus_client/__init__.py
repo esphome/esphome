@@ -28,9 +28,12 @@ CONF_ON_NO_RESPONSE = "on_no_response"
 CONF_ON_NOT_SENT = "on_not_sent"
 CONF_ON_SENT = "on_sent"
 CONF_PDU = "pdu"
+CONF_READ_ADDRESS = "read_address"
+CONF_READ_COUNT = "read_count"
 CONF_RETRY = "retry"
 CONF_START_ADDRESS = "start_address"
 CONF_VALUES = "values"
+CONF_WRITE_ADDRESS = "write_address"
 
 modbus_client_ns = cg.esphome_ns.namespace("modbus_client")
 ModbusClientSendAction = modbus_client_ns.class_(
@@ -54,6 +57,9 @@ WriteMultipleRegistersAction = modbus_client_ns.class_(
 )
 WriteMultipleCoilsAction = modbus_client_ns.class_(
     "WriteMultipleCoilsAction", automation.Action, modbus.ModbusClientDevice
+)
+ReadWriteMultipleRegistersAction = modbus_client_ns.class_(
+    "ReadWriteMultipleRegistersAction", automation.Action, modbus.ModbusClientDevice
 )
 
 # Packed bit view delivered to read_coils / read_discrete_inputs on_response handlers.
@@ -255,21 +261,30 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
 
 _REGISTER_SPAN = cg.std_span.template(cg.uint16.operator("const"))
 
-# Every typed action addresses a register or coil range and reports through the same two reply handlers.
-_TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(
+# The reply-handler pair every typed-dispatch action reports through. Kept in one place so the
+# read/write-multiple schema (which cannot require start_address) shares it instead of drifting.
+# Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the hub
+# reuses once the handler returns, so a deferring action would resume on freed memory. A reply the
+# dispatch gate diverts (not a standard-conformant transaction) arrives at on_custom_response with the
+# raw request/response PDUs; real device exceptions still arrive via on_error.
+_REPLY_HANDLERS_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
-        # Both use _handler_schema(): the decoded arguments (values span, bits view) point at buffers the
-        # hub reuses once the handler returns, so a deferring action would resume on freed memory.
         cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-        # A reply the dispatch gate diverts (not a standard-conformant transaction) arrives here with the
-        # raw request/response PDUs; real device exceptions still arrive via on_error.
         cv.Optional(CONF_ON_CUSTOM_RESPONSE): _handler_schema(),
     }
 )
 
+# Every typed action addresses a register or coil range and reports through the shared reply handlers.
+_TYPED_ACTION_SCHEMA = _ACTION_BASE_SCHEMA.extend(_REPLY_HANDLERS_SCHEMA).extend(
+    {
+        cv.Required(CONF_START_ADDRESS): cv.templatable(cv.hex_uint16_t),
+    }
+)
 
-def _no_address_overflow(count_key: str) -> Callable[[ConfigType], ConfigType]:
+
+def _no_address_overflow(
+    count_key: str, address_key: str = CONF_START_ADDRESS
+) -> Callable[[ConfigType], ConfigType]:
     """Reject a range that runs past the 16-bit address space, which the device could never answer.
 
     Only literal configurations can be checked: either operand may be a lambda, and its value is not known
@@ -278,17 +293,17 @@ def _no_address_overflow(count_key: str) -> Callable[[ConfigType], ConfigType]:
     """
 
     def validate(config: ConfigType) -> ConfigType:
-        start = config[CONF_START_ADDRESS]
+        start = config[address_key]
         count = config[count_key]
         if isinstance(start, Lambda) or isinstance(count, Lambda):
             return config
-        # CONF_COUNT is a number; CONF_VALUES is the list whose length is the count.
+        # A count key holds a number; a values key holds the list whose length is the count.
         length = count if isinstance(count, int) else len(count)
         if start + length > 0x10000:
             raise cv.Invalid(
-                f"{CONF_START_ADDRESS} 0x{start:04X} plus {length} entities runs past the end of the "
+                f"{address_key} 0x{start:04X} plus {length} entities runs past the end of the "
                 f"16-bit address space (last addressable entity is 0xFFFF)",
-                path=[CONF_START_ADDRESS],
+                path=[address_key],
             )
         return config
 
@@ -468,3 +483,64 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
         cg.add(var.set_values_static(arr, len(values)))
     return await register_client_action(var, config, args, [])
+
+
+# Read/write multiple registers (FC 0x17) writes one register block and reads another in a single
+# transaction, so it has two address ranges and uses read_address/write_address instead of start_address.
+# Note the two meanings of `values`: here it is the block being WRITTEN, while in on_response the lambda
+# argument `values` is the block that was READ BACK (host-order words, the same shape as
+# read_holding_registers, so a caller can feed it through the same handler).
+_READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
+    _ACTION_BASE_SCHEMA.extend(_REPLY_HANDLERS_SCHEMA).extend(
+        {
+            cv.Required(CONF_READ_ADDRESS): cv.templatable(cv.hex_uint16_t),
+            cv.Optional(CONF_READ_COUNT, default=1): cv.templatable(
+                cv.int_range(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_READ)
+            ),
+            cv.Required(CONF_WRITE_ADDRESS): cv.templatable(cv.hex_uint16_t),
+            cv.Required(CONF_VALUES): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint16_t),
+                    cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
+                )
+            ),
+        }
+    ),
+    _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
+    _no_address_overflow(CONF_VALUES, CONF_WRITE_ADDRESS),
+)
+
+
+@automation.register_action(
+    "modbus_client.read_write_multiple_registers",
+    ReadWriteMultipleRegistersAction,
+    _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA,
+    synchronous=True,
+)
+async def read_write_multiple_registers_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(
+        var.set_read_address(
+            await cg.templatable(config[CONF_READ_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_read_count(
+            await cg.templatable(config[CONF_READ_COUNT], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_write_address(
+            await cg.templatable(config[CONF_WRITE_ADDRESS], args, cg.uint16)
+        )
+    )
+    values = config[CONF_VALUES]
+    if cg.is_template(values):
+        templ = await cg.templatable(values, args, cg.std_vector.template(cg.uint16))
+        cg.add(var.set_values_template(templ))
+    else:
+        # A static list goes to flash, so play() sends straight from there without allocating.
+        arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
+        cg.add(var.set_values_static(arr, len(values)))
+    return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])
