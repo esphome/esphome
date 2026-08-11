@@ -262,13 +262,13 @@
 #define USE_BLUETOOTH_PROXY
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
 // count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
-// the slot count (1 on rp2, 0 on advertisement-only hubs) — so static analysis
+// the slot count (3 on rp2, 0 on advertisement-only hubs) — so static analysis
 // checks the same instantiations a real build produces.
 #ifdef USE_ESP32
 #define USE_BLE_SCANNER_STATE_CALLBACK
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
 #elif defined(USE_RP2)
-#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
@@ -482,7 +482,7 @@
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_BLE_GATT_CLIENT
-#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 3
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
