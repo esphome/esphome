@@ -27,10 +27,16 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   // rather than a request. Spending that allowance on whichever branch runs keeps a later real request out of it.
   const bool restore_replay = !this->boot_replay_done_;
   this->boot_replay_done_ = true;
+  // A publish of ours arrives back here as an ordinary write, and must not be reported as a refused request.
+  const bool echo = this->republishing_;
+  this->republishing_ = false;
+  if (restore_replay) {
+    ESP_LOGD(TAG, "Ignoring the restored state, the door decides what the lamp is doing");
+  }
   if (!this->parent_->is_light_known()) {
     // Commanding a lamp that has not been read could switch off one that is already on, so pull the entity
     // back to the last lamp state known, which before anything has ever been read is off.
-    if (!restore_replay)
+    if (!restore_replay && !echo)
       ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
     if (binary != this->parent_->is_light_on())
       this->publish_lamp_state_(this->parent_->is_light_on());
@@ -76,6 +82,7 @@ void HoermannHcpLight::update_from_state_() {
 
 // Re-enters write_state(), where the request then matches the lamp and queues nothing.
 void HoermannHcpLight::publish_lamp_state_(bool on) {
+  this->republishing_ = true;
   auto call = this->light_state_->make_call();
   call.set_state(on);
   // The bus reports the lamp on every broadcast, so nothing here is worth restoring from flash.

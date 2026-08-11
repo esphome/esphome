@@ -23,6 +23,8 @@ class HoermannHcpLight : public light::LightOutput, public Component {
   light::LightState *light_state_{nullptr};
   // Set by the first write_state(), which is always the restored state replayed on boot.
   bool boot_replay_done_{false};
+  // Set while a publish of ours is on its way back into write_state().
+  bool republishing_{false};
 };
 
 }  // namespace esphome::hoermann_hcp

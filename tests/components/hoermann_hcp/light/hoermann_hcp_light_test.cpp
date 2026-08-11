@@ -602,6 +602,31 @@ TEST(HoermannHcpLightPlatformTest, RefusedRequestLeavesTheEntityIdle) {
   EXPECT_EQ(fixture.output.writes, settled_writes);
 }
 
+// A lamp change reported from the door's side settles the outstanding toggle, so releasing that toggle
+// afterwards has nothing left to wait for. Arming the watchdog anyway would leave it firing on every poll and
+// abandoning the next toggle the moment it is queued.
+TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarmed) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.toggle_light());
+  ASSERT_EQ(door.pending_light_toggles(), 1);
+
+  // The lamp is switched at the door before the queued toggle is even fetched, which settles the count.
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+  ASSERT_EQ(door.pending_light_toggles(), 0);
+  consume_command(door);
+
+  // A later toggle must get the full deadline rather than inheriting a stale one.
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  connect_controller(door);  // the controller is still polling, so the connection itself is fine
+  ASSERT_TRUE(door.toggle_light());
+  ASSERT_EQ(door.pending_light_toggles(), 1);
+  door.update();
+  EXPECT_EQ(door.pending_light_toggles(), 1);
+}
+
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.
 TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   LightFixture fixture;

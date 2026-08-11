@@ -63,7 +63,14 @@ void HoermannHcp::update() {
   // Status broadcasts alone keep the connection alive, so a command the controller never fetches would
   // otherwise block every later one for as long as it keeps broadcasting.
   if (this->next_command_ != nullptr && now - this->command_queued_at_ > this->connection_timeout_ms_) {
-    ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
+    // Dropping after the press was presented leaves the door without its release value, which is worth saying
+    // apart from a command the controller never looked at.
+    if (this->command_written_at_ != 0) {
+      ESP_LOGW(TAG, "Bus controller stopped polling during '%s' command, dropping it mid key press",
+               this->next_command_->name);
+    } else {
+      ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
+    }
     this->drop_command_();
     // Children may have assumed the command would land, so let them re-derive from the door.
     this->changed_ = true;
@@ -194,7 +201,9 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   ESP_LOGD(TAG, "Released '%s' command", command->name);
   this->command_written_at_ = 0;
   this->next_command_ = nullptr;
-  if (command == &COMMAND_TOGGLE_LAMP)
+  // A toggle whose count was already settled, by a lamp change reported from the door's side, has nothing left
+  // to wait for, so it must not re-arm the watchdog.
+  if (command == &COMMAND_TOGGLE_LAMP && this->light_toggles_in_flight_ != 0)
     this->light_toggle_released_at_ = millis();
   registers.push_back(command->released_value);
   registers.push_back(command->released_value_2);
@@ -374,10 +383,11 @@ void HoermannHcp::light_toggle_settled_() {
 }
 
 void HoermannHcp::forget_light_toggles_() {
+  // Nothing outstanding must always mean nothing to wait for, or the watchdog below would fire for ever.
+  this->light_toggle_released_at_ = 0;
   if (this->light_toggles_in_flight_ == 0)
     return;
   this->light_toggles_in_flight_ = 0;
-  this->light_toggle_released_at_ = 0;
   this->changed_ = true;
 }
 
