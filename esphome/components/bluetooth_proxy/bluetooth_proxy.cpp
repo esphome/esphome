@@ -635,10 +635,12 @@ void BluetoothProxy::loop() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->flush_owed_replies_();
   }
-  // Address-keyed, not slot-keyed, so it gets its own loop. Not pre-cleared:
+  // Address-keyed, not slot-keyed, so it gets its own loop; bounded by
+  // connection_count_ like the latch and clear helpers. Not pre-cleared:
   // the sender clears on success and re-latches on refusal, keeping the
   // latch's leading-edge warn honest (same shape as the unpair drain).
-  for (auto &owed : this->pending_disconnections_) {
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto &owed = this->pending_disconnections_[i];
     if (owed.empty())
       continue;
     this->send_device_disconnected_(owed.address(), owed.error());
@@ -677,7 +679,11 @@ void BluetoothProxy::loop() {
 // unconditionally; answering would link response encoders this build has no
 // use for.
 
-void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {}
+void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
+  // One diagnostic line without linking an encoder; the feature flags told
+  // the client not to send this.
+  ESP_LOGW(TAG, "Connection request for %012" PRIX64 " ignored, no connection support", msg.address);
+}
 void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {}
 void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {}
 void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {}
