@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import subprocess
 
 import yaml
 
@@ -15,27 +16,6 @@ from esphome.util import get_serial_number
 from .const import ZEPHYR_VARIANT_NATIVE_SIM
 
 _LOGGER = logging.getLogger(__name__)
-
-# West runners known to declare the `dev_id` capability (a `-i/--dev-id` option
-# that selects which attached probe/device to use), among the ones reachable by
-# variants this platform supports. Forwarding `-i` to a runner that doesn't
-# declare this capability makes `west flash` fail outright, so this is an
-# allow-list, not a guess: unlisted/unrecognized runners (e.g. `openocd`, which
-# has no `dev_id` capability at all) are left exactly as they behaved before --
-# no `-i` forwarded, single-probe auto-detect. Keep in sync with the `dev_id`
-# capability declared by each runner's `capabilities()` classmethod upstream in
-# `scripts/west_commands/runners/`.
-_DEV_ID_CAPABLE_RUNNERS = frozenset(
-    {
-        "jlink",
-        "pyocd",
-        "nrfjprog",
-        "nrfutil",
-        "silabs_commander",
-        "linkserver",
-        "probe_rs",
-    }
-)
 
 
 def _find_runners_yaml(build_dir: Path) -> Path:
@@ -64,16 +44,57 @@ def _find_runners_yaml(build_dir: Path) -> Path:
         return Path(build_dir) / "zephyr" / "runners.yaml"
 
 
-def resolve_dev_id(build_dir: Path, port: str) -> str | None:
+def _runner_supports_dev_id(
+    python_executable: Path, framework_path: Path, runner: str
+) -> bool:
+    """Ask the pinned SDK's own west runner framework whether `runner` declares
+    the `dev_id` capability (a `-i/--dev-id` option), instead of checking against
+    a hand-maintained list -- a future SDK version adding/removing dev_id support
+    on a runner is picked up automatically, with no list to keep in sync.
+
+    Runs inside the west venv (python_executable) so this sees runners the exact
+    same way `west flash` itself does -- importing `runners` standalone outside
+    west's own venv can fail for modules with west-specific dependencies.
+    Returns False (matching the pre-dynamic-lookup default) if the runner is
+    unrecognized or the query fails for any reason -- callers should treat that
+    as "don't forward -i", reproducing today's single-probe auto-detect behavior.
+    """
+    runners_dir = framework_path / "zephyr" / "scripts" / "west_commands"
+    script = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(runners_dir)!r})\n"
+        "try:\n"
+        "    import runners\n"
+        f"    print(runners.get_runner_cls({runner!r}).capabilities().dev_id)\n"
+        "except Exception:\n"
+        "    print(False)\n"
+    )
+    try:
+        result = subprocess.run(
+            [str(python_executable), "-c", script],
+            capture_output=True,
+            timeout=10,
+            check=False,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.stdout.strip() == "True"
+
+
+def resolve_dev_id(
+    python_executable: Path, framework_path: Path, build_dir: Path, port: str
+) -> str | None:
     """Resolve a `-i/--dev-id` value to disambiguate which probe `west flash` uses.
 
     Reads the board's default flash runner from runners.yaml (written by the
     CMake configure step, see _find_runners_yaml() for the sysbuild wrinkle) and,
-    only when that runner is known to support device IDs, looks up the USB
-    serial number backing the selected serial `port`. Returns None whenever the
-    runner is unknown/unsupported or the serial number can't be determined --
-    callers should treat None as "don't pass -i", which reproduces today's
-    single-probe auto-detect behavior exactly.
+    only when that runner is known to support device IDs (see
+    _runner_supports_dev_id()), looks up the USB serial number backing the
+    selected serial `port`. Returns None whenever the runner is unknown/unsupported
+    or the serial number can't be determined -- callers should treat None as
+    "don't pass -i", which reproduces today's single-probe auto-detect behavior
+    exactly.
     """
     runners_yaml_path = _find_runners_yaml(build_dir)
     try:
@@ -84,7 +105,9 @@ def resolve_dev_id(build_dir: Path, port: str) -> str | None:
         return None
 
     flash_runner = (runners_yaml or {}).get("flash-runner")
-    if flash_runner not in _DEV_ID_CAPABLE_RUNNERS:
+    if flash_runner is None or not _runner_supports_dev_id(
+        python_executable, framework_path, flash_runner
+    ):
         return None
 
     return get_serial_number(port)

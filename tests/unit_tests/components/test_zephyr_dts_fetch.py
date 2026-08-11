@@ -241,6 +241,7 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
     _set_framework_version(4, 4, 1)
     dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
     (dest / "boards").mkdir(parents=True)
+    (dest / ".resolved_ref").write_text(_resolve_boards_ref(MAINLINE, "4.4.1"))
 
     with (
         patch(
@@ -253,3 +254,41 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
 
     mock_run.assert_not_called()
     assert result == dest
+
+
+def test_sparse_clone_dts_self_heals_when_resolved_ref_changed(
+    tmp_path: Path,
+) -> None:
+    """Regression test for a cache dir left behind by an older, now-fixed ref
+    resolution (e.g. before the ncs-zigbee two-hop fix). A stale marker must
+    trigger a re-clone instead of being reused forever just because boards/
+    happens to exist.
+    """
+    _set_framework_version(4, 4, 1)
+    dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
+    (dest / "boards").mkdir(parents=True)
+    (dest / "stale-marker-file").write_text("leftover from the old checkout")
+    (dest / ".resolved_ref").write_text("v0.0.0-stale")
+
+    def fake_run(cmd, **kwargs):
+        result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if cmd[:2] == ["git", "clone"]:
+            new_dest = Path(cmd[-1])
+            (new_dest / "boards").mkdir(parents=True, exist_ok=True)
+        return result
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
+            tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run) as mock_run,
+    ):
+        result = _sparse_clone_dts("ESP32H2", "zephyr", MAINLINE)
+
+    assert mock_run.call_args_list  # re-fetched instead of trusting the stale cache
+    assert not (dest / "stale-marker-file").exists()  # old checkout wiped, not merged
+    assert result == dest
+    assert (dest / ".resolved_ref").read_text() == _resolve_boards_ref(
+        MAINLINE, "4.4.1"
+    )

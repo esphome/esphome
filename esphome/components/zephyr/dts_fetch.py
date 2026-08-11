@@ -360,16 +360,16 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
     repo.
 
     The clone is cached at ~/.esphome/zephyr_dts_cache/<variant>/<sdk_name>/<sdk_ver>/
-    and reused on subsequent compiles. Returns None if git is unavailable, the tag/ref
-    can't be resolved, or the clone fails.
+    and reused on subsequent compiles. The cache is keyed on the resolved boards
+    revision (stored in a small marker file), not just directory presence, so a stale
+    checkout from before a ref-resolution fix landed is detected and re-fetched
+    automatically instead of silently reused forever.
+    Returns None if git is unavailable, the tag/ref can't be resolved, or the clone
+    fails.
     """
     repo = sdk.boards_repo_url or sdk.manifest_url
     ver = _framework_base_version()
     dest = _DTS_CACHE / variant / sdk_name / ver
-
-    zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
-    if (zephyr_dir / "boards").is_dir():
-        return zephyr_dir  # cache hit
 
     tag = (
         _resolve_ncs_zigbee_boards_ref(sdk, ver)
@@ -384,6 +384,18 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
             ver,
         )
         return None
+
+    ref_marker = dest / ".resolved_ref"
+    zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
+    if (
+        (zephyr_dir / "boards").is_dir()
+        and ref_marker.is_file()
+        and ref_marker.read_text().strip() == tag
+    ):
+        return zephyr_dir  # cache hit, and it's the revision we'd resolve today
+
+    if dest.is_dir():
+        shutil.rmtree(dest, ignore_errors=True)  # stale cache -- force a re-fetch
 
     _LOGGER.info(
         "[zephyr] Fetching board DTS files for %s %s (revision %s) — one-time download, cached afterward",
@@ -433,7 +445,10 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
         )
         # sdk-zephyr repos nest the Zephyr tree one level down
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
-        return zephyr_dir if (zephyr_dir / "boards").is_dir() else None
+        if (zephyr_dir / "boards").is_dir():
+            ref_marker.write_text(tag)
+            return zephyr_dir
+        return None
     except subprocess.CalledProcessError as exc:
         _LOGGER.warning("[zephyr] DTS fetch failed: %s", exc.stderr.strip())
     except FileNotFoundError:
