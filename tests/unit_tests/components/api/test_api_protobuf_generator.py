@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 
-from api_protobuf import get_varint64_ifdef  # noqa: E402
+from api_protobuf import _make_ifdef_line, get_varint64_ifdef  # noqa: E402
 from google.protobuf import descriptor_pb2  # noqa: E402
 
 
@@ -75,3 +75,19 @@ def test_deprecated_fields_and_messages_are_ignored() -> None:
     file_desc = _file_with_messages(("A", UINT64, True), ("B", INT64, False))
     file_desc.message_type[1].options.deprecated = True
     assert get_varint64_ifdef(file_desc, {"A": "USE_X", "B": "USE_Y"}) == (False, None)
+
+
+def test_make_ifdef_line_simple_identifier() -> None:
+    assert _make_ifdef_line("USE_X") == "#ifdef USE_X"
+
+
+def test_make_ifdef_line_union_wraps_each_identifier() -> None:
+    # The second half of the varint64 union guard: compound conditions must
+    # become #if defined(A) || defined(B), never #ifdef of the raw string.
+    assert _make_ifdef_line("USE_X || USE_Y") == "#if defined(USE_X) || defined(USE_Y)"
+
+
+def test_make_ifdef_line_conjunction_and_negation() -> None:
+    assert (
+        _make_ifdef_line("USE_X && !USE_Y") == "#if defined(USE_X) && !defined(USE_Y)"
+    )

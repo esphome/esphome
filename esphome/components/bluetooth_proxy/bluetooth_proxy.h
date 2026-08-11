@@ -301,12 +301,14 @@ class BluetoothProxy final : public Component {
   /// Drops state only, never sends: api_connection_ is the departing
   /// subscriber on subscribe and nullptr on unsubscribe.
   void reset_owed_replies_();
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// Report a reply we deliberately do not latch, so no drop is silent.
   void log_reply_dropped_(const char *what, uint64_t address);
   /// A latched reply's leading edge; the drain's re-refusals stay quiet.
   void log_reply_deferred_(const char *what, uint64_t address);
   /// A latched reply lost to a newer one for a different address.
   void log_reply_displaced_(const char *what, uint64_t owed, uint64_t address);
+#endif
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)

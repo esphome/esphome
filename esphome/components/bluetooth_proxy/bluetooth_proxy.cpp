@@ -70,7 +70,6 @@ void BluetoothProxy::send_polled_scanner_state_() {
 #endif  // USE_BLE_SCANNER_STATE_CALLBACK
 
 void BluetoothProxy::setup() {
-  // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   this->connections_free_response_.limit = BLUETOOTH_PROXY_MAX_CONNECTIONS;
   this->connections_free_response_.free = BLUETOOTH_PROXY_MAX_CONNECTIONS;
@@ -124,6 +123,7 @@ void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const
 }
 #endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::log_reply_dropped_(const char *what, uint64_t address) {
   ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, TCP buffer full", what, address);
 }
@@ -136,7 +136,6 @@ void BluetoothProxy::log_reply_displaced_(const char *what, uint64_t owed, uint6
   ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, displaced by %012" PRIX64, what, owed, address);
 }
 
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
   ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
 }

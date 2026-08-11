@@ -21,8 +21,9 @@
 // slot brings a GATT backend, so it also implies USE_BLE_GATT_CLIENT (not
 // the converse: a backend can exist without proxy slots). The hub
 // wrapper, the proxy's connection surface and the API's connection messages
-// all gate on it. Address-scoped maintenance stays available through the
-// per-platform free functions below.
+// all gate on it. The address-scoped maintenance functions below are only
+// reached from that gated surface; the #else stubs just keep this header
+// parsing on arms without a backend.
 
 namespace esphome::api {
 class BluetoothGATTGetServicesResponse;
