@@ -14,15 +14,18 @@ HoermannHcpConnectedBinarySensor = hoermann_hcp_ns.class_(
     "HoermannHcpConnectedBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_HOERMANN_HCP_ID): cv.use_id(HoermannHcp),
-        cv.Optional(CONF_IS_CONNECTED): binary_sensor.binary_sensor_schema(
-            HoermannHcpConnectedBinarySensor,
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ).extend(cv.COMPONENT_SCHEMA),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_HOERMANN_HCP_ID): cv.use_id(HoermannHcp),
+            cv.Optional(CONF_IS_CONNECTED): binary_sensor.binary_sensor_schema(
+                HoermannHcpConnectedBinarySensor,
+                device_class=DEVICE_CLASS_CONNECTIVITY,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ).extend(cv.COMPONENT_SCHEMA),
+        }
+    ),
+    cv.has_at_least_one_key(CONF_IS_CONNECTED),
 )
 
 

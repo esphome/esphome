@@ -26,11 +26,12 @@ class TestableHoermannHcp : public HoermannHcp {
 
 }  // namespace
 
-// Nothing has been heard from the bus controller yet, so the sensor starts out disconnected.
+// Nothing has been heard from the bus controller yet, so the sensor starts out seeded as disconnected.
 TEST(HoermannHcpBinarySensorTest, StartsDisconnected) {
   HoermannHcp door;
   HoermannHcpConnectedBinarySensor sensor(&door);
   sensor.setup();
+  EXPECT_TRUE(sensor.has_state());
   EXPECT_FALSE(sensor.state);
 }
 
