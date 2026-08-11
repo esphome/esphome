@@ -345,8 +345,9 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # The runner filters PlatformIO's output in the subprocess, so the
     # out-of-flash tip is offered from there. That process has no configured
     # CORE to ask which platform this is, so tell it.
+    #
     # Ask CORE directly rather than through is_esp32_arduino_build(), which
-    # falls back to this same variable. Reading what we are about to write
+    # falls back to this same variable; reading what we are about to write
     # would let a stray value in our own environment answer for us. Clear an
     # inherited one so it cannot reach a build it does not suit.
     if KEY_CORE in CORE.data and CORE.is_esp32 and CORE.using_arduino:
