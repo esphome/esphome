@@ -67,4 +67,22 @@ TEST(FujitsuGeneralDecodeFanModeTest, LeavesAnUnsetFanModeUnset) {
   EXPECT_FALSE(decode_fan_mode(0x05, {}).has_value());
 }
 
+// The swing field is only two bits wide. The two bits above it are reserved, and were read as part
+// of the value.
+
+TEST(FujitsuGeneralDecodeSwingModeTest, DecodesTheAssignedValues) {
+  EXPECT_EQ(decode_swing_mode(0x00), climate::CLIMATE_SWING_OFF);
+  EXPECT_EQ(decode_swing_mode(0x01), climate::CLIMATE_SWING_VERTICAL);
+  EXPECT_EQ(decode_swing_mode(0x02), climate::CLIMATE_SWING_HORIZONTAL);
+  EXPECT_EQ(decode_swing_mode(0x03), climate::CLIMATE_SWING_BOTH);
+}
+
+TEST(FujitsuGeneralDecodeSwingModeTest, IgnoresTheReservedBits) {
+  // Without the mask these all fell through to the default branch and reported swing off.
+  EXPECT_EQ(decode_swing_mode(0x0C), climate::CLIMATE_SWING_OFF);
+  EXPECT_EQ(decode_swing_mode(0x0D), climate::CLIMATE_SWING_VERTICAL);
+  EXPECT_EQ(decode_swing_mode(0x0E), climate::CLIMATE_SWING_HORIZONTAL);
+  EXPECT_EQ(decode_swing_mode(0x0F), climate::CLIMATE_SWING_BOTH);
+}
+
 }  // namespace esphome::fujitsu_general::testing

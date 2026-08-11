@@ -58,6 +58,12 @@ climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode curren
 /// leave the fan mode as it was.
 optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<climate::ClimateFanMode> current_mode);
 
+/// Turn the swing field of a received frame into a swing mode.
+///
+/// Only the low two bits carry the swing setting; the two above them are reserved. The protocol
+/// assigns all four values, so every field value maps to a swing mode.
+climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field);
+
 class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
  public:
   FujitsuGeneralClimate()

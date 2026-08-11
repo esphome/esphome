@@ -59,6 +59,7 @@ const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
 
 // Swing
 const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
+const uint8_t FUJITSU_GENERAL_SWING_MASK = 0b0011;
 const uint8_t FUJITSU_GENERAL_SWING_NONE = 0x00;
 const uint8_t FUJITSU_GENERAL_SWING_VERTICAL = 0x01;
 const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
@@ -288,6 +289,22 @@ optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<cl
   }
 }
 
+climate::ClimateSwingMode decode_swing_mode(uint8_t swing_field) {
+  switch (swing_field & FUJITSU_GENERAL_SWING_MASK) {
+    case FUJITSU_GENERAL_SWING_VERTICAL:
+      return climate::CLIMATE_SWING_VERTICAL;
+    case FUJITSU_GENERAL_SWING_HORIZONTAL:
+      return climate::CLIMATE_SWING_HORIZONTAL;
+    case FUJITSU_GENERAL_SWING_BOTH:
+      return climate::CLIMATE_SWING_BOTH;
+    case FUJITSU_GENERAL_SWING_NONE:
+    default:
+      // The mask leaves two bits and the protocol assigns all four of their values, so unlike the
+      // mode and the fan speed there is no unassigned value to report here.
+      return climate::CLIMATE_SWING_OFF;
+  }
+}
+
 bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGV(TAG, "Received IR message");
 
@@ -379,20 +396,7 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     const uint8_t recv_swing_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_SWING_NIBBLE);
     ESP_LOGV(TAG, "Received swing mode %X", recv_swing_mode);
-    switch (recv_swing_mode) {
-      case FUJITSU_GENERAL_SWING_VERTICAL:
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-        break;
-      case FUJITSU_GENERAL_SWING_HORIZONTAL:
-        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-        break;
-      case FUJITSU_GENERAL_SWING_BOTH:
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-        break;
-      case FUJITSU_GENERAL_SWING_NONE:
-      default:
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+    this->swing_mode = decode_swing_mode(recv_swing_mode);
 
     this->power_ = true;
   }
