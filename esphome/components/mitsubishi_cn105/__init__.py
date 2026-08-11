@@ -214,6 +214,7 @@ async def vane_control_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    cg.add_global(mitsubishi_ns.using)
     parent = await cg.get_variable(config[CONF_ID])
     normalized_args = [
         (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)

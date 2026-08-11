@@ -18,6 +18,7 @@ enum VerticalVaneMode : uint8_t {
   VERTICAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_4),
   VERTICAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_5),
   VERTICAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::VaneMode::SWING),
+  VERTICAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::VaneMode::UNKNOWN),
 };
 
 struct VaneState {
@@ -92,11 +93,9 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
  protected:
   void notify_status_listeners_() {
     this->status_callback_.call();
-    if (this->status().vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
-      this->vane_state_callback_.call(VaneState{
-          .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
-      });
-    }
+    this->vane_state_callback_.call(VaneState{
+        .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+    });
   }
 
   MitsubishiCN105 hp_;
