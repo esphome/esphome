@@ -87,11 +87,14 @@ static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVIC
 // delivered near the client's 30 s timeout could land on a fresh request's
 // empty accumulator and cache as an empty database.
 static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
-// Owed-ack retries stop on the same reasoning and cadence. supersede only
-// fires once the proxy processes the client's re-request, so a drain that
-// beats that processing could resolve the new request with the old reply;
-// an age bound is what closes that, not the supersede.
-static constexpr uint8_t PENDING_ACK_RETRY_LIMIT = 30;
+// Owed-ack retries stop here (~25 s at the 100 ms drain cadence). The bound
+// comes from the client, not the link: congestion can take tens of seconds to
+// clear, and bleak-esphome's GATT operation timeout is 30 s, so nothing can
+// re-ask before then. Stopping just under it keeps the whole window available
+// for delivery while still closing the stale-reply race that
+// supersede_pending_ack_() alone cannot (a drain that beats the re-request's
+// processing would answer the new request with the old reply).
+static constexpr uint8_t PENDING_ACK_RETRY_LIMIT = 250;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 
