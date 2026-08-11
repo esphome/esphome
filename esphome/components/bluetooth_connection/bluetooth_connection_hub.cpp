@@ -190,6 +190,14 @@ void BluetoothConnection::flush_owed_replies_() {
   if (this->connected_reply_owed_) {
     this->send_connected_reply_();
     if (this->connected_reply_owed_) {
+      // The retry limits are wall-clock windows: age the deferred budgets so
+      // a reply cannot outlive the window it was sized for.
+      if (this->send_service_ == SERVICES_DONE_PENDING) {
+        this->age_services_done_();
+      }
+      if (this->has_pending_ack_()) {
+        this->age_pending_ack_();
+      }
       return;
     }
   }
