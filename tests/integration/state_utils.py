@@ -475,8 +475,8 @@ class SensorTracker:
             await self.await_change(future, name, timeout=timeout)
 
     async def setup_and_start_scenario(
-        self, client, match_initial_states: bool = False
-    ) -> list:
+        self, client: APIClient, match_initial_states: bool = False
+    ) -> list[EntityInfo]:
         """Wire up subscriptions, wait for initial states, press Start Scenario.
 
         Args:
