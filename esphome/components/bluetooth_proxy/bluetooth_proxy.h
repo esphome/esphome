@@ -136,8 +136,8 @@ class BluetoothProxy final : public Component {
   }
 
   /// False only when a subscriber refused the frame; true = delivered or
-  /// nobody subscribed. Request-answer callers ignore the result (client
-  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  /// nobody subscribed. Refusals latch in send_device_disconnected_() and
+  /// send_connected_reply_(); other callers report via log_reply_dropped_().
   bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);

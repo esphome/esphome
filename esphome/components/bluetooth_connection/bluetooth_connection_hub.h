@@ -153,7 +153,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   void note_batch_stalled_();
   /// Send the connected=true reply, latching it if the API refuses. Rebuilt
   /// from address_ and mtu_, so the latch is one bit; a dropped confirmation
-  /// leaves the client timing out while this slot holds a live link.
+  /// leaves the client timing out while this slot holds a live link. No retry
+  /// bound: the slot's lifetime is the bound (teardown clears the flag).
   void send_connected_reply_();
   /// Re-offer everything this slot owes. One entry point so the proxy drain
   /// does not have to know which latches exist.

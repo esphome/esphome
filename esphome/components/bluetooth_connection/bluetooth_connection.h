@@ -68,12 +68,12 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
+#if (defined(USE_ESP32) || defined(USE_RP2040_BLE)) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t unpair_device(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }

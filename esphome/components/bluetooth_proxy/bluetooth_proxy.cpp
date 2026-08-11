@@ -616,15 +616,13 @@ void BluetoothProxy::loop() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->flush_owed_replies_();
   }
-  // Address-keyed, not slot-keyed, so it gets its own loop. Cleared first so
-  // another refusal re-latches through the sender, as the unpair drain does.
+  // Address-keyed, not slot-keyed, so it gets its own loop. Not pre-cleared:
+  // the sender clears on success and re-latches on refusal, keeping the
+  // latch's leading-edge warn honest (same shape as the unpair drain).
   for (auto &owed : this->pending_disconnections_) {
     if (owed.empty())
       continue;
-    uint64_t address = owed.address();
-    conn_err_t error = owed.error();
-    owed.clear();
-    this->send_device_disconnected_(address, error);
+    this->send_device_disconnected_(owed.address(), owed.error());
   }
 
   // An owed unpair reply. Not pre-cleared: the sender clears on success and
@@ -809,8 +807,9 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     return;
   }
   // Leading edge only: the drain re-enters here every 100 ms while congested.
+  // Not log_reply_dropped_(): this reply is latched and retried, not dropped.
   if (this->pending_unpairing_.empty()) {
-    this->log_reply_dropped_("Unpair");
+    ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
   }
   this->pending_unpairing_.set(address, error);
 }
