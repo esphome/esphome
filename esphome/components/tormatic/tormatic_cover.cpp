@@ -348,25 +348,17 @@ void Tormatic::set_light_state(bool state) {
     // Send 00 0B 00 01 three times.
     this->send_light_command_(true);
 
-    this->set_timeout("light_retry_1", 100, [this]() {
-      this->send_light_command_(true);
-    });
+    this->set_timeout("light_retry_1", 100, [this]() { this->send_light_command_(true); });
 
-    this->set_timeout("light_retry_2", 200, [this]() {
-      this->send_light_command_(true);
-    });
+    this->set_timeout("light_retry_2", 200, [this]() { this->send_light_command_(true); });
   } else {
     // Requested state is OFF:
     // Send 00 0B 00 00 three times.
     this->send_light_command_(false);
 
-    this->set_timeout("light_retry_1", 100, [this]() {
-      this->send_light_command_(false);
-    });
+    this->set_timeout("light_retry_1", 100, [this]() { this->send_light_command_(false); });
 
-    this->set_timeout("light_retry_2", 200, [this]() {
-      this->send_light_command_(false);
-    });
+    this->set_timeout("light_retry_2", 200, [this]() { this->send_light_command_(false); });
   }
 }
 
