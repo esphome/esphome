@@ -62,12 +62,12 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
 
   void publish_status() {
     if (this->is_status_initialized()) {
-      this->publish_status_();
+      this->notify_status_listeners_();
     }
   }
 
  protected:
-  void publish_status_() {
+  void notify_status_listeners_() {
     this->status_callback_.call();
     if (this->status().vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
       this->vane_state_callback_.call(VaneState{

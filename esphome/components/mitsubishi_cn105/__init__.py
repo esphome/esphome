@@ -80,7 +80,6 @@ async def register_mitsubishi_cn105_device(var: MockObj, config: ConfigType) -> 
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_global(mitsubishi_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -89,8 +88,9 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]
         )
     )
-    if vane := config.get(CONF_VANE):
-        for conf in vane.get(CONF_ON_STATE, []):
+    if on_state := config.get(CONF_VANE, {}).get(CONF_ON_STATE):
+        cg.add_global(mitsubishi_ns.using)
+        for conf in on_state:
             await automation.build_callback_automation(
                 var,
                 "add_on_vane_state_callback",

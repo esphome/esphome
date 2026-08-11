@@ -27,7 +27,7 @@ void MitsubishiCN105Component::setup() { this->hp_.initialize(); }
 
 void MitsubishiCN105Component::loop() {
   if (this->hp_.update()) {
-    this->publish_status_();
+    this->notify_status_listeners_();
   }
 }
 
