@@ -14,26 +14,23 @@ by the framework tests under ``tests/unit_tests/``.
 """
 
 from pathlib import Path
+import re
+
+from esphome.components import rp2
 
 
 def test_board_id_has_wifi_for_known_wifi_board() -> None:
     """``rpipicow`` is the canonical Pico W → True."""
-    from esphome.components import rp2
-
     assert rp2.board_id_has_wifi("rpipicow") is True
 
 
 def test_board_id_has_wifi_for_known_non_wifi_board() -> None:
     """Plain ``rpipico`` has no CYW43 → False."""
-    from esphome.components import rp2
-
     assert rp2.board_id_has_wifi("rpipico") is False
 
 
 def test_board_id_has_wifi_for_rp2350_w_variant() -> None:
     """``rpipico2w`` is the RP2350 Pico 2 W → True."""
-    from esphome.components import rp2
-
     assert rp2.board_id_has_wifi("rpipico2w") is True
 
 
@@ -45,8 +42,6 @@ def test_board_id_has_wifi_for_unknown_board_returns_true() -> None:
     block and any genuinely-unsupported config trips the existing
     "no CYW43" guard at compile time.
     """
-    from esphome.components import rp2
-
     assert rp2.board_id_has_wifi("not-a-real-board-id") is True
 
 
@@ -57,8 +52,6 @@ def test_rp2_declares_rp2040_as_alias() -> None:
     opts in via ``ALIASES``; without this declaration the rename
     framework wouldn't route legacy configs.
     """
-    from esphome.components import rp2
-
     assert "rp2040" in rp2.ALIASES
     assert rp2.ALIAS_REMOVAL_VERSION == "2027.7.0"
 
@@ -106,8 +99,6 @@ def test_lwip_segment_pool_exceeds_per_pcb_queue() -> None:
     rebuild the starvation this sizing exists to prevent, and nothing in the
     build would complain.
     """
-    from esphome.components import rp2
-
     assert rp2.LWIP_MEMP_NUM_TCP_SEG >= 2 * rp2.LWIP_TCP_SND_QUEUELEN
 
 
@@ -117,8 +108,6 @@ def test_lwip_mem_size_keeps_mem_size_t_narrow() -> None:
     heap past that bound is a real option, but it should be a deliberate one
     rather than a side effect of tuning.
     """
-    from esphome.components import rp2
-
     assert rp2.LWIP_MEM_SIZE <= 64000
 
 
@@ -130,8 +119,6 @@ def test_lwip_defines_carry_the_sizing_into_the_header() -> None:
     fall back to arduino-pico's own value while every other assertion in this
     file stayed green.
     """
-    from esphome.components import rp2
-
     defines = rp2.build_lwip_defines(tcp_sockets=8, udp_sockets=6, listening_tcp=2)
 
     assert defines["MEM_SIZE"] == str(rp2.LWIP_MEM_SIZE)
@@ -143,22 +130,31 @@ def test_lwip_defines_carry_the_sizing_into_the_header() -> None:
     assert defines["MEMP_NUM_TCP_PCB_LISTEN"] == "2"
 
 
-def test_lwipopts_template_placeholders_are_all_supplied() -> None:
-    """Every ``{{ NAME }}`` in the template must have a value.
+def test_lwipopts_template_renders_every_sizing_value() -> None:
+    """Render the template the way _generate_lwipopts_h() does and check the
+    header that actually ships.
 
-    A placeholder with no matching key renders empty, which turns into a bare
-    ``#define FOO`` that compiles and quietly means something else.
+    Asserting on the rendered output covers both directions at once. A key
+    missing from the dict renders empty (jinja2's default undefined), leaving
+    a bare ``#define FOO`` that compiles and means something else; a
+    ``#define`` block deleted from the template leaves the value at
+    arduino-pico's own, which for MEM_SIZE is the 16 KB heap this change
+    exists to move off. Matching on text also survives a future filter or
+    conditional in the template, which a placeholder regex would not.
     """
-    import re
+    from jinja2 import Environment
 
-    from esphome.components import rp2
-
-    template = (Path(rp2.__file__).parent / "lwipopts.h.jinja").read_text(
+    defines = rp2.build_lwip_defines(tcp_sockets=8, udp_sockets=6, listening_tcp=2)
+    template_text = (Path(rp2.__file__).parent / "lwipopts.h.jinja").read_text(
         encoding="utf-8"
     )
-    placeholders = set(re.findall(r"{{\s*(\w+)\s*}}", template))
-    supplied = set(
-        rp2.build_lwip_defines(tcp_sockets=8, udp_sockets=6, listening_tcp=2)
+    rendered = (
+        Environment(keep_trailing_newline=True)
+        .from_string(template_text)
+        .render(**defines)
     )
 
-    assert placeholders <= supplied, f"unsupplied: {placeholders - supplied}"
+    for name, value in defines.items():
+        assert re.search(
+            rf"^#define {re.escape(name)} +{re.escape(value)}$", rendered, re.MULTILINE
+        ), f"{name} did not reach the generated header as {value!r}"
