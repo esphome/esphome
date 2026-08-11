@@ -1562,7 +1562,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         # Disambiguate which attached probe to flash when the board's default
         # runner supports device IDs -- see resolve_dev_id() for why this can't
         # just always be forwarded, and #85 for the multi-probe problem it fixes.
-        dev_id = resolve_dev_id(build_dir, host)
+        dev_id = resolve_dev_id(python_bin, framework_path, build_dir, host)
         if dev_id:
             _LOGGER.info("Selecting probe %s (port %s) for west flash", dev_id, host)
         if not run_west_flash_generic(
