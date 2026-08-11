@@ -92,9 +92,10 @@ static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVIC
 // delivered near the client's 30 s timeout could land on a fresh request's
 // empty accumulator and cache as an empty database.
 static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
-// Owed-ack retries stop here (~25 s at the 100 ms drain cadence): just under
-// the client's 30 s GATT timeout, so a reply is abandoned before a re-ask.
-static constexpr uint8_t PENDING_ACK_RETRY_LIMIT = 250;
+// Owed-ack retries stop after ~25 s of subscribed drain time from the first
+// refusal, keeping most of the client's 30 s GATT window for congestion to
+// clear while still bounding how stale a delivered reply can be.
+static constexpr uint16_t PENDING_ACK_RETRY_LIMIT = 250;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 

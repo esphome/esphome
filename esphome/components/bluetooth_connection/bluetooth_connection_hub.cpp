@@ -215,10 +215,10 @@ void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t
   // Report a newly owed reply and a displaced one; displacing is the case
   // that loses a reply. Re-refusing the same one stays quiet.
   if (!this->has_pending_ack_()) {
-    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%2X deferred, TCP buffer full", this->connection_index_,
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X deferred, TCP buffer full", this->connection_index_,
              this->address_str_, handle);
   } else if (this->pending_ack_handle_ != handle || this->pending_ack_ != kind) {
-    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%2X dropped for handle 0x%2X", this->connection_index_,
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X dropped for handle 0x%04X", this->connection_index_,
              this->address_str_, this->pending_ack_handle_, handle);
   }
   this->latch_pending_ack_(kind, handle, error);
@@ -235,7 +235,7 @@ void BluetoothConnection::flush_pending_ack_() {
   if (++this->pending_ack_retries_ >= PENDING_ACK_RETRY_LIMIT) {
     // Undeliverable: past here the client has given up and may have re-asked,
     // and a late reply would answer the new request instead of this one.
-    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%2X undeliverable, abandoning", this->connection_index_,
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X undeliverable, abandoning", this->connection_index_,
              this->address_str_, this->pending_ack_handle_);
     this->clear_pending_ack_();
   }
@@ -317,7 +317,7 @@ conn_err_t BluetoothConnection::check_connected_op_(const char *action, const ch
 }
 
 conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
-  this->supersede_pending_ack_(handle);
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NONE);
   if (conn_err_t err = this->check_connected_op_("read", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
@@ -326,7 +326,7 @@ conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
 
 conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
                                                      bool response) {
-  this->supersede_pending_ack_(handle);
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_WRITE);
   if (conn_err_t err = this->check_connected_op_("write", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
@@ -334,7 +334,7 @@ conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint
 }
 
 conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
-  this->supersede_pending_ack_(handle);
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NONE);
   if (conn_err_t err = this->check_connected_op_("read", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
@@ -345,7 +345,7 @@ conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
 // the response flag is intentionally ignored (esp32 maps it to RSP/NO_RSP).
 conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
                                                  bool /*response*/) {
-  this->supersede_pending_ack_(handle);
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_WRITE);
   if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
@@ -353,7 +353,7 @@ conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t 
 }
 
 conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
-  this->supersede_pending_ack_(handle);
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NOTIFY);
   if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
