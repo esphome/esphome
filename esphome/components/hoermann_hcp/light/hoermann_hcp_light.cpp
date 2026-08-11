@@ -23,23 +23,24 @@ void HoermannHcpLight::setup_state(light::LightState *state) { this->light_state
 void HoermannHcpLight::write_state(light::LightState *state) {
   bool binary;
   state->current_values_as_binary(&binary);
+  // LightState::setup() always performs a call, so the very first write here is the restored state coming back
+  // rather than a request. Spending that allowance on whichever branch runs keeps a later real request out of it.
+  const bool restore_replay = !this->boot_replay_done_;
+  this->boot_replay_done_ = true;
   if (!this->parent_->is_light_known()) {
-    // Either the restored state replayed on boot or a request the door cannot be asked to take. Commanding a
-    // lamp that has never been read could switch off one that is already on, so show what is known instead.
+    // Commanding a lamp that has never been read could switch off one that is already on, so show what is
+    // known instead. Nothing is known yet, so that is the lamp's default.
     if (binary != this->parent_->is_light_on()) {
-      ESP_LOGD(TAG, "Lamp state not known yet, ignoring the requested state");
+      if (!restore_replay)
+        ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
       this->publish_lamp_state_(this->parent_->is_light_on());
     }
     return;
   }
-  // A toggle on its way inverts the lamp, and the lamp reads as its old self until the door reports it, so the
-  // request has to be judged against where the lamp is heading rather than where it is.
-  const bool effective_on = this->parent_->is_light_on() != this->parent_->is_light_toggle_in_flight();
-  if (!this->synced_) {
-    // The first write after the lamp becomes known is the restored state replayed on boot, not a request, so
-    // adopt the lamp rather than command from a guess. Doing it here rather than on a state callback means a
-    // door that reports nothing else still lets the entity settle.
-    this->synced_ = true;
+  // Each toggle on its way inverts the lamp, and the lamp reads as its old self until the door reports it, so
+  // the request has to be judged against where the toggles are taking it rather than where it is.
+  const bool effective_on = this->parent_->is_light_on() != (this->parent_->pending_light_toggles() % 2 != 0);
+  if (restore_replay) {
     if (binary != effective_on)
       this->publish_lamp_state_(effective_on);
     return;
@@ -61,11 +62,15 @@ void HoermannHcpLight::update_from_state_() {
     this->status_set_warning("bus controller not responding");
     return;
   }
-  this->status_clear_warning();
-  // Nothing to settle on until the door has reported the lamp, and a toggle on its way will invert it again.
-  if (!this->parent_->is_light_known() || this->parent_->is_light_toggle_in_flight())
+  if (!this->parent_->is_light_known()) {
+    // Commands are refused until the door says, so say so rather than looking healthy and doing nothing.
+    this->status_set_warning("door has not reported the lamp");
     return;
-  this->synced_ = true;
+  }
+  this->status_clear_warning();
+  // A toggle on its way will invert the lamp, so what it reads now is not what to settle on.
+  if (this->parent_->pending_light_toggles() != 0)
+    return;
   if (this->light_state_->remote_values.is_on() != this->parent_->is_light_on())
     this->publish_lamp_state_(this->parent_->is_light_on());
 }

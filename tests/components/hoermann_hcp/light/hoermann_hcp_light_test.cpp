@@ -305,8 +305,83 @@ TEST(HoermannHcpLightPlatformTest, ToggleLostWithTheConnectionReturnsTheEntityTo
   ASSERT_FALSE(fixture.door.is_valid());
 
   connect_controller(fixture.door);
-  fixture.pump();
+  fixture.report_lamp(false);
   EXPECT_FALSE(fixture.entity_on());
+}
+
+// The lamp can be switched at the door while the bus is quiet, so what was read before an outage must not
+// decide whether a toggle is needed after it.
+TEST(HoermannHcpLightPlatformTest, LampIsNotTrustedAcrossAConnectionLoss) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+  fixture.report_lamp(true);
+  ASSERT_TRUE(fixture.entity_on());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.pump();
+  ASSERT_FALSE(fixture.door.is_valid());
+
+  // Back on the bus, but nothing has said what the lamp is doing yet.
+  connect_controller(fixture.door);
+  fixture.pump();
+  ASSERT_TRUE(fixture.door.is_valid());
+  ASSERT_FALSE(fixture.door.is_light_known());
+
+  fixture.command(false);
+  auto [idle, idle_2] = poll_command(fixture.door);
+  EXPECT_EQ(idle, 0x0000);
+  EXPECT_EQ(idle_2, 0x0000);
+}
+
+// A door that never reports the lamp leaves the entity unable to do anything, so it must not look healthy.
+TEST(HoermannHcpLightPlatformTest, UnreportedLampIsFlaggedOnTheEntity) {
+  LightFixture fixture;
+  connect_controller(fixture.door);
+  fixture.pump();
+  ASSERT_TRUE(fixture.door.is_valid());
+  EXPECT_TRUE(fixture.output.status_has_warning());
+
+  fixture.report_lamp(false);
+  EXPECT_FALSE(fixture.output.status_has_warning());
+}
+
+// Two outstanding toggles leave the lamp where it started, so a third tap has to be judged against that and
+// withdraw the one still waiting rather than deciding nothing is needed.
+TEST(HoermannHcpLightPlatformTest, ThirdTapWithTwoTogglesOutstandingIsHonoured) {
+  LightFixture fixture;
+  fixture.bring_up();
+
+  fixture.command(true);
+  poll_command(fixture.door);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(fixture.door);  // the first toggle is released but not reported back
+  fixture.command(false);
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  ASSERT_EQ(fixture.door.pending_light_toggles(), 2);
+
+  // Two toggles cancel out, so asking for on again means withdrawing the second one.
+  fixture.command(true);
+  EXPECT_FALSE(fixture.door.is_light_toggle_pending());
+  EXPECT_EQ(fixture.door.pending_light_toggles(), 1);
+  EXPECT_TRUE(fixture.entity_on());
+}
+
+// The boot replay is the first write and nothing else, so a real command arriving before the hub's next poll
+// must not be mistaken for it and swallowed.
+TEST(HoermannHcpLightPlatformTest, CommandBeforeTheFirstPollIsNotMistakenForTheBootReplay) {
+  LightFixture fixture;
+  connect_controller(fixture.door);
+  fixture.settle();  // the boot replay lands here, while the lamp is still unknown
+
+  // The first status broadcast arrives, but the hub has not polled yet, so no callback has fired.
+  fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(fixture.door.is_light_known());
+
+  fixture.command(true);
+  auto [pressed, pressed_2] = poll_command(fixture.door);
+  EXPECT_EQ(pressed, 0x0100);  // COMMAND_TOGGLE_LAMP
+  EXPECT_EQ(pressed_2, 0x0200);
 }
 
 // On boot the restored state is replayed through write_state() before the lamp has ever been read. A lamp

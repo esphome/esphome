@@ -65,10 +65,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
   // valid without saying anything about the lamp, so is_light_on() would still be its default.
   bool is_light_known() const { return this->light_seen_; }
-  // True from the moment a lamp toggle is queued until the door reports the lamp actually changing, it is
-  // dropped, or the door is given up on. The lamp reads as its old self for that whole window, so this is what
-  // says where it is heading.
-  bool is_light_toggle_in_flight() const { return this->light_toggle_in_flight_; }
+  // How many lamp toggles are queued or sent but not yet reported back. Each one inverts the lamp, so the
+  // count's parity says where the lamp is heading and a non-zero count says it has not got there yet.
+  uint8_t pending_light_toggles() const { return this->light_toggles_in_flight_; }
   // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
   bool is_light_toggle_pending() const;
   // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
@@ -79,10 +78,12 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
-  // Throws away the pending command and any armed target, noting a discarded lamp toggle for the light.
+  // Throws away the pending command, taking any armed target with it unless the command was the lamp toggle.
   void drop_command_();
-  // Stops waiting for the lamp to confirm a toggle.
-  void end_light_toggle_();
+  // One outstanding toggle reached the lamp, was withdrawn, or was thrown away.
+  void light_toggle_settled_();
+  // Stops expecting any outstanding toggle to reach the lamp at all.
+  void forget_light_toggles_();
   // Appends the two key-press registers and advances the pending command's press/release state.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
@@ -130,12 +131,13 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   DoorState target_direction_{DoorState::STOPPED};
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
+  uint8_t light_toggles_in_flight_{0};
   bool target_started_{false};
   bool valid_{false};
   bool changed_{false};
   bool light_on_{false};
   bool light_seen_{false};
-  bool light_toggle_in_flight_{false};
+  bool short_broadcast_logged_{false};
 };
 
 }  // namespace esphome::hoermann_hcp

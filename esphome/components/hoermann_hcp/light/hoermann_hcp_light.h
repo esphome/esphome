@@ -21,9 +21,8 @@ class HoermannHcpLight : public light::LightOutput, public Component {
 
   HoermannHcp *const parent_;
   light::LightState *light_state_{nullptr};
-  // Set once the entity has taken its state from the lamp. Until then a write here is the restored state
-  // coming back on boot rather than a user request.
-  bool synced_{false};
+  // Set by the first write_state(), which is always the restored state replayed on boot.
+  bool boot_replay_done_{false};
 };
 
 }  // namespace esphome::hoermann_hcp
