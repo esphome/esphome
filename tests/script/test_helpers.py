@@ -1892,18 +1892,25 @@ def test_run_gh_command_success() -> None:
     mock_run.assert_called_once()
 
 
-def test_run_gh_command_retries_transient_error() -> None:
+@pytest.mark.parametrize(
+    "second_error",
+    [
+        (
+            'Post "https://api.github.com/graphql": tls: failed to verify'
+            " certificate: x509: certificate is not valid for any names,"
+            " but wanted to match api.github.com"
+        ),
+        'Post "https://api.github.com/graphql": EOF',
+    ],
+)
+def test_run_gh_command_retries_transient_error(second_error: str) -> None:
     """Transient server errors are retried with 2s/4s backoff."""
     with (
         patch(
             "helpers.subprocess.run",
             side_effect=[
                 _gh_error("HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)"),
-                _gh_error(
-                    'Post "https://api.github.com/graphql": tls: failed to verify'
-                    " certificate: x509: certificate is not valid for any names,"
-                    " but wanted to match api.github.com"
-                ),
+                _gh_error(second_error),
                 _gh_success(),
             ],
         ) as mock_run,

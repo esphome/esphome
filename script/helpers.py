@@ -481,7 +481,11 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
     r"|connection (?:reset|refused|closed)"
     r"|no such host|could not resolve host"
     r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
     r"|unexpected eof"
+    r'|": eof'
     r"|network is unreachable"
     r"|temporary failure"
 )
@@ -522,8 +526,10 @@ def run_gh_command(
             if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
                 raise
             delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
             print(
-                f"WARNING: {' '.join(args)} failed: {stderr.strip()}; "
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
                 f"retrying in {delay}s (attempt {attempt}/{attempts})",
                 file=sys.stderr,
             )
