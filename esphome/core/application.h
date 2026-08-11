@@ -795,20 +795,32 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
-    const uint32_t until_phase =
-        (elapsed_since_phase >= this->loop_interval_)
-            ? 0
-            : (this->looping_components_active_end_ > 0 ? this->loop_interval_ - elapsed_since_phase
-                                                        : std::numeric_limits<uint32_t>::max());
+    const bool has_loop_work =
+        this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
+    uint32_t until_phase = std::numeric_limits<uint32_t>::max();
+    if (has_loop_work) {
+      until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    }
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  // Make sure the WDT is fed at least once per WDT_FEED_INTERVAL_MS even if the
+  // Wakes at least every WDT_FEED_INTERVAL_MS or STATUS_LED_DISPATCH_INTERVAL_MS
+  // so the feed rate-limit is exercised even if the
   // scheduler and component phases are gated out for a long sleep.
-  esphome::internal::wakeable_delay(std::min(delay_time, WDT_FEED_INTERVAL_MS));
+
+  // Host and ESP8266 do not need to feed WDT in the delay path
+#if (defined(USE_HOST) || defined(USE_ESP8226)) && not defined(USE_STATUS_LED)
+  esphome::internal::wakeable_delay(delay_time);
+#else
+  uint32_t max_sleep = WDT_FEED_INTERVAL_MS;
+#ifdef USE_STATUS_LED
+  max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+#endif
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
+#endif
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
