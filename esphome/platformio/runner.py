@@ -174,7 +174,7 @@ def main() -> int:
     # Filtering is disabled when the user passed -v / --verbose to
     # ``esphome compile``, preserving the previous in-process behavior where
     # verbose mode let all PlatformIO output through unfiltered.
-    from esphome.util import RedirectText, drain_quietly
+    from esphome.util import RedirectText
 
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
     filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
@@ -191,8 +191,8 @@ def main() -> int:
     try:
         return platformio.__main__.main() or 0
     finally:
-        drain_quietly(stdout_redirect)
-        drain_quietly(stderr_redirect)
+        stdout_redirect.drain()
+        stderr_redirect.drain()
 
 
 if __name__ == "__main__":

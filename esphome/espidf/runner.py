@@ -198,10 +198,25 @@ def main() -> int:
             if not self._line_buffer:
                 return
             line, self._line_buffer = self._line_buffer, ""
-            # Add the terminator the line never got, so whatever ESPHome
-            # prints next does not run onto the same line.
-            self._emit(line + "\n")
-            self._stream.flush()
+            try:
+                # Add the terminator the line never got, so whatever ESPHome
+                # prints next does not run onto the same line.
+                self._emit(line + "\n")
+                self._stream.flush()
+            except (OSError, ValueError) as err:
+                # We are called from cleanup, so raising would replace the
+                # build's real exit code. Saying so must not raise either:
+                # under the dashboard our stdout and stderr are the same
+                # pipe, so whatever broke the write has most likely broken
+                # the report, and ``sys.__stderr__`` is None on some
+                # interpreters. Carry the line along; it is usually the
+                # message saying why the build failed.
+                if (real_stderr := sys.__stderr__) is not None:
+                    with contextlib.suppress(OSError, ValueError):
+                        print(
+                            f"Could not write out remaining output ({err}): {line}",
+                            file=real_stderr,
+                        )
 
         def write(self, data) -> int:
             # Text streams normally hand us ``str``; decode in case
@@ -269,20 +284,8 @@ def main() -> int:
     try:
         runpy.run_path(script_path, run_name="__main__")
     finally:
-        for shim in (stdout_shim, stderr_shim):
-            try:
-                shim.drain()
-            except (OSError, ValueError) as err:
-                # Saying so must not raise either. Under the dashboard our
-                # stdout and stderr are the same pipe, so whatever broke the
-                # drain has most likely broken the report as well, and
-                # ``sys.__stderr__`` is None on some interpreters.
-                if (real_stderr := sys.__stderr__) is not None:
-                    with contextlib.suppress(OSError, ValueError):
-                        print(
-                            f"Could not write out remaining output: {err}",
-                            file=real_stderr,
-                        )
+        stdout_shim.drain()
+        stderr_shim.drain()
     return 0
 
 

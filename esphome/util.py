@@ -206,10 +206,18 @@ class RedirectText:
         if not self._line_buffer:
             return
         line, self._line_buffer = self._line_buffer, ""
-        # Add the terminator the line never got, so whatever ESPHome prints
-        # next does not run onto the same line.
-        self._emit_line(line + "\n")
-        self._out.flush()
+        try:
+            # Add the terminator the line never got, so whatever ESPHome
+            # prints next does not run onto the same line.
+            self._emit_line(line + "\n")
+            self._out.flush()
+        except (OSError, ValueError) as err:
+            # Every caller drains from a cleanup path, where the command's
+            # real result is already on its way out; raising here would
+            # replace it with an unrelated traceback. Carry the line into
+            # the warning, since the stream we were told to write it to is
+            # the one that just failed.
+            _LOGGER.warning("Could not write out remaining output (%s): %s", err, line)
 
     def write(self, s: str | bytes) -> int:
         # s is usually a str already (self._out is of type TextIOWrapper)
@@ -245,25 +253,6 @@ class RedirectText:
 
     def isatty(self):
         return True
-
-
-def drain_quietly(stream: RedirectText) -> None:
-    """Drain *stream*, reporting rather than raising if it cannot be written.
-
-    Every caller drains from a cleanup path, where the command's real result
-    is already on its way out. Letting a broken pipe or a closed stream raise
-    here would replace that result with an unrelated traceback, and would
-    also skip draining the other stream.
-
-    Only the stream-is-unusable errors are caught. The held line is usually
-    the one saying why a command failed, so losing it is worth a warning
-    rather than a debug line, and anything else going wrong here (a line
-    callback raising, say) is a bug that should still be seen.
-    """
-    try:
-        stream.drain()
-    except (OSError, ValueError) as err:
-        _LOGGER.warning("Could not write out remaining output: %s", err)
 
 
 def run_external_command(
@@ -332,8 +321,8 @@ def run_external_command(
         # than whatever the command left in sys.stdout, so it cannot strand
         # them. With capture_stdout the stdout wrapper was never written to,
         # so draining it does nothing.
-        drain_quietly(stdout_redirect)
-        drain_quietly(stderr_redirect)
+        stdout_redirect.drain()
+        stderr_redirect.drain()
 
     if capture_stdout:
         return cap_stdout.getvalue()

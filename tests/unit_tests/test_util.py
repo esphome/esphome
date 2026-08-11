@@ -670,10 +670,11 @@ def test_run_external_command_drains_on_early_exit(
 
 
 def test_run_external_command_capture_stdout_has_nothing_to_drain() -> None:
-    """With ``capture_stdout`` the buffer is a plain StringIO, not a wrapper.
+    """With ``capture_stdout`` there is nothing held to write out.
 
-    Nothing holds a partial line in that case, so the drain has to skip it
-    rather than reach for a method that is not there.
+    The stdout wrapper still gets built, but ``sys.stdout`` is replaced by
+    the capture buffer right after, so the wrapper never sees a write and
+    draining it does nothing.
     """
 
     def fake_main() -> int:
@@ -708,26 +709,37 @@ def test_run_external_command_survives_a_command_that_swaps_stdout(
     assert "before the swap" in capsys.readouterr().out
 
 
-def test_drain_quietly_reports_instead_of_raising(
+def test_drain_reports_the_lost_line_instead_of_raising(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A broken stream during cleanup is reported, not raised."""
-    caplog.set_level(logging.WARNING, logger=util.__name__)
-    stream = MagicMock()
-    stream.drain.side_effect = BrokenPipeError("pipe is gone")
+    """A broken stream during cleanup is reported, not raised.
 
-    util.drain_quietly(stream)
+    The warning carries the held text, because the stream we were asked to
+    write it to is the one that just failed.
+    """
+    caplog.set_level(logging.WARNING, logger=util.__name__)
+    out = MagicMock()
+    out.write.side_effect = BrokenPipeError("pipe is gone")
+    redirect = util.RedirectText(out, filter_lines=["ignore me"])
+    redirect.write("FATAL: ld returned 1 exit status")
+
+    redirect.drain()
 
     assert "pipe is gone" in caplog.text
+    assert "FATAL: ld returned 1 exit status" in caplog.text
 
 
-def test_drain_quietly_lets_other_errors_through() -> None:
+def test_drain_lets_other_errors_through() -> None:
     """Only an unusable stream is tolerated; a bug still has to be visible."""
-    stream = MagicMock()
-    stream.drain.side_effect = TypeError("a line callback is broken")
+
+    def broken_callback(line: str) -> str | None:
+        raise TypeError("a line callback is broken")
+
+    redirect, _buf = _make_redirect(line_callbacks=[broken_callback])
+    redirect.write("a line with no terminator")
 
     with pytest.raises(TypeError):
-        util.drain_quietly(stream)
+        redirect.drain()
 
 
 def test_run_external_process_line_callbacks() -> None:
