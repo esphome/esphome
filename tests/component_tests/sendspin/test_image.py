@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sendspin import MAX_ARTWORK_SLOTS
+from esphome.components.sendspin import IMAGE_FORMAT_JPEG, MAX_ARTWORK_SLOTS, _get_data
 from esphome.components.sendspin.image import CONFIG_SCHEMA, MAX_IMAGE_DIMENSION
 from esphome.const import PlatformFramework
 from esphome.types import ConfigType
@@ -38,6 +38,19 @@ def test_minimal_config_is_accepted(set_core_config: SetCoreConfigCallable) -> N
     assert config["slot"] == 0
     assert config["source"] == "ALBUM"
     assert config["display_offset"].total_milliseconds == 0
+
+
+@pytest.mark.parametrize("image_format", ["JPEG", "JPG"])
+def test_jpeg_alias_maps_to_one_enum(
+    set_core_config: SetCoreConfigCallable, image_format: str
+) -> None:
+    """runtime_image takes JPG as an alias for JPEG, so both spellings must reach the
+    library's single JPEG enum."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    CONFIG_SCHEMA(_slot_config(format=image_format))
+
+    assert _get_data().artwork_preferences[0]["format"] == IMAGE_FORMAT_JPEG
 
 
 def test_too_many_slots_rejected(set_core_config: SetCoreConfigCallable) -> None:

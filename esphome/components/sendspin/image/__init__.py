@@ -120,6 +120,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinImageSlot),
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
+            # Narrow runtime_image's format list to what the library can request, so the
+            # accepted set and the enum map below cannot drift apart.
+            cv.Required(CONF_FORMAT): cv.one_of(*_FORMAT_TO_SENDSPIN_ENUM, upper=True),
             cv.Required(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_CURRENT_IMAGE): _IMAGE_SCHEMA,
             cv.Optional(CONF_TRANSITION_IMAGE): _IMAGE_SCHEMA,
