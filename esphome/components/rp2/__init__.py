@@ -435,6 +435,33 @@ LWIP_PBUF_POOL_SIZE = 16
 LWIP_MEM_SIZE = 32768
 
 
+def build_lwip_defines(
+    tcp_sockets: int, udp_sockets: int, listening_tcp: int
+) -> dict[str, str]:
+    """Render the lwIP override values for the Jinja2 template.
+
+    The template uses #include_next to chain to the framework's original
+    lwipopts.h, then #undef/#define only these. Split out from
+    _configure_lwip() so the values that actually reach the generated header
+    can be checked without standing up CORE.
+
+    Both malloc flags stay 0 (framework defaults); see _configure_lwip(). The
+    static pools are the only IRQ-safe allocator on this platform, so the fix
+    is to size them correctly rather than to make them dynamic.
+    """
+    return {
+        "TCP_SND_BUF": LWIP_TCP_SND_BUF,
+        "TCP_WND": LWIP_TCP_WND,
+        "TCP_SND_QUEUELEN": str(LWIP_TCP_SND_QUEUELEN),
+        "MEM_SIZE": str(LWIP_MEM_SIZE),
+        "MEMP_NUM_TCP_SEG": str(LWIP_MEMP_NUM_TCP_SEG),
+        "PBUF_POOL_SIZE": str(LWIP_PBUF_POOL_SIZE),
+        "MEMP_NUM_TCP_PCB": str(tcp_sockets),
+        "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
+        "MEMP_NUM_UDP_PCB": str(udp_sockets),
+    }
+
+
 def _configure_lwip() -> None:
     """Configure lwIP options for RP2040 by generating a custom lwipopts.h.
 
@@ -479,9 +506,11 @@ def _configure_lwip() -> None:
       tcp_write(), which corrupts the heap. Tried on hardware; it faults
       within seconds on CYW43. Ethernet survives only because that path
       polls from the main loop and never runs a second context.
-    *** ESP8266/ESP32 use MEM_LIBC_MALLOC=1 (system heap, no dedicated
-      pool), so their MEMP_NUM_* and PBUF_POOL_SIZE values are not caps.
-      Ours are hard limits; do not copy their numbers without that in mind.
+    *** ESP8266/ESP32 ship MEMP_MEM_MALLOC=1, so their pool entries are
+      allocated on demand and the MEMP_NUM_* and PBUF_POOL_SIZE values are
+      labels rather than caps; MEM_LIBC_MALLOC=1 in turn points that heap at
+      the system heap. Ours are hard limits, because both flags are 0 here.
+      Do not copy their numbers without that in mind.
     **** MEMP_NUM_TCP_SEG is a *global* pool while TCP_SND_QUEUELEN is
       *per-PCB*, so it must not be sized to the per-PCB value: one busy
       connection would drain it for every other PCB. 2× covers two PCBs at
@@ -505,24 +534,7 @@ def _configure_lwip() -> None:
     # UDP PCBs (2) are absorbed by the generous minimum of 6.
     listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
 
-    # Build the lwIP override defines for the Jinja2 template.
-    # The template uses #include_next to chain to the framework's original
-    # lwipopts.h, then #undef/#define only the values we need to change.
-    #
-    # Both malloc flags stay 0 (framework defaults); see the docstring. The
-    # static pools are the only IRQ-safe allocator on this platform, so the
-    # fix is to size them correctly rather than to make them dynamic.
-    lwip_defines: dict[str, str] = {
-        "TCP_SND_BUF": LWIP_TCP_SND_BUF,
-        "TCP_WND": LWIP_TCP_WND,
-        "TCP_SND_QUEUELEN": str(LWIP_TCP_SND_QUEUELEN),
-        "MEM_SIZE": str(LWIP_MEM_SIZE),
-        "MEMP_NUM_TCP_SEG": str(LWIP_MEMP_NUM_TCP_SEG),
-        "PBUF_POOL_SIZE": str(LWIP_PBUF_POOL_SIZE),
-        "MEMP_NUM_TCP_PCB": str(tcp_sockets),
-        "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
-        "MEMP_NUM_UDP_PCB": str(udp_sockets),
-    }
+    lwip_defines = build_lwip_defines(tcp_sockets, udp_sockets, listening_tcp)
 
     # Store for copy_files() to generate the header
     CORE.data[KEY_RP2][KEY_LWIP_OPTS] = lwip_defines
