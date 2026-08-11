@@ -40,6 +40,19 @@ TEST(ClimateRestoreStateTest, DoesNotRestoreAnUnsupportedMode) {
   EXPECT_EQ(climate.mode, CLIMATE_MODE_OFF);
 }
 
+TEST(ClimateRestoreStateTest, LeavesTheCurrentModeAloneRatherThanForcingOff) {
+  TestClimate climate;
+  // apply() is public and nothing restricts it to setup(), so the entity is not necessarily off
+  // when an unsupported mode is dropped. It keeps what it had rather than being forced to OFF.
+  climate.mode = CLIMATE_MODE_COOL;
+  ClimateDeviceRestoreState state{};
+  state.mode = CLIMATE_MODE_HEAT;
+
+  state.apply(&climate);
+
+  EXPECT_EQ(climate.mode, CLIMATE_MODE_COOL);
+}
+
 TEST(ClimateRestoreStateTest, KeepsRestoringTheOtherFieldsWhenTheModeIsDropped) {
   TestClimate climate;
   ClimateDeviceRestoreState state{};
