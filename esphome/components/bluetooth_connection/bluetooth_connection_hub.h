@@ -234,10 +234,12 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool services_discovered_ : 1 {false};
   static_assert(static_cast<uint8_t>(PendingAck::PENDING_ACK_ERROR) < (1 << 2), "pending_ack_ bitfield too narrow");
   PendingAck pending_ack_ : 2 {PendingAck::PENDING_ACK_NONE};
-  static_assert(PENDING_ACK_RETRY_LIMIT < (1 << 5), "ack retry counter too narrow");
-  uint8_t pending_ack_retries_ : 5 {0};
   /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
+  // Plain byte, ordered after the bitfields: an 8-bit field cannot share
+  // pending_ack_'s storage unit, so anywhere earlier it would straddle and
+  // push the tail into a new 8-byte row. Here it takes the one padding byte.
+  uint8_t pending_ack_retries_{0};
 };
 
 // Pins the grouping above: pending_ack_handle_ in Group 2 instead would pad
