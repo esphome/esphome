@@ -1906,6 +1906,8 @@ bool APIConnection::send_device_info_response_() {
   return this->send_message(resp);
 }
 bool APIConnection::send_device_capabilities_response_() {
+  // These are the same values DeviceInfoResponse still reports for older clients. Keep the blocks
+  // below in sync with send_device_info_response_() until those copies are removed.
   DeviceCapabilitiesResponse resp;
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();

@@ -11,6 +11,14 @@ its own, without requiring protoc to be installed at test time:
   backward compatibility with clients older than API 1.15. If a future edit
   "tidies up" by marking one of them deprecated, this file breaks that field
   for every existing client with nothing else in CI noticing.
+* Field numbers are the wire protocol, not the field names. Renaming a field
+  is harmless; renumbering it is a silent breaking change, because an old
+  client still decodes by number. This file pins the field number of each of
+  the six superseded DeviceInfoResponse fields and of every field on the new
+  DeviceCapabilitiesResponse/BluetoothProxyCapabilities/
+  VoiceAssistantCapabilities/ZWaveProxyCapabilities sub-messages, so a
+  well-intentioned reshuffle of api.proto gets caught here instead of on a
+  device in the field.
 * Message wire ids must be unique, and the new capabilities RPC must stay
   authenticated-only.
 
@@ -44,6 +52,32 @@ SUPERSEDED_FIELDS: dict[str, int] = {
     "zwave_proxy_feature_flags": 23,
     "zwave_home_id": 24,
     "serial_proxies": 25,
+}
+
+# Field numbers on the new capability messages. These are a frozen wire
+# contract from the moment they ship: an old client decodes a sub-message
+# field purely by number, so renumbering any of these -- even without
+# touching a name -- silently corrupts what every already-deployed client
+# reads. Keyed by message name so the next capability sub-message is a
+# data-only addition here.
+NEW_CAPABILITY_FIELDS: dict[str, dict[str, int]] = {
+    "DeviceCapabilitiesResponse": {
+        "bluetooth_proxy": 1,
+        "voice_assistant": 2,
+        "zwave_proxy": 3,
+        "serial_proxies": 4,
+    },
+    "BluetoothProxyCapabilities": {
+        "feature_flags": 1,
+        "mac_address": 2,
+    },
+    "VoiceAssistantCapabilities": {
+        "feature_flags": 1,
+    },
+    "ZWaveProxyCapabilities": {
+        "feature_flags": 1,
+        "home_id": 2,
+    },
 }
 
 # Fields that are genuinely dead and are expected to carry `deprecated=true`.
@@ -254,6 +288,49 @@ def test_superseded_fields_are_not_marked_deprecated_in_proto() -> None:
             "detection used above is broken, and the sibling assertion that "
             "the superseded fields are NOT deprecated is not testing anything."
         )
+
+
+def test_superseded_fields_keep_their_wire_numbers() -> None:
+    """Each superseded field must stay on the field number recorded in
+    SUPERSEDED_FIELDS. Old clients decode DeviceInfoResponse purely by field
+    number, so renumbering one of these -- even without touching its name --
+    would make an old client read a completely different value out of the
+    wire, with nothing else in CI noticing.
+    """
+    body = _extract_proto_message(PROTO_TEXT, "DeviceInfoResponse")
+
+    for field_name, field_number in SUPERSEDED_FIELDS.items():
+        line = _field_declaration_line(body, field_name)
+        assert re.search(rf"\b{field_name}\s*=\s*{field_number}\b", line), (
+            f"{field_name} in DeviceInfoResponse is no longer declared at "
+            f"field number {field_number} ({line.strip()!r}). Field numbers "
+            "are the wire protocol -- renumbering this field silently breaks "
+            "every existing client that still decodes DeviceInfoResponse by "
+            "the old numbering."
+        )
+
+
+def test_capability_message_fields_keep_their_wire_numbers() -> None:
+    """Every field on DeviceCapabilitiesResponse and its three capability
+    sub-messages must stay on the field number recorded in
+    NEW_CAPABILITY_FIELDS. These messages are brand new as of API 1.15, but
+    the moment a device ships with them, their field numbers are a frozen
+    wire contract -- a client decodes a sub-message field purely by number,
+    so a later "cleanup" that renumbers one of these would silently corrupt
+    what every already-deployed client reads, with nothing else in CI
+    noticing.
+    """
+    for message_name, fields in NEW_CAPABILITY_FIELDS.items():
+        body = _extract_proto_message(PROTO_TEXT, message_name)
+        for field_name, field_number in fields.items():
+            line = _field_declaration_line(body, field_name)
+            assert re.search(rf"\b{field_name}\s*=\s*{field_number}\b", line), (
+                f"{field_name} on {message_name} is no longer declared at "
+                f"field number {field_number} ({line.strip()!r}). Field "
+                "numbers are the wire protocol -- renumbering this field "
+                "silently breaks every existing client that decodes this "
+                "message by the old numbering."
+            )
 
 
 def test_device_capabilities_rpc_requires_authentication() -> None:
