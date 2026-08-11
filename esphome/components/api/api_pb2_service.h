@@ -21,11 +21,13 @@ class APIServerConnectionBase {
 
   void on_hello_request(const HelloRequest &value){};
 
-  void on_disconnect_request(){};
+  void on_disconnect_request(const DisconnectRequest &value){};
   void on_disconnect_response(){};
   void on_ping_request(){};
   void on_ping_response(){};
   void on_device_info_request(){};
+
+  void on_device_capabilities_request(){};
 
   void on_list_entities_request(){};
 
