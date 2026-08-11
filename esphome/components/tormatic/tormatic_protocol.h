@@ -88,14 +88,8 @@ struct MessageHeader {
   std::string print() {
     char buf[64];
 
-    buf_append_printf(
-        buf,
-        sizeof(buf),
-        0,
-        "MessageHeader: seq %d, len %" PRIu32 ", type %s",
-        this->seq,
-        this->len,
-        message_type_to_str(this->type));
+    buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %" PRIu32 ", type %s", this->seq, this->len,
+                      message_type_to_str(this->type));
 
     return buf;
   }
@@ -106,21 +100,15 @@ struct MessageHeader {
     this->type = convert_big_endian(this->type);
   }
 
-  uint32_t payload_size() {
-    return this->len > sizeof(this->type)
-               ? this->len - sizeof(this->type)
-               : 0;
-  }
+  uint32_t payload_size() { return this->len > sizeof(this->type) ? this->len - sizeof(this->type) : 0; }
 
 } __attribute__((packed));
-
 
 // Device/function type inside the command payload.
 enum StatusType : uint16_t {
   GATE = 0x0A,
   LIGHT = 0x0B,
 };
-
 
 // GateStatus defines the current state of the gate, received in a StatusReply
 // and sent in a gate command.
@@ -132,7 +120,6 @@ enum GateStatus : uint8_t {
   OPENING,
   CLOSING,
 };
-
 
 inline CoverOperation gate_status_to_cover_operation(GateStatus s) {
   switch (s) {
@@ -151,7 +138,6 @@ inline CoverOperation gate_status_to_cover_operation(GateStatus s) {
 
   return COVER_OPERATION_IDLE;
 }
-
 
 inline const char *gate_status_to_str(GateStatus s) {
   switch (s) {
@@ -178,7 +164,6 @@ inline const char *gate_status_to_str(GateStatus s) {
   }
 }
 
-
 // A StatusRequest is sent to request the gate's current status.
 struct StatusRequest {
   StatusType type;
@@ -186,9 +171,7 @@ struct StatusRequest {
 
   StatusRequest() = default;
 
-  StatusRequest(StatusType type) {
-    this->type = type;
-  }
+  StatusRequest(StatusType type) { this->type = type; }
 
   void byteswap() {
     this->type = convert_big_endian(this->type);
@@ -196,7 +179,6 @@ struct StatusRequest {
   }
 
 } __attribute__((packed));
-
 
 // StatusReply is received from the unit in response to a StatusRequest.
 struct StatusReply {
@@ -207,12 +189,7 @@ struct StatusReply {
   std::string print() {
     char buf[48];
 
-    buf_append_printf(
-        buf,
-        sizeof(buf),
-        0,
-        "StatusReply: state %s",
-        gate_status_to_str(this->state));
+    buf_append_printf(buf, sizeof(buf), 0, "StatusReply: state %s", gate_status_to_str(this->state));
 
     return buf;
   }
@@ -221,11 +198,9 @@ struct StatusReply {
 
 } __attribute__((packed));
 
-
 // Serialize the given object to a new byte vector.
 // Invokes the object's byteswap() method.
-template<typename T>
-std::vector<uint8_t> serialize(T obj) {
+template<typename T> std::vector<uint8_t> serialize(T obj) {
   obj.byteswap();
 
   std::vector<uint8_t> out(sizeof(T));
@@ -233,7 +208,6 @@ std::vector<uint8_t> serialize(T obj) {
 
   return out;
 }
-
 
 // Gate command.
 // Serialized payload:
@@ -252,29 +226,19 @@ struct CommandRequestReply {
 
   CommandRequestReply() = default;
 
-  CommandRequestReply(GateStatus state) {
-    this->state = state;
-  }
+  CommandRequestReply(GateStatus state) { this->state = state; }
 
   std::string print() {
     char buf[56];
 
-    buf_append_printf(
-        buf,
-        sizeof(buf),
-        0,
-        "CommandRequestReply: state %s",
-        gate_status_to_str(this->state));
+    buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
 
     return buf;
   }
 
-  void byteswap() {
-    this->type = convert_big_endian(this->type);
-  }
+  void byteswap() { this->type = convert_big_endian(this->type); }
 
 } __attribute__((packed));
-
 
 // Light command.
 // Serialized payload:
@@ -289,15 +253,10 @@ struct LightCommand {
 
   LightCommand() = default;
 
-  explicit LightCommand(bool state) {
-    this->state = state ? 0x01 : 0x00;
-  }
+  explicit LightCommand(bool state) { this->state = state ? 0x01 : 0x00; }
 
-  void byteswap() {
-    this->type = convert_big_endian(this->type);
-  }
+  void byteswap() { this->type = convert_big_endian(this->type); }
 
 } __attribute__((packed));
-
 
 }  // namespace esphome::tormatic
