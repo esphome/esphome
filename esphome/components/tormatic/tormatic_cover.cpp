@@ -339,7 +339,17 @@ void Tormatic::send_gate_command_(GateStatus s) {
 }
 
 void Tormatic::set_light_state(bool state) {
+  // Send immediately.
   this->send_light_command_(state);
+
+  // Repeat twice in case the first command collides with UART traffic.
+  this->set_timeout("light_retry_1", 100, [this, state]() {
+    this->send_light_command_(state);
+  });
+
+  this->set_timeout("light_retry_2", 200, [this, state]() {
+    this->send_light_command_(state);
+  });
 }
 
 void Tormatic::send_light_command_(bool state) {
