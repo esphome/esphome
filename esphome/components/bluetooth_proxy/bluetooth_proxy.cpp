@@ -808,7 +808,10 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     }
     return;
   }
-  this->log_reply_dropped_("Unpair");
+  // Leading edge only: the drain re-enters here every 100 ms while congested.
+  if (this->pending_unpairing_.empty()) {
+    this->log_reply_dropped_("Unpair");
+  }
   this->pending_unpairing_.set(address, error);
 }
 
