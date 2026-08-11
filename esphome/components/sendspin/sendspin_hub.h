@@ -185,6 +185,8 @@ class SendspinHub final : public Component,
 
   void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
 
+  void on_metadata_clear() override;
+
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
 #endif

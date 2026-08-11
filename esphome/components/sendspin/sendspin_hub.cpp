@@ -200,6 +200,12 @@ void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadat
   this->metadata_update_callbacks_.call(metadata);
 }
 
+// THREAD CONTEXT: Main loop (MetadataRoleListener override, fired from client_->loop())
+// The cached metadata was dropped because the connection to the server was lost, so what the children now mirror is
+// the empty state. Fanning that out as a default-constructed state object rather than through a separate callback
+// keeps one code path in the children: every field is nullopt, which they already publish as empty/unknown.
+void SendspinHub::on_metadata_clear() { this->metadata_update_callbacks_.call(sendspin::ServerMetadataStateObject{}); }
+
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 uint32_t SendspinHub::get_track_progress_ms() const {
   if (this->is_ready()) {

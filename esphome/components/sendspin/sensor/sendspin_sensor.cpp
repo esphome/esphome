@@ -4,6 +4,8 @@
 
 #include <sendspin/metadata_role.h>
 
+#include <cmath>
+
 namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.sensor";
@@ -20,6 +22,13 @@ void SendspinTrackProgressSensor::dump_config() {
 void SendspinTrackProgressSensor::setup() {
   this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
     if (!metadata.progress.has_value()) {
+      // Progress is unknown: the server has not reported it, or it was cleared (e.g. on disconnect). Stop polling and
+      // report unknown rather than leaving the last position frozen on the frontend. Only the transition is published;
+      // NAN never compares equal to itself, so an unguarded publish would repeat on every metadata update.
+      this->stop_poller();
+      if (this->has_state() && !std::isnan(this->get_raw_state())) {
+        this->publish_state(NAN);
+      }
       return;
     }
     const auto &progress = metadata.progress.value();
@@ -80,15 +89,26 @@ std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::Serv
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinMetadataSensor::setup() {
   this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-    if (auto value = this->extract_value_(metadata)) {
-      this->publish_if_changed_(*value);
-    }
+    // A field the server has not provided, or has explicitly cleared, is published as NAN (the sensor convention for
+    // unknown) rather than skipped, so a value that goes away does not linger from the previous track.
+    this->publish_if_changed_(this->extract_value_(metadata).value_or(NAN));
   });
 }
 
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
 void SendspinMetadataSensor::publish_if_changed_(float value) {
-  if (this->get_raw_state() != value) {
+  if (!this->has_state()) {
+    // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. The sensor's
+    // backing float is uninitialized until the first publish, so get_raw_state() must not be read here either.
+    if (!std::isnan(value)) {
+      this->publish_state(value);
+    }
+    return;
+  }
+  const float current = this->get_raw_state();
+  // NAN never compares equal to itself, so a field that stays cleared would republish on every metadata update
+  // without the second check.
+  if (current != value && !(std::isnan(current) && std::isnan(value))) {
     this->publish_state(value);
   }
 }
