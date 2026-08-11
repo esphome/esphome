@@ -474,8 +474,19 @@ class SensorTracker:
         for name, future in futures.items():
             await self.await_change(future, name, timeout=timeout)
 
-    async def setup_and_start_scenario(self, client) -> list:
-        """Wire up subscriptions, wait for initial states, press Start Scenario."""
+    async def setup_and_start_scenario(
+        self, client, match_initial_states: bool = False
+    ) -> list:
+        """Wire up subscriptions, wait for initial states, press Start Scenario.
+
+        Args:
+            client: The connected API client
+            match_initial_states: Also match expectations against the states the
+                device sends when the client connects. Needed when the device can
+                publish a value before the client subscribes: that value arrives in
+                the initial dump, and since equal states are not sent again, no
+                later update would ever match.
+        """
         entities, _ = await client.list_entities_services()
         self.key_to_sensor.update(
             build_key_to_entity_mapping(entities, list(self.sensor_states.keys()))
@@ -488,6 +499,9 @@ class SensorTracker:
             import pytest
 
             pytest.fail("Timeout waiting for initial states")
+        if match_initial_states:
+            for state in initial_state_helper.initial_states.values():
+                self.on_state(state)
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
