@@ -71,8 +71,9 @@ class PendingReply {
     this->word_ = (address & ADDRESS_MASK) | (static_cast<uint64_t>(static_cast<uint16_t>(error)) << 48);
   }
   constexpr void clear() { this->word_ = 0; }
-  // Whole-word test. Slot-sourced addresses are always nonzero; the unpair
-  // caller's is client-supplied, so a zero address reads back as nothing owed.
+  // Whole-word test: only (address 0, error 0) reads back as nothing owed.
+  // A zero-address failure still latches, which is correct - that reply is
+  // owed too. Neither backend can unpair address 0 successfully.
   constexpr bool empty() const { return this->word_ == 0; }
   // Masked like set(), so a stray high bit cannot defeat the pool lookups.
   constexpr bool matches(uint64_t address) const { return this->address() == (address & ADDRESS_MASK); }
