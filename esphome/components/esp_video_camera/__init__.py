@@ -319,6 +319,13 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
+        # A UVC camera's configuration descriptor carries every format and
+        # frame size it supports and runs to several hundred bytes; the USB
+        # host's enumeration control transfer defaults to 256, which truncates
+        # it. Enumeration then fails with "Configuration descriptor larger than
+        # control transfer max length" and the camera never appears at all.
+        add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 2048)
+
         # How long esp_video waits for the USB camera to enumerate. It waits on
         # whichever task opened the device, which for this component is the main
         # loop, so upstream's 10 s stalls the whole device while no camera is
