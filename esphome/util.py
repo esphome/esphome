@@ -87,8 +87,11 @@ def safe_print(message="", end="\n"):
         except UnicodeEncodeError:
             pass
 
+    # Always flush: stdout is block buffered when it is a pipe (the dashboard
+    # runs us that way), so live log lines would otherwise sit in the buffer
+    # for a long time instead of streaming out.
     try:
-        print(message, end=end)
+        print(message, end=end, flush=True)
         return
     except UnicodeEncodeError:
         pass
@@ -104,6 +107,7 @@ def safe_print(message="", end="\n"):
         print(
             message.encode(encoding, "backslashreplace").decode(encoding),
             end=end,
+            flush=True,
         )
         return
     except UnicodeEncodeError:
@@ -113,9 +117,10 @@ def safe_print(message="", end="\n"):
         print(
             message.encode("ascii", "backslashreplace").decode("ascii"),
             end=end,
+            flush=True,
         )
     except UnicodeEncodeError:
-        print("Cannot print line because of invalid locale!")
+        print("Cannot print line because of invalid locale!", flush=True)
 
 
 def safe_input(prompt=""):
@@ -210,6 +215,11 @@ class RedirectText:
                         self._write_color_replace(msg)
         else:
             self._write_color_replace(s)
+
+        # Same reason as safe_print: the dashboard gives us a pipe, which is
+        # block buffered, so in-process esptool progress would not show up
+        # until the buffer filled.
+        self._out.flush()
 
         # write() returns the number of characters written
         # Let's print the number of characters of the original string in order to not confuse
