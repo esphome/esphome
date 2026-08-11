@@ -286,6 +286,15 @@ class BluetoothProxy final : public Component {
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
+  /// Drop everything the ending session was owed.
+  ///
+  /// Every retry latch belongs to exactly one subscriber, so a subscriber
+  /// change invalidates all of them. Keeping the list in one place makes
+  /// adding a latch a single edit: the two callers previously reset five and
+  /// three separate things, and the two sets were not subsets of each other
+  /// in either direction, so an omission read the same as a decision.
+  void reset_owed_replies_();
+
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
