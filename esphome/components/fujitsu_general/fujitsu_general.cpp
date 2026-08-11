@@ -264,7 +264,7 @@ climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode curren
     default:
       // The protocol does not assign these values, so there is nothing to report. Keeping the
       // current mode claims less than inventing one.
-      ESP_LOGW(TAG, "Received unknown mode %X, keeping the current mode", mode_field);
+      ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode_field & FUJITSU_GENERAL_MODE_MASK);
       return current_mode;
   }
 }
@@ -282,7 +282,8 @@ optional<climate::ClimateFanMode> decode_fan_mode(uint8_t fan_field, optional<cl
     case FUJITSU_GENERAL_FAN_AUTO:
       return climate::CLIMATE_FAN_AUTO;
     default:
-      ESP_LOGW(TAG, "Received unknown fan speed %X, keeping the current fan mode", fan_field);
+      ESP_LOGW(TAG, "Received unassigned fan speed %X, keeping the current fan mode",
+               fan_field & FUJITSU_GENERAL_FAN_MASK);
       return current_mode;
   }
 }

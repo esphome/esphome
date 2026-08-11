@@ -30,6 +30,11 @@ TEST(FujitsuGeneralDecodeModeTest, KeepsTheCurrentModeForUnassignedValues) {
   EXPECT_EQ(decode_mode(0x05, climate::CLIMATE_MODE_COOL), climate::CLIMATE_MODE_COOL);
   EXPECT_EQ(decode_mode(0x06, climate::CLIMATE_MODE_HEAT), climate::CLIMATE_MODE_HEAT);
   EXPECT_EQ(decode_mode(0x07, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_OFF);
+
+  // The same three with the clean bit set. Without the mask these would not reach this branch.
+  EXPECT_EQ(decode_mode(0x0D, climate::CLIMATE_MODE_COOL), climate::CLIMATE_MODE_COOL);
+  EXPECT_EQ(decode_mode(0x0E, climate::CLIMATE_MODE_HEAT), climate::CLIMATE_MODE_HEAT);
+  EXPECT_EQ(decode_mode(0x0F, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_OFF);
 }
 
 // The fan speed field is three bits wide as well, and used to fold every value it did not
@@ -44,12 +49,18 @@ TEST(FujitsuGeneralDecodeFanModeTest, DecodesTheAssignedSpeeds) {
 }
 
 TEST(FujitsuGeneralDecodeFanModeTest, IgnoresTheFourthBit) {
+  EXPECT_EQ(decode_fan_mode(0x08, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_AUTO);
+  EXPECT_EQ(decode_fan_mode(0x09, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(decode_fan_mode(0x0A, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_MEDIUM);
+  EXPECT_EQ(decode_fan_mode(0x0B, climate::CLIMATE_FAN_AUTO), climate::CLIMATE_FAN_LOW);
   EXPECT_EQ(decode_fan_mode(0x0C, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_QUIET);
 }
 
 TEST(FujitsuGeneralDecodeFanModeTest, KeepsTheCurrentFanModeForUnassignedValues) {
   EXPECT_EQ(decode_fan_mode(0x05, climate::CLIMATE_FAN_HIGH), climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(decode_fan_mode(0x06, climate::CLIMATE_FAN_MEDIUM), climate::CLIMATE_FAN_MEDIUM);
   EXPECT_EQ(decode_fan_mode(0x07, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_LOW);
+  EXPECT_EQ(decode_fan_mode(0x0E, climate::CLIMATE_FAN_HIGH), climate::CLIMATE_FAN_HIGH);
 }
 
 TEST(FujitsuGeneralDecodeFanModeTest, LeavesAnUnsetFanModeUnset) {
