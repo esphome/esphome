@@ -228,7 +228,7 @@ class BluetoothProxy final : public Component {
     if (this->response_.advertisements_len == 0)
       return;
     this->api_connection_->send_message(this->response_);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     this->log_advertisement_flush_();
 #endif
     this->response_.advertisements_len = 0;
