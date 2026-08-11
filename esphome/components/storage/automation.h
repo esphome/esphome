@@ -52,18 +52,23 @@ void warn_invalid_number(const std::string &s);
 // Assign an extracted string to a global variable of any supported type. The value type is
 // deduced from the global's value() so one helper covers GlobalsComponent<T>,
 // RestoringGlobalsComponent<T> and the string variants alike.
-template<typename GlobT> void assign_from_string(GlobT *g, const std::string &s) {
+// Returns true if the value was assigned, false if the text did not parse for the global's type
+// (the global is then left untouched -- FileReadAction uses this to skip firing on_value).
+template<typename GlobT> bool assign_from_string(GlobT *g, const std::string &s) {
   using T = std::decay_t<decltype(g->value())>;
   if constexpr (std::is_same_v<T, std::string>) {
     g->value() = s;
+    return true;
   } else if constexpr (std::is_same_v<T, bool>) {
     if (str_equals_case_insensitive(s, "true") || str_equals_case_insensitive(s, "on") || s == "1") {
       g->value() = true;
+      return true;
     } else if (str_equals_case_insensitive(s, "false") || str_equals_case_insensitive(s, "off") || s == "0") {
       g->value() = false;
-    } else {
-      warn_invalid_bool(s);
+      return true;
     }
+    warn_invalid_bool(s);
+    return false;
   } else if constexpr (std::is_arithmetic_v<T>) {
     static_assert(std::is_integral_v<T> || std::is_same_v<T, float>,
                   "storage.file_read to_global supports integer and float globals; double is not "
@@ -71,11 +76,13 @@ template<typename GlobT> void assign_from_string(GlobT *g, const std::string &s)
     auto v = parse_number<T>(s);
     if (v.has_value()) {
       g->value() = *v;
-    } else {
-      warn_invalid_number(s);
+      return true;
     }
+    warn_invalid_number(s);
+    return false;
   } else {
     static_assert(std::is_same_v<T, std::string>, "Unsupported global type for storage.file_read to_global");
+    return false;
   }
 }
 
@@ -149,10 +156,15 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //   author picks the storage. If a use case genuinely needs a non-blocking small write, the
 //   right move is a dedicated RAM->file worker job, not the heavyweight stream API -- but that
 //   job does not exist yet and is out of scope until a real need appears.
-//   file_delete is synchronous for a second reason beyond size: it moves no bulk data (each
-//   step is a directory-entry unlink/rmdir, short even over NFS), AND synchronous is the safer
-//   semantics for a destructive op -- the path is provably gone before the next action runs, so
-//   a "delete then recreate at the same path" sequence can't race its own delete.
+//   file_delete is synchronous for a second reason beyond size: it moves no bulk data (each step
+//   is a directory-entry unlink/rmdir, short even over NFS), AND synchronous is the safer semantics
+//   for a destructive op. It fires on_complete (error text, empty = success): the delete is refused
+//   when the worker task is streaming on the same volume, and a recursive delete is NOT rolled back
+//   on a mid-walk failure -- so "gone before the next action" holds only when on_complete reports
+//   success. Sequence a "recreate at the same path" from on_complete, not by ordering after it.
+//   file_exists is a condition, not an action: while the worker task streams on the same volume it
+//   returns false (a concurrent stat() would break the same per-instance serialization rule), so an
+//   existing file reads as absent for that window, logged at WARN.
 //
 //   CONTROL-PLANE (moves no bulk data, but a single driver call whose duration the AUTHOR does
 //   not bound -- the driver/medium does):
@@ -186,7 +198,7 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
 // the error text (empty = success) and may be nullptr.
 void perform_file_copy_async(const std::string &from, const std::string &to, bool is_move,
                              Trigger<std::string> *on_complete);
-void perform_file_delete(const std::string &path, bool recursive);
+StorageError perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
 void perform_file_write(const std::string &path, std::string content, bool append, bool newline);
 bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out);
@@ -229,21 +241,23 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
   void add_step(ExtractStepType type, const std::string &arg, const std::string &sep, int index) {
     this->steps_.push_back(ExtractStep{type, arg, sep, index});
   }
-  void set_global_setter(void (*setter)(const std::string &)) { this->setter_ = setter; }
+  void set_global_setter(bool (*setter)(const std::string &)) { this->setter_ = setter; }
   Trigger<std::string> *get_value_trigger() { return &this->value_trigger_; }
 
   void play(const Ts &...x) override {
     std::string value;
     if (!perform_file_read(this->path_.value(x...), this->steps_, value))
       return;  // already logged; global untouched, no trigger
-    if (this->setter_)
-      this->setter_(value);
+    // A parse failure inside the setter leaves the global untouched; skip the trigger so an
+    // on_value chained here is not told a fresh value arrived when the global still holds the old.
+    if (this->setter_ && !this->setter_(value))
+      return;
     this->value_trigger_.trigger(value);
   }
 
  protected:
   FixedVector<ExtractStep> steps_;
-  void (*setter_)(const std::string &){nullptr};
+  bool (*setter_)(const std::string &){nullptr};
   Trigger<std::string> value_trigger_;
 };
 
@@ -293,11 +307,11 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 // `out` is left empty then, so a trigger never fires with half a result.
 bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
 // Same, but streams into a file on a mounted storage. size == 0 means "to the end of the device".
-bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
+StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
 // Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
-bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
-bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
+StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
+StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
 // Erases [address, address+size), or the whole device when `all` is set. Returns the result so
 // the async wrapper's no-worker fallback can propagate a failure to on_complete.
 StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
@@ -382,11 +396,15 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
       return;
     }
     if (this->len_ >= 0) {
-      perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_), this->erase_first_);
+      StorageError err =
+          perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
+                            this->erase_first_);
+      this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
       return;
     }
     std::vector<uint8_t> data = (*this->code_.func)(x...);
-    perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
+    StorageError err = perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
@@ -438,10 +456,16 @@ template<typename... Ts> class FileDeleteAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, path)
   void set_recursive(bool recursive) { this->recursive_ = recursive; }
 
-  void play(const Ts &...x) override { perform_file_delete(this->path_.value(x...), this->recursive_); }
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
+
+  void play(const Ts &...x) override {
+    StorageError err = perform_file_delete(this->path_.value(x...), this->recursive_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+  }
 
  protected:
   bool recursive_{false};
+  Trigger<std::string> complete_trigger_;
 };
 
 // ---------------------------------------------------------------------------

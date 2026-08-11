@@ -8,7 +8,7 @@ breaking changes policy. Use at your own risk.
 Once the API is considered stable, this warning will be removed.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import re
 from typing import Any
@@ -220,12 +220,6 @@ class StorageData:
     fatfs_path_bound: bool = False
     worker_count: int = 0
     worker_task_safe: bool = False
-    # Raw preference regions per device id: every export/import action's address, plus the
-    # container size when it can be computed. Filled while the actions are built and resolved
-    # once at the end -- see _resolve_raw_pref_regions().
-    raw_pref_regions: dict = field(default_factory=dict)
-    raw_pref_job_queued: bool = False
-    sensor_pref_job_queued: bool = False
 
 
 def _get_data() -> StorageData:
@@ -422,14 +416,14 @@ def _resolve_path_max(config: ConfigType) -> int:
         try:
             # A name plus its terminator is the longest single component FATFS will hand back.
             bounds.append(int(lfn) + 1)
-        except (TypeError, ValueError):
-            _LOGGER.warning(
-                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number -- using %d for the "
-                "path bound instead",
-                lfn,
-                _DEFAULT_PATH_MAX,
-            )
-            bounds.append(_DEFAULT_PATH_MAX)
+        except (TypeError, ValueError) as exc:
+            # A non-numeric CONFIG_FATFS_MAX_LFN is a configuration error, not a value to guess a
+            # bound for: a wrong guess sizes USE_STORAGE_PATH_MAX too small and fails legitimate
+            # paths with INVALID_ARGS only at runtime on the device.
+            raise EsphomeError(
+                f"storage: CONFIG_FATFS_MAX_LFN is {lfn!r}, which is not a number -- set it to the "
+                "FatFs long-filename limit (an integer) in sdkconfig_options"
+            ) from exc
     return max(bounds) if bounds else _DEFAULT_PATH_MAX
 
 
@@ -803,7 +797,7 @@ async def file_read_action_to_code(
         cg.add(
             var.set_global_setter(
                 cg.RawExpression(
-                    f"[](const std::string &x) {{ {storage_ns}::assign_from_string({glob}, x); }}"
+                    f"[](const std::string &x) {{ return {storage_ns}::assign_from_string({glob}, x); }}"
                 )
             )
         )
@@ -881,6 +875,9 @@ async def file_move_action_to_code(
         {
             cv.Required(CONF_PATH): cv.templatable(cv.string),
             cv.Optional(CONF_RECURSIVE, default=False): cv.boolean,
+            # Fires (error text, empty = success) after the delete: a refused (busy) or failed
+            # delete is otherwise invisible to the automation.
+            cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
     ),
     synchronous=True,
@@ -891,6 +888,10 @@ async def file_delete_action_to_code(
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
     cg.add(var.set_recursive(config[CONF_RECURSIVE]))
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
     return var
 
 
@@ -1030,12 +1031,6 @@ def _validate_raw_read(config: ConfigType) -> ConfigType:
 def _validate_raw_write(config: ConfigType) -> ConfigType:
     if (CONF_DATA in config) == (CONF_FROM_FILE in config):
         raise cv.Invalid("Exactly one of 'data' or 'from_file' is required")
-    if CONF_ON_COMPLETE in config and CONF_FROM_FILE not in config:
-        # on_complete fires from the worker's completion callback, which only runs on the
-        # from_file (streamed) path; an inline data write is synchronous and fires no completion.
-        raise cv.Invalid(
-            "'on_complete' requires 'from_file' (an inline data write fires no completion)"
-        )
     return config
 
 

@@ -374,10 +374,10 @@ bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::ve
   return true;
 }
 
-bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path) {
+StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path) {
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_read: device is busy with a background transfer -- refusing blocking I/O");
-    return false;
+    return StorageError::NOT_READY;
   }
   RawGeometry geo;
   device->get_raw_geometry(&geo);
@@ -386,55 +386,55 @@ bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t siz
   ESP_LOGI(TAG, "Transfer started: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) size,
            path.c_str());
   if (!raw_preflight(device, "read", address, size, &geo) || !raw_size_allowed("read", size))
-    return false;
+    return StorageError::INVALID_ARGS;
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_read: no storage registry");
-    return false;
+    return StorageError::NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "raw_read: no storage mounted for '%s'", path.c_str());
-    return false;
+    return StorageError::NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "raw_read: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return false;
+    return StorageError::NOT_READY;
   }
 
   auto buf_size = static_cast<size_t>(size);
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr) {
     ESP_LOGE(TAG, "raw_read: cannot allocate %" PRIu32 " bytes", (uint32_t) buf_size);
-    return false;
+    return StorageError::NO_SPACE;
   }
   RamBuffer buf(raw, RamBufferDeleter{buf_size});
   size_t done = 0;
   if (!raw_read_into(device, address, buf.get(), buf_size, &done))
-    return false;
+    return StorageError::READ_ERROR;
 
   StorageError err = write_file(ps, rel, buf.get(), done);
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "raw_read: writing '%s' failed (%s)", path.c_str(), error_to_string(err));
-    return false;
+    return err;
   }
   ESP_LOGI(TAG, "Transfer done: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) done,
            path.c_str());
-  return true;
+  return StorageError::OK;
 }
 
-bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first) {
+StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first) {
   if (len == 0)
-    return true;
+    return StorageError::OK;
   RawGeometry geo;
   if (!raw_preflight(device, "write", address, len, &geo) || !raw_size_allowed("write", len))
-    return false;
+    return StorageError::INVALID_ARGS;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
-    return false;
+    return StorageError::NOT_READY;
   }
   if (erase_first && !raw_erase_for_write(device, geo, address, len))
-    return false;
+    return StorageError::WRITE_ERROR;
 
   size_t done = 0;
   while (done < len) {
@@ -442,51 +442,52 @@ bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data
     StorageError err = device->write(address + done, data + done, len - done, &written);
     if (err != StorageError::OK) {
       ESP_LOGE(TAG, "raw_write: failed at 0x%08" PRIX32 " (%s)", (uint32_t) (address + done), error_to_string(err));
-      return false;
+      return err;
     }
     if (written == 0) {
       ESP_LOGE(TAG, "raw_write: device stopped accepting data at 0x%08" PRIX32, (uint32_t) (address + done));
-      return false;
+      return StorageError::WRITE_ERROR;
     }
     done += written;
   }
   ESP_LOGD(TAG, "raw_write: %" PRIu32 " bytes at 0x%08" PRIX32, (uint32_t) len, (uint32_t) address);
-  return true;
+  return StorageError::OK;
 }
 
-bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first) {
+StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path,
+                                        bool erase_first) {
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
-    return false;
+    return StorageError::NOT_READY;
   }
   ESP_LOGI(TAG, "Transfer started: write '%s' -> 0x%08" PRIX32, path.c_str(), (uint32_t) address);
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_write: no storage registry");
-    return false;
+    return StorageError::NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "raw_write: no storage mounted for '%s'", path.c_str());
-    return false;
+    return StorageError::NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "raw_write: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return false;
+    return StorageError::NOT_READY;
   }
   RamBuffer buf;
   size_t size = 0;
   StorageError err = read_file(ps, rel, buf, &size);
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "raw_write: reading '%s' failed (%s)", path.c_str(), error_to_string(err));
-    return false;
+    return err;
   }
-  bool ok = perform_raw_write(device, address, buf.get(), size, erase_first);
-  if (ok) {
+  StorageError werr = perform_raw_write(device, address, buf.get(), size, erase_first);
+  if (werr == StorageError::OK) {
     ESP_LOGI(TAG, "Transfer done: write '%s' (%" PRIu32 " bytes) -> 0x%08" PRIX32, path.c_str(), (uint32_t) size,
              (uint32_t) address);
   }
-  return ok;
+  return werr;
 }
 
 StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all) {
@@ -563,9 +564,9 @@ void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64
     return;
   }
 #endif
-  bool ok = perform_raw_read_to_file(device, address, size, path);
+  StorageError ferr = perform_raw_read_to_file(device, address, size, path);
   if (on_complete != nullptr)
-    on_complete->trigger(ok ? std::string() : std::string("read failed"));
+    on_complete->trigger(ferr == StorageError::OK ? std::string() : std::string(error_to_string(ferr)));
 }
 
 void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, const std::string &path, bool erase_first,
@@ -590,9 +591,9 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
     return;
   }
 #endif
-  bool ok = perform_raw_write_from_file(device, address, path, erase_first);
+  StorageError ferr = perform_raw_write_from_file(device, address, path, erase_first);
   if (on_complete != nullptr)
-    on_complete->trigger(ok ? std::string() : std::string("write failed"));
+    on_complete->trigger(ferr == StorageError::OK ? std::string() : std::string(error_to_string(ferr)));
 }
 
 void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size, bool all,
@@ -677,12 +678,15 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   if (global_storage_worker != nullptr) {
     // Overwrite: the action's historical semantics were "just do it" (the blocking helpers
     // truncate/replace), so keep that -- pass overwrite = true for parity.
-    auto on_done = [on_complete, from, to, is_move](StorageError result) {
+    // Capture only the pointer and the bool so the closure fits std::function's small-buffer and
+    // avoids the per-play() heap allocation the raw variants already avoid. The paths were logged
+    // at "Transfer started" above and the worker holds its own copies for its completion logs.
+    auto on_done = [on_complete, is_move](StorageError result) {
+      const char *op = is_move ? "move" : "copy";
       if (result != StorageError::OK) {
-        ESP_LOGE(TAG, "file_%s: '%s' -> '%s' failed (%s)", is_move ? "move" : "copy", from.c_str(), to.c_str(),
-                 error_to_string(result));
+        ESP_LOGE(TAG, "file_%s failed (%s)", op, error_to_string(result));
       } else {
-        ESP_LOGI(TAG, "Transfer done: %s '%s' -> '%s'", is_move ? "move" : "copy", from.c_str(), to.c_str());
+        ESP_LOGI(TAG, "Transfer done: %s", op);
       }
       if (on_complete != nullptr)
         on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
@@ -708,26 +712,27 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
     on_complete->trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
 }
 
-void perform_file_delete(const std::string &path, bool recursive) {
+StorageError perform_file_delete(const std::string &path, bool recursive) {
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_delete: no storage registry");
-    return;
+    return StorageError::NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "file_delete: no storage mounted for '%s'", path.c_str());
-    return;
+    return StorageError::NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "file_delete: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return;
+    return StorageError::NOT_READY;
   }
   // remove() deletes files and empty directories; remove_recursive() walks subtrees.
   StorageError err = recursive ? remove_recursive(ps, rel) : ps->remove(rel);
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "file_delete: '%s' failed (%s)", path.c_str(), error_to_string(err));
   }
+  return err;
 }
 
 bool check_file_exists(const std::string &path) {
