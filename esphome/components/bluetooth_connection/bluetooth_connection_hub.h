@@ -234,8 +234,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   // Group 5: bit-packed tail. The first two bytes were already full, so the
   // first added bit forced a third and took the 8-aligned object 48 -> 56;
-  // the handle and error ride in that padding. One byte and four bits left,
-  // so another flag is free but another member costs 8 per slot.
+  // the handle, error and retry counter ride in that padding. Four bitfield
+  // bits left; another byte-sized member costs 8 per slot.
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
                 "connection_type_ bitfield too narrow");
