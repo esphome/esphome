@@ -190,8 +190,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
-  // Inversion must be in effect before the pins are attached to the peripheral, so
-  // an inverted TX line never presents the non-inverted idle level to the device.
+  // apply_line_settings_() re-applies inversion below; this earlier write is the
+  // load-bearing one -- it sets the idle level before uart_set_pin() attaches the
+  // pins, so an inverted TX line never briefly presents the wrong idle level.
   err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
