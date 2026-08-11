@@ -102,17 +102,10 @@ void SendspinMetadataSensor::setup() {
 
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
 void SendspinMetadataSensor::publish_if_changed_(float value) {
-  if (!this->has_state()) {
-    // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. Publishing NAN
-    // would mark the sensor as having a state without changing what is shown.
-    if (!std::isnan(value)) {
-      this->publish_state(value);
-    }
-    return;
-  }
   const float current = this->get_raw_state();
-  // NAN never compares equal to itself, so a field that stays cleared would republish on every metadata update
-  // without the second check.
+  // The raw state starts as NAN, so a field that is already cleared when the first update arrives is suppressed here
+  // as well: the frontend still shows the sensor as unknown, which is what a clear means. NAN never compares equal to
+  // itself, so a field that stays cleared would republish on every metadata update without the second check.
   if (current != value && !(std::isnan(current) && std::isnan(value))) {
     this->publish_state(value);
   }

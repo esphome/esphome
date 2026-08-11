@@ -136,6 +136,10 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  /// @brief Registers a callback that fires when the server sends metadata.
+  ///
+  /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }

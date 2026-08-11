@@ -43,15 +43,9 @@ void SendspinTextSensor::setup() {
 
 // Dedup to avoid frontend churn; TextSensor::publish_state already dedups the string assign but still notifies.
 void SendspinTextSensor::publish_if_changed_(const char *value) {
-  if (!this->has_state()) {
-    // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. Publishing the
-    // empty string would drop the entity out of unknown for good and fire on_value with nothing in it. This applies
-    // only until the first real value; later clears do publish the empty string and fire on_value with it.
-    if (*value != '\0') {
-      this->publish_state(value);
-    }
-    return;
-  }
+  // The state starts empty, so a field that is already cleared when the first update arrives is suppressed here: the
+  // entity stays unknown rather than being dropped out of it for good by an empty publish. Later clears do publish the
+  // empty string and fire on_value with it.
   if (this->get_raw_state() != value) {
     this->publish_state(value);
   }
