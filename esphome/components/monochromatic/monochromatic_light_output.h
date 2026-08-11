@@ -6,7 +6,7 @@
 
 namespace esphome::monochromatic {
 
-class MonochromaticLightOutput : public light::LightOutput {
+class MonochromaticLightOutput final : public light::LightOutput {
  public:
   void set_output(output::FloatOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {

@@ -29,6 +29,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 from esphome.core import CORE, HexInt
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 
 DOMAIN = "shelly_dimmer"
 AUTO_LOAD = ["sensor"]
@@ -81,6 +82,7 @@ def get_firmware(value):
 
     def dl(url):
         try:
+            ensure_happy_eyeballs()
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
@@ -184,6 +186,10 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("10s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "shelly_dimmer", baud_rate=115200, require_rx=True, require_tx=True
 )
 
 

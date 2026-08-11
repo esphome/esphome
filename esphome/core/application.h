@@ -120,8 +120,8 @@ class Application {
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
-  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
-    obj->configure_entity_(name, object_id_hash, entity_fields); \
+  void register_##singular(type *obj, const char *name, uint32_t entity_key, uint32_t entity_fields) { \
+    obj->configure_entity_(name, entity_key, entity_fields); \
     this->plural##_.push_back(obj); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
@@ -193,15 +193,6 @@ class Application {
   /// Copy the build time string into the provided buffer
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
-
-  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time() {
-    char buf[BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(buf);
-    return std::string(buf);
-  }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -338,7 +329,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, uint32_t device_id, bool include_internal = false) { \
     for (auto *obj : this->entities_member##_) { \
-      if (obj->get_object_id_hash() == key && obj->get_device_id() == device_id && \
+      if (obj->get_entity_key() == key && obj->get_device_id() == device_id && \
           (include_internal || !obj->is_internal())) \
         return obj; \
     } \
@@ -349,7 +340,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
     for (auto *obj : this->entities_member##_) { \
-      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
+      if (obj->get_entity_key() == key && (include_internal || !obj->is_internal())) \
         return obj; \
     } \
     return nullptr; \
@@ -621,6 +612,8 @@ class LoopBlockingGuard {
     uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(blocking_time);
+      // Exclude synchronous warning-log time from the next operation.
+      curr_time = MillisInternal::get();
     }
 #endif
     return curr_time;
