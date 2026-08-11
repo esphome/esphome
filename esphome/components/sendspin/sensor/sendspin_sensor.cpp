@@ -43,6 +43,11 @@ void SendspinTrackProgressSensor::setup() {
       this->start_poller();
     }
   });
+
+  // PollingComponent starts the poller before setup(), but there is nothing to interpolate yet:
+  // get_track_progress_ms() returns 0 until the server reports a position, so polling now would publish 0 every tick
+  // from boot until the first metadata arrives. The callback above starts it once playback is running.
+  this->stop_poller();
 }
 
 // THREAD CONTEXT: Main loop.
@@ -98,8 +103,8 @@ void SendspinMetadataSensor::setup() {
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
 void SendspinMetadataSensor::publish_if_changed_(float value) {
   if (!this->has_state()) {
-    // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. The sensor's
-    // backing float is uninitialized until the first publish, so get_raw_state() must not be read here either.
+    // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. Publishing NAN
+    // would mark the sensor as having a state without changing what is shown.
     if (!std::isnan(value)) {
       this->publish_state(value);
     }

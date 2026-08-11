@@ -12,9 +12,13 @@ static const char *const TAG = "sendspin.text_sensor";
 
 void SendspinTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sendspin", this); }
 
-// A field is nullopt when the server has not provided it or has explicitly cleared it (e.g. a track with no album
-// name). Both mean the same thing to the frontend; i.e., there is nothing to show, so the empty string is returned for
-// either, and the caller publishes it. Returning early instead would leave the previous track's value on display.
+// A field is nullopt when the server has not provided it or has explicitly cleared it. Both mean there is nothing to
+// show, so return the empty string and let the caller publish it; returning early would leave the previous track's
+// value on display.
+//
+// The empty string is not the same as unknown. A text sensor reports unknown through the API's missing_state flag,
+// which follows has_state(), and has_state() is only ever set, never cleared. Once a real value has been published,
+// an empty state is the closest we can get. The numeric sensors publish NAN, which does read as unknown.
 const char *SendspinTextSensor::extract_value_(const sendspin::ServerMetadataStateObject &metadata) const {
   switch (this->metadata_type_) {
     case SendspinTextMetadataTypes::TITLE:
@@ -41,7 +45,8 @@ void SendspinTextSensor::setup() {
 void SendspinTextSensor::publish_if_changed_(const char *value) {
   if (!this->has_state()) {
     // Nothing published yet, so the frontend already shows this as unknown: only a real value is news. Publishing the
-    // empty string here would just fire on_value with nothing in it on the first metadata of every connection.
+    // empty string would drop the entity out of unknown for good and fire on_value with nothing in it. This applies
+    // only until the first real value; later clears do publish the empty string and fire on_value with it.
     if (*value != '\0') {
       this->publish_state(value);
     }

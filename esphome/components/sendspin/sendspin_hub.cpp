@@ -192,6 +192,12 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
   this->controller_state_callbacks_.call(state);
 }
+
+// THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
+// Unlike metadata, this cannot be fanned out as a default-constructed state object: volume and muted are plain values
+// rather than optionals, so children would read a real-looking 0% volume where we mean no value at all. A separate
+// callback lets each child clear only what it can represent.
+void SendspinHub::on_controller_state_clear() { this->controller_state_clear_callbacks_.call(); }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA

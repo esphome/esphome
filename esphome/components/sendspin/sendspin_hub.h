@@ -128,6 +128,11 @@ class SendspinHub final : public Component,
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
   }
+
+  /// @brief Registers a callback that fires when the connection is lost and the cached controller state is dropped.
+  template<typename F> void add_controller_state_clear_callback(F &&callback) {
+    this->controller_state_clear_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
@@ -176,8 +181,13 @@ class SendspinHub final : public Component,
 
   void on_controller_state(const sendspin::ServerStateControllerObject &state) override;
 
+  void on_controller_state_clear() override;
+
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+
+  // Rarely subscribed, so keep the idle cost to a single pointer
+  LazyCallbackManager<void()> controller_state_clear_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_METADATA

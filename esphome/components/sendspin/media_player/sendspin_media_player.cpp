@@ -52,6 +52,17 @@ void SendspinMediaPlayer::setup() {
     }
   });
 
+  // The connection dropped, so nothing is playing. The server never gets to send a final "stopped" group update, so
+  // without this the entity keeps reporting playing indefinitely. Volume and mute keep their last values, since
+  // media_player has no way to express an unknown volume.
+  this->parent_->add_controller_state_clear_callback([this]() {
+    if (this->state != media_player::MEDIA_PLAYER_STATE_IDLE) {
+      this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+      this->publish_state();
+      ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+    }
+  });
+
   // Publish an initial state
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
   this->publish_state();
