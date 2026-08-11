@@ -64,9 +64,7 @@ void HoermannHcp::update() {
   // otherwise block every later one for as long as it keeps broadcasting.
   if (this->next_command_ != nullptr && now - this->command_queued_at_ > this->connection_timeout_ms_) {
     ESP_LOGW(TAG, "Bus controller did not fetch '%s' command, dropping it", this->next_command_->name);
-    this->next_command_ = nullptr;
-    this->command_written_at_ = 0;
-    this->clear_target_();
+    this->drop_command_();
     // Children may have assumed the command would land, so let them re-derive from the door.
     this->changed_ = true;
   }
@@ -319,9 +317,21 @@ void HoermannHcp::set_valid_(bool valid) {
   }
   ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
   // Drop what the controller never fetched, so it neither blocks later commands nor fires on reconnect.
+  this->drop_command_();
+}
+
+void HoermannHcp::drop_command_() {
+  if (this->is_light_toggle_pending())
+    this->light_command_dropped_ = true;
   this->next_command_ = nullptr;
   this->command_written_at_ = 0;
   this->clear_target_();
+}
+
+bool HoermannHcp::take_light_command_dropped() {
+  const bool dropped = this->light_command_dropped_;
+  this->light_command_dropped_ = false;
+  return dropped;
 }
 
 void HoermannHcp::set_door_state_(DoorState state) {

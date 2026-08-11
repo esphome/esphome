@@ -67,11 +67,16 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
   // instead of fighting it. Returns false if there is nothing to cancel.
   bool cancel_light_toggle();
+  // Reports, once, that a queued lamp toggle was thrown away before the lamp could act on it. The light
+  // platform shows the request until the lamp confirms it, so it needs to hear when that will never happen.
+  bool take_light_command_dropped();
 
  protected:
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
+  // Throws away the pending command and any armed target, noting a discarded lamp toggle for the light.
+  void drop_command_();
   // Appends the two key-press registers and advances the pending command's press/release state.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
@@ -121,6 +126,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool valid_{false};
   bool changed_{false};
   bool light_on_{false};
+  // Set when a lamp toggle is discarded unsent, cleared once the light platform has been told.
+  bool light_command_dropped_{false};
 };
 
 }  // namespace esphome::hoermann_hcp

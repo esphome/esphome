@@ -69,8 +69,16 @@ struct LightFixture {
   LightFixture() {
     this->state.set_restore_mode(light::LIGHT_ALWAYS_OFF);
     this->output.setup();
+    // setup() queues the restored state for write_state(); the first settle() below delivers it, which is the
+    // boot ordering tests need to be able to place around the bus controller coming up.
     this->state.setup();
-    this->state.loop();
+  }
+
+  // Brings the bus controller up and lets the platform read the lamp once, which is what a device does before
+  // any user command can arrive.
+  void bring_up() {
+    ::esphome::hoermann_hcp::connect(this->door);
+    this->pump();
   }
 
   // Issues a command the way Home Assistant would, then lets the state machine settle.
@@ -78,14 +86,22 @@ struct LightFixture {
     auto call = this->state.make_call();
     call.set_state(on);
     call.perform();
-    for (int i = 0; i < 4; i++)
-      this->state.loop();
+    this->settle();
   }
 
   // Delivers a lamp broadcast and runs the hub's notification pass.
   void report_lamp(bool on) {
     this->door.on_write_registers(BROADCAST_REG, lamp_broadcast(on ? 0x0010 : 0x0000));
+    this->pump();
+  }
+
+  // Runs the hub's notification pass and lets the resulting publishes settle.
+  void pump() {
     this->door.update();
+    this->settle();
+  }
+
+  void settle() {
     for (int i = 0; i < 4; i++)
       this->state.loop();
   }
@@ -148,6 +164,33 @@ TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
   EXPECT_EQ(pressed_2, 0x0000);
 }
 
+// A lamp toggle occupies the single command slot, so a target stop falling due while it waits to be fetched
+// has to wait too. The target stays armed and the stop goes out on the next position report, which costs the
+// door a little overshoot but never loses the stop.
+TEST(HoermannHcpLightTest, LampToggleDelaysButDoesNotLoseTheTargetStop) {
+  TestableHoermannHcp door;
+  connect(door);
+  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
+  ASSERT_TRUE(door.set_position(0.5f));
+  consume_command(door);
+
+  ASSERT_TRUE(door.toggle_light());
+  // The door passes the target while the lamp toggle still holds the slot, so the lamp goes out first.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  auto [pressed, pressed_2] = poll_command(door);
+  EXPECT_EQ(pressed, 0x0100);
+  EXPECT_EQ(pressed_2, 0x0200);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(door);
+
+  // The target survived the refusal, so the next position report still stops the door.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0079, 0x0100}));
+  auto [stop, stop_2] = poll_command(door);
+  EXPECT_EQ(stop, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(stop_2, 0x0000);
+}
+
 // The target's start deadline is its own, so toggling the lamp cannot keep a stale target alive.
 TEST(HoermannHcpLightTest, LampToggleDoesNotExtendTheTargetWatchdog) {
   TestableHoermannHcp door;
@@ -180,7 +223,7 @@ TEST(HoermannHcpLightTest, LampCommandIsRefusedWhileDisconnected) {
 // Switching the entity on sends one toggle, and the door's own report does not send a second.
 TEST(HoermannHcpLightPlatformTest, CommandTogglesOnceAndSettles) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
 
   fixture.command(true);
   auto [pressed, pressed_2] = poll_command(fixture.door);
@@ -201,7 +244,7 @@ TEST(HoermannHcpLightPlatformTest, CommandTogglesOnceAndSettles) {
 // would cancel the user's own command.
 TEST(HoermannHcpLightPlatformTest, BroadcastDuringPendingToggleKeepsTheCommand) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
 
   fixture.command(true);
   ASSERT_TRUE(fixture.door.is_light_toggle_pending());
@@ -219,7 +262,7 @@ TEST(HoermannHcpLightPlatformTest, BroadcastDuringPendingToggleKeepsTheCommand) 
 // A lamp switched on at the door itself has to reach the entity.
 TEST(HoermannHcpLightPlatformTest, DoorDrivenChangeReachesTheEntity) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
   ASSERT_FALSE(fixture.entity_on());
 
   fixture.report_lamp(true);
@@ -241,7 +284,7 @@ TEST(HoermannHcpLightPlatformTest, RefusedCommandRepublishesTheLamp) {
 // showing the lamp rather than the request that was refused.
 TEST(HoermannHcpLightPlatformTest, RefusedPressAfterFetchShowsWhereTheLampIsHeading) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
 
   fixture.command(true);
   poll_command(fixture.door);  // the controller fetches the press, so it can no longer be cancelled
@@ -266,7 +309,7 @@ TEST(HoermannHcpLightPlatformTest, RefusedPressAfterFetchShowsWhereTheLampIsHead
 // that gap must not publish the state the lamp is about to leave.
 TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLampReports) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
 
   fixture.command(true);
   poll_command(fixture.door);
@@ -283,10 +326,68 @@ TEST(HoermannHcpLightPlatformTest, DoorMovementDoesNotFlipTheEntityBeforeTheLamp
   EXPECT_TRUE(fixture.entity_on());
 }
 
+// A toggle the controller never fetches is eventually dropped, and nothing else will ever report the lamp
+// moving, so the entity has to be brought back to what the lamp actually is.
+TEST(HoermannHcpLightPlatformTest, DroppedToggleReturnsTheEntityToTheLamp) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  fixture.command(true);
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+  EXPECT_TRUE(fixture.entity_on());
+
+  // The controller keeps broadcasting but never fetches the command, so the connection stays up.
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  fixture.pump();
+
+  EXPECT_FALSE(fixture.door.is_light_toggle_pending());
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// Losing the bus controller discards the queued toggle too, so the entity must not keep showing it once the
+// controller is back and still reporting the lamp unchanged.
+TEST(HoermannHcpLightPlatformTest, ToggleLostWithTheConnectionReturnsTheEntityToTheLamp) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  fixture.command(true);
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.pump();  // the connection times out and the command goes with it
+  ASSERT_FALSE(fixture.door.is_valid());
+
+  connect(fixture.door);
+  fixture.pump();
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// On boot the restored state is replayed through write_state() before the lamp has ever been read. A lamp
+// that is already on must not be switched off by that replay.
+TEST(HoermannHcpLightPlatformTest, RestoredStateOnBootDoesNotCommandTheLamp) {
+  LightFixture fixture;
+  // The controller is already up and reporting the lamp lit before the entity's first loop.
+  connect(fixture.door);
+  fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+  ASSERT_TRUE(fixture.door.is_light_on());
+
+  for (int i = 0; i < 4; i++)
+    fixture.state.loop();
+  auto [idle, idle_2] = poll_command(fixture.door);
+  EXPECT_EQ(idle, 0x0000);
+  EXPECT_EQ(idle_2, 0x0000);
+  // Once the platform has read the lamp the entity follows it, still without commanding anything.
+  fixture.pump();
+  EXPECT_TRUE(fixture.entity_on());
+}
+
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.
 TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   LightFixture fixture;
-  connect(fixture.door);
+  fixture.bring_up();
 
   fixture.command(true);
   ASSERT_TRUE(fixture.door.is_light_toggle_pending());

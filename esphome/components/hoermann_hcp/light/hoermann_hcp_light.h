@@ -21,9 +21,13 @@ class HoermannHcpLight : public light::LightOutput, public Component {
 
   HoermannHcp *const parent_;
   light::LightState *light_state_{nullptr};
-  // The lamp state last published, never the state last requested. Recording requests here would make an
-  // unrelated broadcast look like a disagreement and pull the entity back to a value the lamp has left.
-  bool reported_on_{false};
+  // What the entity is showing. While awaiting_lamp_ is set this is a request the lamp has not caught up with
+  // yet, so it must not be reconciled away; otherwise it is the lamp state the door last reported.
+  bool shown_on_{false};
+  bool awaiting_lamp_{false};
+  // Cleared once the lamp has been read at least once, until then a write here is the restored state coming
+  // back rather than a user request.
+  bool synced_{false};
 };
 
 }  // namespace esphome::hoermann_hcp
