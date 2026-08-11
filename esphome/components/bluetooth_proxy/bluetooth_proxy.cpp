@@ -828,7 +828,13 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   // retry state, so only the latch is conditional, not the send.
   [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  if (!sent) {
+  if (sent) {
+    // A later unpair landing for an address that still has one owed would
+    // otherwise have the drain repeat it.
+    if (this->pending_unpairing_.matches(address)) {
+      this->pending_unpairing_.clear();
+    }
+  } else {
     // Warn on the leading edge only: a refused reply must not be silent, but
     // repeating it would add traffic to the connection that just refused one.
     if (this->pending_unpairing_.empty()) {

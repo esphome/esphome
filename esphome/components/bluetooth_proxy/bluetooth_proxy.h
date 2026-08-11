@@ -149,7 +149,9 @@ class BluetoothProxy final : public Component {
   /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
-  void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
+  /// No default error: the drain rebuilds success as (error == CONN_OK), so a
+  /// caller that omitted it would have a reported failure resent as a success.
+  void send_device_unpairing(uint64_t address, bool success, conn_err_t error);
   void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
 
   void bluetooth_scanner_set_mode(bool active);
@@ -303,7 +305,9 @@ class BluetoothProxy final : public Component {
   // needs no equivalent (a retried PAIR is answered from is_paired()) and
   // clear-cache is idempotent. Address-keyed, since unpair acts on an address
   // with no connection slot at all; the success flag is not stored because
-  // every caller passes exactly (error == 0).
+  // every caller passes exactly (error == 0). One slot: two unpairs refused in
+  // the same drain window displace the older reply, which is what happened to
+  // both before this existed. Home Assistant unpairs one device at a time.
   PendingDisconnect pending_unpairing_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
