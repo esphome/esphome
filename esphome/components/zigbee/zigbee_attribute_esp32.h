@@ -46,7 +46,6 @@ class ZigbeeAttribute final : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);
-  template<typename T> float get_val_or_nan(float value);
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
   template<typename T, typename F> void connect(sensor::Sensor *sensor, F &&f);
@@ -71,6 +70,8 @@ class ZigbeeAttribute final : public Component {
   bool set_attr_requested_{false};
   bool report_requested_{false};
   bool force_report_{false};
+  template<typename T> T scale_value_(float value);
+  template<typename T> T invalid_value_();
 };
 
 template<typename T> void ZigbeeAttribute::add_attr(T value) {
@@ -88,32 +89,40 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
   this->enable_loop();
 }
 
-template<typename T> float ZigbeeAttribute::get_val_or_nan(float value) {
+template<typename T> T ZigbeeAttribute::scale_value_(float value) {
   if constexpr (std::is_integral<T>::value) {
-    if constexpr (std::is_signed<T>::value) {
-      if (std::isnan(value)) {
-        // For signed integer types, NaN is the minimum value
-        return static_cast<float>(std::numeric_limits<T>::min());
-      }
-      return value;
+    const float scaled = this->scale_ * value;
+    if (std::isnan(value) || scaled < static_cast<float>(std::numeric_limits<T>::lowest()) ||
+        scaled > static_cast<float>(std::numeric_limits<T>::max())) {
+      return this->invalid_value_<T>();  // 0x8000 / 0xFFFF / 0 for map & enum
+    }
+    return static_cast<T>(scaled);
+  }
+  return static_cast<T>(this->scale_ * value);
+}
+
+template<typename T> T ZigbeeAttribute::invalid_value_() {
+  if constexpr (std::is_integral_v<T>) {
+    if constexpr (std::is_signed_v<T>) {
+      // For signed integer types, NaN is represented by the minimum value
+      return static_cast<T>(std::numeric_limits<T>::min());
     }
 
-    if (value < 0.0f || std::isnan(value)) {
-      if (this->attr_type_ >= EZB_ZCL_ATTR_TYPE_UINT8 && this->attr_type_ <= EZB_ZCL_ATTR_TYPE_INT64) {
-        // For unsigned integer types, NaN is the maximum value
-        return static_cast<float>(std::numeric_limits<T>::max());
-      }
-      // for other types like map, enum, etc., that also use uintN_t we can return 0.0f as a safe default
-      return 0.0f;
+    if (this->attr_type_ >= EZB_ZCL_ATTR_TYPE_UINT8 && this->attr_type_ <= EZB_ZCL_ATTR_TYPE_INT64) {
+      // For unsigned integer types, NaN is represented by the maximum value
+      return static_cast<T>(std::numeric_limits<T>::max());
     }
+
+    // For other integer types, return 0 as a fallback
+    return static_cast<T>(0);
   }
-  return value;
+
+  return std::numeric_limits<T>::quiet_NaN();  // For floating-point types, return NaN
 }
 
 #ifdef USE_SENSOR
 template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
-  sensor->add_on_state_callback(
-      [this](float value) { this->set_attr((T) (this->scale_ * (get_val_or_nan<T>(value)))); });
+  sensor->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value)); });
 }
 template<typename T, typename F> void ZigbeeAttribute::connect(sensor::Sensor *sensor, F &&f) {
   sensor->add_on_state_callback([f = std::forward<F>(f), this](float value) { this->set_attr((T) f(value)); });
