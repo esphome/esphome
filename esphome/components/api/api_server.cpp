@@ -398,7 +398,7 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   //  very infrequent and small, we simply send it to all clients
   for (auto &c : this->active_clients()) {
     if (!c->send_message(msg)) {
-      ESP_LOGV(TAG, "Z-Wave frame dropped, TCP buffer full");
+      API_LOG_MSG_DROPPED(TAG, "Home ID notification");
     }
   }
 }

@@ -331,7 +331,7 @@ void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
   if (conn != nullptr) {
     // Send to specific connection
     if (!conn->send_message(msg)) {
-      ESP_LOGV(TAG, "Home ID notification dropped, TCP buffer full");
+      API_LOG_MSG_DROPPED(TAG, "Home ID notification");
     }
   } else if (api::global_api_server != nullptr) {
     // We could add code to manage a second subscription type, but, since this message is

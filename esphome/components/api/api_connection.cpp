@@ -91,8 +91,8 @@ static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for 
 static const char *const TAG = "api.connection";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-void log_dropped_message(const char *tag, const LogString *what) {
-  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT("%s dropped, TCP buffer full"),
+void log_dropped_message(const char *tag, int line, const LogString *what) {
+  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, line, ESPHOME_LOG_FORMAT("%s dropped, TCP buffer full"),
                   LOG_STR_ARG(what));
 }
 #endif
@@ -1545,7 +1545,9 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   if (!this->send_message(msg)) {
-    API_LOG_MSG_DROPPED(TAG, "IR/RF event");
+    // V: fires per decoded frame with no subscription gate, so a warning
+    // would flood the congested link it reports on.
+    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
   }
 }
 #endif
@@ -1590,7 +1592,7 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   resp.instance = msg.instance;
   resp.line_states = proxies[msg.instance]->get_modem_pins();
   if (!this->send_message(resp)) {
-    ESP_LOGV(TAG, "Serial proxy response dropped, TCP buffer full");
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
   }
 }
 
@@ -1624,7 +1626,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
           break;
       }
       if (!this->send_message(resp)) {
-        ESP_LOGV(TAG, "Serial proxy response dropped, TCP buffer full");
+        API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
       }
       break;
     }

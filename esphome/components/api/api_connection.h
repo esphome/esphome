@@ -25,6 +25,7 @@
 #include "esphome/components/esp8266/crash_handler.h"
 #endif
 #include "esphome/core/entity_base.h"
+#include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
 #include <functional>
@@ -44,8 +45,8 @@ class APIServer;
 // fails as soon as the TCP buffer is full, and each caller only pays for its
 // short name. The guard drops the helper and its arguments below WARN.
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
-void log_dropped_message(const char *tag, const LogString *what);
-#define API_LOG_MSG_DROPPED(tag, what) esphome::api::log_dropped_message(tag, LOG_STR(what))
+void log_dropped_message(const char *tag, int line, const LogString *what);
+#define API_LOG_MSG_DROPPED(tag, what) esphome::api::log_dropped_message(tag, __LINE__, LOG_STR(what))
 #else
 #define API_LOG_MSG_DROPPED(tag, what)
 #endif
