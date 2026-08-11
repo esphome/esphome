@@ -77,9 +77,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->services_discovered_ = false;
   this->paired_ = false;
   // Link gone: the slot may hold a different device before the drain runs.
-  this->clear_pending_ack_();
-  this->batch_stalled_ = false;
-  this->connected_reply_owed_ = false;
+  this->clear_owed_flags_();
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -123,7 +121,6 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
         ESP_LOGW(TAG, "[%d] [%s] conn param update failed, err=%d", this->connection_index_, this->address_str_,
                  param_err);
       }
-      this->mtu_ = mtu;
       this->send_connected_reply_();
       this->proxy_->send_connections_free();
       return;
@@ -164,6 +161,18 @@ void BluetoothConnection::on_service_discovery_done(int error) {
   this->services_discovered_ = true;
   this->send_connected_reply_();
   this->proxy_->send_connections_free();
+}
+
+void BluetoothConnection::flush_owed_replies_() {
+  if (this->send_service_ == SERVICES_DONE_PENDING) {
+    this->send_services_done_();
+  }
+  if (this->connected_reply_owed_) {
+    this->send_connected_reply_();
+  }
+  if (this->has_pending_ack_()) {
+    this->flush_pending_ack_();
+  }
 }
 
 void BluetoothConnection::send_connected_reply_() {
@@ -238,7 +247,6 @@ void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t
 }
 
 void BluetoothConnection::flush_pending_ack_() {
-  // No-op on its own rather than relying on the proxy drain's pre-check.
   if (!this->has_pending_ack_())
     return;
   if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {

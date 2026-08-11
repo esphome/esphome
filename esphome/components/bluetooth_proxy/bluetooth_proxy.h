@@ -231,10 +231,9 @@ class BluetoothProxy final : public Component {
   void flush_pending_advertisements_() {
     if (this->response_.advertisements_len == 0)
       return;
-    // The one send whose result is deliberately ignored: advertisements are
-    // perishable, so a refused batch is correctly dropped rather than retried,
-    // and this is the highest-frequency send in the component, so reporting
-    // each drop would be the log flood the batch pacing exists to avoid.
+    // The one deliberately ignored result: advertisements are perishable and
+    // this is the highest-frequency send here, so reporting each drop would be
+    // the flood the batch pacing exists to avoid.
     this->api_connection_->send_message(this->response_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     this->log_advertisement_flush_();
@@ -288,9 +287,9 @@ class BluetoothProxy final : public Component {
   /// Drop any owed freed-slot notification for this address (client reconnected).
   void clear_pending_disconnection_(uint64_t address);
   /// Send connected=false and pool it for the paced drain if refused. A
-  /// dropped disconnect is the one that desynchronises the proxy: the client
-  /// keeps a link it believes is live and every operation on it times out.
-  void send_device_disconnected_(uint64_t address, conn_err_t error = 0);
+  /// dropped disconnect desynchronises the proxy: the client keeps a link it
+  /// believes is live and every operation on it times out.
+  void send_device_disconnected_(uint64_t address, conn_err_t error = CONN_OK);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
@@ -298,11 +297,13 @@ class BluetoothProxy final : public Component {
   /// Drop everything the ending session was owed.
   ///
   /// Every retry latch belongs to exactly one subscriber, so a subscriber
-  /// change invalidates all of them. Keeping the list in one place makes
-  /// adding a latch a single edit: the two callers previously reset five and
-  /// three separate things, and the two sets were not subsets of each other
-  /// in either direction, so an omission read the same as a decision.
+  /// change invalidates all of them. Keeping the list in one place
+  /// makes adding a latch a single edit rather than two, where an omission
+  /// would read the same as a decision.
   void reset_owed_replies_();
+  /// Report a reply we deliberately do not latch, so no drop is silent.
+  /// Latched replies report their own leading edge instead.
+  void log_reply_dropped_(const char *what);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
@@ -315,16 +316,11 @@ class BluetoothProxy final : public Component {
   // Proxy-only state, kept off BluetoothConnection; entries are not tied to
   // slot indices.
   std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
-  // An owed unpair reply. Unpair is the one device-maintenance reply worth
-  // retrying: the bond is already gone when the send is refused, so a client
-  // that times out and retries re-runs unpair_device() against a bond that no
-  // longer exists and is told the unpair failed when it succeeded. Pairing
-  // needs no equivalent (a retried PAIR is answered from is_paired()) and
-  // clear-cache is idempotent. Address-keyed, since unpair acts on an address
-  // with no connection slot at all; the success flag is not stored because
-  // every caller passes exactly (error == 0). One slot: two unpairs refused in
-  // the same drain window displace the older reply, which is what happened to
-  // both before this existed. Home Assistant unpairs one device at a time.
+  // An owed unpair reply: the bond is already gone when the send is refused,
+  // so a client that retries is told the unpair failed when it succeeded.
+  // Address-keyed, since unpair has no connection slot. One slot, so two
+  // unpairs refused in the same drain window displace the older reply, which
+  // is what happened to both before this existed.
   PendingDisconnect pending_unpairing_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
