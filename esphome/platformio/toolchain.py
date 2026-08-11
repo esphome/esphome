@@ -19,7 +19,12 @@ from esphome.helpers import (
     rmtree,
     write_file,
 )
-from esphome.util import FlashImage, run_external_process
+from esphome.util import (
+    ESP32_ARDUINO_ENV,
+    FlashImage,
+    is_esp32_arduino_build,
+    run_external_process,
+)
 
 if TYPE_CHECKING:
     from platformio.project.config import ProjectConfig
@@ -342,6 +347,11 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     base_env = kwargs.pop("env", None)
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
+    # The runner filters PlatformIO's output in the subprocess, so the
+    # out-of-flash tip is offered from there. That process has no configured
+    # CORE to ask which platform this is, so tell it.
+    if is_esp32_arduino_build():
+        env[ESP32_ARDUINO_ENV] = "1"
 
     return run_external_process(*cmd, env=env, **kwargs)
 

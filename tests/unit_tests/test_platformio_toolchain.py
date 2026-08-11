@@ -16,9 +16,10 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
 from esphome.platformio import runner, toolchain
-from esphome.util import FlashImage
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -326,6 +327,43 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
     """
     with pytest.raises(EsphomeError):
         _ = toolchain.IDEData({"extra": None}).extra_flash_images
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework", "expected"),
+    [
+        ("esp32", "arduino", "1"),
+        ("esp32", "esp-idf", None),
+        ("esp8266", "arduino", None),
+    ],
+)
+def test_run_platformio_cli_flags_an_esp32_arduino_build(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    framework: str,
+    expected: str | None,
+) -> None:
+    """The runner filters output in a subprocess with no configured CORE.
+
+    It offers the out-of-flash tip from there, so it needs to be told which
+    platform this is; anything else must not be flagged.
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: framework,
+    }
+
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop(ESP32_ARDUINO_ENV, None)
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert env.get(ESP32_ARDUINO_ENV) == expected
+        # Never leaks into our own environment.
+        assert ESP32_ARDUINO_ENV not in os.environ
 
 
 def test_run_platformio_cli_sets_environment_variables(

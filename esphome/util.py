@@ -3,6 +3,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
+import os
 from pathlib import Path
 import re
 import sys
@@ -140,6 +141,10 @@ def shlex_quote(s: str | Path) -> str:
 
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
+
+# Set by the parent when it spawns the PlatformIO runner, so the out-of-flash
+# tip can still be offered from a process that has no configured ``CORE``.
+ESP32_ARDUINO_ENV = "ESPHOME_ESP32_ARDUINO_BUILD"
 
 ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
@@ -520,11 +525,24 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
         return BootselResult(0)
 
 
-def get_esp32_arduino_flash_error_help() -> str | None:
-    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+def is_esp32_arduino_build() -> bool:
+    """Whether the build in progress targets ESP32 with the Arduino framework.
+
+    ``RedirectText`` asks this from the PlatformIO runner subprocess as well,
+    and that process gets a fresh ``CORE`` that was never configured, so
+    reading the platform from it raises. The parent passes the answer through
+    the environment instead.
+    """
     from esphome.core import CORE
 
-    if not (CORE.is_esp32 and CORE.using_arduino):
+    if CORE.data.get(const.KEY_CORE, {}).get(const.KEY_TARGET_PLATFORM) is None:
+        return os.environ.get(ESP32_ARDUINO_ENV) == "1"
+    return CORE.is_esp32 and CORE.using_arduino
+
+
+def get_esp32_arduino_flash_error_help() -> str | None:
+    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+    if not is_esp32_arduino_build():
         return None
 
     from esphome.log import AnsiFore, color

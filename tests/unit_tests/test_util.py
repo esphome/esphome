@@ -517,6 +517,79 @@ def test_redirect_text_drain_is_a_no_op_when_nothing_is_held() -> None:
     assert buf.getvalue() == "complete line\n"
 
 
+def test_flash_error_help_is_quiet_when_core_is_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: this used to raise ``KeyError`` in a runner subprocess.
+
+    ``RedirectText`` filters PlatformIO's output from inside the runner, which
+    gets a fresh ``CORE`` that was never set up. Reading the platform there
+    raised, so the flash-overflow line, the very one this tip exists for,
+    crashed the runner instead of getting the tip.
+    """
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "data", {})
+    monkeypatch.delenv(util.ESP32_ARDUINO_ENV, raising=False)
+
+    assert util.get_esp32_arduino_flash_error_help() is None
+
+
+def test_flash_error_help_reads_the_env_var_when_core_is_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parent tells the subprocess what it cannot work out for itself."""
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "data", {})
+    monkeypatch.setenv(util.ESP32_ARDUINO_ENV, "1")
+
+    help_msg = util.get_esp32_arduino_flash_error_help()
+
+    assert help_msg is not None
+    assert "esp-idf" in help_msg
+
+
+@pytest.mark.parametrize(
+    ("platform", "framework", "expected"),
+    [
+        ("esp32", "arduino", True),
+        ("esp32", "esp-idf", False),
+        ("esp8266", "arduino", False),
+    ],
+)
+def test_is_esp32_arduino_build_from_a_configured_core(
+    monkeypatch: pytest.MonkeyPatch, platform: str, framework: str, expected: bool
+) -> None:
+    """With CORE set up, it is the source of truth and the env var is ignored."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+    from esphome.core import CORE
+
+    monkeypatch.setattr(
+        CORE,
+        "data",
+        {KEY_CORE: {KEY_TARGET_PLATFORM: platform, KEY_TARGET_FRAMEWORK: framework}},
+    )
+    monkeypatch.delenv(util.ESP32_ARDUINO_ENV, raising=False)
+
+    assert util.is_esp32_arduino_build() is expected
+
+
+def test_redirect_text_survives_a_flash_error_without_core(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The overflow line goes through even from a process with no CORE."""
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "data", {})
+    monkeypatch.delenv(util.ESP32_ARDUINO_ENV, raising=False)
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("Error: The program size is greater than maximum allowed\n")
+
+    assert buf.getvalue() == "Error: The program size is greater than maximum allowed\n"
+
+
 def test_redirect_text_adds_flash_size_help(monkeypatch: pytest.MonkeyPatch) -> None:
     """An out-of-flash error gets the how-to-fix note appended."""
     monkeypatch.setattr(
