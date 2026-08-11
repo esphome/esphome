@@ -20,13 +20,14 @@ from jinja2 import Environment, FileSystemLoader
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
+from helpers import run_gh_command as run_gh_command_with_retry  # noqa: E402
 
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
 def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProcess:
-    """Run a gh CLI command with error handling.
+    """Run a gh CLI command with retries and error reporting.
 
     Args:
         args: Command arguments (including 'gh')
@@ -39,12 +40,7 @@ def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProce
         subprocess.CalledProcessError: If command fails (with detailed error output)
     """
     try:
-        return subprocess.run(
-            args,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        return run_gh_command_with_retry(args)
     except subprocess.CalledProcessError as e:
         print(
             f"ERROR: {operation} failed with exit code {e.returncode}", file=sys.stderr

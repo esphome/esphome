@@ -469,6 +469,61 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx), rate limiting
+# (HTTP 429), and dropped or failed connections. Permanent failures (bad
+# auth, missing PR, the 300-file diff limit) never match so callers see them
+# immediately.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http (?:5\d\d|429)"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve"
+    r"|unexpected eof"
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= _GH_MAX_ATTEMPTS or not _TRANSIENT_GH_ERROR_RE.search(
+                stderr.lower()
+            ):
+                raise
+            delay = 2**attempt
+            print(
+                f"WARNING: {' '.join(args)} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{_GH_MAX_ATTEMPTS})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -542,10 +597,22 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
     cwd = Path.cwd()
