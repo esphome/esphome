@@ -108,7 +108,7 @@ struct MessageHeader {
 // only contains zeroes.
 enum StatusType : uint16_t {
   GATE = 0x0A,
-  UNKNOWN = 0x0B,
+  LIGHT = 0x0B,
 };
 
 // GateStatus defines the current state of the gate, received in a StatusReply
@@ -220,6 +220,14 @@ struct CommandRequestReply {
     buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
     return buf;
   }
+
+struct LightCommand {
+  StatusType type = LIGHT;
+  uint8_t pad = 0x0;
+  uint8_t state;
+
+  LightCommand() = default;
+  LightCommand(bool state) { this->state = state ? 0x01 : 0x00; }
 
   void byteswap() { this->type = convert_big_endian(this->type); }
 } __attribute__((packed));
