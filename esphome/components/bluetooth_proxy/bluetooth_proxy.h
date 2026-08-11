@@ -61,11 +61,9 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 };
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-/// One owed freed-slot connected=false notification in a single word: the
-/// 48-bit address in the low bits, the sign-extending 16-bit reason on top.
-/// Every reason that reaches the pool (esp_gatt_status_t,
-/// esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits int16_t.
-class PendingDisconnect {
+/// One owed address-keyed reply in a single word: 48-bit address low, 16-bit
+/// error on top. Every error that reaches it fits int16_t.
+class PendingReply {
  public:
   constexpr void set(uint64_t address, conn_err_t error) {
     // Mask: the address originates from the client, and a stray high bit
@@ -73,7 +71,9 @@ class PendingDisconnect {
     this->word_ = (address & ADDRESS_MASK) | (static_cast<uint64_t>(static_cast<uint16_t>(error)) << 48);
   }
   constexpr void clear() { this->word_ = 0; }
-  // Whole-word test: set() is only ever given a live (nonzero) address.
+  // Whole-word test: only (address 0, error 0) reads back as nothing owed.
+  // A zero-address failure still latches, which is correct - that reply is
+  // owed too. Neither backend can unpair address 0 successfully.
   constexpr bool empty() const { return this->word_ == 0; }
   // Masked like set(), so a stray high bit cannot defeat the pool lookups.
   constexpr bool matches(uint64_t address) const { return this->address() == (address & ADDRESS_MASK); }
@@ -86,15 +86,15 @@ class PendingDisconnect {
 };
 // Pin the packing at compile time: mask and sign round-trip for every
 // reachable shape (negative, GATT status, ESP_ERR_* range, stray high bit).
-constexpr bool pending_disconnect_round_trips(uint64_t address, uint64_t expected_address, conn_err_t error) {
-  PendingDisconnect p;
+constexpr bool pending_reply_round_trips(uint64_t address, uint64_t expected_address, conn_err_t error) {
+  PendingReply p;
   p.set(address, error);
   return p.address() == expected_address && p.error() == error && !p.empty() && p.matches(address);
 }
-static_assert(pending_disconnect_round_trips(0x0000112233445566ULL, 0x0000112233445566ULL, -1));
-static_assert(pending_disconnect_round_trips(0x0000FFFFFFFFFFFFULL, 0x0000FFFFFFFFFFFFULL, 0x8F));
-static_assert(pending_disconnect_round_trips(0xABCD112233445566ULL, 0x0000112233445566ULL, 0x110));
-static_assert(PendingDisconnect{}.empty());
+static_assert(pending_reply_round_trips(0x0000112233445566ULL, 0x0000112233445566ULL, -1));
+static_assert(pending_reply_round_trips(0x0000FFFFFFFFFFFFULL, 0x0000FFFFFFFFFFFFULL, 0x8F));
+static_assert(pending_reply_round_trips(0xABCD112233445566ULL, 0x0000112233445566ULL, 0x110));
+static_assert(PendingReply{}.empty());
 #endif
 
 class BluetoothProxy final : public Component {
@@ -148,7 +148,9 @@ class BluetoothProxy final : public Component {
   /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
-  void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);
+  /// No default error: the drain rebuilds success as (error == CONN_OK), so a
+  /// caller that omitted it would have a reported failure resent as a success.
+  void send_device_unpairing(uint64_t address, bool success, conn_err_t error);
   void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
 
   void bluetooth_scanner_set_mode(bool active);
@@ -294,7 +296,11 @@ class BluetoothProxy final : public Component {
   // Address-keyed pool of owed freed-slot notifications; loop() resends.
   // Proxy-only state, kept off BluetoothConnection; entries are not tied to
   // slot indices.
-  std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
+  std::array<PendingReply, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
+  // Owed unpair reply. The bond is already gone when the send is refused, so
+  // a retry is told the unpair failed when it succeeded. One slot: a second
+  // refused unpair displaces the first, as happened to both before this.
+  PendingReply pending_unpairing_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below

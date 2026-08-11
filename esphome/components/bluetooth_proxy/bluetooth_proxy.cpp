@@ -197,7 +197,7 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
 
 void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t error) {
   // Match before free entry so one address never occupies two pool slots.
-  PendingDisconnect *free_entry = nullptr;
+  PendingReply *free_entry = nullptr;
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto &owed = this->pending_disconnections_[i];
     if (owed.matches(address)) {
@@ -605,6 +605,13 @@ void BluetoothProxy::loop() {
       owed.clear();
     }
   }
+
+  // An owed unpair reply. Not pre-cleared: the sender clears on success and
+  // re-latches on refusal, keeping its leading-edge warn guard honest.
+  if (!this->pending_unpairing_.empty()) {
+    conn_err_t error = this->pending_unpairing_.error();
+    this->send_device_unpairing(this->pending_unpairing_.address(), error == CONN_OK, error);
+  }
 #endif
 
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
@@ -715,6 +722,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     // re-subscribe by the current one keeps what it is still owed.
     this->connections_free_pending_ = false;
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
+    this->pending_unpairing_.clear();
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       // Neither a partial stream's tail nor an owed done belongs to the new
       // session; silence (the client's timeout) arbitrates.
@@ -741,6 +749,9 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   }
   this->api_connection_ = nullptr;
   this->connections_free_pending_ = false;
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  this->pending_unpairing_.clear();
+#endif
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   this->scanner_state_pending_ = false;
 #endif
@@ -805,12 +816,42 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  // An owed success is the authoritative answer: a later attempt for the
+  // same address fails only because the first already removed the bond.
+  if (!this->pending_unpairing_.empty() && this->pending_unpairing_.matches(address) &&
+      this->pending_unpairing_.error() == CONN_OK) {
+    success = true;
+    error = CONN_OK;
+  }
+#endif
   api::BluetoothDeviceUnpairingResponse call;
   call.address = address;
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  // Advertisement-only builds answer this with a canned reply and keep no
+  // retry state, so only the latch is conditional, not the send.
+  [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  if (sent) {
+    // A later unpair landing for an address that still has one owed would
+    // otherwise have the drain repeat it.
+    if (this->pending_unpairing_.matches(address)) {
+      this->pending_unpairing_.clear();
+    }
+  } else {
+    // Warn on the leading edge and on displacement (that one loses a reply);
+    // the drain's re-refusals of the same reply stay quiet.
+    if (this->pending_unpairing_.empty()) {
+      ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    } else if (!this->pending_unpairing_.matches(address)) {
+      ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
+               this->pending_unpairing_.address(), address);
+    }
+    this->pending_unpairing_.set(address, error);
+  }
+#endif
 }
 
 // Shared by both platform paths: the neutral bluetooth_device_request() uses it to
