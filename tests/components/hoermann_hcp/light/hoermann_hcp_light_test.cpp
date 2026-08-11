@@ -667,6 +667,24 @@ TEST(HoermannHcpLightTest, DoorSideLampChangeLeavesAnUnsentToggleCounted) {
   EXPECT_FALSE(door.is_light_heading_on());
 }
 
+// Once the toggles left over are all still waiting in the slot, nothing the door has seen is outstanding,
+// so the wait has to end rather than time out against toggles the door was never shown.
+TEST(HoermannHcpLightTest, SettlingTheLastSentToggleEndsTheWait) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.toggle_light());
+  consume_command(door);             // shown to the door, so the wait for a lamp report starts
+  ASSERT_TRUE(door.toggle_light());  // queued behind it, never shown
+  ASSERT_NE(door.light_toggle_released_at_, 0u);
+
+  // The door reports the lamp change the first toggle caused, leaving only the unsent one.
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+
+  ASSERT_EQ(door.light_toggles_in_flight_, 1);
+  EXPECT_EQ(door.light_toggle_released_at_, 0u);
+}
+
 // The watchdog gives up on the toggles the door was shown, but one still waiting in the command slot is
 // going to fire, so it keeps counting.
 TEST(HoermannHcpLightTest, WatchdogKeepsAToggleTheDoorHasNotSeen) {

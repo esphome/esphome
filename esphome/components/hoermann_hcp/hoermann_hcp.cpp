@@ -369,21 +369,24 @@ void HoermannHcp::set_valid_(bool valid) {
 }
 
 void HoermannHcp::drop_command_() {
-  if (this->is_light_toggle_pending_()) {
+  const bool was_light_toggle = this->is_light_toggle_pending_();
+  // Cleared first so the settling below no longer counts this command among the toggles still to be sent.
+  this->next_command_ = nullptr;
+  this->command_written_at_ = 0;
+  if (was_light_toggle) {
     // A lamp toggle says nothing about where the door was going, so it leaves the target alone.
     this->light_toggle_settled_();
   } else {
     this->clear_target_();
   }
-  this->next_command_ = nullptr;
-  this->command_written_at_ = 0;
 }
 
 void HoermannHcp::light_toggle_settled_() {
   if (this->light_toggles_in_flight_ == 0)
     return;
   this->light_toggles_in_flight_--;
-  if (this->light_toggles_in_flight_ == 0)
+  // Only a toggle the door has been shown can still be confirmed, so unsent ones leave nothing to wait for.
+  if (this->light_toggles_in_flight_ == this->unsent_light_toggles_())
     this->light_toggle_released_at_ = 0;
   // The light was showing where the lamp was heading, so it has to be told to look again.
   this->changed_ = true;
