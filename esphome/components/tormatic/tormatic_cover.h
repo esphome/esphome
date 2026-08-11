@@ -39,6 +39,7 @@ class Tormatic final : public cover::Cover, public uart::UARTDevice, public Poll
   optional<GateStatus> read_gate_status_();
 
   void send_gate_command_(GateStatus s);
+  void send_light_command_(bool state);
   void handle_gate_status_(GateStatus s);
 
   uint32_t seq_tx_{0};
