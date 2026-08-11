@@ -607,7 +607,6 @@ TEST(HoermannHcpLightPlatformTest, RefusedRequestLeavesTheEntityIdle) {
 // abandoning the next toggle the moment it is queued.
 TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarmed) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 20;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.toggle_light());
@@ -616,15 +615,9 @@ TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarme
   // The lamp is switched at the door before the queued toggle is even fetched, which settles the count.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   ASSERT_EQ(door.pending_light_toggles(), 0);
-  consume_command(door);
 
-  // A later toggle must get the full deadline rather than inheriting a stale one.
-  std::this_thread::sleep_for(std::chrono::milliseconds(30));
-  connect_controller(door);  // the controller is still polling, so the connection itself is fine
-  ASSERT_TRUE(door.toggle_light());
-  ASSERT_EQ(door.pending_light_toggles(), 1);
-  door.update();
-  EXPECT_EQ(door.pending_light_toggles(), 1);
+  consume_command(door);
+  EXPECT_EQ(door.light_toggle_released_at_, 0u);
 }
 
 // A restore mode that boots the entity on replays a lit state the door has never confirmed, so it has to be

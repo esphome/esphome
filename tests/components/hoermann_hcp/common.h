@@ -59,6 +59,7 @@ class TestableHoermannHcp : public HoermannHcp {
   TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
 
   using HoermannHcp::connection_timeout_ms_;
+  using HoermannHcp::light_toggle_released_at_;
   using HoermannHcp::set_valid_;
 };
 
