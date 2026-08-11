@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_AREA_ID, CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 
 from .. import LD6002BComponent, ld6002b_ns
 from ..const import CONF_INSTALLATION_MODE, CONF_LD6002B_ID, CONF_TRIGGER_SPEED
@@ -11,6 +11,16 @@ DEPENDENCIES = ["ld6002b"]
 LD6002BSelect = ld6002b_ns.class_("LD6002BSelect", select.Select)
 SelectType = ld6002b_ns.enum("SelectType", is_class=True)
 
+AREA_ID_OPTIONS = [
+    "interference_area_0",
+    "interference_area_1",
+    "interference_area_2",
+    "interference_area_3",
+    "detection_area_0",
+    "detection_area_1",
+    "detection_area_2",
+    "detection_area_3",
+]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -22,6 +32,9 @@ CONFIG_SCHEMA = cv.Schema(
             LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_INSTALLATION_MODE): select.select_schema(
+            LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
+        ),
+        cv.Optional(CONF_AREA_ID): select.select_schema(
             LD6002BSelect, entity_category=ENTITY_CATEGORY_CONFIG
         ),
     }
@@ -47,6 +60,7 @@ SELECT_MAP = (
         "set_installation_select",
         ["top", "side"],
     ),
+    (CONF_AREA_ID, SelectType.AREA_ID, "set_area_id_select", AREA_ID_OPTIONS),
 )
 
 

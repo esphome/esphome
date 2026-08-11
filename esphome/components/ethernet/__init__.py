@@ -132,6 +132,7 @@ ETHERNET_TYPES = {
     "W6300": EthernetType.ETHERNET_TYPE_W6300,
     "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
     "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
+    "CH390": EthernetType.ETHERNET_TYPE_CH390,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -153,6 +154,7 @@ _PHY_TYPE_TO_DEFINE = {
     "W6300": "USE_ETHERNET_W6300",
     "GENERIC": "USE_ETHERNET_GENERIC",
     "YT8531": "USE_ETHERNET_YT8531",
+    "CH390": "USE_ETHERNET_CH390",
 }
 
 
@@ -176,13 +178,14 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
+    "CH390": IDFRegistryComponent("espressif/ch390", "0.3.0"),
 }
 
 # These types are always external IDF components (never built-in to ESP-IDF)
-_ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
+_ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60", "CH390"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
-SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
+SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390"}
 # RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
 # RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
 # comment above is about ESP-IDF driver coverage, not the RP2 platform.
@@ -480,6 +483,12 @@ SPI_SCHEMA = _spi_schema()
 # of spec for it and makes the driver's CS hold time helper compute no hold
 SPI_SCHEMA_ENC28J60 = _spi_schema(default_clock="20MHz", max_clock=int(20e6))
 
+# The CH390H/D rates SCK at 50 MHz typical and 72 MHz maximum with VDDIO at 3.3V,
+# so the shared 80 MHz ceiling is out of spec while the 26.67 MHz default is not.
+# CH390 datasheet v1.8, tables 9-4 and 9-5:
+# https://www.wch-ic.com/downloads/CH390DS1_PDF.html
+SPI_SCHEMA_CH390 = _spi_schema(max_clock=int(72e6))
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -494,6 +503,7 @@ CONFIG_SCHEMA = cv.All(
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
+            "CH390": SPI_SCHEMA_CH390,
             "ENC28J60": SPI_SCHEMA_ENC28J60,
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
@@ -629,8 +639,11 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
-        # ENC28J60 was never built-in to IDF, so it has no Kconfig option
-        if idf_version() < cv.Version(6, 0, 0) and config[CONF_TYPE] != "ENC28J60":
+        # Types that are never built into IDF ship no Kconfig option at all
+        if (
+            idf_version() < cv.Version(6, 0, 0)
+            and config[CONF_TYPE] not in _ALWAYS_EXTERNAL_IDF_COMPONENTS
+        ):
             add_idf_sdkconfig_option(
                 f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
             )

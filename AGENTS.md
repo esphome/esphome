@@ -57,6 +57,12 @@ This document provides essential context for AI models interacting with this pro
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Enumerator names: prefix every value of an `enum class` with the enum name converted to
+          `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
+          names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
+          these common names (for example the Realtek SDKs used by LibreTiny define
+          `#define SUCCESS 0` in `basic_types.h`), and the preprocessor replaces the enumerator
+          before the compiler sees it, breaking the build and clang-tidy on those platforms.
 
 *   **Python Idioms:**
     *   **Assignment expressions (PEP 572):** Prefer the walrus operator (`:=`) wherever it removes a redundant lookup or a throwaway temporary. The most common case in component code is presence-checking a config key and then indexing it separately — fetch once with `.get()` and bind in the condition instead:
