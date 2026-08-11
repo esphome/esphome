@@ -839,6 +839,10 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     } else if (!this->pending_unpairing_.matches(address)) {
       ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
                this->pending_unpairing_.address(), address);
+    } else if (this->pending_unpairing_.error() == CONN_OK) {
+      // A retry against the already-removed bond reports failure; the owed
+      // success is the answer the client needs, so keep it.
+      return;
     }
     this->pending_unpairing_.set(address, error);
   }
