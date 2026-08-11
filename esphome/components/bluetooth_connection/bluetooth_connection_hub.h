@@ -241,11 +241,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool batch_stalled_ : 1 {false};
 };
 
-// Pins the layout the field grouping above is arranged for: putting
-// pending_ack_handle_ in Group 2 instead pushes address_ out by 6 bytes of
-// padding and takes this to 64 (the vptr makes Group 1 12 bytes, not 8).
-// Only meaningful on the 32-bit targets that grouping is for; the host unit
-// tests build 64-bit, where every pointer and the vptr double.
+// Pins the grouping above: pending_ack_handle_ in Group 2 instead would pad
+// address_ out and reach 64. 32-bit only; the host unit tests build 64-bit.
 static_assert(sizeof(void *) != 4 || sizeof(BluetoothConnection) <= 56,
               "BluetoothConnection layout regressed on a 32-bit target");
 
