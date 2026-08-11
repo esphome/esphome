@@ -339,27 +339,7 @@ void Tormatic::send_gate_command_(GateStatus s) {
 }
 
 void Tormatic::set_light_state(bool state) {
-  // Cancel any pending commands from a previous switch action.
-  this->cancel_timeout("light_retry_1");
-  this->cancel_timeout("light_retry_2");
-
-  if (state) {
-    // Requested state is ON:
-    // Send 00 0B 00 01 three times.
-    this->send_light_command_(true);
-
-    this->set_timeout("light_retry_1", 100, [this]() { this->send_light_command_(true); });
-
-    this->set_timeout("light_retry_2", 200, [this]() { this->send_light_command_(true); });
-  } else {
-    // Requested state is OFF:
-    // Send 00 0B 00 00 three times.
-    this->send_light_command_(false);
-
-    this->set_timeout("light_retry_1", 100, [this]() { this->send_light_command_(false); });
-
-    this->set_timeout("light_retry_2", 200, [this]() { this->send_light_command_(false); });
-  }
+  this->send_light_command_(state);
 }
 
 void Tormatic::send_light_command_(bool state) {
