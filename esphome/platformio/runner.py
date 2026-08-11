@@ -184,7 +184,13 @@ def main() -> int:
 
     import platformio.__main__
 
-    return platformio.__main__.main() or 0
+    # PlatformIO exits through ``sys.exit``, so drain from a finally to give
+    # a last line without a terminator a chance to reach the user.
+    try:
+        return platformio.__main__.main() or 0
+    finally:
+        sys.stdout.drain()
+        sys.stderr.drain()
 
 
 if __name__ == "__main__":

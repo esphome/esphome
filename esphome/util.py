@@ -174,6 +174,41 @@ class RedirectText:
             s = s.replace("\033", "\\033")
         self._out.write(s)
 
+    def _emit_line(self, line: str) -> None:
+        line_without_ansi = ANSI_ESCAPE.sub("", line)
+        line_without_end = line_without_ansi.rstrip()
+        if (
+            self._filter_pattern is not None
+            and self._filter_pattern.match(line_without_end) is not None
+        ):
+            # Filter pattern matched, ignore the line
+            return
+
+        self._write_color_replace(line)
+        # Check for flash size error and provide helpful guidance
+        if (
+            "Error: The program size" in line
+            and "is greater than maximum allowed" in line
+            and (help_msg := get_esp32_arduino_flash_error_help())
+        ):
+            self._write_color_replace(help_msg)
+        for callback in self._line_callbacks:
+            if msg := callback(line_without_end):
+                self._write_color_replace(msg)
+
+    def drain(self) -> None:
+        """Write out a held-back line that never got its terminator.
+
+        A tool that dies part way through a line, or ends its output without
+        a final newline, would otherwise have that text sit in the buffer
+        and never reach the user.
+        """
+        if not self._line_buffer:
+            return
+        line, self._line_buffer = self._line_buffer, ""
+        self._emit_line(line)
+        self._out.flush()
+
     def write(self, s: str | bytes) -> int:
         # s is usually a str already (self._out is of type TextIOWrapper)
         # However, s is sometimes also a bytes object in python3. Let's make sure it's a
@@ -192,27 +227,7 @@ class RedirectText:
                     self._line_buffer = line
                     break
                 self._line_buffer = ""
-
-                line_without_ansi = ANSI_ESCAPE.sub("", line)
-                line_without_end = line_without_ansi.rstrip()
-                if (
-                    self._filter_pattern is not None
-                    and self._filter_pattern.match(line_without_end) is not None
-                ):
-                    # Filter pattern matched, ignore the line
-                    continue
-
-                self._write_color_replace(line)
-                # Check for flash size error and provide helpful guidance
-                if (
-                    "Error: The program size" in line
-                    and "is greater than maximum allowed" in line
-                    and (help_msg := get_esp32_arduino_flash_error_help())
-                ):
-                    self._write_color_replace(help_msg)
-                for callback in self._line_callbacks:
-                    if msg := callback(line_without_end):
-                        self._write_color_replace(msg)
+                self._emit_line(line)
         else:
             self._write_color_replace(s)
 
@@ -287,6 +302,12 @@ def run_external_command(
     finally:
         sys.argv = orig_argv
         sys.exit = orig_exit
+
+        # Release a last line that never got its terminator before we put the
+        # real streams back.
+        if not capture_stdout:
+            sys.stdout.drain()
+        sys.stderr.drain()
 
         sys.stdout = orig_stdout
         sys.stderr = orig_stderr

@@ -442,6 +442,44 @@ def test_redirect_text_flushes_so_piped_output_streams() -> None:
     assert buf.getvalue() == b"Writing at 0x00010000 (50%)\r"
 
 
+def test_redirect_text_drain_releases_held_partial_line() -> None:
+    """A last line with no terminator must still reach the user.
+
+    A tool that dies part way through a line leaves that text in the buffer,
+    and it is usually the message saying what went wrong.
+    """
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+    redirect.write("FATAL: ld returned 1 exit status")
+
+    # Still held: no terminator has arrived.
+    assert buf.getvalue() == ""
+
+    redirect.drain()
+
+    assert buf.getvalue() == "FATAL: ld returned 1 exit status"
+
+
+def test_redirect_text_drain_still_applies_the_filter() -> None:
+    """Releasing a held line does not smuggle noise past the filter."""
+    redirect, buf = _make_redirect(filter_lines=["Verbose mode can be enabled"])
+    redirect.write("Verbose mode can be enabled")
+
+    redirect.drain()
+
+    assert buf.getvalue() == ""
+
+
+def test_redirect_text_drain_is_a_no_op_when_nothing_is_held() -> None:
+    """Draining twice, or with an empty buffer, writes nothing extra."""
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+    redirect.write("complete line\n")
+
+    redirect.drain()
+    redirect.drain()
+
+    assert buf.getvalue() == "complete line\n"
+
+
 def test_redirect_text_callback_called_on_matching_line() -> None:
     """Test that a line callback is called and its output is written."""
     results: list[str] = []
@@ -569,6 +607,40 @@ def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> N
     assert "hello world" in results[0]
     captured = capsys.readouterr()
     assert "CALLBACK FIRED" in captured.out
+
+
+def test_run_external_command_drains_partial_line(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """A command that stops mid line still shows that line.
+
+    esptool runs in-process here, so a message it writes without a trailing
+    newline would otherwise be dropped when the streams are put back.
+    """
+
+    def fake_main() -> int:
+        print("A fatal error occurred: no serial data", end="")
+        return 1
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 1
+    assert "A fatal error occurred: no serial data" in capsys.readouterr().out
+
+
+def test_run_external_command_drains_on_early_exit(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """The drain also happens when the command exits through ``sys.exit``."""
+
+    def fake_main() -> int:
+        print("Fatal: bailing out", end="")
+        sys.exit(3)
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 3
+    assert "Fatal: bailing out" in capsys.readouterr().out
 
 
 def test_run_external_process_line_callbacks() -> None:

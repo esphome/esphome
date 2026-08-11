@@ -179,6 +179,27 @@ def main() -> int:
         def flush(self) -> None:
             self._stream.flush()
 
+        def _emit(self, line: str) -> None:
+            if self._filter_pattern is not None:
+                stripped = ansi_escape.sub("", line).rstrip()
+                if self._filter_pattern.match(stripped) is not None:
+                    return
+            self._stream.write(line)
+
+        def drain(self) -> None:
+            """Write out a held-back line that never got its terminator.
+
+            idf.py and CMake do not always end their last line with a
+            newline, and a build that dies part way through can stop mid
+            line. Without this the user is left staring at a build that
+            ended with no explanation.
+            """
+            if not self._line_buffer:
+                return
+            line, self._line_buffer = self._line_buffer, ""
+            self._emit(line)
+            self._stream.flush()
+
         def write(self, data) -> int:
             # Text streams normally hand us ``str``; decode in case
             # somebody writes bytes directly.
@@ -195,11 +216,7 @@ def main() -> int:
                         self._line_buffer = line
                         break
                     self._line_buffer = ""
-
-                    stripped = ansi_escape.sub("", line).rstrip()
-                    if self._filter_pattern.match(stripped) is not None:
-                        continue
-                    self._stream.write(line)
+                    self._emit(line)
 
             # We tell idf.py it is talking to a terminal, so it sends progress
             # bars and cursor moves. Our own stdout is usually a pipe, which is
@@ -241,8 +258,13 @@ def main() -> int:
 
     # If idf.py calls sys.exit(), SystemExit propagates out of run_path
     # and carries the exit code back to our caller. For normal returns,
-    # fall through and exit with 0.
-    runpy.run_path(script_path, run_name="__main__")
+    # fall through and exit with 0. Either way the streams get a chance to
+    # release a last line that never got its terminator.
+    try:
+        runpy.run_path(script_path, run_name="__main__")
+    finally:
+        sys.stdout.drain()
+        sys.stderr.drain()
     return 0
 
 
