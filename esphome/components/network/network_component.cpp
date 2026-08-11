@@ -104,8 +104,9 @@ void NetworkComponent::loop() {
     if (route_is_ours)
       return;
   }
-  if (esp_netif_set_default_netif(best) != ESP_OK) {
-    ESP_LOGW(TAG, "Failed to set default interface");
+  esp_err_t err = esp_netif_set_default_netif(best);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to set default interface: (%d) %s", err, esp_err_to_name(err));
     // Cache the intent anyway: subsequent passes take the same-winner branch
     // above, so retries are throttled to ROUTE_CHECK_INTERVAL_MS and the lwIP
     // verification keeps re-attempting until the route is actually ours.
