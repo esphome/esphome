@@ -745,6 +745,27 @@ class TestSafePrint:
         util.safe_print("\033[0;32mhi\033[0m")
         assert capsys.readouterr().out == "\\033[0;32mhi\\033[0m\n"
 
+    def test_flushes_so_piped_output_streams(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: each line must reach the OS pipe right away.
+
+        The dashboard runs ``esphome logs`` with stdout as a pipe, which
+        Python block buffers at 8 KiB. Log lines used to be flushed only
+        because ``colorama.init()`` wrapped stdout in a stream that flushed
+        after every write; once that wrapping was skipped for dashboard runs
+        the lines sat in the buffer and the log view stayed empty until
+        enough output piled up to fill it.
+        """
+        buf = io.BytesIO()
+        piped_stream = io.TextIOWrapper(buf, encoding="utf-8", line_buffering=False)
+        monkeypatch.setattr(sys, "stdout", piped_stream)
+
+        util.safe_print("live log line")
+
+        # No explicit flush here on purpose: safe_print has to do it.
+        assert buf.getvalue() == b"live log line\n"
+
     def test_fallback_writes_string_not_bytes_repr(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
