@@ -164,11 +164,13 @@ void BluetoothConnection::on_service_discovery_done(int error) {
 }
 
 void BluetoothConnection::flush_owed_replies_() {
-  if (this->send_service_ == SERVICES_DONE_PENDING) {
-    this->send_services_done_();
-  }
+  // Connected first: the client should never see services-done or an ack for
+  // a link it has not been told is up.
   if (this->connected_reply_owed_) {
     this->send_connected_reply_();
+  }
+  if (this->send_service_ == SERVICES_DONE_PENDING) {
+    this->send_services_done_();
   }
   if (this->has_pending_ack_()) {
     this->flush_pending_ack_();

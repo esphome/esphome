@@ -50,8 +50,7 @@ BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size
 namespace esphome::bluetooth_connection {
 
 // Address-scoped Bluedroid maintenance. Gated with the connection surface:
-// the advertisement-only arm answers these requests with a canned error and
-// no longer compiles any caller.
+// the advertisement-only arm no longer dispatches these requests at all.
 
 conn_err_t unpair_device(uint64_t address) {
   esp_bd_addr_t bda;
