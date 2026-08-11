@@ -1,6 +1,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_uart_bridge.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -10,7 +11,6 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 #include "soc/soc_caps.h"
-#include "esp_log.h"
 
 #include "tinyusb_cdc_acm.h"
 
@@ -28,7 +28,7 @@ static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
 static constexpr UBaseType_t TASK_PRIORITY = 4;
 
 static bool should_log_now(uint32_t *last_ms, uint32_t interval_ms) {
-  uint32_t now = esp_log_timestamp();
+  uint32_t now = millis();
   if ((now - *last_ms) >= interval_ms) {
     *last_ms = now;
     return true;
@@ -278,8 +278,10 @@ void USBUARTBridge::uart_rx_task_() {
   TaskHandle_t usb_tx_handle = this->usb_tx_task_handle_;
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
-  uint32_t tx_full_log_ms = 0;
-  uint32_t err_log_ms = 0;
+  // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs
+  // immediately (unsigned arithmetic keeps this wrap-safe).
+  uint32_t tx_full_log_ms = millis() - LOG_THROTTLE_MS;
+  uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
 
   uint8_t *data = this->uart_rx_buffer_.get();
   const size_t buf_size = this->uart_rx_buffer_size_;
@@ -331,7 +333,8 @@ void USBUARTBridge::uart_tx_task_() {
   uint8_t *data_to_uart = this->uart_tx_buffer_.get();
   const size_t buf_size = this->uart_tx_buffer_size_;
   size_t rx_size;
-  uint32_t err_log_ms = 0;
+  // Back-dated so an error within the first LOG_THROTTLE_MS of uptime still logs
+  uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
 
   while (true) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");
@@ -342,6 +345,9 @@ void USBUARTBridge::uart_tx_task_() {
       if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
         ESP_LOGE(TAG, "USB RX RingBuf read failed");
       }
+      // Yield like the RX task's error path: this task runs above the main loop, so
+      // a persistent failure must not become a tight loop that starves the system.
+      vTaskDelay(pdMS_TO_TICKS(10));
       continue;
     }
 
