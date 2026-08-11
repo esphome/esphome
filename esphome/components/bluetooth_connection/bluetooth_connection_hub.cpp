@@ -21,7 +21,7 @@ void BluetoothConnection::set_address(uint64_t address) {
     this->address_str_[0] = '\0';
     return;
   }
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   ble_device_base::uint64_to_mac_msb_first(address, mac);
   format_mac_addr_upper(mac, this->address_str_);
 }
@@ -299,25 +299,39 @@ conn_err_t BluetoothConnection::update_connection_params(uint16_t min_interval, 
 
 // ---- Service streaming ----
 
+void BluetoothConnection::send_services_done_() {
+  if (this->proxy_->send_gatt_services_done(this->address_)) {
+    // Sent, or subscriber gone (park silently; its timeout arbitrates).
+    this->send_service_ = DONE_SENDING_SERVICES;
+    return;
+  }
+  if (this->send_service_ != SERVICES_DONE_PENDING) {
+    // Warn on the transition only; retries stay silent.
+    ESP_LOGW(TAG, "[%d] [%s] Failed to send services done, retrying", this->connection_index_, this->address_str_);
+    this->services_done_retries_ = 0;
+    this->send_service_ = SERVICES_DONE_PENDING;
+  } else if (++this->services_done_retries_ >= SERVICES_DONE_RETRY_LIMIT) {
+    // Undeliverable (see SERVICES_DONE_RETRY_LIMIT); silence arbitrates.
+    ESP_LOGW(TAG, "[%d] [%s] Services done undeliverable, abandoning", this->connection_index_, this->address_str_);
+    this->send_service_ = DONE_SENDING_SERVICES;
+  }
+}
+
 void BluetoothConnection::send_service_for_discovery_() {
   auto table = this->backend_->get_service_table();
   if (this->send_service_ >= table.service_count) {
-    this->send_service_ = DONE_SENDING_SERVICES;
-    this->proxy_->send_gatt_services_done(this->address_);
     this->backend_->release_services();
+    this->send_services_done_();
     return;
   }
 
-  // The subscriber vanished mid-stream: park the cursor at done WITHOUT
-  // sending services-done (a resubscribing client gets silence and its 30 s
-  // timeout, never an authoritative partial list) and free the table; the
-  // api-gone sweep tears the connection down anyway.
+  // The subscriber vanished mid-stream; the api-gone sweep tears the
+  // connection down anyway.
   auto *api_conn = this->proxy_->get_api_connection();
   if (api_conn == nullptr) {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", this->connection_index_,
              this->address_str_);
-    this->send_service_ = DONE_SENDING_SERVICES;
-    this->backend_->release_services();
+    this->park_service_stream_();
     return;
   }
 

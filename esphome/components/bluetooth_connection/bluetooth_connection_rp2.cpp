@@ -5,6 +5,7 @@
 #if defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT)
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <BluetoothLock.h>
@@ -1258,7 +1259,7 @@ int RP2GattClient::update_connection_params(uint16_t min_interval, uint16_t max_
 }
 
 conn_err_t unpair_device(uint64_t address) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   ble_device_base::uint64_to_mac_msb_first(address, mac);
   bool found = false;
   BluetoothLock lock;

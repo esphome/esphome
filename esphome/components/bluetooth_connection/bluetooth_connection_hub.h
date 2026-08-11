@@ -127,7 +127,23 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
       this->send_service_for_discovery_();
     }
   }
+  /// Park the stream without services-done and free any held table: an
+  /// interrupted stream must never be declared complete (the client's
+  /// timeout arbitrates), and an owed done is dropped with it.
+  void park_service_stream_() {
+    if (this->send_service_ >= 0) {
+      this->backend_->release_services();
+      this->send_service_ = DONE_SENDING_SERVICES;
+    } else if (this->send_service_ == SERVICES_DONE_PENDING) {
+      this->send_service_ = DONE_SENDING_SERVICES;
+    }
+  }
   void send_service_for_discovery_();
+  /// Send services-done and settle the cursor: DONE when it lands (or no
+  /// subscriber), SERVICES_DONE_PENDING on a refused frame (proxy drain
+  /// retries). Callers release the table first; the message needs only the
+  /// address.
+  void send_services_done_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
@@ -152,10 +168,14 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
                 "connection_type_ bitfield too narrow");
+  // Ordered so neither byte's fields straddle a storage unit: 3+5 and
+  // 4+2+1+1 fill the two tail bytes exactly.
   ClientState state_ : 3 {ClientState::IDLE};
-  bool paired_ : 1 {false};
-  ConnectionType connection_type_ : 2 {ConnectionType::V1};
+  static_assert(SERVICES_DONE_RETRY_LIMIT < (1 << 5), "counter bitfield too narrow");
+  uint8_t services_done_retries_ : 5 {0};
   uint8_t connection_index_ : 4 {0};
+  ConnectionType connection_type_ : 2 {ConnectionType::V1};
+  bool paired_ : 1 {false};
   bool services_discovered_ : 1 {false};
 };
 
