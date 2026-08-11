@@ -6,8 +6,8 @@ mitsubishi_cn105:
   vane:
     on_state:
       - logger.log:
-          format: "TRIGGER: vane on_state direction=%u"
-          args: ["static_cast<unsigned>(x.vertical.direction)"]
+          format: "TRIGGER: vane on_state is auto: %s"
+          args: ['x.vertical.direction == VERTICAL_VANE_MODE_AUTO ? "yes" : "no"']
 
 climate:
   - platform: mitsubishi_cn105
