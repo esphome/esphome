@@ -829,9 +829,11 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
   if (!sent) {
-    // V, not W: the reply is owed rather than lost, and a warning would ride
-    // the connection that just refused it.
-    ESP_LOGV(TAG, "Unpairing reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    // Warn on the leading edge only: a refused reply must not be silent, but
+    // repeating it would add traffic to the connection that just refused one.
+    if (this->pending_unpairing_.empty()) {
+      ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    }
     this->pending_unpairing_.set(address, error);
   }
 #endif
