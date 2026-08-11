@@ -186,6 +186,7 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
+    swap_method: str | None  # ota: swap_method:, set by mcuboot.apply_swap_method()
 
 
 # platform: nrf52 use only
@@ -220,6 +221,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
+        swap_method=None,
     )
 
 

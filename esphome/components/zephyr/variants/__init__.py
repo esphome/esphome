@@ -374,6 +374,7 @@ def set_core_data(
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
+        swap_method=None,
     )
 
 

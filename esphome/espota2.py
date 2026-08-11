@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 import gzip
 import hashlib
-import io
 import logging
 from pathlib import Path
 import secrets
@@ -70,6 +69,12 @@ CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x08
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x04
+# Zephyr direct-xip only: set when the device is currently executing from slot 1.
+# The OTA write always targets whichever slot ISN'T running, so this flag being unset
+# (the common case, running slot 0) means the write goes to slot 1 and needs
+# alt_filename (the slot-1-linked build); set means it goes to slot 0 and needs the
+# primary. Never set by non-Zephyr/non-direct-xip devices.
+SERVER_FEATURE_ACTIVE_SLOT_1 = 0x08
 
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
@@ -293,9 +298,9 @@ def send_check(
 def perform_ota(
     sock: socket.socket,
     password: str | None,
-    file_handle: io.IOBase,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> None:
     # Validate ota_type up front. It travels as a single byte on the wire, and
     # passing an out-of-range value would only surface as a ValueError from
@@ -309,10 +314,6 @@ def perform_ota(
         raise OTAError(
             f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
         )
-
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -354,6 +355,25 @@ def perform_ota(
         features = SERVER_FEATURE_SUPPORTS_COMPRESSION
     else:
         features = 0
+
+    if not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
+        # Direct-xip has no swap step -- the OTA write always targets whichever slot
+        # ISN'T currently running. The device not reporting slot 1 as active means
+        # it's running slot 0 (the common case), so the write goes to slot 1 and
+        # needs the slot-1-linked build (alt_filename); sending the primary
+        # (slot-0-linked) image there would link-mismatch and fail to boot.
+        if alt_filename is None:
+            raise OTAError(
+                "Device is running from the primary MCUboot slot and requires "
+                "the matching slot-1 firmware variant, but this upload has none "
+                "available. Recompile with the current ESPHome version and retry."
+            )
+        filename = alt_filename
+
+    with filename.open("rb") as file_handle:
+        file_contents = file_handle.read()
+    file_size = len(file_contents)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -507,6 +527,7 @@ def run_ota_impl_(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -542,14 +563,13 @@ def run_ota_impl_(
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
-        with Path(filename).open("rb") as file_handle:
-            try:
-                perform_ota(sock, password, file_handle, filename, ota_type)
-            except OTAError as err:
-                _LOGGER.error(str(err))
-                return 1, None
-            finally:
-                sock.close()
+        try:
+            perform_ota(sock, password, filename, ota_type, alt_filename=alt_filename)
+        except OTAError as err:
+            _LOGGER.error(str(err))
+            return 1, None
+        finally:
+            sock.close()
 
         # Successfully uploaded to sa[0]
         return 0, sa[0]
@@ -564,9 +584,17 @@ def run_ota(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> tuple[int, str | None]:
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
+        return run_ota_impl_(
+            remote_host,
+            remote_port,
+            password,
+            filename,
+            ota_type,
+            alt_filename=alt_filename,
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None
