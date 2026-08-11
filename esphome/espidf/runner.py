@@ -144,12 +144,14 @@ def main() -> int:
 
         * ``isatty()`` unconditionally returns True, tricking downstream
           code into emitting TTY-format output.
-        * Input is split on ``\\n`` / ``\\r`` via
-          ``str.splitlines(keepends=True)`` and any complete line whose
+        * Input is split with ``str.splitlines(keepends=True)``, which
+          breaks on more than ``\\n`` and ``\\r``; form feed and a few
+          other control characters count too. Any piece whose
           ANSI-stripped, right-stripped form matches one of
           ``filter_lines`` is dropped.
-        * Incomplete trailing chunks are held in a buffer until a
-          terminator arrives.
+        * Only the final piece can still be waiting for more text, so
+          that one is held until a ``\\n`` or ``\\r`` arrives. A piece
+          that ended on one of the other breaks goes out as it is.
 
         Mirrors the matching semantics of ``esphome.util.RedirectText``
         so filter patterns behave identically in both the PlatformIO
@@ -228,13 +230,22 @@ def main() -> int:
                 # Nothing to match against, so no need to wait for a full line.
                 self._emit(data)
             else:
-                self._line_buffer += data
-                for line in self._line_buffer.splitlines(keepends=True):
-                    if "\n" not in line and "\r" not in line:
-                        # Incomplete — hold until we see a terminator.
-                        self._line_buffer = line
-                        break
+                lines = (self._line_buffer + data).splitlines(keepends=True)
+                # Every piece but the last ends with something
+                # ``str.splitlines`` treats as a break, so only the last one
+                # can still be waiting for more text. Hold that one, write
+                # out the rest.
+                #
+                # Some of those breaks are not line endings to us, a form
+                # feed for one, so a piece can go out without ending in a
+                # newline. That beats what we did before, which was to stop
+                # at the first such piece and drop every complete line
+                # behind it.
+                if lines and not lines[-1].endswith(("\n", "\r")):
+                    self._line_buffer = lines.pop()
+                else:
                     self._line_buffer = ""
+                for line in lines:
                     self._emit(line)
 
             # We tell idf.py it is talking to a terminal, so it sends progress

@@ -229,14 +229,21 @@ class RedirectText:
             s = s.decode()
 
         if self._filter_pattern is not None or self._line_callbacks:
-            self._line_buffer += s
-            lines = self._line_buffer.splitlines(True)
-            for line in lines:
-                if "\n" not in line and "\r" not in line:
-                    # Not a complete line, set line buffer
-                    self._line_buffer = line
-                    break
+            lines = (self._line_buffer + s).splitlines(True)
+            # Every piece but the last ends with something
+            # ``str.splitlines`` treats as a break, so only the last one can
+            # still be waiting for more text. Hold that one, write out the
+            # rest.
+            #
+            # Some of those breaks are not line endings to us, a form feed
+            # for one, so a piece can go out without ending in a newline.
+            # That beats what we did before, which was to stop at the first
+            # such piece and drop every complete line behind it.
+            if lines and not lines[-1].endswith(("\n", "\r")):
+                self._line_buffer = lines.pop()
+            else:
                 self._line_buffer = ""
+            for line in lines:
                 self._emit_line(line)
         else:
             self._write_color_replace(s)
