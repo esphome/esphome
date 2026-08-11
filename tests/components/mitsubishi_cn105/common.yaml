@@ -3,6 +3,11 @@ mitsubishi_cn105:
   uart_id: uart_bus
   update_interval: 30s
   telemetry_request_min_interval: 120s
+  vane:
+    on_state:
+      - logger.log:
+          format: "TRIGGER: vane on_state is auto: %s"
+          args: ['x.vertical.direction == VERTICAL_VANE_MODE_AUTO ? "yes" : "no"']
 
 climate:
   - platform: mitsubishi_cn105
@@ -24,3 +29,11 @@ esphome:
           temperature: 22.0
       - mitsubishi_cn105.clear_remote_temperature:
           id: ac
+      - mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: SWING
+      - mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: !lambda return esphome::mitsubishi_cn105::VERTICAL_VANE_MODE_SWING;
