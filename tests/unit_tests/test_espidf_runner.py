@@ -102,6 +102,8 @@ def test_runner_streams_output_before_the_build_finishes(
         env=probe_env,
         text=True,
     ) as proc:
+        assert proc.stdout is not None
+        assert proc.stderr is not None
         first_line: list[str] = []
         reader = threading.Thread(
             target=lambda: first_line.append(proc.stdout.readline()), daemon=True
