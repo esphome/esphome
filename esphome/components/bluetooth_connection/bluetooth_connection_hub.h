@@ -176,6 +176,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   }
   /// Re-offer the owed reply; clears on success, stays owed on a refusal.
   void flush_pending_ack_();
+  /// Advance the retry budget and abandon at the limit, without sending.
+  void age_pending_ack_();
   // A backend providing its own streamer (see the contract doc) builds the
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
@@ -205,6 +207,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// retries). Callers release the table first; the message needs only the
   /// address.
   void send_services_done_();
+  /// Advance the retry budget and abandon at the limit, without sending.
+  void age_services_done_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
