@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import ButtonInfo, NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
 from .state_utils import SensorTracker, find_entity
@@ -330,7 +330,10 @@ async def test_uart_mock_modbus_server_controller(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
@@ -392,7 +395,12 @@ async def test_uart_mock_modbus_server_controller_write(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        entities = await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the baseline can already be in the
+        # states the device sends on connect; matching it there saves waiting for
+        # the next poll
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
 
         # Wait for initial baseline values to confirm the controller <-> server
         # connection is working before issuing writes
@@ -407,6 +415,72 @@ async def test_uart_mock_modbus_server_controller_write(
             client.number_command(entity.key, case.write_value)
 
         # Wait for sensors to reflect the written values (round-trip write+read)
+        await tracker.await_all(written_futures, timeout=4.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller_bits(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test coil/discrete-input round trips between controller and server bits.
+
+    The server serves four bits from one shared table. The controller reads
+    each of them both as a coil (FC 0x01) and as a discrete input (FC 0x02),
+    so the two views must always agree. Two bits are then written back, one
+    via the single-coil write (FC 0x05) and one via the multiple-coils write
+    (FC 0x0F), and the new values must show up in both read views.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    initial_values = {
+        "bit_coil_0": True,
+        "bit_coil_1": False,
+        "bit_coil_2": False,
+        "bit_coil_3": True,
+        "bit_di_0": True,
+        "bit_di_1": False,
+        "bit_di_2": False,
+        "bit_di_3": True,
+    }
+    tracker = SensorTracker(list(initial_values.keys()))
+
+    # Phase 1: expect initial baseline values in both read views
+    initial_futures = tracker.expect_all(initial_values)
+    # Phase 2: expect post-write values (registered now so on_state can match them)
+    written_futures = tracker.expect_all(
+        {
+            "bit_coil_2": True,
+            "bit_di_2": True,
+            "bit_coil_3": False,
+            "bit_di_3": False,
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        # The controller polls from boot and binary sensors drop repeats, so the
+        # baseline can arrive only in the states the device sends on connect
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
+
+        # Wait for initial baseline values to confirm the controller <-> server
+        # connection is working before issuing writes
+        await tracker.await_all(initial_futures, timeout=4.0)
+
+        # Flip both writable bits: 0x02 false -> true, 0x03 true -> false
+        for switch_name, value in (("write_bit_2", True), ("write_bit_3", False)):
+            entity = find_entity(entities, switch_name, SwitchInfo)
+            assert entity is not None, f"{switch_name} switch entity not found"
+            client.switch_command(entity.key, value)
+
+        # Wait for both read views to reflect the written values
         await tracker.await_all(written_futures, timeout=4.0)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
@@ -429,7 +503,10 @@ async def test_uart_mock_modbus_server_controller_multiple(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
@@ -447,10 +524,11 @@ async def test_uart_mock_modbus_client_typed(
     with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
     a read of unserved register 0x99 resolves via on_error with the device's exception code
     (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via
-    on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code), proving the bit-read request and typed error
-    delivery. A multi-register write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12
-    chained inside its ack handler (-> multi_value = 222); a multi-coil write draws ILLEGAL_FUNCTION from
-    the register-only server (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
+    on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code) - the server maps no bits, so it does not
+    implement the coil function - proving the bit-read request and typed error delivery. A multi-register
+    write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12 chained inside its ack handler
+    (-> multi_value = 222); a multi-coil write likewise draws ILLEGAL_FUNCTION from the register-only server
+    (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
     builds an empty (rejected) PDU, is refused at the hub door, and resolves via on_not_sent
     (-> not_sent_flag).
     """

@@ -116,8 +116,8 @@ class BK72xxBLETracker : public Component,
   bool request_scan_mode(bool active);
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.
-  void get_adapter_mac(uint8_t out[6]) {
-    uint8_t mac[6];
+  void get_adapter_mac(uint8_t out[MAC_ADDRESS_SIZE]) {
+    uint8_t mac[MAC_ADDRESS_SIZE];
     this->parent_->get_mac_lsb_first(mac);
     for (int i = 0; i < 6; i++)
       out[i] = mac[5 - i];
