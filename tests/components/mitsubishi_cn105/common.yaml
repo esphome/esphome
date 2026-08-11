@@ -10,6 +10,12 @@ climate:
     name: "AC Test"
     supported_swing_modes: BOTH
 
+select:
+  - platform: mitsubishi_cn105
+    mitsubishi_cn105_id: ac
+    vertical_vane_direction:
+      name: "Vertical Vane"
+
 esphome:
   on_boot:
     then:

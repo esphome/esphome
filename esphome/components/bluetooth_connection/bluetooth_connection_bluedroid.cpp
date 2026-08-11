@@ -407,20 +407,16 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
     return;
   }
   if (conn.send_service_ >= this->service_total_) {
-    conn.send_service_ = DONE_SENDING_SERVICES;
-    conn.proxy_->send_gatt_services_done(conn.address_);
     this->release_services();
+    conn.send_services_done_();
     return;
   }
 
-  // The subscriber vanished mid-stream: park the cursor at done WITHOUT
-  // sending services-done (a resubscribing client gets silence and its 30 s
-  // timeout, never an authoritative partial list).
+  // The subscriber vanished mid-stream.
   auto *api_conn = conn.proxy_->get_api_connection();
   if (api_conn == nullptr) {
     ESP_LOGW(TAG, "[%d] [%s] API connection lost while streaming services", conn.connection_index_, conn.address_str_);
-    conn.send_service_ = DONE_SENDING_SERVICES;
-    this->release_services();
+    conn.park_service_stream_();
     return;
   }
 

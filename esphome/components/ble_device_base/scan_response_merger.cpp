@@ -2,6 +2,8 @@
 
 #ifdef USE_BLE_SCAN_RESPONSE_MERGER
 
+#include "esphome/core/helpers.h"
+
 #include <cstring>
 
 namespace esphome::ble_device_base {
@@ -27,7 +29,7 @@ void ScanResponseMerger::stash_adv(const uint8_t *mac, int8_t rssi, uint8_t addr
         free_slot = &p;
       continue;
     }
-    if (p.addr_type == addr_type && memcmp(p.mac, mac, 6) == 0) {
+    if (p.addr_type == addr_type && memcmp(p.mac, mac, MAC_ADDRESS_SIZE) == 0) {
       // Same device advertised again before its scan response arrived — deliver
       // the previous advertisement (its scan response is not coming) and reuse
       // the slot, so no frame is ever lost.
@@ -47,7 +49,7 @@ void ScanResponseMerger::stash_adv(const uint8_t *mac, int8_t rssi, uint8_t addr
   }
   slot->used = true;
   this->pending_count_++;
-  memcpy(slot->mac, mac, 6);
+  memcpy(slot->mac, mac, MAC_ADDRESS_SIZE);
   slot->addr_type = addr_type;
   slot->rssi = rssi;
   slot->data_len = (data_len <= sizeof(slot->data)) ? data_len : sizeof(slot->data);
@@ -61,7 +63,7 @@ void ScanResponseMerger::submit_scan_rsp(const uint8_t *mac, int8_t rssi, uint8_
   // hottest caller.
   if (this->pending_count_ != 0) {
     for (auto &p : this->pending_adv_) {
-      if (p.used && p.addr_type == addr_type && memcmp(p.mac, mac, 6) == 0) {
+      if (p.used && p.addr_type == addr_type && memcmp(p.mac, mac, MAC_ADDRESS_SIZE) == 0) {
         // Append in place: the slot is released on delivery, so its 62-byte
         // buffer (legacy adv + scan response) holds the merged frame directly.
         const uint8_t room = sizeof(p.data) - p.data_len;

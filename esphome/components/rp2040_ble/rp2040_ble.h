@@ -25,8 +25,8 @@ enum class BLEComponentState : uint8_t {
 
 /// One advertisement report from the controller.
 struct BLEScanReport {
-  uint8_t mac[6];  // LSB-first, as the controller delivers it
-  int8_t rssi;     // signed dBm
+  uint8_t mac[MAC_ADDRESS_SIZE];  // LSB-first, as the controller delivers it
+  int8_t rssi;                    // signed dBm
   uint8_t addr_type;
   uint8_t adv_event_type;  // GAP advertising event type (ADV_IND .. SCAN_RSP); lets a merger tell the two apart
   uint8_t data_len;        // bytes valid in data[]
@@ -77,7 +77,7 @@ class RP2040BLE final : public Component {
   /// (LSB-first) order, hence the explicit names. All zeros until the stack
   /// reports ACTIVE (BTstack reads the address from the controller during
   /// power-up).
-  void get_mac_msb_first(uint8_t out[6]) const;
+  void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
 #ifdef RP2040_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main loop via loop()).
@@ -135,7 +135,7 @@ class RP2040BLE final : public Component {
   btstack_packet_callback_registration_t hci_event_callback_registration_{};
   btstack_packet_callback_registration_t sm_event_callback_registration_{};
 
-  uint8_t ble_mac_[6]{0};  // printable (MSB-first) order; zeros until ACTIVE
+  uint8_t ble_mac_[MAC_ADDRESS_SIZE]{0};  // printable (MSB-first) order; zeros until ACTIVE
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{true};
   bool btstack_initialized_{false};

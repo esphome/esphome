@@ -116,7 +116,7 @@ void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t add
     this->report_queue_.increment_dropped_count();
     return;
   }
-  memcpy(report->mac, mac, 6);
+  memcpy(report->mac, mac, MAC_ADDRESS_SIZE);
   report->rssi = rssi;
   report->addr_type = addr_type;
   report->evt_type = evt_type;
@@ -230,7 +230,7 @@ void BK72xxBLE::loop() {
     ESP_LOGW(TAG, "Dropped %u scan reports due to queue overflow", dropped);
 }
 
-void BK72xxBLE::get_mac_lsb_first(uint8_t out[6]) const {
+void BK72xxBLE::get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
   for (int i = 0; i < 6; i++)
     out[i] = this->ble_mac_[i];
 }
@@ -263,7 +263,7 @@ void BK72xxBLE::resolve_mac_() {
     }
   }
   if (nonzero) {
-    memcpy(this->ble_mac_, common_default_bdaddr.addr, 6);
+    memcpy(this->ble_mac_, common_default_bdaddr.addr, MAC_ADDRESS_SIZE);
     return;
   }
 #endif
@@ -275,10 +275,10 @@ void BK72xxBLE::resolve_mac_() {
   // (verified against the BK7231N BLE-5.1 and BK7252N/BK7238 BLE-5.2 SDK sources), so it
   // matches on every device, including the last-byte == 0xFF edge that a 24-bit increment
   // would carry differently.
-  uint8_t wifi_mac[6];
+  uint8_t wifi_mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(wifi_mac);  // MSB-first
-  const uint8_t ble[6] = {wifi_mac[0], wifi_mac[1], wifi_mac[2],
-                          wifi_mac[3], wifi_mac[4], static_cast<uint8_t>(wifi_mac[5] + 1)};
+  const uint8_t ble[MAC_ADDRESS_SIZE] = {wifi_mac[0], wifi_mac[1], wifi_mac[2],
+                                         wifi_mac[3], wifi_mac[4], static_cast<uint8_t>(wifi_mac[5] + 1)};
   // Store LSB-first to match recv_adv_t adv_addr ordering.
   for (int i = 0; i < 6; i++)
     this->ble_mac_[i] = ble[5 - i];
