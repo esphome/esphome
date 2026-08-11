@@ -145,8 +145,7 @@ class BluetoothProxy final : public Component {
   void send_connections_free(api::APIConnection *api_connection);
   /// Same convention as send_device_connection: false only on a refused frame.
   bool send_gatt_services_done(uint64_t address);
-  /// Returns false only when the API refused the frame, so a caller that
-  /// can re-offer it knows the reply is still owed.
+  /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error = CONN_OK);

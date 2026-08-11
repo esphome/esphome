@@ -25,12 +25,9 @@ namespace esphome::bluetooth_connection {
 using ClientState = ble_device_base::ClientState;
 using ConnectionType = ble_device_base::ConnectionType;
 
-/// A GATT acknowledgement the API refused, owed to the current subscriber.
-/// Only payload-free replies appear here: each one is rebuilt from the
-/// address plus the fields below, so a retry is idempotent and costs no
-/// buffered data. Read and notify-data replies carry payloads and are
-/// deliberately absent - retrying those would mean holding data on the heap
-/// through exactly the congestion that refused them.
+/// A refused GATT reply owed to the current subscriber. Payload-free only:
+/// these rebuild from address + handle + error, so a retry costs no buffered
+/// data. Read and notify-data carry payloads and are deliberately absent.
 enum class PendingAck : uint8_t {
   PENDING_ACK_NONE = 0,
   PENDING_ACK_WRITE,
@@ -129,47 +126,33 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     }
   }
 
-  /// Remember a refused acknowledgement so the proxy drain can re-offer it.
-  /// Newest wins: one slot per connection, sized for the sequential
-  /// request/reply pattern a GATT client uses. If a second reply is refused
-  /// while one is owed, the older one is discarded and that operation falls
-  /// back to the client's timeout, which is what happened to both before
-  /// this latch existed.
+  /// Latch a refused reply for the proxy drain. One slot per connection,
+  /// newest wins: a GATT client works one request at a time, and a discarded
+  /// reply falls back to the timeout it would have hit anyway.
   void latch_pending_ack_(PendingAck kind, uint16_t handle, conn_err_t error = 0) {
     this->pending_ack_ = kind;
     this->pending_ack_handle_ = handle;
     this->pending_ack_error_ = error;
   }
   void clear_pending_ack_() { this->pending_ack_ = PendingAck::PENDING_ACK_NONE; }
-  /// Drop an owed reply once the client asks again about the same handle.
-  ///
-  /// Without this the retry is unbounded in a way that can do real harm: a
-  /// client whose write times out re-issues it, and the drain could then
-  /// deliver the *old* reply against the *new* request. API clients match a
-  /// reply by (address, handle), so the retried operation would be reported
-  /// as complete before the peripheral has answered it. Dropping the stale
-  /// reply restores the pre-latch outcome for that case, a timeout, which is
-  /// wrong but honest.
+  /// Drop an owed reply when the client re-asks about that handle. Clients
+  /// match replies by (address, handle), so a stale one would otherwise
+  /// resolve the retried request before the peripheral has answered.
   void supersede_pending_ack_(uint16_t handle) {
     if (this->has_pending_ack_() && this->pending_ack_handle_ == handle) {
       this->clear_pending_ack_();
     }
   }
   bool has_pending_ack_() const { return this->pending_ack_ != PendingAck::PENDING_ACK_NONE; }
-  /// Report a refused service batch on the stall's leading edge only. The
-  /// batch itself is never lost - the caller rewinds the cursor and the next
-  /// loop iteration re-sends it - so warning on every attempt says nothing
-  /// new while adding traffic to the connection that is already refusing
-  /// frames. Both streamers route their refusal here, so both report it
-  /// identically.
+  /// Warn on the stall's leading edge only. The batch is never lost (the
+  /// caller rewinds the cursor), and a warning per attempt would add traffic
+  /// to the connection already refusing frames. Both streamers route here.
   void note_batch_stalled_();
-  /// Build and send one payload-free GATT reply. The single construction
-  /// site for these messages, shared by the first attempt and the retry.
+  /// Sole construction site for these replies, shared by send and retry.
   bool try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error);
   /// First attempt: send, and latch it for the drain if the API refuses.
   void send_ack_(PendingAck kind, uint16_t handle, conn_err_t error = 0);
-  /// Re-send the owed acknowledgement, rebuilt from the latch. Clears on
-  /// success or when nobody is subscribed; keeps it owed on a refusal.
+  /// Re-offer the owed reply; clears on success, stays owed on a refusal.
   void flush_pending_ack_();
   // A backend providing its own streamer (see the contract doc) builds the
   // response in place from its stack cache; the rest use the table streamer.
@@ -208,8 +191,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bluetooth_proxy::BluetoothProxy *proxy_{nullptr};
   ble_device_base::BLEGattConnection *backend_{nullptr};
 
-  // Group 2: 2-byte types (pending_ack_handle_ lands in padding that was
-  // already there, so it is free)
+  // Group 2: 2-byte types (pending_ack_handle_ lands in existing padding)
   int16_t send_service_{INIT_SENDING_SERVICES};
   uint16_t mtu_{ble_device_base::DEFAULT_ATT_MTU};
   uint16_t pending_ack_handle_{0};
@@ -217,17 +199,15 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // Group 3: 8-byte and 4-byte types
   uint64_t address_{0};
   conn_err_t pending_error_{0};
-  // Full width on purpose: the GATT error domain is open-ended (see
-  // ble_gatt_client.h) and the value is forwarded to the API untranslated,
-  // so narrowing it here would corrupt platform status codes.
+  // Full width: the GATT error domain is open-ended (ble_gatt_client.h) and
+  // forwarded untranslated, so narrowing would corrupt platform codes.
   conn_err_t pending_ack_error_{0};
 
   // Group 4: Arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
 
-  // Group 5: bit-packed tail. pending_ack_error_ already pushed the
-  // 8-aligned object from 48 to 56, so the third tail byte the ack fields
-  // need is free; keep the first two packed exactly as before.
+  // Group 5: bit-packed tail. pending_ack_error_ already took the object
+  // from 48 to 56, so the third tail byte is free; first two stay packed.
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
                 "connection_type_ bitfield too narrow");
@@ -242,9 +222,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool services_discovered_ : 1 {false};
   static_assert(static_cast<uint8_t>(PendingAck::PENDING_ACK_ERROR) < (1 << 2), "pending_ack_ bitfield too narrow");
   PendingAck pending_ack_ : 2 {PendingAck::PENDING_ACK_NONE};
-  /// True while a refused service batch is being retried. Exists only so the
-  /// warning fires on the stall's leading edge: the retry itself is silent,
-  /// because the log rides the same connection that refused the batch.
+  /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
 };
 

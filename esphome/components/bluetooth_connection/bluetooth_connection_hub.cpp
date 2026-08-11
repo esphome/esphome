@@ -16,9 +16,8 @@ static const char *const TAG = "bluetooth_connection";
 void BluetoothConnection::set_address(uint64_t address) {
   // Keep the proxy's pre-allocated connections-free message in step
   this->proxy_->update_address_slot_(this->address_, address);
-  // The slot is changing hands, so anything owed belonged to the old address.
-  // reset_connection_() already clears on the ordinary teardown path; this is
-  // the choke point that covers every other way a slot is reassigned or freed.
+  // Slot changing hands: anything owed belonged to the old address. The
+  // choke point for every reassignment, not just reset_connection_()'s path.
   this->clear_pending_ack_();
   this->address_ = address;
   if (address == 0) {
@@ -77,9 +76,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
   this->paired_ = false;
-  // The link is gone: an owed reply for it would arrive addressed to a
-  // connection the client has already been told about, and the slot may be
-  // reserved for a different device by the time the drain runs.
+  // Link gone: the slot may hold a different device before the drain runs.
   this->clear_pending_ack_();
   this->batch_stalled_ = false;
   this->backend_->release_services();
@@ -180,61 +177,56 @@ void BluetoothConnection::note_batch_stalled_() {
            this->address_str_);
 }
 
-/// Build and send one payload-free GATT reply. The only construction site
-/// for these messages: first attempt and retry both come through here, so a
-/// re-offer cannot drift from the original.
+/// Both payload-free acks are just (address, handle); only the type differs.
+template<typename Response>
+static bool send_handle_reply_(api::APIConnection *api_connection, uint64_t address, uint16_t handle) {
+  Response resp;
+  resp.address = address;
+  resp.handle = handle;
+  return api_connection->send_message(resp);
+}
+
+/// Sole construction site, so a re-offer cannot drift from the original.
 bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
   if (kind == PendingAck::PENDING_ACK_ERROR) {
-    // The proxy owns the error reply; it reports a refusal the same way.
+    // Proxy owns the error reply and reports a refusal the same way.
     return this->proxy_->send_gatt_error(this->address_, handle, error);
   }
   auto *api_connection = this->proxy_->get_api_connection();
   if (api_connection == nullptr)
     return true;  // Nobody subscribed: nothing is owed
   switch (kind) {
-    case PendingAck::PENDING_ACK_WRITE: {
-      api::BluetoothGATTWriteResponse resp;
-      resp.address = this->address_;
-      resp.handle = handle;
-      return api_connection->send_message(resp);
-    }
-    case PendingAck::PENDING_ACK_NOTIFY: {
-      api::BluetoothGATTNotifyResponse resp;
-      resp.address = this->address_;
-      resp.handle = handle;
-      return api_connection->send_message(resp);
-    }
+    case PendingAck::PENDING_ACK_WRITE:
+      return send_handle_reply_<api::BluetoothGATTWriteResponse>(api_connection, this->address_, handle);
+    case PendingAck::PENDING_ACK_NOTIFY:
+      return send_handle_reply_<api::BluetoothGATTNotifyResponse>(api_connection, this->address_, handle);
     case PendingAck::PENDING_ACK_NONE:
     case PendingAck::PENDING_ACK_ERROR:  // returned above
       return true;
   }
-  // Every enumerator is listed and there is no default label, so adding one
-  // without a branch is a -Wswitch warning rather than a silent notify reply.
-  // This return only satisfies -Wreturn-type.
+  // No default label above, so a new enumerator is a -Wswitch warning rather
+  // than a silent notify reply. This return only satisfies -Wreturn-type.
   return true;
 }
 
 void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
   if (this->try_send_ack_(kind, handle, error))
     return;
-  // V, not W: the reply is owed rather than lost, and a warning here would
-  // ride the same connection that just refused a frame. Matches how the
-  // proxy logs a deferred connections-free update.
+  // V, not W: the reply is owed rather than lost, and a warning would ride
+  // the connection that just refused it (as for connections-free).
   ESP_LOGV(TAG, "[%d] [%s] GATT reply for handle 0x%2X deferred, TCP buffer full", this->connection_index_,
            this->address_str_, handle);
   this->latch_pending_ack_(kind, handle, error);
 }
 
 void BluetoothConnection::flush_pending_ack_() {
-  // Local guard: the proxy drain pre-checks, but this must be a no-op on its
-  // own rather than relying on a caller in another file.
+  // No-op on its own rather than relying on the proxy drain's pre-check.
   if (!this->has_pending_ack_())
     return;
   if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
     this->clear_pending_ack_();
   }
-  // Still refused: stays owed, re-offered on the next paced drain. The
-  // client's operation timeout remains the outer bound.
+  // Still refused: stays owed for the next paced drain.
 }
 
 void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
@@ -254,8 +246,8 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
-    // Not latched: the payload would have to be held on the heap through the
-    // congestion that refused it. The client's read timeout arbitrates.
+    // Not latched: would mean holding the payload through the congestion
+    // that refused it. The client's read timeout arbitrates.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send read response", this->connection_index_, this->address_str_);
   }
 }
@@ -295,9 +287,8 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
-    // Not latched, same reason as the read reply: the payload cannot be held
-    // through congestion. Notify data is genuinely lossy; the peripheral will
-    // not resend it.
+    // Not latched, same reason as the read reply. Notify data is lossy: the
+    // peripheral will not resend it.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
   }
 }
