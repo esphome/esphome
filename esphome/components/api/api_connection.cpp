@@ -1538,7 +1538,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   if (!this->send_message(msg)) {
-    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+    ESP_LOGW(TAG, "IR/RF event dropped, TCP buffer full");
   }
 }
 #endif
@@ -1763,7 +1763,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
     // disconnect with the reason. Authentication is intentionally not completed.
     this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
     if (!this->send_message(resp)) {
-      ESP_LOGV(TAG, "Hello response dropped, TCP buffer full");
+      ESP_LOGW(TAG, "Hello response dropped, TCP buffer full");
     }
     DisconnectRequest req;
     req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
@@ -2054,7 +2054,7 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.success = success;
   resp.error_message = error_message;
   if (!this->send_message(resp)) {
-    ESP_LOGV(TAG, "Action response dropped, TCP buffer full");
+    ESP_LOGW(TAG, "Action response dropped, TCP buffer full");
   }
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
@@ -2067,7 +2067,7 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
   if (!this->send_message(resp)) {
-    ESP_LOGV(TAG, "Action response dropped, TCP buffer full");
+    ESP_LOGW(TAG, "Action response dropped, TCP buffer full");
   }
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
@@ -2079,7 +2079,7 @@ bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &
   if (!this->flags_.service_call_subscription)
     return false;
   if (!this->send_message(call)) {
-    ESP_LOGV(TAG, "Action request dropped, TCP buffer full");
+    ESP_LOGW(TAG, "Action request dropped, TCP buffer full");
   }
   return true;
 }
@@ -2089,7 +2089,7 @@ bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &
 void APIConnection::send_time_request() {
   GetTimeRequest req;
   if (!this->send_message(req)) {
-    ESP_LOGV(TAG, "Time request dropped, TCP buffer full");
+    ESP_LOGW(TAG, "Time request dropped, TCP buffer full");
   }
 }
 #endif  // USE_HOMEASSISTANT_TIME

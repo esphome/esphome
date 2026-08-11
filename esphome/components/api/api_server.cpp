@@ -124,7 +124,7 @@ void APIServer::setup() {
         // client still learns the window is closed when it reconnects (rejected at
         // hello) or via the socket close.
         if (!c->send_message(req)) {
-          ESP_LOGV(TAG, "Disconnect request dropped, TCP buffer full");
+          ESP_LOGW(TAG, "Disconnect request dropped, TCP buffer full");
         }
       }
     });
@@ -582,7 +582,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
       for (auto &c : this->active_clients()) {
         DisconnectRequest req;
         if (!c->send_message(req)) {
-          ESP_LOGV(TAG, "Disconnect request dropped, TCP buffer full");
+          ESP_LOGW(TAG, "Disconnect request dropped, TCP buffer full");
         }
       }
     });
