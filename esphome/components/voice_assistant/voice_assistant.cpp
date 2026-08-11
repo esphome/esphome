@@ -249,7 +249,11 @@ void VoiceAssistant::stream_api_audio_() {
     }
 
     if (!this->api_client_->send_message(msg)) {
-      ESP_LOGV(TAG, "Audio frame dropped, TCP buffer full");
+      // Keep the chunk exposed and retry next pass (the camera pattern): the
+      // slice is only lost if the ring buffer overflows before the TCP buffer
+      // clears, instead of on every refusal.
+      ESP_LOGV(TAG, "Audio frame deferred, TCP buffer full");
+      return;
     }
 
     this->audio_source_->consume(available);
