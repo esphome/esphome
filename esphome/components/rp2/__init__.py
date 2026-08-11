@@ -394,7 +394,7 @@ def _configure_lwip() -> None:
     header fully controls the compiled lwIP behavior.
 
     RP2040 uses NO_SYS=1 (polling, no RTOS thread), LWIP_SOCKET=0, LWIP_NETCONN=0.
-    DHCP/DNS use raw udp_new() which allocates from MEMP_NUM_UDP_PCB.
+    DHCP/DNS use raw udp_new() which allocates from the lwIP heap.
 
     Comparison of arduino-pico defaults vs ESPHome targets (TCP_MSS=1460):
 
@@ -402,27 +402,33 @@ def _configure_lwip() -> None:
     ────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  8×MSS         4×MSS
     TCP_WND                   4×MSS   4×MSS  8×MSS         4×MSS
-    MEM_LIBC_MALLOC           1       1      0             0*
-    MEMP_MEM_MALLOC           1       1      0             0**
-    MEM_SIZE                  N/A***  N/A*** 16KB          16KB
-    PBUF_POOL_SIZE            10      16     24            16
-    MEMP_NUM_TCP_SEG          10      16     32            17
-    MEMP_NUM_TCP_PCB          5       16     5             dynamic
-    MEMP_NUM_TCP_PCB_LISTEN   4       16     8****         dynamic
-    MEMP_NUM_UDP_PCB          4       16     7             dynamic
     TCP_SND_QUEUELEN          ~8      17     32            17
+    MEM_LIBC_MALLOC           1       1      0             0*
+    MEMP_MEM_MALLOC           1       1      0             1
+    MEM_SIZE                  N/A**   N/A**  16KB          40KB
+    PBUF_POOL_SIZE            10      16     24            n/a***
+    MEMP_NUM_TCP_SEG          10      16     32            n/a***
+    MEMP_NUM_TCP_PCB          5       16     5             n/a***
+    MEMP_NUM_TCP_PCB_LISTEN   4       16     8             n/a***
+    MEMP_NUM_UDP_PCB          4       16     7             n/a***
 
     * MEM_LIBC_MALLOC must stay 0: arduino-pico uses
       PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
       a low-priority pendsv IRQ. The pico-sdk explicitly blocks
       MEM_LIBC_MALLOC=1 because libc malloc uses mutexes (unsafe in IRQ).
-    ** MEMP_MEM_MALLOC must stay 0: the dedicated lwIP heap (MEM_SIZE=16KB)
-      is too small to hold all pools dynamically. The PBUF_POOL alone needs
-      ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate BSS savings.
-    *** ESP8266/ESP32 use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
-    **** opt.h default; arduino-pico doesn't override MEMP_NUM_TCP_PCB_LISTEN.
-    "dynamic" = auto-calculated from component socket registrations via
-    socket.get_socket_counts() with minimums of 8 TCP / 6 UDP / 2 TCP_LISTEN.
+      MEMP_MEM_MALLOC=1 is fine there: it routes through lwIP's own
+      mem_malloc(), which is guarded by SYS_ARCH_PROTECT (noInterrupts()).
+    ** ESP8266/ESP32 use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
+    *** MEMP_MEM_MALLOC=1 allocates every pool entry from the lwIP heap on
+      demand, so the MEMP_NUM_* counts and PBUF_POOL_SIZE are no longer
+      limits — the same reason ESP8266/ESP32 ignore their own values. We
+      still emit them so the sizing stays correct if the flag is reverted.
+
+    Why the counts are not simply raised instead: they are per-pool rations
+    that cannot lend to each other. MEMP_NUM_TCP_SEG in particular is a
+    *global* pool while TCP_SND_QUEUELEN is *per-PCB*, so one busy connection
+    could starve every other PCB while the 24KB receive pbuf pool sat idle.
+    One shared heap removes that whole class of failure.
     """
     from esphome.components.socket import (
         MIN_TCP_LISTEN_SOCKETS,
@@ -446,35 +452,44 @@ def _configure_lwip() -> None:
     # TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
     tcp_wnd = "(4*TCP_MSS)"
 
-    # TCP_SND_QUEUELEN: max pbufs queued for send buffer
+    # TCP_SND_QUEUELEN: max pbufs queued per PCB for the send buffer. Stays
+    # live under MEMP_MEM_MALLOC — it is a counter in the PCB, not a pool.
     # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
     # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
     tcp_snd_queuelen = 17
-    # MEMP_NUM_TCP_SEG: segment pool, must be >= TCP_SND_QUEUELEN (lwIP sanity check)
+    # MEMP_NUM_TCP_SEG: segment pool. Inert while MEMP_MEM_MALLOC=1; kept at
+    # TCP_SND_QUEUELEN, the floor lwIP's sanity check demands without it.
     memp_num_tcp_seg = tcp_snd_queuelen
 
-    # PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
-    # 16 matches ESP32 (vs arduino-pico's 24). With MEMP_MEM_MALLOC=1,
-    # this is a max count (allocated on demand from heap).
+    # PBUF_POOL_SIZE: 16 matches ESP32 (vs arduino-pico's 24). Inert while
+    # MEMP_MEM_MALLOC=1 — receive pbufs come from the heap on demand.
     pbuf_pool_size = 16
+
+    # MEM_SIZE: the single lwIP heap, which now backs every pool as well as
+    # the PBUF_RAM chunks tcp_write() copies into. 40KB replaces the 16KB heap
+    # plus ~27KB of static pools it absorbs (PBUF_POOL alone was 16 × 1532),
+    # so this is roughly RAM-neutral but fully shareable.
+    #
+    # Sized for the send path: TCP_OVERSIZE defaults to TCP_MSS, so a
+    # connection holding a full TCP_SND_BUF occupies ~4 × 1.5KB. 40KB covers
+    # several concurrent senders plus receive pbufs, ARP, DHCP and mDNS.
+    # Must stay under 64000 or lwIP widens mem_size_t to u32_t.
+    mem_size = 40960
 
     # Build the lwIP override defines for the Jinja2 template.
     # The template uses #include_next to chain to the framework's original
     # lwipopts.h, then #undef/#define only the values we need to change.
     #
-    # Note: MEMP_MEM_MALLOC stays 0 (framework default). While the memp
-    # allocations use the dedicated lwIP heap (IRQ-safe), the 16KB MEM_SIZE
-    # is too small to hold all pools dynamically under stress. The PBUF_POOL
-    # alone needs ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate
-    # the BSS savings.
-    #
     # MEM_LIBC_MALLOC stays 0 (framework default): arduino-pico uses
     # PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
     # a low-priority pendsv IRQ where libc malloc (mutex-based) is unsafe.
+    # MEMP_MEM_MALLOC has no such problem — see the docstring.
     lwip_defines: dict[str, str] = {
         "TCP_SND_BUF": tcp_snd_buf,
         "TCP_WND": tcp_wnd,
         "TCP_SND_QUEUELEN": str(tcp_snd_queuelen),
+        "MEMP_MEM_MALLOC": "1",
+        "MEM_SIZE": str(mem_size),
         "MEMP_NUM_TCP_SEG": str(memp_num_tcp_seg),
         "PBUF_POOL_SIZE": str(pbuf_pool_size),
         "MEMP_NUM_TCP_PCB": str(tcp_sockets),
@@ -495,7 +510,9 @@ def _configure_lwip() -> None:
     udp_min = " (min)" if udp_sockets > sc.udp else ""
     listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
     _LOGGER.info(
-        "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        "Configuring lwIP: %d byte shared heap; expected sockets "
+        "TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        mem_size,
         tcp_sockets,
         tcp_min,
         sc.tcp_details,

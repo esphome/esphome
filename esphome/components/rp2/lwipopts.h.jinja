@@ -20,9 +20,22 @@
 #undef TCP_WND
 #define TCP_WND                       {{ TCP_WND }}
 
-// Queued segment limits: derived from 4xMSS buffer size, matching ESP32
+// Per-PCB send queue: derived from 4xMSS buffer size, matching ESP32
 #undef TCP_SND_QUEUELEN
 #define TCP_SND_QUEUELEN              {{ TCP_SND_QUEUELEN }}
+
+// Allocate every pool entry from the lwIP heap on demand instead of from
+// fixed-count static arrays, as ESP32 and ESP8266 do. This makes all the
+// MEMP_NUM_* / PBUF_POOL_SIZE values below advisory rather than hard caps.
+// Safe here because lwIP's mem_malloc() is guarded by SYS_ARCH_PROTECT
+// (noInterrupts()), unlike the libc malloc that MEM_LIBC_MALLOC would use.
+#undef MEMP_MEM_MALLOC
+#define MEMP_MEM_MALLOC               {{ MEMP_MEM_MALLOC }}
+
+// The single lwIP heap: now backs the pools above as well as the PBUF_RAM
+// chunks tcp_write() copies into, so it absorbs the static pools it replaces.
+#undef MEM_SIZE
+#define MEM_SIZE                      {{ MEM_SIZE }}
 
 #undef MEMP_NUM_TCP_SEG
 #define MEMP_NUM_TCP_SEG              {{ MEMP_NUM_TCP_SEG }}
