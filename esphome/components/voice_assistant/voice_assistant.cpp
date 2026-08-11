@@ -249,10 +249,10 @@ void VoiceAssistant::stream_api_audio_() {
     }
 
     if (!this->api_client_->send_message(msg)) {
-      // Keep the chunk exposed and retry next pass (the camera pattern): the
-      // slice is only lost if the ring buffer overflows before the TCP buffer
-      // clears, instead of on every refusal.
-      ESP_LOGV(TAG, "Audio frame deferred, TCP buffer full");
+      // Keep the chunk exposed and retry next pass, the same shape as
+      // APIConnection::try_send_camera_image_(): the slice is only lost if
+      // the ring buffer overflows before the TCP buffer clears, instead of
+      // on every refusal. The api layer already reports the refusal at V.
       return;
     }
 
