@@ -566,6 +566,16 @@ void BluetoothProxy::loop() {
     return;
   this->last_advertisement_flush_time_ = now;
 
+  // Owed device-maintenance replies. Cleared before re-sending so a refusal
+  // re-latches through the sender itself, as the connections-free drain does.
+  // The success flag is recomputed as (error == 0), which is what every
+  // caller passed in the first place.
+  if (this->api_connection_ != nullptr) {
+    this->drain_pending_device_reply_(this->pending_pairing_, &BluetoothProxy::send_device_pairing);
+    this->drain_pending_device_reply_(this->pending_unpairing_, &BluetoothProxy::send_device_unpairing);
+    this->drain_pending_device_reply_(this->pending_clear_cache_, &BluetoothProxy::send_device_clear_cache);
+  }
+
   if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
     // Resend a dropped slot-state update, paced by the 100 ms gate so the
     // retry does not hammer the congestion it exists to survive; the
@@ -714,6 +724,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     // Stale retry latches belong to the previous subscriber's session; a
     // re-subscribe by the current one keeps what it is still owed.
     this->connections_free_pending_ = false;
+    this->clear_pending_device_replies_();
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       // Neither a partial stream's tail nor an owed done belongs to the new
@@ -741,6 +752,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   }
   this->api_connection_ = nullptr;
   this->connections_free_pending_ = false;
+  this->clear_pending_device_replies_();
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   this->scanner_state_pending_ = false;
 #endif
@@ -791,6 +803,23 @@ bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err
   return this->api_connection_->send_message(call);
 }
 
+void BluetoothProxy::defer_device_reply_(PendingDisconnect &owed, uint64_t address, conn_err_t error) {
+  // V, not W: the reply is owed rather than lost, and a warning would ride the
+  // connection that just refused it.
+  ESP_LOGV(TAG, "Device reply for %012" PRIX64 " deferred, TCP buffer full", address);
+  owed.set(address, error);
+}
+
+void BluetoothProxy::drain_pending_device_reply_(PendingDisconnect &owed, DeviceReplySender sender) {
+  if (owed.empty())
+    return;
+  uint64_t address = owed.address();
+  conn_err_t error = owed.error();
+  // Clear first: the sender re-latches if the API refuses it again.
+  owed.clear();
+  (this->*sender)(address, error == CONN_OK, error);
+}
+
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
@@ -799,7 +828,9 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
   call.paired = paired;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    this->defer_device_reply_(this->pending_pairing_, address, error);
+  }
 }
 
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
@@ -810,7 +841,9 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    this->defer_device_reply_(this->pending_unpairing_, address, error);
+  }
 }
 
 // Shared by both platform paths: the neutral bluetooth_device_request() uses it to
@@ -823,7 +856,9 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    this->defer_device_reply_(this->pending_clear_cache_, address, error);
+  }
 }
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

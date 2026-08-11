@@ -60,8 +60,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-/// One owed freed-slot connected=false notification in a single word: the
+/// One owed address-keyed reply in a single word: the
 /// 48-bit address in the low bits, the sign-extending 16-bit reason on top.
 /// Every reason that reaches the pool (esp_gatt_status_t,
 /// esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits int16_t.
@@ -95,7 +94,6 @@ static_assert(pending_disconnect_round_trips(0x0000112233445566ULL, 0x0000112233
 static_assert(pending_disconnect_round_trips(0x0000FFFFFFFFFFFFULL, 0x0000FFFFFFFFFFFFULL, 0x8F));
 static_assert(pending_disconnect_round_trips(0xABCD112233445566ULL, 0x0000112233445566ULL, 0x110));
 static_assert(PendingDisconnect{}.empty());
-#endif
 
 class BluetoothProxy final : public Component {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
@@ -296,6 +294,27 @@ class BluetoothProxy final : public Component {
   // slot indices.
   std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
 #endif
+  // Owed device-maintenance replies, one slot per operation so a pair cannot
+  // evict an owed unpair. Address-keyed rather than slot-keyed: unpair and
+  // clear-cache act on an address with no connection at all. The success flag
+  // is not stored because every caller passes exactly (error == 0). Built on
+  // every proxy variant: the advertisement-only arm answers these too.
+  /// The three device-reply senders share a signature, so one drain covers
+  /// them all.
+  using DeviceReplySender = void (BluetoothProxy::*)(uint64_t, bool, conn_err_t);
+  void drain_pending_device_reply_(PendingDisconnect &owed, DeviceReplySender sender);
+  /// Log the deferral and latch it, so all three senders report identically.
+  void defer_device_reply_(PendingDisconnect &owed, uint64_t address, conn_err_t error);
+  /// A reply owed to the previous subscriber means nothing to the next one.
+  void clear_pending_device_replies_() {
+    this->pending_pairing_.clear();
+    this->pending_unpairing_.clear();
+    this->pending_clear_cache_.clear();
+  }
+
+  PendingDisconnect pending_pairing_{};
+  PendingDisconnect pending_unpairing_{};
+  PendingDisconnect pending_clear_cache_{};
   ble_device_base::BLEHub *hub_{nullptr};
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
   // start on an even word, closing two alignment holes.
