@@ -55,7 +55,7 @@ def test_main_drains_a_partial_line_on_a_clean_run(
 
     assert runner.main() == 0
     assert buf.getvalue().decode("utf-8") == (
-        "Linking .pioenvs/firmware.elf\nBuilding took 12.4 seconds"
+        "Linking .pioenvs/firmware.elf\nBuilding took 12.4 seconds\n"
     )
 
 
@@ -74,7 +74,7 @@ def test_main_drains_when_platformio_exits_early(
         runner.main()
 
     assert excinfo.value.code == 1
-    assert buf.getvalue().decode("utf-8") == "*** [.pioenvs/firmware.elf] Error 1"
+    assert buf.getvalue().decode("utf-8") == "*** [.pioenvs/firmware.elf] Error 1\n"
 
 
 def test_main_still_filters_a_drained_partial_line(

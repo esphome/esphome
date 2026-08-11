@@ -68,7 +68,7 @@ def test_main_filters_noise_and_flushes_each_write(
     assert "Project build complete." not in output
     assert "-- Component paths:" not in output
     # Held back until the end because no terminator arrived.
-    assert output.endswith("still going")
+    assert output.endswith("still going\n")
 
 
 def test_main_drains_a_partial_line_when_the_build_dies(
@@ -88,7 +88,23 @@ def test_main_drains_a_partial_line_when_the_build_dies(
         runner.main()
 
     assert excinfo.value.code == 2
-    assert buf.getvalue().decode("utf-8") == "FATAL: ld returned 1 exit status"
+    assert buf.getvalue().decode("utf-8") == "FATAL: ld returned 1 exit status\n"
+
+
+def test_main_reports_rather_than_raises_when_draining_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    fixture_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """A stream that closed under us must not crash the runner's cleanup.
+
+    The drain runs from a ``finally``, so an exception there would replace
+    whatever exit code the build was carrying back.
+    """
+    _prepare_main(monkeypatch, fixture_path / "espidf" / "closing_probe.py")
+
+    assert runner.main() == 0
+    assert "Could not write out remaining output" in capfd.readouterr().err
 
 
 def test_main_still_filters_a_drained_partial_line(

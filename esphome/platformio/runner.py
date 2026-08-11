@@ -174,23 +174,25 @@ def main() -> int:
     # Filtering is disabled when the user passed -v / --verbose to
     # ``esphome compile``, preserving the previous in-process behavior where
     # verbose mode let all PlatformIO output through unfiltered.
-    from esphome.util import RedirectText
+    from esphome.util import RedirectText, drain_quietly
 
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
     filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
 
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    stdout_redirect = sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    stderr_redirect = sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     import platformio.__main__
 
     # PlatformIO exits through ``sys.exit``, so drain from a finally to give
-    # a last line without a terminator a chance to reach the user.
+    # a last line without a terminator a chance to reach the user. Drain the
+    # wrappers we made rather than sys.stdout, which PlatformIO is free to
+    # replace while it runs.
     try:
         return platformio.__main__.main() or 0
     finally:
-        sys.stdout.drain()
-        sys.stderr.drain()
+        drain_quietly(stdout_redirect)
+        drain_quietly(stderr_redirect)
 
 
 if __name__ == "__main__":

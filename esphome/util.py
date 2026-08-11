@@ -206,7 +206,9 @@ class RedirectText:
         if not self._line_buffer:
             return
         line, self._line_buffer = self._line_buffer, ""
-        self._emit_line(line)
+        # Add the terminator the line never got, so whatever ESPHome prints
+        # next does not run onto the same line.
+        self._emit_line(line + "\n")
         self._out.flush()
 
     def write(self, s: str | bytes) -> int:
@@ -245,6 +247,20 @@ class RedirectText:
         return True
 
 
+def drain_quietly(stream: RedirectText) -> None:
+    """Drain *stream*, reporting rather than raising if it cannot be written.
+
+    Every caller drains from a cleanup path, where the command's real result
+    is already on its way out. Letting a broken pipe or a closed stream raise
+    here would replace that result with an unrelated traceback, and would
+    also skip draining the other stream.
+    """
+    try:
+        stream.drain()
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        _LOGGER.debug("Could not write out remaining output: %s", err)
+
+
 def run_external_command(
     func,
     *cmd,
@@ -276,11 +292,11 @@ def run_external_command(
     _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
-    sys.stdout = RedirectText(
+    stdout_redirect = sys.stdout = RedirectText(
         sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
     )
     orig_stderr = sys.stderr
-    sys.stderr = RedirectText(
+    stderr_redirect = sys.stderr = RedirectText(
         sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
     )
 
@@ -303,14 +319,16 @@ def run_external_command(
         sys.argv = orig_argv
         sys.exit = orig_exit
 
-        # Release a last line that never got its terminator before we put the
-        # real streams back.
-        if not capture_stdout:
-            sys.stdout.drain()
-        sys.stderr.drain()
-
         sys.stdout = orig_stdout
         sys.stderr = orig_stderr
+
+        # Release a last line that never got its terminator. This runs after
+        # the real streams are back, and uses the wrappers we made rather
+        # than whatever the command left in sys.stdout, so it cannot strand
+        # them. With capture_stdout the stdout wrapper was never written to,
+        # so draining it does nothing.
+        drain_quietly(stdout_redirect)
+        drain_quietly(stderr_redirect)
 
     if capture_stdout:
         return cap_stdout.getvalue()

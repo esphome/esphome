@@ -197,7 +197,9 @@ def main() -> int:
             if not self._line_buffer:
                 return
             line, self._line_buffer = self._line_buffer, ""
-            self._emit(line)
+            # Add the terminator the line never got, so whatever ESPHome
+            # prints next does not run onto the same line.
+            self._emit(line + "\n")
             self._stream.flush()
 
         def write(self, data) -> int:
@@ -240,8 +242,8 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[2:])
     filter_lines = None if is_verbose else FILTER_IDF_LINES or None
 
-    sys.stdout = _FilteringTTYStream(sys.stdout, filter_lines)  # type: ignore[assignment]
-    sys.stderr = _FilteringTTYStream(sys.stderr, filter_lines)  # type: ignore[assignment]
+    stdout_shim = sys.stdout = _FilteringTTYStream(sys.stdout, filter_lines)  # type: ignore[assignment]
+    stderr_shim = sys.stderr = _FilteringTTYStream(sys.stderr, filter_lines)  # type: ignore[assignment]
 
     # Shift argv so the target script sees its own path as argv[0] and
     # its own arguments starting at argv[1]. runpy.run_path does not
@@ -260,12 +262,19 @@ def main() -> int:
     # If idf.py calls sys.exit(), SystemExit propagates out of run_path
     # and carries the exit code back to our caller. For normal returns,
     # fall through and exit with 0. Either way the streams get a chance to
-    # release a last line that never got its terminator.
+    # release a last line that never got its terminator. Drain the shims we
+    # made rather than sys.stdout, which the script is free to replace, and
+    # report instead of raising so cleanup cannot bury the real exit code.
     try:
         runpy.run_path(script_path, run_name="__main__")
     finally:
-        sys.stdout.drain()
-        sys.stderr.drain()
+        for shim in (stdout_shim, stderr_shim):
+            try:
+                shim.drain()
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                print(
+                    f"Could not write out remaining output: {err}", file=sys.__stderr__
+                )
     return 0
 
 

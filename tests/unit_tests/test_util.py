@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import io
+import logging
 from pathlib import Path
 import subprocess
 import sys
@@ -456,7 +457,7 @@ def test_redirect_text_drain_releases_held_partial_line() -> None:
 
     redirect.drain()
 
-    assert buf.getvalue() == "FATAL: ld returned 1 exit status"
+    assert buf.getvalue() == "FATAL: ld returned 1 exit status\n"
 
 
 def test_redirect_text_drain_still_applies_the_filter() -> None:
@@ -684,6 +685,40 @@ def test_run_external_command_capture_stdout_has_nothing_to_drain() -> None:
     )
 
     assert out == "captured output"
+
+
+def test_run_external_command_survives_a_command_that_swaps_stdout(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Draining must not depend on what the command left in ``sys.stdout``.
+
+    A command is free to replace the stream; reaching for ``drain`` on
+    whatever it left there would raise from the cleanup path and bury the
+    real exit code.
+    """
+
+    def fake_main() -> int:
+        print("before the swap", end="")
+        sys.stdout = io.StringIO()
+        sys.exit(7)
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 7
+    assert "before the swap" in capsys.readouterr().out
+
+
+def test_drain_quietly_reports_instead_of_raising(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken stream during cleanup is logged, not raised."""
+    caplog.set_level(logging.DEBUG, logger=util.__name__)
+    stream = MagicMock()
+    stream.drain.side_effect = BrokenPipeError("pipe is gone")
+
+    util.drain_quietly(stream)
+
+    assert "pipe is gone" in caplog.text
 
 
 def test_run_external_process_line_callbacks() -> None:
