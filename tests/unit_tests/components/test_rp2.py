@@ -111,6 +111,28 @@ def test_lwip_mem_size_keeps_mem_size_t_narrow() -> None:
     assert rp2.LWIP_MEM_SIZE <= 64000
 
 
+def test_lwip_mem_size_holds_the_concurrent_senders_it_claims() -> None:
+    """Pin the floor as well as the ceiling.
+
+    The ceiling above is satisfied by arduino-pico's own 16 KB, which is the
+    value this change exists to move off, so on its own it would let a revert
+    through. Derive the floor from the sizing comment on the constant: with
+    TCP_OVERSIZE at TCP_MSS every queued segment takes a full MSS-sized block
+    (pbuf header + PBUF_TRANSPORT offset + 1460 + heap block header, ~1.5 KB),
+    a PCB at a full 4xMSS TCP_SND_BUF holds four of them, and api's
+    max_connections on rp2 is 4. Room for three concurrent senders is the
+    minimum that makes the change worth making; 16 KB does not reach it.
+    """
+    segments_per_full_send_buf = 4
+    bytes_per_mss_block = 1536
+    concurrent_senders = 3
+
+    assert (
+        concurrent_senders * segments_per_full_send_buf * bytes_per_mss_block
+        <= rp2.LWIP_MEM_SIZE
+    )
+
+
 def test_lwip_defines_carry_the_sizing_into_the_header() -> None:
     """The constants above only matter if they reach the generated header.
 
