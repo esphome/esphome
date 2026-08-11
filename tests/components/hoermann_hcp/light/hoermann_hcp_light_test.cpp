@@ -54,24 +54,14 @@ TEST(HoermannHcpLightTest, LampStateIsDecodedFromTheBroadcast) {
   EXPECT_FALSE(door.is_light_on());
 }
 
-// The lamp command is the only one that drives the second command register.
+// The lamp command is the only one that drives the second command register, and the hub sends it whatever
+// the lamp is currently doing.
 TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
   HoermannHcp door;
   connect(door);
+  ASSERT_FALSE(door.is_light_on());
   ASSERT_TRUE(door.toggle_light());
 
-  auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0100);
-  EXPECT_EQ(pressed_2, 0x0200);
-}
-
-// The door offers only a toggle, so the platform decides whether one is needed; the hub always sends it.
-TEST(HoermannHcpLightTest, ToggleIsSentEvenWhenTheLampIsAlreadyOff) {
-  HoermannHcp door;
-  connect(door);
-  ASSERT_FALSE(door.is_light_on());
-
-  EXPECT_TRUE(door.toggle_light());
   auto [pressed, pressed_2] = poll_command(door);
   EXPECT_EQ(pressed, 0x0100);
   EXPECT_EQ(pressed_2, 0x0200);
