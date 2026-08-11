@@ -796,10 +796,14 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     }
     return;
   }
-  // Leading edge only: the drain re-enters here every 100 ms while congested.
-  // Not log_reply_dropped_(): this reply is latched and retried, not dropped.
+  // Warn on the leading edge and on displacement (that one loses a reply);
+  // the drain's re-refusals of the same reply stay quiet. Not
+  // log_reply_dropped_(): this reply is latched and retried, not dropped.
   if (this->pending_unpairing_.empty()) {
     ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+  } else if (!this->pending_unpairing_.matches(address)) {
+    ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
+             this->pending_unpairing_.address(), address);
   }
   this->pending_unpairing_.set(address, error);
 }
