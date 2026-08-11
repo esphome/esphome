@@ -111,7 +111,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   uint32_t target_queued_at_{0};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
-  // When the door was handed the lamp key press. It reports the lamp a moment later, so this bounds the wait.
+  // When the door was last handed a lamp key press. It reports the lamp a moment later, so this bounds the
+  // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
   uint32_t light_toggle_released_at_{0};
 
   // A command is "pressed" for this long before its end value is sent.

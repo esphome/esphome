@@ -165,7 +165,8 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     this->on_light_reg_(registers[6]);
   } else if (!this->short_broadcast_logged_) {
     this->short_broadcast_logged_ = true;
-    ESP_LOGD(TAG, "Broadcast of %u registers carries no lamp state", static_cast<unsigned>(registers.size()));
+    // Without this register the lamp is never known, which leaves the light platform refusing every command.
+    ESP_LOGW(TAG, "Broadcast of %u registers carries no lamp state", static_cast<unsigned>(registers.size()));
   }
   return {};
 }
@@ -280,7 +281,6 @@ bool HoermannHcp::toggle_light() {
   if (!this->queue_command_(COMMAND_TOGGLE_LAMP))
     return false;
   this->light_toggles_in_flight_++;
-  this->light_toggle_released_at_ = 0;
   return true;
 }
 bool HoermannHcp::is_light_toggle_pending() const { return this->next_command_ == &COMMAND_TOGGLE_LAMP; }
@@ -349,6 +349,7 @@ void HoermannHcp::set_valid_(bool valid) {
   this->forget_light_toggles_();
   // The lamp can be switched at the door while the bus is quiet, so what was last read is no longer trusted.
   this->light_seen_ = false;
+  this->short_broadcast_logged_ = false;
 }
 
 void HoermannHcp::drop_command_() {

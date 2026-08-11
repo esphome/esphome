@@ -28,13 +28,12 @@ void HoermannHcpLight::write_state(light::LightState *state) {
   const bool restore_replay = !this->boot_replay_done_;
   this->boot_replay_done_ = true;
   if (!this->parent_->is_light_known()) {
-    // Commanding a lamp that has never been read could switch off one that is already on, so show what is
-    // known instead. Nothing is known yet, so that is the lamp's default.
-    if (binary != this->parent_->is_light_on()) {
-      if (!restore_replay)
-        ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
+    // Commanding a lamp that has not been read could switch off one that is already on, so pull the entity
+    // back to the last lamp state known, which before anything has ever been read is off.
+    if (!restore_replay)
+      ESP_LOGW(TAG, "Door has not reported the lamp yet, ignoring the requested state");
+    if (binary != this->parent_->is_light_on())
       this->publish_lamp_state_(this->parent_->is_light_on());
-    }
     return;
   }
   // Each toggle on its way inverts the lamp, and the lamp reads as its old self until the door reports it, so

@@ -11,10 +11,23 @@ namespace esphome::hoermann_hcp::testing {
 
 namespace {
 
+// Counts how often the platform is asked to write, so a publish that re-triggers itself becomes visible.
+class CountingHoermannHcpLight : public HoermannHcpLight {
+ public:
+  using HoermannHcpLight::HoermannHcpLight;
+
+  void write_state(light::LightState *state) override {
+    this->writes++;
+    HoermannHcpLight::write_state(state);
+  }
+
+  int writes{0};
+};
+
 // Drives the platform against a real LightState. ALWAYS_OFF keeps setup() clear of preferences.
 struct LightFixture {
   TestableHoermannHcp door;
-  HoermannHcpLight output{&door};
+  CountingHoermannHcpLight output{&door};
   light::LightState state{&output};
 
   LightFixture() {
@@ -551,6 +564,42 @@ TEST(HoermannHcpLightTest, ConnectionLossWithALampTogglePendingClearsTheTarget) 
   auto [pressed, pressed_2] = poll_command(door);
   EXPECT_EQ(pressed, 0x0000);
   EXPECT_EQ(pressed_2, 0x0000);
+}
+
+// Withdrawing a later toggle must not take the deadline of the one already on the wire with it, or a door
+// that never reports the lamp would leave the entity waiting for ever.
+TEST(HoermannHcpLightPlatformTest, WithdrawingALaterToggleKeepsTheWatchdogArmed) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  fixture.command(true);
+  consume_command(fixture.door);  // the first toggle is released but never reported back
+  fixture.command(false);
+  ASSERT_EQ(fixture.door.pending_light_toggles(), 2);
+  fixture.command(true);  // withdraws the second, leaving the first outstanding
+  ASSERT_EQ(fixture.door.pending_light_toggles(), 1);
+
+  // The door still says nothing about the lamp, so the wait has to time out on its own.
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.report_lamp(false);
+  EXPECT_EQ(fixture.door.pending_light_toggles(), 0);
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// A request refused while the lamp is unknown must leave the entity idle. Republishing unconditionally would
+// re-enter write_state() on every loop, so the platform would never stop asking to be written.
+TEST(HoermannHcpLightPlatformTest, RefusedRequestLeavesTheEntityIdle) {
+  LightFixture fixture;
+  connect_controller(fixture.door);
+  fixture.settle();
+  ASSERT_FALSE(fixture.door.is_light_known());
+
+  // The lamp is unknown and the entity already shows off, so asking for off cannot be serviced or displayed.
+  fixture.command(false);
+  const int settled_writes = fixture.output.writes;
+  fixture.settle();
+  EXPECT_EQ(fixture.output.writes, settled_writes);
 }
 
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.
