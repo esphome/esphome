@@ -311,7 +311,8 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
 // Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
 StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
-StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
+StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path,
+                                         bool erase_first);
 // Erases [address, address+size), or the whole device when `all` is set. Returns the result so
 // the async wrapper's no-worker fallback can propagate a failure to on_complete.
 StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
@@ -396,9 +397,8 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
       return;
     }
     if (this->len_ >= 0) {
-      StorageError err =
-          perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
-                            this->erase_first_);
+      StorageError err = perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
+                                           this->erase_first_);
       this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
       return;
     }

@@ -423,7 +423,8 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
   return StorageError::OK;
 }
 
-StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first) {
+StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len,
+                               bool erase_first) {
   if (len == 0)
     return StorageError::OK;
   RawGeometry geo;
@@ -455,7 +456,7 @@ StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8
 }
 
 StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path,
-                                        bool erase_first) {
+                                         bool erase_first) {
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
     return StorageError::NOT_READY;
