@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from .. import CONF_HOERMANN_HCP_ID, HoermannHcp, hoermann_hcp_ns
 
@@ -25,9 +26,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
+async def to_code(config: ConfigType) -> None:
     if (conf := config.get(CONF_IS_CONNECTED)) is not None:
-        var = await binary_sensor.new_binary_sensor(conf)
+        parent = await cg.get_variable(config[CONF_HOERMANN_HCP_ID])
+        var = await binary_sensor.new_binary_sensor(conf, parent)
         await cg.register_component(var, conf)
-        cg.add(var.set_parent(parent))
