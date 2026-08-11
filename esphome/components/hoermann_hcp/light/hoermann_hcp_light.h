@@ -21,12 +21,8 @@ class HoermannHcpLight : public light::LightOutput, public Component {
 
   HoermannHcp *const parent_;
   light::LightState *light_state_{nullptr};
-  // What the entity is showing. While awaiting_lamp_ is set this is a request the lamp has not caught up with
-  // yet, so it must not be reconciled away; otherwise it is the lamp state the door last reported.
-  bool shown_on_{false};
-  bool awaiting_lamp_{false};
-  // Set once the door has reported the lamp; until then a write here is the restored state coming back rather
-  // than a user request.
+  // Set once the entity has taken its state from the lamp. Until then a write here is the restored state
+  // coming back on boot rather than a user request.
   bool synced_{false};
 };
 

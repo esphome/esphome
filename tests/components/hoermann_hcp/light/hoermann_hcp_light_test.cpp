@@ -2,63 +2,14 @@
 
 #include <chrono>
 #include <thread>
-#include <utility>
 
 #include "esphome/components/hoermann_hcp/light/hoermann_hcp_light.h"
 
-namespace esphome::hoermann_hcp {
+#include "../common.h"
 
-using modbus::RegisterValues;
+namespace esphome::hoermann_hcp::testing {
 
 namespace {
-
-constexpr uint16_t COMMAND_REG = 0x9C41;
-constexpr uint16_t STATE_REG = 0x9CB9;
-constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-RegisterValues make_registers(std::initializer_list<uint16_t> values) {
-  RegisterValues registers;
-  for (uint16_t value : values)
-    registers.push_back(value);
-  return registers;
-}
-
-// The door only accepts commands once the bus controller has actually talked to it.
-void connect_controller(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
-
-// Runs one command poll (write 2 / read 8) and returns both key-press registers.
-std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
-  RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
-  EXPECT_EQ(response.size(), 8u);
-  if (response.size() != 8u)
-    return {0xFFFF, 0xFFFF};
-  return {response[2], response[3]};
-}
-
-// A status broadcast carrying the lamp register, which the door reports at index 6.
-RegisterValues lamp_broadcast(uint16_t lamp_reg) {
-  return make_registers({0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, lamp_reg});
-}
-
-// Releases the key press immediately, so a poll after any elapsed time returns the released values.
-class TestableHoermannHcp : public HoermannHcp {
- public:
-  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
-
-  using HoermannHcp::connection_timeout_ms_;
-};
-
-// Enough elapsed time for a zero-length key press to count as held; millis() has 1 ms resolution.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
-
-// Presents and then releases the queued command, leaving the slot free.
-void consume_command(HoermannHcp &door) {
-  poll_command(door);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  poll_command(door);
-}
 
 // Drives the platform against a real LightState. ALWAYS_OFF keeps setup() clear of preferences.
 struct LightFixture {
@@ -467,6 +418,66 @@ TEST(HoermannHcpLightTest, DroppedLampToggleKeepsTheCoverTarget) {
   EXPECT_EQ(pressed_2, 0x0000);
 }
 
+// A door that takes the key press but never actually switches the lamp must not leave the entity showing the
+// request for ever; the wait has to end so the entity can settle back on what the door reports.
+TEST(HoermannHcpLightPlatformTest, ToggleTheDoorIgnoresStopsBeingWaitedFor) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  fixture.command(true);
+  consume_command(fixture.door);  // the door takes press and release, then does nothing
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  EXPECT_TRUE(fixture.entity_on());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.report_lamp(false);  // the lamp is still off, and keeps saying so
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// A resting door's first broadcast changes nothing except the lamp finally being reported, so unless that
+// counts as a change the light never hears about it and swallows the first command.
+TEST(HoermannHcpLightPlatformTest, FirstLampReportReachesTheEntity) {
+  LightFixture fixture;
+  // A command poll connects the controller without saying anything about the lamp.
+  connect_controller(fixture.door);
+  fixture.pump();
+  ASSERT_FALSE(fixture.door.is_light_known());
+
+  // Closed, at rest, lamp off: every field matches the defaults the hub started with.
+  fixture.report_broadcast(make_registers({0x0000, 0x0000, 0x4000, 0x0000, 0x0000, 0x0000, 0x0000}));
+  ASSERT_TRUE(fixture.door.is_light_known());
+
+  fixture.command(true);
+  auto [pressed, pressed_2] = poll_command(fixture.door);
+  EXPECT_EQ(pressed, 0x0100);  // COMMAND_TOGGLE_LAMP
+  EXPECT_EQ(pressed_2, 0x0200);
+}
+
+// A lost connection means the door can travel unwatched, so a target left armed would stop it long afterwards.
+// Which command happened to be in the slot must not change that.
+TEST(HoermannHcpLightTest, ConnectionLossWithALampTogglePendingClearsTheTarget) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
+  ASSERT_TRUE(door.set_position(0.5f));
+  consume_command(door);
+  ASSERT_TRUE(door.toggle_light());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  door.update();
+  ASSERT_FALSE(door.is_valid());
+
+  // Back on the bus and travelling past where the target was: nothing should stop the door now.
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  auto [pressed, pressed_2] = poll_command(door);
+  EXPECT_EQ(pressed, 0x0000);
+  EXPECT_EQ(pressed_2, 0x0000);
+}
+
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.
 TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   LightFixture fixture;
@@ -485,4 +496,4 @@ TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   EXPECT_EQ(pressed_2, 0x0000);
 }
 
-}  // namespace esphome::hoermann_hcp
+}  // namespace esphome::hoermann_hcp::testing
