@@ -2,7 +2,6 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE,
     CONF_ID,
     CONF_LAMBDA,
     CONF_TYPE,
@@ -40,6 +39,7 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONNECT,
     DEVICE_TYPE,
     KEY_ZIGBEE_EP,
     KEY_ZIGBEE_EP_NO_NUM,
@@ -58,7 +58,7 @@ ANALOG_INPUT_EP = {
                     CONF_ATTRIBUTE_ID: 0x55,
                     CONF_TYPE: "SINGLE",
                     CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                    CONF_DEVICE: None,
+                    CONNECT: True,
                 },
                 {
                     CONF_ATTRIBUTE_ID: 0x51,
@@ -88,7 +88,7 @@ BINARY_INPUT_EP = {
                     CONF_ATTRIBUTE_ID: 0x55,
                     CONF_TYPE: "BOOL",
                     CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                    CONF_DEVICE: None,
+                    CONNECT: True,
                 },
                 {
                     CONF_ATTRIBUTE_ID: 0x51,
@@ -121,7 +121,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         SCALE: 100,
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
@@ -139,7 +139,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         SCALE: 100,
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
@@ -156,7 +156,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_HECTOPASCAL: 1,
                             UNIT_PASCAL: 0.01,
@@ -178,7 +178,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_HECTOPASCAL: 1,
                             UNIT_PASCAL: 0.01,
@@ -200,7 +200,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_LITRE_PER_HOUR: 0.01,
                             UNIT_CUBIC_METER_PER_HOUR: 10,
@@ -230,7 +230,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                                 " return v > 65534.0f ? 0xFFFE : (uint16_t) lroundf(v);"  # clamp to 0xFFFE if too large
                             )
                         ),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
@@ -247,7 +247,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "SINGLE",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                     {
                         CONF_ATTRIBUTE_ID: 0x2,
@@ -269,7 +269,7 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0000,
                         CONF_TYPE: "SINGLE",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: 0.000001,
                     },
                     {CONF_ATTRIBUTE_ID: 0x0001, CONF_TYPE: "SINGLE", CONF_VALUE: 0.0},
@@ -292,7 +292,7 @@ BINARY_SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "MAP8",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                     {
                         CONF_ATTRIBUTE_ID: 0x1,

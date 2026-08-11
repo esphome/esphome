@@ -15,7 +15,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_AP,
-    CONF_DEVICE,
     CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
@@ -55,6 +54,7 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONNECT,
     DEVICE_ID,
     DEVICE_TYPE,
     KEY_ZIGBEE_ATTRIBUTES,
@@ -190,7 +190,7 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 )  # or use unidecode
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
-            if CONF_DEVICE in attr:  # connect device
+            if attr.get(CONNECT):  # connect device
                 if CONF_REPORT in config:
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
