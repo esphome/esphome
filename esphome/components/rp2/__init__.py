@@ -560,7 +560,7 @@ def _generate_lwipopts_h() -> None:
     in the build directory, and a pre-build script injects this directory
     into the compiler include path before the framework's own include dir.
     """
-    from jinja2 import Environment
+    from jinja2 import Environment, StrictUndefined
 
     lwip_defines = CORE.data[KEY_RP2].get(KEY_LWIP_OPTS)
     if not lwip_defines:
@@ -573,7 +573,10 @@ def _generate_lwipopts_h() -> None:
     template_text = (Path(__file__).parent / "lwipopts.h.jinja").read_text(
         encoding="utf-8"
     )
-    jinja_env = Environment(keep_trailing_newline=True)
+    # StrictUndefined: a placeholder with no value would otherwise render
+    # empty, emitting a bare #define that compiles and silently means
+    # something else in lwIP's config.
+    jinja_env = Environment(keep_trailing_newline=True, undefined=StrictUndefined)
     template = jinja_env.from_string(template_text)
     content = template.render(**lwip_defines)
 

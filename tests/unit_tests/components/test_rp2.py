@@ -134,22 +134,22 @@ def test_lwipopts_template_renders_every_sizing_value() -> None:
     """Render the template the way _generate_lwipopts_h() does and check the
     header that actually ships.
 
-    Asserting on the rendered output covers both directions at once. A key
-    missing from the dict renders empty (jinja2's default undefined), leaving
-    a bare ``#define FOO`` that compiles and means something else; a
-    ``#define`` block deleted from the template leaves the value at
-    arduino-pico's own, which for MEM_SIZE is the 16 KB heap this change
-    exists to move off. Matching on text also survives a future filter or
-    conditional in the template, which a placeholder regex would not.
+    Covers both directions. A ``#define`` block deleted from the template
+    leaves the value at arduino-pico's own, which for MEM_SIZE is the 16 KB
+    heap this change exists to move off, and the loop below catches that. A
+    placeholder with no dict key would otherwise render empty and emit a bare
+    ``#define FOO``; StrictUndefined turns that into an error instead.
+    Matching on text also survives a filter or conditional appearing in the
+    template later, which a placeholder regex would not.
     """
-    from jinja2 import Environment
+    from jinja2 import Environment, StrictUndefined
 
     defines = rp2.build_lwip_defines(tcp_sockets=8, udp_sockets=6, listening_tcp=2)
     template_text = (Path(rp2.__file__).parent / "lwipopts.h.jinja").read_text(
         encoding="utf-8"
     )
     rendered = (
-        Environment(keep_trailing_newline=True)
+        Environment(keep_trailing_newline=True, undefined=StrictUndefined)
         .from_string(template_text)
         .render(**defines)
     )
