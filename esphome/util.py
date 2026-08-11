@@ -320,9 +320,13 @@ def run_external_command(
         # the real streams are back, and uses the wrappers we made rather
         # than whatever the command left in sys.stdout, so it cannot strand
         # them. With capture_stdout the stdout wrapper was never written to,
-        # so draining it does nothing.
-        stdout_redirect.drain()
-        stderr_redirect.drain()
+        # so draining it does nothing. Drain stderr from a finally so a
+        # surprise from the first one cannot strand the second; a real bug
+        # still propagates, it just does not take the other line with it.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
 
     if capture_stdout:
         return cap_stdout.getvalue()

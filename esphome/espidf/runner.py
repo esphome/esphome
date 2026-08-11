@@ -284,8 +284,12 @@ def main() -> int:
     try:
         runpy.run_path(script_path, run_name="__main__")
     finally:
-        stdout_shim.drain()
-        stderr_shim.drain()
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_shim.drain()
+        finally:
+            stderr_shim.drain()
     return 0
 
 

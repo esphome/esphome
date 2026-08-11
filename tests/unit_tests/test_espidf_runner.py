@@ -104,7 +104,10 @@ def test_main_reports_rather_than_raises_when_draining_fails(
     _prepare_main(monkeypatch, fixture_path / "espidf" / "closing_probe.py")
 
     assert runner.main() == 0
-    assert "Could not write out remaining output" in capfd.readouterr().err
+    reported = capfd.readouterr().err
+    assert "Could not write out remaining output" in reported
+    # The held line has to come along; the stream it was meant for is gone.
+    assert "partial before close" in reported
 
 
 def test_main_survives_a_drain_failure_with_nowhere_to_report_it(

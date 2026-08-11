@@ -191,8 +191,12 @@ def main() -> int:
     try:
         return platformio.__main__.main() or 0
     finally:
-        stdout_redirect.drain()
-        stderr_redirect.drain()
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
 
 
 if __name__ == "__main__":

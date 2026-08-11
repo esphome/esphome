@@ -742,6 +742,33 @@ def test_drain_lets_other_errors_through() -> None:
         redirect.drain()
 
 
+def test_run_external_command_drains_stderr_even_if_stdout_drain_raises(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """One stream failing must not strand the other's held line.
+
+    ``drain`` deliberately lets anything that is not a stream error through,
+    so a broken line callback would otherwise skip the stderr drain and take
+    that line down with it.
+    """
+
+    def broken_on_stdout(line: str) -> str | None:
+        if "stdout" in line:
+            raise TypeError("a line callback is broken")
+        return None
+
+    def fake_main() -> int:
+        print("stdout partial", end="")
+        print("stderr FATAL: the real reason", end="", file=sys.stderr)
+        return 0
+
+    with pytest.raises(TypeError):
+        util.run_external_command(fake_main, "fake", line_callbacks=[broken_on_stdout])
+
+    # The bug still surfaces, but stderr's held line was written first.
+    assert "stderr FATAL: the real reason" in capsys.readouterr().err
+
+
 def test_run_external_process_line_callbacks() -> None:
     """Test that run_external_process passes line_callbacks to RedirectText."""
     results: list[str] = []
