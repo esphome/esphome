@@ -1863,7 +1863,9 @@ def test_clean_build_cache_if_moved_creates_cache_and_marker(
     helpers.clean_build_cache_if_moved(cache_dir)
 
     assert cache_dir.is_dir()
-    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
 
 
 def test_clean_build_cache_if_moved_keeps_matching_cache(
@@ -1873,7 +1875,7 @@ def test_clean_build_cache_if_moved_keeps_matching_cache(
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
     cache_dir = tmp_path / "build"
     cache_dir.mkdir()
-    (cache_dir / ".tree").write_text(str(tmp_path), encoding="utf-8")
+    (cache_dir / ".tree.json").write_text(json.dumps(str(tmp_path)), encoding="utf-8")
     sentinel = cache_dir / "cached.o"
     sentinel.write_text("keep me", encoding="utf-8")
 
@@ -1889,14 +1891,18 @@ def test_clean_build_cache_if_moved_clears_foreign_cache(
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
     cache_dir = tmp_path / "build"
     cache_dir.mkdir()
-    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    (cache_dir / ".tree.json").write_text(
+        json.dumps("/some/other/tree"), encoding="utf-8"
+    )
     sentinel = cache_dir / "cached.o"
     sentinel.write_text("stale", encoding="utf-8")
 
     helpers.clean_build_cache_if_moved(cache_dir)
 
     assert not sentinel.exists()
-    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
 
 
 def test_clean_build_cache_if_moved_clears_unmarked_cache(
@@ -1912,7 +1918,28 @@ def test_clean_build_cache_if_moved_clears_unmarked_cache(
     helpers.clean_build_cache_if_moved(cache_dir)
 
     assert not sentinel.exists()
-    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
+
+
+def test_clean_build_cache_if_moved_ignores_empty_unmarked_dir(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty, unmarked cache dir is just stamped - no rebuild message."""
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    cache_dir = tmp_path / "build"
+    cache_dir.mkdir()
+
+    helpers.clean_build_cache_if_moved(cache_dir)
+
+    captured = capsys.readouterr()
+    assert "Rebuilding build cache" not in captured.out
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
 
 
 def test_clean_build_cache_if_moved_logs_unreadable_marker(
@@ -1924,13 +1951,16 @@ def test_clean_build_cache_if_moved_logs_unreadable_marker(
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
     cache_dir = tmp_path / "build"
     cache_dir.mkdir()
-    # A directory named .tree makes read_text raise IsADirectoryError (an OSError)
-    (cache_dir / ".tree").mkdir()
+    # A directory named .tree.json makes read_text raise IsADirectoryError (OSError)
+    (cache_dir / ".tree.json").mkdir()
 
     helpers.clean_build_cache_if_moved(cache_dir)
 
-    assert ".tree" in capsys.readouterr().out
-    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    # The IO problem is surfaced on stderr, not swallowed
+    assert ".tree.json" in capsys.readouterr().err
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
 
 
 def test_clean_build_cache_if_moved_raises_when_removal_fails(
@@ -1940,7 +1970,9 @@ def test_clean_build_cache_if_moved_raises_when_removal_fails(
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
     cache_dir = tmp_path / "build"
     cache_dir.mkdir()
-    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    (cache_dir / ".tree.json").write_text(
+        json.dumps("/some/other/tree"), encoding="utf-8"
+    )
     (cache_dir / "stale_subdir").mkdir()
 
     def fail_rmtree(*args: object, **kwargs: object) -> None:
@@ -1963,7 +1995,9 @@ def test_clean_build_cache_if_moved_keeps_directory_identity(
     monkeypatch.setattr(helpers, "root_path", str(tmp_path))
     cache_dir = tmp_path / "build"
     cache_dir.mkdir()
-    (cache_dir / ".tree").write_text("/some/other/tree", encoding="utf-8")
+    (cache_dir / ".tree.json").write_text(
+        json.dumps("/some/other/tree"), encoding="utf-8"
+    )
     (cache_dir / "stale_subdir").mkdir()
     (cache_dir / "stale_subdir" / "cached.o").write_text("stale", encoding="utf-8")
     # A symlink to a directory outside the cache: the link must be removed
@@ -1977,8 +2011,10 @@ def test_clean_build_cache_if_moved_keeps_directory_identity(
     helpers.clean_build_cache_if_moved(cache_dir)
 
     assert cache_dir.stat().st_ino == inode_before
-    assert [p.name for p in cache_dir.iterdir()] == [".tree"]
-    assert (cache_dir / ".tree").read_text(encoding="utf-8") == str(tmp_path)
+    assert [p.name for p in cache_dir.iterdir()] == [".tree.json"]
+    assert json.loads((cache_dir / ".tree.json").read_text(encoding="utf-8")) == str(
+        tmp_path
+    )
     assert (outside_dir / "keep.txt").read_text(encoding="utf-8") == "keep me"
 
 
