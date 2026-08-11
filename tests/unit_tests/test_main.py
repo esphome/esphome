@@ -6838,3 +6838,43 @@ def test_warn_source_tree_mismatch_silent_in_subdirectory(
         main._warn_if_source_tree_mismatch()
 
     assert not caplog.text
+
+
+def test_warn_source_tree_mismatch_silent_via_symlinked_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reaching the running tree by another path is the same tree, not a mismatch."""
+    tree = _make_checkout(tmp_path / "main")
+    link = tmp_path / "link"
+    link.symlink_to(tree, target_is_directory=True)
+    monkeypatch.chdir(link)
+    monkeypatch.setattr(main, "__file__", str(tree / "esphome" / "__main__.py"))
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    assert not caplog.text
+
+
+def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If samefile() cannot stat, fall back to comparing the paths."""
+    tree = _make_checkout(tmp_path / "main")
+    monkeypatch.chdir(tree)
+    monkeypatch.setattr(main, "__file__", str(tree / "esphome" / "__main__.py"))
+
+    def raise_oserror(self: Path, other: Path) -> bool:
+        raise OSError("stat failed")
+
+    monkeypatch.setattr(Path, "samefile", raise_oserror)
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_source_tree_mismatch()
+
+    # Same tree, so the path comparison still finds them equal and stays silent
+    assert not caplog.text

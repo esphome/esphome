@@ -2527,7 +2527,14 @@ def _warn_if_source_tree_mismatch() -> None:
         return  # not inside a checkout; nothing to compare against
 
     running = Path(__file__).resolve().parent.parent
-    if standing_in == running:
+    # samefile() compares device and inode, so a case-insensitive filesystem
+    # (macOS) reaching the same directory by differently cased paths is not
+    # reported as a mismatch. Falls back to comparing paths if either is gone.
+    try:
+        same = standing_in.samefile(running)
+    except OSError:
+        same = standing_in == running
+    if same:
         return
 
     _LOGGER.warning(
