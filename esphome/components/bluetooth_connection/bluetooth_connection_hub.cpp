@@ -79,6 +79,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   // Link gone: the slot may hold a different device before the drain runs.
   this->clear_pending_ack_();
   this->batch_stalled_ = false;
+  this->connected_reply_owed_ = false;
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -122,7 +123,8 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
         ESP_LOGW(TAG, "[%d] [%s] conn param update failed, err=%d", this->connection_index_, this->address_str_,
                  param_err);
       }
-      this->proxy_->send_device_connection(this->address_, true, mtu);
+      this->mtu_ = mtu;
+      this->send_connected_reply_();
       this->proxy_->send_connections_free();
       return;
     }
@@ -160,8 +162,21 @@ void BluetoothConnection::on_service_discovery_done(int error) {
            this->mtu_);
   this->state_ = ClientState::ESTABLISHED;
   this->services_discovered_ = true;
-  this->proxy_->send_device_connection(this->address_, true, this->mtu_);
+  this->send_connected_reply_();
   this->proxy_->send_connections_free();
+}
+
+void BluetoothConnection::send_connected_reply_() {
+  if (this->proxy_->send_device_connection(this->address_, true, this->mtu_)) {
+    this->connected_reply_owed_ = false;
+    return;
+  }
+  // Warn on the leading edge only, as elsewhere: the drop must be visible but
+  // must not add traffic to the connection that just refused a frame.
+  if (!this->connected_reply_owed_) {
+    ESP_LOGW(TAG, "[%d] [%s] Connected reply deferred, TCP buffer full", this->connection_index_, this->address_str_);
+    this->connected_reply_owed_ = true;
+  }
 }
 
 void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint16_t handle, int status) {

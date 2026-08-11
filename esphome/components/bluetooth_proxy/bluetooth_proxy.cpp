@@ -129,7 +129,10 @@ void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *typ
 void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
                                                 const char *type) {
   this->log_not_connected_gatt_(action, type);
-  this->send_gatt_error(address, handle, GATT_NOT_CONNECTED);
+  if (!this->send_gatt_error(address, handle, GATT_NOT_CONNECTED)) {
+    // No connection, so nothing to latch against; the client's timeout arbitrates.
+    ESP_LOGW(TAG, "Not-connected reply dropped, TCP buffer full");
+  }
 }
 
 void BluetoothProxy::log_advertisement_flush_() {
@@ -209,6 +212,9 @@ void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t e
     }
   }
   if (free_entry != nullptr) {
+    // Leading edge for this address: the drop must be visible, but a repeat
+    // while it is already owed would ride the connection that refused it.
+    ESP_LOGW(TAG, "Disconnect notification for %012" PRIX64 " deferred, TCP buffer full", address);
     free_entry->set(address, error);
     return;
   }
@@ -228,15 +234,22 @@ void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
   }
 }
 
-void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
-  if (!this->send_device_connection(connection->get_address(), false, 0, reason)) {
-    // The client has no other way to learn of an unsolicited disconnect;
-    // latch and let loop()'s paced drain deliver it. V by design: a louder
-    // level would ride the same congested link this reports on.
-    ESP_LOGV(TAG, "[%d] [%s] Disconnect notification deferred, TCP buffer full", connection->get_connection_index(),
-             connection->address_str());
-    this->latch_pending_disconnection_(connection->get_address(), reason);
+void BluetoothProxy::send_device_disconnected_(uint64_t address, conn_err_t error) {
+  if (this->send_device_connection(address, false, 0, error)) {
+    // A later disconnect landing for an address that still has one owed would
+    // otherwise have the drain repeat it.
+    this->clear_pending_disconnection_(address);
+    return;
   }
+  // A dropped disconnect leaves the client believing the link is live, so
+  // every GATT operation on it times out until something else corrects it.
+  // latch_pending_disconnection_() reports the leading edge.
+  this->latch_pending_disconnection_(address, error);
+}
+
+void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
+  // The client has no other way to learn of an unsolicited disconnect.
+  this->send_device_disconnected_(connection->get_address(), reason);
   connection->set_address(0);
   connection->send_service_ = INIT_SENDING_SERVICES;
   this->send_connections_free();
@@ -282,18 +295,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
-        this->send_device_connection(msg.address, false);
+        this->send_device_disconnected_(msg.address);
         return;
       }
       if (!msg.has_address_type) {
         ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
                  connection->address_str());
-        this->send_device_connection(msg.address, false);
+        this->send_device_disconnected_(msg.address);
         return;
       }
       if (connection->state() == ClientState::CONNECTED || connection->state() == ClientState::ESTABLISHED) {
         this->log_connection_request_ignored_(connection, connection->state());
-        this->send_device_connection(msg.address, true);
+        connection->send_connected_reply_();
         this->send_connections_free();
         return;
       } else if (connection->state() == ClientState::DISCONNECTING && connection->cancel_teardown()) {
@@ -320,7 +333,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       auto *connection = this->get_connection_(msg.address, false);
       if (connection == nullptr) {
-        this->send_device_connection(msg.address, false);
+        this->send_device_disconnected_(msg.address);
         this->send_connections_free();
         return;
       }
@@ -328,7 +341,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->disconnect();
       } else {
         connection->set_address(0);
-        this->send_device_connection(msg.address, false);
+        this->send_device_disconnected_(msg.address);
         this->send_connections_free();
       }
       break;
@@ -372,7 +385,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       ESP_LOGE(TAG, "V1 connections removed");
-      this->send_device_connection(msg.address, false);
+      this->send_device_disconnected_(msg.address);
       break;
     }
   }
@@ -484,7 +497,8 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
   if (this->api_connection_ == nullptr)
     return;
-  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
+  // Not latched (esp32 parity): the request is idempotent, so a drop resolves
+  // via the client timeout and a retry gives the same answer. Still reported.
 
   auto *connection = this->get_connection_(msg.address, false);
   api::BluetoothSetConnectionParamsResponse resp;
@@ -495,7 +509,9 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
              connection ? static_cast<int>(connection->get_connection_index()) : -1,
              connection ? connection->address_str() : "unknown");
     resp.error = GATT_NOT_CONNECTED;
-    this->api_connection_->send_message(resp);
+    if (!this->api_connection_->send_message(resp)) {
+      ESP_LOGW(TAG, "Connection-params reply dropped, TCP buffer full");
+    }
     return;
   }
 
@@ -506,7 +522,9 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
                                                     static_cast<uint16_t>(std::min(msg.max_interval, max_val)),
                                                     static_cast<uint16_t>(std::min(msg.latency, max_val)),
                                                     static_cast<uint16_t>(std::min(msg.timeout, max_val)));
-  this->api_connection_->send_message(resp);
+  if (!this->api_connection_->send_message(resp)) {
+    ESP_LOGW(TAG, "Connection-params reply dropped, TCP buffer full");
+  }
 }
 
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
@@ -597,6 +615,9 @@ void BluetoothProxy::loop() {
     if (connection->send_service_ == SERVICES_DONE_PENDING) {
       connection->send_services_done_();
     }
+    if (connection->connected_reply_owed_) {
+      connection->send_connected_reply_();
+    }
     if (connection->has_pending_ack_()) {
       connection->flush_pending_ack_();
     }
@@ -646,11 +667,15 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       ESP_LOGW(TAG, "Active connections are not supported on this platform");
-      this->send_device_connection(msg.address, false, 0, GATT_NOT_CONNECTED);
+      if (!this->send_device_connection(msg.address, false, 0, GATT_NOT_CONNECTED)) {
+        ESP_LOGW(TAG, "Connection reply dropped, TCP buffer full");
+      }
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
       // Not an error: the device is already disconnected, which is the requested state.
-      this->send_device_connection(msg.address, false);
+      if (!this->send_device_connection(msg.address, false)) {
+        ESP_LOGW(TAG, "Connection reply dropped, TCP buffer full");
+      }
       this->send_connections_free();
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
@@ -698,11 +723,14 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
   if (this->api_connection_ == nullptr)
     return;
-  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
+  // Not latched (esp32 parity): the request is idempotent, so a drop resolves
+  // via the client timeout and a retry gives the same answer. Still reported.
   api::BluetoothSetConnectionParamsResponse resp;
   resp.address = msg.address;
   resp.error = GATT_NOT_CONNECTED;
-  this->api_connection_->send_message(resp);
+  if (!this->api_connection_->send_message(resp)) {
+    ESP_LOGW(TAG, "Connection-params reply dropped, TCP buffer full");
+  }
 }
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
@@ -722,6 +750,7 @@ void BluetoothProxy::reset_owed_replies_() {
     // session; silence (the client's timeout) arbitrates.
     this->connections_[i]->park_service_stream_();
     this->connections_[i]->clear_pending_ack_();
+    this->connections_[i]->connected_reply_owed_ = false;
   }
 #endif
 }
@@ -815,7 +844,11 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
   call.paired = paired;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    // Not latched: a retried PAIR is answered from is_paired(), so the client
+    // recovers on its own. Still worth saying it happened.
+    ESP_LOGW(TAG, "Pairing reply dropped, TCP buffer full");
+  }
 }
 
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
@@ -851,7 +884,10 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    // Not latched: clear-cache is idempotent, so a retry gives the same answer.
+    ESP_LOGW(TAG, "Clear-cache reply dropped, TCP buffer full");
+  }
 }
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

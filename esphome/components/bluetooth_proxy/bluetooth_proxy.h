@@ -229,6 +229,10 @@ class BluetoothProxy final : public Component {
   void flush_pending_advertisements_() {
     if (this->response_.advertisements_len == 0)
       return;
+    // The one send whose result is deliberately ignored: advertisements are
+    // perishable, so a refused batch is correctly dropped rather than retried,
+    // and this is the highest-frequency send in the component, so reporting
+    // each drop would be the log flood the batch pacing exists to avoid.
     this->api_connection_->send_message(this->response_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     this->log_advertisement_flush_();
@@ -281,6 +285,10 @@ class BluetoothProxy final : public Component {
   void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
   /// Drop any owed freed-slot notification for this address (client reconnected).
   void clear_pending_disconnection_(uint64_t address);
+  /// Send connected=false and pool it for the paced drain if refused. A
+  /// dropped disconnect is the one that desynchronises the proxy: the client
+  /// keeps a link it believes is live and every operation on it times out.
+  void send_device_disconnected_(uint64_t address, conn_err_t error = 0);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif

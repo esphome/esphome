@@ -152,6 +152,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// caller rewinds the cursor), and a warning per attempt would add traffic
   /// to the connection already refusing frames. Both streamers route here.
   void note_batch_stalled_();
+  /// Send the connected=true reply, latching it if the API refuses. The
+  /// message rebuilds from address_ and mtu_, so the latch is one bit; a
+  /// dropped confirmation otherwise leaves the client timing out while this
+  /// slot holds a live link.
+  void send_connected_reply_();
   /// Sole construction site for these replies, shared by send and retry.
   bool try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error);
   /// First attempt: send, and latch it for the drain if the API refuses.
@@ -239,6 +244,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   PendingAck pending_ack_ : 2 {PendingAck::PENDING_ACK_NONE};
   /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
+  /// An owed connected=true reply; the proxy's paced drain re-offers it.
+  bool connected_reply_owed_ : 1 {false};
 };
 
 // Pins the layout the field grouping above is arranged for: putting
