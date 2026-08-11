@@ -5,7 +5,7 @@
 namespace esphome::mitsubishi_cn105::testing {
 
 TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpectedValues) {
-  MitsubishiCN105Climate sut;
+  TestableMitsubishiCN105Climate sut;
   const auto mapping = TemperatureMapping();
 
   for (int temperature = 16; temperature <= 31; ++temperature) {
@@ -22,7 +22,7 @@ TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpecte
 }
 
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpectedValues) {
-  MitsubishiCN105Climate sut;
+  TestableMitsubishiCN105Climate sut;
   auto mapping = TemperatureMapping();
   mapping.set_use_fahrenheit(true);
   sut.set_use_fahrenheit(true);
@@ -40,7 +40,6 @@ TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpe
     EXPECT_FLOAT_EQ(mapping.to_mitsubishi(fahrenheit), mitsubishi_celsius);
     EXPECT_FLOAT_EQ(mapping.from_mitsubishi(mitsubishi_celsius), fahrenheit);
   }
-
   const auto traits = sut.traits();
   EXPECT_EQ(traits.get_temperature_unit(), TemperatureUnit::FAHRENHEIT);
   EXPECT_FLOAT_EQ(traits.get_visual_min_temperature(), 61.0f);
