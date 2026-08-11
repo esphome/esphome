@@ -480,7 +480,7 @@ void VoiceAssistant::loop() {
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
           if (!this->api_client_->send_message(msg)) {
-            ESP_LOGW(TAG, "Announce-finished dropped, TCP buffer full");
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
           }
           break;
         }
@@ -746,7 +746,7 @@ void VoiceAssistant::signal_stop_() {
   api::VoiceAssistantRequest msg;
   msg.start = false;
   if (!this->api_client_->send_message(msg)) {
-    ESP_LOGW(TAG, "Stop request dropped, TCP buffer full");
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
   }
 }
 
@@ -760,7 +760,7 @@ void VoiceAssistant::start_playback_timeout_() {
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
     if (!this->api_client_->send_message(msg)) {
-      ESP_LOGW(TAG, "Announce-finished dropped, TCP buffer full");
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
     }
   });
 }

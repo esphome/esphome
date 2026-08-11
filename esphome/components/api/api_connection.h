@@ -40,6 +40,16 @@ namespace esphome::api {
 // Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
 class APIServer;
 
+// One shared flash string for every refused-frame warning: send_message()
+// fails as soon as the TCP buffer is full, and each caller only pays for its
+// short name. The guard drops the helper and its arguments below WARN.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+void log_dropped_message(const char *tag, const LogString *what);
+#define API_LOG_MSG_DROPPED(tag, what) esphome::api::log_dropped_message(tag, LOG_STR(what))
+#else
+#define API_LOG_MSG_DROPPED(tag, what)
+#endif
+
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
