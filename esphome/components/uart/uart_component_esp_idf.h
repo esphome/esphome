@@ -70,6 +70,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   // threshold, RX timeout, and port mode. Returns the first error, already logged.
   esp_err_t apply_line_settings_();
   uart_port_t uart_num_;
+  // Fallback for a failed live reconfiguration (unachievable requested rate).
+  uint32_t last_good_baud_{0};
   uart_config_t get_config_();
 
   bool has_peek_{false};

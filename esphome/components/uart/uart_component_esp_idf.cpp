@@ -160,6 +160,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->last_good_baud_ = this->baud_rate_;
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -278,26 +279,24 @@ void IDFUARTComponent::apply_settings_live() {
     this->load_settings(false);
     return;
   }
-  // uart_param_config() rewrites the framing registers (baud rate, data bits,
-  // parity, stop bits, flow control) and, via its internal uart_hal_init(), resets
-  // the port mode and line settings. It does not touch the driver object or its
-  // RX/TX ring buffers, so tasks blocked in uart_read_bytes()/uart_write_bytes()
-  // are undisturbed — no use-after-free, no need to suspend them.
-  //
-  // Note: the new framing takes effect immediately, mid-byte if a transmission is in
-  // progress, so a byte shifting out (or still in the TX FIFO) when this is called can
-  // be corrupted. That is unavoidable when reconfiguring a live UART and is expected,
-  // not a bug; line-coding changes normally arrive at port-open before traffic flows.
+  // uart_param_config() touches only registers, not the driver object or its ring
+  // buffers, so tasks blocked in uart_read_bytes()/uart_write_bytes() are undisturbed.
+  // The new framing takes effect immediately (mid-byte corruption is possible), which
+  // is inherent to live reconfiguration; hosts normally re-code the line at port-open.
   uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
-    // Not fatal (an unachievable baud rate lands here); the internal uart_hal_init()
-    // has already reset the line settings by this point, so fall through and
-    // re-apply them regardless.
-    ESP_LOGW(TAG, "uart_param_config (live) failed: %s", esp_err_to_name(err));
+    // Unachievable baud rates land here with the registers already reset (via the
+    // internal uart_hal_init()); restore the last framing that worked.
+    ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
+             this->last_good_baud_);
+    this->baud_rate_ = this->last_good_baud_;
+    uart_config = this->get_config_();
+    uart_param_config(this->uart_num_, &uart_config);
+  } else {
+    this->last_good_baud_ = this->baud_rate_;
   }
-  // Re-apply what uart_param_config() clobbered. Errors are logged inside and are
-  // non-fatal here: the driver stays usable with the previous settings.
+  // Re-apply what uart_param_config() clobbered; errors are logged inside.
   this->apply_line_settings_();
 }
 

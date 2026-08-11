@@ -12,6 +12,13 @@ namespace esphome::usb_uart_bridge {
 
 class USBUARTBridge : public Component {
  public:
+  USBUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent,
+                size_t uart_rx_buffer_size, size_t uart_tx_buffer_size)
+      : uart_rx_buffer_size_(uart_rx_buffer_size),
+        uart_tx_buffer_size_(uart_tx_buffer_size),
+        uart_parent_(uart_parent),
+        usb_cdc_parent_(usb_cdc_parent) {}
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -19,11 +26,6 @@ class USBUARTBridge : public Component {
 
   void set_dtr_pin(GPIOPin *dtr_pin) { this->dtr_pin_ = dtr_pin; }
   void set_rts_pin(GPIOPin *rts_pin) { this->rts_pin_ = rts_pin; }
-
-  void set_uart_parent(uart::IDFUARTComponent *uart_parent) { this->uart_parent_ = uart_parent; }
-  void set_usb_cdc_parent(usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent) { this->usb_cdc_parent_ = usb_cdc_parent; }
-  void set_uart_rx_buffer_size(size_t size) { this->uart_rx_buffer_size_ = size; }
-  void set_uart_tx_buffer_size(size_t size) { this->uart_tx_buffer_size_ = size; }
 
   void set_line_coding();
   void set_line_state(bool dtr, bool rts);
@@ -44,13 +46,13 @@ class USBUARTBridge : public Component {
 
   uint32_t reload_requested_at_{0};
 
-  size_t uart_rx_buffer_size_{256};
-  size_t uart_tx_buffer_size_{256};
+  size_t uart_rx_buffer_size_;
+  size_t uart_tx_buffer_size_;
   std::unique_ptr<uint8_t[]> uart_rx_buffer_{nullptr};
   std::unique_ptr<uint8_t[]> uart_tx_buffer_{nullptr};
 
-  uart::IDFUARTComponent *uart_parent_{nullptr};
-  usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent_{nullptr};
+  uart::IDFUARTComponent *uart_parent_;
+  usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent_;
 
   bool reload_pending_{false};
 };
