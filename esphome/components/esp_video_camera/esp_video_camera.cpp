@@ -416,8 +416,14 @@ bool ESPVideoCamera::init_pipeline_() {
 #endif
     esp_err_t host_ret = usb_host_install(&host_config);
     if (host_ret == ESP_OK) {
-      xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 5, nullptr, tskNO_AFFINITY);
+      // Priority 10, the same as Espressif's own board support code: nothing
+      // enumerates unless this task keeps draining the library's events, so it
+      // has to outrank the work it is feeding.
+      xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY);
+      ESP_LOGI(TAG, "USB Host installed (peripheral map 0x%X)", (unsigned) this->usb_peripheral_map_);
     } else if (host_ret == ESP_ERR_INVALID_STATE) {
+      // Whoever installed it owns the event pump too. If they are not draining
+      // it, nothing will ever enumerate and this line is the only clue.
       ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
     } else {
       // Without the USB Host library the UVC device can never enumerate, so
