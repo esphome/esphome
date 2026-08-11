@@ -840,10 +840,13 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
       this->pending_unpairing_.clear();
     }
   } else {
-    // Warn on the leading edge only: a refused reply must not be silent, but
-    // repeating it would add traffic to the connection that just refused one.
+    // Warn on the leading edge and on displacement (that one loses a reply);
+    // the drain's re-refusals of the same reply stay quiet.
     if (this->pending_unpairing_.empty()) {
       ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    } else if (!this->pending_unpairing_.matches(address)) {
+      ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
+               this->pending_unpairing_.address(), address);
     }
     this->pending_unpairing_.set(address, error);
   }
