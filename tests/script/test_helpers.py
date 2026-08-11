@@ -1899,7 +1899,11 @@ def test_run_gh_command_retries_transient_error() -> None:
             "helpers.subprocess.run",
             side_effect=[
                 _gh_error("HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)"),
-                _gh_error("net/http: TLS handshake timeout"),
+                _gh_error(
+                    'Post "https://api.github.com/graphql": tls: failed to verify'
+                    " certificate: x509: certificate is not valid for any names,"
+                    " but wanted to match api.github.com"
+                ),
                 _gh_success(),
             ],
         ) as mock_run,

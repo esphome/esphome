@@ -479,6 +479,7 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
     r"|timed out|timeout"
     r"|connection (?:reset|refused|closed)"
     r"|no such host|could not resolve"
+    r"|failed to verify certificate"
     r"|unexpected eof"
     r"|network is unreachable"
     r"|temporary failure"
