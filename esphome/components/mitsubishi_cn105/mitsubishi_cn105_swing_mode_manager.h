@@ -13,8 +13,9 @@ class SwingModeManager {
   climate::ClimateSwingModeMask &supported_swing_modes() { return this->supported_swing_modes_; }
 
   std::optional<MitsubishiCN105::VaneMode> vane_from(climate::ClimateSwingMode swing_mode) const {
-    if (!this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL))
+    if (!this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
       return std::nullopt;
+    }
 
     switch (swing_mode) {
       case climate::CLIMATE_SWING_BOTH:
@@ -26,8 +27,9 @@ class SwingModeManager {
   }
 
   std::optional<MitsubishiCN105::WideVaneMode> wide_vane_from(climate::ClimateSwingMode swing_mode) const {
-    if (!this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL))
+    if (!this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
       return std::nullopt;
+    }
 
     switch (swing_mode) {
       case climate::CLIMATE_SWING_BOTH:
@@ -40,30 +42,36 @@ class SwingModeManager {
 
   std::optional<climate::ClimateSwingMode> swing_mode_from(MitsubishiCN105::VaneMode vane_mode,
                                                            MitsubishiCN105::WideVaneMode wide_vane_mode) {
-    if (this->supported_swing_modes_.empty())
+    if (this->supported_swing_modes_.empty()) {
       return std::nullopt;
+    }
 
     bool vertical_swinging = false;
     bool horizontal_swinging = false;
     if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
-      if (vane_mode == MitsubishiCN105::VaneMode::SWING)
+      if (vane_mode == MitsubishiCN105::VaneMode::SWING) {
         vertical_swinging = true;
-      else if (vane_mode != MitsubishiCN105::VaneMode::UNKNOWN)
+      } else if (vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
         this->last_non_swing_vane_mode_ = vane_mode;
+      }
     }
     if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
-      if (wide_vane_mode == MitsubishiCN105::WideVaneMode::SWING)
+      if (wide_vane_mode == MitsubishiCN105::WideVaneMode::SWING) {
         horizontal_swinging = true;
-      else if (wide_vane_mode != MitsubishiCN105::WideVaneMode::UNKNOWN)
+      } else if (wide_vane_mode != MitsubishiCN105::WideVaneMode::UNKNOWN) {
         this->last_non_swing_wide_vane_mode_ = wide_vane_mode;
+      }
     }
 
-    if (vertical_swinging && horizontal_swinging)
+    if (vertical_swinging && horizontal_swinging) {
       return climate::CLIMATE_SWING_BOTH;
-    if (vertical_swinging)
+    }
+    if (vertical_swinging) {
       return climate::CLIMATE_SWING_VERTICAL;
-    if (horizontal_swinging)
+    }
+    if (horizontal_swinging) {
       return climate::CLIMATE_SWING_HORIZONTAL;
+    }
     return climate::CLIMATE_SWING_OFF;
   }
 
