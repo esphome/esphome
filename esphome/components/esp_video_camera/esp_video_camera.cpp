@@ -325,7 +325,10 @@ void ESPVideoCamera::setup() {
     // missing device on a timer. A MIPI sensor is either detected by now or
     // never will be.
     if (this->is_uvc_device_()) {
-      ESP_LOGI(TAG, "%s is not there yet; waiting for the USB camera to enumerate", this->resolved_device_.c_str());
+      // The device count is the useful half of this: none at all this early is
+      // normal, but it stays at none when the host port is not carrying data.
+      ESP_LOGI(TAG, "%s is not there yet; waiting for the USB camera to enumerate (%d USB device(s) so far)",
+               this->resolved_device_.c_str(), count_usb_devices());
       this->capture_retry_pending_ = true;
       this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
       return;
