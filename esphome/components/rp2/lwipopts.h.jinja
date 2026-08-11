@@ -32,7 +32,9 @@
 
 // lwIP heap backing PBUF_RAM, which is what tcp_write() copies into.
 // Raised from arduino-pico's 16KB: TCP_OVERSIZE is TCP_MSS, so a single PCB
-// at a full TCP_SND_BUF pins about 6KB and two connections exhausted it.
+// at a full TCP_SND_BUF pins about 6KB. Two of those left the 16KB heap at
+// 75%, and mem.c is first-fit, so the largest contiguous run ran out well
+// before the total did.
 #undef MEM_SIZE
 #define MEM_SIZE                      {{ MEM_SIZE }}
 

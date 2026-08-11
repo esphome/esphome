@@ -93,3 +93,29 @@ def test_rp2040_submodule_imports_resolve_to_rp2_submodules() -> None:
 
     assert rp2040_boards is rp2_boards
     assert rp2040_generate is rp2_generate
+
+
+def test_lwip_segment_pool_exceeds_per_pcb_queue() -> None:
+    """The segment pool is global while the send queue is per-PCB.
+
+    lwIP's sanity check only requires ``MEMP_NUM_TCP_SEG >= TCP_SND_QUEUELEN``,
+    which is the floor for a *single* connection: at equality one busy PCB can
+    drain the pool for every other PCB. Dropping back to equality would rebuild
+    the starvation this sizing exists to prevent, and nothing in the build would
+    complain.
+    """
+    from esphome.components import rp2
+
+    assert rp2.LWIP_MEMP_NUM_TCP_SEG >= rp2.LWIP_TCP_SND_QUEUELEN
+    assert rp2.LWIP_MEMP_NUM_TCP_SEG >= 2 * rp2.LWIP_TCP_SND_QUEUELEN
+
+
+def test_lwip_mem_size_keeps_mem_size_t_narrow() -> None:
+    """``MEM_SIZE`` above 64000 silently widens lwIP's ``mem_size_t`` to
+    ``u32_t`` (``lwip/mem.h``), growing the header on every heap block. Raising
+    the heap past that bound is a real option, but it should be a deliberate
+    one rather than a side effect of tuning.
+    """
+    from esphome.components import rp2
+
+    assert rp2.LWIP_MEM_SIZE < 64000
