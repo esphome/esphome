@@ -131,6 +131,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// newest wins: a GATT client works one request at a time, and a discarded
   /// reply falls back to the timeout it would have hit anyway.
   void latch_pending_ack_(PendingAck kind, uint16_t handle, conn_err_t error = 0) {
+    this->pending_ack_retries_ = 0;
     this->pending_ack_ = kind;
     this->pending_ack_handle_ = handle;
     this->pending_ack_error_ = error;
@@ -246,6 +247,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool services_discovered_ : 1 {false};
   static_assert(static_cast<uint8_t>(PendingAck::PENDING_ACK_ERROR) < (1 << 2), "pending_ack_ bitfield too narrow");
   PendingAck pending_ack_ : 2 {PendingAck::PENDING_ACK_NONE};
+  static_assert(PENDING_ACK_RETRY_LIMIT < (1 << 5), "ack retry counter too narrow");
+  uint8_t pending_ack_retries_ : 5 {0};
   /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
   /// An owed connected=true reply; the proxy's paced drain re-offers it.
