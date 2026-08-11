@@ -281,6 +281,10 @@ void BluetoothConnection::flush_pending_ack_() {
     this->clear_pending_ack_();
     return;
   }
+  this->age_pending_ack_();
+}
+
+void BluetoothConnection::age_pending_ack_() {
   if (++this->pending_ack_retries_ >= PENDING_ACK_RETRY_LIMIT) {
     // Undeliverable: past here the client has given up and may have re-asked,
     // and a late reply would answer the new request instead of this one.
@@ -430,7 +434,13 @@ void BluetoothConnection::send_services_done_() {
     ESP_LOGW(TAG, "[%d] [%s] Failed to send services done, retrying", this->connection_index_, this->address_str_);
     this->services_done_retries_ = 0;
     this->send_service_ = SERVICES_DONE_PENDING;
-  } else if (++this->services_done_retries_ >= SERVICES_DONE_RETRY_LIMIT) {
+  } else {
+    this->age_services_done_();
+  }
+}
+
+void BluetoothConnection::age_services_done_() {
+  if (++this->services_done_retries_ >= SERVICES_DONE_RETRY_LIMIT) {
     // Undeliverable (see SERVICES_DONE_RETRY_LIMIT); silence arbitrates.
     ESP_LOGW(TAG, "[%d] [%s] Services done undeliverable, abandoning", this->connection_index_, this->address_str_);
     this->send_service_ = DONE_SENDING_SERVICES;
