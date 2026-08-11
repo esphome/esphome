@@ -1937,7 +1937,12 @@ def test_run_gh_command_gives_up_after_max_attempts() -> None:
     [
         "HTTP 404: Not Found (https://api.github.com/repos/x)",
         "HTTP 401: Bad credentials",
+        "HTTP 403: API rate limit exceeded for installation ID 123.",
         "diff exceeded the maximum number of changed files (300)",
+        (
+            "GraphQL: Could not resolve to a PullRequest with the number of 999999."
+            " (repository.pullRequest)"
+        ),
     ],
 )
 def test_run_gh_command_permanent_error_not_retried(stderr: str) -> None:
@@ -1948,6 +1953,22 @@ def test_run_gh_command_permanent_error_not_retried(stderr: str) -> None:
         pytest.raises(subprocess.CalledProcessError),
     ):
         run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_run_gh_command_no_retry_for_non_idempotent_commands() -> None:
+    """retry=False fails on the first error even when it looks transient."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 502: 502 Bad Gateway"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "comment", "123", "--body", "x"], retry=False)
 
     mock_run.assert_called_once()
     mock_sleep.assert_not_called()

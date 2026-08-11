@@ -470,15 +470,16 @@ def get_target_branch() -> str | None:
 
 
 # Substrings (matched case-insensitively against gh's stderr) that identify
-# transient failures worth retrying: server errors (HTTP 5xx), rate limiting
-# (HTTP 429), and dropped or failed connections. Permanent failures (bad
-# auth, missing PR, the 300-file diff limit) never match so callers see them
-# immediately.
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
 _TRANSIENT_GH_ERROR_RE = re.compile(
-    r"http (?:5\d\d|429)"
+    r"http 5\d\d"
     r"|timed out|timeout"
     r"|connection (?:reset|refused|closed)"
-    r"|no such host|could not resolve"
+    r"|no such host|could not resolve host"
     r"|failed to verify certificate"
     r"|unexpected eof"
     r"|network is unreachable"
@@ -490,11 +491,16 @@ _TRANSIENT_GH_ERROR_RE = re.compile(
 _GH_MAX_ATTEMPTS = 3
 
 
-def run_gh_command(args: list[str]) -> subprocess.CompletedProcess[str]:
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
     """Run a gh CLI command, retrying transient network and server failures.
 
     Args:
         args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
 
     Returns:
         CompletedProcess with captured text output.
@@ -503,6 +509,7 @@ def run_gh_command(args: list[str]) -> subprocess.CompletedProcess[str]:
         subprocess.CalledProcessError: If the command fails with a permanent
             error, or is still failing after the retries are exhausted.
     """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
     attempt = 0
     while True:
         try:
@@ -512,14 +519,12 @@ def run_gh_command(args: list[str]) -> subprocess.CompletedProcess[str]:
         except subprocess.CalledProcessError as err:
             attempt += 1
             stderr = err.stderr or ""
-            if attempt >= _GH_MAX_ATTEMPTS or not _TRANSIENT_GH_ERROR_RE.search(
-                stderr.lower()
-            ):
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
                 raise
             delay = 2**attempt
             print(
                 f"WARNING: {' '.join(args)} failed: {stderr.strip()}; "
-                f"retrying in {delay}s (attempt {attempt}/{_GH_MAX_ATTEMPTS})",
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
                 file=sys.stderr,
             )
             time.sleep(delay)
