@@ -677,7 +677,9 @@ void BluetoothProxy::reset_owed_replies_() {
   this->scanner_state_pending_ = false;
 #else
   // Force a poll-arm mismatch: a frame refused at subscribe time could
-  // otherwise match the stale detector and never be retried.
+  // otherwise match the stale detector and never be retried. Inert on
+  // unsubscribe: loop() returns at the no-subscriber gate before the
+  // detector runs, and a re-subscribe re-arms this anyway.
   this->last_scan_running_ = !this->hub_->scan_running();
 #endif
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
