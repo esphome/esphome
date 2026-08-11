@@ -73,6 +73,11 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
   this->paired_ = false;
+  // The link is gone: an owed reply for it would arrive addressed to a
+  // connection the client has already been told about, and the slot may be
+  // reserved for a different device by the time the drain runs.
+  this->clear_pending_ack_();
+  this->batch_stalled_ = false;
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -163,13 +168,63 @@ void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint1
            operation, handle, status);
 }
 
+void BluetoothConnection::note_batch_stalled_() {
+  if (this->batch_stalled_)
+    return;
+  this->batch_stalled_ = true;
+  ESP_LOGW(TAG, "[%d] [%s] Service batch deferred, TCP buffer full; retrying", this->connection_index_,
+           this->address_str_);
+}
+
+/// Build and send one payload-free GATT reply. The only construction site
+/// for these messages: first attempt and retry both come through here, so a
+/// re-offer cannot drift from the original.
+bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
+  if (kind == PendingAck::PENDING_ACK_ERROR) {
+    // The proxy owns the error reply; it reports a refusal the same way.
+    return this->proxy_->send_gatt_error(this->address_, handle, error);
+  }
+  auto *api_connection = this->proxy_->get_api_connection();
+  if (api_connection == nullptr)
+    return true;  // Nobody subscribed: nothing is owed
+  if (kind == PendingAck::PENDING_ACK_WRITE) {
+    api::BluetoothGATTWriteResponse resp;
+    resp.address = this->address_;
+    resp.handle = handle;
+    return api_connection->send_message(resp);
+  }
+  api::BluetoothGATTNotifyResponse resp;
+  resp.address = this->address_;
+  resp.handle = handle;
+  return api_connection->send_message(resp);
+}
+
+void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
+  if (this->try_send_ack_(kind, handle, error))
+    return;
+  // V, not W: the reply is owed rather than lost, and a warning here would
+  // ride the same connection that just refused a frame. Matches how the
+  // proxy logs a deferred connections-free update.
+  ESP_LOGV(TAG, "[%d] [%s] GATT reply for handle 0x%2X deferred, TCP buffer full", this->connection_index_,
+           this->address_str_, handle);
+  this->latch_pending_ack_(kind, handle, error);
+}
+
+void BluetoothConnection::flush_pending_ack_() {
+  if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
+    this->clear_pending_ack_();
+  }
+  // Still refused: stays owed, re-offered on the next paced drain. The
+  // client's operation timeout remains the outer bound.
+}
+
 void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
   // Late completion for a freed slot; nothing to report.
   if (this->address_ == 0)
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("reading char/descriptor", handle, error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
     return;
   }
   auto *api_connection = this->proxy_->get_api_connection();
@@ -180,6 +235,8 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
+    // Not latched: the payload would have to be held on the heap through the
+    // congestion that refused it. The client's read timeout arbitrates.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send read response", this->connection_index_, this->address_str_);
   }
 }
@@ -189,18 +246,10 @@ void BluetoothConnection::on_write_result(uint16_t handle, int error) {
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("writing char/descriptor", handle, error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
     return;
   }
-  auto *api_connection = this->proxy_->get_api_connection();
-  if (api_connection == nullptr)
-    return;
-  api::BluetoothGATTWriteResponse resp;
-  resp.address = this->address_;
-  resp.handle = handle;
-  if (!api_connection->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send write response", this->connection_index_, this->address_str_);
-  }
+  this->send_ack_(PendingAck::PENDING_ACK_WRITE, handle);
 }
 
 void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int error) {
@@ -209,18 +258,10 @@ void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int err
   if (error != 0) {
     this->log_gatt_operation_error_(enabled ? "registering notifications" : "unregistering notifications", handle,
                                     error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
     return;
   }
-  auto *api_connection = this->proxy_->get_api_connection();
-  if (api_connection == nullptr)
-    return;
-  api::BluetoothGATTNotifyResponse resp;
-  resp.address = this->address_;
-  resp.handle = handle;
-  if (!api_connection->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send notify state response", this->connection_index_, this->address_str_);
-  }
+  this->send_ack_(PendingAck::PENDING_ACK_NOTIFY, handle);
 }
 
 void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {
@@ -235,6 +276,9 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
+    // Not latched, same reason as the read reply: the payload cannot be held
+    // through congestion. Notify data is genuinely lossy; the peripheral will
+    // not resend it.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
   }
 }
@@ -413,9 +457,11 @@ void BluetoothConnection::send_service_for_discovery_() {
   // (bounded: a subscriber that stays gone ends streaming via the api-lost
   // rewind above).
   if (!api_conn->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", this->connection_index_, this->address_str_);
+    this->note_batch_stalled_();
     this->send_service_ = batch_start;
+    return;
   }
+  this->batch_stalled_ = false;
 }
 
 }  // namespace esphome::bluetooth_connection

@@ -527,9 +527,11 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   // On a failed send, rewind the cursor so the batch is retried instead of
   // silently skipped.
   if (!api_conn->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", conn.connection_index_, conn.address_str_);
+    conn.note_batch_stalled_();
     conn.send_service_ = batch_start;
+    return;
   }
+  conn.batch_stalled_ = false;
 }
 #endif  // USE_BLUETOOTH_PROXY
 
