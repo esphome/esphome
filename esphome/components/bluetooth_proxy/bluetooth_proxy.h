@@ -138,8 +138,8 @@ class BluetoothProxy final : public Component {
   }
 
   /// False only when a subscriber refused the frame; true = delivered or
-  /// nobody subscribed. Request-answer callers ignore the result (client
-  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  /// nobody subscribed. Refusals latch in send_device_disconnected_() and
+  /// send_connected_reply_(); other callers report via log_reply_dropped_().
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
@@ -247,9 +247,9 @@ class BluetoothProxy final : public Component {
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
-#endif
   void log_not_connected_gatt_(const char *action, const char *type);
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
+#endif
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// Keep the pre-allocated connections-free message in step when a

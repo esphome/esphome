@@ -4,7 +4,7 @@
 
 // The in-place streamer serves the proxy's service-discovery API; backend-only
 // builds compile without the proxy headers or the streamer.
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 #include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
@@ -391,7 +391,7 @@ void BluedroidGattClient::deliver_pending_search_() {
   this->listener_->on_service_discovery_done(this->search_status_);
 }
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 // The wrapper's compile-time streamer detection must keep finding this
 // method; a signature drift would silently fall back to the table streamer,
 // which proxy builds compile without a materializer.
@@ -533,7 +533,7 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   }
   conn.batch_stalled_ = false;
 }
-#endif  // USE_BLUETOOTH_PROXY
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 // ---- events ----
 

@@ -18,7 +18,8 @@
 
 // USE_BLUETOOTH_PROXY_CONNECTIONS is the single spelling of "this build has
 // proxy connection slots": codegen emits it per configured slot, and each
-// slot brings a GATT backend, so it also implies USE_BLE_GATT_CLIENT. The hub
+// slot brings a GATT backend, so it also implies USE_BLE_GATT_CLIENT (not
+// the converse: a backend can exist without proxy slots). The hub
 // wrapper, the proxy's connection surface and the API's connection messages
 // all gate on it. Address-scoped maintenance stays available through the
 // per-platform free functions below.
@@ -63,12 +64,12 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
+#if (defined(USE_ESP32) || defined(USE_RP2040_BLE)) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t unpair_device(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }

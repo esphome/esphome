@@ -18,7 +18,7 @@ void BluetoothConnection::set_address(uint64_t address) {
   this->proxy_->update_address_slot_(this->address_, address);
   // Slot changing hands: anything owed belonged to the old address. The
   // choke point for every reassignment, not just reset_connection_()'s path.
-  this->clear_pending_ack_();
+  this->clear_owed_flags_();
   this->address_ = address;
   if (address == 0) {
     this->address_str_[0] = '\0';

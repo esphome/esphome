@@ -3,7 +3,7 @@ from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # close_service_batch compiles only under BLUETOOTH_CONNECTION_HAS_GATT;
+    # close_service_batch compiles only under USE_BLUETOOTH_PROXY_CONNECTIONS;
     # emit the backend define so the host build exercises it.
     async def to_code_testing(config):
         # These defines are global to the merged host test binary; safe

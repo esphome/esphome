@@ -126,11 +126,11 @@ void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const
 
 void BluetoothProxy::log_reply_dropped_(const char *what) { ESP_LOGW(TAG, "%s reply dropped, TCP buffer full", what); }
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
   ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
 }
 
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
                                                 const char *type) {
   this->log_not_connected_gatt_(action, type);
@@ -622,15 +622,13 @@ void BluetoothProxy::loop() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->flush_owed_replies_();
   }
-  // Address-keyed, not slot-keyed, so it gets its own loop. Cleared first so
-  // another refusal re-latches through the sender, as the unpair drain does.
+  // Address-keyed, not slot-keyed, so it gets its own loop. Not pre-cleared:
+  // the sender clears on success and re-latches on refusal, keeping the
+  // latch's leading-edge warn honest (same shape as the unpair drain).
   for (auto &owed : this->pending_disconnections_) {
     if (owed.empty())
       continue;
-    uint64_t address = owed.address();
-    conn_err_t error = owed.error();
-    owed.clear();
-    this->send_device_disconnected_(address, error);
+    this->send_device_disconnected_(owed.address(), owed.error());
   }
 
   // An owed unpair reply. Not pre-cleared: the sender clears on success and
@@ -797,8 +795,9 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     return;
   }
   // Leading edge only: the drain re-enters here every 100 ms while congested.
+  // Not log_reply_dropped_(): this reply is latched and retried, not dropped.
   if (this->pending_unpairing_.empty()) {
-    this->log_reply_dropped_("Unpair");
+    ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
   }
   this->pending_unpairing_.set(address, error);
 }
