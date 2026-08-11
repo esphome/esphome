@@ -19,12 +19,7 @@ from esphome.helpers import (
     rmtree,
     write_file,
 )
-from esphome.util import (
-    ESP32_ARDUINO_ENV,
-    FlashImage,
-    is_esp32_arduino_build,
-    run_external_process,
-)
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage, run_external_process
 
 if TYPE_CHECKING:
     from platformio.project.config import ProjectConfig
@@ -350,11 +345,13 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # The runner filters PlatformIO's output in the subprocess, so the
     # out-of-flash tip is offered from there. That process has no configured
     # CORE to ask which platform this is, so tell it.
-    if is_esp32_arduino_build():
+    # Ask CORE directly rather than through is_esp32_arduino_build(), which
+    # falls back to this same variable. Reading what we are about to write
+    # would let a stray value in our own environment answer for us. Clear an
+    # inherited one so it cannot reach a build it does not suit.
+    if KEY_CORE in CORE.data and CORE.is_esp32 and CORE.using_arduino:
         env[ESP32_ARDUINO_ENV] = "1"
     else:
-        # Clear an inherited one, so a stray value in our own environment
-        # cannot make the runner offer the tip for a build it does not suit.
         env.pop(ESP32_ARDUINO_ENV, None)
 
     return run_external_process(*cmd, env=env, **kwargs)
