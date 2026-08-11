@@ -29,6 +29,8 @@ struct HoermannHcpCommand {
   uint16_t released_value;
   uint16_t pressed_value_2{0x0000};
   uint16_t released_value_2{0x0000};
+  // A door command supersedes a half-open target; the lamp has no bearing on where the door is going.
+  bool clears_target{true};
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {

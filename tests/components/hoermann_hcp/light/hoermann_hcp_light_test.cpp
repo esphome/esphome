@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <thread>
 #include <utility>
 
 #include "esphome/components/hoermann_hcp/light/hoermann_hcp_light.h"
@@ -40,9 +42,25 @@ RegisterValues lamp_broadcast(uint16_t lamp_reg) {
   return make_registers({0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, lamp_reg});
 }
 
+// Releases the key press immediately, so a poll after any elapsed time returns the released values.
+class TestableHoermannHcp : public HoermannHcp {
+ public:
+  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
+};
+
+// Enough elapsed time for a zero-length key press to count as held; millis() has 1 ms resolution.
+constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
+
+// Presents and then releases the queued command, leaving the slot free.
+void consume_command(HoermannHcp &door) {
+  poll_command(door);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(door);
+}
+
 // Drives the platform against a real LightState. ALWAYS_OFF keeps setup() clear of preferences.
 struct LightFixture {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   HoermannHcpLight output{&door};
   light::LightState state{&output};
 
@@ -87,10 +105,9 @@ TEST(HoermannHcpLightTest, LampStateIsDecodedFromTheBroadcast) {
   EXPECT_FALSE(door.is_light_on());
 }
 
-// The lamp command is the only one that drives the second command register, and the hub sends it whatever
-// the lamp is currently doing.
+// The lamp command is the only one that drives the second command register, on both halves of the press.
 TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   connect(door);
   ASSERT_FALSE(door.is_light_on());
   ASSERT_TRUE(door.toggle_light());
@@ -98,6 +115,35 @@ TEST(HoermannHcpLightTest, LampCommandUsesTheSecondRegister) {
   auto [pressed, pressed_2] = poll_command(door);
   EXPECT_EQ(pressed, 0x0100);
   EXPECT_EQ(pressed_2, 0x0200);
+
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  auto [released, released_2] = poll_command(door);
+  EXPECT_EQ(released, 0x0800);
+  EXPECT_EQ(released_2, 0x0200);
+
+  // The command is spent, so the next poll carries nothing.
+  auto [idle, idle_2] = poll_command(door);
+  EXPECT_EQ(idle, 0x0000);
+  EXPECT_EQ(idle_2, 0x0000);
+}
+
+// Toggling the lamp must not disturb a cover position the door is still travelling to.
+TEST(HoermannHcpLightTest, LampToggleKeepsTheCoverTarget) {
+  TestableHoermannHcp door;
+  connect(door);
+  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
+  ASSERT_TRUE(door.set_position(0.5f));
+  consume_command(door);
+
+  ASSERT_TRUE(door.toggle_light());
+  consume_command(door);
+
+  // Past the target: the door still has to be stopped despite the lamp command in between.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  auto [pressed, pressed_2] = poll_command(door);
+  EXPECT_EQ(pressed, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(pressed_2, 0x0000);
 }
 
 // Without a bus controller the command cannot be delivered, and the caller is told.
@@ -115,6 +161,8 @@ TEST(HoermannHcpLightPlatformTest, CommandTogglesOnceAndSettles) {
   auto [pressed, pressed_2] = poll_command(fixture.door);
   EXPECT_EQ(pressed, 0x0100);
   EXPECT_EQ(pressed_2, 0x0200);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(fixture.door);  // release, clearing the slot
 
   // The lamp is now on, and the resulting broadcast must not queue another toggle.
   fixture.report_lamp(true);
@@ -122,6 +170,25 @@ TEST(HoermannHcpLightPlatformTest, CommandTogglesOnceAndSettles) {
   auto [idle, idle_2] = poll_command(fixture.door);
   EXPECT_EQ(idle, 0x0000);
   EXPECT_EQ(idle_2, 0x0000);
+}
+
+// A broadcast arriving while a toggle is queued must not reconcile against the not-yet-inverted lamp, which
+// would cancel the user's own command.
+TEST(HoermannHcpLightPlatformTest, BroadcastDuringPendingToggleKeepsTheCommand) {
+  LightFixture fixture;
+  connect(fixture.door);
+
+  fixture.command(true);
+  ASSERT_TRUE(fixture.door.is_light_toggle_pending());
+
+  // A door movement sets changed_, firing the state callback while the toggle is still queued.
+  fixture.door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
+  fixture.door.update();
+  for (int i = 0; i < 4; i++)
+    fixture.state.loop();
+
+  EXPECT_TRUE(fixture.door.is_light_toggle_pending());
+  EXPECT_TRUE(fixture.entity_on());
 }
 
 // A lamp switched on at the door itself has to reach the entity.

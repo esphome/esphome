@@ -14,12 +14,14 @@ static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by t
 static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 
+// Command encoding: the high byte of the first register is the phase (0x02 pressed, 0x01 released) and the
+// rest names the button - the low byte for the door commands, the second register for those that do not fit
+// there. Both halves repeat that name, so neither register is a level to hold; they carry one event each.
 static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0210, 0x0110};
 static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0220, 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140};
-// Unlike the door commands this drives the second register, and its pressed value looks like a released one
-// under their scheme. Values taken from the reference implementation (esphome-hcpbridge).
-static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200};
+// The lamp is named in the second register, but its phase bytes follow no scheme the door commands share.
+static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200, false};
 
 // High byte of the state register and the door state it stands for. State 0x00 is decoded separately because
 // its low byte tells a plain stop from the vent position.
@@ -176,7 +178,7 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     return;
   }
   if (millis() - this->command_written_at_ <= this->key_press_delay_ms_) {
-    // Still inside the key-press window, so keep presenting 0x0000.
+    // Between the two events there is nothing to report, including in the second register.
     push_zeros(registers, 2);
     return;
   }
@@ -247,7 +249,8 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
     return false;
   }
   // A new command supersedes any half-open target the door was still travelling to.
-  this->clear_target_();
+  if (command.clears_target)
+    this->clear_target_();
   this->next_command_ = &command;
   this->command_queued_at_ = millis();
   return true;

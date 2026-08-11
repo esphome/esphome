@@ -32,7 +32,10 @@ void HoermannHcpLight::write_state(light::LightState *state) {
     return;
   }
   ESP_LOGW(TAG, "Light command was not accepted by the door");
-  this->publish_light_state_();
+  // A toggle already on the wire settles this entity from the next broadcast; republishing now would only
+  // re-enter write_state() with the same mismatch.
+  if (!this->parent_->is_light_toggle_pending())
+    this->publish_light_state_();
 }
 
 void HoermannHcpLight::update_from_state_() {
@@ -43,6 +46,10 @@ void HoermannHcpLight::update_from_state_() {
     return;
   }
   this->status_clear_warning();
+  // A queued toggle will invert the lamp, so the reported state is not the one to reconcile against yet. The
+  // hub flags a change when it drops a command, so a reconcile still follows if the toggle never lands.
+  if (this->parent_->is_light_toggle_pending())
+    return;
   if (this->reported_on_ != this->parent_->is_light_on())
     this->publish_light_state_();
 }
