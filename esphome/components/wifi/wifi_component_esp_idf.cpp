@@ -825,6 +825,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
+    if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+      // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
+      // so the state machine never left STA_CONNECTED.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+      char roam_bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, roam_bssid_s);
+      ESP_LOGI(TAG, "Roamed ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u", it.ssid_len, (const char *) it.ssid,
+               roam_bssid_s, it.channel);
+#endif
+      bssid_t roam_bssid;
+      std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
+      this->handle_driver_roam_(roam_bssid, it.channel);
+    }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations

@@ -88,6 +88,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_W6300,
   ETHERNET_TYPE_GENERIC,
   ETHERNET_TYPE_YT8531,
+  ETHERNET_TYPE_CH390,
 };
 
 struct ManualIP {

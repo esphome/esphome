@@ -40,7 +40,7 @@ static_assert(static_cast<uint32_t>(ble_device_base::ScannerState::STOPPED) ==
 
 bool BluetoothProxy::send_bluetooth_scanner_state_(ble_device_base::ScannerState state) {
   if (this->api_connection_ == nullptr)
-    return false;
+    return true;  // Nobody subscribed: nothing owed
   api::BluetoothScannerStateResponse resp;
   resp.state = static_cast<api::enums::BluetoothScannerState>(state);
   resp.mode = this->hub_->scan_active() ? api::enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE
@@ -51,7 +51,12 @@ bool BluetoothProxy::send_bluetooth_scanner_state_(ble_device_base::ScannerState
   return this->api_connection_->send_message(resp);
 }
 
-#ifndef USE_ESP32
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+void BluetoothProxy::send_scanner_state_(ble_device_base::ScannerState state) {
+  // False only on a refused frame, so the latch arms only when a retry is owed.
+  this->scanner_state_pending_ = !this->send_bluetooth_scanner_state_(state);
+}
+#else
 void BluetoothProxy::send_polled_scanner_state_() {
   // One read feeds both the frame and the change detector; the detector only
   // advances if the frame was accepted, so a dropped send (WOULD_BLOCK on a
@@ -62,7 +67,7 @@ void BluetoothProxy::send_polled_scanner_state_() {
     this->last_scan_running_ = running;
   }
 }
-#endif  // !USE_ESP32
+#endif  // USE_BLE_SCANNER_STATE_CALLBACK
 
 void BluetoothProxy::setup() {
   // BLUETOOTH_PROXY_MAX_CONNECTIONS is 0 on an advertisement-only proxy.
@@ -75,9 +80,12 @@ void BluetoothProxy::setup() {
   this->hub_->set_raw_advertisement_callback({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
                                                 static_cast<BluetoothProxy *>(self)->on_raw_advertisement_(adv);
                                               }});
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // Only push hubs compile the slot; elsewhere loop() polls scan_running().
   this->hub_->set_scanner_state_callback({this, [](void *self, ble_device_base::ScannerState state) {
-                                            static_cast<BluetoothProxy *>(self)->send_bluetooth_scanner_state_(state);
+                                            static_cast<BluetoothProxy *>(self)->send_scanner_state_(state);
                                           }});
+#endif
 }
 
 // The hub delivers raw advertisements on the ESPHome main loop.
@@ -129,17 +137,10 @@ void BluetoothProxy::log_advertisement_flush_() {
 }
 
 void BluetoothProxy::dump_config() {
-#ifdef USE_ESP32
-  ESP_LOGCONFIG(TAG,
-                "Bluetooth Proxy:\n"
-                "  Active: %s\n"
-                "  Connections: %d",
-                YESNO(this->active_), this->connection_count_);
-#else
   // Print configured facts. dump_config runs right after setup, before the
   // radio is up, so live scan state would always read "stopped" here — the
   // loop's BluetoothScannerStateResponse carries the changing value instead.
-  char mac_str[18];
+  char mac_str[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   this->get_bluetooth_mac_address_pretty(mac_str);
   const char *mac_out = mac_str[0] != '\0' ? mac_str : "unavailable (adapter not up yet)";
   const char *scan_mode = this->configured_scan_active_ ? "active" : "passive";
@@ -159,31 +160,7 @@ void BluetoothProxy::dump_config() {
                 "  Adapter MAC: %s",
                 scan_mode, mac_out);
 #endif
-#endif
 }
-
-#ifdef USE_ESP32
-
-void BluetoothProxy::loop() {
-  // Run advertisement flush / connection cleanup every 100ms
-  uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_advertisement_flush_time_ < 100)
-    return;
-  this->last_advertisement_flush_time_ = now;
-
-  if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
-    this->flush_pending_advertisements_();
-    return;
-  }
-  for (uint8_t i = 0; i < this->connection_count_; i++) {
-    auto *connection = this->connections_[i];
-    if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-      connection->disconnect();
-    }
-  }
-}
-
-#endif  // USE_ESP32
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 
@@ -197,11 +174,8 @@ void BluetoothProxy::register_connection([[maybe_unused]] BluetoothConnection *c
     ESP_LOGE(TAG, "Connection registry full, dropping registration");
     return;
   }
-#ifndef USE_ESP32
-  // esp32 assigns connection_index_ in BLEClientBase::setup(); the hub
-  // class has no Component lifecycle, so the index is assigned here.
+  // The hub wrapper has no Component lifecycle, so the index is assigned here.
   connection->connection_index_ = this->connection_count_;
-#endif
   this->connections_[this->connection_count_++] = connection;
   connection->proxy_ = this;
 #endif
@@ -221,33 +195,84 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
   ESP_LOGW(TAG, "Connection slot accounting mismatch (find 0x%llx)", (unsigned long long) find_value);
 }
 
+void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t error) {
+  // Match before free entry so one address never occupies two pool slots.
+  PendingDisconnect *free_entry = nullptr;
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto &owed = this->pending_disconnections_[i];
+    if (owed.matches(address)) {
+      owed.set(address, error);
+      return;
+    }
+    if (free_entry == nullptr && owed.empty()) {
+      free_entry = &owed;
+    }
+  }
+  if (free_entry != nullptr) {
+    free_entry->set(address, error);
+    return;
+  }
+  // Every entry is owed: evict the first so the newest loss is not silent too.
+  ESP_LOGW(TAG, "Owed disconnect dropped (0x%llx), retry pool full",
+           (unsigned long long) this->pending_disconnections_[0].address());
+  this->pending_disconnections_[0].set(address, error);
+}
+
+void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
+  // A reconnect supersedes the owed disconnect; a late resend would shadow
+  // the new connection.
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    if (this->pending_disconnections_[i].matches(address)) {
+      this->pending_disconnections_[i].clear();
+    }
+  }
+}
+
 void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
-  this->send_device_connection(connection->get_address(), false, 0, reason);
+  if (!this->send_device_connection(connection->get_address(), false, 0, reason)) {
+    // The client has no other way to learn of an unsolicited disconnect;
+    // latch and let loop()'s paced drain deliver it. V by design: a louder
+    // level would ride the same congested link this reports on.
+    ESP_LOGV(TAG, "[%d] [%s] Disconnect notification deferred, TCP buffer full", connection->get_connection_index(),
+             connection->address_str());
+    this->latch_pending_disconnection_(connection->get_address(), reason);
+  }
   connection->set_address(0);
   connection->send_service_ = INIT_SENDING_SERVICES;
   this->send_connections_free();
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
+  // Finish the scan before reserving: a free slot earlier in the array must
+  // not win over a later slot that already holds the address, or one device
+  // ends up on two slots with a second connection attempt racing the first.
+  BluetoothConnection *free_slot = nullptr;
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto *connection = this->connections_[i];
     uint64_t conn_addr = connection->get_address();
 
-    if (conn_addr == address)
-      return connection;
-
-    if (reserve && conn_addr == 0) {
-      connection->send_service_ = INIT_SENDING_SERVICES;
-      connection->set_address(address);
-      // All connections must start at INIT
-      // We only set the state if we allocate the connection
-      // to avoid a race where multiple connection attempts
-      // are made.
-      connection->set_state(ClientState::INIT);
+    if (conn_addr == address) {
+      // A connect request supersedes an owed disconnect.
+      if (reserve) {
+        this->clear_pending_disconnection_(address);
+      }
       return connection;
     }
+
+    if (free_slot == nullptr && conn_addr == 0)
+      free_slot = connection;
   }
-  return nullptr;
+  if (!reserve || free_slot == nullptr)
+    return nullptr;
+  this->clear_pending_disconnection_(address);
+  free_slot->send_service_ = INIT_SENDING_SERVICES;
+  free_slot->set_address(address);
+  // All connections must start at INIT
+  // We only set the state if we allocate the connection
+  // to avoid a race where multiple connection attempts
+  // are made.
+  free_slot->set_state(ClientState::INIT);
+  return free_slot;
 }
 
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
@@ -271,16 +296,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         this->send_device_connection(msg.address, true);
         this->send_connections_free();
         return;
-      } else if (connection->state() == ClientState::CONNECTING) {
-        if (connection->disconnect_pending()) {
-          ESP_LOGW(TAG, "[%d] [%s] Connection request while pending disconnect, cancelling pending disconnect",
-                   connection->get_connection_index(), connection->address_str());
-          connection->cancel_pending_disconnect();
-          return;
-        }
-        this->log_connection_request_ignored_(connection, connection->state());
+      } else if (connection->state() == ClientState::DISCONNECTING && connection->cancel_teardown()) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request while pending disconnect, cancelling pending disconnect",
+                 connection->get_connection_index(), connection->address_str());
         return;
       } else if (connection->state() != ClientState::INIT) {
+        // Covers CONNECTING too: a repeat request during a connect attempt is
+        // ignored the same way.
         this->log_connection_request_ignored_(connection, connection->state());
         return;
       }
@@ -312,7 +334,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR: {
-      // Both connection classes expose the same pairing surface; success is
+      // The connection wrapper exposes the pairing surface; success is
       // reported when the platform's pairing completion arrives.
       auto *connection = this->get_connection_(msg.address, false);
       if (connection != nullptr) {
@@ -416,7 +438,30 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
   }
   if (!connection->has_gatt_services()) {
     ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->get_connection_index(), connection->address_str());
-    this->send_gatt_services_done(msg.address);
+    // Through the retrying sender: a drop must not leave discovery hanging.
+    // Re-entry does not depend on the cursor - this branch is gated on
+    // has_gatt_services() alone, so no restore is needed.
+    connection->send_services_done_();
+    return;
+  }
+  if (connection->send_service_ > 0) {
+    // A request mid-stream restarts from the top so the requester always
+    // gets the full list. No duplicate risk: the client accumulates batches
+    // per request, and a same-session re-request only happens after the
+    // previous request timed out and discarded its partial list.
+    ESP_LOGD(TAG, "[%d] [%s] GetServices mid-stream, restarting", connection->get_connection_index(),
+             connection->address_str());
+    connection->send_service_ = 0;
+    return;
+  }
+  if (connection->send_service_ == SERVICES_DONE_PENDING) {
+    // A new request supersedes an owed done: the client accumulates batches
+    // per request, so its fresh, empty accumulator plus a bare done would
+    // cache as an empty database. The table is freed; the client's timeout
+    // arbitrates.
+    ESP_LOGW(TAG, "[%d] [%s] GetServices superseded an undelivered done; client timeout will retry",
+             connection->get_connection_index(), connection->address_str());
+    connection->send_service_ = DONE_SENDING_SERVICES;
     return;
   }
   if (connection->send_service_ == INIT_SENDING_SERVICES)  // Start sending services if not started yet
@@ -469,23 +514,47 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 #ifdef USE_ESP32
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->parent_()->get_scan_active() == active) {
+  // esp32 only: BLEHub is the concrete tracker here, so these calls reach
+  // tracker-native methods beyond the neutral contract.
+  if (this->hub_->get_scan_active() == active) {
     return;
   }
   ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-  this->parent_()->set_scan_active(active);
-  this->parent_()->stop_scan();
-  this->parent_()->set_scan_continuous(
+  this->hub_->set_scan_active(active);
+  this->hub_->stop_scan();
+  this->hub_->set_scan_continuous(
       true);  // Set this to true to automatically start scanning again when it has cleaned up.
 }
 
 #else  // !USE_ESP32
 
+void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
+  if (this->hub_->scan_active() != active) {
+    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
+    if (!this->hub_->request_scan_mode(active)) {
+      // Passive-only controller asked for active scanning; the state report
+      // below carries the real, unchanged mode so the subscriber does not
+      // assume the change happened.
+      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
+    }
+  }
+#ifndef USE_BLE_SCANNER_STATE_CALLBACK
+  if (this->api_connection_ != nullptr) {
+    // Reports the mode change; the sender also refreshes last_scan_running_, so
+    // a failed restart (scan_running_ dropped by the tracker) is not reported
+    // again by loop() on the next tick. A push hub reports the restart's
+    // transitions (mode rides along) instead.
+    this->send_polled_scanner_state_();
+  }
+#endif
+}
+
+#endif  // USE_ESP32
+
 void BluetoothProxy::loop() {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  // Stream pending service-discovery batches every iteration (esp32 parity:
-  // its connections stream from their own per-iteration Component loop).
-  // send_service_for_discovery_() handles a vanished API connection itself.
+  // Stream pending service-discovery batches every iteration; the streamer
+  // handles a vanished API connection itself.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     this->connections_[i]->process_pending_services();
   }
@@ -497,10 +566,19 @@ void BluetoothProxy::loop() {
     return;
   this->last_advertisement_flush_time_ = now;
 
+  if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
+    // Resend a dropped slot-state update, paced by the 100 ms gate so the
+    // retry does not hammer the congestion it exists to survive; the
+    // advertisement-only arm answers DISCONNECT requests with this message
+    // too, so the drain compiles on every proxy build.
+    this->connections_free_pending_ = false;
+    this->send_connections_free(this->api_connection_);
+  }
+
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
     // The API subscriber is gone: tear down any connections it left behind
-    // (disconnect() on an already-disconnecting backend is a no-op).
+    // (disconnect() on an already-disconnecting slot is a no-op).
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       auto *connection = this->connections_[i];
       if (connection->get_address() != 0) {
@@ -511,11 +589,33 @@ void BluetoothProxy::loop() {
     return;
   }
 
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  // Paced retries of owed per-slot notifications; subscriber swaps clear
+  // stale latches before this runs.
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
+    if (connection->send_service_ == SERVICES_DONE_PENDING) {
+      connection->send_services_done_();
+    }
+    auto &owed = this->pending_disconnections_[i];
+    if (!owed.empty() && this->send_device_connection(owed.address(), false, 0, owed.error())) {
+      owed.clear();
+    }
+  }
+#endif
+
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // Resend a dropped scanner-state push (see scanner_state_pending_).
+  if (this->scanner_state_pending_) {
+    this->send_scanner_state_(this->hub_->get_scanner_state());
+  }
+#else
   // This hub doesn't push scanner-state transitions; poll and report on
-  // change. A hub gaining push must also refresh last_scan_running_ here.
+  // change. A hub gaining push emits the define and drops this poll.
   if (this->hub_->scan_running() != this->last_scan_running_) {
     this->send_polled_scanner_state_();
   }
+#endif
 
   this->flush_pending_advertisements_();
 }
@@ -543,12 +643,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
       this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
-      this->send_device_unpairing(msg.address, false, GATT_NOT_CONNECTED);
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
+      // Address-scoped maintenance needs no connection slot: real on esp32
+      // (Bluedroid bond table), the stub elsewhere keeps the old error reply.
+      conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
+      this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
-      this->send_device_clear_cache(msg.address, false, GATT_NOT_CONNECTED);
+    }
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
+      conn_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
+      this->send_device_clear_cache(msg.address, ret == CONN_OK, ret);
       break;
+    }
   }
 }
 
@@ -588,42 +694,36 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
 
-void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
-  if (this->hub_->scan_active() != active) {
-    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
-    if (!this->hub_->request_scan_mode(active)) {
-      // Passive-only controller asked for active scanning; the state report
-      // below carries the real, unchanged mode so the subscriber does not
-      // assume the change happened.
-      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
-    }
-  }
-  if (this->api_connection_ != nullptr) {
-    // Reports the mode change; the sender also refreshes last_scan_running_, so
-    // a failed restart (scan_running_ dropped by the tracker) is not reported
-    // again by loop() on the next tick.
-    this->send_polled_scanner_state_();
-  }
-}
-
-#endif  // USE_ESP32
-
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
-  if (this->api_connection_ != nullptr && this->api_connection_ != api_connection) {
-    // A previous subscriber still holds the slot. This is almost always a stale
-    // connection from a client that dropped without a clean disconnect and has
-    // not yet hit the keepalive timeout; rejecting the new subscriber would
-    // silently starve it of advertisements until it reconnects, so the newest
-    // subscriber wins instead.
-    char old_peername[socket::SOCKADDR_STR_LEN];
-    char new_peername[socket::SOCKADDR_STR_LEN];
-    ESP_LOGW(TAG, "Subscription from %s (%s) replaces %s (%s)", api_connection->get_name(),
-             api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
-             this->api_connection_->get_peername_to(old_peername));
+  if (api_connection != this->api_connection_) {
+    if (this->api_connection_ != nullptr) {
+      // A previous subscriber still holds the slot. This is almost always a
+      // stale connection from a client that dropped without a clean disconnect
+      // and has not yet hit the keepalive timeout; rejecting the new
+      // subscriber would silently starve it of advertisements until it
+      // reconnects, so the newest subscriber wins instead.
+      char old_peername[socket::SOCKADDR_STR_LEN];
+      char new_peername[socket::SOCKADDR_STR_LEN];
+      ESP_LOGW(TAG, "Subscription from %s (%s) replaces %s (%s)", api_connection->get_name(),
+               api_connection->get_peername_to(new_peername), this->api_connection_->get_name(),
+               this->api_connection_->get_peername_to(old_peername));
+    }
+    // Stale retry latches belong to the previous subscriber's session; a
+    // re-subscribe by the current one keeps what it is still owed.
+    this->connections_free_pending_ = false;
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+    for (uint8_t i = 0; i < this->connection_count_; i++) {
+      // Neither a partial stream's tail nor an owed done belongs to the new
+      // session; silence (the client's timeout) arbitrates.
+      this->connections_[i]->park_service_stream_();
+    }
+    this->pending_disconnections_.fill({});
+#endif
   }
   this->api_connection_ = api_connection;
-#ifdef USE_ESP32
-  this->send_bluetooth_scanner_state_(this->parent_()->get_scanner_state());
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // get_scanner_state() is part of the push-hub surface (see BLEHubContract).
+  this->send_scanner_state_(this->hub_->get_scanner_state());
 #else
   this->send_polled_scanner_state_();
 #endif
@@ -635,18 +735,12 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
+  this->connections_free_pending_ = false;
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  this->scanner_state_pending_ = false;
+#endif
 }
 
-void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
-  if (this->api_connection_ == nullptr)
-    return;
-  api::BluetoothDeviceConnectionResponse call;
-  call.address = address;
-  call.connected = connected;
-  call.mtu = mtu;
-  call.error = error;
-  this->api_connection_->send_message(call);
-}
 void BluetoothProxy::send_connections_free() {
   if (this->api_connection_ != nullptr) {
     this->send_connections_free(this->api_connection_);
@@ -654,15 +748,32 @@ void BluetoothProxy::send_connections_free() {
 }
 
 void BluetoothProxy::send_connections_free(api::APIConnection *api_connection) {
-  api_connection->send_message(this->connections_free_response_);
+  // Latch only for the current subscriber: loop() resends to api_connection_.
+  if (!api_connection->send_message(this->connections_free_response_) && api_connection == this->api_connection_) {
+    // V like the api layer's own buffer-full log: a D would ride the same
+    // full connection.
+    ESP_LOGV(TAG, "Connections-free update deferred, TCP buffer full");
+    this->connections_free_pending_ = true;
+  }
 }
 
-void BluetoothProxy::send_gatt_services_done(uint64_t address) {
+bool BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, conn_err_t error) {
   if (this->api_connection_ == nullptr)
-    return;
+    return true;  // Nobody subscribed: nothing owed
+  api::BluetoothDeviceConnectionResponse call;
+  call.address = address;
+  call.connected = connected;
+  call.mtu = mtu;
+  call.error = error;
+  return this->api_connection_->send_message(call);
+}
+
+bool BluetoothProxy::send_gatt_services_done(uint64_t address) {
+  if (this->api_connection_ == nullptr)
+    return true;  // Nobody subscribed: nothing is owed, only a refused frame reports false
   api::BluetoothGATTGetServicesDoneResponse call;
   call.address = address;
-  this->api_connection_->send_message(call);
+  return this->api_connection_->send_message(call);
 }
 
 void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {

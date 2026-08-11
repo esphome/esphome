@@ -157,9 +157,17 @@
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
-// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
-// slot-based platforms (esp8266, rp2040) never set it in generated builds
+// Only defined by key-lookup preference backends; the slot-based platforms
+// (esp8266, rp2040) never set it in generated builds, and their preferences
+// managers do not provide load_from_key(), so the PreferencesKeyLookupContract
+// assert would fail their clang-tidy environments. Written as a deny-list so
+// the no-platform analysis configuration (whose Preferences stub provides
+// load_from_key()) keeps covering the key-lookup code paths, and so a future
+// slot-based platform fails the assert loudly instead of silently losing
+// analysis coverage.
+#if !defined(USE_ESP8266) && !defined(USE_RP2)
 #define USE_PREFERENCE_KEY_LOOKUP
+#endif
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
@@ -252,12 +260,12 @@
 // platforms whose API/network types the proxy header cannot assume.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
-#define USE_BLE_SCANNER_STATE_CALLBACK
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
-// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
-// advertisement-only hubs) — so static analysis checks the same
-// std::array<uint64_t, N> instantiation a real build produces.
+// count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
+// the slot count (1 on rp2, 0 on advertisement-only hubs) — so static analysis
+// checks the same instantiations a real build produces.
 #ifdef USE_ESP32
+#define USE_BLE_SCANNER_STATE_CALLBACK
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
 #elif defined(USE_RP2)
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
@@ -311,6 +319,9 @@
 #define USE_ESP32_BLE_SERVER_PASSKEY_REPLY_ACTION
 #define USE_ESP32_BLE_SERVER_NUMERIC_COMPARISON_REPLY_ACTION
 #define USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION
+#define USE_ESP32_BLE_TRACKER
+#define USE_BLE_GATT_CLIENT
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
@@ -392,6 +403,7 @@
 #define USE_ETHERNET_W6100
 #define USE_ETHERNET_W6300
 #define USE_ETHERNET_DM9051
+#define USE_ETHERNET_CH390
 #define CONFIG_ETH_SPI_ETHERNET_W5500 1
 #define CONFIG_ETH_SPI_ETHERNET_DM9051 1
 #define CONFIG_ETH_USE_ESP32_EMAC 1
@@ -471,8 +483,10 @@
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define USE_RP2_BLE_TRACKER
 #define RP2040_BLE_SCAN_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define USE_RP2040_VARIANT_RP2040
@@ -495,7 +509,16 @@
 #define BK72XX_BLE_SCAN_LISTENER_COUNT 1
 #define USE_LN882H_BLE
 #define LN882H_BLE_SCAN_LISTENER_COUNT 1
+// One tracker arm per build: ln882x gets its real hub; bk72xx also stands in
+// for hub-less LibreTiny chips (rtl87xx) so bluetooth_proxy.h has a BLEHub
+// to parse against.
+#ifdef USE_LN882X
+#define USE_LN882H_BLE_TRACKER
+#else
+#define USE_BK72XX_BLE_TRACKER
+#endif
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS

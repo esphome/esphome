@@ -23,6 +23,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
@@ -1735,7 +1736,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 14;
+  resp.api_version_minor = 15;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -1849,8 +1850,7 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char bluetooth_mac[18];
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.bluetooth_mac_address = StringRef(bluetooth_mac);
 #endif
@@ -1904,6 +1904,35 @@ bool APIConnection::send_device_info_response_() {
 
   return this->send_message(resp);
 }
+bool APIConnection::send_device_capabilities_response_() {
+  // These are the same values DeviceInfoResponse still reports for older clients. Keep the blocks
+  // below in sync with send_device_info_response_() until those copies are removed.
+  DeviceCapabilitiesResponse resp;
+#ifdef USE_BLUETOOTH_PROXY
+  resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
+  resp.bluetooth_proxy.mac_address = StringRef(bluetooth_mac);
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant.feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy.feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_proxy.home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+  }
+#endif
+  return this->send_message(resp);
+}
 void APIConnection::on_hello_request(const HelloRequest &msg) {
   if (!this->send_hello_response_(msg)) {
     this->on_fatal_error();
@@ -1922,6 +1951,11 @@ void APIConnection::on_ping_request() {
 }
 void APIConnection::on_device_info_request() {
   if (!this->send_device_info_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_device_capabilities_request() {
+  if (!this->send_device_capabilities_response_()) {
     this->on_fatal_error();
   }
 }

@@ -26,8 +26,6 @@
 
 namespace esphome::bluetooth_connection {
 
-class BluetoothConnection;
-
 // Caps for the transient service table. Sized generously for real devices
 // (typical peripherals expose < 8 services / < 30 characteristics); a peer
 // exceeding a cap fails discovery with INSUFFICIENT_RESOURCES rather than
@@ -80,11 +78,14 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   void dump_config() override;
   float get_setup_priority() const override;
 
-  void set_listener(BluetoothConnection *listener) { this->listener_ = listener; }
+  void set_listener(ble_device_base::GattClientListener *listener) { this->listener_ = listener; }
 
   // ---- ble_device_base::BLEGattConnection contract ----
   int connect(uint64_t address, uint8_t addr_type);
-  int disconnect();
+  int gatt_disconnect();
+  // Teardown starts inside gatt_disconnect() on this backend; nothing is
+  // ever scheduled, so there is nothing to cancel.
+  bool cancel_gatt_disconnect() { return false; }
   int discover_services();
   int read_characteristic(uint16_t handle);
   int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
@@ -94,6 +95,8 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
+  // No connection-type branching on this backend.
+  void set_connection_type(ble_device_base::ConnectionType ct) {}
   void release_services();
 
  protected:
@@ -150,7 +153,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   }
 
   // Group 1: containers / large storage
-  BluetoothConnection *listener_{nullptr};
+  ble_device_base::GattClientListener *listener_{nullptr};
   ServiceArena *arena_{nullptr};
   esphome::LockFreeQueue<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE> event_queue_;
   esphome::EventPool<RP2GattEvent, RP2_GATT_EVENT_QUEUE_SIZE - 1> event_pool_;
@@ -174,7 +177,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
   hci_con_handle_t con_handle_{HCI_CON_HANDLE_INVALID};
-  uint16_t mtu_{23};
+  uint16_t mtu_{ble_device_base::DEFAULT_ATT_MTU};
   uint16_t op_handle_{0};
   uint16_t op_len_{0};
   uint16_t service_count_{0};
