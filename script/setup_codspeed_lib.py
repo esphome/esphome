@@ -84,7 +84,7 @@ def _read_codspeed_version(cmake_path: Path) -> str:
     """Extract CODSPEED_VERSION from core/CMakeLists.txt."""
     if not cmake_path.exists():
         return "0.0.0"
-    for line in cmake_path.read_text().splitlines():
+    for line in cmake_path.read_text(encoding="utf-8").splitlines():
         if line.startswith("set(CODSPEED_VERSION"):
             return line.split()[1].rstrip(")")
     return "0.0.0"

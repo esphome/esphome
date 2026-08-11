@@ -1,13 +1,11 @@
 #include "ruuvi_ble.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::ruuvi_ble {
 
 static const char *const TAG = "ruuvi_ble";
 
-bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviParseResult &result) {
+bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviParseResult &result) {
   const uint8_t data_type = adv_data[0];
   const auto *data = &adv_data[1];
   switch (data_type) {
@@ -80,7 +78,7 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       return false;
   }
 }
-optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device) {
+optional<RuuviParseResult> parse_ruuvi(const ble_device_base::ESPBTDevice &device) {
   bool success = false;
   RuuviParseResult result{};
   for (auto &it : device.get_manufacturer_datas()) {
@@ -96,7 +94,7 @@ optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &dev
   return result;
 }
 
-bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool RuuviListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   auto res = parse_ruuvi(device);
   if (!res.has_value())
     return false;
@@ -142,5 +140,3 @@ bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }
 
 }  // namespace esphome::ruuvi_ble
-
-#endif

@@ -33,6 +33,7 @@ KEY_NAMED_STYLES = "named_styles"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_STYLES_USED = "styles_used"
+KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
 KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WIDGET_MAP = "widget_map"
@@ -116,6 +117,14 @@ def get_updated_widgets() -> dict:
 
 def get_theme_widget_map() -> dict[str, Any]:
     return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
+    # Values are dicts used as ordered sets (insertion order is deterministic,
+    # unlike a plain `set` of strings/tuples, whose iteration order depends on
+    # per-process string hash randomization) so codegen output doesn't churn
+    # between builds of the same config.
+    return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
 
 
 def get_styles_used() -> set[str]:
@@ -760,7 +769,9 @@ CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_DRAW_START = "on_draw_start"
 CONF_ON_DRAW_END = "on_draw_end"
+CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
+CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
 CONF_ON_STOP = "on_stop"

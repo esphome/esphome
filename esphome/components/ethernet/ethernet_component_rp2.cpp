@@ -187,17 +187,18 @@ void EthernetComponent::loop() {
 }
 
 void EthernetComponent::dump_config() {
-  const char *type_str = "Unknown";
 #if defined(USE_ETHERNET_W5500)
-  type_str = "W5500";
+  const char *type_str = "W5500";
 #elif defined(USE_ETHERNET_W5100)
-  type_str = "W5100";
+  const char *type_str = "W5100";
 #elif defined(USE_ETHERNET_W6100)
-  type_str = "W6100";
+  const char *type_str = "W6100";
 #elif defined(USE_ETHERNET_W6300)
-  type_str = "W6300";
+  const char *type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
-  type_str = "ENC28J60";
+  const char *type_str = "ENC28J60";
+#else
+  const char *type_str = "Unknown";
 #endif
 #if defined(USE_ETHERNET_W6300)
   // W6300 uses PIO QSPI with hardcoded pins — SPI pin fields are not used
@@ -244,7 +245,7 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (this->eth_ != nullptr) {
     this->eth_->macAddress(mac);
   } else {
-    memset(mac, 0, 6);
+    memset(mac, 0, MAC_ADDRESS_SIZE);
   }
 }
 
@@ -255,7 +256,7 @@ std::string EthernetComponent::get_eth_mac_address_pretty() {
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
     CONF_KEY,
@@ -102,7 +103,6 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
         for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
     },
 }
-CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
@@ -488,8 +488,11 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
-            # This will allow a plaintext client to provide a noise key,
-            # send it to the device, and then switch to noise.
+            # Until a key is set, the device accepts both Noise connections
+            # using the well-known all-zeros PSK (preferred: the key travels
+            # encrypted, protecting against passive sniffing) and plaintext
+            # connections (deprecated, remove after 2027.2.0) so a client can
+            # provide a noise key and the device then switches to noise only.
             # The key will be saved in flash and used for future connections
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
