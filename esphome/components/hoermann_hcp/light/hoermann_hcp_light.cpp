@@ -15,7 +15,7 @@ light::LightTraits HoermannHcpLight::get_traits() {
 void HoermannHcpLight::setup() {
   this->parent_->register_light();
   // Nothing is known about the lamp until the bus controller is heard from, so flag the entity until then.
-  this->status_set_warning("waiting for the bus controller");
+  this->status_set_warning(LOG_STR("waiting for the bus controller"));
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });
 }
 
@@ -65,12 +65,12 @@ void HoermannHcpLight::update_from_state_() {
   if (this->light_state_ == nullptr)
     return;
   if (!this->parent_->is_valid()) {
-    this->status_set_warning("bus controller not responding");
+    this->status_set_warning(LOG_STR("bus controller not responding"));
     return;
   }
   if (!this->parent_->is_light_known()) {
     // Commands are refused until the door says, so say so rather than looking healthy and doing nothing.
-    this->status_set_warning("door has not reported the lamp");
+    this->status_set_warning(LOG_STR("door has not reported the lamp"));
     return;
   }
   this->status_clear_warning();
