@@ -19,10 +19,10 @@ from esphome.espidf import runner
 FIRST_LINE_TIMEOUT = 10.0
 
 
-def _run_main(
+def _prepare_main(
     monkeypatch: pytest.MonkeyPatch, probe: Path, *args: str
 ) -> tuple[io.BytesIO, io.TextIOWrapper]:
-    """Run ``runner.main()`` in-process against a buffered fake stdout.
+    """Point ``runner.main()`` at *probe* with a buffered fake stdout.
 
     ``main`` rewrites ``sys.path``, ``sys.argv``, both std streams and
     ``os.get_terminal_size``; every one of those is monkeypatched so it is
@@ -39,6 +39,14 @@ def _run_main(
     monkeypatch.setattr(sys, "stderr", stream)
     monkeypatch.setattr(os, "get_terminal_size", os.get_terminal_size)
 
+    return buf, stream
+
+
+def _run_main(
+    monkeypatch: pytest.MonkeyPatch, probe: Path, *args: str
+) -> tuple[io.BytesIO, io.TextIOWrapper]:
+    """Run ``runner.main()`` against *probe* and expect a clean exit."""
+    buf, stream = _prepare_main(monkeypatch, probe, *args)
     assert runner.main() == 0
     return buf, stream
 
@@ -59,8 +67,73 @@ def test_main_filters_noise_and_flushes_each_write(
     # Matched by FILTER_IDF_LINES, so they never leave the runner.
     assert "Project build complete." not in output
     assert "-- Component paths:" not in output
-    # Held back because no terminator arrived.
-    assert "still going" not in output
+    # Held back until the end because no terminator arrived.
+    assert output.endswith("still going\n")
+
+
+def test_main_drains_a_partial_line_when_the_build_dies(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """A build that stops mid line must still show that line.
+
+    This is the whole point of draining: the message explaining why the
+    build failed is exactly the one most likely to arrive without a
+    trailing newline.
+    """
+    buf, _stream = _prepare_main(
+        monkeypatch, fixture_path / "espidf" / "crashing_probe.py"
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        runner.main()
+
+    assert excinfo.value.code == 2
+    assert buf.getvalue().decode("utf-8") == "FATAL: ld returned 1 exit status\n"
+
+
+def test_main_reports_rather_than_raises_when_draining_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    fixture_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """A stream that closed under us must not crash the runner's cleanup.
+
+    The drain runs from a ``finally``, so an exception there would replace
+    whatever exit code the build was carrying back.
+    """
+    _prepare_main(monkeypatch, fixture_path / "espidf" / "closing_probe.py")
+
+    assert runner.main() == 0
+    reported = capfd.readouterr().err
+    assert "Could not write out remaining output" in reported
+    # The held line has to come along; the stream it was meant for is gone.
+    assert "partial before close" in reported
+
+
+def test_main_survives_a_drain_failure_with_nowhere_to_report_it(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """With no real stderr to report to, cleanup still must not raise.
+
+    ``sys.__stderr__`` is None on some interpreters, and ``print(file=None)``
+    falls back to ``sys.stdout``, which here is the shim wrapping the stream
+    that just failed.
+    """
+    monkeypatch.setattr(sys, "__stderr__", None)
+    _prepare_main(monkeypatch, fixture_path / "espidf" / "closing_probe.py")
+
+    assert runner.main() == 0
+
+
+def test_main_still_filters_a_drained_partial_line(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """Releasing a held line does not smuggle noise past the filter."""
+    buf, _stream = _run_main(
+        monkeypatch, fixture_path / "espidf" / "partial_noise_probe.py"
+    )
+
+    assert buf.getvalue().decode("utf-8") == "Compiling main.cpp\n"
 
 
 def test_main_keeps_everything_in_verbose_mode(
