@@ -179,7 +179,7 @@ void BluetoothConnection::note_batch_stalled_() {
 
 /// Both payload-free acks are just (address, handle); only the type differs.
 template<typename Response>
-static bool send_handle_reply_(api::APIConnection *api_connection, uint64_t address, uint16_t handle) {
+static bool send_handle_reply(api::APIConnection *api_connection, uint64_t address, uint16_t handle) {
   Response resp;
   resp.address = address;
   resp.handle = handle;
@@ -197,9 +197,9 @@ bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_e
     return true;  // Nobody subscribed: nothing is owed
   switch (kind) {
     case PendingAck::PENDING_ACK_WRITE:
-      return send_handle_reply_<api::BluetoothGATTWriteResponse>(api_connection, this->address_, handle);
+      return send_handle_reply<api::BluetoothGATTWriteResponse>(api_connection, this->address_, handle);
     case PendingAck::PENDING_ACK_NOTIFY:
-      return send_handle_reply_<api::BluetoothGATTNotifyResponse>(api_connection, this->address_, handle);
+      return send_handle_reply<api::BluetoothGATTNotifyResponse>(api_connection, this->address_, handle);
     case PendingAck::PENDING_ACK_NONE:
     case PendingAck::PENDING_ACK_ERROR:  // returned above
       return true;
