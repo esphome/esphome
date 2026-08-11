@@ -304,8 +304,7 @@ bool HoermannHcp::cancel_light_toggle() {
   if (!this->is_light_toggle_pending() || this->command_written_at_ != 0)
     return false;
   ESP_LOGD(TAG, "Cancelling '%s' command the controller had not fetched", this->next_command_->name);
-  this->next_command_ = nullptr;
-  this->light_toggle_settled_();
+  this->drop_command_();
   return true;
 }
 
