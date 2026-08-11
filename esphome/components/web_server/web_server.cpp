@@ -510,7 +510,7 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }

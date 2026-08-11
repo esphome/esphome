@@ -1772,9 +1772,8 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_AREAS
   resp.suggested_area = StringRef(App.get_area());
 #endif
-  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char mac_address[18];
-  uint8_t mac[6];
+  char mac_address[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);

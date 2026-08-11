@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import io
+import logging
 from pathlib import Path
 import subprocess
 import sys
@@ -422,6 +423,125 @@ def _make_redirect(
     return redirect, buf
 
 
+def test_redirect_text_flushes_so_piped_output_streams() -> None:
+    """Regression: in-process esptool progress must reach the pipe right away.
+
+    ``run_external_command`` runs esptool inside our own process, so its
+    progress output goes through ``RedirectText.write``. That used to be
+    flushed only because ``colorama.init()`` wrapped stdout in a stream that
+    flushed after every write.
+    """
+    buf = io.BytesIO()
+    piped_stream = io.TextIOWrapper(
+        buf, encoding="utf-8", newline="\n", line_buffering=False
+    )
+    redirect = util.RedirectText(piped_stream)
+
+    redirect.write("Writing at 0x00010000 (50%)\r")
+
+    # No explicit flush here on purpose: RedirectText has to do it.
+    assert buf.getvalue() == b"Writing at 0x00010000 (50%)\r"
+
+
+@pytest.mark.parametrize(
+    "break_char",
+    ["\x0c", "\x0b", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"],
+    ids=["formfeed", "vtab", "fs", "gs", "rs", "nel", "lsep", "psep"],
+)
+def test_redirect_text_keeps_output_after_an_exotic_break_character(
+    break_char: str,
+) -> None:
+    r"""Only ``\n`` and ``\r`` end a line; the rest is ordinary text.
+
+    ``str.splitlines`` treats all of these as line breaks. Splitting on them
+    used to strand the fragment in the buffer and drop every complete line
+    that came after it, which for a form feed in toolchain output meant
+    losing the rest of the build log.
+    """
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write(f"first{break_char}second\nthird\n")
+
+    assert buf.getvalue() == f"first{break_char}second\nthird\n"
+
+
+def test_redirect_text_treats_crlf_as_one_terminator() -> None:
+    r"""``\r\n``, a lone ``\r`` and a lone ``\n`` each end exactly one line."""
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("one\r\ntwo\rthree\nfour")
+
+    # "four" has no terminator yet, so it is held back.
+    assert buf.getvalue() == "one\r\ntwo\rthree\n"
+
+    redirect.drain()
+
+    assert buf.getvalue() == "one\r\ntwo\rthree\nfour\n"
+
+
+def test_redirect_text_drain_releases_held_partial_line() -> None:
+    """A last line with no terminator must still reach the user.
+
+    A tool that dies part way through a line leaves that text in the buffer,
+    and it is usually the message saying what went wrong.
+    """
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+    redirect.write("FATAL: ld returned 1 exit status")
+
+    # Still held: no terminator has arrived.
+    assert buf.getvalue() == ""
+
+    redirect.drain()
+
+    assert buf.getvalue() == "FATAL: ld returned 1 exit status\n"
+
+
+def test_redirect_text_drain_still_applies_the_filter() -> None:
+    """Releasing a held line does not smuggle noise past the filter."""
+    redirect, buf = _make_redirect(filter_lines=["Verbose mode can be enabled"])
+    redirect.write("Verbose mode can be enabled")
+
+    redirect.drain()
+
+    assert buf.getvalue() == ""
+
+
+def test_redirect_text_drain_is_a_no_op_when_nothing_is_held() -> None:
+    """Draining twice, or with an empty buffer, writes nothing extra."""
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+    redirect.write("complete line\n")
+
+    redirect.drain()
+    redirect.drain()
+
+    assert buf.getvalue() == "complete line\n"
+
+
+def test_redirect_text_adds_flash_size_help(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An out-of-flash error gets the how-to-fix note appended."""
+    monkeypatch.setattr(
+        util, "get_esp32_arduino_flash_error_help", lambda: "TIP: switch to esp-idf\n"
+    )
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("Error: The program size is greater than maximum allowed\n")
+
+    assert "Error: The program size" in buf.getvalue()
+    assert "TIP: switch to esp-idf" in buf.getvalue()
+
+
+def test_redirect_text_skips_flash_size_help_on_other_platforms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The note is ESP32-with-Arduino only, so elsewhere the line stands alone."""
+    monkeypatch.setattr(util, "get_esp32_arduino_flash_error_help", lambda: None)
+    redirect, buf = _make_redirect(filter_lines=["ignore me"])
+
+    redirect.write("Error: The program size is greater than maximum allowed\n")
+
+    assert buf.getvalue() == "Error: The program size is greater than maximum allowed\n"
+
+
 def test_redirect_text_callback_called_on_matching_line() -> None:
     """Test that a line callback is called and its output is written."""
     results: list[str] = []
@@ -549,6 +669,140 @@ def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> N
     assert "hello world" in results[0]
     captured = capsys.readouterr()
     assert "CALLBACK FIRED" in captured.out
+
+
+def test_run_external_command_drains_partial_line(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """A command that stops mid line still shows that line.
+
+    esptool runs in-process here, so a message it writes without a trailing
+    newline would otherwise be dropped when the streams are put back.
+    """
+
+    def fake_main() -> int:
+        print("A fatal error occurred: no serial data", end="")
+        return 1
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 1
+    assert "A fatal error occurred: no serial data" in capsys.readouterr().out
+
+
+def test_run_external_command_drains_on_early_exit(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """The drain also happens when the command exits through ``sys.exit``."""
+
+    def fake_main() -> int:
+        print("Fatal: bailing out", end="")
+        sys.exit(3)
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 3
+    assert "Fatal: bailing out" in capsys.readouterr().out
+
+
+def test_run_external_command_capture_stdout_has_nothing_to_drain() -> None:
+    """With ``capture_stdout`` there is nothing held to write out.
+
+    The stdout wrapper still gets built, but ``sys.stdout`` is replaced by
+    the capture buffer right after, so the wrapper never sees a write and
+    draining it does nothing.
+    """
+
+    def fake_main() -> int:
+        print("captured output", end="")
+        return 0
+
+    out = util.run_external_command(
+        fake_main, "fake", capture_stdout=True, filter_lines=["ignore me"]
+    )
+
+    assert out == "captured output"
+
+
+def test_run_external_command_survives_a_command_that_swaps_stdout(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Draining must not depend on what the command left in ``sys.stdout``.
+
+    A command is free to replace the stream; reaching for ``drain`` on
+    whatever it left there would raise from the cleanup path and bury the
+    real exit code.
+    """
+
+    def fake_main() -> int:
+        print("before the swap", end="")
+        sys.stdout = io.StringIO()
+        sys.exit(7)
+
+    rc = util.run_external_command(fake_main, "fake", filter_lines=["ignore me"])
+
+    assert rc == 7
+    assert "before the swap" in capsys.readouterr().out
+
+
+def test_drain_reports_the_lost_line_instead_of_raising(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broken stream during cleanup is reported, not raised.
+
+    The warning carries the held text, because the stream we were asked to
+    write it to is the one that just failed.
+    """
+    caplog.set_level(logging.WARNING, logger=util.__name__)
+    out = MagicMock()
+    out.write.side_effect = BrokenPipeError("pipe is gone")
+    redirect = util.RedirectText(out, filter_lines=["ignore me"])
+    redirect.write("FATAL: ld returned 1 exit status")
+
+    redirect.drain()
+
+    assert "pipe is gone" in caplog.text
+    assert "FATAL: ld returned 1 exit status" in caplog.text
+
+
+def test_drain_lets_other_errors_through() -> None:
+    """Only an unusable stream is tolerated; a bug still has to be visible."""
+
+    def broken_callback(line: str) -> str | None:
+        raise TypeError("a line callback is broken")
+
+    redirect, _buf = _make_redirect(line_callbacks=[broken_callback])
+    redirect.write("a line with no terminator")
+
+    with pytest.raises(TypeError):
+        redirect.drain()
+
+
+def test_run_external_command_drains_stderr_even_if_stdout_drain_raises(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """One stream failing must not strand the other's held line.
+
+    ``drain`` deliberately lets anything that is not a stream error through,
+    so a broken line callback would otherwise skip the stderr drain and take
+    that line down with it.
+    """
+
+    def broken_on_stdout(line: str) -> str | None:
+        if "stdout" in line:
+            raise TypeError("a line callback is broken")
+        return None
+
+    def fake_main() -> int:
+        print("stdout partial", end="")
+        print("stderr FATAL: the real reason", end="", file=sys.stderr)
+        return 0
+
+    with pytest.raises(TypeError):
+        util.run_external_command(fake_main, "fake", line_callbacks=[broken_on_stdout])
+
+    # The bug still surfaces, but stderr's held line was written first.
+    assert "stderr FATAL: the real reason" in capsys.readouterr().err
 
 
 def test_run_external_process_line_callbacks() -> None:
@@ -745,6 +999,31 @@ class TestSafePrint:
         util.safe_print("\033[0;32mhi\033[0m")
         assert capsys.readouterr().out == "\\033[0;32mhi\\033[0m\n"
 
+    def test_flushes_so_piped_output_streams(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: each line must reach the OS pipe right away.
+
+        The dashboard runs ``esphome logs`` with stdout as a pipe, which
+        Python block buffers at 8 KiB. Log lines used to be flushed only
+        because ``colorama.init()`` wrapped stdout in a stream that flushed
+        after every write; once that wrapping was skipped for dashboard runs
+        the lines sat in the buffer and the log view stayed empty until
+        enough output piled up to fill it.
+        """
+        buf = io.BytesIO()
+        # newline="\n" keeps Windows from rewriting the terminator to "\r\n";
+        # this test is about flushing, not about line endings.
+        piped_stream = io.TextIOWrapper(
+            buf, encoding="utf-8", newline="\n", line_buffering=False
+        )
+        monkeypatch.setattr(sys, "stdout", piped_stream)
+
+        util.safe_print("live log line")
+
+        # No explicit flush here on purpose: safe_print has to do it.
+        assert buf.getvalue() == b"live log line\n"
+
     def test_fallback_writes_string_not_bytes_repr(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -764,7 +1043,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("bars: \u2582\u2584\u2586\u2588 done")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Output is a clean line, not the bytes repr.
@@ -789,7 +1068,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("\033[0;32m\u2582\u2584\u2586\u2588\033[0m")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Dashboard escaping turned ESC into literal "\033" (5 chars), which
