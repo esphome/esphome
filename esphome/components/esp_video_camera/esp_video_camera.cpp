@@ -44,6 +44,11 @@ static const char *const TAG = "esp_video_camera";
 // How long setup() waits for esp_video_init() on core 0 before giving up.
 static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
 
+// Settling time between the host port's 5 V rail coming up and the USB Host
+// Library being installed. Matches the delay Espressif's own board support code
+// leaves for the port's inrush.
+static constexpr uint32_t VBUS_SETTLE_MS = 100;
+
 // Frame buffers are rounded up to this many bytes so that consecutive frames of
 // slightly different sizes reuse the same heap block (see deliver_frame_).
 static constexpr size_t FRAME_ALLOC_GRANULARITY = 4096;
@@ -404,6 +409,15 @@ bool ESPVideoCamera::init_pipeline_() {
     uvc_config.uvc.task_stack = 4096;
     uvc_config.uvc.task_priority = 5;
     uvc_config.uvc.task_affinity = -1;
+
+    // On boards where the host port's 5 V is switched -- an IO expander pin on
+    // most of them -- that switch is a component of its own, and ESPHome runs
+    // its setup() only microseconds before this one. Let the rail settle before
+    // the host library starts driving bus resets, or the device attached at
+    // boot is reset while its own supply is still ramping and never enumerates.
+    // Espressif's board support code and the M5Stack Tab5 USB host example both
+    // wait here for the same reason.
+    delay(VBUS_SETTLE_MS);
 
     // The USB Host Library installs once per system, so own it here rather than
     // letting esp_video abort when another component already installed it.
