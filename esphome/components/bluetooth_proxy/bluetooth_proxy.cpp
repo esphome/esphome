@@ -606,19 +606,14 @@ void BluetoothProxy::loop() {
     }
   }
 
-  // Owed device-maintenance replies. take_owed_reply_() clears first, so a
-  // repeat refusal re-latches through the sender; the success flag is
-  // recomputed as (error == 0), which is what every caller passed.
-  uint64_t owed_address;
-  conn_err_t owed_error;
-  if (take_owed_reply_(this->pending_pairing_, owed_address, owed_error)) {
-    this->send_device_pairing(owed_address, owed_error == CONN_OK, owed_error);
-  }
-  if (take_owed_reply_(this->pending_unpairing_, owed_address, owed_error)) {
-    this->send_device_unpairing(owed_address, owed_error == CONN_OK, owed_error);
-  }
-  if (take_owed_reply_(this->pending_clear_cache_, owed_address, owed_error)) {
-    this->send_device_clear_cache(owed_address, owed_error == CONN_OK, owed_error);
+  // An owed unpair reply. Cleared first, so another refusal re-latches through
+  // the sender; the success flag is recomputed as (error == 0), which is what
+  // every caller passed.
+  if (!this->pending_unpairing_.empty()) {
+    uint64_t address = this->pending_unpairing_.address();
+    conn_err_t error = this->pending_unpairing_.error();
+    this->pending_unpairing_.clear();
+    this->send_device_unpairing(address, error == CONN_OK, error);
   }
 #endif
 
@@ -730,7 +725,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     // re-subscribe by the current one keeps what it is still owed.
     this->connections_free_pending_ = false;
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-    this->clear_pending_device_replies_();
+    this->pending_unpairing_.clear();
     for (uint8_t i = 0; i < this->connection_count_; i++) {
       // Neither a partial stream's tail nor an owed done belongs to the new
       // session; silence (the client's timeout) arbitrates.
@@ -758,7 +753,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   this->api_connection_ = nullptr;
   this->connections_free_pending_ = false;
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  this->clear_pending_device_replies_();
+  this->pending_unpairing_.clear();
 #endif
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   this->scanner_state_pending_ = false;
@@ -818,17 +813,7 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
   call.paired = paired;
   call.error = error;
 
-  // Advertisement-only builds answer these with a canned reply and keep no
-  // retry state, so only the latch is conditional, not the send.
-  [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  if (!sent) {
-    // V, not W: the reply is owed rather than lost, and a warning would ride
-    // the connection that just refused it.
-    ESP_LOGV(TAG, "Pairing reply for %012" PRIX64 " deferred, TCP buffer full", address);
-    this->pending_pairing_.set(address, error);
-  }
-#endif
+  this->api_connection_->send_message(call);
 }
 
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
@@ -839,7 +824,7 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   call.success = success;
   call.error = error;
 
-  // Advertisement-only builds answer these with a canned reply and keep no
+  // Advertisement-only builds answer this with a canned reply and keep no
   // retry state, so only the latch is conditional, not the send.
   [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
@@ -862,17 +847,7 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
   call.success = success;
   call.error = error;
 
-  // Advertisement-only builds answer these with a canned reply and keep no
-  // retry state, so only the latch is conditional, not the send.
-  [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  if (!sent) {
-    // V, not W: the reply is owed rather than lost, and a warning would ride
-    // the connection that just refused it.
-    ESP_LOGV(TAG, "Clear-cache reply for %012" PRIX64 " deferred, TCP buffer full", address);
-    this->pending_clear_cache_.set(address, error);
-  }
-#endif
+  this->api_connection_->send_message(call);
 }
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -63,7 +63,7 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
 /// One owed address-keyed reply in a single word: the 48-bit address in the
 /// low bits, the sign-extending 16-bit error on top. Backs the freed-slot
-/// notifications and the device-maintenance replies. Every error that reaches
+/// notifications and the owed unpair reply. Every error that reaches
 /// it (esp_gatt_status_t, esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits
 /// int16_t.
 class PendingDisconnect {
@@ -283,23 +283,6 @@ class BluetoothProxy final : public Component {
   void clear_pending_disconnection_(uint64_t address);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
-  /// Take an owed reply and clear the slot, so a repeat refusal re-latches
-  /// through the sender itself. False when nothing is owed. Inline so the
-  /// idle path is a load and a branch rather than a call.
-  static bool take_owed_reply_(PendingDisconnect &owed, uint64_t &address, conn_err_t &error) {
-    if (owed.empty())
-      return false;
-    address = owed.address();
-    error = owed.error();
-    owed.clear();
-    return true;
-  }
-  /// A reply owed to the previous subscriber means nothing to the next one.
-  void clear_pending_device_replies_() {
-    this->pending_pairing_.clear();
-    this->pending_unpairing_.clear();
-    this->pending_clear_cache_.clear();
-  }
 #endif
 
   // Memory optimized layout for 32-bit systems
@@ -313,13 +296,15 @@ class BluetoothProxy final : public Component {
   // Proxy-only state, kept off BluetoothConnection; entries are not tied to
   // slot indices.
   std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
-  // Owed device-maintenance replies, one slot per operation so a pair cannot
-  // evict an owed unpair. Address-keyed rather than slot-keyed: unpair and
-  // clear-cache act on an address with no connection at all. The success flag
-  // is not stored because every caller passes exactly (error == 0).
-  PendingDisconnect pending_pairing_{};
+  // An owed unpair reply. Unpair is the one device-maintenance reply worth
+  // retrying: the bond is already gone when the send is refused, so a client
+  // that times out and retries re-runs unpair_device() against a bond that no
+  // longer exists and is told the unpair failed when it succeeded. Pairing
+  // needs no equivalent (a retried PAIR is answered from is_paired()) and
+  // clear-cache is idempotent. Address-keyed, since unpair acts on an address
+  // with no connection slot at all; the success flag is not stored because
+  // every caller passes exactly (error == 0).
   PendingDisconnect pending_unpairing_{};
-  PendingDisconnect pending_clear_cache_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
