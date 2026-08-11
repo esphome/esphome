@@ -87,8 +87,9 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool connected() const { return this->state_ == ClientState::ESTABLISHED; }
   void set_connection_type(ConnectionType ct) {
     this->connection_type_ = ct;
-    // The bluedroid backend branches on the type itself (prefer-params and
-    // the with-cache report at OPEN_EVT); the others ignore it.
+    // Both backends branch on the type before connecting (bluedroid picks
+    // prefer-params and the with-cache report at OPEN_EVT; rp2 picks the
+    // initiating parameters), so this must be set before the connect starts.
     this->backend_->set_connection_type(ct);
   }
   // Latched at discovery completion rather than read from the backend table:

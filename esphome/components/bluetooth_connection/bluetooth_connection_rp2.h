@@ -19,6 +19,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
 #include <btstack.h>
 
 #include <array>
@@ -71,7 +75,13 @@ static constexpr uint8_t RP2_GATT_EVENT_QUEUE_SIZE = 8;
 // full 512 B ATT payload, so depth buys burst tolerance at ~516 B per slot.
 static constexpr uint8_t RP2_GATT_NOTIFY_QUEUE_SIZE = 4;
 
-class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040BLE> {
+class RP2GattClient final : public Component,
+                            public Parented<rp2040_ble::RP2040BLE>
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                            public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void loop() override;
@@ -95,18 +105,26 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   ble_device_base::GattServiceTable get_service_table();
-  // No connection-type branching on this backend.
-  void set_connection_type(ble_device_base::ConnectionType ct) {}
+  // Cached connections initiate at MEDIUM parameters (esp32 parity); FAST is
+  // reserved for the discovery phase of uncached connects.
+  void set_connection_type(ble_device_base::ConnectionType ct) { this->connection_type_ = ct; }
   void release_services();
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Drop the connection while an OTA runs (esp32 parity): an active link
+  // competes with the transfer for the shared radio.
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
  protected:
   // Link/engine state. Discovery and GATT ops have their own cursors below —
   // the link stays READY while they run.
   enum class EngineState : uint8_t {
     IDLE,
-    CONNECTING,    // gap_connect issued, waiting for connection complete
-    MTU_EXCHANGE,  // link up, waiting for GATT_EVENT_MTU
-    READY,         // on_connection_state(true) delivered
+    CONNECT_PENDING,  // queued: another engine owns the stack-wide create-connection
+    CONNECTING,       // gap_connect issued, waiting for connection complete
+    MTU_EXCHANGE,     // link up, waiting for GATT_EVENT_MTU
+    READY,            // on_connection_state(true) delivered
     DISCONNECTING,
   };
 
@@ -143,6 +161,7 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   int issue_descriptor_query_(uint16_t char_index);
   void finish_discovery_(int error);
   void fail_connection_(uint8_t reason);
+  int try_gap_connect_();
   void cleanup_link_state_();
   bool notify_subscribed_(uint16_t handle) const;
   static void can_write_no_rsp_trampoline(void *context);
@@ -171,8 +190,12 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
 
   // Group 3: 4-byte types
   uint32_t connect_started_{0};
+  uint32_t connect_retry_ms_{0};  // last CONNECT_PENDING gap_connect attempt
   uint32_t disconnecting_started_{0};
   uint32_t write_no_rsp_started_{0};
+  // Unscoped C enum, so int-sized: lives with the 4-byte members to keep the
+  // padding at the tail.
+  bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
 
   // Group 4: 2-byte types (table counters written from the handler during
   // discovery, read from the main loop after the phase's QUERY_COMPLETE)
@@ -191,8 +214,9 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   // listener's deliveries on this list (esp32 parity for enable=false).
   std::array<uint16_t, RP2_GATT_MAX_NOTIFY_SUBSCRIPTIONS> notify_subscriptions_{};
   uint8_t notify_subscription_count_{0};
-  bd_addr_t peer_addr_{};  // MSB-first, as gap_connect expects
-  bd_addr_type_t peer_addr_type_{BD_ADDR_TYPE_LE_PUBLIC};
+  uint8_t engine_index_{0};  // position in instances[]; tags log lines per slot
+  bd_addr_t peer_addr_{};    // MSB-first, as gap_connect expects
+  ble_device_base::ConnectionType connection_type_{ble_device_base::ConnectionType::V3_WITHOUT_CACHE};
   EngineState state_{EngineState::IDLE};
   DiscoveryPhase discovery_phase_{DiscoveryPhase::NONE};
   OpType op_type_{OpType::NONE};
@@ -214,6 +238,12 @@ class RP2GattClient final : public Component, public Parented<rp2040_ble::RP2040
   static btstack_packet_callback_registration_t hci_event_registration;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static btstack_packet_callback_registration_t sm_event_registration;
+  // The engine whose gap_connect is in flight: BTstack allows one outgoing LE
+  // create-connection stack-wide, and gap_connect_cancel is global, so only
+  // the owner may cancel. Written under BluetoothLock from the main loop,
+  // cleared in the BTstack context when the procedure resolves.
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static RP2GattClient *connect_owner;
 };
 
 }  // namespace esphome::bluetooth_connection
