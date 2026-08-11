@@ -113,7 +113,7 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
   }
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connection, ClientState state) {
   ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, state: %s", connection->get_connection_index(),
            connection->address_str(), ble_device_base::client_state_to_string(state));
@@ -122,7 +122,7 @@ void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connec
 void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const char *message) {
   ESP_LOGI(TAG, "[%d] [%s] Connecting %s", connection->get_connection_index(), connection->address_str(), message);
 }
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 void BluetoothProxy::log_reply_dropped_(const char *what) { ESP_LOGW(TAG, "%s reply dropped, TCP buffer full", what); }
 
@@ -153,7 +153,7 @@ void BluetoothProxy::dump_config() {
   this->get_bluetooth_mac_address_pretty(mac_str);
   const char *mac_out = mac_str[0] != '\0' ? mac_str : "unavailable (adapter not up yet)";
   const char *scan_mode = this->configured_scan_active_ ? "active" : "passive";
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   ESP_LOGCONFIG(TAG,
                 "Bluetooth Proxy:\n"
                 "  Active: %s\n"
@@ -171,7 +171,7 @@ void BluetoothProxy::dump_config() {
 #endif
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 
 // maybe_unused: in a passive proxy (active: false) MAX is 0, the body is removed, and connection is unused.
 void BluetoothProxy::register_connection([[maybe_unused]] BluetoothConnection *connection) {
@@ -534,7 +534,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
   }
 }
 
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 #ifdef USE_ESP32
 
@@ -577,7 +577,7 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
 #endif  // USE_ESP32
 
 void BluetoothProxy::loop() {
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   // Stream pending service-discovery batches every iteration; the streamer
   // handles a vanished API connection itself.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -603,7 +603,7 @@ void BluetoothProxy::loop() {
 #endif
 
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     // The API subscriber is gone: tear down any connections it left behind
     // (disconnect() on an already-disconnecting slot is a no-op).
     for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -616,7 +616,7 @@ void BluetoothProxy::loop() {
     return;
   }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   // Paced retries of owed per-slot notifications; subscriber swaps clear
   // stale latches before this runs.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -669,7 +669,7 @@ void BluetoothProxy::reset_owed_replies_() {
   // so clearing it here costs nothing and keeps the list exhaustive.
   this->scanner_state_pending_ = false;
 #endif
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   this->pending_unpairing_.clear();
   this->pending_disconnections_.fill({});
   for (uint8_t i = 0; i < this->connection_count_; i++) {
@@ -764,7 +764,7 @@ bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err
   return this->api_connection_->send_message(call);
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
@@ -794,7 +794,7 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
   if (!sent) {
     this->log_reply_dropped_("Unpair");
   }
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   if (sent) {
     // A later unpair landing for an address that still has one owed would
     // otherwise have the drain repeat it.
