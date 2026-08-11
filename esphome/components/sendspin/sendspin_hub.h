@@ -187,10 +187,9 @@ class SendspinHub final : public Component,
 
   void on_controller_state_clear() override;
 
-  // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
-
-  // Rarely subscribed, so keep the idle cost to a single pointer
+  // Callback fan-out to child components; they filter as needed. Only a media_player subscribes, while the switch
+  // action and the media source enable the controller role without one, so keep the idle cost to a single pointer.
+  LazyCallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
   LazyCallbackManager<void()> controller_state_clear_callbacks_{};
 #endif
 

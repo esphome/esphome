@@ -26,7 +26,7 @@ void SendspinTrackProgressSensor::setup() {
       // report unknown rather than leaving the last position frozen on the frontend. Only the transition is published;
       // NAN never compares equal to itself, so an unguarded publish would repeat on every metadata update.
       this->stop_poller();
-      if (this->has_state() && !std::isnan(this->get_raw_state())) {
+      if (!std::isnan(this->get_raw_state())) {
         this->publish_state(NAN);
       }
       return;
