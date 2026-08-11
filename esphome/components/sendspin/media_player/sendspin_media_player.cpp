@@ -6,6 +6,9 @@
 #include "esphome/core/log.h"
 
 #include <sendspin/types.h>
+#ifdef USE_SENDSPIN_METADATA
+#include <sendspin/metadata_role.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -19,26 +22,23 @@ namespace esphome::sendspin_ {
 static const char *const TAG = "sendspin.media_player";
 
 // THREAD CONTEXT: Main loop. The callbacks registered here also fire on the main loop,
-// since SendspinHub dispatches group updates and controller state from client_->loop().
+// since SendspinHub dispatches group updates, controller state, and metadata from client_->loop().
 void SendspinMediaPlayer::setup() {
   // Register for group updates to sync playback state
   this->parent_->add_group_update_callback([this](const sendspin::GroupUpdateObject &group_obj) {
     if (group_obj.playback_state.has_value()) {
-      media_player::MediaPlayerState new_state;
-      switch (group_obj.playback_state.value()) {
-        case sendspin::SendspinPlaybackState::PLAYING:
-          new_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-          break;
-        case sendspin::SendspinPlaybackState::STOPPED:
-        default:
-          new_state = media_player::MEDIA_PLAYER_STATE_IDLE;
-          break;
+      auto new_group_state = group_obj.playback_state.value();
+#ifdef USE_SENDSPIN_METADATA
+      // A fresh metadata update confirming the new track's speed can lag several seconds behind
+      // this group transition. Starting/resuming playback makes any cached pause signal stale -
+      // assume "playing" until fresh metadata says otherwise, rather than showing a stale PAUSED.
+      if (new_group_state == sendspin::SendspinPlaybackState::PLAYING &&
+          this->group_playback_state_ != sendspin::SendspinPlaybackState::PLAYING) {
+        this->playback_speed_ = 1;
       }
-      if (this->state != new_state) {
-        this->state = new_state;
-        this->publish_state();
-        ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
-      }
+#endif
+      this->group_playback_state_ = new_group_state;
+      this->update_state_();
     }
   });
 
@@ -52,9 +52,49 @@ void SendspinMediaPlayer::setup() {
     }
   });
 
+#ifdef USE_SENDSPIN_METADATA
+  // Only the metadata role's playback progress carries playback_speed and duration, which is how
+  // a paused track becomes observable; the group update alone reports STOPPED for both a paused
+  // and a genuinely empty/idle group, so it can't tell the two apart on its own.
+  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+    if (!metadata.progress.has_value())
+      return;
+    uint32_t new_speed = metadata.progress.value().playback_speed;
+    uint32_t new_duration = metadata.progress.value().track_duration;
+    if (new_speed != this->playback_speed_ || new_duration != this->track_duration_ms_) {
+      this->playback_speed_ = new_speed;
+      this->track_duration_ms_ = new_duration;
+      this->update_state_();
+    }
+  });
+#endif
+
   // Publish an initial state
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
   this->publish_state();
+}
+
+void SendspinMediaPlayer::update_state_() {
+  media_player::MediaPlayerState new_state = media_player::MEDIA_PLAYER_STATE_IDLE;
+  if (this->group_playback_state_ == sendspin::SendspinPlaybackState::PLAYING) {
+    new_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+  }
+#ifdef USE_SENDSPIN_METADATA
+  // A paused track keeps a known nonzero duration while its progress is frozen (speed 0); this
+  // overrides the base state above regardless of what the group itself reported, since the group
+  // reports STOPPED both when paused and when genuinely idle/empty. Known limitation: some servers
+  // (e.g. Music Assistant, at least for group/queue playback - see music-assistant/support#5813)
+  // report this same signal for an explicit stop, not just pause, since they don't reset or clear
+  // metadata on stop; such a stop is indistinguishable from pause here and is reported as PAUSED.
+  if (this->playback_speed_ == 0 && this->track_duration_ms_ > 0) {
+    new_state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+  }
+#endif
+  if (this->state != new_state) {
+    this->state = new_state;
+    this->publish_state();
+    ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+  }
 }
 
 // THREAD CONTEXT: Main loop (invoked by the media_player framework)

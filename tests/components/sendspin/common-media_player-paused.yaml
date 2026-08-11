@@ -1,0 +1,10 @@
+<<: !include common.yaml
+
+media_player:
+  - platform: sendspin
+    id: media_player_id
+
+sensor:
+  - platform: sendspin
+    name: "Sendspin Track Progress"
+    type: track_progress
