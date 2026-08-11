@@ -251,9 +251,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool batch_stalled_ : 1 {false};
   /// An owed connected=true reply; the proxy's paced drain re-offers it.
   bool connected_reply_owed_ : 1 {false};
-  // Plain byte, ordered after the bitfields: an 8-bit field cannot share
-  // pending_ack_'s storage unit, so anywhere earlier it would straddle and
-  // push the tail into a new 8-byte row. Here it takes the one padding byte.
+  // Plain byte after the bitfields: takes the padding byte instead of
+  // straddling pending_ack_'s storage unit and growing the object.
   uint8_t pending_ack_retries_{0};
 };
 
