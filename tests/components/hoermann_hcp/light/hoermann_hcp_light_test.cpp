@@ -602,21 +602,22 @@ TEST(HoermannHcpLightPlatformTest, RefusedRequestLeavesTheEntityIdle) {
   EXPECT_EQ(fixture.output.writes, settled_writes);
 }
 
-// A lamp change reported from the door's side settles the outstanding toggle, so releasing that toggle
-// afterwards has nothing left to wait for. Arming the watchdog anyway would leave it firing on every poll and
-// abandoning the next toggle the moment it is queued.
+// A door that acts on the key press and reports the lamp before the release is even fetched leaves nothing
+// outstanding. Arming the watchdog on that release anyway would leave it firing on every poll and abandoning
+// the next toggle the moment it is queued.
 TEST(HoermannHcpLightTest, ReleaseWithNothingOutstandingLeavesTheWatchdogDisarmed) {
   TestableHoermannHcp door;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.toggle_light());
-  ASSERT_EQ(door.light_toggles_in_flight_, 1);
+  poll_command(door);  // the door is shown the key press
 
-  // The lamp is switched at the door before the queued toggle is even fetched, which settles the count.
+  // The door acts on it and reports the lamp straight away, which settles the count.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
   ASSERT_EQ(door.light_toggles_in_flight_, 0);
 
-  consume_command(door);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(door);  // the release, with nothing left to wait for
   EXPECT_EQ(door.light_toggle_released_at_, 0u);
 }
 
@@ -649,6 +650,93 @@ TEST(HoermannHcpLightPlatformTest, ReversingPressCancelsTheQueuedToggle) {
   auto [pressed, pressed_2] = poll_command(fixture.door);
   EXPECT_EQ(pressed, 0x0000);
   EXPECT_EQ(pressed_2, 0x0000);
+}
+
+// A lamp switched at the door itself is not one of our toggles landing, so a toggle the door has not even
+// been shown has to keep counting.
+TEST(HoermannHcpLightTest, DoorSideLampChangeLeavesAnUnsentToggleCounted) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.toggle_light());
+
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+
+  EXPECT_EQ(door.light_toggles_in_flight_, 1);
+  // The toggle still in the slot will invert what the door just reported.
+  EXPECT_FALSE(door.is_light_heading_on());
+}
+
+// The watchdog gives up on the toggles the door was shown, but one still waiting in the command slot is
+// going to fire, so it keeps counting.
+TEST(HoermannHcpLightTest, WatchdogKeepsAToggleTheDoorHasNotSeen) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.toggle_light());
+  consume_command(door);  // shown to the door, which then says nothing about the lamp
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  // Queued just now, so only the wait for the first toggle is overdue.
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+  ASSERT_TRUE(door.toggle_light());
+  door.update();
+
+  EXPECT_EQ(door.light_toggles_in_flight_, 1);
+  EXPECT_TRUE(door.is_light_toggle_pending_());
+  EXPECT_TRUE(door.is_light_heading_on());
+}
+
+// Only the parity of the outstanding count says where the lamp is heading, so the count must not run away.
+TEST(HoermannHcpLightTest, TogglesAreRefusedOnceTooManyAreOutstanding) {
+  TestableHoermannHcp door;
+  connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
+
+  // The door takes every key press but never reports the lamp, so nothing is ever confirmed.
+  for (int i = 0; i < 4; i++) {
+    ASSERT_TRUE(door.toggle_light());
+    consume_command(door);
+  }
+
+  EXPECT_FALSE(door.toggle_light());
+  EXPECT_EQ(door.light_toggles_in_flight_, 4);
+}
+
+// A controller that stops carrying the lamp register leaves nothing refreshing it, so the entity has to flag
+// itself rather than command against what was read before.
+TEST(HoermannHcpLightPlatformTest, BroadcastWithoutTheLampRegisterMarksItUnknown) {
+  LightFixture fixture;
+  fixture.bring_up();
+  ASSERT_TRUE(fixture.door.is_light_known());
+
+  fixture.report_broadcast(make_registers({0x0000, 0x0000, 0x4000}));
+
+  EXPECT_FALSE(fixture.door.is_light_known());
+  EXPECT_TRUE(fixture.output.status_has_warning());
+}
+
+// A publish of ours only reaches write_state() a loop pass later. If the lamp changed at the door in that
+// gap, the write still carries the old value and must not be taken for a request to invert the lamp.
+TEST(HoermannHcpLightPlatformTest, PublishOvertakenByTheLampIsNotARequest) {
+  LightFixture fixture;
+  fixture.bring_up();
+  // A door command holds the only command slot, so the request below is refused and the lamp published back.
+  ASSERT_TRUE(fixture.door.open_door());
+
+  auto call = fixture.state.make_call();
+  call.set_state(true);
+  call.perform();
+  fixture.state.loop();  // the refusal happens here and schedules the publish for a later pass
+
+  // The slot frees up and the lamp is switched on at the door before that publish arrives.
+  consume_command(fixture.door);
+  fixture.door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0010));
+  fixture.settle();
+
+  EXPECT_EQ(fixture.door.light_toggles_in_flight_, 0);
+  EXPECT_TRUE(fixture.entity_on());
 }
 
 }  // namespace esphome::hoermann_hcp::testing

@@ -75,6 +75,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
  protected:
   // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
   bool is_light_toggle_pending_() const;
+  // Toggles the door has not been shown yet, which is at most the one still waiting in the command slot.
+  uint8_t unsent_light_toggles_() const;
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
@@ -82,7 +84,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void drop_command_();
   // One outstanding toggle reached the lamp, was withdrawn, or was thrown away.
   void light_toggle_settled_();
-  // Stops expecting any outstanding toggle to reach the lamp at all.
+  // Stops expecting the toggles the door has already been shown to reach the lamp.
   void forget_light_toggles_();
   // Appends the two key-press registers and advances the pending command's press/release state.
   void push_command_registers_(modbus::RegisterValues &registers);
@@ -97,6 +99,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool has_target_() const { return this->target_position_ != 0.0f; }
   void clear_target_();
   void set_light_on_(bool on);
+  void set_light_seen_(bool seen);
 
   CallbackManager<void()> state_callback_;
 

@@ -13,6 +13,8 @@ static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back b
 static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by the bus controller
 static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
+// Only the parity of the outstanding toggles says where the lamp is heading, so the count must not run away.
+static constexpr uint8_t MAX_LIGHT_TOGGLES_IN_FLIGHT = 4;
 
 // Command encoding: the high byte of the first register is the phase (0x02 pressed, 0x01 released) and the
 // rest names the button - the low byte for the door commands, the second register for those that do not fit
@@ -170,8 +172,11 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     this->on_position_reg_(registers[1]);
   if (registers.size() > 6) {
     this->on_light_reg_(registers[6]);
-  } else if (!this->short_broadcast_logged_) {
-    // The light entity flags itself when the lamp is never reported, so this is only the detail behind it.
+    return {};
+  }
+  // Nothing refreshes the lamp any more, so what was read before must not be commanded against.
+  this->set_light_seen_(false);
+  if (!this->short_broadcast_logged_) {
     this->short_broadcast_logged_ = true;
     ESP_LOGD(TAG, "Broadcast of %u registers carries no lamp state", static_cast<unsigned>(registers.size()));
   }
@@ -256,12 +261,7 @@ void HoermannHcp::on_state_reg_(uint16_t value) {
 // Low byte of register 6: bit 0x10 is the lamp, bit 0x04 the relay. The reference implementation records
 // 0x00, 0x04, 0x10 and 0x14, so only the lamp bit decides here.
 void HoermannHcp::on_light_reg_(uint16_t value) {
-  if (!this->light_seen_) {
-    this->light_seen_ = true;
-    // Nothing else about a resting door changes on the first broadcast, so without this the light would never
-    // hear that the lamp is finally known.
-    this->changed_ = true;
-  }
+  this->set_light_seen_(true);
   this->set_light_on_((value & 0x0010) != 0);
 }
 
@@ -287,12 +287,20 @@ bool HoermannHcp::open_door() { return this->queue_command_(COMMAND_OPEN); }
 bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
 bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
 bool HoermannHcp::toggle_light() {
+  if (this->light_toggles_in_flight_ >= MAX_LIGHT_TOGGLES_IN_FLIGHT) {
+    ESP_LOGW(TAG, "Too many lamp toggles are still waiting to be confirmed, dropping this one");
+    return false;
+  }
   if (!this->queue_command_(COMMAND_TOGGLE_LAMP))
     return false;
   this->light_toggles_in_flight_++;
   return true;
 }
 bool HoermannHcp::is_light_toggle_pending_() const { return this->next_command_ == &COMMAND_TOGGLE_LAMP; }
+
+uint8_t HoermannHcp::unsent_light_toggles_() const {
+  return this->is_light_toggle_pending_() && this->command_written_at_ == 0 ? 1 : 0;
+}
 
 bool HoermannHcp::cancel_light_toggle() {
   // Once the pressed value has been presented the key press is already on the wire, so only an untouched
@@ -356,7 +364,7 @@ void HoermannHcp::set_valid_(bool valid) {
   this->clear_target_();
   this->forget_light_toggles_();
   // The lamp can be switched at the door while the bus is quiet, so what was last read is no longer trusted.
-  this->light_seen_ = false;
+  this->set_light_seen_(false);
   this->short_broadcast_logged_ = false;
 }
 
@@ -384,9 +392,11 @@ void HoermannHcp::light_toggle_settled_() {
 void HoermannHcp::forget_light_toggles_() {
   // Nothing outstanding must always mean nothing to wait for, or the watchdog below would fire for ever.
   this->light_toggle_released_at_ = 0;
-  if (this->light_toggles_in_flight_ == 0)
+  // A toggle the door has not been shown yet is still going to fire, so it keeps counting.
+  const uint8_t unsent = this->unsent_light_toggles_();
+  if (this->light_toggles_in_flight_ == unsent)
     return;
-  this->light_toggles_in_flight_ = 0;
+  this->light_toggles_in_flight_ = unsent;
   this->changed_ = true;
 }
 
@@ -427,12 +437,25 @@ void HoermannHcp::clear_target_() {
 }
 
 void HoermannHcp::set_light_on_(bool on) {
-  if (this->light_on_ != on) {
-    this->light_on_ = on;
-    this->changed_ = true;
-    // The door acted, so one of the toggles on its way has arrived. Any others still count.
-    this->light_toggle_settled_();
+  if (this->light_on_ == on)
+    return;
+  this->light_on_ = on;
+  this->changed_ = true;
+  if (this->light_toggles_in_flight_ <= this->unsent_light_toggles_()) {
+    // The door has not been shown a toggle that could explain this, so the lamp was switched at the door.
+    ESP_LOGD(TAG, "Lamp %s at the door", ONOFF(on));
+    return;
   }
+  // The door acted, so one of the toggles it has seen has arrived. Any others still count.
+  this->light_toggle_settled_();
+}
+
+void HoermannHcp::set_light_seen_(bool seen) {
+  if (this->light_seen_ == seen)
+    return;
+  this->light_seen_ = seen;
+  // A resting door changes nothing else, so without this the light would never hear about it.
+  this->changed_ = true;
 }
 
 }  // namespace esphome::hoermann_hcp
