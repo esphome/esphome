@@ -190,7 +190,9 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
-  ESP_LOGD(TAG, "Stopping scan.");
+  // V to match the start log: the callers that stop for a reason (mode
+  // switch, connection setup) already narrate it at D.
+  ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
   this->stop_scan_();
 }
