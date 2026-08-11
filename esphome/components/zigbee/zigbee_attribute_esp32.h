@@ -91,6 +91,7 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
 }
 
 template<typename T> T ZigbeeAttribute::scale_value_(float value) {
+  static_assert(sizeof(T) <= 2 || std::is_floating_point_v<T>);
   if constexpr (std::is_integral<T>::value) {
     const float scaled = this->scale_ * value;
     if (std::isnan(value) || scaled < static_cast<float>(std::numeric_limits<T>::lowest()) ||
@@ -109,8 +110,8 @@ template<typename T> T ZigbeeAttribute::invalid_value_() {
       return static_cast<T>(std::numeric_limits<T>::min());
     }
 
-    if (this->attr_type_ >= EZB_ZCL_ATTR_TYPE_UINT8 && this->attr_type_ <= EZB_ZCL_ATTR_TYPE_INT64) {
-      // For unsigned integer types, NaN is represented by the maximum value
+    if (this->attr_type_ >= EZB_ZCL_ATTR_TYPE_UINT8 && this->attr_type_ <= EZB_ZCL_ATTR_TYPE_ENUM16) {
+      // For unsigned integer types and enum, NaN is represented by the maximum value
       return static_cast<T>(std::numeric_limits<T>::max());
     }
 
