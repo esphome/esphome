@@ -2177,7 +2177,9 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   if (this->helper_->can_write_without_blocking())
     return true;
   if (log_out_of_space) {
-    ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+    // VV: every refused send_message() call site reports its own drop with
+    // what was lost, so this generic line only adds a duplicate per refusal.
+    ESP_LOGVV(TAG, "Cannot send message because of TCP buffer space");
   }
   return false;
 }
