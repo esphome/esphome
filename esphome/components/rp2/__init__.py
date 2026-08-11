@@ -388,6 +388,53 @@ async def to_code(config):
     _configure_lwip()
 
 
+# --- lwIP sizing. See _configure_lwip() for the platform comparison table. ---
+
+# TCP_SND_BUF: 4×MSS=5,840 matches ESP32. Down from arduino-pico's 8×MSS.
+# ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per response chunk.
+LWIP_TCP_SND_BUF = "(4*TCP_MSS)"
+
+# TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
+LWIP_TCP_WND = "(4*TCP_MSS)"
+
+# TCP_SND_QUEUELEN: max pbufs queued per PCB for the send buffer
+# ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
+# With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
+LWIP_TCP_SND_QUEUELEN = 17
+
+# MEMP_NUM_TCP_SEG: segment pool shared by every PCB, so it cannot be the
+# per-PCB queue length — lwIP's sanity check only demands >=, which is the
+# floor for a single connection. 2× lets two PCBs queue fully before the rest
+# start seeing ERR_MEM. Measured at 20 bytes per entry on this build, so the
+# whole pool is under 700 bytes.
+LWIP_MEMP_NUM_TCP_SEG = 2 * LWIP_TCP_SND_QUEUELEN
+
+# PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
+# 16 matches ESP32 (vs arduino-pico's 24). Receive side only; the send path
+# copies into PBUF_RAM out of MEM_SIZE.
+LWIP_PBUF_POOL_SIZE = 16
+
+# MEM_SIZE: the lwIP heap that backs PBUF_RAM, which is where tcp_write()
+# copies outgoing data.
+#
+# TCP_OVERSIZE defaults to TCP_MSS, so every queued segment takes a full
+# MSS-sized block no matter how little was written: struct pbuf (16) +
+# PBUF_TRANSPORT offset (54) + TCP_MSS (1460) + the heap block header, about
+# 1.5KB each. A PCB at a full TCP_SND_BUF holds four of them, ~6KB.
+#
+# Two of those is ~12KB of arduino-pico's 16KB heap, and that is already
+# failing: mem.c is first-fit, so what has to be free is a *contiguous* 1.5KB
+# block, and at 75% occupancy interleaved with the small allocations (ARP
+# output queue, DHCP/DNS, mDNS TX) the largest run collapses long before the
+# total does. That is why the failure looks intermittent. With api's
+# max_connections on rp2 at 4, a third sender has nothing left to take. It
+# surfaces as ERR_MEM from tcp_write(), then a refused send_message().
+#
+# 32KB is arduino-pico's own next tier (its __LWIP_MEMMULT=2 boards).
+# Must stay under 64000 or lwIP widens mem_size_t to u32_t.
+LWIP_MEM_SIZE = 32768
+
+
 def _configure_lwip() -> None:
     """Configure lwIP options for RP2040 by generating a custom lwipopts.h.
 
@@ -458,37 +505,6 @@ def _configure_lwip() -> None:
     # UDP PCBs (2) are absorbed by the generous minimum of 6.
     listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
 
-    # TCP_SND_BUF: 4×MSS=5,840 matches ESP32. Down from arduino-pico's 8×MSS.
-    # ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per response chunk.
-    tcp_snd_buf = "(4*TCP_MSS)"
-
-    # TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
-    tcp_wnd = "(4*TCP_MSS)"
-
-    # TCP_SND_QUEUELEN: max pbufs queued per PCB for the send buffer
-    # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
-    # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
-    tcp_snd_queuelen = 17
-    # MEMP_NUM_TCP_SEG: segment pool shared by every PCB, so it cannot be the
-    # per-PCB queue length — lwIP's sanity check only demands >=, which is the
-    # floor for a single connection. 2× lets two PCBs queue fully before the
-    # rest start seeing ERR_MEM. Each entry is ~16 bytes.
-    memp_num_tcp_seg = 2 * tcp_snd_queuelen
-
-    # PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
-    # 16 matches ESP32 (vs arduino-pico's 24). Receive side only; the send
-    # path copies into PBUF_RAM out of MEM_SIZE.
-    pbuf_pool_size = 16
-
-    # MEM_SIZE: the lwIP heap that backs PBUF_RAM, which is where tcp_write()
-    # copies outgoing data. TCP_OVERSIZE defaults to TCP_MSS, so one PCB
-    # holding a full TCP_SND_BUF pins ~4 × 1.5KB. At arduino-pico's 16KB, two
-    # busy connections exhausted it while api's max_connections on rp2 is 4;
-    # that surfaces as ERR_MEM from tcp_write(), then a refused send_message().
-    # 32KB is arduino-pico's own next tier (its __LWIP_MEMMULT=2 boards).
-    # Must stay under 64000 or lwIP widens mem_size_t to u32_t.
-    mem_size = 32768
-
     # Build the lwIP override defines for the Jinja2 template.
     # The template uses #include_next to chain to the framework's original
     # lwipopts.h, then #undef/#define only the values we need to change.
@@ -497,12 +513,12 @@ def _configure_lwip() -> None:
     # static pools are the only IRQ-safe allocator on this platform, so the
     # fix is to size them correctly rather than to make them dynamic.
     lwip_defines: dict[str, str] = {
-        "TCP_SND_BUF": tcp_snd_buf,
-        "TCP_WND": tcp_wnd,
-        "TCP_SND_QUEUELEN": str(tcp_snd_queuelen),
-        "MEM_SIZE": str(mem_size),
-        "MEMP_NUM_TCP_SEG": str(memp_num_tcp_seg),
-        "PBUF_POOL_SIZE": str(pbuf_pool_size),
+        "TCP_SND_BUF": LWIP_TCP_SND_BUF,
+        "TCP_WND": LWIP_TCP_WND,
+        "TCP_SND_QUEUELEN": str(LWIP_TCP_SND_QUEUELEN),
+        "MEM_SIZE": str(LWIP_MEM_SIZE),
+        "MEMP_NUM_TCP_SEG": str(LWIP_MEMP_NUM_TCP_SEG),
+        "PBUF_POOL_SIZE": str(LWIP_PBUF_POOL_SIZE),
         "MEMP_NUM_TCP_PCB": str(tcp_sockets),
         "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
         "MEMP_NUM_UDP_PCB": str(udp_sockets),
@@ -522,7 +538,7 @@ def _configure_lwip() -> None:
     listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
     _LOGGER.info(
         "Configuring lwIP: %d byte heap; TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
-        mem_size,
+        LWIP_MEM_SIZE,
         tcp_sockets,
         tcp_min,
         sc.tcp_details,
