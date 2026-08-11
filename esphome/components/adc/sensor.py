@@ -157,6 +157,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32="0db",
                 zephyr_esp32h2="0db",
                 zephyr_esp32c6="0db",
+                zephyr_esp32c5="0db",
             ): _attenuation,
             cv.OnlyWith(CONF_NRF_SAADC, PLATFORM_NRF52): cv.declare_id(adc_dt_spec),
             cv.Optional(CONF_SAMPLES, default=1): cv.int_range(min=1, max=255),

@@ -65,6 +65,7 @@ from .const import (
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_NATIVE_SIM,
@@ -607,12 +608,13 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
 
-    # esp32_h2/esp32_c6 are RV32IMAC -- no hardware FPU; rp2040 is Cortex-M0+, also
-    # without FPU. Original ESP32 is Xtensa LX6, which does have one -- it can't be
+    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC -- no hardware FPU; rp2040 is Cortex-M0+,
+    # also without FPU. Original ESP32 is Xtensa LX6, which does have one -- it can't be
     # excluded by family the way these chips are.
     if zephyr_variant() not in (
         ZEPHYR_VARIANT_ESP32_H2,
         ZEPHYR_VARIANT_ESP32_C6,
+        ZEPHYR_VARIANT_ESP32_C5,
         ZEPHYR_VARIANT_RP2040,
     ):
         zephyr_add_prj_conf("FPU", True)
@@ -1138,6 +1140,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.esp32_c6 import config_schema as _esp32_c6_config_schema
 
         config = _esp32_c6_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_ESP32_C5:
+        from .variants.esp32_c5 import config_schema as _esp32_c5_config_schema
+
+        config = _esp32_c5_config_schema(config)
     elif variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import config_schema as _native_sim_config_schema
 
@@ -1236,6 +1242,11 @@ async def to_code(config: ConfigType) -> None:
 
         await _esp32_c6_to_code(config)
         return
+    if variant == ZEPHYR_VARIANT_ESP32_C5:
+        from .variants.esp32_c5 import to_code as _esp32_c5_to_code
+
+        await _esp32_c5_to_code(config)
+        return
     if variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import to_code as _native_sim_to_code
 
@@ -1333,9 +1344,9 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     # way to make this safe is to refuse up front whenever more than one candidate
     # device could possibly be involved -- counting every serial port present (which
     # includes the target's own port) plus every device already in BOOTSEL.
-    total_devices = len(get_serial_ports()) + detect_rp2040_bootsel(
-        str(picotool)
-    ).device_count
+    total_devices = (
+        len(get_serial_ports()) + detect_rp2040_bootsel(str(picotool)).device_count
+    )
     if total_devices > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
