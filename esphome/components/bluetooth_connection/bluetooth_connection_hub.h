@@ -137,10 +137,12 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     this->pending_ack_error_ = error;
   }
   void clear_pending_ack_() { this->pending_ack_ = PendingAck::PENDING_ACK_NONE; }
-  /// Drop an owed reply when the client re-asks about that handle: clients
-  /// match on (address, handle), so a stale one would resolve the new request.
-  void supersede_pending_ack_(uint16_t handle) {
-    if (this->has_pending_ack_() && this->pending_ack_handle_ == handle) {
+  /// Drop an owed reply this re-ask makes stale. Clients match futures on
+  /// response type as well as handle, so an owed error (which resolves any op
+  /// on the handle) is cleared by any re-ask, other kinds only by their own.
+  void supersede_pending_ack_(uint16_t handle, PendingAck kind) {
+    if (this->has_pending_ack_() && this->pending_ack_handle_ == handle &&
+        (this->pending_ack_ == PendingAck::PENDING_ACK_ERROR || this->pending_ack_ == kind)) {
       this->clear_pending_ack_();
     }
   }
@@ -238,6 +240,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool batch_stalled_ : 1 {false};
   // Plain byte after the bitfields: takes the padding byte instead of
   // straddling pending_ack_'s storage unit and growing the object.
+  static_assert(PENDING_ACK_RETRY_LIMIT <= 0xFF, "retry counter too narrow");
   uint8_t pending_ack_retries_{0};
 };
 
