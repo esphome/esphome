@@ -824,6 +824,15 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  // An owed success is the authoritative answer: a later attempt for the
+  // same address fails only because the first already removed the bond.
+  if (!this->pending_unpairing_.empty() && this->pending_unpairing_.matches(address) &&
+      this->pending_unpairing_.error() == CONN_OK) {
+    success = true;
+    error = CONN_OK;
+  }
+#endif
   api::BluetoothDeviceUnpairingResponse call;
   call.address = address;
   call.success = success;
@@ -847,10 +856,6 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     } else if (!this->pending_unpairing_.matches(address)) {
       ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
                this->pending_unpairing_.address(), address);
-    } else if (this->pending_unpairing_.error() == CONN_OK) {
-      // A retry against the already-removed bond reports failure; the owed
-      // success is the answer the client needs, so keep it.
-      return;
     }
     this->pending_unpairing_.set(address, error);
   }
