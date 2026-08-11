@@ -707,6 +707,25 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
 
+void BluetoothProxy::reset_owed_replies_() {
+  this->connections_free_pending_ = false;
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // subscribe_api_connection() re-drives this from the hub immediately after,
+  // so clearing it here costs nothing and keeps the list exhaustive.
+  this->scanner_state_pending_ = false;
+#endif
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  this->pending_unpairing_.clear();
+  this->pending_disconnections_.fill({});
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    // Neither a partial stream's tail nor an owed done belongs to the next
+    // session; silence (the client's timeout) arbitrates.
+    this->connections_[i]->park_service_stream_();
+    this->connections_[i]->clear_pending_ack_();
+  }
+#endif
+}
+
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (api_connection != this->api_connection_) {
     if (this->api_connection_ != nullptr) {
@@ -723,18 +742,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     }
     // Stale retry latches belong to the previous subscriber's session; a
     // re-subscribe by the current one keeps what it is still owed.
-    this->connections_free_pending_ = false;
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-    this->pending_unpairing_.clear();
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      // Neither a partial stream's tail nor an owed done belongs to the new
-      // session; silence (the client's timeout) arbitrates.
-      this->connections_[i]->park_service_stream_();
-      // An ack owed to the previous subscriber means nothing to the new one.
-      this->connections_[i]->clear_pending_ack_();
-    }
-    this->pending_disconnections_.fill({});
-#endif
+    this->reset_owed_replies_();
   }
   this->api_connection_ = api_connection;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
@@ -751,13 +759,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
-  this->connections_free_pending_ = false;
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  this->pending_unpairing_.clear();
-#endif
-#ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  this->scanner_state_pending_ = false;
-#endif
+  this->reset_owed_replies_();
 }
 
 void BluetoothProxy::send_connections_free() {
