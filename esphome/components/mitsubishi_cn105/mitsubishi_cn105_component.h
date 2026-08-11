@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart.h"
 
 #include <utility>
+#include <optional>
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -17,6 +18,7 @@ enum VerticalVaneMode : uint8_t {
   VERTICAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_4),
   VERTICAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_5),
   VERTICAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::VaneMode::SWING),
+  VERTICAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::VaneMode::UNKNOWN),
 };
 
 struct VaneState {
@@ -25,6 +27,27 @@ struct VaneState {
   };
 
   Vertical vertical;
+};
+
+class MitsubishiCN105Component;
+
+struct VaneCall {
+  struct Vertical {
+    void set_direction(VerticalVaneMode direction) { this->direction_ = direction; }
+    const std::optional<VerticalVaneMode> &get_direction() const { return this->direction_; }
+
+   protected:
+    std::optional<VerticalVaneMode> direction_;
+  };
+
+  explicit VaneCall(MitsubishiCN105Component *parent) : parent_(parent) {}
+
+  Vertical vertical;
+
+  void perform();
+
+ protected:
+  MitsubishiCN105Component *parent_;
 };
 
 class MitsubishiCN105Component : public Component, public uart::UARTDevice {
@@ -47,6 +70,7 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
   void set_fan_mode(MitsubishiCN105::FanMode fan_mode) { this->hp_.set_fan_mode(fan_mode); }
   void set_vane_mode(MitsubishiCN105::VaneMode vane_mode) { this->hp_.set_vane_mode(vane_mode); }
   void set_wide_vane_mode(MitsubishiCN105::WideVaneMode mode) { this->hp_.set_wide_vane_mode(mode); }
+  VaneCall make_vane_call() { return VaneCall(this); }
 
   const MitsubishiCN105::Status &status() const { return this->hp_.status(); }
   bool is_status_initialized() const { return this->hp_.is_status_initialized(); }
@@ -69,11 +93,9 @@ class MitsubishiCN105Component : public Component, public uart::UARTDevice {
  protected:
   void notify_status_listeners_() {
     this->status_callback_.call();
-    if (this->status().vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
-      this->vane_state_callback_.call(VaneState{
-          .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
-      });
-    }
+    this->vane_state_callback_.call(VaneState{
+        .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+    });
   }
 
   MitsubishiCN105 hp_;

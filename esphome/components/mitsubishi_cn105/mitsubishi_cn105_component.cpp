@@ -31,4 +31,11 @@ void MitsubishiCN105Component::loop() {
   }
 }
 
+void VaneCall::perform() {
+  if (const auto &direction = this->vertical.get_direction(); direction.has_value()) {
+    this->parent_->set_vane_mode(static_cast<MitsubishiCN105::VaneMode>(*direction));
+  }
+  this->parent_->publish_status();
+}
+
 }  // namespace esphome::mitsubishi_cn105
