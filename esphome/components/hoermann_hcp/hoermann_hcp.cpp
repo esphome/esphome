@@ -172,8 +172,12 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     this->on_light_reg_(registers[6]);
   } else if (!this->short_broadcast_logged_) {
     this->short_broadcast_logged_ = true;
-    // Without this register the lamp is never known, which leaves the light platform refusing every command.
-    ESP_LOGW(TAG, "Broadcast of %u registers carries no lamp state", static_cast<unsigned>(registers.size()));
+    const unsigned count = static_cast<unsigned>(registers.size());
+    if (this->light_registered_) {
+      ESP_LOGW(TAG, "Broadcast of %u registers carries no lamp state, so the light cannot be controlled", count);
+    } else {
+      ESP_LOGD(TAG, "Broadcast of %u registers carries no lamp state", count);
+    }
   }
   return {};
 }

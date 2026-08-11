@@ -13,6 +13,7 @@ light::LightTraits HoermannHcpLight::get_traits() {
 }
 
 void HoermannHcpLight::setup() {
+  this->parent_->register_light();
   // Nothing is known about the lamp until the bus controller is heard from, so flag the entity until then.
   this->status_set_warning("waiting for the bus controller");
   this->parent_->add_on_state_callback([this]() { this->update_from_state_(); });

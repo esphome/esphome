@@ -65,6 +65,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
   // valid without saying anything about the lamp, so is_light_on() would still be its default.
   bool is_light_known() const { return this->light_seen_; }
+  // A light platform announces itself, so a broadcast without the lamp register is only worth warning about
+  // when something is waiting for it. A cover-only setup has no use for that register.
+  void register_light() { this->light_registered_ = true; }
   // How many lamp toggles are queued or sent but not yet reported back. Each one inverts the lamp, so the
   // count's parity says where the lamp is heading and a non-zero count says it has not got there yet.
   uint8_t pending_light_toggles() const { return this->light_toggles_in_flight_; }
@@ -138,6 +141,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool changed_{false};
   bool light_on_{false};
   bool light_seen_{false};
+  bool light_registered_{false};
   bool short_broadcast_logged_{false};
 };
 
