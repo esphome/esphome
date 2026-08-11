@@ -234,7 +234,10 @@ void HoermannHcp::on_state_reg_(uint16_t value) {
 
 // Low byte of register 6: bit 0x10 is the lamp, bit 0x04 the relay. The reference implementation records
 // 0x00, 0x04, 0x10 and 0x14, so only the lamp bit decides here.
-void HoermannHcp::on_light_reg_(uint16_t value) { this->set_light_on_((value & 0x0010) != 0); }
+void HoermannHcp::on_light_reg_(uint16_t value) {
+  this->light_seen_ = true;
+  this->set_light_on_((value & 0x0010) != 0);
+}
 
 bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
   if (!this->valid_) {
@@ -321,11 +324,14 @@ void HoermannHcp::set_valid_(bool valid) {
 }
 
 void HoermannHcp::drop_command_() {
-  if (this->is_light_toggle_pending())
+  if (this->is_light_toggle_pending()) {
     this->light_command_dropped_ = true;
+  } else {
+    // A lamp toggle says nothing about where the door was going, so only a door command takes the target with it.
+    this->clear_target_();
+  }
   this->next_command_ = nullptr;
   this->command_written_at_ = 0;
-  this->clear_target_();
 }
 
 bool HoermannHcp::take_light_command_dropped() {

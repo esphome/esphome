@@ -62,6 +62,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   float get_current_position() const { return this->current_position_; }
   bool is_valid() const { return this->valid_; }
   bool is_light_on() const { return this->light_on_; }
+  // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
+  // valid without saying anything about the lamp, so is_light_on() would still be its default.
+  bool is_light_known() const { return this->light_seen_; }
   // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
   bool is_light_toggle_pending() const;
   // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
@@ -126,6 +129,7 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool valid_{false};
   bool changed_{false};
   bool light_on_{false};
+  bool light_seen_{false};
   // Set when a lamp toggle is discarded unsent, cleared once the light platform has been told.
   bool light_command_dropped_{false};
 };

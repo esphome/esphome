@@ -25,8 +25,8 @@ class HoermannHcpLight : public light::LightOutput, public Component {
   // yet, so it must not be reconciled away; otherwise it is the lamp state the door last reported.
   bool shown_on_{false};
   bool awaiting_lamp_{false};
-  // Cleared once the lamp has been read at least once, until then a write here is the restored state coming
-  // back rather than a user request.
+  // Set once the door has reported the lamp; until then a write here is the restored state coming back rather
+  // than a user request.
   bool synced_{false};
 };
 

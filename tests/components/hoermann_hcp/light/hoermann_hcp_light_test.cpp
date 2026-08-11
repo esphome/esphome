@@ -78,7 +78,7 @@ struct LightFixture {
   // any user command can arrive.
   void bring_up() {
     connect_controller(this->door);
-    this->pump();
+    this->report_lamp(false);
   }
 
   // Issues a command the way Home Assistant would, then lets the state machine settle.
@@ -374,6 +374,97 @@ TEST(HoermannHcpLightPlatformTest, RestoredStateOnBootDoesNotCommandTheLamp) {
   // Once the platform has read the lamp the entity follows it, still without commanding anything.
   fixture.pump();
   EXPECT_TRUE(fixture.entity_on());
+}
+
+// Bus traffic makes the connection valid without saying anything about the lamp, so a request arriving before
+// the first status broadcast must not be judged against a lamp state that was never read.
+TEST(HoermannHcpLightPlatformTest, RequestBeforeTheLampIsReportedDoesNotCommandTheLamp) {
+  LightFixture fixture;
+  // The controller polls for commands, which is enough to connect but carries no lamp register.
+  connect_controller(fixture.door);
+  fixture.pump();
+  ASSERT_TRUE(fixture.door.is_valid());
+  ASSERT_FALSE(fixture.door.is_light_known());
+
+  fixture.command(true);
+  auto [idle, idle_2] = poll_command(fixture.door);
+  EXPECT_EQ(idle, 0x0000);
+  EXPECT_EQ(idle_2, 0x0000);
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// A toggle that has been released onto the wire is no longer pending, but the lamp has not reported it yet.
+// A reversing request in that window is a real request and has to be sent, not swallowed.
+TEST(HoermannHcpLightPlatformTest, ReversingRequestAfterReleaseQueuesASecondToggle) {
+  LightFixture fixture;
+  fixture.bring_up();
+
+  fixture.command(true);
+  poll_command(fixture.door);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(fixture.door);  // released, so nothing is pending and the lamp is still unreported
+  ASSERT_FALSE(fixture.door.is_light_toggle_pending());
+  ASSERT_FALSE(fixture.door.is_light_on());
+
+  fixture.command(false);
+  auto [pressed, pressed_2] = poll_command(fixture.door);
+  EXPECT_EQ(pressed, 0x0100);  // COMMAND_TOGGLE_LAMP
+  EXPECT_EQ(pressed_2, 0x0200);
+  EXPECT_FALSE(fixture.entity_on());
+
+  // The first toggle lands and is reported, but the entity is already heading for off.
+  fixture.report_lamp(true);
+  EXPECT_FALSE(fixture.entity_on());
+
+  // The second toggle lands too, and the lamp finally agrees with the request.
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  poll_command(fixture.door);
+  fixture.report_lamp(false);
+  EXPECT_FALSE(fixture.entity_on());
+}
+
+// A refusal that has no toggle on the wire leaves nothing outstanding, so it must not latch the entity
+// against the next lamp change the door reports.
+TEST(HoermannHcpLightPlatformTest, RefusalWithoutAToggleStillFollowsTheLamp) {
+  LightFixture fixture;
+  fixture.door.connection_timeout_ms_ = 20;
+  fixture.bring_up();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  fixture.pump();
+  ASSERT_FALSE(fixture.door.is_valid());
+
+  // Refused because the bus is down, so no toggle is heading for the lamp.
+  fixture.command(true);
+  EXPECT_FALSE(fixture.entity_on());
+
+  // The controller returns and reports the lamp switched on at the door itself.
+  connect_controller(fixture.door);
+  fixture.report_lamp(true);
+  EXPECT_TRUE(fixture.entity_on());
+}
+
+// A lamp toggle carries no target, so dropping it unfetched must leave the cover's target alone.
+TEST(HoermannHcpLightTest, DroppedLampToggleKeepsTheCoverTarget) {
+  TestableHoermannHcp door;
+  door.connection_timeout_ms_ = 20;
+  connect_controller(door);
+  // Position 60/200 = 0.3 while opening, so a 0.5 target is armed and under way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0100}));
+  ASSERT_TRUE(door.set_position(0.5f));
+  consume_command(door);
+
+  // The controller keeps broadcasting but stops fetching, so the lamp toggle expires on its own.
+  ASSERT_TRUE(door.toggle_light());
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0050, 0x0100}));
+  door.update();
+
+  // The target survived the lamp toggle being dropped, so the door is still stopped on the way.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
+  auto [pressed, pressed_2] = poll_command(door);
+  EXPECT_EQ(pressed, 0x0240);  // COMMAND_IMPULSE
+  EXPECT_EQ(pressed_2, 0x0000);
 }
 
 // A reversing press before the toggle is fetched cancels it, so the lamp never moves.

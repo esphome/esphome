@@ -28,15 +28,16 @@ void HoermannHcpLight::write_state(light::LightState *state) {
     // replayed on boot, which must not switch off a lamp that is already on, or a request the door cannot be
     // asked to take. Both end up showing the last lamp state known, which on boot is what the entity shows.
     if (binary != this->shown_on_) {
-      ESP_LOGW(TAG, "Light command was not accepted by the door");
+      ESP_LOGD(TAG, "Lamp state not known yet, ignoring the requested state");
       this->publish_lamp_state_(this->shown_on_);
     }
     return;
   }
-  // A queued toggle has not reached the lamp yet but will invert it, so the request has to be judged against
-  // where the lamp is heading. Skipping a matching request is also what stops the state callback from
-  // toggling the lamp back and forth forever.
-  const bool effective_on = this->parent_->is_light_on() != this->parent_->is_light_toggle_pending();
+  // Where the lamp is heading. A toggle already released onto the wire has stopped being pending but has not
+  // been reported either, so while a report is outstanding only shown_on_ says where the lamp will end up.
+  const bool effective_on = this->awaiting_lamp_
+                                ? this->shown_on_
+                                : (this->parent_->is_light_on() != this->parent_->is_light_toggle_pending());
   if (binary == effective_on)
     return;
   if (this->parent_->cancel_light_toggle()) {
@@ -46,9 +47,10 @@ void HoermannHcpLight::write_state(light::LightState *state) {
     this->awaiting_lamp_ = true;
   } else {
     ESP_LOGW(TAG, "Light command was not accepted by the door");
-    // The toggle already on the wire will still land, so show where the lamp is heading rather than the refused
-    // request. Re-entering write_state() with that value then matches and queues nothing.
-    this->awaiting_lamp_ = true;
+    // Only a toggle already on the wire will still land. A refusal for any other reason - the bus is down, or a
+    // door command holds the slot - leaves nothing new outstanding, and must not disturb an earlier wait.
+    if (this->parent_->is_light_toggle_pending())
+      this->awaiting_lamp_ = true;
     this->publish_lamp_state_(effective_on);
     return;
   }
@@ -69,7 +71,10 @@ void HoermannHcpLight::update_from_state_() {
   if (this->awaiting_lamp_ && lamp_on != this->shown_on_ && !dropped)
     return;
   this->awaiting_lamp_ = false;
-  this->synced_ = true;
+  // Bus traffic alone does not report the lamp, and commanding against a lamp that was never read is what the
+  // boot replay must avoid, so the entity only starts honouring writes once the door has actually said.
+  if (this->parent_->is_light_known())
+    this->synced_ = true;
   if (this->shown_on_ != lamp_on)
     this->publish_lamp_state_(lamp_on);
 }
