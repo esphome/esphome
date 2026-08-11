@@ -124,7 +124,17 @@ void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const
 }
 #endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
-void BluetoothProxy::log_reply_dropped_(const char *what) { ESP_LOGW(TAG, "%s reply dropped, TCP buffer full", what); }
+void BluetoothProxy::log_reply_dropped_(const char *what, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, TCP buffer full", what, address);
+}
+
+void BluetoothProxy::log_reply_deferred_(const char *what, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " deferred, TCP buffer full", what, address);
+}
+
+void BluetoothProxy::log_reply_displaced_(const char *what, uint64_t owed, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, displaced by %012" PRIX64, what, owed, address);
+}
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
@@ -136,7 +146,7 @@ void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handl
   this->log_not_connected_gatt_(action, type);
   if (!this->send_gatt_error(address, handle, GATT_NOT_CONNECTED)) {
     // No connection, so nothing to latch against; the client's timeout arbitrates.
-    this->log_reply_dropped_("Not-connected");
+    this->log_reply_dropped_("Not-connected", address);
   }
 }
 #endif
@@ -218,15 +228,12 @@ void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t e
     }
   }
   if (free_entry != nullptr) {
-    // Leading edge for this address: the drop must be visible, but a repeat
-    // while it is already owed would ride the connection that refused it.
-    ESP_LOGW(TAG, "Disconnect notification for %012" PRIX64 " deferred, TCP buffer full", address);
+    this->log_reply_deferred_("Disconnect", address);
     free_entry->set(address, error);
     return;
   }
   // Every entry is owed: evict the first so the newest loss is not silent too.
-  ESP_LOGW(TAG, "Owed disconnect dropped (0x%llx), retry pool full",
-           (unsigned long long) this->pending_disconnections_[0].address());
+  this->log_reply_displaced_("Disconnect", this->pending_disconnections_[0].address(), address);
   this->pending_disconnections_[0].set(address, error);
 }
 
@@ -517,7 +524,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
              connection ? connection->address_str() : "unknown");
     resp.error = GATT_NOT_CONNECTED;
     if (!this->api_connection_->send_message(resp)) {
-      this->log_reply_dropped_("Connection-params");
+      this->log_reply_dropped_("Connection-params", msg.address);
     }
     return;
   }
@@ -530,7 +537,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
                                                     static_cast<uint16_t>(std::min(msg.latency, max_val)),
                                                     static_cast<uint16_t>(std::min(msg.timeout, max_val)));
   if (!this->api_connection_->send_message(resp)) {
-    this->log_reply_dropped_("Connection-params");
+    this->log_reply_dropped_("Connection-params", msg.address);
   }
 }
 
@@ -776,7 +783,7 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
   if (!this->api_connection_->send_message(call)) {
     // Not latched: a retried PAIR is answered from is_paired(), so the client
     // recovers on its own. Still worth saying it happened.
-    this->log_reply_dropped_("Pairing");
+    this->log_reply_dropped_("Pairing", address);
   }
 }
 
@@ -796,14 +803,10 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     }
     return;
   }
-  // Warn on the leading edge and on displacement (that one loses a reply);
-  // the drain's re-refusals of the same reply stay quiet. Not
-  // log_reply_dropped_(): this reply is latched and retried, not dropped.
   if (this->pending_unpairing_.empty()) {
-    ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    this->log_reply_deferred_("Unpair", address);
   } else if (!this->pending_unpairing_.matches(address)) {
-    ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
-             this->pending_unpairing_.address(), address);
+    this->log_reply_displaced_("Unpair", this->pending_unpairing_.address(), address);
   }
   this->pending_unpairing_.set(address, error);
 }
@@ -820,7 +823,7 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
 
   if (!this->api_connection_->send_message(call)) {
     // Not latched: clear-cache is idempotent, so a retry gives the same answer.
-    this->log_reply_dropped_("Clear-cache");
+    this->log_reply_dropped_("Clear-cache", address);
   }
 }
 #endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
