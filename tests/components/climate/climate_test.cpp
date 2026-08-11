@@ -52,8 +52,8 @@ TEST(ClimateRestoreStateTest, KeepsRestoringTheOtherFieldsWhenTheModeIsDropped) 
 
   EXPECT_EQ(climate.mode, CLIMATE_MODE_OFF);
   EXPECT_FLOAT_EQ(climate.target_temperature, 21.0f);
-  ASSERT_TRUE(climate.fan_mode.has_value());
-  EXPECT_EQ(climate.fan_mode.value(), CLIMATE_FAN_HIGH);
+  // Compared as an optional: this asserts both that the fan mode was restored and what it holds.
+  EXPECT_EQ(climate.fan_mode, CLIMATE_FAN_HIGH);
 }
 
 }  // namespace esphome::climate::testing
