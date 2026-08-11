@@ -60,7 +60,9 @@ TEST(FujitsuGeneralDecodeFanModeTest, KeepsTheCurrentFanModeForUnassignedValues)
   EXPECT_EQ(decode_fan_mode(0x05, climate::CLIMATE_FAN_HIGH), climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(decode_fan_mode(0x06, climate::CLIMATE_FAN_MEDIUM), climate::CLIMATE_FAN_MEDIUM);
   EXPECT_EQ(decode_fan_mode(0x07, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_LOW);
+  EXPECT_EQ(decode_fan_mode(0x0D, climate::CLIMATE_FAN_HIGH), climate::CLIMATE_FAN_HIGH);
   EXPECT_EQ(decode_fan_mode(0x0E, climate::CLIMATE_FAN_HIGH), climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(decode_fan_mode(0x0F, climate::CLIMATE_FAN_LOW), climate::CLIMATE_FAN_LOW);
 }
 
 TEST(FujitsuGeneralDecodeFanModeTest, LeavesAnUnsetFanModeUnset) {
@@ -78,11 +80,126 @@ TEST(FujitsuGeneralDecodeSwingModeTest, DecodesTheAssignedValues) {
 }
 
 TEST(FujitsuGeneralDecodeSwingModeTest, IgnoresTheReservedBits) {
-  // Without the mask these all fell through to the default branch and reported swing off.
-  EXPECT_EQ(decode_swing_mode(0x0C), climate::CLIMATE_SWING_OFF);
-  EXPECT_EQ(decode_swing_mode(0x0D), climate::CLIMATE_SWING_VERTICAL);
-  EXPECT_EQ(decode_swing_mode(0x0E), climate::CLIMATE_SWING_HORIZONTAL);
-  EXPECT_EQ(decode_swing_mode(0x0F), climate::CLIMATE_SWING_BOTH);
+  // Without the mask everything from 0x04 up fell through to the default branch and reported swing
+  // off. All twelve are covered, so the field's whole input space is asserted.
+  const climate::ClimateSwingMode expected[] = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
+  for (uint8_t field = 0x04; field <= 0x0F; field++) {
+    SCOPED_TRACE(field);
+    EXPECT_EQ(decode_swing_mode(field), expected[field & 0b0011]);
+  }
+}
+
+// Every state frame annotated in fujitsu_general.h, as the bytes those rows spell out. None of them
+// sets the fourth bit of the mode or fan field, or either bit above the swing field, so the masks
+// must leave all of them decoding exactly as they did before this change.
+
+namespace {
+
+struct CapturedFrame {
+  const char *label;
+  uint8_t bytes[16];
+  climate::ClimateMode mode;
+  climate::ClimateFanMode fan_mode;
+  climate::ClimateSwingMode swing_mode;
+};
+
+constexpr CapturedFrame CAPTURED_FRAMES[] = {
+    {"auto auto 18",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0x21, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x8F},
+     climate::CLIMATE_MODE_HEAT_COOL,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"auto auto 19",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x7F},
+     climate::CLIMATE_MODE_HEAT_COOL,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"auto auto 30 (temperatures)",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCF},
+     climate::CLIMATE_MODE_HEAT_COOL,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"on at 16",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x20, 0xAB},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"down to 16",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x20, 0xAC},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"auto auto 30 (mode options)",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCF},
+     climate::CLIMATE_MODE_HEAT_COOL,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"cool auto 30",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x01, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCE},
+     climate::CLIMATE_MODE_COOL,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"dry auto 30",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x02, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCD},
+     climate::CLIMATE_MODE_DRY,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"fan (auto) (30)",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x03, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCC},
+     climate::CLIMATE_MODE_FAN_ONLY,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"heat auto 30",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x04, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCB},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_AUTO,
+     climate::CLIMATE_SWING_OFF},
+    {"heat 30 high",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE1, 0x04, 0x01, 0x00, 0x00, 0x00, 0x20, 0xCA},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_HIGH,
+     climate::CLIMATE_SWING_OFF},
+    {"heat 30 med",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE0, 0x04, 0x02, 0x00, 0x00, 0x00, 0x20, 0xCA},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_MEDIUM,
+     climate::CLIMATE_SWING_OFF},
+    {"heat 30 low",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE0, 0x04, 0x03, 0x00, 0x00, 0x00, 0x20, 0xC9},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_LOW,
+     climate::CLIMATE_SWING_OFF},
+    {"heat 30 quiet",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE0, 0x04, 0x04, 0x00, 0x00, 0x00, 0x20, 0xC8},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_QUIET,
+     climate::CLIMATE_SWING_OFF},
+    {"heat 30 swing vert",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE0, 0x04, 0x14, 0x00, 0x00, 0x00, 0x20, 0xB8},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_QUIET,
+     climate::CLIMATE_SWING_VERTICAL},
+    {"heat 30 noswing",
+     {0x14, 0x63, 0x00, 0x10, 0x10, 0xFE, 0x09, 0x30, 0xE0, 0x04, 0x04, 0x00, 0x00, 0x00, 0x20, 0xC8},
+     climate::CLIMATE_MODE_HEAT,
+     climate::CLIMATE_FAN_QUIET,
+     climate::CLIMATE_SWING_OFF},
+};
+
+// Same nibble order as the component: an odd index is a byte's low half, an even one its high half.
+uint8_t nibble(const uint8_t *frame, uint8_t index) { return (frame[index / 2] >> ((index % 2) ? 0 : 4)) & 0x0F; }
+
+}  // namespace
+
+TEST(FujitsuGeneralCaptureTest, DecodesEveryCapturedFrame) {
+  for (const auto &frame : CAPTURED_FRAMES) {
+    SCOPED_TRACE(frame.label);
+    // Nibble 19 is the mode, 21 the fan speed and 20 the swing, per the annotation.
+    EXPECT_EQ(decode_mode(nibble(frame.bytes, 19), climate::CLIMATE_MODE_OFF), frame.mode);
+    EXPECT_EQ(decode_fan_mode(nibble(frame.bytes, 21), climate::CLIMATE_FAN_ON), frame.fan_mode);
+    EXPECT_EQ(decode_swing_mode(nibble(frame.bytes, 20)), frame.swing_mode);
+  }
 }
 
 }  // namespace esphome::fujitsu_general::testing
