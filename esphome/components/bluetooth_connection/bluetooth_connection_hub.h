@@ -137,7 +137,10 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   void clear_pending_ack_() { this->pending_ack_ = PendingAck::PENDING_ACK_NONE; }
   /// Drop an owed reply when the client re-asks about that handle. Clients
   /// match replies by (address, handle), so a stale one would otherwise
-  /// resolve the retried request before the peripheral has answered.
+  /// resolve the retried request before the peripheral has answered. Called
+  /// before the connected check, so a request rejected on a dead link still
+  /// invalidates it, and matched on handle alone: a read superseding an owed
+  /// write reply costs a timeout, which is the safe direction.
   void supersede_pending_ack_(uint16_t handle) {
     if (this->has_pending_ack_() && this->pending_ack_handle_ == handle) {
       this->clear_pending_ack_();
@@ -152,6 +155,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error);
   /// First attempt: send, and latch it for the drain if the API refuses.
   void send_ack_(PendingAck kind, uint16_t handle, conn_err_t error = 0);
+  /// Report a rejected request. Latched like a completion reply, so a
+  /// refused frame does not strand the client for its whole timeout.
+  void send_gatt_error_(uint16_t handle, conn_err_t error) {
+    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
+  }
   /// Re-offer the owed reply; clears on success, stays owed on a refusal.
   void flush_pending_ack_();
   // A backend providing its own streamer (see the contract doc) builds the

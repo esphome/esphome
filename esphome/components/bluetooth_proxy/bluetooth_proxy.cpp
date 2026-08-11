@@ -387,7 +387,7 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
 
   auto err = connection->read_characteristic(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -400,7 +400,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
 
   auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -413,7 +413,7 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
 
   auto err = connection->read_descriptor(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -426,7 +426,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
 
   auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -477,7 +477,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 
   auto err = connection->notify_characteristic(msg.handle, msg.enable);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 

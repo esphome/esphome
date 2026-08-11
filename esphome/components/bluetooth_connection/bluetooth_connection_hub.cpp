@@ -235,7 +235,7 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("reading char/descriptor", handle, error);
-    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
   auto *api_connection = this->proxy_->get_api_connection();
@@ -257,7 +257,7 @@ void BluetoothConnection::on_write_result(uint16_t handle, int error) {
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("writing char/descriptor", handle, error);
-    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
   this->send_ack_(PendingAck::PENDING_ACK_WRITE, handle);
@@ -269,7 +269,7 @@ void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int err
   if (error != 0) {
     this->log_gatt_operation_error_(enabled ? "registering notifications" : "unregistering notifications", handle,
                                     error);
-    this->send_ack_(PendingAck::PENDING_ACK_ERROR, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
   this->send_ack_(PendingAck::PENDING_ACK_NOTIFY, handle);
@@ -305,26 +305,26 @@ conn_err_t BluetoothConnection::check_connected_op_(const char *action, const ch
 }
 
 conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
+  this->supersede_pending_ack_(handle);
   if (conn_err_t err = this->check_connected_op_("read", "characteristic"); err != CONN_OK)
     return err;
-  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_characteristic(handle);
 }
 
 conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
                                                      bool response) {
+  this->supersede_pending_ack_(handle);
   if (conn_err_t err = this->check_connected_op_("write", "characteristic"); err != CONN_OK)
     return err;
-  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_characteristic(handle, data, static_cast<uint16_t>(length), response);
 }
 
 conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
+  this->supersede_pending_ack_(handle);
   if (conn_err_t err = this->check_connected_op_("read", "descriptor"); err != CONN_OK)
     return err;
-  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->read_descriptor(handle);
 }
@@ -333,17 +333,17 @@ conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
 // the response flag is intentionally ignored (esp32 maps it to RSP/NO_RSP).
 conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
                                                  bool /*response*/) {
+  this->supersede_pending_ack_(handle);
   if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
     return err;
-  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
   return this->backend_->write_descriptor(handle, data, static_cast<uint16_t>(length));
 }
 
 conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
+  this->supersede_pending_ack_(handle);
   if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
-  this->supersede_pending_ack_(handle);
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
            enable ? "Registering for" : "Unregistering for", handle);
   return this->backend_->notify_characteristic(handle, enable);
