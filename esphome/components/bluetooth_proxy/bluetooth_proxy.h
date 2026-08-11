@@ -61,11 +61,8 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
 };
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
-/// One owed address-keyed reply in a single word: the 48-bit address in the
-/// low bits, the sign-extending 16-bit error on top. Backs the freed-slot
-/// notifications and the owed unpair reply. Every error that reaches
-/// it (esp_gatt_status_t, esp_gatt_conn_reason_t, generic ESP_ERR_*, -1) fits
-/// int16_t.
+/// One owed address-keyed reply in a single word: 48-bit address low, 16-bit
+/// error on top. Every error that reaches it fits int16_t.
 class PendingDisconnect {
  public:
   constexpr void set(uint64_t address, conn_err_t error) {
@@ -294,12 +291,8 @@ class BluetoothProxy final : public Component {
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
-  /// Drop everything the ending session was owed.
-  ///
-  /// Every retry latch belongs to exactly one subscriber, so a subscriber
-  /// change invalidates all of them. Keeping the list in one place
-  /// makes adding a latch a single edit rather than two, where an omission
-  /// would read the same as a decision.
+  /// Drop everything the ending session was owed. One list, so a new latch is
+  /// one edit rather than two call sites where an omission looks deliberate.
   void reset_owed_replies_();
   /// Report a reply we deliberately do not latch, so no drop is silent.
   /// Latched replies report their own leading edge instead.
@@ -316,11 +309,9 @@ class BluetoothProxy final : public Component {
   // Proxy-only state, kept off BluetoothConnection; entries are not tied to
   // slot indices.
   std::array<PendingDisconnect, BLUETOOTH_PROXY_MAX_CONNECTIONS> pending_disconnections_{};
-  // An owed unpair reply: the bond is already gone when the send is refused,
-  // so a client that retries is told the unpair failed when it succeeded.
-  // Address-keyed, since unpair has no connection slot. One slot, so two
-  // unpairs refused in the same drain window displace the older reply, which
-  // is what happened to both before this existed.
+  // Owed unpair reply. The bond is already gone when the send is refused, so
+  // a retry is told the unpair failed when it succeeded. One slot: a second
+  // refused unpair displaces the first, as happened to both before this.
   PendingDisconnect pending_unpairing_{};
 #endif
   ble_device_base::BLEHub *hub_{nullptr};

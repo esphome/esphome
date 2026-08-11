@@ -236,10 +236,8 @@ bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_e
 void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
   if (this->try_send_ack_(kind, handle, error))
     return;
-  // Report anything the client will not otherwise learn about: a newly owed
-  // reply, or one being displaced, which is the case that actually loses a
-  // reply for good. Re-refusing the same reply is the only quiet path, since
-  // it is already owed and the drain keeps trying.
+  // Report a newly owed reply and a displaced one; displacing is the case
+  // that loses a reply. Re-refusing the same one stays quiet.
   if (!this->has_pending_ack_()) {
     ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%2X deferred, TCP buffer full", this->connection_index_,
              this->address_str_, handle);
