@@ -201,10 +201,6 @@ void Tormatic::recompute_position_() {
 
 // Start moving the gate in the direction of the target position.
 void Tormatic::control_position_(float target) {
-  if (target == this->position) {
-    return;
-  }
-
   if (target == COVER_OPEN) {
     ESP_LOGI(TAG, "Fully opening gate");
     this->send_gate_command_(OPENED);
