@@ -216,6 +216,11 @@ class RedirectText:
         else:
             self._write_color_replace(s)
 
+        # Same reason as safe_print: the dashboard gives us a pipe, which is
+        # block buffered, so in-process esptool progress would not show up
+        # until the buffer filled.
+        self._out.flush()
+
         # write() returns the number of characters written
         # Let's print the number of characters of the original string in order to not confuse
         # any caller.

@@ -422,6 +422,26 @@ def _make_redirect(
     return redirect, buf
 
 
+def test_redirect_text_flushes_so_piped_output_streams() -> None:
+    """Regression: in-process esptool progress must reach the pipe right away.
+
+    ``run_external_command`` runs esptool inside our own process, so its
+    progress output goes through ``RedirectText.write``. That used to be
+    flushed only because ``colorama.init()`` wrapped stdout in a stream that
+    flushed after every write.
+    """
+    buf = io.BytesIO()
+    piped_stream = io.TextIOWrapper(
+        buf, encoding="utf-8", newline="\n", line_buffering=False
+    )
+    redirect = util.RedirectText(piped_stream)
+
+    redirect.write("Writing at 0x00010000 (50%)\r")
+
+    # No explicit flush here on purpose: RedirectText has to do it.
+    assert buf.getvalue() == b"Writing at 0x00010000 (50%)\r"
+
+
 def test_redirect_text_callback_called_on_matching_line() -> None:
     """Test that a line callback is called and its output is written."""
     results: list[str] = []
@@ -789,7 +809,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("bars: \u2582\u2584\u2586\u2588 done")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Output is a clean line, not the bytes repr.
@@ -814,7 +834,7 @@ class TestSafePrint:
         monkeypatch.setattr(sys, "stdout", cp1252_stream)
 
         util.safe_print("\033[0;32m\u2582\u2584\u2586\u2588\033[0m")
-        cp1252_stream.flush()
+        # No explicit flush: the fallback path has to flush too.
         output = buf.getvalue().decode("cp1252")
 
         # Dashboard escaping turned ESC into literal "\033" (5 chars), which
