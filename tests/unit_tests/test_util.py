@@ -445,7 +445,7 @@ def test_redirect_text_flushes_so_piped_output_streams() -> None:
 
 @pytest.mark.parametrize(
     "break_char",
-    ["\x0c", "\x0b", "\x1c", "\x1d", "\x1e", "\x85", " ", " "],
+    ["\x0c", "\x0b", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"],
     ids=["formfeed", "vtab", "fs", "gs", "rs", "nel", "lsep", "psep"],
 )
 def test_redirect_text_keeps_output_after_an_exotic_break_character(

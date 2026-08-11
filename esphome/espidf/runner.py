@@ -144,12 +144,13 @@ def main() -> int:
 
         * ``isatty()`` unconditionally returns True, tricking downstream
           code into emitting TTY-format output.
-        * Input is split on ``\\n`` / ``\\r`` via
-          ``str.splitlines(keepends=True)`` and any complete line whose
+        * Input is split with ``str.splitlines(keepends=True)``, which
+          breaks on more than ``\\n`` and ``\\r``; form feed and a few
+          other control characters count too. Any piece whose
           ANSI-stripped, right-stripped form matches one of
           ``filter_lines`` is dropped.
-        * Incomplete trailing chunks are held in a buffer until a
-          terminator arrives.
+        * Only the final piece can be an unfinished line. It is held in a
+          buffer until a ``\\n`` or ``\\r`` arrives.
 
         Mirrors the matching semantics of ``esphome.util.RedirectText``
         so filter patterns behave identically in both the PlatformIO
@@ -229,11 +230,13 @@ def main() -> int:
                 self._emit(data)
             else:
                 lines = (self._line_buffer + data).splitlines(keepends=True)
-                # Only the last piece can be unfinished; hold that one and
-                # write out the rest. Checking every piece instead used to
-                # stop at the first one that ended on a character
-                # ``str.splitlines`` counts as a break but we do not, such as
-                # a form feed, and throw away every complete line behind it.
+                # Only the last piece can be an unfinished line, so hold
+                # that one and write out the rest.
+                #
+                # ``str.splitlines`` also breaks on characters we do not
+                # treat as line endings, such as a form feed. Checking every
+                # piece used to stop at the first of those and drop every
+                # complete line behind it.
                 if lines and not lines[-1].endswith(("\n", "\r")):
                     self._line_buffer = lines.pop()
                 else:

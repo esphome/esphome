@@ -230,11 +230,13 @@ class RedirectText:
 
         if self._filter_pattern is not None or self._line_callbacks:
             lines = (self._line_buffer + s).splitlines(True)
-            # Only the last piece can be an unfinished line; hold that one and
-            # write out the rest. Checking every piece instead used to stop at
-            # the first one that ended on a character ``str.splitlines`` counts
-            # as a break but we do not, such as a form feed, and throw away
-            # every complete line behind it.
+            # Only the last piece can be an unfinished line, so hold that
+            # one and write out the rest.
+            #
+            # ``str.splitlines`` also breaks on characters we do not treat as
+            # line endings, such as a form feed. Checking every piece used to
+            # stop at the first of those and drop every complete line behind
+            # it.
             if lines and not lines[-1].endswith(("\n", "\r")):
                 self._line_buffer = lines.pop()
             else:
