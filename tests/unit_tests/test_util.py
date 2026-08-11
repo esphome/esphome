@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome import util
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+from esphome.core import CORE
 
 
 def test_list_yaml_files_with_files_and_directories(tmp_path: Path) -> None:
@@ -520,14 +522,7 @@ def test_redirect_text_drain_is_a_no_op_when_nothing_is_held() -> None:
 def test_flash_error_help_is_quiet_when_core_is_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression: this used to raise ``KeyError`` in a runner subprocess.
-
-    ``RedirectText`` filters PlatformIO's output from inside the runner, which
-    gets a fresh ``CORE`` that was never set up. Reading the platform there
-    raised, so the flash-overflow line, the very one this tip exists for,
-    crashed the runner instead of getting the tip.
-    """
-    from esphome.core import CORE
+    """Regression: reading the platform used to raise in the runner."""
 
     monkeypatch.setattr(CORE, "data", {})
     monkeypatch.delenv(util.ESP32_ARDUINO_ENV, raising=False)
@@ -539,7 +534,6 @@ def test_flash_error_help_reads_the_env_var_when_core_is_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The parent tells the subprocess what it cannot work out for itself."""
-    from esphome.core import CORE
 
     monkeypatch.setattr(CORE, "data", {})
     monkeypatch.setenv(util.ESP32_ARDUINO_ENV, "1")
@@ -553,14 +547,7 @@ def test_flash_error_help_reads_the_env_var_when_core_is_unconfigured(
 def test_is_esp32_arduino_build_raises_on_a_half_filled_core(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A CORE that was set up but left incomplete is a bug, so it must raise.
-
-    Only a CORE nobody set up at all means we are in a runner subprocess.
-    Treating a half filled in one the same way would quietly answer a real
-    build from the environment.
-    """
-    from esphome.const import KEY_CORE
-    from esphome.core import CORE
+    """A half filled in CORE is a bug, so it must raise, not fall back."""
 
     monkeypatch.setattr(CORE, "data", {KEY_CORE: {}})
     monkeypatch.setenv(util.ESP32_ARDUINO_ENV, "1")
@@ -581,8 +568,6 @@ def test_is_esp32_arduino_build_from_a_configured_core(
     monkeypatch: pytest.MonkeyPatch, platform: str, framework: str, expected: bool
 ) -> None:
     """With CORE set up, it is the source of truth and the env var is ignored."""
-    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
-    from esphome.core import CORE
 
     monkeypatch.setattr(
         CORE,
@@ -598,7 +583,6 @@ def test_redirect_text_survives_a_flash_error_without_core(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The overflow line goes through even from a process with no CORE."""
-    from esphome.core import CORE
 
     monkeypatch.setattr(CORE, "data", {})
     monkeypatch.delenv(util.ESP32_ARDUINO_ENV, raising=False)
@@ -1063,7 +1047,6 @@ class TestSafePrint:
     @pytest.fixture(autouse=True)
     def _no_dashboard(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Default ``CORE.dashboard`` to False so each test starts hermetic."""
-        from esphome.core import CORE
 
         monkeypatch.setattr(CORE, "dashboard", False)
 
@@ -1085,7 +1068,6 @@ class TestSafePrint:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         r"""Dashboard mode escapes raw ``\033`` ESC bytes to literal ``\\033``."""
-        from esphome.core import CORE
 
         monkeypatch.setattr(CORE, "dashboard", True)
         util.safe_print("\033[0;32mhi\033[0m")
@@ -1152,7 +1134,6 @@ class TestSafePrint:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Dashboard ESC escaping + cp1252 fallback compose correctly."""
-        from esphome.core import CORE
 
         monkeypatch.setattr(CORE, "dashboard", True)
         buf = io.BytesIO()

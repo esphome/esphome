@@ -344,13 +344,7 @@ def test_run_platformio_cli_flags_an_esp32_arduino_build(
     framework: str,
     expected: str | None,
 ) -> None:
-    """The runner filters output in a subprocess with no configured CORE.
-
-    It offers the out-of-flash tip from there, so it needs to be told which
-    platform this is; anything else must not be flagged. The variable is
-    seeded first, so an inherited one has to be cleared rather than passed
-    through to a build it does not suit.
-    """
+    """Only an ESP32 Arduino build is flagged, and an inherited one is cleared."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: platform,
@@ -370,12 +364,7 @@ def test_run_platformio_cli_flags_an_esp32_arduino_build(
 def test_run_platformio_cli_ignores_an_inherited_flag_without_core(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
-    """An inherited flag must not end up answering for CORE.
-
-    ``is_esp32_arduino_build`` falls back to this same variable, so deciding
-    with it here would let a stray value in our own environment decide what
-    we pass on.
-    """
+    """An inherited flag must not end up answering for CORE."""
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.data.pop(KEY_CORE, None)
 

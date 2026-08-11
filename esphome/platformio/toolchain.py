@@ -342,14 +342,9 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     base_env = kwargs.pop("env", None)
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
-    # The runner filters PlatformIO's output in the subprocess, so the
-    # out-of-flash tip is offered from there. That process has no configured
-    # CORE to ask which platform this is, so tell it.
-    #
-    # Ask CORE directly rather than through is_esp32_arduino_build(), which
-    # falls back to this same variable; reading what we are about to write
-    # would let a stray value in our own environment answer for us. Clear an
-    # inherited one so it cannot reach a build it does not suit.
+    # The runner offers the out-of-flash tip but has no configured CORE, so
+    # tell it. Ask CORE, not is_esp32_arduino_build(), which reads this same
+    # variable; clear an inherited one so it cannot reach the wrong build.
     if CORE.is_configured and CORE.is_esp32 and CORE.using_arduino:
         env[ESP32_ARDUINO_ENV] = "1"
     else:

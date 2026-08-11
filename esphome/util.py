@@ -142,8 +142,8 @@ def shlex_quote(s: str | Path) -> str:
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
-# Set by the parent when it spawns the PlatformIO runner, so the out-of-flash
-# tip can still be offered from a process that has no configured ``CORE``.
+# Tells the PlatformIO runner subprocess, which has no configured CORE, that
+# this is an ESP32 Arduino build.
 ESP32_ARDUINO_ENV = "ESPHOME_ESP32_ARDUINO_BUILD"
 
 ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
@@ -526,20 +526,16 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
 
 
 def is_esp32_arduino_build() -> bool:
-    """Whether the build in progress targets ESP32 with the Arduino framework.
+    """Whether the build targets ESP32 with the Arduino framework.
 
-    ``RedirectText`` asks this from the PlatformIO runner subprocess as well,
-    and that process gets a fresh ``CORE`` that was never configured, so
-    reading the platform from it raises. The parent passes the answer through
-    the environment instead.
+    The PlatformIO runner subprocess has no configured CORE, so the parent
+    passes the answer in the environment.
     """
     from esphome.core import CORE
 
     if not CORE.is_configured:
-        # Nothing set this CORE up, so we are in the runner subprocess. Note
-        # that a CORE which was set up but left half filled in still counts
-        # as configured, so reading from it raises rather than quietly
-        # falling back to what the environment claims.
+        # The runner subprocess. A half filled in CORE still counts as
+        # configured, so reading from it raises instead of landing here.
         return os.environ.get(ESP32_ARDUINO_ENV) == "1"
     return CORE.is_esp32 and CORE.using_arduino
 
