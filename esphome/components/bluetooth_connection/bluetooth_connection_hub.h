@@ -137,9 +137,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   }
   void clear_pending_ack_() { this->pending_ack_ = PendingAck::PENDING_ACK_NONE; }
   /// Drop an owed reply when the client re-asks about that handle: clients
-  /// match on (address, handle), so a stale one would resolve the retried
-  /// request before the peripheral answered. Handle alone, so a read can
-  /// supersede an owed write reply; that costs a timeout, the safe direction.
+  /// match on (address, handle), so a stale one would resolve the new request.
   void supersede_pending_ack_(uint16_t handle) {
     if (this->has_pending_ack_() && this->pending_ack_handle_ == handle) {
       this->clear_pending_ack_();
