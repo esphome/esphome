@@ -18,12 +18,11 @@ namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.rp2";
 
-// The on-die temperature sensor sits on the last ADC channel, and which one
-// that is depends on the chip: input 4 on RP2040 and RP2350A, but input 8 on
-// RP2350B, which has eight external channels instead of four. The SDK resolves
-// it for the target being built, so do not hardcode it. The ADC returns a raw
-// conversion, so the datasheet formula below turns it into degrees Celsius.
-static constexpr uint8_t TEMPERATURE_ADC_INPUT = ADC_TEMPERATURE_CHANNEL_NUM;
+// Temperature sensor input: 4 on RP2040/RP2350A, 8 on RP2350B. The SDK's
+// ADC_TEMPERATURE_CHANNEL_NUM is wrong under arduino-pico: it reads
+// PICO_RP2350A, which pins_arduino.h defines only after <pico.h> baked in
+// the RP2350B channel count.
+static constexpr uint8_t TEMPERATURE_ADC_INPUT = __GPIOCNT - __FIRSTANALOGGPIO;
 static constexpr float ADC_VREF = 3.3f;
 static constexpr float ADC_RESOLUTION = 4096.0f;  // 12-bit
 // RP2040 datasheet 4.9.5 / RP2350 datasheet 12.4.6: T = 27 - (V - 0.706) / 0.001721
