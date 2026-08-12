@@ -1,0 +1,21 @@
+<<: !include common.yaml
+
+zephyr:
+  variant: ESP32C3
+  single_slot: true
+  overlays:
+    app: |
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x20000 DT_SIZE_K(3584)>;
+      };
+    mcuboot: |
+      / {
+        chosen {
+          zephyr,code-partition = &boot_partition;
+        };
+      };
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x20000 DT_SIZE_K(3584)>;
+      };

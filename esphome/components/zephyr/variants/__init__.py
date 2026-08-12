@@ -25,6 +25,7 @@ from esphome.types import ConfigType
 
 from ..const import (
     CONF_NINJA_VERSION,
+    CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_ZEPHYR,
@@ -374,6 +375,7 @@ def set_core_data(
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
+        single_slot=config.get(CONF_SINGLE_SLOT, False),
     )
 
 
