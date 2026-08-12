@@ -461,6 +461,8 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
+    # FlashDB finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
