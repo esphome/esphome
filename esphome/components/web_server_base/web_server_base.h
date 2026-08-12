@@ -112,11 +112,16 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 class WebServerBase final {
  public:
+  // The AsyncWebServer is created once and intentionally never deleted: on Arduino
+  // platforms ESPAsyncWebServer owns its registered handlers, so destroying it would
+  // also destroy live components (e.g. the captive portal) out from under us.
+  // init()/deinit() refcount users and start/stop the listener; handlers are
+  // registered once at creation and survive listener restarts.
   void init() {
     this->initialized_++;
     if (this->server_ != nullptr) {
       if (this->initialized_ == 1) {
-        // Restart the listener after a previous deinit(); handlers are still registered.
+        // Restart the listener after a previous deinit()
         this->server_->begin();
       }
       return;
@@ -132,11 +137,10 @@ class WebServerBase final {
       this->server_->addHandler(handler);
   }
   void deinit() {
+    if (this->initialized_ == 0)
+      return;  // unbalanced deinit()
     this->initialized_--;
-    if (this->initialized_ == 0 && this->server_ != nullptr) {
-      // Stop listening but never delete the server: on Arduino platforms
-      // ESPAsyncWebServer owns its handlers, so deleting it would delete
-      // registered components (e.g. the captive portal) out from under us.
+    if (this->initialized_ == 0) {
       this->server_->end();
     }
   }
