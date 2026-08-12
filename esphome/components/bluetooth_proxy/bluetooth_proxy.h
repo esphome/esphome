@@ -138,8 +138,8 @@ class BluetoothProxy final : public Component {
   }
 
   /// False only when a subscriber refused the frame; true = delivered or
-  /// nobody subscribed. Request-answer callers ignore the result (client
-  /// timeouts cover those); only reset_connection_slot_ latches for retry.
+  /// nobody subscribed. Refusals latch in send_device_disconnected_() and
+  /// send_connected_reply_(); other callers report via log_reply_dropped_().
   bool send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, conn_err_t error = CONN_OK);
   void send_connections_free();
   void send_connections_free(api::APIConnection *api_connection);
@@ -147,11 +147,13 @@ class BluetoothProxy final : public Component {
   bool send_gatt_services_done(uint64_t address);
   /// False only when the API refused the frame, so the reply is still owed.
   bool send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error);
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   void send_device_pairing(uint64_t address, bool paired, conn_err_t error = CONN_OK);
   /// No default error: the drain rebuilds success as (error == CONN_OK), so a
   /// caller that omitted it would have a reported failure resent as a success.
   void send_device_unpairing(uint64_t address, bool success, conn_err_t error);
   void send_device_clear_cache(uint64_t address, bool success, conn_err_t error = CONN_OK);
+#endif
 
   void bluetooth_scanner_set_mode(bool active);
 
@@ -230,6 +232,9 @@ class BluetoothProxy final : public Component {
   void flush_pending_advertisements_() {
     if (this->response_.advertisements_len == 0)
       return;
+    // The one deliberately ignored result: advertisements are perishable and
+    // this is the highest-frequency send here, so reporting each drop would be
+    // the flood the batch pacing exists to avoid.
     this->api_connection_->send_message(this->response_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     this->log_advertisement_flush_();
@@ -282,6 +287,15 @@ class BluetoothProxy final : public Component {
   void reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason);
   /// Drop any owed freed-slot notification for this address (client reconnected).
   void clear_pending_disconnection_(uint64_t address);
+  /// Send connected=false and pool it for the paced drain if refused. A
+  /// dropped disconnect desynchronises the proxy: the client keeps a link it
+  /// believes is live and every operation on it times out. Unsolicited and
+  /// drained notifications only; request answers use the variant below.
+  void send_device_disconnected_(uint64_t address, conn_err_t error = CONN_OK);
+  /// Answer a request with connected=false. Never pools: a refusal falls back
+  /// to the client's request timeout, keeping the pool for the unsolicited
+  /// notifications the client cannot recover on its own.
+  void answer_device_disconnected_(uint64_t address);
   /// Pool a refused freed-slot notification for the paced drain.
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
@@ -291,6 +305,12 @@ class BluetoothProxy final : public Component {
   /// Drops state only, never sends: api_connection_ is the departing
   /// subscriber on subscribe and nullptr on unsubscribe.
   void reset_owed_replies_();
+  /// Report a reply we deliberately do not latch, so no drop is silent.
+  void log_reply_dropped_(const char *what, uint64_t address);
+  /// A latched reply's leading edge; the drain's re-refusals stay quiet.
+  void log_reply_deferred_(const char *what, uint64_t address);
+  /// A latched reply lost to a newer one for a different address.
+  void log_reply_displaced_(const char *what, uint64_t owed, uint64_t address);
 
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)

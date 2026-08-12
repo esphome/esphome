@@ -122,6 +122,18 @@ void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const
 }
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
 
+void BluetoothProxy::log_reply_dropped_(const char *what, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, TCP buffer full", what, address);
+}
+
+void BluetoothProxy::log_reply_deferred_(const char *what, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " deferred, TCP buffer full", what, address);
+}
+
+void BluetoothProxy::log_reply_displaced_(const char *what, uint64_t owed, uint64_t address) {
+  ESP_LOGW(TAG, "%s reply for %012" PRIX64 " dropped, displaced by %012" PRIX64, what, owed, address);
+}
+
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
   ESP_LOGW(TAG, "Cannot %s GATT %s, not connected", action, type);
 }
@@ -129,7 +141,10 @@ void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *typ
 void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action,
                                                 const char *type) {
   this->log_not_connected_gatt_(action, type);
-  this->send_gatt_error(address, handle, GATT_NOT_CONNECTED);
+  if (!this->send_gatt_error(address, handle, GATT_NOT_CONNECTED)) {
+    // No connection, so nothing to latch against; the client's timeout arbitrates.
+    this->log_reply_dropped_("Not-connected", address);
+  }
 }
 
 void BluetoothProxy::log_advertisement_flush_() {
@@ -209,12 +224,12 @@ void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t e
     }
   }
   if (free_entry != nullptr) {
+    this->log_reply_deferred_("Disconnect", address);
     free_entry->set(address, error);
     return;
   }
   // Every entry is owed: evict the first so the newest loss is not silent too.
-  ESP_LOGW(TAG, "Owed disconnect dropped (0x%llx), retry pool full",
-           (unsigned long long) this->pending_disconnections_[0].address());
+  this->log_reply_displaced_("Disconnect", this->pending_disconnections_[0].address(), address);
   this->pending_disconnections_[0].set(address, error);
 }
 
@@ -224,19 +239,39 @@ void BluetoothProxy::clear_pending_disconnection_(uint64_t address) {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     if (this->pending_disconnections_[i].matches(address)) {
       this->pending_disconnections_[i].clear();
+      return;  // latch_pending_disconnection_ keeps at most one entry per address
     }
   }
 }
 
-void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
-  if (!this->send_device_connection(connection->get_address(), false, 0, reason)) {
-    // The client has no other way to learn of an unsolicited disconnect;
-    // latch and let loop()'s paced drain deliver it. V by design: a louder
-    // level would ride the same congested link this reports on.
-    ESP_LOGV(TAG, "[%d] [%s] Disconnect notification deferred, TCP buffer full", connection->get_connection_index(),
-             connection->address_str());
-    this->latch_pending_disconnection_(connection->get_address(), reason);
+void BluetoothProxy::answer_device_disconnected_(uint64_t address) {
+  if (this->send_device_connection(address, false)) {
+    // A landed answer satisfies any owed notification for the address; a
+    // drained duplicate would follow it otherwise.
+    this->clear_pending_disconnection_(address);
+    return;
   }
+  // Not latched: the client's own request timeout arbitrates, and pooling
+  // these would let a request retry loop displace an unsolicited disconnect.
+  this->log_reply_dropped_("Disconnect", address);
+}
+
+void BluetoothProxy::send_device_disconnected_(uint64_t address, conn_err_t error) {
+  if (this->send_device_connection(address, false, 0, error)) {
+    // A later disconnect landing for an address that still has one owed would
+    // otherwise have the drain repeat it.
+    this->clear_pending_disconnection_(address);
+    return;
+  }
+  // A dropped disconnect leaves the client believing the link is live, so
+  // every GATT operation on it times out until something else corrects it.
+  // latch_pending_disconnection_() reports the leading edge.
+  this->latch_pending_disconnection_(address, error);
+}
+
+void BluetoothProxy::reset_connection_slot_(BluetoothConnection *connection, conn_err_t reason) {
+  // The client has no other way to learn of an unsolicited disconnect.
+  this->send_device_disconnected_(connection->get_address(), reason);
   connection->set_address(0);
   connection->send_service_ = INIT_SENDING_SERVICES;
   this->send_connections_free();
@@ -282,18 +317,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
-        this->send_device_connection(msg.address, false);
+        this->answer_device_disconnected_(msg.address);
         return;
       }
       if (!msg.has_address_type) {
         ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
                  connection->address_str());
-        this->send_device_connection(msg.address, false);
+        this->answer_device_disconnected_(msg.address);
         return;
       }
       if (connection->state() == ClientState::CONNECTED || connection->state() == ClientState::ESTABLISHED) {
         this->log_connection_request_ignored_(connection, connection->state());
-        this->send_device_connection(msg.address, true);
+        connection->send_connected_reply_();
         this->send_connections_free();
         return;
       } else if (connection->state() == ClientState::DISCONNECTING && connection->cancel_teardown()) {
@@ -320,7 +355,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       auto *connection = this->get_connection_(msg.address, false);
       if (connection == nullptr) {
-        this->send_device_connection(msg.address, false);
+        this->answer_device_disconnected_(msg.address);
         this->send_connections_free();
         return;
       }
@@ -328,7 +363,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->disconnect();
       } else {
         connection->set_address(0);
-        this->send_device_connection(msg.address, false);
+        this->answer_device_disconnected_(msg.address);
         this->send_connections_free();
       }
       break;
@@ -372,7 +407,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       ESP_LOGE(TAG, "V1 connections removed");
-      this->send_device_connection(msg.address, false);
+      this->answer_device_disconnected_(msg.address);
       break;
     }
   }
@@ -484,7 +519,8 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
   if (this->api_connection_ == nullptr)
     return;
-  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
+  // Not latched (esp32 parity): the request is idempotent, so a drop resolves
+  // via the client timeout and a retry gives the same answer. Still reported.
 
   auto *connection = this->get_connection_(msg.address, false);
   api::BluetoothSetConnectionParamsResponse resp;
@@ -495,7 +531,9 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
              connection ? static_cast<int>(connection->get_connection_index()) : -1,
              connection ? connection->address_str() : "unknown");
     resp.error = GATT_NOT_CONNECTED;
-    this->api_connection_->send_message(resp);
+    if (!this->api_connection_->send_message(resp)) {
+      this->log_reply_dropped_("Connection-params", msg.address);
+    }
     return;
   }
 
@@ -506,7 +544,9 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
                                                     static_cast<uint16_t>(std::min(msg.max_interval, max_val)),
                                                     static_cast<uint16_t>(std::min(msg.latency, max_val)),
                                                     static_cast<uint16_t>(std::min(msg.timeout, max_val)));
-  this->api_connection_->send_message(resp);
+  if (!this->api_connection_->send_message(resp)) {
+    this->log_reply_dropped_("Connection-params", msg.address);
+  }
 }
 
 #endif  // BLUETOOTH_CONNECTION_HAS_GATT
@@ -568,9 +608,9 @@ void BluetoothProxy::loop() {
 
   if (this->connections_free_pending_ && this->api_connection_ != nullptr) {
     // Resend a dropped slot-state update, paced by the 100 ms gate so the
-    // retry does not hammer the congestion it exists to survive; the
-    // advertisement-only arm answers DISCONNECT requests with this message
-    // too, so the drain compiles on every proxy build.
+    // retry does not hammer the congestion it exists to survive. Every build
+    // sends this at subscribe time (api_connection.cpp), so the drain
+    // compiles on every proxy build.
     this->connections_free_pending_ = false;
     this->send_connections_free(this->api_connection_);
   }
@@ -593,17 +633,17 @@ void BluetoothProxy::loop() {
   // Paced retries of owed per-slot notifications; subscriber swaps clear
   // stale latches before this runs.
   for (uint8_t i = 0; i < this->connection_count_; i++) {
-    auto *connection = this->connections_[i];
-    if (connection->send_service_ == SERVICES_DONE_PENDING) {
-      connection->send_services_done_();
-    }
-    if (connection->has_pending_ack_()) {
-      connection->flush_pending_ack_();
-    }
+    this->connections_[i]->flush_owed_replies_();
+  }
+  // Address-keyed, not slot-keyed, so it gets its own loop; bounded by
+  // connection_count_ like the latch and clear helpers. Not pre-cleared:
+  // the sender clears on success and re-latches on refusal, keeping the
+  // latch's leading-edge warn honest (same shape as the unpair drain).
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto &owed = this->pending_disconnections_[i];
-    if (!owed.empty() && this->send_device_connection(owed.address(), false, 0, owed.error())) {
-      owed.clear();
-    }
+    if (owed.empty())
+      continue;
+    this->send_device_disconnected_(owed.address(), owed.error());
   }
 
   // An owed unpair reply. Not pre-cleared: the sender clears on success and
@@ -632,75 +672,21 @@ void BluetoothProxy::loop() {
 
 #ifndef BLUETOOTH_CONNECTION_HAS_GATT
 
-// Advertisement-only proxy. GATT client connections are excluded at compile
-// time (no connection backend on this platform, or active: false), so every
-// connection-oriented request is answered with a clean error instead of
-// silence, and Home Assistant treats the proxy as passive.
+// Advertisement-only proxy: no connection backend on this platform, or
+// active: false. get_feature_flags() then omits FEATURE_ACTIVE_CONNECTIONS,
+// so a client treats the proxy as passive and never sends a connection or
+// GATT request. These exist only because the api layer dispatches them
+// unconditionally; answering would link response encoders this build has no
+// use for.
 
-void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
-  switch (msg.request_type) {
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
-      ESP_LOGW(TAG, "Active connections are not supported on this platform");
-      this->send_device_connection(msg.address, false, 0, GATT_NOT_CONNECTED);
-      break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
-      // Not an error: the device is already disconnected, which is the requested state.
-      this->send_device_connection(msg.address, false);
-      this->send_connections_free();
-      break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-      this->send_device_pairing(msg.address, false, GATT_NOT_CONNECTED);
-      break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
-      // Address-scoped maintenance needs no connection slot: real on esp32
-      // (Bluedroid bond table), the stub elsewhere keeps the old error reply.
-      conn_err_t ret = bluetooth_connection::unpair_device(msg.address);
-      this->send_device_unpairing(msg.address, ret == CONN_OK, ret);
-      break;
-    }
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
-      conn_err_t ret = bluetooth_connection::clear_gatt_cache(msg.address);
-      this->send_device_clear_cache(msg.address, ret == CONN_OK, ret);
-      break;
-    }
-  }
-}
-
-void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "read", "descriptor");
-}
-
-void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "write", "descriptor");
-}
-
-void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, 0, "get", "services");
-}
-
-void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
-  this->handle_gatt_not_connected_(msg.address, msg.handle, "notify", "characteristic");
-}
-
-void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
-  if (this->api_connection_ == nullptr)
-    return;
-  // Send results unchecked (esp32 parity): a drop resolves via the client timeout.
-  api::BluetoothSetConnectionParamsResponse resp;
-  resp.address = msg.address;
-  resp.error = GATT_NOT_CONNECTED;
-  this->api_connection_->send_message(resp);
-}
+void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {}
+void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {}
+void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {}
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
 
@@ -723,8 +709,9 @@ void BluetoothProxy::reset_owed_replies_() {
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     // Neither a partial stream's tail nor an owed done belongs to the next
     // session; silence (the client's timeout) arbitrates.
-    this->connections_[i]->park_service_stream_();
-    this->connections_[i]->clear_pending_ack_();
+    auto *connection = this->connections_[i];
+    connection->park_service_stream_();
+    connection->clear_owed_flags_();
   }
 #endif
 }
@@ -810,6 +797,7 @@ bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err
   return this->api_connection_->send_message(call);
 }
 
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
@@ -818,13 +806,16 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
   call.paired = paired;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    // Not latched: a retried PAIR is answered from is_paired(), so the client
+    // recovers on its own. Still worth saying it happened.
+    this->log_reply_dropped_("Pairing", address);
+  }
 }
 
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
   // An owed success is the authoritative answer: a later attempt for the
   // same address fails only because the first already removed the bond.
   if (!this->pending_unpairing_.empty() && this->pending_unpairing_.matches(address) &&
@@ -832,38 +823,29 @@ void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_
     success = true;
     error = CONN_OK;
   }
-#endif
   api::BluetoothDeviceUnpairingResponse call;
   call.address = address;
   call.success = success;
   call.error = error;
 
-  // Advertisement-only builds answer this with a canned reply and keep no
-  // retry state, so only the latch is conditional, not the send.
-  [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-  if (sent) {
+  if (this->api_connection_->send_message(call)) {
     // A later unpair landing for an address that still has one owed would
     // otherwise have the drain repeat it.
     if (this->pending_unpairing_.matches(address)) {
       this->pending_unpairing_.clear();
     }
-  } else {
-    // Warn on the leading edge and on displacement (that one loses a reply);
-    // the drain's re-refusals of the same reply stay quiet.
-    if (this->pending_unpairing_.empty()) {
-      ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
-    } else if (!this->pending_unpairing_.matches(address)) {
-      ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
-               this->pending_unpairing_.address(), address);
-    }
-    this->pending_unpairing_.set(address, error);
+    return;
   }
-#endif
+  if (this->pending_unpairing_.empty()) {
+    this->log_reply_deferred_("Unpair", address);
+  } else if (!this->pending_unpairing_.matches(address)) {
+    this->log_reply_displaced_("Unpair", this->pending_unpairing_.address(), address);
+  }
+  this->pending_unpairing_.set(address, error);
 }
 
-// Shared by both platform paths: the neutral bluetooth_device_request() uses it to
-// answer a clear-cache request with a clean error, so it must not be esp32-guarded.
+// GATT arm only: the advertisement-only arm no longer dispatches CLEAR_CACHE,
+// so its response encoder would be dead weight there.
 void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
@@ -872,8 +854,12 @@ void BluetoothProxy::send_device_clear_cache(uint64_t address, bool success, con
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  if (!this->api_connection_->send_message(call)) {
+    // Not latched: clear-cache is idempotent, so a retry gives the same answer.
+    this->log_reply_dropped_("Clear-cache", address);
+  }
 }
+#endif
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

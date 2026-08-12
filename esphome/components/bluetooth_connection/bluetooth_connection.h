@@ -20,10 +20,9 @@
 // wired by codegen (one slot per connection). This is the single spelling of
 // that predicate - the hub wrapper and the API request handlers gate on it.
 // The wrapper serves the proxy's API surface, so it compiles only when a
-// backend AND the proxy are present; advertisement-only and backend-only
-// builds get the clean-error handlers instead. Address-scoped maintenance
-// (unpair, cache clear) still works there through the per-platform free
-// functions below.
+// backend AND the proxy are present. The address-scoped maintenance functions
+// below are only reached from that gated surface; their #else stubs just
+// keep this header parsing on arms without a backend.
 #if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
 #define BLUETOOTH_CONNECTION_HAS_GATT
 #endif
@@ -68,12 +67,12 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
+#if (defined(USE_ESP32) || defined(USE_RP2040_BLE)) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t unpair_device(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }

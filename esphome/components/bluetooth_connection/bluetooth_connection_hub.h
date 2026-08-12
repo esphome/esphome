@@ -151,6 +151,20 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// caller rewinds the cursor), and a warning per attempt would add traffic
   /// to the connection already refusing frames. Both streamers route here.
   void note_batch_stalled_();
+  /// Send the connected=true reply, latching it if the API refuses. Rebuilt
+  /// from address_ and mtu_, so the latch is one bit; a dropped confirmation
+  /// leaves the client timing out while this slot holds a live link. No retry
+  /// bound: the slot's lifetime is the bound (teardown clears the flag).
+  void send_connected_reply_();
+  /// Re-offer everything this slot owes. One entry point so the proxy drain
+  /// does not have to know which latches exist.
+  void flush_owed_replies_();
+  /// Drop everything this slot owes, in one write to the shared tail byte.
+  void clear_owed_flags_() {
+    this->pending_ack_ = PendingAck::PENDING_ACK_NONE;
+    this->batch_stalled_ = false;
+    this->connected_reply_owed_ = false;
+  }
   /// Sole construction site for these replies, shared by send and retry.
   bool try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error);
   /// First attempt: send, and latch it for the drain if the API refuses.
@@ -162,6 +176,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   }
   /// Re-offer the owed reply; clears on success, stays owed on a refusal.
   void flush_pending_ack_();
+  /// Advance the retry budget and abandon at the limit, without sending.
+  void age_pending_ack_();
   // A backend providing its own streamer (see the contract doc) builds the
   // response in place from its stack cache; the rest use the table streamer.
   // Template so the discarded branch is not odr-checked against backends
@@ -177,8 +193,6 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// interrupted stream must never be declared complete (the client's
   /// timeout arbitrates), and an owed done is dropped with it.
   void park_service_stream_() {
-    // Agree with reset_connection_(): a stall flag left set would swallow the
-    // next session's leading-edge warning.
     this->batch_stalled_ = false;
     if (this->send_service_ >= 0) {
       this->backend_->release_services();
@@ -193,6 +207,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   /// retries). Callers release the table first; the message needs only the
   /// address.
   void send_services_done_();
+  /// Advance the retry budget and abandon at the limit, without sending.
+  void age_services_done_();
   void reset_connection_(conn_err_t reason);
   conn_err_t check_connected_op_(const char *action, const char *type) const;
   void log_gatt_operation_error_(const char *operation, uint16_t handle, int status);
@@ -220,8 +236,10 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   // uses tail slack instead of pushing address_ out by 6 bytes of padding.
   uint16_t pending_ack_handle_{0};
 
-  // Group 5: bit-packed tail. pending_ack_error_ takes the 8-aligned object
-  // from 48 to 56, so the third tail byte is free; first two stay packed.
+  // Group 5: bit-packed tail. The first two bytes were already full, so the
+  // first added bit forced a third and took the 8-aligned object 48 -> 56;
+  // the handle, error and retry counter ride in that padding. Four bitfield
+  // bits left; another byte-sized member costs 8 per slot.
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
                 "connection_type_ bitfield too narrow");
@@ -238,6 +256,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   PendingAck pending_ack_ : 2 {PendingAck::PENDING_ACK_NONE};
   /// Set while a refused batch is retrying, so only the first one warns.
   bool batch_stalled_ : 1 {false};
+  /// An owed connected=true reply; the proxy's paced drain re-offers it.
+  bool connected_reply_owed_ : 1 {false};
   // Plain byte after the bitfields: takes the padding byte instead of
   // straddling pending_ack_'s storage unit and growing the object.
   static_assert(PENDING_ACK_RETRY_LIMIT <= 0xFF, "retry counter too narrow");
