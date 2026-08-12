@@ -135,7 +135,10 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf) {
         buf = node.as<const char *>();  // unquoted string scalar
       } else {
         std::string serialized;
-        serializeJson(node, serialized);
+        if (serializeJson(node, serialized) == 0) {
+          ESP_LOGW(TAG, "extract json: serialization produced no output");
+          return false;
+        }
         buf = std::move(serialized);
       }
       return true;
