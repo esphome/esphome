@@ -71,8 +71,8 @@ class BLEClient final : public BLEClientBase {
 #ifdef USE_BLE_CLIENT_GATT_NODES
   int check_gatt_op_(const char *operation, esp_err_t err);
   void register_gatt_failure_();
-  void dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
-  void handle_gatt_search_cmpl_(esp_gatt_status_t status);
+  bool dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
+  bool handle_gatt_search_cmpl_(esp_gatt_status_t status);
   bool take_pending_gatt_reg_(uint16_t handle);
   void on_disconnect_complete(esp_err_t reason) override;
 #endif
