@@ -107,7 +107,9 @@ def _collect_mount_paths(
                 # A validated mount_path is always a str; a non-str here means a driver schema let
                 # one through, which would silently skip the duplicate-mount-point check.
                 if not isinstance(value, str):
-                    raise cv.Invalid(f"mount_path must be a string, not {type(value).__name__}")
+                    raise cv.Invalid(
+                        f"mount_path must be a string, not {type(value).__name__}"
+                    )
                 out.append((value, where))
             else:
                 _collect_mount_paths(value, where, out)
