@@ -56,9 +56,9 @@ def validate_sector_multiple(value):
     return value
 
 
-# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
-# Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
-# is a sanity cap so a typo can't request an unreasonable single allocation (e.g. 16777216).
+# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h. Lower bound matches
+# copy()'s allocation floor (4096, storage.cpp); upper bound is a sanity cap against a typo
+# requesting an unreasonable single allocation.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
@@ -68,10 +68,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_COPY_CHUNK_SIZE): cv.All(
             cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
-        # Longest relative path the API carries. No static default: absent means "the largest
-        # any configured driver asked for" (see request_path_length / to_code). Raising it also
-        # raises the tree walks' stack use -- two buffers per recursion level -- so the range
-        # is bounded and _validate_walk_budget() below checks it against task_stack_size.
+        # Longest relative path the API carries. No static default: absent means "the largest any
+        # configured driver asked for" (see request_path_length / to_code). Raising it also raises
+        # the tree walks' stack use (two buffers per level), so the range is bounded and
+        # _validate_walk_budget() below checks it against task_stack_size.
         cv.Optional(CONF_PATH_MAX): cv.int_range(min=64, max=1024),
         # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload in RAM.
         # storage.file_read takes whatever size the file happens to be -- on a node without PSRAM,
@@ -257,10 +257,10 @@ _DEFAULT_COPY_CHUNK_SIZE = 16384
 # Mirrors STORAGE_PATH_MAX's compile-time fallback in storage.h.
 _DEFAULT_PATH_MAX = 256
 
-# The copy walk's two path buffers are allocated once and shared by every level (see
-# append_path_segment in storage.cpp), so they are a flat cost. What scales with depth is the
-# walk's own frame plus the driver's list_dir()/remove() frames, where the FATFS LFN buffers
-# dominate. Keep 25% of the task stack free for whatever called into the walk.
+# The copy walk's two path buffers are allocated once and shared by every level (append_path_segment
+# in storage.cpp), a flat cost. What scales with depth is the walk's own frame plus the driver's
+# list_dir()/remove() frames (FATFS LFN buffers dominate). Keep 25% of the task stack free for the
+# caller.
 _WALK_DRIVER_STACK_PER_LEVEL = 830
 _WALK_STACK_HEADROOM = 0.75
 
@@ -349,8 +349,11 @@ async def to_code(config):
 
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
-    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
-    cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
+    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*. Only emit it
+    # when a driver registered a device; with none (every tests/components/storage/ config) storage.h
+    # keeps its own >0 fallback, so the header's "fallback unreachable in real builds" stays true.
+    if device_count > 0:
+        cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
