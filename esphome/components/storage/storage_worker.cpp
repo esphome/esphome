@@ -1466,6 +1466,14 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
 
   const uint64_t total = req.bytes_total.load();
   if (req.offset >= total) {
+    // A verify pass over a zero-length source never enters verify_chunk_ (the offset>=total check
+    // here fires first), so the pass is never counted and this would re-enter begin_verify_pass_
+    // forever. Close the empty pass here; for a non-empty pass verify_chunk_ has already counted it
+    // and cleared verifying, so this is a no-op there.
+    if (req.verifying) {
+      req.verify_pass_done++;
+      req.verifying = false;
+    }
     // Write (or the current verify pass) reached the end. If verify passes remain, rewind and
     // read the whole written range back, comparing against the source file; otherwise done.
     if (!to_file && req.verify_passes > 0 && req.verify_pass_done < req.verify_passes) {
