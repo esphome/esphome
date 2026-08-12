@@ -264,7 +264,9 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
     step_index++;
     if (!apply_extract_step(step, out)) {
       // step already logged; global untouched, on_value not fired -- report which one.
-      error = str_sprintf("extract step %d did not match", static_cast<int>(step_index));
+      char msg[48];
+      snprintf(msg, sizeof(msg), "extract step %d did not match", static_cast<int>(step_index));
+      error = msg;
       return false;
     }
   }
