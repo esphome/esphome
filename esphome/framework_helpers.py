@@ -1123,18 +1123,19 @@ def download_from_mirrors(
         transient = next(
             ((u, e) for u, e in failures if _is_transient_download_error(e)), None
         )
-        if transient is None or sweep == _MIRROR_SWEEP_ATTEMPTS:
+        if transient is None:
             break
-        delay = 2**sweep
-        _LOGGER.warning(
-            "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
-            transient[0],
-            _failure_reason(transient[1]),
-            delay,
-            sweep + 1,
-            _MIRROR_SWEEP_ATTEMPTS,
-        )
-        time.sleep(delay)
+        if sweep < _MIRROR_SWEEP_ATTEMPTS:
+            delay = 2**sweep
+            _LOGGER.warning(
+                "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
+                transient[0],
+                _failure_reason(transient[1]),
+                delay,
+                sweep + 1,
+                _MIRROR_SWEEP_ATTEMPTS,
+            )
+            time.sleep(delay)
 
     # 4. Report every attempted URL if all mirrors failed. Falling back
     # past an early mirror is normal (e.g. only one of the framework URL
