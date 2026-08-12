@@ -92,7 +92,7 @@ enum GrowAuraLEDColor {
   WHITE = 0x07,
 };
 
-class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {
+class FingerprintGrowComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void update() override;
   void setup() override;
@@ -209,7 +209,8 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
 };
 
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+template<typename... Ts>
+class EnrollmentAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
   TEMPLATABLE_VALUE(uint8_t, num_scans)
@@ -226,12 +227,12 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
 };
 
 template<typename... Ts>
-class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+class CancelEnrollmentAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->finish_enrollment(1); }
 };
 
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
 
@@ -241,12 +242,13 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
   }
 };
 
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->delete_all_fingerprints(); }
 };
 
-template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+template<typename... Ts>
+class LEDControlAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
@@ -256,7 +258,8 @@ template<typename... Ts> class LEDControlAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
+template<typename... Ts>
+class AuraLEDControlAction final : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, state)
   TEMPLATABLE_VALUE(uint8_t, speed)

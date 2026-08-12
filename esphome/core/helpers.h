@@ -33,7 +33,7 @@
 #include <pgmspace.h>
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <Arduino.h>
 #endif
 
@@ -184,8 +184,15 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
-  /// Set buffer contents, allocating heap if needed
-  void set(const uint8_t *src, size_t size) {
+  bool empty() const { return this->len_ == 0; }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<const uint8_t>() const { return std::span<const uint8_t>(this->data(), this->len_); }
+
+  /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
+  /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
+  /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
+  uint8_t *init(size_t size) {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
@@ -196,8 +203,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
     }
     this->len_ = size;
-    memcpy(this->data(), src, size);
+    return this->data();
   }
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) { memcpy(this->init(size), src, size); }
 
   uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
   const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
@@ -244,6 +254,11 @@ template<typename T, size_t N> class StaticVector {
         break;
       data_[count_++] = val;
     }
+  }
+
+  // Converting constructor from a smaller StaticVector of the same element type
+  template<size_t M> StaticVector(const StaticVector<T, M> &other) : StaticVector(other.begin(), other.end()) {
+    static_assert(M <= N, "Source StaticVector cannot be larger than the destination");
   }
 
   // Minimal vector-compatible interface - only what we actually use
@@ -683,6 +698,15 @@ template<typename T> class FixedVector {
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
+  /// Remove the last element in place (no reallocation, keeps capacity)
+  /// Caller must ensure vector is not empty (size() > 0)
+  void pop_back() {
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      data_[size_ - 1].~T();
+    }
+    size_--;
+  }
+
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
   size_t capacity() const { return capacity_; }
@@ -784,6 +808,19 @@ inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()
 constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
+
+/// Calculate a FNV-1 hash over raw bytes with an explicit length. Unlike fnv1_hash(const char *),
+/// each byte is hashed as an unsigned value, so results are platform-independent for bytes >= 0x80.
+/// IMPORTANT: Must match Python fnv1_hash_name() in esphome/helpers.py, which hashes the UTF-8
+/// encoded bytes of the name. Used to compute entity keys from raw names.
+inline uint32_t fnv1_hash_bytes(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    hash ^= static_cast<uint8_t>(str[i]);
+  }
+  return hash;
+}
 
 /// Extend a FNV-1 hash with an integer (hashes each byte).
 template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
@@ -989,12 +1026,20 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 // str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
-/// This computes object_id hashes directly from names without creating an intermediate buffer.
-/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
-/// If you modify this function, update the Python version and tests in both places.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+/// This is the LEGACY entity hash, kept only to reconstruct preference keys that existing
+/// devices already have stored; see https://github.com/esphome/backlog/issues/85.
+/// With per_code_point set, UTF-8 continuation bytes are skipped so each multi-byte character
+/// contributes one underscore — this matches Python fnv1_hash_object_id() in esphome/helpers.py,
+/// which produced the hash for named entities. The per-byte form (default) matches the old
+/// runtime hash for entities without their own name. Do not change either behavior.
+/// Known limitation: Python's lower() is Unicode aware, so the rare code points it maps to a
+/// different number of characters or to ASCII (e.g. 'İ', the Kelvin sign) reconstruct wrong;
+/// such names skip migration once and fall back to their defaults.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len, bool per_code_point = false) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
+    if (per_code_point && (static_cast<uint8_t>(str[i]) & 0xC0) == 0x80)
+      continue;  // UTF-8 continuation byte, already counted via its lead byte
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
     hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
@@ -1253,6 +1298,22 @@ ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v) { return format_hex
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
 ESPHOME_ALWAYS_INLINE inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
+
+/// Largest number of output bytes a single input byte can expand to when JSON escaped (a \u00XX sequence).
+static constexpr size_t JSON_ESCAPE_MAX_EXPANSION = 6;
+
+/// Copy value into buf, escaping the characters that cannot appear raw inside a JSON string literal.
+///
+/// Escapes " and \ along with the control characters below 0x20. Bytes >= 0x20 are copied verbatim, so text
+/// containing valid UTF-8 survives intact. The result is always null terminated; anything that would not fit is
+/// dropped rather than written partially. Returns buf so the call can be used directly as an argument.
+///
+/// With short_control_escapes the five control characters JSON gives a short form get it (\n \r \t \b \f) and the
+/// rest become \u00XX. Pass false to write every control character as \u00XX, which some consumers expect.
+///
+/// To size buf so that no input is ever dropped, allow JSON_ESCAPE_MAX_EXPANSION bytes per input byte plus one for
+/// the null terminator.
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes = true);
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
@@ -1611,6 +1672,12 @@ constexpr float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f
 /// Convert degrees Fahrenheit to degrees Celsius.
 constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
+enum class TemperatureUnit : uint8_t {
+  CELSIUS = 0,
+  FAHRENHEIT = 1,
+  KELVIN = 2,
+};
+
 ///@}
 
 /// @name Utilities
@@ -1886,7 +1953,7 @@ class Mutex {
   Mutex(const Mutex &) = delete;
   Mutex &operator=(const Mutex &) = delete;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
   // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
   Mutex() = default;
   ~Mutex() = default;
@@ -1955,7 +2022,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
 };
@@ -1973,7 +2040,7 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2)
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
@@ -2123,7 +2190,7 @@ template<class T> class RAMAllocator {
     auto max_external =
         this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
     return max_internal + max_external;
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     return ::rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
     return lt_heap_get_free();
