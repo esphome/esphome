@@ -1063,12 +1063,16 @@ CONF_FORCE_SLICED_ERASE = "force_sliced_erase"
 
 def _validate_raw_data(value: str | list) -> bytes | list:
     if isinstance(value, str):
-        return value.encode("utf-8")
-    if isinstance(value, list):
-        return cv.Schema([cv.hex_uint8_t])(value)
-    raise cv.Invalid(
-        "data must either be a string wrapped in quotes or a list of bytes"
-    )
+        data = value.encode("utf-8")
+    elif isinstance(value, list):
+        data = cv.Schema([cv.hex_uint8_t])(value)
+    else:
+        raise cv.Invalid(
+            "data must either be a string wrapped in quotes or a list of bytes"
+        )
+    if len(data) == 0:
+        raise cv.Invalid("data must not be empty; a raw write of 0 bytes is rejected at runtime")
+    return data
 
 
 def _validate_raw_read(config: ConfigType) -> ConfigType:
