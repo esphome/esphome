@@ -41,8 +41,7 @@ namespace esphome::storage {
 // manual .c_str() -- and args that already have one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
 template<typename T> inline T printf_arg(T v) {
-  static_assert(std::is_scalar_v<T>,
-                "storage printf args must be scalars or strings; add .c_str() or convert first");
+  static_assert(std::is_scalar_v<T>, "storage printf args must be scalars or strings; add .c_str() or convert first");
   return v;
 }
 
