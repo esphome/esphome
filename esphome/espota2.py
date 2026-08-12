@@ -531,8 +531,7 @@ def run_ota_impl_(
                 MAX_UPLOAD_ATTEMPTS,
             )
             time.sleep(UPLOAD_RETRY_DELAY)
-        for r in res:
-            af, socktype, _, _, sa = r
+        for af, socktype, _, _, sa in res:
             _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
             sock = socket.socket(af, socktype)
             sock.settimeout(20.0)

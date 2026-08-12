@@ -144,9 +144,11 @@ def test_receive_exactly_with_error_response(mock_socket: Mock) -> None:
 
     with pytest.raises(
         espota2.OTAError, match="receiving auth:.*Authentication invalid"
-    ):
+    ) as exc_info:
         espota2.receive_exactly(mock_socket, 1, "auth", [espota2.RESPONSE_OK])
 
+    # Device-reported errors must stay plain OTAError, not the retryable kind
+    assert not isinstance(exc_info.value, espota2.OTANetworkError)
     mock_socket.close.assert_called_once()
 
 
@@ -168,16 +170,6 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
         espota2.receive_exactly(mock_socket, 1, "test", espota2.RESPONSE_OK)
 
     mock_socket.close.assert_called_once()
-
-
-def test_receive_exactly_device_error_is_not_network_error(mock_socket: Mock) -> None:
-    """Test receive_exactly keeps device-reported errors as plain OTAError."""
-    mock_socket.recv.return_value = bytes([espota2.RESPONSE_ERROR_AUTH_INVALID])
-
-    with pytest.raises(espota2.OTAError) as exc_info:
-        espota2.receive_exactly(mock_socket, 1, "auth", [espota2.RESPONSE_OK])
-
-    assert not isinstance(exc_info.value, espota2.OTANetworkError)
 
 
 @pytest.mark.parametrize(
@@ -255,22 +247,16 @@ def test_check_error_unexpected_response() -> None:
         espota2.check_error([0x7F], [espota2.RESPONSE_OK, espota2.RESPONSE_AUTH_OK])
 
 
-def test_check_error_empty_data_is_network_error() -> None:
-    """Test check_error raises the retryable OTANetworkError subclass on empty data."""
-    with pytest.raises(espota2.OTANetworkError):
-        espota2.check_error(b"", espota2.RESPONSE_OK)
-
-
 def test_check_error_empty_data() -> None:
-    """Test check_error raises error when device closes connection without responding."""
+    """Test check_error raises the retryable OTANetworkError when the device closes the connection."""
     with pytest.raises(
-        espota2.OTAError, match="Device closed connection without responding"
+        espota2.OTANetworkError, match="Device closed connection without responding"
     ):
         espota2.check_error([], [espota2.RESPONSE_OK])
 
     # Also test with empty bytes
     with pytest.raises(
-        espota2.OTAError, match="Device closed connection without responding"
+        espota2.OTANetworkError, match="Device closed connection without responding"
     ):
         espota2.check_error(b"", [espota2.RESPONSE_OK])
 
