@@ -228,13 +228,26 @@ bool BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
   uint16_t service_total = 0;
   bool counted = status == ESP_GATT_OK && bluetooth_connection::BluedroidServiceTable::count_services(
                                               this->gattc_if_, this->conn_id_, &service_total);
+  if (!counted || service_total == 0) {
+    // A failed search poisons the whole discovery, legacy nodes included.
+    ESP_LOGW(TAG, "[%s] Discovery failed (status=%d, services=%u)", this->address_str(), status, service_total);
+    this->gatt_backoff_.register_failure(this->address_str());
+    this->disconnect();
+    return false;
+  }
   // Stack-owned; nodes copy their handles during on_connected().
   bluetooth_connection::BluedroidServiceTable table;
-  if (!counted || service_total == 0 ||
-      !table.build(this->gattc_if_, this->conn_id_, service_total, this->connection_index_)) {
-    // Distinguishes a failed search/count from a genuinely service-less peer.
-    ESP_LOGW(TAG, "[%s] Service table unavailable (status=%d, services=%u); treating as failed discovery",
-             this->address_str(), status, service_total);
+  if (!table.build(this->gattc_if_, this->conn_id_, service_total, this->connection_index_)) {
+    if (this->nodes_.size() > this->gatt_nodes_.size()) {
+      // Only the table build failed; legacy nodes read the base's services_
+      // and keep the link. Gatt nodes catch the next connection (promoted so
+      // the release condition still fires).
+      ESP_LOGW(TAG, "[%s] Service table build failed; gatt nodes skip this connection", this->address_str());
+      for (auto *node : this->gatt_nodes_)
+        node->node_state = espbt::ClientState::ESTABLISHED;
+      return true;
+    }
+    ESP_LOGW(TAG, "[%s] Service table build failed; treating as failed discovery", this->address_str());
     this->gatt_backoff_.register_failure(this->address_str());
     this->disconnect();
     return false;
