@@ -104,7 +104,7 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
 
   this->response_.advertisements_len++;
 
-  ESP_LOGV(TAG, "Queuing raw packet from %012" PRIX64 ", length %d. RSSI: %d dB", raw.address, length, raw.rssi);
+  ESP_LOGVV(TAG, "Queuing raw packet from %012" PRIX64 ", length %d. RSSI: %d dB", raw.address, length, raw.rssi);
 
   // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
   if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
@@ -152,8 +152,10 @@ void BluetoothProxy::handle_gatt_not_connected_(uint64_t address, uint16_t handl
 
 void BluetoothProxy::log_advertisement_flush_(bool sent) {
   if (sent) {
-    ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
+    // VV: one line per flush drowns a verbose log in any busy environment.
+    ESP_LOGVV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
   } else {
+    // The rare congestion signal stays at V.
     ESP_LOGV(TAG, "Batch of %u BLE advertisements dropped, TCP buffer full", this->response_.advertisements_len);
   }
 }
