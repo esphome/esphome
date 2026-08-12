@@ -47,6 +47,9 @@ class BLEClient : public Component,
   const char *address_str() const { return this->address_str_; }
 
   void register_ble_node(BLEClientNode *node);
+  // Every node on this engine is a neutral node; one registration spelling
+  // shared with the esp32 engine's bridge.
+  void register_gatt_node(BLEClientNode *node) { this->register_ble_node(node); }
 
   bool connected() const { return this->state_ == State::CONNECTED; }
   bool idle() const { return this->state_ == State::IDLE; }

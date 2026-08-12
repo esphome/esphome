@@ -334,21 +334,23 @@ async def register_ble_node(var, config):
     cg.add(parent.register_ble_node(var))
 
 
-async def register_gatt_node(var, config):
-    """Register a node on the platform-neutral interface (both engines)."""
-    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
-    # Sizes the client's neutral-node storage on every platform.
+def _request_gatt_node_build() -> None:
+    """Node storage plus, on esp32, the bridge and shared-materializer
+    defines one neutral node needs compiled in."""
     _request_node_slot()
     if CORE.is_esp32:
-        # The bridge, the neutral table structs, and the shared materializer.
         # Deliberately not ble_device_base.request_gatt_client(): that would
         # claim a phantom backend slot on combined proxy builds.
         cg.add_define("USE_BLE_CLIENT_GATT_NODES")
         cg.add_define("USE_BLE_GATT_CLIENT")
         cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
-        cg.add(parent.register_gatt_node(var))
-    else:
-        cg.add(parent.register_ble_node(var))
+
+
+async def register_gatt_node(var, config):
+    """Register a node on the platform-neutral interface (both engines)."""
+    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
+    _request_gatt_node_build()
+    cg.add(parent.register_gatt_node(var))
 
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
@@ -427,9 +429,8 @@ async def ble_connect_to_code(config, action_id, template_arg, args):
 )
 async def ble_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
-    if not CORE.is_esp32:
-        # The neutral action registers itself as a node in its constructor.
-        _request_node_slot()
+    # The action registers itself as a neutral node in its constructor.
+    _request_gatt_node_build()
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
     value = config[CONF_VALUE]
