@@ -195,7 +195,7 @@ def test_esp32_explicit_connections_claim_gatt_slots(
     bluetooth_proxy.CONFIG_SCHEMA({"active": True, "connections": [{}, {}]})
     # Exact match (one entry per slot): catches a missed charge and a
     # double charge alike.
-    assert bluetooth_connection._ledger().consumers == ["bluetooth_proxy"] * 2
+    assert bluetooth_connection._get_data().slot_consumers == ["bluetooth_proxy"] * 2
 
 
 def test_hub_source_filter_covers_every_hub_platform() -> None:
