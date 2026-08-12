@@ -78,6 +78,10 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     if (this->pending_notify_regs_ > 0)
       this->pending_notify_regs_--;
     int err = param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status;
+    if (err != 0) {
+      ESP_LOGW(TAG, "[%s] Notify enable on handle 0x%04x failed, status=%d", this->address_str(),
+               param->reg_for_notify.handle, err);
+    }
     for (auto *node : this->gatt_nodes_)
       node->on_notify_state(param->reg_for_notify.handle, true, err);
     // A retiring last registration must still release the cache.
@@ -176,6 +180,11 @@ bool BLEClient::dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_c
     case ESP_GATTC_READ_CHAR_EVT:
     case ESP_GATTC_READ_DESCR_EVT: {
       bool ok = param->read.status == ESP_GATT_OK;
+      if (!ok) {
+        // Breadcrumb even when no node claims the handle.
+        ESP_LOGD(TAG, "[%s] Read on handle 0x%04x completed with status %d", this->address_str(), param->read.handle,
+                 param->read.status);
+      }
       for (auto *node : this->gatt_nodes_) {
         node->on_read_result(param->read.handle, ok ? param->read.value : nullptr, ok ? param->read.value_len : 0,
                              ok ? 0 : param->read.status);
@@ -184,6 +193,11 @@ bool BLEClient::dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_c
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
     case ESP_GATTC_WRITE_DESCR_EVT:
+      if (param->write.status != ESP_GATT_OK) {
+        // Breadcrumb even when no node claims the handle.
+        ESP_LOGD(TAG, "[%s] Write on handle 0x%04x completed with status %d", this->address_str(), param->write.handle,
+                 param->write.status);
+      }
       for (auto *node : this->gatt_nodes_) {
         node->on_write_result(param->write.handle, param->write.status == ESP_GATT_OK ? 0 : param->write.status);
       }
@@ -324,7 +338,8 @@ int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
       this->pending_gatt_regs_[this->pending_gatt_reg_count_++] = handle;
     return err;
   }
-  return esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle);
+  return this->check_gatt_op_("esp_ble_gattc_unregister_for_notify",
+                              esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle));
 }
 
 int BLEClient::unpair() { return bluetooth_connection::unpair_device(this->get_address()); }
