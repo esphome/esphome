@@ -44,13 +44,17 @@ def mock_file() -> io.BytesIO:
 
 
 @pytest.fixture
-def mock_time() -> Generator[None]:
+def mock_sleep() -> Generator[Mock]:
+    """Mock time.sleep so delays don't slow down tests."""
+    with patch("time.sleep") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_time(mock_sleep: Mock) -> Generator[None]:
     """Mock time-related functions for consistent testing."""
     # Provide enough values for multiple calls (tests may call perform_ota multiple times)
-    with (
-        patch("time.sleep"),
-        patch("time.perf_counter", side_effect=[0, 1, 0, 1, 0, 1]),
-    ):
+    with patch("time.perf_counter", side_effect=[0, 1, 0, 1, 0, 1]):
         yield
 
 
@@ -70,13 +74,6 @@ def mock_token_hex() -> Generator[Mock]:
 
 
 @pytest.fixture
-def mock_sleep() -> Generator[Mock]:
-    """Mock time.sleep so retry delays don't slow down tests."""
-    with patch("esphome.espota2.time.sleep") as mock:
-        yield mock
-
-
-@pytest.fixture
 def mock_resolve_ip() -> Generator[Mock]:
     """Mock resolve_ip_address for testing."""
     with patch("esphome.espota2.resolve_ip_address") as mock:
@@ -84,6 +81,28 @@ def mock_resolve_ip() -> Generator[Mock]:
             (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.100", 3232))
         ]
         yield mock
+
+
+DUAL_STACK_SA6 = ("2001:db8::1", 3232, 0, 0)
+DUAL_STACK_SA4 = ("192.168.1.100", 3232)
+
+
+@pytest.fixture
+def mock_resolve_ip_dual(mock_resolve_ip: Mock) -> Mock:
+    """Make resolve_ip_address return an IPv6 and an IPv4 address."""
+    mock_resolve_ip.return_value = [
+        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", DUAL_STACK_SA6),
+        (socket.AF_INET, socket.SOCK_STREAM, 0, "", DUAL_STACK_SA4),
+    ]
+    return mock_resolve_ip
+
+
+@pytest.fixture
+def firmware_file(tmp_path: Path) -> Path:
+    """Create a firmware file on disk for run_ota_impl_ tests."""
+    firmware = tmp_path / "firmware.bin"
+    firmware.write_bytes(b"firmware content")
+    return firmware
 
 
 @pytest.fixture
@@ -560,23 +579,65 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_chunk_send_error(mock_socket: Mock, mock_file: io.BytesIO) -> None:
-    """Test OTA raises the retryable OTANetworkError when sending a chunk fails."""
-    recv_responses = [
+def _no_auth_handshake(version: int) -> list[bytes]:
+    """Recv responses for a handshake without auth, up to the MD5 check."""
+    return [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
-        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([version]),  # Version number
         bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
         bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
     ]
-    mock_socket.recv.side_effect = recv_responses
+
+
+def test_perform_ota_chunk_send_error(mock_socket: Mock, mock_file: io.BytesIO) -> None:
+    """Test OTA raises the retryable OTANetworkError when sending a chunk fails."""
+    mock_socket.recv.side_effect = _no_auth_handshake(espota2.OTA_VERSION_2_0)
     # Sends before the data phase: magic bytes, features, binary size, MD5;
     # fail on the fifth sendall, the first firmware chunk
     mock_socket.sendall.side_effect = [None] * 4 + [OSError("Broken pipe")]
 
     with pytest.raises(espota2.OTANetworkError, match="sending data:"):
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_post_commit_failure_not_retryable(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Test a network failure after the device committed is a plain OTAError."""
+    mock_socket.recv.side_effect = [
+        *_no_auth_handshake(espota2.OTA_VERSION_1_0),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Device received everything
+        OSError("Connection reset"),  # Connection lost waiting for end result
+    ]
+
+    with pytest.raises(espota2.OTAError, match="receiving update end result") as exc:
+        espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+
+    # Must not be the retryable kind; the device is already rebooting
+    assert not isinstance(exc.value, espota2.OTANetworkError)
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_end_ack_send_failure_is_success(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Test a send failure on the final acknowledgement does not fail the OTA."""
+    mock_socket.recv.side_effect = [
+        *_no_auth_handshake(espota2.OTA_VERSION_1_0),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Device received everything
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update committed
+    ]
+    # Sends: magic bytes, features, binary size, MD5, one firmware chunk;
+    # fail on the sixth sendall, the end acknowledgement
+    mock_socket.sendall.side_effect = [None] * 5 + [OSError("Broken pipe")]
+
+    # Must not raise; the device treats a missing acknowledgement as non-fatal
+    espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+
+    assert mock_socket.sendall.call_count == 6
 
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
@@ -614,14 +675,10 @@ def test_run_ota_impl_successful(
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_connection_failed(
-    mock_socket: Mock, tmp_path: Path, mock_sleep: Mock
+    mock_socket: Mock, firmware_file: Path, mock_sleep: Mock
 ) -> None:
     """Test run_ota_impl_ retries when connection fails and eventually gives up."""
     mock_socket.connect.side_effect = OSError("Connection refused")
-
-    # Create a real firmware file
-    firmware_file = tmp_path / "firmware.bin"
-    firmware_file.write_bytes(b"firmware content")
 
     result_code, result_host = espota2.run_ota_impl_(
         "test.local", 3232, "password", str(firmware_file)
@@ -629,7 +686,8 @@ def test_run_ota_impl_connection_failed(
 
     assert result_code == 1
     assert result_host is None
-    # One connect attempt per retry round, with a delay between rounds
+    # A single address gets the whole attempt budget, with a delay before
+    # each revisit
     assert mock_socket.connect.call_count == espota2.MAX_UPLOAD_ATTEMPTS
     assert mock_socket.close.call_count == espota2.MAX_UPLOAD_ATTEMPTS
     assert mock_sleep.call_count == espota2.MAX_UPLOAD_ATTEMPTS - 1
@@ -638,13 +696,10 @@ def test_run_ota_impl_connection_failed(
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_connect_retry_succeeds(
-    mock_socket: Mock, tmp_path: Path, mock_perform_ota: Mock, mock_sleep: Mock
+    mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
 ) -> None:
     """Test run_ota_impl_ succeeds when a retry connects after a failed attempt."""
     mock_socket.connect.side_effect = [OSError("Connection timed out"), None]
-
-    firmware_file = tmp_path / "firmware.bin"
-    firmware_file.write_bytes(b"firmware content")
 
     result_code, result_host = espota2.run_ota_impl_(
         "test.local", 3232, "password", str(firmware_file)
@@ -659,16 +714,13 @@ def test_run_ota_impl_connect_retry_succeeds(
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_network_error_retry_succeeds(
-    mock_socket: Mock, tmp_path: Path, mock_perform_ota: Mock, mock_sleep: Mock
+    mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
 ) -> None:
     """Test run_ota_impl_ retries after a network error during the upload."""
     mock_perform_ota.side_effect = [
         espota2.OTANetworkError("receiving features: Device closed connection"),
         None,
     ]
-
-    firmware_file = tmp_path / "firmware.bin"
-    firmware_file.write_bytes(b"firmware content")
 
     result_code, result_host = espota2.run_ota_impl_(
         "test.local", 3232, "password", str(firmware_file)
@@ -682,13 +734,10 @@ def test_run_ota_impl_network_error_retry_succeeds(
 
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_network_error_exhausts_attempts(
-    mock_socket: Mock, tmp_path: Path, mock_perform_ota: Mock, mock_sleep: Mock
+    mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
 ) -> None:
     """Test run_ota_impl_ gives up after all attempts hit network errors."""
     mock_perform_ota.side_effect = espota2.OTANetworkError("sending data: broken pipe")
-
-    firmware_file = tmp_path / "firmware.bin"
-    firmware_file.write_bytes(b"firmware content")
 
     result_code, result_host = espota2.run_ota_impl_(
         "test.local", 3232, "password", str(firmware_file)
@@ -700,17 +749,83 @@ def test_run_ota_impl_network_error_exhausts_attempts(
     assert mock_sleep.call_count == espota2.MAX_UPLOAD_ATTEMPTS - 1
 
 
+@pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
+def test_run_ota_impl_multiple_addresses_cycle(
+    mock_socket: Mock, firmware_file: Path, mock_sleep: Mock
+) -> None:
+    """Test run_ota_impl_ visits every address and cycles for the retries."""
+    mock_socket.connect.side_effect = OSError("No route to host")
+
+    result_code, result_host = espota2.run_ota_impl_(
+        "test.local", 3232, "password", str(firmware_file)
+    )
+
+    assert result_code == 1
+    assert result_host is None
+    # Every address gets a first visit plus MAX_UPLOAD_ATTEMPTS - 1 retries
+    assert mock_socket.connect.call_args_list == [
+        call(DUAL_STACK_SA6),
+        call(DUAL_STACK_SA4),
+        call(DUAL_STACK_SA6),
+        call(DUAL_STACK_SA4),
+    ]
+    # No connect ever reached the device, so the delay only applies before
+    # the revisits
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
+def test_run_ota_impl_second_address_succeeds_without_delay(
+    mock_socket: Mock,
+    firmware_file: Path,
+    mock_perform_ota: Mock,
+    mock_sleep: Mock,
+) -> None:
+    """Test run_ota_impl_ falls through to the next address with no pause."""
+    mock_socket.connect.side_effect = [OSError("No route to host"), None]
+
+    result_code, result_host = espota2.run_ota_impl_(
+        "test.local", 3232, "password", str(firmware_file)
+    )
+
+    assert result_code == 0
+    assert result_host == "192.168.1.100"
+    mock_sleep.assert_not_called()
+    mock_perform_ota.assert_called_once()
+
+
+@pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
+def test_run_ota_impl_pauses_after_reaching_device(
+    mock_socket: Mock,
+    firmware_file: Path,
+    mock_perform_ota: Mock,
+    mock_sleep: Mock,
+) -> None:
+    """Test run_ota_impl_ pauses before the next address once the device was reached."""
+    mock_perform_ota.side_effect = [
+        espota2.OTANetworkError("sending data: connection reset"),
+        None,
+    ]
+
+    result_code, result_host = espota2.run_ota_impl_(
+        "test.local", 3232, "password", str(firmware_file)
+    )
+
+    assert result_code == 0
+    assert result_host == "192.168.1.100"
+    # The first attempt reached the device, so the next one waits first even
+    # though it targets a fresh address
+    mock_sleep.assert_called_once_with(espota2.UPLOAD_RETRY_DELAY)
+
+
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip")
 def test_run_ota_impl_device_error_not_retried(
-    mock_socket: Mock, tmp_path: Path, mock_perform_ota: Mock, mock_sleep: Mock
+    mock_socket: Mock, firmware_file: Path, mock_perform_ota: Mock, mock_sleep: Mock
 ) -> None:
     """Test run_ota_impl_ fails immediately on a device-reported error."""
     mock_perform_ota.side_effect = espota2.OTAError(
         "Authentication invalid. Is the password correct?"
     )
-
-    firmware_file = tmp_path / "firmware.bin"
-    firmware_file.write_bytes(b"firmware content")
 
     result_code, result_host = espota2.run_ota_impl_(
         "test.local", 3232, "password", str(firmware_file)

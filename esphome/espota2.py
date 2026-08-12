@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import contextlib
 import gzip
 import hashlib
 import io
@@ -8,7 +9,6 @@ import logging
 from pathlib import Path
 import secrets
 import socket
-import sys
 import time
 from typing import Any
 
@@ -225,8 +225,9 @@ def receive_exactly(
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        # Preserve the subclass (OTANetworkError vs OTAError) so callers can
-        # distinguish retryable network failures from device-reported errors.
+        # type(err) preserves OTANetworkError vs OTAError so callers can tell
+        # retryable network failures from device-reported errors; subclasses
+        # must accept a single message argument
         raise type(err)(f"receiving {msg}: {err}") from err
 
     while len(data) < amount:
@@ -463,21 +464,25 @@ def perform_ota(
 
     offset = 0
     progress = ProgressBar("Uploading")
-    while True:
-        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
-        if not chunk:
-            break
-        offset += len(chunk)
+    try:
+        while True:
+            chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+            if not chunk:
+                break
+            offset += len(chunk)
 
-        try:
-            sock.sendall(chunk)
-            if version >= OTA_VERSION_2_0:
-                receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise OTANetworkError(f"sending data: {err}") from err
+            try:
+                sock.sendall(chunk)
+                if version >= OTA_VERSION_2_0:
+                    receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
+            except OSError as err:
+                raise OTANetworkError(f"sending data: {err}") from err
 
-        progress.update(offset / upload_size)
+            progress.update(offset / upload_size)
+    except OTAError:
+        # Terminate the progress bar line before the error is logged
+        progress.done()
+        raise
     progress.done()
 
     # Enable nodelay for last checks
@@ -486,9 +491,26 @@ def perform_ota(
 
     _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
-    receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, "end acknowledgement")
+    # Once the device has the complete image it commits the update and
+    # reboots on its own; the exact commit point is not observable from
+    # here, so treat everything past the data phase as non-retryable. A
+    # re-upload could flash a device that already updated successfully.
+    try:
+        receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
+        receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
+    except OTANetworkError as err:
+        raise OTAError(
+            f"{err} (the device may have already committed the update and "
+            f"be rebooting; check whether it comes back with the new "
+            f"firmware before uploading again)"
+        ) from err
+
+    try:
+        send_check(sock, RESPONSE_OK, "end acknowledgement")
+    except OTANetworkError as err:
+        # The device treats a missing end acknowledgement as non-fatal and is
+        # already rebooting into the new firmware, so the update succeeded
+        _LOGGER.warning("Failed sending end acknowledgement: %s", err)
 
     _LOGGER.info("OTA successful")
 
@@ -524,48 +546,57 @@ def run_ota_impl_(
         )
         raise OTAError(err) from err
 
-    for attempt in range(1, MAX_UPLOAD_ATTEMPTS + 1):
-        if attempt > 1:
+    # Every address is tried at least once and the budget grants
+    # MAX_UPLOAD_ATTEMPTS - 1 extra retries, cycling through the addresses.
+    # Wait before an attempt when the previous one actually reached the
+    # device, or when revisiting an address, so a flaky link can recover and
+    # the device can clean up a half-open connection (its handshake watchdog
+    # runs at 20s); moving on to the next address family stays immediate.
+    total_attempts = len(res) + MAX_UPLOAD_ATTEMPTS - 1
+    last_error = ""
+    reached_device = False
+    for attempt in range(total_attempts):
+        af, socktype, _, _, sa = res[attempt % len(res)]
+        if reached_device or attempt >= len(res):
             _LOGGER.info(
                 "Retrying in %.0f seconds (attempt %d of %d)...",
                 UPLOAD_RETRY_DELAY,
-                attempt,
-                MAX_UPLOAD_ATTEMPTS,
+                attempt + 1,
+                total_attempts,
             )
             time.sleep(UPLOAD_RETRY_DELAY)
-        for af, socktype, _, _, sa in res:
-            _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
-            sock = socket.socket(af, socktype)
-            sock.settimeout(20.0)
+        reached_device = False
+        _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
+        sock = socket.socket(af, socktype)
+        sock.settimeout(20.0)
+        try:
+            sock.connect(sa)
+        except OSError as err:
+            sock.close()
+            _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            last_error = f"connecting to {sa[0]} failed: {err}"
+            continue
+
+        _LOGGER.info("Connected to %s", sa[0])
+        reached_device = True
+        with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
-                sock.connect(sa)
-            except OSError as err:
-                sock.close()
-                _LOGGER.warning(
-                    "Connecting to %s port %s failed: %s", sa[0], sa[1], err
-                )
+                perform_ota(sock, password, file_handle, filename, ota_type)
+            except OTANetworkError as err:
+                # Transient network failure; retry
+                last_error = str(err)
+                _LOGGER.warning(last_error)
                 continue
+            except OTAError as err:
+                # Device-reported error (wrong password, wrong flash size, ...);
+                # retrying cannot succeed, so fail immediately
+                _LOGGER.error(str(err))
+                return 1, None
 
-            _LOGGER.info("Connected to %s", sa[0])
-            with Path(filename).open("rb") as file_handle:
-                try:
-                    perform_ota(sock, password, file_handle, filename, ota_type)
-                except OTANetworkError as err:
-                    # Transient network failure; try the next address or attempt
-                    _LOGGER.warning(str(err))
-                    continue
-                except OTAError as err:
-                    # Device-reported error (wrong password, wrong flash size,
-                    # ...); retrying cannot succeed, so fail immediately
-                    _LOGGER.error(str(err))
-                    return 1, None
-                finally:
-                    sock.close()
+        # Successfully uploaded to sa[0]
+        return 0, sa[0]
 
-            # Successfully uploaded to sa[0]
-            return 0, sa[0]
-
-    _LOGGER.error("Connection failed after %d attempts.", MAX_UPLOAD_ATTEMPTS)
+    _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
     return 1, None
 
 
