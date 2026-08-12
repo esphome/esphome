@@ -805,6 +805,13 @@ void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_com
       on_complete->trigger(std::string("not mountable"));
     return;
   }
+  // as_mountable() only means at least one op works; gate each op on its cap bit (USB is
+  // unmount-only) so an unsupported op returns a uniform NOT_SUPPORTED, not driver-defined behaviour.
+  const uint8_t need = mount ? MountableStorage::MOUNT_CAP_MOUNT : MountableStorage::MOUNT_CAP_UNMOUNT;
+  if ((m->get_mount_caps() & need) == 0) {
+    mount_fire(mount, StorageError::NOT_SUPPORTED, on_complete);
+    return;
+  }
   if (mount) {
 #ifdef USE_STORAGE_WORKER
     // Async-first, the perform_format_async() shape: the worker routes the blocking
