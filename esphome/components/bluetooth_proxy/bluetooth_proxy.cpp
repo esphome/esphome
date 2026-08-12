@@ -672,15 +672,12 @@ void BluetoothProxy::loop() {
   }
 #endif
 
-#ifdef USE_ETHERNET
-  // Wired uplink: no airtime or congestion worth trading latency for, so
-  // partial batches flush every tick.
-  this->flush_pending_advertisements_();
-#else
-  // Wi-Fi: every other non-empty 100 ms tick (~200 ms) gives partial batches
-  // time to fill toward BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE, so the air
-  // gets fewer, fuller frames. Full batches still ship immediately from the
-  // queueing path, and the owed-reply drains above keep the 100 ms cadence.
+#ifdef USE_WIFI
+  // Wi-Fi (or a coexistence build that can fall back to it): every other
+  // non-empty 100 ms tick (~200 ms) gives partial batches time to fill
+  // toward BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE, so the air gets fewer,
+  // fuller frames. Full batches still ship immediately from the queueing
+  // path, and the owed-reply drains above keep the 100 ms cadence.
   if (this->response_.advertisements_len != 0) {
     if (this->adv_flush_toggle_) {
       this->flush_pending_advertisements_();
@@ -690,6 +687,10 @@ void BluetoothProxy::loop() {
     // Idle: arm so the first batch after a gap ships on the next tick.
     this->adv_flush_toggle_ = true;
   }
+#else
+  // No Wi-Fi in the build (ethernet, openthread): no airtime worth trading
+  // latency for, so partial batches flush every tick.
+  this->flush_pending_advertisements_();
 #endif
 }
 
