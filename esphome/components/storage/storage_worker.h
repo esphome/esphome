@@ -201,6 +201,17 @@ struct TreeWalk {
   uint64_t bytes_base{0};
 };
 
+// TreeWalk is allocated through RAMAllocator (PSRAM-capable) rather than operator new, so it must be
+// destroyed and freed the same way. Stateless: RAMAllocator::deallocate ignores the object count.
+struct TreeWalkDeleter {
+  void operator()(TreeWalk *ptr) const {
+    if (ptr != nullptr) {
+      ptr->~TreeWalk();
+      RAMAllocator<TreeWalk>().deallocate(ptr, 1);
+    }
+  }
+};
+
 struct TransferRequest {
   std::atomic<RequestState> state{RequestState::FREE};
 
@@ -301,7 +312,7 @@ struct TransferRequest {
   uint32_t generation{0};
 
   // Set for COPY_TREE/MOVE_TREE only; owns the walk position for the duration of the request.
-  std::unique_ptr<TreeWalk> tree;
+  std::unique_ptr<TreeWalk, TreeWalkDeleter> tree;
 };
 
 // ===========================================================================================
