@@ -519,20 +519,20 @@ class TestArchiveExtractAll:
 def _mock_response(
     content: bytes, ok: bool = True, status: int | None = None
 ) -> MagicMock:
-    """A fake requests response. ``status`` attaches a response with that
-    code to the HTTPError (as ``raise_for_status`` does on a real response)
-    so the transient classifier can see it."""
+    """A fake requests response. The HTTPError carries the response (as
+    ``raise_for_status`` on a real response) so the transient classifier
+    can see its ``status``; failures default to a permanent 404."""
+    if status is None:
+        status = 200 if ok else 404
     r = MagicMock()
     r.__enter__.return_value = r
     r.__exit__.return_value = False
-    r.status_code = status if status is not None else 200
+    r.status_code = status
     r.ok = ok
     if ok:
         r.raise_for_status.return_value = None
-    elif status is not None:
-        r.raise_for_status.side_effect = req.HTTPError(str(status), response=r)
     else:
-        r.raise_for_status.side_effect = req.HTTPError("503")
+        r.raise_for_status.side_effect = req.HTTPError(str(status), response=r)
     r.headers = {"content-length": "0"}  # suppress ProgressBar
     r.iter_content.return_value = [content] if content else []
     return r
@@ -1541,8 +1541,8 @@ class TestDownloadFromMirrors:
 
     def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
         """A file-like mirror that spent all its mid-stream attempts is not
-        retried again at the sweep level; both target kinds get the same
-        per-mirror attempt ceiling."""
+        retried again at the sweep level (unlike a path target, it has no
+        part file to resume from on a later sweep)."""
         buf = io.BytesIO()
         with (
             patch(
