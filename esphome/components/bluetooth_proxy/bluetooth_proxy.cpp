@@ -684,7 +684,8 @@ void BluetoothProxy::loop() {
     }
     this->adv_flush_toggle_ = !this->adv_flush_toggle_;
   } else {
-    // Idle: arm so the first batch after a gap ships on the next tick.
+    // Nothing pending (idle, or a full batch just shipped inline): arm so
+    // the next batch ships on the next tick.
     this->adv_flush_toggle_ = true;
   }
 #else
