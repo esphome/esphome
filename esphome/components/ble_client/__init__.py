@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import functools
+from typing import Any
 
 from esphome import automation
 from esphome.automation import maybe_simple_id
@@ -32,6 +34,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID
+from esphome.enum import StrEnum
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -43,11 +46,11 @@ from esphome.types import ConfigType
 
 def AUTO_LOAD() -> list[str]:
     """The engine's closure per platform: the legacy esp32 engine builds on
-    esp32_ble_client, the neutral engine on the bluetooth_connection backend.
-    The platform-less arm is the union for manifest-resolving tooling."""
-    if CORE.is_esp32:
-        return ["esp32_ble_client"]
-    if CORE.target_platform is None:
+    esp32_ble_client plus bluetooth_connection (the shared service-table
+    materializer; its sources compile empty in builds without a neutral
+    node), the neutral engine on the bluetooth_connection backend. The
+    platform-less arm is the union for manifest-resolving tooling."""
+    if CORE.is_esp32 or CORE.target_platform is None:
         return ["bluetooth_connection", "esp32_ble_client"]
     return ["bluetooth_connection"]
 
@@ -248,17 +251,63 @@ CONFIG_SCHEMA = _validate_platform
 CONF_BLE_CLIENT_ID = "ble_client_id"
 
 
-def _legacy_engine_only(value: ID) -> ID:
-    # The raw-gattc node family runs on the legacy esp32 engine; this is the
-    # one choke point for every component that has not migrated to the
-    # neutral node interface yet.
-    if not CORE.is_esp32:
-        raise cv.Invalid(
-            "This component requires the ESP32 ble_client engine and has not "
-            "been migrated to the platform-neutral client yet"
-        )
-    return value
+class BLEClientFeatures(StrEnum):
+    """Per-platform engine capabilities consumers declare against."""
 
+    # The platform-neutral node interface (on_connected/table + completion
+    # callbacks) - every platform with a ble_client engine.
+    GATT_NODE = "gatt_node"
+    # The raw esp32 GATT client event stream (gattc/gap handlers,
+    # node_state) - the legacy engine only.
+    RAW_GATTC = "raw_gattc"
+    # Pairing dialog replies and bond management (Bluedroid GAP/SMP).
+    SECURITY = "security"
+
+
+def _engine_features() -> set[BLEClientFeatures]:
+    """Features the validated platform's engine provides."""
+    if CORE.is_esp32:
+        return {
+            BLEClientFeatures.GATT_NODE,
+            BLEClientFeatures.RAW_GATTC,
+            BLEClientFeatures.SECURITY,
+        }
+    if CORE.target_platform in bluetooth_connection.GATT_CLIENT_PLATFORMS:
+        return {BLEClientFeatures.GATT_NODE}
+    return set()
+
+
+def requires_feature(
+    feature: BLEClientFeatures, description: str
+) -> Callable[[Any], Any]:
+    """Validator gating a consumer to platforms whose engine provides
+    `feature`, naming the missing capability in the error."""
+
+    def validator(value: Any) -> Any:
+        features = _engine_features()
+        if feature not in features:
+            available = (
+                f"; this platform's engine provides: {', '.join(sorted(features))}"
+                if features
+                else ""
+            )
+            raise cv.Invalid(
+                f"{description} requires the ble_client '{feature}' feature, "
+                f"which {CORE.target_platform} does not provide{available}"
+            )
+        return value
+
+    return validator
+
+
+# The one choke point for every node component still on the raw esp32 event
+# stream; migrating to the neutral interface (NODE_BLE_CLIENT_SCHEMA +
+# register_gatt_node) lifts it.
+_legacy_engine_only = requires_feature(
+    BLEClientFeatures.RAW_GATTC,
+    "This component drives the raw ESP32 GATT client events and has not "
+    "been migrated to the platform-neutral node interface yet; it",
+)
 
 BLE_CLIENT_SCHEMA = cv.Schema(
     {
@@ -268,10 +317,38 @@ BLE_CLIENT_SCHEMA = cv.Schema(
     }
 )
 
+# For node components on the neutral interface: valid wherever ble_client
+# itself is.
+NODE_BLE_CLIENT_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_BLE_CLIENT_ID): cv.All(
+            cv.use_id(BLEClient),
+            requires_feature(BLEClientFeatures.GATT_NODE, "This component"),
+        ),
+    }
+)
+
 
 async def register_ble_node(var, config):
     parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     cg.add(parent.register_ble_node(var))
+
+
+async def register_gatt_node(var, config):
+    """Register a node on the platform-neutral interface (both engines)."""
+    parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
+    # Sizes the client's neutral-node storage on every platform.
+    _request_node_slot()
+    if CORE.is_esp32:
+        # The bridge, the neutral table structs, and the shared materializer.
+        # Deliberately not ble_device_base.request_gatt_client(): that would
+        # claim a phantom backend slot on combined proxy builds.
+        cg.add_define("USE_BLE_CLIENT_GATT_NODES")
+        cg.add_define("USE_BLE_GATT_CLIENT")
+        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
+        cg.add(parent.register_gatt_node(var))
+    else:
+        cg.add(parent.register_ble_node(var))
 
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
@@ -290,7 +367,7 @@ BLE_CONNECT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.All(
-    cv.only_on_esp32,
+    requires_feature(BLEClientFeatures.SECURITY, "This action"),
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -300,7 +377,7 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.All(
 )
 
 BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.All(
-    cv.only_on_esp32,
+    requires_feature(BLEClientFeatures.SECURITY, "This action"),
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -311,7 +388,7 @@ BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.All(
 
 
 BLE_REMOVE_BOND_ACTION_SCHEMA = cv.All(
-    cv.only_on_esp32,
+    requires_feature(BLEClientFeatures.SECURITY, "This action"),
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
