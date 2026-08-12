@@ -77,9 +77,14 @@ async def async_run_logs(
 
     async def _resolve_mqtt_addresses() -> None:
         """Discover the device address via the MQTT broker in the background."""
-        mqtt_ips = await asyncio.to_thread(mqtt_resolver, mqtt_stop_event)
-        if mqtt_ips and cli.add_addresses(mqtt_ips):
-            _LOGGER.info("Discovered address(es) via MQTT: %s", ", ".join(mqtt_ips))
+        try:
+            mqtt_ips = await asyncio.to_thread(mqtt_resolver, mqtt_stop_event)
+            if mqtt_ips and cli.add_addresses(mqtt_ips):
+                _LOGGER.info("Discovered address(es) via MQTT: %s", ", ".join(mqtt_ips))
+        except Exception:  # pylint: disable=broad-except
+            # A background task failure would otherwise stay invisible for
+            # the whole session and only re-raise at teardown
+            _LOGGER.exception("MQTT address discovery failed")
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
@@ -134,7 +139,7 @@ async def async_run_logs(
             # can't re-raise here and jump over the stop() below
             (result,) = await asyncio.gather(mqtt_task, return_exceptions=True)
             if isinstance(result, Exception):
-                _LOGGER.error("MQTT address discovery failed: %s", result)
+                _LOGGER.error("MQTT address discovery failed", exc_info=result)
         await stop()
 
 

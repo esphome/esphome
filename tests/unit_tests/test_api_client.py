@@ -257,7 +257,7 @@ async def test_async_run_logs_mqtt_resolver_stopped_on_teardown() -> None:
 
     with (
         patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
-        patch.object(api_client, "APIClient"),
+        patch.object(api_client, "APIClient", autospec=True),
     ):
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)

@@ -680,14 +680,6 @@ def _mqtt_get_ip_or_warn(
             err,
         )
         return []
-    except Exception:  # pylint: disable=broad-except
-        # As a deferred resolver this runs in a background task where an
-        # escaping exception would otherwise surface only at teardown
-        _LOGGER.warning(
-            "MQTT IP discovery failed unexpectedly, will try other devices if available",
-            exc_info=True,
-        )
-        return []
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
