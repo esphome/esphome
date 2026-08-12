@@ -6,8 +6,7 @@
 
 #include "esphome/components/fujitsu_general/fujitsu_general.h"
 
-namespace esphome {
-namespace fujitsu_general {
+namespace esphome::fujitsu_general {
 
 class FujitsuGeneralButton : public button::Button, public Parented<FujitsuGeneralClimate> {
  public:
@@ -19,5 +18,4 @@ class FujitsuGeneralButton : public button::Button, public Parented<FujitsuGener
   uint8_t command_byte_;
 };
 
-}  // namespace fujitsu_general
-}  // namespace esphome
+}  // namespace esphome::fujitsu_general
