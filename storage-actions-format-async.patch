@@ -24,7 +24,7 @@ index bb5ec535d..a2e459679 100644
 +++ b/esphome/components/storage/__init__.py
 @@ -886,5 +886,10 @@ async def unmount_action_to_code(config, action_id, template_arg, args):
  FormatAction = storage_ns.class_("FormatAction", automation.Action)
- 
+
  _FORMAT_SCHEMA = cv.maybe_simple_value(
 -    {cv.Required(CONF_ID): cv.use_id(FilesystemStorage)}, key=CONF_ID
 +    {
@@ -45,8 +45,8 @@ index bb5ec535d..a2e459679 100644
 +            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
 +        )
 +    return var
- 
- 
+
+
  # ---------------------------------------------------------------------------
 diff --git a/esphome/components/storage/automation.cpp b/esphome/components/storage/automation.cpp
 index b84fcb1de..7abb1fef1 100644
@@ -55,7 +55,7 @@ index b84fcb1de..7abb1fef1 100644
 @@ -750,15 +750,32 @@ void perform_mount(MountableStorage *target, bool mount) {
    }
  }
- 
+
 -void perform_format(FilesystemStorage *target) {
 -  StorageError err = target->format();
 -  if (err == StorageError::NOT_SUPPORTED) {
@@ -88,7 +88,7 @@ index b84fcb1de..7abb1fef1 100644
 +  // driver's format() (see the blocking contract in automation.h), not by the automation.
 +  format_fire(on_complete, target->format());
  }
- 
+
  }  // namespace esphome::storage
 diff --git a/esphome/components/storage/automation.h b/esphome/components/storage/automation.h
 index ce37037a7..73cebc7da 100644
@@ -113,7 +113,7 @@ index ce37037a7..73cebc7da 100644
 +//                       the next action runs, and the blocking is a short control round-trip on
 +//                       a live medium.
  // ===========================================================================
- 
+
  // Non-template workers for the actions below -- all error logging lives in the .cpp.
  void perform_mount(MountableStorage *target, bool mount);
 -void perform_format(FilesystemStorage *target);
@@ -126,17 +126,17 @@ index ce37037a7..73cebc7da 100644
   public:
    explicit FormatAction(FilesystemStorage *target) : target_(target) {}
 +  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
- 
+
 -  void play(const Ts &...x) override { perform_format(this->target_); }
 +  // Fire-and-forget like the streaming actions: play() submits the worker job and returns;
 +  // the on_complete trigger fires (error text, empty = success) when the format finishes.
 +  void play(const Ts &...x) override { perform_format_async(this->target_, &this->complete_trigger_); }
- 
+
   protected:
    FilesystemStorage *target_;
 +  Trigger<std::string> complete_trigger_;
  };
- 
+
  }  // namespace esphome::storage
--- 
+--
 2.43.0
