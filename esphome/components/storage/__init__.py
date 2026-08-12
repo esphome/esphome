@@ -580,7 +580,9 @@ def _file_write_schema(newline_default: bool) -> cv.All:
                 cv.Optional(CONF_NEWLINE, default=newline_default): cv.boolean,
                 # Fires (error text, empty = success) after the write/append: a refused (busy) or
                 # failed write is otherwise invisible to the automation.
-                cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+                cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(
+                    single=True
+                ),
             }
         ),
         _validate_write_content,
