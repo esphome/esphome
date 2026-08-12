@@ -68,12 +68,6 @@ class EPaperInkplate13Spectra final : public EPaperBase {
     RST_DONE,
   };
 
-  enum InitSub {
-    INIT_SEND_SEQUENCE,
-    INIT_WAIT_PON,  // busy wait after PON command
-    INIT_DONE,
-  };
-
   // Full path:    TRF_PRIMARY -> TRF_WAIT_PRIMARY -> TRF_SECONDARY -> TRF_WAIT_SECONDARY -> TRF_DONE
   // Partial path: TRF_PARTIAL_SETUP_M -> TRF_PARTIAL_DATA_M -> TRF_PARTIAL_WAIT_M
   //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_DONE
@@ -140,7 +134,6 @@ class EPaperInkplate13Spectra final : public EPaperBase {
   GPIOPin *bs1_pin_{nullptr};
 
   ResetSub reset_sub_{RST_PINS_LOW};
-  InitSub trf_init_sub_{INIT_SEND_SEQUENCE};
   TransferSub transfer_sub_{TRF_PRIMARY};
   size_t transfer_row_{0};
   uint32_t wait_log_ms_{0};

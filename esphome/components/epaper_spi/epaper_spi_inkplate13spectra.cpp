@@ -355,29 +355,15 @@ bool EPaperInkplate13Spectra::reset() {
 }
 
 // Runs after reset() has already powered the panel on, so is_idle_() here reflects a
-// real, live signal instead of an unpowered floating/pulled line.
+// real, live signal instead of an unpowered floating/pulled line. PON is sent later, in
+// power_on() -- the framework's own set_state_() already busy-waits between TRANSFER_DATA
+// and POWER_ON, and again between POWER_ON and REFRESH_SCREEN, so sending PON in its
+// standard slot (after the framebuffer transfer, before refresh) needs no extra bookkeeping
+// here. Confirmed on real hardware that data-before-power-on works fine on this panel.
 bool EPaperInkplate13Spectra::initialise(bool partial) {
-  switch (this->trf_init_sub_) {
-    case INIT_SEND_SEQUENCE:
-      ESP_LOGD(TAG, "initialise(): sending register init sequence + PON");
-      this->send_init_sequence_();
-      this->write_command_to_chip_(REG_PON, CHIP_BOTH);
-      this->trf_init_sub_ = INIT_WAIT_PON;
-      return false;
-
-    case INIT_WAIT_PON:
-      if (!this->is_idle_()) {
-        this->log_busy_state_("initialise(): INIT_WAIT_PON");
-        return false;
-      }
-      ESP_LOGD(TAG, "initialise(): INIT_WAIT_PON done -> INIT_DONE");
-      this->trf_init_sub_ = INIT_DONE;
-      return true;
-
-    case INIT_DONE:
-      return true;
-  }
-  return false;
+  ESP_LOGD(TAG, "initialise(): sending register init sequence");
+  this->send_init_sequence_();
+  return true;
 }
 
 // buffer_ is a SplitBuffer (not guaranteed contiguous), so each row is staged through a
@@ -573,8 +559,10 @@ bool EPaperInkplate13Spectra::transfer_data() {
   return false;
 }
 
-// No-op: PON already went out in initialise(); nothing needs sending here.
-void EPaperInkplate13Spectra::power_on() { ESP_LOGD(TAG, "power_on(): no-op (PON already sent in initialise())"); }
+void EPaperInkplate13Spectra::power_on() {
+  ESP_LOGD(TAG, "power_on(): sending PON");
+  this->write_command_to_chip_(REG_PON, CHIP_BOTH);
+}
 
 void EPaperInkplate13Spectra::refresh_screen(bool partial) {
   ESP_LOGD(TAG, "refresh_screen(): sending DRF");
@@ -605,7 +593,6 @@ void EPaperInkplate13Spectra::deep_sleep() {
   // is decided in update()/display_partial() instead, since only they know at that point
   // whether the next cycle is a full or partial refresh.
   this->reset_sub_ = RST_PINS_LOW;
-  this->trf_init_sub_ = INIT_SEND_SEQUENCE;
   this->transfer_row_ = 0;
   ESP_LOGD(TAG, "panel deep sleep");
 }
