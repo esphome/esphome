@@ -434,9 +434,12 @@ async def to_code(config: ConfigType) -> None:
             "USE_STORAGE_VFS_PATH_MAX", path_max + _get_data().mount_path_max + 1
         )
 
-        # The tree walks run on the worker task when one is configured; a path bound raised
-        # past what its stack can carry would overflow rather than fail cleanly.
-        if _get_data().worker_count > 0:
+        # task_stack_size sizes the worker task, which exists only when a task-safe driver pulled
+        # it in (USE_STORAGE_WORKER_TASK). With only non-task-safe drivers the walk runs on the
+        # main-loop stack and task_stack_size is inert, so budget-check it only when that task is
+        # really created -- otherwise a lowered task_stack_size hard-fails the build citing a stack
+        # that never exists.
+        if _get_data().worker_task_safe:
             needed = _walk_stack_bytes(path_max, _MAX_RECURSION_DEPTH)
             raw = config[CONF_TASK_STACK_SIZE]
             budget = int(raw * _WALK_STACK_HEADROOM)
