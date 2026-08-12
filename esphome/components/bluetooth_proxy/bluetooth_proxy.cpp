@@ -688,8 +688,8 @@ void BluetoothProxy::loop() {
     this->adv_flush_toggle_ = true;
   }
 #else
-  // No Wi-Fi in the build (ethernet, openthread): no airtime worth trading
-  // latency for, so partial batches flush every tick.
+  // No Wi-Fi in the build (ethernet): no airtime worth trading latency for,
+  // so partial batches flush every tick.
   this->flush_pending_advertisements_();
 #endif
 }
