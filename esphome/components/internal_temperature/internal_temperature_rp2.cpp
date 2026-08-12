@@ -18,11 +18,24 @@ namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.rp2";
 
-// Temperature sensor input: 4 on RP2040/RP2350A, 8 on RP2350B. The SDK's
-// ADC_TEMPERATURE_CHANNEL_NUM is wrong under arduino-pico: it reads
-// PICO_RP2350A, which pins_arduino.h defines only after <pico.h> baked in
-// the RP2350B channel count.
-static constexpr uint8_t TEMPERATURE_ADC_INPUT = __GPIOCNT - __FIRSTANALOGGPIO;
+// The on-die temperature sensor sits on the last ADC channel: input 4 on RP2040
+// and RP2350A, but input 8 on RP2350B, which has eight external channels rather
+// than four.
+//
+// This deliberately does not use the SDK's ADC_TEMPERATURE_CHANNEL_NUM. That
+// derives from NUM_ADC_CHANNELS, which <pico.h> settles from a board header, and
+// arduino-pico supplies a fixed B-die one for every RP2350 build. The real die
+// is only declared later, by the variant's pins_arduino.h, so the SDK constant
+// reads 8 on A-die boards. PICO_RP2350A itself is correct by the time this file
+// is compiled, on both arduino-pico and pico-sdk builds.
+#if defined(PICO_RP2350) && !defined(PICO_RP2350A)
+#error "PICO_RP2350A is not defined, so the RP2350 die is unknown and the temperature ADC channel cannot be chosen"
+#endif
+#if defined(PICO_RP2350) && !PICO_RP2350A
+static constexpr uint8_t TEMPERATURE_ADC_INPUT = 8;
+#else
+static constexpr uint8_t TEMPERATURE_ADC_INPUT = 4;
+#endif
 static constexpr float ADC_VREF = 3.3f;
 static constexpr float ADC_RESOLUTION = 4096.0f;  // 12-bit
 // RP2040 datasheet 4.9.5 / RP2350 datasheet 12.4.6: T = 27 - (V - 0.706) / 0.001721
