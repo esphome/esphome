@@ -254,7 +254,7 @@ def get_esphome_device_ip(
             return []
         raise EsphomeError("Failed to find IP via MQTT")
 
-    _LOGGER.info("Found IP: %s", dev_ip)
+    _LOGGER.info("Found IP via MQTT broker: %s", ", ".join(dev_ip))
     return dev_ip
 
 
