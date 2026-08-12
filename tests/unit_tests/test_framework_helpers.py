@@ -519,13 +519,9 @@ class TestArchiveExtractAll:
 def _mock_response(
     content: bytes, ok: bool = True, status: int | None = None
 ) -> MagicMock:
-    """A fake requests response.
-
-    ``status`` attaches a response carrying that code to the HTTPError (as
-    ``raise_for_status`` does on a real response), so the sweep-retry
-    transient classifier can see it; without it the error carries no
-    response and classifies as permanent.
-    """
+    """A fake requests response. ``status`` attaches a response with that
+    code to the HTTPError (as ``raise_for_status`` does on a real response)
+    so the transient classifier can see it."""
     r = MagicMock()
     r.__enter__.return_value = r
     r.__exit__.return_value = False
