@@ -534,6 +534,11 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
 
 StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCallback &&on_done,
                                          TransferJob *job_out) {
+  // Guard here, not only in run_chunk_: submit_control_op_ reaches is_task_safe_(), which
+  // dereferences dst_storage->get_capabilities() for FORMAT before run_chunk_'s null guard can run.
+  // Mirror async_mount()'s up-front check so a null target is a clean error, not a crash.
+  if (target == nullptr)
+    return StorageError::INVALID_ARGS;
   return this->submit_control_op_(RequestOp::FORMAT, target, std::move(on_done), job_out);
 }
 
