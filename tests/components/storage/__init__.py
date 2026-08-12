@@ -17,5 +17,11 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code(config):
         cg.add_build_flag("-DUSE_STORAGE_REGEX_EXTRACT")
         cg.add_build_flag("-DUSE_STORAGE_JSON_EXTRACT")
+        # No test config uses a raw_* action (those need a RawStorage device the storage-only
+        # test harness has no driver for), so the USE_STORAGE_RAW_ACTIONS section of
+        # automation.cpp/.h is otherwise never compiled by CI. Force it into the host build for
+        # compile coverage. The worker path inside it stays #ifdef USE_STORAGE_WORKER, so it is
+        # the no-worker fallback that compiles here.
+        cg.add_build_flag("-DUSE_STORAGE_RAW_ACTIONS")
 
     manifest.to_code = to_code
