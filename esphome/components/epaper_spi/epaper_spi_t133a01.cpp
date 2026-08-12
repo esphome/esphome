@@ -111,18 +111,67 @@ void EPaperT133A01::setup() {
   this->cs1_pin_->digital_write(true);
 }
 
+void EPaperT133A01::set_all_pins_low_() {
+  GPIOPin *pins[] = {this->cs_pin_, this->cs1_pin_, this->dc_pin_, this->busy_pin_, this->reset_pin_};
+  for (auto *pin : pins) {
+    if (pin == nullptr)
+      continue;
+    pin->pin_mode(gpio::FLAG_OUTPUT);
+    pin->digital_write(false);
+  }
+  for (auto *pin : this->enable_pins_) {
+    pin->pin_mode(gpio::FLAG_OUTPUT);
+    pin->digital_write(false);
+  }
+}
+
 bool EPaperT133A01::reset() {
-  for (auto *enable_pin : this->enable_pins_) {
-    enable_pin->digital_write(true);
-  }
-  if (this->reset_pin_ != nullptr) {
-    if (this->state_ == EPaperState::RESET) {
-      this->reset_pin_->digital_write(false);
+  switch (this->reset_sub_) {
+    case RST_PINS_LOW:
+      this->set_all_pins_low_();
+      this->reset_duration_ = 50;
+      this->reset_sub_ = RST_PINS_LOW_WAIT;
       return false;
-    }
-    this->reset_pin_->digital_write(true);
+
+    case RST_PINS_LOW_WAIT:
+      // Restore pins to their normal idle levels and enable the panel supply.
+      this->cs_pin_->digital_write(true);
+      this->cs1_pin_->digital_write(true);
+      this->dc_pin_->digital_write(false);
+      if (this->busy_pin_ != nullptr) {
+        this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+      }
+      for (auto *enable_pin : this->enable_pins_) {
+        enable_pin->digital_write(true);
+      }
+      this->reset_duration_ = 100;
+      this->reset_sub_ = RST_IO_WAIT;
+      return false;
+
+    case RST_IO_WAIT:
+      if (this->reset_pin_ != nullptr) {
+        this->reset_pin_->digital_write(false);
+      }
+      this->reset_duration_ = 100;
+      this->reset_sub_ = RST_LOW_WAIT;
+      return false;
+
+    case RST_LOW_WAIT:
+      if (this->reset_pin_ != nullptr) {
+        this->reset_pin_->digital_write(true);
+      }
+      this->reset_duration_ = 100;
+      this->reset_sub_ = RST_HIGH_WAIT;
+      return false;
+
+    case RST_HIGH_WAIT:
+      this->reset_sub_ = RST_DONE;
+      return true;
+
+    case RST_DONE:
+      return true;
   }
-  return true;
+  return false;
 }
 
 /**
@@ -267,6 +316,7 @@ void EPaperT133A01::refresh_screen(bool partial) {
 void EPaperT133A01::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->write_command_(0x07, {0xA5}, true, true);
+  this->reset_sub_ = RST_PINS_LOW;
 }
 
 bool HOT EPaperT133A01::transfer_data() {

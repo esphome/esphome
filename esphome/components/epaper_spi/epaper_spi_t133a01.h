@@ -38,6 +38,20 @@ class EPaperT133A01 : public EPaperBase {
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
+  // GPIO power-on bring-up sub-states, run inside reset()/RESET_END. Pulling every pin
+  // low before power-up drains residual capacitor charge on the panel -- without this,
+  // the panel intermittently refuses to refresh (observed on the Inkplate 13 Spectra,
+  // which uses the same GDEP133C02-family controller; the vendor Arduino driver for that
+  // board has the same step, named setPanelPinsToLow()).
+  enum ResetSub {
+    RST_PINS_LOW,
+    RST_PINS_LOW_WAIT,  // 50 ms
+    RST_IO_WAIT,        // 100 ms after pins are restored to their idle levels
+    RST_LOW_WAIT,       // 100 ms RST low
+    RST_HIGH_WAIT,      // 100 ms RST high
+    RST_DONE,
+  };
+
   bool reset() override;
   bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;
@@ -46,6 +60,9 @@ class EPaperT133A01 : public EPaperBase {
   void deep_sleep() override;
 
   bool transfer_data() override;
+
+  /// Drives every panel pin (CS, CS1, DC, BUSY, RST, enable_pins_) low as an output.
+  void set_all_pins_low_();
 
   /**
    * Send a command (and optional data) selecting one or both controllers.
@@ -72,6 +89,8 @@ class EPaperT133A01 : public EPaperBase {
 
   GPIOPin *cs_pin_{nullptr};
   GPIOPin *cs1_pin_{nullptr};
+
+  ResetSub reset_sub_{RST_PINS_LOW};
 };
 
 }  // namespace esphome::epaper_spi
