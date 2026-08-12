@@ -172,3 +172,21 @@ def test_get_esphome_device_ip_timeout_raises() -> None:
 
     client.disconnect.assert_called_once_with()
     client.loop_stop.assert_called_once_with()
+
+
+def test_get_esphome_device_ip_stop_during_connect_skips_wait() -> None:
+    """A stop event set while the broker connect is in flight still cleans up."""
+    stop_event = threading.Event()
+    client = MagicMock()
+
+    def prepare_and_stop(*args):
+        stop_event.set()
+        return client
+
+    with patch("esphome.mqtt.prepare", side_effect=prepare_and_stop):
+        result = get_esphome_device_ip(_discovery_config(), stop_event=stop_event)
+
+    assert result == []
+    client.loop_start.assert_not_called()
+    client.disconnect.assert_called_once_with()
+    client.loop_stop.assert_called_once_with()

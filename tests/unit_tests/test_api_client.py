@@ -378,3 +378,40 @@ async def test_async_run_logs_connect_before_discovery_skips_lookup() -> None:
 
     resolver.assert_not_called()
     stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_duplicate_addresses_logged(caplog) -> None:
+    """A discovery the client rejects as already known leaves a debug trace."""
+    import threading
+
+    caplog.set_level("DEBUG", logger="esphome.api_client")
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    fed = threading.Event()
+
+    def resolver(stop_event):
+        return ["1.2.3.4"]
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
+    ):
+        mock_client.return_value.add_addresses.side_effect = lambda addrs: (
+            fed.set() or False
+        )
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(fed.wait, 1)
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_called_once_with(["1.2.3.4"])
+    assert "MQTT-discovered address(es) already known: 1.2.3.4" in caplog.text
+    assert "Discovered address(es) via MQTT" not in caplog.text
+    stop.assert_awaited_once()

@@ -232,20 +232,23 @@ def get_esphome_device_ip(
         import threading
 
         stop_event = threading.Event()  # never set; wait() below is a plain sleep
-    stopped = False
-    mqtt_client.loop_start()
+    stopped = stop_event.is_set()  # teardown may have started during connect
     try:
-        while timeout > 0:
-            if dev_ip is not None:
-                break
-            if stop_event.wait(0.250):
-                stopped = True
-                break
-            timeout -= 0.250
+        if not stopped:
+            mqtt_client.loop_start()
+            while timeout > 0:
+                if dev_ip is not None:
+                    break
+                if stop_event.wait(0.250):
+                    stopped = True
+                    break
+                timeout -= 0.250
     finally:
         # Always close the broker session; the success path already sent a
-        # disconnect from on_message and a second one is harmless.
-        mqtt_client.disconnect()
+        # disconnect from on_message and a second one is harmless. A cleanup
+        # failure must not replace the discovery result or its EsphomeError.
+        with contextlib.suppress(Exception):
+            mqtt_client.disconnect()
         mqtt_client.loop_stop()
 
     if dev_ip is None:
