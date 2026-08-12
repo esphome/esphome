@@ -177,6 +177,10 @@ class Logger final : public Component {
   /// Set the log level of the specified tag.
   void set_log_level(const char *tag, uint8_t log_level);
 #endif
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  /// Set the boot log level of the specified tag.
+  void set_boot_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
 
   /// Re-emit messages captured during boot through the normal log
@@ -192,7 +196,9 @@ class Logger final : public Component {
   void dump_config() override;
 
   inline uint8_t level_for(const char *tag);
-
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  inline uint8_t boot_level_for(const char *tag);
+#endif
 #ifdef USE_LOG_LISTENERS
   /// Register a log callback to receive log messages
   void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {
@@ -329,7 +335,7 @@ class Logger final : public Component {
 #endif
 
 #ifdef USE_LOGGER_BOOT_LOG_BUFFER
-  /// Copy a formatted WARN/ERROR line (outer ANSI codes stripped) into the boot log buffer.
+  /// Copy a formatted line at or above the boot log level (outer ANSI codes stripped) into the boot log buffer.
   void boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf);
 #endif
 
@@ -361,6 +367,9 @@ class Logger final : public Component {
 #endif
 
   // Large objects (internally aligned)
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> boot_log_levels_{};
+#endif
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif

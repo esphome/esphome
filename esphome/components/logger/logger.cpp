@@ -155,6 +155,17 @@ inline uint8_t Logger::level_for(const char *tag) {
   return this->current_level_;
 }
 
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+inline uint8_t Logger::boot_level_for(const char *tag) {
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  auto it = this->boot_log_levels_.find(tag);
+  if (it != this->boot_log_levels_.end())
+    return it->second;
+#endif
+  return ESPHOME_LOGGER_BOOT_LOG_LEVEL;
+}
+#endif
+
 Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
@@ -209,7 +220,7 @@ void Logger::process_messages_() {
 static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 2 + 1 + 4 + sizeof(const char *);
 
 void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
-  if (this->boot_log_done_ || level > ESPHOME_LOGGER_BOOT_LOG_LEVEL || level == ESPHOME_LOG_LEVEL_NONE)
+  if (this->boot_log_done_ || level > boot_level_for(tag) || level == ESPHOME_LOG_LEVEL_NONE)
     return;
   // Strip the leading ANSI color prefix and trailing reset; the replay adds its own around the stamp.
   const char *text = buf.data;
@@ -274,6 +285,9 @@ void Logger::replay_boot_logs() { ESP_LOGW(TAG, "Boot log buffer not configured 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot_log_levels_[tag] = log_level; }
+#endif
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
@@ -309,6 +323,11 @@ void Logger::dump_config() {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+  }
+#endif
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  for (auto &it : this->boot_log_levels_) {
+    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
 #endif
 #ifdef USE_ZEPHYR

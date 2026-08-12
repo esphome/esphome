@@ -107,6 +107,7 @@ DEFAULT = "DEFAULT"
 
 CONF_BOOT_LOG_BUFFER_SIZE = "boot_log_buffer_size"
 CONF_BOOT_LOG_LEVEL = "boot_log_level"
+CONF_BOOT_LOGS = "boot_logs"
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
@@ -275,6 +276,11 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
+            cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
+                {
+                    cv.string: is_log_level,
+                }
+            ),
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -387,6 +393,10 @@ async def to_code(config: ConfigType) -> None:
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
+    log = cg.new_Pvariable(
+        config[CONF_ID],
+        baud_rate,
+    )
     # Boot log buffer captures early lines for later replay
     # (logger.replay_boot_logs action). Buffer is a direct member of Logger.
     if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
@@ -395,10 +405,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag(
             f"-DESPHOME_LOGGER_BOOT_LOG_LEVEL={LOG_LEVELS[config[CONF_BOOT_LOG_LEVEL]]}"
         )
-    log = cg.new_Pvariable(
-        config[CONF_ID],
-        baud_rate,
-    )
+        if boot_logs_config := config[CONF_BOOT_LOGS]:
+            cg.add_define("USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS")
+            for tag, log_level in boot_logs_config.items():
+                cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because
