@@ -65,6 +65,7 @@ from .const import (
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
@@ -608,13 +609,14 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
 
-    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC -- no hardware FPU; rp2040 is Cortex-M0+,
-    # also without FPU. Original ESP32 is Xtensa LX6, which does have one -- it can't be
-    # excluded by family the way these chips are.
+    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC and esp32_c3 is RV32IMC -- none have a
+    # hardware FPU; rp2040 is Cortex-M0+, also without FPU. Original ESP32 is Xtensa LX6,
+    # which does have one -- it can't be excluded by family the way these chips are.
     if zephyr_variant() not in (
         ZEPHYR_VARIANT_ESP32_H2,
         ZEPHYR_VARIANT_ESP32_C6,
         ZEPHYR_VARIANT_ESP32_C5,
+        ZEPHYR_VARIANT_ESP32_C3,
         ZEPHYR_VARIANT_RP2040,
     ):
         zephyr_add_prj_conf("FPU", True)
@@ -1144,6 +1146,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.esp32_c5 import config_schema as _esp32_c5_config_schema
 
         config = _esp32_c5_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import config_schema as _esp32_c3_config_schema
+
+        config = _esp32_c3_config_schema(config)
     elif variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import config_schema as _native_sim_config_schema
 
@@ -1246,6 +1252,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.esp32_c5 import to_code as _esp32_c5_to_code
 
         await _esp32_c5_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import to_code as _esp32_c3_to_code
+
+        await _esp32_c3_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import to_code as _native_sim_to_code
