@@ -1,5 +1,3 @@
-substitutions:
-  uart_tx: GPIO17
-  uart_rx: GPIO16
-
-<<: !include common.yaml
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+  ld2410s: !include common.yaml

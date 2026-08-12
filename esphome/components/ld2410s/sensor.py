@@ -7,6 +7,7 @@ from . import CONF_LD2410S_ID, LD2410S
 
 CONF_CALIBRATION_PROGRESS = "calibration_progress"
 CONF_TARGET_DISTANCE = "target_distance"
+DEPENDENCIES = ["ld2410s"]
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410S_ID): cv.use_id(LD2410S),
     cv.Optional(CONF_CALIBRATION_PROGRESS): sensor.sensor_schema(

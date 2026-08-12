@@ -5,10 +5,11 @@ from esphome.const import CONF_HAS_TARGET, DEVICE_CLASS_OCCUPANCY
 
 from . import CONF_LD2410S_ID, LD2410S
 
-HAS_CALIBRATION_RUNNING = "has_calibration_running"
+CONF_HAS_CALIBRATION_RUNNING = "has_calibration_running"
+DEPENDENCIES = ["ld2410s"]
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410S_ID): cv.use_id(LD2410S),
-    cv.Optional(HAS_CALIBRATION_RUNNING): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_HAS_CALIBRATION_RUNNING): binary_sensor.binary_sensor_schema(
         icon="mdi:exclamation"
     ),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
@@ -23,6 +24,6 @@ async def to_code(config):
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)
         cg.add(ld2410s.set_presence_binary_sensor(sens))
-    if calibration_running_config := config.get(HAS_CALIBRATION_RUNNING):
+    if calibration_running_config := config.get(CONF_HAS_CALIBRATION_RUNNING):
         sens = await binary_sensor.new_binary_sensor(calibration_running_config)
         cg.add(ld2410s.set_calibration_running_binary_sensor(sens))
