@@ -161,8 +161,12 @@ async def async_run_logs(
                 # Unblock the worker thread first so it can't hold up
                 # loop.shutdown_default_executor() for the full lookup timeout.
                 mqtt_stop_event.set()
-                mqtt_task.cancel()
-                # return_exceptions keeps the CancelledError from the cancel()
+                # Give the worker a moment to exit through its own error
+                # handling; cancelling first would race out a late failure.
+                done, _ = await asyncio.wait([mqtt_task], timeout=1.0)
+                if not done:
+                    mqtt_task.cancel()
+                # return_exceptions keeps a CancelledError from the cancel()
                 # above from re-raising here and jumping over the stop() below.
                 # The task handles Exception itself, so only a BaseException
                 # escape (e.g. SystemExit from the worker) can land here.

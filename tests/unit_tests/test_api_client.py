@@ -450,3 +450,37 @@ async def test_async_run_logs_base_exception_escape_logged_at_teardown(caplog) -
 
     assert "MQTT address discovery failed" in caplog.text
     stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_stubborn_worker_cancelled_at_teardown() -> None:
+    """A worker that ignores the stop event is cancelled after the grace period."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+    release = threading.Event()
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        # Ignore stop_event entirely; only the test releases us
+        release.wait(timeout=10)
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        release.set()
+
+    stop.assert_awaited_once()

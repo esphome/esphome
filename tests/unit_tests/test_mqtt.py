@@ -322,3 +322,32 @@ def test_get_esphome_device_ip_disconnect_error_does_not_mask_result(
 
     assert result == ["10.0.0.5"]
     client.loop_stop.assert_called_once_with()
+
+
+def test_get_esphome_device_ip_invalid_address_values_skipped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Non-string or non-printable ip values are skipped, valid ones kept."""
+    client = MagicMock()
+
+    with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+        _deliver_on_loop_start(
+            mock_prepare,
+            client,
+            json.dumps(
+                {
+                    "name": "test-device",
+                    "ip": 1234,
+                    "ip1": "x\n[00:00:00][I][forged] fake line",
+                    "ip2": "  10.0.0.5  ",
+                }
+            ).encode(),
+        )
+
+        result = get_esphome_device_ip(_discovery_config())
+
+    assert result == ["10.0.0.5"]
+    assert caplog.text.count("Ignoring invalid address in discovery answer") == 2
+    assert "forged" not in "".join(
+        r.getMessage() for r in caplog.records if "Found IP" in r.getMessage()
+    )

@@ -216,7 +216,19 @@ def get_esphome_device_ip(
             key = "ip"
             n = 0
             while key in data:
-                addresses.append(data[key])
+                value = data[key]
+                if (
+                    isinstance(value, str)
+                    and (value := value.strip())
+                    and value.isprintable()
+                ):
+                    addresses.append(value)
+                else:
+                    # repr-escaped and truncated: must not forge log lines
+                    _LOGGER.warning(
+                        "Ignoring invalid address in discovery answer: %s",
+                        repr(value)[:100],
+                    )
                 n = n + 1
                 key = "ip" + str(n)
 
