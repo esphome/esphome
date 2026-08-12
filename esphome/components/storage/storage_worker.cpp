@@ -1754,10 +1754,18 @@ void StorageWorker::check_stalled_() {
         req.cancel_result = StorageError::TIMEOUT;
         req.state = RequestState::CANCELLED;
       }
-    } else if (st == RequestState::PENDING && now - req.submitted_ms > REQUEST_PENDING_CAP_MS) {
-      ESP_LOGW(TAG, "Transfer '%s' -> '%s' pending for %us - timing it out", req.src_path, req.dst_path,
-               static_cast<unsigned>(REQUEST_PENDING_CAP_MS / 1000));
-      finish_request(req, StorageError::TIMEOUT);
+    } else if (st == RequestState::PENDING) {
+      if (this->overlaps_active_(req)) {
+        // Held PENDING on purpose behind a neighbour on the same storage (update() defers it via
+        // overlaps_active_) -- that is queue time, not "never picked up". Keep the cap clock fresh
+        // so REQUEST_PENDING_CAP_MS counts only time it was actually eligible, and so a queued
+        // request does not begin its wait_for_network_ready_ window already spent.
+        req.submitted_ms = now;
+      } else if (now - req.submitted_ms > REQUEST_PENDING_CAP_MS) {
+        ESP_LOGW(TAG, "Transfer '%s' -> '%s' pending for %us - timing it out", req.src_path, req.dst_path,
+                 static_cast<unsigned>(REQUEST_PENDING_CAP_MS / 1000));
+        finish_request(req, StorageError::TIMEOUT);
+      }
     }
   }
   for (auto &sreq : this->stream_pool_) {
