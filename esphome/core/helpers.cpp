@@ -808,13 +808,13 @@ void HighFrequencyLoopRequester::stop() {
 // get_mac_address, get_mac_address_pretty moved to alloc_helpers.cpp
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_lower_no_sep(mac, buf.data());
 }
 
 const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

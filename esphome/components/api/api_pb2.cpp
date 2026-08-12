@@ -2482,6 +2482,8 @@ BluetoothLERawAdvertisementsResponse::calculate_size() const {
   }
   return size;
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -2858,6 +2860,8 @@ uint32_t BluetoothDeviceClearCacheResponse::calculate_size() const {
   size += ProtoSize::calc_int32(1, this->error);
   return size;
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 uint8_t *BluetoothScannerStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->state));
@@ -4221,7 +4225,7 @@ uint32_t SerialProxyRequestResponse::calculate_size() const {
   return size;
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:

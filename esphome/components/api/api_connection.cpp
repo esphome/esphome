@@ -89,6 +89,13 @@ static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for nam
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
 static const char *const TAG = "api.connection";
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+void log_dropped_message(const char *tag, int line, const LogString *what) {
+  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, line, ESPHOME_LOG_FORMAT("%s dropped, TCP buffer full"),
+                  LOG_STR_ARG(what));
+}
+#endif
 #ifdef USE_CAMERA
 static const int CAMERA_STOP_STREAM = 5000;
 #endif
@@ -1236,6 +1243,7 @@ void APIConnection::on_subscribe_bluetooth_le_advertisements_request(
 void APIConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void APIConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -1269,12 +1277,14 @@ void APIConnection::on_subscribe_bluetooth_connections_free_request() {
   }
 }
 
+void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
+}
+#endif
+
 void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
-}
-void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
-  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
 }
 #endif
 
@@ -1533,7 +1543,13 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #endif
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
+void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
+  if (!this->send_message(msg)) {
+    // V: fires per decoded frame with no subscription gate, so a warning
+    // would flood the congested link it reports on.
+    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_SERIAL_PROXY
@@ -1575,7 +1591,9 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
   resp.line_states = proxies[msg.instance]->get_modem_pins();
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
 }
 
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
@@ -1607,7 +1625,9 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
           resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
           break;
       }
-      this->send_message(resp);
+      if (!this->send_message(resp)) {
+        API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+      }
       break;
     }
     default:
@@ -1616,7 +1636,11 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   }
 }
 
-void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
+  if (!this->send_message(msg)) {
+    ESP_LOGV(TAG, "Serial proxy data dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_INFRARED
@@ -1747,7 +1771,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
     // Acknowledge the hello so the client can read the server name, then request
     // disconnect with the reason. Authentication is intentionally not completed.
     this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
-    this->send_message(resp);
+    if (!this->send_message(resp)) {
+      API_LOG_MSG_DROPPED(TAG, "Hello response");
+    }
     DisconnectRequest req;
     req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
     return this->send_message(req);
@@ -1772,9 +1798,8 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_AREAS
   resp.suggested_area = StringRef(App.get_area());
 #endif
-  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char mac_address[18];
-  uint8_t mac[6];
+  char mac_address[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
@@ -2037,7 +2062,9 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.call_id = call_id;
   resp.success = success;
   resp.error_message = error_message;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
@@ -2048,11 +2075,33 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.error_message = error_message;
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &call) {
+  if (!this->flags_.service_call_subscription)
+    return false;
+  if (!this->send_message(call)) {
+    API_LOG_MSG_DROPPED(TAG, "Action request");
+  }
+  return true;
+}
+#endif  // USE_API_HOMEASSISTANT_SERVICES
+
+#ifdef USE_HOMEASSISTANT_TIME
+void APIConnection::send_time_request() {
+  GetTimeRequest req;
+  if (!this->send_message(req)) {
+    API_LOG_MSG_DROPPED(TAG, "Time request");
+  }
+}
+#endif  // USE_HOMEASSISTANT_TIME
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
@@ -2128,7 +2177,10 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   if (this->helper_->can_write_without_blocking())
     return true;
   if (log_out_of_space) {
-    ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+    // VV: refusals are either reported by the sending call site (naming what
+    // was lost) or retried without loss (the deferred batch), so this generic
+    // line only duplicates them.
+    ESP_LOGVV(TAG, "Cannot send message because of TCP buffer space");
   }
   return false;
 }
