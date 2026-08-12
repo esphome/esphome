@@ -589,10 +589,17 @@ void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64
                                     Trigger<std::string> *on_complete) {
 #ifdef USE_STORAGE_WORKER
   if (global_storage_worker != nullptr) {
+    RawGeometry geo;
     if (size == 0) {  // "to the end of the device"
-      RawGeometry geo;
       device->get_raw_geometry(&geo);
       size = geo.capacity > address ? geo.capacity - address : 0;
+    }
+    // The sync twin (perform_raw_read_to_file) runs raw_preflight() here; the worker path skipped it
+    // and submitted an out-of-range address as a zero-length "success". Reject it the same way.
+    StorageError pf = raw_preflight(device, "read", address, size, &geo);
+    if (pf != StorageError::OK) {
+      raw_fail(on_complete, "read", error_to_string(pf));
+      return;
     }
     if (global_storage_registry == nullptr) {
       raw_fail(on_complete, "read", "no storage registry");
