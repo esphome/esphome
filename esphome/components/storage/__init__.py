@@ -1071,7 +1071,9 @@ def _validate_raw_data(value: str | list) -> bytes | list:
             "data must either be a string wrapped in quotes or a list of bytes"
         )
     if len(data) == 0:
-        raise cv.Invalid("data must not be empty; a raw write of 0 bytes is rejected at runtime")
+        raise cv.Invalid(
+            "data must not be empty; a raw write of 0 bytes is rejected at runtime"
+        )
     return data
 
 
