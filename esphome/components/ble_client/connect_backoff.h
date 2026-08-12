@@ -12,24 +12,29 @@
 namespace esphome::ble_client {
 
 /// Reconnect backoff after repeated connect/discovery failures, shared by
-/// both engines (wrap-safe start+failures pair; the duration is derived).
+/// both engines. 256 ms ticks in a uint16_t keep it 4 bytes; the ~4.7 h tick
+/// wrap can at worst reinstate one stale hold-off of a minute.
 class ConnectBackoff {
  public:
-  bool holding_off() const { return this->failures_ != 0 && millis() - this->start_ < this->failures_ * STEP_MS; }
+  bool holding_off() const {
+    return this->failures_ != 0 && static_cast<uint16_t>(now_() - this->start_) < this->failures_ * STEP_TICKS;
+  }
   void register_failure(const char *address_str) {
     if (this->failures_ < MAX_STEPS)
       this->failures_++;
-    this->start_ = millis();
-    esph_log_w("ble_client", "[%s] Holding off reconnect for %u s", address_str, this->failures_ * (STEP_MS / 1000));
+    this->start_ = now_();
+    esph_log_w("ble_client", "[%s] Holding off reconnect for %u s", address_str, this->failures_ * 10u);
   }
   void reset() { this->failures_ = 0; }
 
  private:
-  // Capped so a flapping peer retries within a minute at worst.
-  static constexpr uint32_t STEP_MS = 10000;
+  // ~10 s per consecutive failure, capped so a flapping peer retries within
+  // a minute at worst.
+  static constexpr uint16_t STEP_TICKS = 40;  // x 256 ms
   static constexpr uint8_t MAX_STEPS = 6;
+  static uint16_t now_() { return static_cast<uint16_t>(millis() >> 8); }
 
-  uint32_t start_{0};
+  uint16_t start_{0};
   uint8_t failures_{0};
 };
 
