@@ -28,6 +28,8 @@ class BLEClientNode {
   // Neutral surface, delivered by both engines. The table is borrowed: copy
   // handles during on_connected(). All nodes see all completions; filter by
   // handle.
+  // A node that disconnects from inside on_connected() aborts the fan-out;
+  // the user's on_disconnect may then fire without a preceding on_connect.
   virtual void on_connected(const ble_device_base::GattServiceTable &table) {}
   virtual void on_disconnected() {}
   virtual void on_notify(uint16_t handle, const uint8_t *data, uint16_t len) {}
