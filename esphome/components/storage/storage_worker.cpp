@@ -1908,7 +1908,15 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
                          global_storage_registry->get_move_fallback_copy();
       if (salvageable) {
         FileStat st{};
-        salvageable = req.src_storage->stat(req.src_path, &st) == StorageError::OK && !st.is_dir;
+        StorageError sterr = req.src_storage->stat(req.src_path, &st);
+        // A stat error other than NOT_FOUND (permission, medium not ready, corruption) is the real
+        // reason the move cannot proceed -- report it instead of the stale rename refusal. NOT_FOUND
+        // and a directory both mean "nothing here to salvage", which the rename error already covers.
+        if (sterr != StorageError::OK && sterr != StorageError::NOT_FOUND) {
+          finish_request(req, sterr);
+          return;
+        }
+        salvageable = sterr == StorageError::OK && !st.is_dir;
       }
       if (!salvageable) {
         finish_request(req, err);
