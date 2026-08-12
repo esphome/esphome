@@ -9,6 +9,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
+// Compile-time notice that this interface is not yet API-stable (matches the EXPERIMENTAL banner in
+// __init__.py). Lives in the .cpp, so it fires once per build from this translation unit rather than
+// from every storage.h include, and does not reach the host gtest units that pull in only the headers.
+#warning "The storage component is EXPERIMENTAL: config and C++ API may change without the breaking-changes policy"
+
 namespace esphome::storage {
 
 static const char *const TAG = "storage";
