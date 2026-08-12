@@ -13,7 +13,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_BLE_CLIENT_GATT_NODES) || (defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32))
+#ifdef USE_BLE_CLIENT_GATT_NODES
 
 #include "esphome/components/ble_client/ble_client_node.h"
 #include "esphome/components/sensor/sensor.h"
@@ -58,4 +58,4 @@ class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClien
 
 }  // namespace esphome::radon_eye_rd200
 
-#endif  // USE_BLE_CLIENT_GATT_NODES || (USE_BLE_GATT_CLIENT && !USE_ESP32)
+#endif  // USE_BLE_CLIENT_GATT_NODES

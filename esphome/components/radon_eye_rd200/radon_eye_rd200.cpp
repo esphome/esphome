@@ -1,6 +1,6 @@
 #include "radon_eye_rd200.h"
 
-#if defined(USE_BLE_CLIENT_GATT_NODES) || (defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32))
+#ifdef USE_BLE_CLIENT_GATT_NODES
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -225,4 +225,4 @@ void RadonEyeRD200::dump_config() {
 
 }  // namespace esphome::radon_eye_rd200
 
-#endif  // USE_BLE_CLIENT_GATT_NODES || (USE_BLE_GATT_CLIENT && !USE_ESP32)
+#endif  // USE_BLE_CLIENT_GATT_NODES
