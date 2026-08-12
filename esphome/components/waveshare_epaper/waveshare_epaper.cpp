@@ -446,7 +446,8 @@ void WaveshareEPaperTypeA::initialize() {
   }
 }
 void WaveshareEPaperTypeA::init_display_() {
-  if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == WAVESHARE_EPAPER_2_13_IN_V2 || this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == WAVESHARE_EPAPER_2_13_IN_V2 ||
+      this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
       delay(10);
@@ -574,55 +575,49 @@ void HOT WaveshareEPaperTypeA::display() {
         case TTGO_EPAPER_2_13_IN_B1:
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B1 : PARTIAL_UPDATE_LUT_TTGO_B1, LUT_SIZE_TTGO_B1);
           break;
-        case WAVESHARE_EPAPER_2_9_IN_V2:
-          {
-            ESP_LOGD(TAG, "Doing WS2IN9V2 specific update. Full: %d", full_update);
-            const uint8_t *extra = 0;
-            if (full_update)
-            {
-              this->write_lut_(FULL_UPDATE_LUT_2IN9V2, ACTUAL_LUT_SIZE_2IN9V2);
-              extra = &FULL_UPDATE_LUT_2IN9V2[ACTUAL_LUT_SIZE_2IN9V2];
-            }
-            else
-            {
-              this->write_lut_(PARTIAL_UPDATE_LUT_2IN9V2, ACTUAL_LUT_SIZE_2IN9V2);
-              extra = &PARTIAL_UPDATE_LUT_2IN9V2[ACTUAL_LUT_SIZE_2IN9V2];
-            }
-            this->wait_until_idle_();
-            // These are extra parameters bunched in with the LUT in the Waveshare libraries
-            // They are slightly different between full and partial updates
-            this->command(0x3f);   // Mystery parameter
-            this->data(*extra++);
-            this->command(0x03);   // gate voltage
-            this->data(*extra++);
-            this->command(0x04);   // source voltage
-            this->data(*extra++);  // VSH
-            this->data(*extra++);  // VSH2
-            this->data(*extra++);  // VSL
-            this->command(0x2c);   // VCOM
-            this->data(*extra++);
-            if (!full_update)
-            {
-               this->command(0x37);  // Mystery parameter
-               this->data(0);
-               this->data(0);
-               this->data(0);
-               this->data(0);
-               this->data(0);
-               this->data(0x40);
-               this->data(0);
-               this->data(0);
-               this->data(0);
-               this->data(0);
-               this->command(0x3C);  // Border waveform
-               this->data(0x80);
-               this->command(0x22);  // Enable clock and analogue
-               this->data(0xC0);
-               this->command(0x20);  // Commit
-               this->wait_until_idle_();
-            }
+        case WAVESHARE_EPAPER_2_9_IN_V2: {
+          ESP_LOGD(TAG, "Doing WS2IN9V2 specific update. Full: %d", full_update);
+          const uint8_t *extra = 0;
+          if (full_update) {
+            this->write_lut_(FULL_UPDATE_LUT_2IN9V2, ACTUAL_LUT_SIZE_2IN9V2);
+            extra = &FULL_UPDATE_LUT_2IN9V2[ACTUAL_LUT_SIZE_2IN9V2];
+          } else {
+            this->write_lut_(PARTIAL_UPDATE_LUT_2IN9V2, ACTUAL_LUT_SIZE_2IN9V2);
+            extra = &PARTIAL_UPDATE_LUT_2IN9V2[ACTUAL_LUT_SIZE_2IN9V2];
           }
-          break;
+          this->wait_until_idle_();
+          // These are extra parameters bunched in with the LUT in the Waveshare libraries
+          // They are slightly different between full and partial updates
+          this->command(0x3f);  // Mystery parameter
+          this->data(*extra++);
+          this->command(0x03);  // gate voltage
+          this->data(*extra++);
+          this->command(0x04);   // source voltage
+          this->data(*extra++);  // VSH
+          this->data(*extra++);  // VSH2
+          this->data(*extra++);  // VSL
+          this->command(0x2c);   // VCOM
+          this->data(*extra++);
+          if (!full_update) {
+            this->command(0x37);  // Mystery parameter
+            this->data(0);
+            this->data(0);
+            this->data(0);
+            this->data(0);
+            this->data(0);
+            this->data(0x40);
+            this->data(0);
+            this->data(0);
+            this->data(0);
+            this->data(0);
+            this->command(0x3C);  // Border waveform
+            this->data(0x80);
+            this->command(0x22);  // Enable clock and analogue
+            this->data(0xC0);
+            this->command(0x20);  // Commit
+            this->wait_until_idle_();
+          }
+        } break;
         default:
           this->write_lut_(full_update ? FULL_UPDATE_LUT : PARTIAL_UPDATE_LUT, LUT_SIZE_WAVESHARE);
       }
@@ -741,8 +736,7 @@ void HOT WaveshareEPaperTypeA::display() {
     this->end_data_();
   }
 
-  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 && full_update)
-  {
+  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 && full_update) {
     // COMMAND WRITE "RED" RAM
     this->command(0x26);
     this->start_data_();
