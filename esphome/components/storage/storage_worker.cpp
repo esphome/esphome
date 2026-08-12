@@ -1785,11 +1785,14 @@ void StorageWorker::check_stalled_() {
       if (cb)
         cb(result);
     } else if (sstate == StreamState::IDLE) {
-      // Same immediate-finish contract as the quiesce drain: no I/O in flight.
+      // Same immediate-finish contract as the quiesce drain: no I/O in flight. Capture the close
+      // result (a FATFS flush failure surfaces here) and prefer it over the watchdog's TIMEOUT, so
+      // an abandoned write stream that failed to flush is not reported to the waiter as a timeout.
+      StorageError close_err = StorageError::OK;
       if (sreq.is_fs && sreq.handle != nullptr)
-        static_cast<FilesystemStorage *>(sreq.storage)->close(sreq.handle);
+        close_err = static_cast<FilesystemStorage *>(sreq.storage)->close(sreq.handle);
       sreq.handle = nullptr;
-      sreq.result = StorageError::TIMEOUT;
+      sreq.result = close_err != StorageError::OK ? close_err : StorageError::TIMEOUT;
       sreq.state = StreamState::DONE;
     } else {
       // A step is queued or running -- CANCELLED makes run_stream_step_ close and finish it.
