@@ -312,10 +312,10 @@ static StorageError raw_size_allowed(const char *op, uint64_t size) {
 
 // Erases the sector range covering [address, address+len) -- expanding to sector bounds, which
 // is what makes this destructive to neighbours and therefore opt-in.
-static bool raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint64_t address, size_t len) {
+static StorageError raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint64_t address, size_t len) {
   if (geo.erase_sector == 0) {
     ESP_LOGE(TAG, "raw_write: erase_first requested but this device has no erase");
-    return false;
+    return StorageError::NOT_SUPPORTED;
   }
   uint64_t start = address - (address % geo.erase_sector);
   uint64_t end = address + len;
@@ -330,16 +330,16 @@ static bool raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint
              "raw_write: erase_first would have to erase up to %" PRIu32 " to cover this write, past the device's "
              "%" PRIu32 " bytes -- this device's last sector is partial",
              (uint32_t) end, (uint32_t) geo.capacity);
-    return false;
+    return StorageError::INVALID_ARGS;
   }
   ESP_LOGD(TAG, "raw_write: erasing 0x%08" PRIX32 " + %" PRIu32 " before writing", (uint32_t) start,
            (uint32_t) (end - start));
   StorageError err = device->erase(start, static_cast<size_t>(end - start));
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "raw_write: erase failed (%s)", error_to_string(err));
-    return false;
+    return err;
   }
-  return true;
+  return StorageError::OK;
 }
 
 // Reads the range into an already-sized buffer, honoring the partial-read contract.
@@ -482,8 +482,11 @@ StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
     return StorageError::NOT_READY;
   }
-  if (erase_first && !raw_erase_for_write(device, geo, address, len))
-    return StorageError::WRITE_ERROR;
+  if (erase_first) {
+    StorageError eerr = raw_erase_for_write(device, geo, address, len);
+    if (eerr != StorageError::OK)
+      return eerr;  // NOT_SUPPORTED / INVALID_ARGS / the driver's erase error, not a blanket WRITE_ERROR
+  }
 
   size_t done = 0;
   while (done < len) {
