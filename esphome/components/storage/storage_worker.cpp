@@ -729,7 +729,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
   // to unmount/tear down the driver right afterward.
   for (size_t i = 0; i < this->pool_.size(); i++) {
     TransferRequest &req = this->pool_[i];
-    if (req.src_storage != s && req.dst_storage != s)
+    if (req.src_storage != s && req.dst_storage != s && req.raw_device != s)
       continue;
 
     RequestState state = req.state.load();
@@ -1809,7 +1809,8 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
   req.network_waiting = false;  // set again below only if a side is still coming up
   if (global_storage_registry != nullptr &&
       ((req.src_storage != nullptr && !global_storage_registry->is_registered(req.src_storage)) ||
-       (req.dst_storage != nullptr && !global_storage_registry->is_registered(req.dst_storage)))) {
+       (req.dst_storage != nullptr && !global_storage_registry->is_registered(req.dst_storage)) ||
+       (req.raw_device != nullptr && !global_storage_registry->is_registered(req.raw_device)))) {
     finish_request(req, StorageError::NOT_READY);
     return;
   }
