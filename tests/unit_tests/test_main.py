@@ -3114,6 +3114,39 @@ def test_show_logs_api_with_mqtt_fallback(
 
 
 @patch("esphome.mqtt.show_logs")
+def test_show_logs_api_mqtt_only_resolve_failure_falls_back_to_mqtt_logs(
+    mock_mqtt_show_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """With no addresses at all after a failed MQTT lookup, MQTT logging is used."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_mqtt_show_logs.return_value = 0
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+
+    args = MockArgs(
+        topic="esphome/logs", username="user", password="pass", client_id="client"
+    )
+    devices = ["MQTT", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
+    )
+    mock_mqtt_show_logs.assert_called_once_with(
+        CORE.config, "esphome/logs", "user", "pass", "client"
+    )
+
+
+@patch("esphome.mqtt.show_logs")
 def test_show_logs_mqtt(
     mock_mqtt_show_logs: Mock,
 ) -> None:
