@@ -127,3 +127,41 @@ def test_neutral_arm_rejects_esp32_only_keys(
     for key in ("name", "on_passkey_request", "on_passkey_notification"):
         with pytest.raises(cv.Invalid, match="extra keys not allowed"):
             ble_client.CONFIG_SCHEMA({"mac_address": "AA:BB:CC:DD:EE:FF", key: "x"})
+
+
+def test_security_actions_reject_platforms_without_the_feature(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    from esphome.components import ble_client
+
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    for schema in (
+        ble_client.BLE_PASSKEY_REPLY_ACTION_SCHEMA,
+        ble_client.BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
+        ble_client.BLE_REMOVE_BOND_ACTION_SCHEMA,
+    ):
+        with pytest.raises(cv.Invalid, match="'security' feature, which rp2"):
+            schema({})
+
+
+def test_node_schema_passes_on_every_gatt_platform(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The neutral node schema carries no engine gate: raw_gattc components
+    # stay choked, gatt_node components validate wherever ble_client does.
+    from esphome.components import ble_client
+
+    for pf in (PlatformFramework.ESP32_IDF, PlatformFramework.RP2_ARDUINO):
+        set_core_config(pf)
+        assert ble_client.NODE_BLE_CLIENT_SCHEMA({})
+
+
+def test_feature_error_names_the_available_features(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    from esphome.components import ble_client
+    from esphome.core import ID
+
+    set_core_config(PlatformFramework.RP2_ARDUINO)
+    with pytest.raises(cv.Invalid, match="provides: gatt_node"):
+        ble_client._legacy_engine_only(ID("x"))
