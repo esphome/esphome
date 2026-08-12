@@ -165,7 +165,11 @@ def _collect_mount_paths(fragment: Any, where: str, out: list) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH and isinstance(value, str):
+            if key == CONF_MOUNT_PATH:
+                # A validated mount_path is always a str; a non-str here means a driver schema let
+                # one through, which would silently skip the duplicate-mount-point check.
+                if not isinstance(value, str):
+                    raise cv.Invalid(f"mount_path must be a string, not {type(value).__name__}")
                 out.append((value, where))
             else:
                 _collect_mount_paths(value, where, out)
