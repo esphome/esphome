@@ -126,9 +126,6 @@ def test_get_esphome_device_ip_success() -> None:
         result = get_esphome_device_ip(_discovery_config())
 
     assert result == ["10.0.0.5", "10.0.0.6"]
-    # The one-shot discovery client must not inherit the reconnect-forever
-    # handler, which would make loop_stop() join the network thread forever
-    assert client.on_disconnect is None
     client.loop_stop.assert_called_once_with()
     # Once from on_message on receiving the answer, once from the finally
     assert client.disconnect.call_count == 2
@@ -192,4 +189,95 @@ def test_get_esphome_device_ip_stop_during_connect_skips_wait() -> None:
     assert result == []
     client.loop_start.assert_not_called()
     client.disconnect.assert_called_once_with()
+    client.loop_stop.assert_called_once_with()
+
+
+def test_get_esphome_device_ip_replaces_reconnect_handler(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The one-shot discovery client must not inherit the reconnect-forever
+    handler, which would make loop_stop() join the network thread forever;
+    its replacement still reports a broker-initiated disconnect."""
+    client = MagicMock()
+    prepare_handler = MagicMock()
+    client.on_disconnect = prepare_handler
+
+    with (
+        patch("esphome.mqtt.prepare", return_value=client),
+        pytest.raises(EsphomeError, match="Failed to find IP via MQTT"),
+    ):
+        get_esphome_device_ip(_discovery_config(), timeout=0.25)
+
+    assert client.on_disconnect is not prepare_handler
+    client.on_disconnect(client, None, 0)
+    assert "Disconnected from MQTT broker" not in caplog.text
+    client.on_disconnect(client, None, 5)
+    assert "Disconnected from MQTT broker (5)" in caplog.text
+
+
+def test_get_esphome_device_ip_answer_without_ip_keeps_waiting(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A device answer with no IP fields is not treated as a result."""
+    client = MagicMock()
+
+    with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+
+        def deliver(*args, **kwargs):
+            msg = MagicMock()
+            msg.payload = json.dumps({"name": "test-device"}).encode()
+            on_message = mock_prepare.call_args.args[2]
+            on_message(client, None, msg)
+
+        client.loop_start.side_effect = deliver
+
+        with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
+            get_esphome_device_ip(_discovery_config(), timeout=0.25)
+
+    assert "Device answer did not include an IP address" in caplog.text
+
+
+def test_get_esphome_device_ip_sends_discovery_ping() -> None:
+    """Connecting publishes the discovery ping for the device."""
+    client = MagicMock()
+
+    with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+
+        def connect_then_answer(*args, **kwargs):
+            on_connect = mock_prepare.call_args.args[3]
+            on_connect(client, None, None, 0)
+            msg = MagicMock()
+            msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
+            mock_prepare.call_args.args[2](client, None, msg)
+
+        client.loop_start.side_effect = connect_then_answer
+
+        result = get_esphome_device_ip(_discovery_config())
+
+    assert result == ["10.0.0.5"]
+    client.publish.assert_called_once_with(
+        "esphome/ping/test-device", None, retain=False
+    )
+
+
+def test_get_esphome_device_ip_disconnect_error_does_not_mask_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A cleanup failure must not replace the discovery result."""
+    client = MagicMock()
+    # First disconnect (from on_message) succeeds; the finally's fails
+    client.disconnect.side_effect = [None, OSError("socket already closed")]
+
+    with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+
+        def deliver(*args, **kwargs):
+            msg = MagicMock()
+            msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
+            mock_prepare.call_args.args[2](client, None, msg)
+
+        client.loop_start.side_effect = deliver
+
+        result = get_esphome_device_ip(_discovery_config())
+
+    assert result == ["10.0.0.5"]
     client.loop_stop.assert_called_once_with()

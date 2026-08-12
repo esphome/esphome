@@ -204,16 +204,21 @@ def get_esphome_device_ip(
                 _LOGGER.warning("Wrong device answer")
                 return
 
-            dev_ip = []
+            addresses = []
             key = "ip"
             n = 0
             while key in data:
-                dev_ip.append(data[key])
+                addresses.append(data[key])
                 n = n + 1
                 key = "ip" + str(n)
 
-            if dev_ip:
-                client.disconnect()
+            if not addresses:
+                # Keep waiting; an answer with no address is not a result
+                _LOGGER.warning("Device answer did not include an IP address")
+                return
+
+            dev_ip = addresses
+            client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
         topic = "esphome/ping/" + dev_name
@@ -224,12 +229,16 @@ def get_esphome_device_ip(
         # Teardown already started; don't open a broker connection at all
         return []
 
+    def on_disconnect(client, userdata, result_code):
+        if result_code != 0:
+            _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
     )
     # Discovery is one-shot; prepare()'s reconnect-forever on_disconnect runs
     # on the network thread and would make loop_stop() below join forever.
-    mqtt_client.on_disconnect = None
+    mqtt_client.on_disconnect = on_disconnect
 
     if stop_event is None:
         import threading

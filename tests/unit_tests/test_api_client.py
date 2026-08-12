@@ -415,3 +415,38 @@ async def test_async_run_logs_mqtt_resolver_duplicate_addresses_logged(caplog) -
     assert "MQTT-discovered address(es) already known: 1.2.3.4" in caplog.text
     assert "Discovered address(es) via MQTT" not in caplog.text
     stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_base_exception_escape_logged_at_teardown(caplog) -> None:
+    """A BaseException escaping the worker is reported, and stop() still runs."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    class WorkerEscape(BaseException):
+        """Not an Exception, so the task-level guard must not catch it."""
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        raise WorkerEscape("worker bailed")
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert "MQTT address discovery failed" in caplog.text
+    stop.assert_awaited_once()
