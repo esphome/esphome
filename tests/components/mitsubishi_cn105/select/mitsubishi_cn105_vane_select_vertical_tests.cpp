@@ -9,7 +9,7 @@ class TestableMitsubishiCN105VerticalVaneDirectionSelect : public MitsubishiCN10
 };
 
 struct VerticalVaneDirectionSelectTestContext {
-  TestableMitsubishiCN105Component hub;
+  MitsubishiCN105Component hub;
   TestableMitsubishiCN105VerticalVaneDirectionSelect select;
 
   VerticalVaneDirectionSelectTestContext() {
@@ -38,6 +38,8 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, MapsIndexesToVaneModes) {
 
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes) {
   VerticalVaneDirectionSelectTestContext ctx;
+  ctx.hub.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
+  ctx.hub.set_target_temperature(20.0f);
 
   constexpr std::array modes{
       MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1,
@@ -48,13 +50,13 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
 
   for (size_t i = 0; i < modes.size(); ++i) {
     SCOPED_TRACE(i);
-    ctx.hub.mutable_status().vane_mode = modes[i];
-    ctx.hub.notify_status();
+    ctx.hub.set_vane_mode(modes[i]);
+    ctx.hub.publish_status();
     EXPECT_EQ(ctx.select.active_index(), std::optional{i});
   }
 
-  ctx.hub.mutable_status().vane_mode = MitsubishiCN105::VaneMode::UNKNOWN;
-  ctx.hub.notify_status();
+  ctx.hub.set_vane_mode(MitsubishiCN105::VaneMode::UNKNOWN);
+  ctx.hub.publish_status();
   EXPECT_EQ(ctx.select.active_index(), std::optional{modes.size() - 1});
 }
 
@@ -64,7 +66,8 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ControlPublishesSelectAndC
   climate_entity.set_parent(&ctx.hub);
   climate_entity.set_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  ctx.hub.mutable_status().room_temperature = 20.0f;
+  ctx.hub.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
+  ctx.hub.set_target_temperature(20.0f);
   climate_entity.setup();
 
   ctx.select.control(6);
@@ -82,7 +85,8 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ClimateControlPublishesSel
   climate_entity.set_parent(&ctx.hub);
   climate_entity.set_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  ctx.hub.mutable_status().room_temperature = 20.0f;
+  ctx.hub.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
+  ctx.hub.set_target_temperature(20.0f);
   climate_entity.setup();
 
   climate_entity.make_call().set_swing_mode(climate::CLIMATE_SWING_VERTICAL).perform();
@@ -100,5 +104,4 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNo
   EXPECT_EQ(ctx.hub.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_3);
   EXPECT_FALSE(ctx.select.has_state());
 }
-
 }  // namespace esphome::mitsubishi_cn105::testing

@@ -22,7 +22,7 @@ class ClearRemoteTemperatureAction final : public Action<Ts...>, public Parented
   void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
 
-template<typename... Ts> class VaneControlAction : public Action<Ts...> {
+template<typename... Ts> class VaneControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(VaneCall &, const std::remove_cvref_t<Ts> &...);
 
