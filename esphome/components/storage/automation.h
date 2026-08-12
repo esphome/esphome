@@ -201,7 +201,8 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
 StorageError perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
 StorageError perform_file_write(const std::string &path, std::string content, bool append, bool newline);
-bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out);
+bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out,
+                       std::string &error);
 
 // ---------------------------------------------------------------------------
 // storage.file_write / storage.file_append
@@ -248,15 +249,23 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
   }
   void set_global_setter(bool (*setter)(const std::string &)) { this->setter_ = setter; }
   Trigger<std::string> *get_value_trigger() { return &this->value_trigger_; }
+  Trigger<std::string> *get_error_trigger() { return &this->error_trigger_; }
 
   void play(const Ts &...x) override {
-    std::string value;
-    if (!perform_file_read(this->path_.value(x...), this->steps_, value))
-      return;  // already logged; global untouched, no trigger
-    // A parse failure inside the setter leaves the global untouched; skip the trigger so an
-    // on_value chained here is not told a fresh value arrived when the global still holds the old.
-    if (this->setter_ && !this->setter_(value))
+    std::string value, error;
+    if (!perform_file_read(this->path_.value(x...), this->steps_, value, error)) {
+      // Read or an extract step failed: global untouched, on_value not fired -- surface the cause.
+      this->error_trigger_.trigger(error);
       return;
+    }
+    // A parse failure inside the setter leaves the global untouched; skip on_value (no fresh value
+    // arrived) and report why via on_error instead. The echoed value is bounded so a large read
+    // cannot bloat the error string.
+    if (this->setter_ && !this->setter_(value)) {
+      std::string shown = value.size() > 32 ? value.substr(0, 32) + "..." : value;
+      this->error_trigger_.trigger("read '" + shown + "' but it did not parse for the target global");
+      return;
+    }
     this->value_trigger_.trigger(value);
   }
 
@@ -264,6 +273,7 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
   FixedVector<ExtractStep> steps_;
   bool (*setter_)(const std::string &){nullptr};
   Trigger<std::string> value_trigger_;
+  Trigger<std::string> error_trigger_;
 };
 
 // ---------------------------------------------------------------------------

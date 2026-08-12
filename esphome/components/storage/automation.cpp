@@ -219,19 +219,23 @@ StorageError perform_file_write(const std::string &path, std::string content, bo
   return err;
 }
 
-bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out) {
+bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out,
+                       std::string &error) {
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_read: no storage registry");
+    error = "no storage registry";
     return false;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "file_read: no storage mounted for '%s'", path.c_str());
+    error = "no storage mounted for '" + path + "'";
     return false;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "file_read: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
+    error = "storage is busy with a background transfer";
     return false;
   }
 
@@ -242,6 +246,7 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
   if (err != StorageError::OK) {
     // Error path leaves any configured global untouched and does not fire on_value.
     ESP_LOGE(TAG, "file_read: reading '%s' failed (%s)", path.c_str(), error_to_string(err));
+    error = error_to_string(err);
     return false;
   }
 
@@ -252,9 +257,16 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
   } else {
     out.clear();
   }
+  // 1-based index so a failing step is nameable to the user; not a StorageError (an extract miss
+  // is a content outcome, not a medium fault), so it rides the on_error text channel instead.
+  size_t step_index = 0;
   for (const auto &step : steps) {
-    if (!apply_extract_step(step, out))
-      return false;  // step already logged; global untouched, no trigger
+    step_index++;
+    if (!apply_extract_step(step, out)) {
+      // step already logged; global untouched, on_value not fired -- report which one.
+      error = str_sprintf("extract step %d did not match", static_cast<int>(step_index));
+      return false;
+    }
   }
   return true;
 }

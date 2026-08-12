@@ -61,6 +61,7 @@ CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
 CONF_ON_COMPLETE = "on_complete"
+CONF_ON_ERROR = "on_error"
 CONF_ON_UNREGISTERED = "on_unregistered"
 
 # No AUTO_LOAD of json here: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT
@@ -682,6 +683,9 @@ _FILE_READ_SCHEMA = cv.All(
             cv.Optional(CONF_EXTRACT, default=[]): cv.ensure_list(_EXTRACT_STEP_SCHEMA),
             cv.Optional(CONF_TO_GLOBAL): cv.use_id(globals_.GlobalsComponent),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
+            # Fires the failure cause (medium error text, "extract step N did not match", or a
+            # parse-failure note) when a read yields nothing usable and on_value stays silent.
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
     _validate_read,
@@ -811,6 +815,10 @@ async def file_read_action_to_code(
     if (on_value := config.get(CONF_ON_VALUE)) is not None:
         await automation.build_automation(
             var.get_value_trigger(), [(cg.std_string, "x")], on_value
+        )
+    if (on_error := config.get(CONF_ON_ERROR)) is not None:
+        await automation.build_automation(
+            var.get_error_trigger(), [(cg.std_string, "x")], on_error
         )
     return var
 
