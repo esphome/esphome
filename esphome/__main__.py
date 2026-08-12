@@ -2509,6 +2509,49 @@ def parse_args(argv):
     return parser.parse_args(arguments)
 
 
+def _warn_if_source_tree_mismatch() -> None:
+    """Warn when the checkout the user is standing in is not the one being run.
+
+    An editable install records one absolute path, so a venv shared between git
+    worktrees (or reused after a checkout is copied or renamed) keeps importing
+    the tree it was installed from. Every command then silently runs, and
+    compiles, sources the user is not looking at. Only fires inside a checkout,
+    so ordinary installs never see it.
+    """
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return  # working directory is gone; a diagnostic must not break startup
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / "esphome" / "__main__.py").is_file():
+            standing_in = candidate.resolve()
+            break
+    else:
+        return  # not inside a checkout; nothing to compare against
+
+    running = Path(__file__).resolve().parent.parent
+    # Both sides are resolved, so on a case-sensitive filesystem this matches
+    # plain equality. samefile() compares device and inode, which additionally
+    # covers a case-insensitive filesystem (macOS) reaching one directory by
+    # differently cased paths. Falls back to equality if either path is gone.
+    try:
+        same = standing_in.samefile(running)
+    except OSError:
+        same = standing_in == running
+    if same:
+        return
+
+    _LOGGER.warning(
+        "Running ESPHome from a different checkout than the one you are in:\n"
+        "  running from: %s\n"
+        "  you are in:   %s\n"
+        "The installed esphome resolves to the first, so its sources are used.\n"
+        "Run 'python -m esphome' from the second to use that one instead.",
+        running,
+        standing_in,
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
@@ -2527,6 +2570,7 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
