@@ -38,7 +38,7 @@ void BluetoothConnection::set_address(uint64_t address) {
   this->proxy_->update_address_slot_(this->address_, address);
   // Slot changing hands: anything owed belonged to the old address. The
   // choke point for every reassignment, not just reset_connection_()'s path.
-  this->clear_pending_ack_();
+  this->clear_owed_flags_();
   this->address_ = address;
   if (address == 0) {
     this->address_str_[0] = '\0';
@@ -97,8 +97,7 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->services_discovered_ = false;
   this->paired_ = false;
   // Link gone: the slot may hold a different device before the drain runs.
-  this->clear_pending_ack_();
-  this->batch_stalled_ = false;
+  this->clear_owed_flags_();
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -142,7 +141,7 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
         ESP_LOGW(TAG, "[%d] [%s] conn param update failed, err=%d", this->connection_index_, this->address_str_,
                  param_err);
       }
-      this->proxy_->send_device_connection(this->address_, true, mtu);
+      this->send_connected_reply_();
       this->proxy_->send_connections_free();
       return;
     }
@@ -180,8 +179,47 @@ void BluetoothConnection::on_service_discovery_done(int error) {
            this->mtu_);
   this->state_ = ClientState::ESTABLISHED;
   this->services_discovered_ = true;
-  this->proxy_->send_device_connection(this->address_, true, this->mtu_);
+  this->send_connected_reply_();
   this->proxy_->send_connections_free();
+}
+
+void BluetoothConnection::flush_owed_replies_() {
+  // Connected first: the client should never see services-done or an ack for
+  // a link it has not been told is up. Structural, not size-dependent: a
+  // still-owed connected reply defers the smaller sends to the next tick.
+  if (this->connected_reply_owed_) {
+    this->send_connected_reply_();
+    if (this->connected_reply_owed_) {
+      // The retry limits are wall-clock windows: age the deferred budgets so
+      // a reply cannot outlive the window it was sized for.
+      if (this->send_service_ == SERVICES_DONE_PENDING) {
+        this->age_services_done_();
+      }
+      if (this->has_pending_ack_()) {
+        this->age_pending_ack_();
+      }
+      return;
+    }
+  }
+  if (this->send_service_ == SERVICES_DONE_PENDING) {
+    this->send_services_done_();
+  }
+  if (this->has_pending_ack_()) {
+    this->flush_pending_ack_();
+  }
+}
+
+void BluetoothConnection::send_connected_reply_() {
+  if (this->proxy_->send_device_connection(this->address_, true, this->mtu_)) {
+    this->connected_reply_owed_ = false;
+    return;
+  }
+  // Warn on the leading edge only, as elsewhere: the drop must be visible but
+  // must not add traffic to the connection that just refused a frame.
+  if (!this->connected_reply_owed_) {
+    ESP_LOGW(TAG, "[%d] [%s] Connected reply deferred, TCP buffer full", this->connection_index_, this->address_str_);
+    this->connected_reply_owed_ = true;
+  }
 }
 
 void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint16_t handle, int status) {
@@ -245,13 +283,16 @@ void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t
 }
 
 void BluetoothConnection::flush_pending_ack_() {
-  // No-op on its own rather than relying on the proxy drain's pre-check.
   if (!this->has_pending_ack_())
     return;
   if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
     this->clear_pending_ack_();
     return;
   }
+  this->age_pending_ack_();
+}
+
+void BluetoothConnection::age_pending_ack_() {
   if (++this->pending_ack_retries_ >= PENDING_ACK_RETRY_LIMIT) {
     // Undeliverable: past here the client has given up and may have re-asked,
     // and a late reply would answer the new request instead of this one.
@@ -401,7 +442,13 @@ void BluetoothConnection::send_services_done_() {
     ESP_LOGW(TAG, "[%d] [%s] Failed to send services done, retrying", this->connection_index_, this->address_str_);
     this->services_done_retries_ = 0;
     this->send_service_ = SERVICES_DONE_PENDING;
-  } else if (++this->services_done_retries_ >= SERVICES_DONE_RETRY_LIMIT) {
+  } else {
+    this->age_services_done_();
+  }
+}
+
+void BluetoothConnection::age_services_done_() {
+  if (++this->services_done_retries_ >= SERVICES_DONE_RETRY_LIMIT) {
     // Undeliverable (see SERVICES_DONE_RETRY_LIMIT); silence arbitrates.
     ESP_LOGW(TAG, "[%d] [%s] Services done undeliverable, abandoning", this->connection_index_, this->address_str_);
     this->send_service_ = DONE_SENDING_SERVICES;
