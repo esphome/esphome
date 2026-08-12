@@ -11,7 +11,6 @@ Once the API is considered stable, this warning will be removed.
 from dataclasses import dataclass
 import logging
 import re
-from typing import Any
 
 from esphome import automation, core
 import esphome.codegen as cg
@@ -161,7 +160,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _collect_mount_paths(fragment: Any, where: str, out: list) -> None:
+def _collect_mount_paths(
+    fragment: object, where: str, out: list[tuple[str, str]]
+) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
