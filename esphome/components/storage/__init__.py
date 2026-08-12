@@ -620,10 +620,31 @@ def _validate_regex(value: str) -> str:
     # comments) at config time.
     i = 0
     n = len(value)
+    in_class = False  # inside a [...] character class, where '(', '?' etc. are literals
+    prev_quant = False  # last token was a quantifier -- a following '+' is a possessive quantifier
     while i < n:
         c = value[i]
         if c == "\\":
+            # ECMAScript IdentityEscape does not define the alphanumeric anchor escapes Python takes.
+            nxt = value[i + 1] if i + 1 < n else ""
+            if nxt in ("A", "Z", "z"):
+                raise cv.Invalid(
+                    f"Invalid regex: '\\{nxt}' is not supported by std::regex ECMAScript "
+                    "(use '^'/'$') and would crash at runtime"
+                )
             i += 2
+            prev_quant = False
+            continue
+        if in_class:
+            if c == "]":
+                in_class = False
+            i += 1
+            prev_quant = False
+            continue
+        if c == "[":
+            in_class = True
+            i += 1
+            prev_quant = False
             continue
         if c == "(" and i + 1 < n and value[i + 1] == "?":
             if i + 2 >= n or value[i + 2] not in ":=!":
@@ -633,7 +654,14 @@ def _validate_regex(value: str) -> str:
                     "crash at runtime"
                 )
             i += 3
+            prev_quant = False
             continue
+        if c == "+" and prev_quant:
+            raise cv.Invalid(
+                "Invalid regex: possessive quantifiers ('*+', '++', '?+', '{m,n}+') are not "
+                "supported by std::regex ECMAScript and would crash at runtime"
+            )
+        prev_quant = c in "*+?}"
         i += 1
     return value
 
