@@ -689,13 +689,14 @@ TEST(HoermannHcpLightTest, SettlingTheLastSentToggleEndsTheWait) {
 // going to fire, so it keeps counting.
 TEST(HoermannHcpLightTest, WatchdogKeepsAToggleTheDoorHasNotSeen) {
   TestableHoermannHcp door;
-  door.connection_timeout_ms_ = 20;
+  // Wide enough that the toggle queued after the sleep cannot expire before update() runs.
+  door.connection_timeout_ms_ = 200;
   connect_controller(door);
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.toggle_light());
   consume_command(door);  // shown to the door, which then says nothing about the lamp
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  std::this_thread::sleep_for(std::chrono::milliseconds(220));
   // Queued just now, so only the wait for the first toggle is overdue.
   door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   ASSERT_TRUE(door.toggle_light());
