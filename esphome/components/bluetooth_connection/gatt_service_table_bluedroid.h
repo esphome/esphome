@@ -66,8 +66,8 @@ class BluedroidServiceTable {
   uint16_t char_total_{0};
   uint16_t desc_total_{0};
   // Walk context, set by build().
-  esp_gatt_if_t gattc_if_{};
   uint16_t conn_id_{0};
+  esp_gatt_if_t gattc_if_{};  // uint8_t width
   uint8_t log_index_{0};
 };
 
