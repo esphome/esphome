@@ -123,7 +123,7 @@ static constexpr uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
  */
 // clang-format on
 
-class FujitsuGeneralClimate : public climate_ir::ClimateIR {
+class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
  public:
   FujitsuGeneralClimate()
       : ClimateIR(FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1.0f, true, true,

@@ -371,7 +371,7 @@ async def to_code(config):
             data.wav_support = True
 
     if data.micro_decoder_support:
-        add_idf_component(name="esphome/micro-decoder", ref="0.2.0")
+        add_idf_component(name="esphome/micro-decoder", ref="0.4.0")
 
         # All codecs are enabled by default in micro-decoder, so disable the ones that aren't requested to save flash
         if not data.flac_support:
@@ -380,6 +380,8 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_MP3", False)
         if not data.opus_support:
             add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_OPUS", False)
+        # Vorbis is unsupported in ESPHome, so always disable it
+        add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_VORBIS", False)
         if not data.wav_support:
             add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_WAV", False)
 
@@ -395,7 +397,7 @@ async def to_code(config):
         )
     if data.mp3_support:
         cg.add_define("USE_AUDIO_MP3_SUPPORT")
-        add_idf_component(name="esphome/micro-mp3", ref="0.3.0")
+        add_idf_component(name="esphome/micro-mp3", ref="0.4.0")
         _emit_memory_pair(
             data.mp3.buffer_memory,
             "CONFIG_MICRO_MP3_PREFER_PSRAM",

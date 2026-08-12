@@ -6,9 +6,9 @@
 
 namespace esphome::ssd1322_spi {
 
-class SPISSD1322 : public ssd1322_base::SSD1322,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                         spi::DATA_RATE_8MHZ> {
+class SPISSD1322 final : public ssd1322_base::SSD1322,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                               spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_8MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
 

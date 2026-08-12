@@ -86,14 +86,6 @@ std::string str_sprintf(const char *fmt, ...) {
   return str;
 }
 
-// --- Value formatting helpers ---
-
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  char buf[VALUE_ACCURACY_MAX_LEN];
-  value_accuracy_to_buf(buf, value, accuracy_decimals);
-  return std::string(buf);
-}
-
 // --- Base64 helpers ---
 
 static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -152,7 +144,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
 // --- Hex/binary formatting helpers ---
 
 std::string format_mac_address_pretty(const uint8_t *mac) {
-  char buf[18];
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(mac, buf);
   return std::string(buf);
 }
@@ -214,9 +206,9 @@ std::string format_bin(const uint8_t *data, size_t length) {
 // --- MAC address helpers ---
 
 std::string get_mac_address() {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
-  char buf[13];
+  char buf[MAC_ADDRESS_BUFFER_SIZE];
   format_mac_addr_lower_no_sep(mac, buf);
   return std::string(buf);
 }

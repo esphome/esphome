@@ -81,7 +81,7 @@ struct LTWiFiEvent {
       uint8_t scan_id;
     } scan_done;
     struct {
-      uint8_t mac[6];
+      uint8_t mac[MAC_ADDRESS_SIZE];
       int rssi;
     } ap_probe_req;
   } data;
@@ -391,7 +391,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
       auto &it = info.wifi_ap_probereqrecved;
-      memcpy(to_send->data.ap_probe_req.mac, it.mac, 6);
+      memcpy(to_send->data.ap_probe_req.mac, it.mac, MAC_ADDRESS_SIZE);
       to_send->data.ap_probe_req.rssi = it.rssi;
       break;
     }
@@ -657,44 +657,48 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   return true;
 }
 void WiFiComponent::wifi_scan_done_callback_() {
-  this->scan_result_.clear();
-  this->scan_done_ = true;
-
   int16_t num = WiFi.scanComplete();
-  if (num < 0)
-    return;
-
   bool needs_full = this->needs_full_scan_results_();
+  {
+    // Mutate in place under the lock; blocking a portal request is fine and
+    // avoids scratch buffers
+    ScanResultsLock lock(this);
+    this->scan_result_.clear();
+    this->scan_done_ = true;
 
-  // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
-  // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
-  auto *scan = WiFi.scan;
+    if (num < 0)
+      return;
 
-  // First pass: count matching networks
-  size_t count = 0;
-  for (int i = 0; i < num; i++) {
-    const char *ssid_cstr = scan->ap[i].ssid;
-    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
-      count++;
+    // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
+    // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
+    auto *scan = WiFi.scan;
+
+    // First pass: count matching networks
+    size_t count = 0;
+    for (int i = 0; i < num; i++) {
+      const char *ssid_cstr = scan->ap[i].ssid;
+      if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+        count++;
+      }
+    }
+
+    this->scan_result_.init(count);  // Exact allocation
+
+    // Second pass: store matching networks
+    for (int i = 0; i < num; i++) {
+      const char *ssid_cstr = scan->ap[i].ssid;
+      auto &ap = scan->ap[i];
+      if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
+        this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                                ap.bssid.addr[4], ap.bssid.addr[5]},
+                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                        ssid_cstr[0] == '\0');
+      } else {
+        this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
+      }
     }
   }
 
-  this->scan_result_.init(count);  // Exact allocation
-
-  // Second pass: store matching networks
-  for (int i = 0; i < num; i++) {
-    const char *ssid_cstr = scan->ap[i].ssid;
-    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
-      auto &ap = scan->ap[i];
-      this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
-                                              ap.bssid.addr[4], ap.bssid.addr[5]},
-                                      ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
-                                      ssid_cstr[0] == '\0');
-    } else {
-      auto &ap = scan->ap[i];
-      this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
-    }
-  }
   ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
            needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
