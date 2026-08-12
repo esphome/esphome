@@ -59,6 +59,8 @@ class ZigbeeComponent final : public Component {
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
 
+  void handle_attr_write(uint8_t endpoint, uint16_t cluster_id, uint8_t role, uint16_t attr_id, const void *value);
+
   bool is_battery_powered() { return this->basic_cluster_data_.power_source == EZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
 
   // True after the Zigbee stack has been initialized and the device has started up. Is set before the stack started
