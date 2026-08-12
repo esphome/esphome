@@ -199,7 +199,9 @@ void BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
   bluetooth_connection::BluedroidServiceTable table;
   if (!counted || service_total == 0 ||
       !table.build(this->gattc_if_, this->conn_id_, service_total, this->connection_index_)) {
-    ESP_LOGW(TAG, "[%s] Service table is empty; treating as failed discovery", this->address_str());
+    // Distinguishes a failed search/count from a genuinely service-less peer.
+    ESP_LOGW(TAG, "[%s] Service table unavailable (status=%d, services=%u); treating as failed discovery",
+             this->address_str(), status, service_total);
     this->disconnect();
     return;
   }
