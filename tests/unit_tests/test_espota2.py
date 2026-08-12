@@ -160,6 +160,14 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
         espota2.receive_exactly(mock_socket, 1, "test", espota2.RESPONSE_OK)
 
 
+def test_receive_exactly_mid_read_socket_error(mock_socket: Mock) -> None:
+    """Test receive_exactly handles socket errors after the first byte."""
+    mock_socket.recv.side_effect = [b"\x00", OSError("Connection reset")]
+
+    with pytest.raises(espota2.OTANetworkError, match="receiving test:"):
+        espota2.receive_exactly(mock_socket, 3, "test", espota2.RESPONSE_OK)
+
+
 def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -> None:
     """Test receive_exactly raises OTANetworkError when the device closes the connection."""
     mock_socket.recv.return_value = b""
@@ -548,6 +556,26 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
     mock_socket.recv.side_effect = recv_responses
 
     with pytest.raises(espota2.OTAError, match="receiving chunk result response"):
+        espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_chunk_send_error(mock_socket: Mock, mock_file: io.BytesIO) -> None:
+    """Test OTA raises the retryable OTANetworkError when sending a chunk fails."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+    ]
+    mock_socket.recv.side_effect = recv_responses
+    # Sends before the data phase: magic bytes, features, binary size, MD5;
+    # fail on the fifth sendall, the first firmware chunk
+    mock_socket.sendall.side_effect = [None] * 4 + [OSError("Broken pipe")]
+
+    with pytest.raises(espota2.OTANetworkError, match="sending data:"):
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
