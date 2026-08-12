@@ -17,12 +17,12 @@ namespace esphome::ble_client {
 class ConnectBackoff {
  public:
   bool holding_off() const {
-    return this->failures_ != 0 && static_cast<uint16_t>(now_() - this->start_) < this->failures_ * STEP_TICKS;
+    return this->failures_ != 0 && static_cast<uint16_t>(now() - this->start_) < this->failures_ * STEP_TICKS;
   }
   void register_failure(const char *address_str) {
     if (this->failures_ < MAX_STEPS)
       this->failures_++;
-    this->start_ = now_();
+    this->start_ = now();
     esph_log_w("ble_client", "[%s] Holding off reconnect for %u s", address_str, this->failures_ * 10u);
   }
   void reset() { this->failures_ = 0; }
@@ -32,7 +32,7 @@ class ConnectBackoff {
   // a minute at worst.
   static constexpr uint16_t STEP_TICKS = 40;  // x 256 ms
   static constexpr uint8_t MAX_STEPS = 6;
-  static uint16_t now_() { return static_cast<uint16_t>(millis() >> 8); }
+  static uint16_t now() { return static_cast<uint16_t>(millis() >> 8); }
 
   uint16_t start_{0};
   uint8_t failures_{0};
