@@ -4,7 +4,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -27,7 +27,6 @@ CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
 CONF_MAX_STREAMS = "max_streams"
 CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
-CONF_WORKER_ID = "worker_id"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
@@ -65,11 +64,6 @@ def validate_sector_multiple(value: int) -> int:
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
-        # The async worker is a second component minted from this same storage: block. Declaring its
-        # id here lets validation register it like any component, so the component count includes it;
-        # it is only built (new_Pvariable) when a driver pulls the worker in via
-        # request_storage_worker().
-        cv.GenerateID(CONF_WORKER_ID): cv.declare_id(StorageWorker),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
         # is still range- and sector-checked here.
@@ -86,8 +80,8 @@ CONFIG_SCHEMA = cv.Schema(
         # the one storage action whose cost the author does not choose; anything bigger belongs on
         # the worker. It also bounds storage.preferences_export/import (same helpers); past the
         # ceiling, narrow with the action's `preferences:` filter. 0 disables. See storage.h.
-        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
-            min=0
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.All(
+            cv.validate_bytes, cv.int_range(min=0)
         ),
         # A same-storage move is a rename, which some backends refuse across their own internals
         # (an NFS export can span file systems, and RENAME never crosses one). On: redo the refusal
@@ -482,7 +476,9 @@ async def to_code(config: ConfigType) -> None:
         if data.worker_task_safe:
             cg.add_define("USE_STORAGE_WORKER_TASK")
 
-        worker_var = cg.new_Pvariable(config[CONF_WORKER_ID])
+        worker_id = ID(f"{var}_worker", is_declaration=True, type=StorageWorker)
+        CORE.component_ids.add(str(worker_id))
+        worker_var = cg.new_Pvariable(worker_id)
         await cg.register_component(worker_var, {})
 
         cg.add(worker_var.set_task_stack_size(config[CONF_TASK_STACK_SIZE]))
