@@ -70,6 +70,7 @@ class BLEClient final : public BLEClientBase {
   void maybe_release_services_();
 #ifdef USE_BLE_CLIENT_GATT_NODES
   int check_gatt_op_(const char *operation, esp_err_t err);
+  void register_gatt_failure_();
   void dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
   void handle_gatt_search_cmpl_(esp_gatt_status_t status);
   bool take_pending_gatt_reg_(uint16_t handle);
@@ -87,6 +88,12 @@ class BLEClient final : public BLEClientBase {
   uint8_t pending_gatt_reg_count_{0};
   // on_connected fan-out started; on_disconnected is owed at teardown.
   bool gatt_connected_{false};
+  // Backoff after materializer failures so a peer that reliably fails
+  // discovery cannot produce an unbounded reconnect loop (neutral-engine
+  // parity; wrap-safe start+duration pair).
+  uint32_t gatt_hold_off_start_{0};
+  uint32_t gatt_hold_off_ms_{0};
+  uint8_t gatt_consecutive_failures_{0};
 #endif
 };
 
