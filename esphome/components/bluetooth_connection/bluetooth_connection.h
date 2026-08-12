@@ -16,16 +16,14 @@
 #include <esp_err.h>
 #endif
 
-// The connection-aware API request handlers are compiled: a GATT backend is
-// wired by codegen (one slot per connection). This is the single spelling of
-// that predicate - the hub wrapper and the API request handlers gate on it.
-// The wrapper serves the proxy's API surface, so it compiles only when a
-// backend AND the proxy are present. The address-scoped maintenance functions
-// below are only reached from that gated surface; their #else stubs just
-// keep this header parsing on arms without a backend.
-#if defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUETOOTH_PROXY)
-#define BLUETOOTH_CONNECTION_HAS_GATT
-#endif
+// USE_BLUETOOTH_PROXY_CONNECTIONS is the single spelling of "this build has
+// proxy connection slots": codegen emits it per configured slot, and each
+// slot brings a GATT backend, so it also implies USE_BLE_GATT_CLIENT (not
+// the converse: a backend can exist without proxy slots). The hub
+// wrapper, the proxy's connection surface and the API's connection messages
+// all gate on it. The address-scoped maintenance functions below are only
+// reached from that gated surface; the #else stubs just keep this header
+// parsing on arms without a backend.
 
 namespace esphome::api {
 class BluetoothGATTGetServicesResponse;
@@ -154,7 +152,7 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
   }
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 /// Result of close_service_batch: keep filling the batch or send it now.
 /// An oversized service is packed alone; a failed (backpressured) send is
 /// retried from the batch start, so no service is silently skipped.
@@ -166,6 +164,6 @@ enum class BatchClose : uint8_t { CONTINUE, SEND };
 /// cannot drift.
 BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
                                uint8_t connection_index, const char *address_str);
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 }  // namespace esphome::bluetooth_connection

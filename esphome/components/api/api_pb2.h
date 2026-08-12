@@ -225,7 +225,7 @@ enum MediaPlayerFormatPurpose : uint32_t {
   MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT = 1,
 };
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0,
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1,
@@ -235,6 +235,8 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 enum BluetoothScannerState : uint32_t {
   BLUETOOTH_SCANNER_STATE_IDLE = 0,
   BLUETOOTH_SCANNER_STATE_STARTING = 1,
@@ -1999,6 +2001,8 @@ class BluetoothLERawAdvertisementsResponse final : public ProtoMessage {
 
  protected:
 };
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 class BluetoothDeviceRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 68;
@@ -2384,6 +2388,8 @@ class BluetoothDeviceClearCacheResponse final : public ProtoMessage {
 
  protected:
 };
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 class BluetoothScannerStateResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 126;
@@ -3358,7 +3364,7 @@ class SerialProxyRequestResponse final : public ProtoMessage {
  protected:
 };
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 class BluetoothSetConnectionParamsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 145;

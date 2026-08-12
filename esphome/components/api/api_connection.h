@@ -183,6 +183,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg);
   void on_unsubscribe_bluetooth_le_advertisements_request();
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_device_request(const BluetoothDeviceRequest &msg);
   void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg);
   void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg);
@@ -191,8 +192,9 @@ class APIConnection final : public APIServerConnectionBase {
   void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg);
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg);
   void on_subscribe_bluetooth_connections_free_request();
-  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg);
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg);
+#endif
+  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg);
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
@@ -390,7 +392,7 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool send_subscribe_bluetooth_connections_free_response_();
 #endif
 #ifdef USE_VOICE_ASSISTANT
