@@ -71,7 +71,6 @@ class LD2410Srx {
   bool payload_ready() const { return payload_ready_; }
 
  protected:
-  // members ordered widest-to-narrowest to minimize padding (per kbx81's review on PR #8486)
   RxFrameType frame_type_{RxFrameType::UNKNOWN};
   uint16_t end_pos_{0};
   uint16_t header_footer_size_{0};
@@ -99,7 +98,6 @@ class LD2410Sschedule {
   uint16_t get_sub_command();
 
  protected:
-  // members ordered widest-to-narrowest, custom struct array last (per kbx81's review on PR #8486)
   uint32_t time_started_{0};
   TxCmdState state_ = TxCmdState::IDLE;
   uint8_t retry_count_{0};
@@ -129,7 +127,6 @@ class LD2410S : public Component, public uart::UARTDevice {
   float get_setup_priority() const override;
 
  protected:
-  // members ordered widest-to-narrowest, custom class objects last (per kbx81's review on PR #8486)
   uint32_t thresholds_trigger_[16] = {};
   uint32_t thresholds_hold_[16] = {};
   uint32_t thresholds_snr_[16] = {};

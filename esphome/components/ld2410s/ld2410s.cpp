@@ -335,7 +335,6 @@ void LD2410S::publish_calibration_running_(bool running, bool force_publish) {
   }
 #endif
 }
-// LD2410Srx
 RxEvaluationResult LD2410Srx::receive_byte(uint32_t loop_count, uint8_t byte) {
   if (this->payload_ready_) {
     this->reset_();
