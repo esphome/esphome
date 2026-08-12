@@ -178,6 +178,8 @@ void StorageRegistry::unregister_storage(Storage *s) {
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
     ESP_LOGD(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
+  } else {
+    ESP_LOGD(TAG, "Storage unregistered (get_info failed)");
   }
 }
 
