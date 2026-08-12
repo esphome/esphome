@@ -577,7 +577,7 @@ void HOT WaveshareEPaperTypeA::display() {
           break;
         case WAVESHARE_EPAPER_2_9_IN_V2: {
           ESP_LOGD(TAG, "Doing WS2IN9V2 specific update. Full: %d", full_update);
-          const uint8_t *extra = 0;
+          const uint8_t *extra = nullptr;
           if (full_update) {
             this->write_lut_(FULL_UPDATE_LUT_2IN9V2, ACTUAL_LUT_SIZE_2IN9V2);
             extra = &FULL_UPDATE_LUT_2IN9V2[ACTUAL_LUT_SIZE_2IN9V2];
