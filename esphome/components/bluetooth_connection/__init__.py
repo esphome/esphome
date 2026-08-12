@@ -177,10 +177,10 @@ def consume_gatt_slot(
     consumer: str, count: int = 1
 ) -> Callable[[ConfigType], ConfigType]:
     """Validator claiming GATT connection slots - the one spelling for every
-    claimant. The neutral ledger feeds the hub-platform cap check in
-    FINAL_VALIDATE_SCHEMA; esp32 and rp2 additionally charge their platform
-    stack's connection budget (esp32's cap lives there, not in
-    HUB_MAX_CONNECTIONS)."""
+    claimant. Platforms whose BLE stack owns a connection budget (esp32, rp2)
+    are charged there and their stack's final validation reports an
+    overcommit; the neutral ledger covers any future backend platform without
+    one (the cap check in FINAL_VALIDATE_SCHEMA)."""
 
     def validator(config: ConfigType) -> ConfigType:
         _get_data().slot_consumers.extend([consumer] * count)
@@ -195,21 +195,23 @@ def consume_gatt_slot(
     return validator
 
 
+# Platforms whose BLE stack owns its own connection budget: consume_gatt_slot
+# charges it there, and the stack's final validation is the one place an
+# overcommit is reported (never two messages for one misconfiguration).
+_STACK_BUDGET_PLATFORMS = {PLATFORM_ESP32, PLATFORM_RP2}
+
+
 def _validate_slot_totals(config: ConfigType) -> ConfigType:
-    # esp32 has its own controller budget (esp32_ble); the hub platforms cap
-    # at the prebuilt stack's client count, and nothing else counts claims
-    # across components (e.g. a proxy plus a radon_eye_rd200 on rp2).
     # Skipped in testing mode so grouped component builds can co-exist
     # (mirrors esp32_ble.validate_connection_slots).
     if CORE.testing_mode:
         return config
+    if CORE.target_platform in _STACK_BUDGET_PLATFORMS:
+        return config
     if (cap := HUB_MAX_CONNECTIONS.get(CORE.target_platform)) is None:
-        # esp32's budget lives in esp32_ble; any other registered backend
-        # platform must carry a cap here or fail loudly, never fail open.
-        if (
-            CORE.target_platform != PLATFORM_ESP32
-            and CORE.target_platform in _PLATFORM_BACKENDS
-        ):
+        # Any backend platform without a stack budget must carry a cap here
+        # or fail loudly, never fail open.
+        if CORE.target_platform in _PLATFORM_BACKENDS:
             raise cv.Invalid(
                 f"{CORE.target_platform} has a GATT backend but no slot cap "
                 "in HUB_MAX_CONNECTIONS"
