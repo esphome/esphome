@@ -9,9 +9,8 @@ import os
 from pathlib import Path
 import re
 import sys
-import threading
 import time
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
@@ -71,6 +70,9 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+if TYPE_CHECKING:
+    import threading
 
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
@@ -572,7 +574,7 @@ def mqtt_get_ip(
     username: str,
     password: str,
     client_id: str,
-    stop_event: threading.Event | None = None,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     from esphome import mqtt
 
@@ -661,7 +663,7 @@ def _mqtt_get_ip_or_warn(
     username: str,
     password: str,
     client_id: str,
-    stop_event: threading.Event | None = None,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     """Look up the device IP via MQTT, returning [] with a warning on failure.
 
