@@ -602,12 +602,11 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   this->start_poller();
 
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
-  // A raw device that declared itself alone on a hardware bus (assume_exclusive_bus) reports
-  // STORAGE_CAP_IO_TASK_SAFE, so its blocking I/O may run on the worker task instead of the
-  // main loop. Same contract as the copy path: only dispatch when every storage the op touches
-  // is task-safe (is_task_safe_ checks raw_device + the file side) and nothing active already
-  // holds one of them. Otherwise -- the common case of a shared-bus device -- fall through to the
-  // loop-sliced engine below, exactly as before.
+  // A raw device alone on its bus (assume_exclusive_bus) reports STORAGE_CAP_IO_TASK_SAFE, so its
+  // blocking I/O may run on the worker task. Same contract as the copy path: dispatch only when
+  // every storage the op touches is task-safe (is_task_safe_ checks raw_device + the file side) and
+  // nothing active holds one. Otherwise -- the common shared-bus case -- fall through to the
+  // loop-sliced engine below.
   if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
     QueueEntry entry{QueueEntryKind::TRANSFER, static_cast<size_t>(slot - this->pool_.begin())};
     slot->state = RequestState::RUNNING;
@@ -735,15 +734,13 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
           this->loop_active_index_ = SIZE_MAX;
       } else {
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
-        // Owned by the worker task (or, if it hasn't dequeued this index off task_queue_ yet,
-        // about to be -- run_chunk_()'s entry check still sees CANCELLED as soon as the task
-        // does pick it up, so no special-casing is needed for that race). Set CANCELLED and
-        // wait for the task to actually reach DONE -- it can only observe the flag between
-        // chunks, so this is bounded by at most one chunk's read+write (low single-digit ms
-        // for SDMMC). Yield with vTaskDelay(1) rather than busy-spinning so the task (which
-        // may run at the same or a lower priority) actually gets CPU time to reach that
-        // check -- a tight spin here on a single-core target would starve it and deadlock
-        // until the timeout below.
+        // Owned by the worker task (or about to be, if it hasn't dequeued this index yet --
+        // run_chunk_()'s entry check sees CANCELLED as soon as the task picks it up, so that race
+        // needs no special-casing). Set CANCELLED and wait for the task to reach DONE -- it observes
+        // the flag only between chunks, so this is bounded by one chunk's read+write (low
+        // single-digit ms for SDMMC). Yield with vTaskDelay(1), not a busy-spin: the task may run at
+        // equal/lower priority, and a tight spin on a single-core target would starve it into
+        // deadlock until the timeout below.
         req.cancel_result = StorageError::NOT_READY;
         req.state = RequestState::CANCELLED;
         uint32_t start = millis();
@@ -753,12 +750,11 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
                           "is likely gone; proceeding with unmount anyway. Behavior from here is "
                           "undefined if the task is still touching it (e.g. still holding a file "
                           "handle) when it does eventually finish.");
-            // Deliver the completion once, here, while the storage object is still valid: a
-            // caller that chained work on it (the file-browser walker) would otherwise stall
-            // forever. Then clear it -- if the task reaches DONE later, loop() must only free
-            // the slot, never fire a second time into a context whose storage may be gone
-            // post-unmount. The slot stays stuck (RUNNING/CANCELLED, never recycled) if the
-            // task never finishes -- acceptable since the medium is dead anyway at that point.
+            // Deliver the completion once, here, while the storage is still valid: a caller that
+            // chained on it (the file-browser walker) would otherwise stall forever. Then clear it,
+            // so if the task reaches DONE later loop() only frees the slot, never fires a second time
+            // into a context whose storage may be gone post-unmount. If the task never finishes the
+            // slot stays stuck (RUNNING/CANCELLED, never recycled) -- fine, the medium is dead.
             if (req.callback) {
               CompletionCallback cb = std::move(req.callback);
               req.callback = nullptr;
@@ -836,14 +832,12 @@ void StorageWorker::deliver_completions_() {
   for (auto &req : this->pool_) {
     if (req.state.load() == RequestState::DONE) {
 #ifdef USE_STORAGE_CHANGE_FEED
-      // Every transfer completes here, whoever submitted it -- YAML automations included --
-      // so this is where the change feed learns about it, while the request's fields are
-      // still intact. Whatever the result: a partially landed tree is still a change.
-      // (Streaming requests are not fed: reads change nothing, and the write stream's
-      // consumers note their own completion -- they know the path, this loop does not.)
-      // build_path() writes mount point + relative path, which is longer than the relative
-      // paths the request slots carry. STORAGE_WORKER_MAX_PATH would make it refuse near the
-      // limit and drop the notification without a trace.
+      // Every transfer completes here, whoever submitted it (YAML automations included), so this is
+      // where the change feed learns about it while the fields are intact -- whatever the result, a
+      // partially landed tree is still a change. (Streams are not fed: reads change nothing, and a
+      // write stream's consumers note their own completion -- they know the path, this loop does
+      // not.) build_path() writes mount point + relative, longer than the request slots' relative
+      // paths; STORAGE_WORKER_MAX_PATH would make it refuse near the limit and drop the notification.
       char feed_path[STORAGE_VFS_PATH_MAX];
       if (global_storage_registry != nullptr && req.op == RequestOp::RAW_READ_TO_FILE && req.dst_storage != nullptr) {
         // A raw read landed (or failed to land -- partially is still a change) a file: the
@@ -915,12 +909,11 @@ void StorageWorker::update() {
       if (candidate.state.load() != RequestState::PENDING)
         continue;
       if (this->overlaps_active_(candidate)) {
-        // Known limitation: if the request it overlaps with is stuck (its owning engine never
-        // reached DONE after a drain timeout -- see on_storage_unregistered_()), this request
-        // waits forever and its callback never fires. There is no reclaim path for the stuck
-        // slot itself: by the time a drain times out, the medium is presumed gone and the
-        // engine that owns it may still be touching it, so freeing the slot out from under
-        // that engine would be unsafe. Log once per request so this is at least diagnosable.
+        // Known limitation: if the overlapping request is stuck (its engine never reached DONE
+        // after a drain timeout -- see on_storage_unregistered_()), this one waits forever and its
+        // callback never fires. No reclaim path for the stuck slot: at drain timeout the medium is
+        // presumed gone and its engine may still be touching it, so freeing the slot under that
+        // engine would be unsafe. Log once per request so it is at least diagnosable.
         if (!candidate.stuck_warned) {
           ESP_LOGW(TAG, "Request pending indefinitely -- blocked by another request on the same "
                         "storage that never completed (likely a stuck slot after a drain "
@@ -978,13 +971,12 @@ void StorageWorker::update() {
   if (!busy)
     this->stop_poller();
 
-  // Streams: two jobs, both per-slot and independent of any other slot (no FIFO ordering
-  // needed -- unlike TransferRequest's loop_active_index_, every stream's step is
-  // self-contained, since nothing auto-advances without the caller supplying the next chunk).
-  //  1. Run any step a loop-sliced dispatch queued but hasn't executed yet (see
-  //     dispatch_stream_step_()'s loop-sliced branch -- it only flips req.pending_step_ rather
-  //     than calling run_stream_step_() inline, so the callback always fires from here, never
-  //     reentrantly from inside the caller's own begin_*/write_chunk/read_chunk/end_* call).
+  // Streams: two jobs, both per-slot and independent of any other slot (no FIFO ordering -- unlike
+  // TransferRequest's loop_active_index_, every stream step is self-contained, nothing auto-advances
+  // without the caller supplying the next chunk).
+  //  1. Run any step a loop-sliced dispatch queued but hasn't executed (dispatch_stream_step_()'s
+  //     loop branch only flips req.pending_step_, so the callback always fires from here, never
+  //     reentrantly from the caller's own begin_*/write_chunk/read_chunk/end_* call).
   //  2. Deliver completions for whichever streams finished a step (task or loop-sliced).
   for (auto &req : this->stream_pool_) {
     // Hold a queued step while a transfer (or another stream) drives the same storage -- the
@@ -1047,15 +1039,13 @@ void StorageWorker::task_loop_() {
       this->run_stream_step_(this->stream_pool_[entry.index]);
     }
     // DONE (or IDLE, for streams) reached, and this task is the producer: loop() delivers the
-    // completion, but the component phase it runs in is gated (loop_interval_, high-frequency
-    // request, or an explicit wake). Nothing else asks for it -- an HTTP request does not drive
-    // it, it only reads. So wake it here, which is exactly what wake_loop_threadsafe() is for:
-    // a background producer queued work for its component's loop() to drain.
+    // completion, but its component phase is gated (loop_interval_, high-frequency request, or an
+    // explicit wake) and nothing else drives it (an HTTP request only reads). So wake it here --
+    // exactly what wake_loop_threadsafe() is for: a background producer queued work for its loop().
     //
-    // Without this the completion sits in the slot until the phase happens to come around.
-    // A caller that polls for a result eventually sees it; a caller that *chains* on it -- the
-    // file browser's directory walker submits file N+1 only once file N's completion has been
-    // delivered -- stops dead after the first file.
+    // Without this the completion waits until the phase comes around. A poller eventually sees it;
+    // a caller that *chains* on it (the file-browser walker submits file N+1 only after file N's
+    // completion is delivered) stops dead after the first file.
     wake_loop_threadsafe();
   }
 }
@@ -1124,12 +1114,11 @@ bool StorageWorker::begin_verify_pass_(TransferRequest &req) {
   return true;
 }
 
-// One verify chunk: read the device span [raw_address+offset, +want) into the engine's chunk
-// buffer, then read
-// the same span from the source file in small stack-sized slices and memcmp each -- so the whole
+// One verify chunk: read the device span [raw_address+offset, +want) into the engine's chunk buffer,
+// then read the same span from the source file in small stack slices and memcmp each -- so the whole
 // comparison needs only that one buffer plus a tiny stack buffer, no second large allocation.
-// Returns false when it has finished the request (mismatch, I/O error, completed pass) or is
-// waiting on the network; true to keep looping within the same call is not used (one chunk/call).
+// Returns false when it has finished the request (mismatch, I/O error, completed pass) or is waiting
+// on the network.
 uint8_t *StorageWorker::chunk_buffer_(bool on_task, size_t *size_out) {
   RamBuffer &buf = on_task ? this->chunk_buf_task_ : this->chunk_buf_loop_;
   size_t &size = on_task ? this->chunk_size_task_ : this->chunk_size_loop_;
@@ -1379,24 +1368,19 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
   }
 
   // Sliced erase: one geometry-sized step per pass -- a chip-scale erase becomes many short
-  // main-loop visits instead of one multi-second freeze.
+  // main-loop visits instead of one multi-second freeze. Whole-device strategy depends on the engine:
   //
-  // Whole-device erase strategy depends on which engine we are on:
+  //  - On the worker task (on_task), a full-span erase from offset 0 hands the driver a single
+  //    erase(0, capacity) for the chip-erase opcode. That busy-waits for the full erase -- tens of
+  //    seconds on a large NOR flash (SPIFlash::erase_chip, wait_ready(60000)) -- fine here: the task
+  //    is deliberately off the 5s watchdog (task_loop_) and blocking on I/O is its purpose. The one
+  //    hazard is the stall watchdog (check_stalled_), which keys off bytes_done and would time the
+  //    request out at 30s since one blocking call cannot advance progress; blocking_erase_active
+  //    tells it to leave this request alone, bounded by the driver's own wait_ready timeout.
   //
-  //  - On the worker task (on_task), when the request covers the entire device from offset 0,
-  //    hand the driver a single erase(0, capacity) so it can use the chip-erase opcode. That
-  //    busy-waits for the full erase -- tens of seconds on a large NOR flash (see
-  //    SPIFlash::erase_chip, wait_ready(60000)) -- which is fine here: the task is deliberately
-  //    not on the 5s task watchdog (see task_loop_) and blocking on I/O is its whole purpose.
-  //    The one hazard is the stall watchdog (check_stalled_, main loop), which keys off
-  //    bytes_done and would time the request out at 30s since a single blocking call cannot
-  //    advance progress mid-flight; blocking_erase_active tells it to leave this request alone
-  //    for the duration. The flag is bounded by the driver's own wait_ready timeout.
-  //
-  //  - Otherwise (loop-sliced engine, or a partial-range erase) stay block-at-a-time: each pass
-  //    erases one geometry-sized unit and returns, keeping every main-loop pass short. A chip
-  //    erase here would freeze the loop long enough to trip the 5s watchdog, so it is never
-  //    done off the task.
+  //  - Otherwise (loop-sliced engine, or a partial range) stay block-at-a-time: each pass erases one
+  //    geometry-sized unit and returns, keeping every main-loop pass short. A chip erase here would
+  //    trip the 5s watchdog, so it is never done off the task.
   if (!to_file && req.raw_erase_pos < req.raw_erase_end) {
     RawGeometry geo{};
     req.raw_device->get_raw_geometry(&geo);
@@ -1676,15 +1660,13 @@ bool StorageWorker::tree_step_(TransferRequest &req) {
   }
 }
 
-// One stuck job must never wall off the queue: a RUNNING request holds its storages against
-// every overlapping newcomer (overlaps_active_) and occupies the loop slice -- so a request
-// that demonstrably stops moving is finished with TIMEOUT, freeing the slot, the storages,
-// and everything blocked behind them. 'Moving' is measured, not assumed: a fingerprint over
-// offset, byte/file progress and tree position -- big-but-progressing transfers never trip.
-// PENDING gets a generous absolute cap as the second belt (its usual blocker is a stuck
-// RUNNING one, which the first rule already clears). Streams are client-driven, so a
-// vanished HTTP client is handled by the same sweep, via the exact contract the quiesce
-// drain uses. Defined after finish_request() on purpose -- it calls it.
+// One stuck job must never wall off the queue: a RUNNING request holds its storages against every
+// overlapping newcomer (overlaps_active_) and occupies the loop slice, so one that demonstrably
+// stops moving is finished with TIMEOUT, freeing the slot, the storages, and everything behind them.
+// 'Moving' is measured, not assumed: a fingerprint over offset, byte/file progress and tree position
+// -- big-but-progressing transfers never trip. PENDING gets a generous absolute cap as a second belt
+// (its usual blocker is a stuck RUNNING one, which the first rule clears). Streams are client-driven,
+// so a vanished HTTP client is caught by the same sweep. Defined after finish_request() -- it calls it.
 static constexpr uint32_t REQUEST_STALL_TIMEOUT_MS = 30000;
 static constexpr uint32_t REQUEST_PENDING_CAP_MS = 120000;
 static constexpr uint32_t STREAM_IDLE_TIMEOUT_MS = 30000;
@@ -1715,16 +1697,14 @@ void StorageWorker::check_stalled_() {
       } else if (now - req.last_progress_ms > REQUEST_STALL_TIMEOUT_MS) {
         ESP_LOGW(TAG, "Transfer '%s' -> '%s' made no progress for %us - timing it out", req.src_path, req.dst_path,
                  static_cast<unsigned>(REQUEST_STALL_TIMEOUT_MS / 1000));
-        // Ownership contract: a RUNNING request is owned by an engine (loop-sliced or worker
-        // task) that is potentially inside a blocking driver call on its handles RIGHT NOW.
-        // Finishing it here closed those handles under the engine's feet and -- worse -- the
-        // completion sweep above then freed the slot in this very pass, while
-        // loop_active_index_ still pointed at it: the next section ran run_chunk_() on a FREE
-        // slot with nulled storages and the index never reset (FREE != DONE), permanently
-        // wedging the loop engine. Every later loop-sliced job then sat PENDING at 0 bytes
-        // and, with the pool full, submissions answered NOT_READY. Mark CANCELLED instead:
-        // the owning engine's next chunk boundary observes it, closes its own handles and
-        // finishes with the reason carried in cancel_result.
+        // Ownership contract: a RUNNING request is owned by an engine (loop or task) potentially
+        // inside a blocking driver call on its handles RIGHT NOW. Finishing it here would close those
+        // handles under the engine's feet and -- worse -- the completion sweep above would free the
+        // slot this same pass while loop_active_index_ still pointed at it: the next section then ran
+        // run_chunk_() on a FREE slot with nulled storages, index never reset (FREE != DONE),
+        // permanently wedging the loop engine (every later job PENDING at 0 bytes, pool full ->
+        // NOT_READY). Mark CANCELLED instead: the owning engine's next chunk boundary observes it,
+        // closes its own handles, and finishes with the reason in cancel_result.
         req.cancel_result = StorageError::TIMEOUT;
         req.state = RequestState::CANCELLED;
       }
