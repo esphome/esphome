@@ -133,6 +133,10 @@ void BluetoothConnection::on_connection_state(bool connected, uint16_t mtu, int 
       // params), so this request is normally redundant - kept as a backstop
       // in case the initial parameters were negotiated away.
       this->state_ = ClientState::ESTABLISHED;
+      // The one D-level line for a cached connect; the uncached path narrates
+      // through "Discovery finished" instead.
+      ESP_LOGD(TAG, "[%d] [%s] Connected with cached services, sending connected (mtu=%u)", this->connection_index_,
+               this->address_str_, mtu);
       int param_err = this->backend_->update_connection_params(ble_device_base::MEDIUM_MIN_CONN_INTERVAL,
                                                                ble_device_base::MEDIUM_MAX_CONN_INTERVAL, 0,
                                                                ble_device_base::MEDIUM_CONN_TIMEOUT);
