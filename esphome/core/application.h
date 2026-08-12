@@ -812,7 +812,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // scheduler and component phases are gated out for a long sleep.
 
   // Host and ESP8266 do not need to feed WDT in the delay path
-#if (defined(USE_HOST) || defined(USE_ESP8226)) && not defined(USE_STATUS_LED)
+#if (defined(USE_HOST) || defined(USE_ESP8266)) && not defined(USE_STATUS_LED)
   esphome::internal::wakeable_delay(delay_time);
 #else
   uint32_t max_sleep = WDT_FEED_INTERVAL_MS;
