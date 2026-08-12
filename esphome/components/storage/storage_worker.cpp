@@ -1215,7 +1215,7 @@ void StorageWorker::verify_chunk_(TransferRequest &req, bool on_task) {
     req.verify_pass_done++;
     req.verifying = false;  // the outer loop's offset>=total branch decides next pass vs done
   }
-  return;  // one chunk per call; the loop re-enters via the engine
+  // one chunk per call; the loop re-enters via the engine
 }
 
 // One step of a directory walk. Everything here is control plane -- list, mkdir, rmdir, remove --
