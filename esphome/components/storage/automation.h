@@ -3,12 +3,11 @@
 // WARNING: This component is EXPERIMENTAL. The API may change at any time
 // without following the normal breaking changes policy. Use at your own risk.
 
-// defines.h MUST be the first include: define-gated action classes exist in
-// this header, and main.cpp placement-news them into sizeof()-sized static
-// buffers -- any TU parsing these class declarations with a different define
-// state gets a different class size (ODR violation, boot crash). Including
-// defines.h before everything else guarantees the gates are resolved from the
-// generated defines, never from whatever an earlier include happened to set.
+// defines.h MUST be the first include: this header has define-gated action classes, and main.cpp
+// placement-news them into sizeof()-sized static buffers -- a TU parsing these declarations with a
+// different define state gets a different class size (ODR violation, boot crash). Including
+// defines.h first resolves the gates from the generated defines, not from whatever an earlier
+// include happened to set.
 #include "esphome/core/defines.h"
 
 #include "storage.h"
@@ -33,12 +32,11 @@ namespace esphome::storage {
 // analogous to how web_server sorting groups work for all components. Paths are full VFS
 // paths; routing to the right device happens via StorageRegistry::resolve_path().
 
-// Logging helpers implemented in automation.cpp (log macros must stay out of headers).
-// printf-style args from YAML flow verbatim through C varargs in the generated
-// str_sprintf call; a std::string there is undefined behavior (non-POD through
-// "..." renders garbage or corrupts memory, and only warns via -Wformat).
-// Normalizing every arg through this overload set means no config ever needs a
-// manual .c_str() -- and args that already have one pass through unchanged.
+// Logging helpers implemented in automation.cpp (log macros stay out of headers). printf-style args
+// from YAML flow verbatim through C varargs in the generated str_sprintf; a std::string there is UB
+// (a non-POD through "..." renders garbage or corrupts memory, only warned by -Wformat). Normalizing
+// every arg through this overload set means no config needs a manual .c_str(), and args that have
+// one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
 template<typename T> inline T printf_arg(T v) {
   static_assert(std::is_scalar_v<T>, "storage printf args must be scalars or strings; add .c_str() or convert first");
@@ -125,64 +123,54 @@ std::string extract_trim(const std::string &s);
 bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // ===========================================================================
-// Blocking contract for the storage actions (READ THIS before "fixing" an action to be async).
+// Blocking contract for the storage actions (read before "fixing" an action to be async).
 //
-// Storage actions come in two deliberate kinds, split by WHERE the data lives -- not by
-// whim. The rule is: content that is already a RAM value stays synchronous; content that is
-// (or becomes) a file streams through the async worker.
+// Two deliberate kinds, split by WHERE the data lives: content already a RAM value stays
+// synchronous; content that is (or becomes) a file streams through the async worker.
 //
-//   ASYNC (fire-and-forget + on_complete trigger; runs on the worker, never blocks the loop):
+//   ASYNC (fire-and-forget + on_complete trigger; on the worker, never blocks the loop):
 //     - file_copy / file_move          (file/tree <-> file/tree, streamed)
 //     - raw_read  with to_file         (device -> file, streamed)
 //     - raw_write with from_file       (file -> device, streamed)
 //     - raw_erase                      (sliced one geometry step per pass)
-//   These move potentially large amounts of data and MUST NOT hold the main loop; the worker
-//   streams them through one fixed chunk buffer (never a whole-file/whole-image RAM buffer).
+//   Potentially large data; the worker streams them through one fixed chunk buffer (never a
+//   whole-file/whole-image RAM buffer).
 //
-//   SYNCHRONOUS (small content that is ALREADY a RAM value; blocks only for that small write):
+//   SYNCHRONOUS (small content already a RAM value; blocks only for that small write):
 //     - file_write / file_append       (writes a std::string from the automation)
-//     - raw_read  into on_value        (returns a std::vector -- the bytes land in RAM)
+//     - raw_read  into on_value        (returns a std::vector -- bytes land in RAM)
 //     - raw_write from inline data     (a flash/lambda byte array)
 //     - file_delete / recursive delete (removes directory entries -- moves no bulk data)
-//   These are intentionally NOT routed through the worker. The payload is a small in-RAM
-//   value, so there is nothing to stream and no large buffer to avoid; a worker job would add
-//   round-trips and a pool slot for no benefit. The blocking is bounded by the payload size,
-//   which the automation author already chose by constructing the value. The large-content
-//   counterpart already exists as a separate action: to write a big file use file_copy or
-//   raw_write with from_file; the interface deliberately offers BOTH shapes side by side.
-//   Note: on a slow NETWORK storage even a small write can take a while (the round-trip, not
-//   the size). That is a property of the medium, not a reason to convert these to async -- the
-//   author picks the storage. If a use case genuinely needs a non-blocking small write, the
-//   right move is a dedicated RAM->file worker job, not the heavyweight stream API -- but that
-//   job does not exist yet and is out of scope until a real need appears.
-//   file_delete is synchronous for a second reason beyond size: it moves no bulk data (each step
-//   is a directory-entry unlink/rmdir, short even over NFS), AND synchronous is the safer semantics
-//   for a destructive op. It fires on_complete (error text, empty = success): the delete is refused
-//   when the worker task is streaming on the same volume, and a recursive delete is NOT rolled back
-//   on a mid-walk failure -- so "gone before the next action" holds only when on_complete reports
-//   success. Sequence a "recreate at the same path" from on_complete, not by ordering after it.
+//   Not routed through the worker: the payload is a small in-RAM value, nothing to stream, and a
+//   worker job would add round-trips and a pool slot for no benefit. Blocking is bounded by the
+//   payload size, which the author chose by constructing the value. The large-content counterpart
+//   exists as a separate action (file_copy, or raw_write with from_file). On a slow NETWORK storage
+//   even a small write can take a while (the round-trip, not the size) -- a property of the medium
+//   the author picked, not a reason to go async. A genuinely non-blocking small write would want a
+//   dedicated RAM->file worker job, not the stream API -- out of scope until a real need appears.
+//   file_delete is synchronous for a second reason: it moves no bulk data (each step is a
+//   directory-entry unlink/rmdir, short even over NFS) and synchronous is safer for a destructive
+//   op. It fires on_complete (error text, empty = success): the delete is refused while the worker
+//   task streams on the same volume, and a recursive delete is NOT rolled back on a mid-walk failure
+//   -- so "gone before the next action" holds only when on_complete reports success. Sequence a
+//   "recreate at the same path" from on_complete, not by ordering.
 //   file_exists is a condition, not an action: while the worker task streams on the same volume it
-//   returns false (a concurrent stat() would break the same per-instance serialization rule), so an
-//   existing file reads as absent for that window, logged at WARN.
+//   returns false (a concurrent stat() would break per-instance serialization), so an existing file
+//   reads as absent for that window, logged at WARN.
 //
-//   CONTROL-PLANE (moves no bulk data, but a single driver call whose duration the AUTHOR does
-//   not bound -- the driver/medium does):
-//     - format          ASYNC. format() (f_mkfs and the like) is one blocking call that can run
-//                       for seconds on a large card. Routed through the worker precisely because
-//                       its bound is the medium's, not the author's: a task-safe medium formats
-//                       on the worker task (main loop free, watchdog-safe); otherwise a loop()
-//                       step runs the one blocking call and the loop waits it out. Fires
-//                       on_complete like the streaming actions.
-//     - mount           ASYNC. One connect()/probe, bounded by the driver not the author -- an
-//                       NFS connect() to a dead server blocks for the socket timeout, so it is
-//                       worker-routed like format: task-safe media connect on the worker task,
-//                       otherwise loop-sliced. play() returns before the medium is mounted and
-//                       fires on_complete (error text, empty = success) when the connect
-//                       finishes. Sequence a dependent action from on_complete, not by placing
-//                       it after storage.mount.
-//     - unmount         SYNCHRONOUS. One disconnect(). Stays synchronous by design: drivers
-//                       quiesce the worker inside unmount() and that drain is owned by the main
-//                       loop, so routing it to the worker task would deadlock the drain.
+//   CONTROL-PLANE (moves no bulk data, but one driver call whose duration the medium bounds, not
+//   the author):
+//     - format          ASYNC. format() (f_mkfs etc.) is one blocking call that can run for seconds
+//                       on a large card. Worker-routed because its bound is the medium's: a task-safe
+//                       medium formats on the worker task (main loop free, watchdog-safe), otherwise
+//                       a loop() step waits it out. Fires on_complete like the streaming actions.
+//     - mount           ASYNC. One connect()/probe, bounded by the driver -- an NFS connect() to a
+//                       dead server blocks for the socket timeout -- so worker-routed like format.
+//                       play() returns before the mount completes and fires on_complete when the
+//                       connect finishes. Sequence a dependent action from on_complete, not after.
+//     - unmount         SYNCHRONOUS. One disconnect(). Stays synchronous: drivers quiesce the worker
+//                       inside unmount() and that drain is owned by the main loop, so routing it to
+//                       the worker task would deadlock the drain.
 // ===========================================================================
 
 // Non-template workers for the actions below -- all error logging lives in the .cpp.
@@ -279,12 +267,11 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
 // storage.file_copy / storage.file_move (move doubles as rename -- see .cpp)
 // ---------------------------------------------------------------------------
 
-// Fire-and-forget: play() submits the copy/move to the async worker and returns immediately,
-// so the action sequence continues without blocking the loop for the transfer's duration. The
-// on_complete trigger fires later from the worker's completion callback (main loop) with the
-// error text -- empty string on success. A same-storage move still takes the rename() fast path
-// inside the worker's pre-phase. Falls back to the synchronous helper only when the worker was
-// not compiled in (no path driver requested it); that path blocks, as before.
+// Fire-and-forget: play() submits the copy/move to the async worker and returns immediately, so the
+// sequence continues without blocking the loop. on_complete fires later from the worker's completion
+// callback (main loop) with the error text -- empty on success. A same-storage move still takes the
+// rename() fast path in the worker's pre-phase. Falls back to the synchronous helper only when the
+// worker was not compiled in (no path driver); that path blocks.
 template<typename... Ts> class FileCopyAction : public Action<Ts...> {
  public:
   explicit FileCopyAction(bool is_move) : is_move_(is_move) {}
@@ -307,15 +294,15 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 // ---------------------------------------------------------------------------
 // storage.raw_read / storage.raw_write / storage.raw_erase
 // ---------------------------------------------------------------------------
-// Address-based access to a RawStorage device (NOR flash, FRAM, EEPROM). What a medium
-// accepts is its own business -- these helpers ask get_raw_geometry() instead of assuming
-// flash semantics, and pass erase()'s verdict (NOT_SUPPORTED on erase-less media, INVALID_ARGS
-// on an unaligned range) straight through to the log rather than papering over it.
+// Address-based access to a RawStorage device (NOR flash, FRAM, EEPROM). What a medium accepts is
+// its own business -- these helpers ask get_raw_geometry() instead of assuming flash semantics, and
+// pass erase()'s verdict (NOT_SUPPORTED on erase-less media, INVALID_ARGS on an unaligned range)
+// straight to the log.
 //
 // Blocking: see the contract block above. The file-based paths (raw_read to_file, raw_write
-// from_file, raw_erase) run ASYNC on the worker; raw_read into on_value and raw_write from
-// inline data are SYNCHRONOUS small-content paths. The sync perform_raw_* helpers below back
-// the small-content paths and the no-worker fallback; the perform_*_async ones back the rest.
+// from_file, raw_erase) run ASYNC on the worker; raw_read into on_value and raw_write from inline
+// data are SYNCHRONOUS. The sync perform_raw_* helpers below back the small-content paths and the
+// no-worker fallback; the perform_*_async ones back the rest.
 
 // Reads [address, address+size) into `out`. Returns false (already logged) on any failure;
 // `out` is left empty then, so a trigger never fires with half a result.
