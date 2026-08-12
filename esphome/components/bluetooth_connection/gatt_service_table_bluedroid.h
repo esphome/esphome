@@ -19,10 +19,13 @@ class BluedroidServiceTable {
  public:
   ~BluedroidServiceTable() { this->free(); }
 
-  /// Two-pass build from the stack's cached database. service_total MUST be
-  /// the esp_ble_gattc_get_attr_count(PRIMARY)+(SECONDARY) total, never the
-  /// SEARCH_RES event count. log_index labels warnings. Frees any previous
-  /// table first; on failure the table is left empty.
+  /// The service count build() requires: the stack's PRIMARY+SECONDARY
+  /// attribute totals, never the SEARCH_RES event count.
+  static bool count_services(esp_gatt_if_t gattc_if, uint16_t conn_id, uint16_t *total);
+
+  /// Two-pass build from the stack's cached database (service_total from
+  /// count_services()). log_index labels warnings. Frees any previous table
+  /// first; on failure the table is left empty.
   bool build(esp_gatt_if_t gattc_if, uint16_t conn_id, uint16_t service_total, uint8_t log_index);
 
   // The view is carved from the storage block and the counts on each call
@@ -45,6 +48,7 @@ class BluedroidServiceTable {
     RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
     allocator.deallocate(this->storage_, 0);
     this->storage_ = nullptr;
+    this->service_total_ = 0;
     this->char_total_ = 0;
     this->desc_total_ = 0;
   }

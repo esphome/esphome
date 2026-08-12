@@ -2,13 +2,8 @@
 
 #ifdef USE_ESP32
 
-#include <utility>
-#include <vector>
-
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 
 namespace esphome::ble_client {
 

@@ -76,6 +76,20 @@ bool BluedroidServiceTable::walk_(ServiceFn &&on_service, CharFn &&on_char, Desc
   return true;
 }
 
+bool BluedroidServiceTable::count_services(esp_gatt_if_t gattc_if, uint16_t conn_id, uint16_t *total) {
+  uint16_t primary = 0;
+  uint16_t secondary = 0;
+  if (esp_ble_gattc_get_attr_count(gattc_if, conn_id, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001, 0xFFFF, 0, &primary) !=
+          ESP_GATT_OK ||
+      esp_ble_gattc_get_attr_count(gattc_if, conn_id, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001, 0xFFFF, 0, &secondary) !=
+          ESP_GATT_OK) {
+    // A failed count must not read as an authoritative empty database.
+    return false;
+  }
+  *total = primary + secondary;
+  return true;
+}
+
 bool BluedroidServiceTable::build(esp_gatt_if_t gattc_if, uint16_t conn_id, uint16_t service_total, uint8_t log_index) {
   this->free();
   this->gattc_if_ = gattc_if;
