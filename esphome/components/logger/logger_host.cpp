@@ -21,6 +21,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 
   // Single write for everything
   fwrite(buffer, 1, pos, stdout);
+  fflush(stdout);
 }
 
 void Logger::pre_setup() { global_logger = this; }

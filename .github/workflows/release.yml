@@ -1,12 +1,23 @@
 ---
 name: Publish Release
 
+# Releases (production and beta) are named after the version they publish.
+# Dev builds are named after the dated dev tag, which is passed in by the
+# nightly workflow because a run name cannot compute it itself.
+run-name: ${{ github.event.inputs.tag || github.event.release.tag_name || format('Manual build ({0})', github.ref_name) }}
+
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Tag to build. Only supported on dev, where the nightly workflow
+          uses it. Leave empty to build the version from esphome/const.py
+          with today's date appended.
+        required: false
+        default: ""
   release:
     types: [published]
-  schedule:
-    - cron: "0 2 * * *"
 
 permissions:
   contents: read  # actions/checkout for all jobs; deploy jobs add their own scopes when they need to write
@@ -20,9 +31,11 @@ jobs:
       branch_build: ${{ steps.tag.outputs.branch_build }}
       deploy_env: ${{ steps.tag.outputs.deploy_env }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Get tag
         id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         # yamllint disable rule:line-length
         run: |
           if [[ "${{ github.event_name }}" = "release" ]]; then
@@ -34,12 +47,23 @@ jobs:
               ENVIRONMENT="production"
             fi
           else
-            TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
-            today="$(date --utc '+%Y%m%d')"
-            TAG="${TAG}${today}"
             BRANCH=${GITHUB_REF#refs/heads/}
+            # The nightly workflow passes the finished tag so that the run name
+            # matches what is built. Without it, work it out here.
+            TAG="${INPUT_TAG}"
+            if [[ -n "$TAG" && "$BRANCH" != "dev" ]]; then
+              echo "::error::The tag input is only supported on dev. A build from ${BRANCH} has to use the tag worked out here, which carries the branch name, so that it cannot publish over the dev, beta, latest or stable images."
+              exit 1
+            fi
+            if [[ -z "$TAG" ]]; then
+              TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
+              today="$(date --utc '+%Y%m%d')"
+              TAG="${TAG}${today}"
+              if [[ "$BRANCH" != "dev" ]]; then
+                TAG="${TAG}-${BRANCH}"
+              fi
+            fi
             if [[ "$BRANCH" != "dev" ]]; then
-              TAG="${TAG}-${BRANCH}"
               BRANCH_BUILD="true"
               ENVIRONMENT=""
             else
@@ -60,9 +84,9 @@ jobs:
       contents: read   # actions/checkout to build the sdist/wheel
       id-token: write  # OIDC token for PyPI Trusted Publishing (pypa/gh-action-pypi-publish)
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.x"
       - name: Build
@@ -70,7 +94,7 @@ jobs:
           pip3 install build
           python3 -m build
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           skip-existing: true
 
@@ -92,9 +116,9 @@ jobs:
             os: "ubuntu-24.04-arm"
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
@@ -102,12 +126,12 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to docker hub
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -168,7 +192,7 @@ jobs:
           - ghcr
           - dockerhub
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -182,13 +206,13 @@ jobs:
 
       - name: Log in to docker hub
         if: matrix.registry == 'dockerhub'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Log in to the GitHub container registry
         if: matrix.registry == 'ghcr'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

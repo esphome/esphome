@@ -5,11 +5,11 @@ namespace esphome::pzemac {
 
 static const char *const TAG = "pzemac";
 
-static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
-void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
+void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < 20) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
@@ -61,7 +61,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
+void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PZEMAC:\n"
@@ -76,10 +76,8 @@ void PZEMAC::dump_config() {
 }
 
 void PZEMAC::reset_energy_() {
-  std::vector<uint8_t> cmd;
-  cmd.push_back(this->address_);
-  cmd.push_back(PZEM_CMD_RESET_ENERGY);
-  this->send_raw(cmd);
+  const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY};
+  this->queue_pdu(pdu);
 }
 
 }  // namespace esphome::pzemac
