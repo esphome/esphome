@@ -584,7 +584,7 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
   }
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
@@ -606,6 +606,8 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 template<> const char *proto_enum_to_string<enums::BluetoothScannerState>(enums::BluetoothScannerState value) {
   switch (value) {
     case enums::BLUETOOTH_SCANNER_STATE_IDLE:
@@ -2002,6 +2004,8 @@ const char *BluetoothLERawAdvertisementsResponse::dump_to(DumpBuffer &out) const
   }
   return out.c_str();
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 const char *BluetoothDeviceRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceRequest"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
@@ -2173,6 +2177,8 @@ const char *BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("error"), this->error);
   return out.c_str();
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 const char *BluetoothScannerStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothScannerStateResponse"));
   dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::BluetoothScannerState>(this->state));
@@ -2764,7 +2770,7 @@ const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsRequest"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);

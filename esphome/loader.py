@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 import importlib
@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 if TYPE_CHECKING:
     from esphome.cpp_generator import MockObjClass
+    from esphome.external_files import RemoteFile
 
 # `esphome.core.config` is imported lazily in `_lookup_module` when the
 # "esphome" pseudo-component is first resolved. It pulls in
@@ -134,6 +135,21 @@ class ComponentManifest:
         Note that the function can't mutate the configuration - no changes are saved
         """
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
+
+    @property
+    def prefetch_files(
+        self,
+    ) -> Callable[[list[ConfigType]], Iterable[list["RemoteFile"]]] | None:
+        """Optional `PREFETCH_FILES` hook for batched remote file downloads.
+
+        A generator called once per run with the component's raw, pre-schema
+        config entries; each yield is a stage of ``RemoteFile`` downloaded in
+        one parallel pass before schema validation, so a later stage may
+        derive URLs from earlier files' content. Best effort: skip anything
+        unrecognized. On platform components, place it on the platform
+        sub-module; a domain-module hook receives every entry.
+        """
+        return getattr(self.module, "PREFETCH_FILES", None)
 
     @property
     def legacy_config_migrate(self) -> Callable[[ConfigType], ConfigType | None] | None:
