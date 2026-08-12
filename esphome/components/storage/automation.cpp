@@ -280,18 +280,19 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
 
 // Every raw action asks the device what it is before touching it -- capacity and geometry come
 // from the driver (see RawGeometry), never from an assumption about the medium.
-static bool raw_preflight(RawStorage *device, const char *op, uint64_t address, uint64_t size, RawGeometry *geo) {
+static StorageError raw_preflight(RawStorage *device, const char *op, uint64_t address, uint64_t size,
+                                  RawGeometry *geo) {
   device->get_raw_geometry(geo);
   if (geo->capacity == 0) {
     ESP_LOGE(TAG, "raw_%s: device reports no capacity", op);
-    return false;
+    return StorageError::NOT_READY;  // no medium yet, not a bad argument
   }
   if (address >= geo->capacity || size > geo->capacity - address) {
     ESP_LOGE(TAG, "raw_%s: 0x%08" PRIX32 " + %" PRIu32 " exceeds the device capacity %" PRIu32, op, (uint32_t) address,
              (uint32_t) size, (uint32_t) geo->capacity);
-    return false;
+    return StorageError::INVALID_ARGS;
   }
-  return true;
+  return StorageError::OK;
 }
 
 // Same guard rail the blocking file helpers use: these actions run on the main loop.
@@ -342,14 +343,14 @@ static bool raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint
 }
 
 // Reads the range into an already-sized buffer, honoring the partial-read contract.
-static bool raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, size_t size, size_t *done_out) {
+static StorageError raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, size_t size, size_t *done_out) {
   size_t done = 0;
   while (done < size) {
     size_t got = 0;
     StorageError err = device->read(address + done, buf + done, size - done, &got);
     if (err != StorageError::OK) {
       ESP_LOGE(TAG, "raw_read: failed at 0x%08" PRIX32 " (%s)", (uint32_t) (address + done), error_to_string(err));
-      return false;
+      return err;  // propagate the driver's verdict instead of a generic READ_ERROR
     }
     if (got == 0)
       break;  // end of medium before the requested size
@@ -363,15 +364,16 @@ static bool raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, si
     // streaming callers, not this one).
     ESP_LOGE(TAG, "raw_read: short read at 0x%08" PRIX32 " (%u of %u bytes)", (uint32_t) address, (unsigned) done,
              (unsigned) size);
-    return false;
+    return StorageError::READ_ERROR;  // the medium ended before the requested size
   }
-  return true;
+  return StorageError::OK;
 }
 
 StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
   RawGeometry geo;
-  if (!raw_preflight(device, "read", address, size, &geo))
-    return StorageError::INVALID_ARGS;
+  StorageError pf = raw_preflight(device, "read", address, size, &geo);
+  if (pf != StorageError::OK)
+    return pf;
   StorageError sz = raw_size_allowed("read", size);
   if (sz != StorageError::OK)
     return sz;
@@ -396,9 +398,10 @@ StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size,
   }
   out.resize(size);
   size_t done = 0;
-  if (!raw_read_into(device, address, out.data(), size, &done)) {
+  StorageError rerr = raw_read_into(device, address, out.data(), size, &done);
+  if (rerr != StorageError::OK) {
     out.clear();
-    return StorageError::READ_ERROR;
+    return rerr;
   }
   out.resize(done);
   return StorageError::OK;
@@ -415,8 +418,9 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
     size = geo.capacity > address ? geo.capacity - address : 0;
   ESP_LOGI(TAG, "Transfer started: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) size,
            path.c_str());
-  if (!raw_preflight(device, "read", address, size, &geo))
-    return StorageError::INVALID_ARGS;
+  StorageError pf = raw_preflight(device, "read", address, size, &geo);
+  if (pf != StorageError::OK)
+    return pf;
   StorageError sz = raw_size_allowed("read", size);
   if (sz != StorageError::OK)
     return sz;
@@ -449,8 +453,9 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
   }
   RamBuffer buf(raw, RamBufferDeleter{buf_size});
   size_t done = 0;
-  if (!raw_read_into(device, address, buf.get(), buf_size, &done))
-    return StorageError::READ_ERROR;
+  StorageError rerr = raw_read_into(device, address, buf.get(), buf_size, &done);
+  if (rerr != StorageError::OK)
+    return rerr;
 
   StorageError err = write_file(ps, rel, buf.get(), done);
   if (err != StorageError::OK) {
@@ -467,8 +472,9 @@ StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8
   if (len == 0)
     return StorageError::OK;
   RawGeometry geo;
-  if (!raw_preflight(device, "write", address, len, &geo))
-    return StorageError::INVALID_ARGS;
+  StorageError pf = raw_preflight(device, "write", address, len, &geo);
+  if (pf != StorageError::OK)
+    return pf;
   StorageError sz = raw_size_allowed("write", len);
   if (sz != StorageError::OK)
     return sz;
@@ -540,8 +546,9 @@ StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t si
     address = 0;
     size = geo.capacity;
   }
-  if (!raw_preflight(device, "erase", address, size, &geo))
-    return StorageError::INVALID_ARGS;
+  StorageError pf = raw_preflight(device, "erase", address, size, &geo);
+  if (pf != StorageError::OK)
+    return pf;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_erase: device is busy with a background transfer -- refusing blocking I/O");
     return StorageError::NOT_READY;
