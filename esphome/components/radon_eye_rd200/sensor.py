@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("5min"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA),
+    .extend(ble_client.NODE_BLE_CLIENT_SCHEMA),
 )
 
 
@@ -44,7 +44,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    await ble_client.register_ble_node(var, config)
+    await ble_client.register_gatt_node(var, config)
 
     if CONF_RADON in config:
         sens = await sensor.new_sensor(config[CONF_RADON])
