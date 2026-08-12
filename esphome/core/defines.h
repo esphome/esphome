@@ -535,6 +535,8 @@
 // channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
 // real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.
 #define USE_ZEPHYR_ADC_EMULATION
+// Emitted by zephyr/mcuboot.py's apply_single_slot() when zephyr: single_slot: true.
+#define USE_ZEPHYR_MCUBOOT_SINGLE_SLOT
 #endif
 
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware

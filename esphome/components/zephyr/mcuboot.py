@@ -10,6 +10,7 @@ it has no zephyr dependency, and platform: esphome needs it at module-load
 time on every platform, not just Zephyr.
 """
 
+import esphome.codegen as cg
 from esphome.components.ota import CONF_SWAP_METHOD
 import esphome.config_validation as cv
 from esphome.core import CORE
@@ -54,3 +55,18 @@ def apply_swap_method(config: ConfigType) -> None:
     # is OVERWRITE_ONLY for the whole family, which silently defeats
     # boot_request_upgrade(BOOT_UPGRADE_TEST) (no image survives to revert to).
     zephyr_add_sysbuild_conf(_SYSBUILD_MODE[config[CONF_SWAP_METHOD]], True)
+
+
+def apply_single_slot() -> None:
+    """Push zephyr: single_slot: true to sysbuild.conf.
+
+    Called directly from zephyr_to_code(), independent of whether any ota:
+    platform is configured -- unlike apply_swap_method(), single_slot: has no
+    ota: dependency at all (see ota/__init__.py's _ota_final_validate, which
+    rejects any ota: platform when single_slot: true is set).
+    """
+    from . import zephyr_add_sysbuild_conf
+
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+    zephyr_add_sysbuild_conf("MCUBOOT_MODE_SINGLE_APP", True)
+    cg.add_define("USE_ZEPHYR_MCUBOOT_SINGLE_SLOT")

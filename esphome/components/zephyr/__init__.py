@@ -47,6 +47,7 @@ from .const import (
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
+    CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
@@ -59,6 +60,7 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SINGLE_SLOT,
     KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
@@ -187,6 +189,7 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
+    single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
 
 
 # platform: nrf52 use only
@@ -221,6 +224,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
+        single_slot=False,
     )
 
 
@@ -608,6 +612,11 @@ def zephyr_to_code(config: ConfigType) -> None:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
+
+    if zephyr_data()[KEY_SINGLE_SLOT]:
+        from . import mcuboot  # noqa: PLC0415
+
+        mcuboot.apply_single_slot()
 
     # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC and esp32_c3 is RV32IMC -- none have a
     # hardware FPU; rp2040 is Cortex-M0+, also without FPU. Original ESP32 is Xtensa LX6,
@@ -1040,6 +1049,8 @@ _ZEPHYR_SCHEMA = cv.Schema(
         # from kconfig_options: above. Lets a stock upstream board cover a differently
         # sized flash/PSRAM SKU without forking a whole custom board.
         cv.Optional(CONF_SNIPPETS, default=[]): cv.ensure_list(cv.string_strict),
+        # No secondary slot -- serial/wired flashing only, no live OTA path.
+        cv.Optional(CONF_SINGLE_SLOT, default=False): cv.boolean,
         # Raw devicetree overlay passthrough -- lets a stock upstream board's DT be
         # patched (e.g. a partition table redefined for MCUboot) without forking a
         # custom board. "mcuboot" targets the sysbuild bootloader child image.
@@ -1180,6 +1191,12 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         config = _rp2350_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
+    if config[CONF_SINGLE_SLOT] and zephyr_data()[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        raise cv.Invalid(
+            f"'{CONF_SINGLE_SLOT}: true' requires the MCUboot bootloader "
+            f"(set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}' for this variant)",
+            [CONF_SINGLE_SLOT],
+        )
     zephyr_data()[KEY_BOARD_ROOT] = board_root
     return config
 
