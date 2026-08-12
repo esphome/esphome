@@ -33,7 +33,7 @@ void ICNT86Touchscreen::setup() {
 }
 
 void ICNT86Touchscreen::update_touches() {
-  char buf[100];
+  char buf[100] = {0};
   char mask[1] = {0x00};
 
   this->icnt_read_(0x1001, buf, 1);
