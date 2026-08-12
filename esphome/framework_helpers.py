@@ -895,8 +895,8 @@ def _is_transient_download_error(e: Exception) -> bool:
     """Return True when a download failure is worth retrying.
 
     Connection-level failures and HTTP 429/5xx are transient. Other HTTP
-    errors, local errors, and EsphomeError from download_with_resume
-    (which already exhausted its own resume attempts) are permanent.
+    errors, local errors, and exhausted-attempts EsphomeError wrappers
+    (their per-mirror retries are already spent) are permanent.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only
     # needed when actually downloading, never during config validation.
@@ -1026,7 +1026,14 @@ def _try_mirrors_once(
                     )
                     offset = 0
                 if attempt == _MIRROR_ATTEMPTS - 1:
-                    failures.append((url, e))
+                    # Wrap like download_with_resume so the sweep sees
+                    # these attempts as already spent
+                    err = EsphomeError(
+                        f"failed after {_MIRROR_ATTEMPTS} attempts: "
+                        f"{_failure_reason(e)}"
+                    )
+                    err.__cause__ = e
+                    failures.append((url, err))
 
     return None
 
@@ -1105,17 +1112,7 @@ def download_from_mirrors(
     # 3. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
-    for sweep in range(_MIRROR_SWEEP_ATTEMPTS):
-        if sweep:
-            delay = 2**sweep
-            _LOGGER.warning(
-                "Download failed with a transient error; retrying in %d seconds "
-                "(attempt %d/%d)",
-                delay,
-                sweep + 1,
-                _MIRROR_SWEEP_ATTEMPTS,
-            )
-            time.sleep(delay)
+    for sweep in range(1, _MIRROR_SWEEP_ATTEMPTS + 1):
         failures: list[tuple[str, Exception]] = []
         if (
             url := _try_mirrors_once(urls, path_target, f, timeout, failures)
@@ -1123,8 +1120,21 @@ def download_from_mirrors(
             return url
         # Permanent failures (404, verification mismatch) won't heal;
         # only retry when a transient error is in the mix (as git.py does).
-        if not any(_is_transient_download_error(e) for _, e in failures):
+        transient = next(
+            ((u, e) for u, e in failures if _is_transient_download_error(e)), None
+        )
+        if transient is None or sweep == _MIRROR_SWEEP_ATTEMPTS:
             break
+        delay = 2**sweep
+        _LOGGER.warning(
+            "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
+            transient[0],
+            _failure_reason(transient[1]),
+            delay,
+            sweep + 1,
+            _MIRROR_SWEEP_ATTEMPTS,
+        )
+        time.sleep(delay)
 
     # 4. Report every attempted URL if all mirrors failed. Falling back
     # past an early mirror is normal (e.g. only one of the framework URL

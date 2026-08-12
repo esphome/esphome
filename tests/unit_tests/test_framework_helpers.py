@@ -1500,6 +1500,41 @@ class TestDownloadFromMirrors:
         assert dest.read_bytes() == b"data"
         mock_sleep.assert_called_once_with(2)
 
+    def test_http_5xx_retries_sweep(self, tmp_path: Path) -> None:
+        """A real 5xx (response attached to the HTTPError) is transient."""
+        dest = tmp_path / "out.bin"
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _mock_response(b"", ok=False, status=503),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, dest)
+        assert url == "https://mirror1.com/f"
+        assert dest.read_bytes() == b"data"
+        mock_sleep.assert_called_once_with(2)
+
+    def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
+        """A file-like mirror that spent all its mid-stream attempts is not
+        retried again at the sweep level; both target kinds get the same
+        per-mirror attempt ceiling."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[_interrupted_response(b"1234") for _ in range(3)],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 3 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 3
+        mock_sleep.assert_not_called()
+
 
 def _http_error(status: int) -> req.HTTPError:
     """An HTTPError carrying a response with the given status, as raised by
