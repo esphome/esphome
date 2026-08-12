@@ -2199,7 +2199,10 @@ static void run_stream_step(StreamRequest &req) {
       }
       if (err == StorageError::OK && bytes_written < req.pending_len)
         err = StorageError::WRITE_ERROR;  // 0 bytes accepted mid-stream -- treat as failure
-      req.offset += bytes_written;
+      // storage.h: *bytes_transferred is unspecified when write()/write_chunk() returns non-OK, so
+      // only advance the stream cursor on success, as the READING branch does.
+      if (err == StorageError::OK)
+        req.offset += bytes_written;
       req.pending_write_data = nullptr;
       req.pending_len = 0;
       req.result = err;
