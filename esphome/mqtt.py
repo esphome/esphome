@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import ssl
 import tempfile
+import threading
 import time
 
 import paho.mqtt.client as mqtt
@@ -164,6 +165,7 @@ def get_esphome_device_ip(
     password: str | None = None,
     client_id: str | None = None,
     timeout: float = 25,
+    stop_event: threading.Event | None = None,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
@@ -219,12 +221,15 @@ def get_esphome_device_ip(
         config, [topic], on_message, on_connect, username, password, client_id
     )
 
+    if stop_event is None:
+        stop_event = threading.Event()  # never set; wait() below is a plain sleep
     mqtt_client.loop_start()
     while timeout > 0:
         if dev_ip is not None:
             break
+        if stop_event.wait(0.250):
+            break
         timeout -= 0.250
-        time.sleep(0.250)
     mqtt_client.loop_stop()
 
     if dev_ip is None:

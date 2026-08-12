@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 import logging
+import threading
 from typing import TYPE_CHECKING, Any
 import warnings
 
@@ -20,6 +21,8 @@ from esphome.stacktrace import LogLineProcessor
 from esphome.util import safe_print
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from aioesphomeapi.api_pb2 import (
         SubscribeLogsResponse,  # pylint: disable=no-name-in-module
     )
@@ -32,8 +35,17 @@ async def async_run_logs(
     config: dict[str, Any],
     addresses: list[str],
     subscribe_states: bool = True,
+    mqtt_resolver: Callable[[threading.Event], list[str]] | None = None,
 ) -> None:
-    """Run the logs command in the event loop."""
+    """Run the logs command in the event loop.
+
+    If ``mqtt_resolver`` is given, it is called in a worker thread (paho-mqtt
+    has no asyncio support on Windows) concurrently with the connection
+    attempts to ``addresses``, and any addresses it discovers are fed into
+    the running client. It owns its own failure handling (returning [] when
+    discovery fails) and must honor the ``threading.Event`` it is passed so
+    teardown is not delayed by a slow broker lookup.
+    """
     from datetime import datetime
 
     conf = config["api"]
@@ -59,6 +71,15 @@ async def async_run_logs(
 
     # Decoder resolution policy lives in LogLineProcessor.
     processor = LogLineProcessor(config, CORE.target_platform)
+
+    mqtt_task: asyncio.Task[None] | None = None
+    mqtt_stop_event = threading.Event()
+
+    async def _resolve_mqtt_addresses() -> None:
+        """Discover the device address via the MQTT broker in the background."""
+        mqtt_ips = await asyncio.to_thread(mqtt_resolver, mqtt_stop_event)
+        if mqtt_ips and cli.add_addresses(mqtt_ips):
+            _LOGGER.info("Discovered address(es) via MQTT: %s", ", ".join(mqtt_ips))
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
@@ -100,8 +121,17 @@ async def async_run_logs(
         deep_sleep="deep_sleep" in config,
     )
     try:
+        if mqtt_resolver is not None:
+            mqtt_task = asyncio.create_task(_resolve_mqtt_addresses())
         await asyncio.Event().wait()
     finally:
+        if mqtt_task is not None:
+            # Unblock the worker thread first so it can't hold up
+            # loop.shutdown_default_executor() for the full lookup timeout.
+            mqtt_stop_event.set()
+            mqtt_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await mqtt_task
         await stop()
 
 
@@ -109,9 +139,15 @@ def run_logs(
     config: dict[str, Any],
     addresses: list[str],
     subscribe_states: bool = True,
+    mqtt_resolver: Callable[[threading.Event], list[str]] | None = None,
 ) -> None:
     """Run the logs command."""
     with suppress(KeyboardInterrupt):
         asyncio.run(
-            async_run_logs(config, addresses, subscribe_states=subscribe_states)
+            async_run_logs(
+                config,
+                addresses,
+                subscribe_states=subscribe_states,
+                mqtt_resolver=mqtt_resolver,
+            )
         )

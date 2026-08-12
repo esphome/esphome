@@ -163,3 +163,110 @@ async def test_async_run_logs_passes_deep_sleep(
         await api_client.async_run_logs(config, ["1.2.3.4"])
 
     assert mock_run.call_args.kwargs["deep_sleep"] is expected_deep_sleep
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_feeds_addresses(caplog) -> None:
+    """Addresses discovered via MQTT are fed into the running client."""
+    caplog.set_level("INFO", logger="esphome.api_client")
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    fed = asyncio.Event()
+
+    def resolver(stop_event):
+        return ["10.0.0.9", "10.0.0.10"]
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient") as mock_client,
+    ):
+        mock_client.return_value.add_addresses.side_effect = lambda addrs: (
+            fed.set() or True
+        )
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        async with asyncio.timeout(1):
+            await fed.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_called_once_with(
+        ["10.0.0.9", "10.0.0.10"]
+    )
+    assert "Discovered address(es) via MQTT" in caplog.text
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_no_addresses_keeps_running() -> None:
+    """A resolver returning nothing (failed lookup) leaves the session running."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    def resolver(stop_event):
+        # The resolver owns failure handling; a failed lookup returns []
+        resolver_ran.set()
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient") as mock_client,
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_client.return_value.add_addresses.assert_not_called()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_stopped_on_teardown() -> None:
+    """Teardown sets the resolver's stop event so the thread exits promptly."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    captured_event: threading.Event | None = None
+    resolver_started = threading.Event()
+
+    def resolver(stop_event):
+        nonlocal captured_event
+        captured_event = stop_event
+        resolver_started.set()
+        # Simulate a slow broker lookup that only ends via the stop event.
+        stop_event.wait(timeout=5)
+        return []
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient"),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_started.wait, 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert captured_event is not None
+    assert captured_event.is_set()
+    stop.assert_awaited_once()
