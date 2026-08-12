@@ -397,6 +397,8 @@ void BluedroidGattClient::deliver_pending_search_() {
 // which proxy builds compile without a materializer.
 static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.stream_service_batch(conn); });
 
+// Bound by the SERVICE STREAMING HAZARD note at the top of
+// bluetooth_connection_hub.cpp: never skip a batch, never send done early.
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
@@ -527,9 +529,11 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   // On a failed send, rewind the cursor so the batch is retried instead of
   // silently skipped.
   if (!api_conn->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", conn.connection_index_, conn.address_str_);
+    conn.note_batch_stalled_();
     conn.send_service_ = batch_start;
+    return;
   }
+  conn.batch_stalled_ = false;
 }
 #endif  // USE_BLUETOOTH_PROXY
 

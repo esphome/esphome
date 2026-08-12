@@ -197,7 +197,7 @@ void BluetoothProxy::replace_allocated_slot_(uint64_t find_value, uint64_t set_v
 
 void BluetoothProxy::latch_pending_disconnection_(uint64_t address, conn_err_t error) {
   // Match before free entry so one address never occupies two pool slots.
-  PendingDisconnect *free_entry = nullptr;
+  PendingReply *free_entry = nullptr;
   for (uint8_t i = 0; i < this->connection_count_; i++) {
     auto &owed = this->pending_disconnections_[i];
     if (owed.matches(address)) {
@@ -387,7 +387,7 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
 
   auto err = connection->read_characteristic(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -400,7 +400,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
 
   auto err = connection->write_characteristic(msg.handle, msg.data, msg.data_len, msg.response);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -413,7 +413,7 @@ void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTRead
 
   auto err = connection->read_descriptor(msg.handle);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -426,7 +426,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
 
   auto err = connection->write_descriptor(msg.handle, msg.data, msg.data_len, true);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -477,7 +477,7 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
 
   auto err = connection->notify_characteristic(msg.handle, msg.enable);
   if (err != CONN_OK) {
-    this->send_gatt_error(msg.address, msg.handle, err);
+    connection->send_gatt_error_(msg.handle, err);
   }
 }
 
@@ -597,10 +597,20 @@ void BluetoothProxy::loop() {
     if (connection->send_service_ == SERVICES_DONE_PENDING) {
       connection->send_services_done_();
     }
+    if (connection->has_pending_ack_()) {
+      connection->flush_pending_ack_();
+    }
     auto &owed = this->pending_disconnections_[i];
     if (!owed.empty() && this->send_device_connection(owed.address(), false, 0, owed.error())) {
       owed.clear();
     }
+  }
+
+  // An owed unpair reply. Not pre-cleared: the sender clears on success and
+  // re-latches on refusal, keeping its leading-edge warn guard honest.
+  if (!this->pending_unpairing_.empty()) {
+    conn_err_t error = this->pending_unpairing_.error();
+    this->send_device_unpairing(this->pending_unpairing_.address(), error == CONN_OK, error);
   }
 #endif
 
@@ -694,6 +704,31 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
 
 #endif  // !BLUETOOTH_CONNECTION_HAS_GATT
 
+void BluetoothProxy::reset_owed_replies_() {
+  this->connections_free_pending_ = false;
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  // Owed on unsubscribe; on subscribe the trailing send_scanner_state_()
+  // re-drives it from the hub, so clearing it there is free.
+  this->scanner_state_pending_ = false;
+#else
+  // Force a poll-arm mismatch: a frame refused at subscribe time could
+  // otherwise match the stale detector and never be retried. Inert on
+  // unsubscribe: loop() returns at the no-subscriber gate before the
+  // detector runs, and a re-subscribe re-arms this anyway.
+  this->last_scan_running_ = !this->hub_->scan_running();
+#endif
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  this->pending_unpairing_.clear();
+  this->pending_disconnections_.fill({});
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    // Neither a partial stream's tail nor an owed done belongs to the next
+    // session; silence (the client's timeout) arbitrates.
+    this->connections_[i]->park_service_stream_();
+    this->connections_[i]->clear_pending_ack_();
+  }
+#endif
+}
+
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (api_connection != this->api_connection_) {
     if (this->api_connection_ != nullptr) {
@@ -710,15 +745,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
     }
     // Stale retry latches belong to the previous subscriber's session; a
     // re-subscribe by the current one keeps what it is still owed.
-    this->connections_free_pending_ = false;
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      // Neither a partial stream's tail nor an owed done belongs to the new
-      // session; silence (the client's timeout) arbitrates.
-      this->connections_[i]->park_service_stream_();
-    }
-    this->pending_disconnections_.fill({});
-#endif
+    this->reset_owed_replies_();
   }
   this->api_connection_ = api_connection;
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
@@ -735,10 +762,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
-  this->connections_free_pending_ = false;
-#ifdef USE_BLE_SCANNER_STATE_CALLBACK
-  this->scanner_state_pending_ = false;
-#endif
+  this->reset_owed_replies_();
 }
 
 void BluetoothProxy::send_connections_free() {
@@ -776,14 +800,14 @@ bool BluetoothProxy::send_gatt_services_done(uint64_t address) {
   return this->api_connection_->send_message(call);
 }
 
-void BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {
+bool BluetoothProxy::send_gatt_error(uint64_t address, uint16_t handle, conn_err_t error) {
   if (this->api_connection_ == nullptr)
-    return;
+    return true;  // Nobody subscribed: nothing is owed, only a refused frame reports false
   api::BluetoothGATTErrorResponse call;
   call.address = address;
   call.handle = handle;
   call.error = error;
-  this->api_connection_->send_message(call);
+  return this->api_connection_->send_message(call);
 }
 
 void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err_t error) {
@@ -800,12 +824,42 @@ void BluetoothProxy::send_device_pairing(uint64_t address, bool paired, conn_err
 void BluetoothProxy::send_device_unpairing(uint64_t address, bool success, conn_err_t error) {
   if (this->api_connection_ == nullptr)
     return;
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  // An owed success is the authoritative answer: a later attempt for the
+  // same address fails only because the first already removed the bond.
+  if (!this->pending_unpairing_.empty() && this->pending_unpairing_.matches(address) &&
+      this->pending_unpairing_.error() == CONN_OK) {
+    success = true;
+    error = CONN_OK;
+  }
+#endif
   api::BluetoothDeviceUnpairingResponse call;
   call.address = address;
   call.success = success;
   call.error = error;
 
-  this->api_connection_->send_message(call);
+  // Advertisement-only builds answer this with a canned reply and keep no
+  // retry state, so only the latch is conditional, not the send.
+  [[maybe_unused]] bool sent = this->api_connection_->send_message(call);
+#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+  if (sent) {
+    // A later unpair landing for an address that still has one owed would
+    // otherwise have the drain repeat it.
+    if (this->pending_unpairing_.matches(address)) {
+      this->pending_unpairing_.clear();
+    }
+  } else {
+    // Warn on the leading edge and on displacement (that one loses a reply);
+    // the drain's re-refusals of the same reply stay quiet.
+    if (this->pending_unpairing_.empty()) {
+      ESP_LOGW(TAG, "Unpair reply for %012" PRIX64 " deferred, TCP buffer full", address);
+    } else if (!this->pending_unpairing_.matches(address)) {
+      ESP_LOGW(TAG, "Owed unpair reply for %012" PRIX64 " dropped, displaced by %012" PRIX64,
+               this->pending_unpairing_.address(), address);
+    }
+    this->pending_unpairing_.set(address, error);
+  }
+#endif
 }
 
 // Shared by both platform paths: the neutral bluetooth_device_request() uses it to

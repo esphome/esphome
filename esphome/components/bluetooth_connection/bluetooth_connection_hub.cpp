@@ -1,4 +1,24 @@
 // The proxy's per-slot connection wrapper, shared by every platform.
+//
+// SERVICE STREAMING HAZARD - read before touching the streaming code here or
+// in the platform streamers (bluetooth_connection_bluedroid.cpp).
+//
+// A V3 client caches the service list it receives as the device's complete,
+// permanent database. Nothing on the wire marks a list as partial, so a
+// stream that is truncated, has a skipped batch, or is terminated early
+// would be cached whole and poison every later session with the device.
+//
+// The rule: it is always better to send nothing and let the client time out
+// than to let services-done follow an incomplete stream. Concretely:
+//   - a refused batch rewinds the cursor and is retried, never skipped;
+//   - services-done is sent only after every batch was accepted;
+//   - every interruption (subscriber lost or swapped, backend abort,
+//     bounds-check failure) parks or aborts WITHOUT services-done and drops
+//     any owed done;
+//   - a new GetServices supersedes an owed done, so a stale done can never
+//     land on a fresh request's empty accumulator and cache it as empty.
+// The client only caches a list terminated by services-done within the same
+// request; timeouts, disconnects and errors raise instead of caching.
 #include "bluetooth_connection_hub.h"
 
 #ifdef BLUETOOTH_CONNECTION_HAS_GATT
@@ -16,6 +36,9 @@ static const char *const TAG = "bluetooth_connection";
 void BluetoothConnection::set_address(uint64_t address) {
   // Keep the proxy's pre-allocated connections-free message in step
   this->proxy_->update_address_slot_(this->address_, address);
+  // Slot changing hands: anything owed belonged to the old address. The
+  // choke point for every reassignment, not just reset_connection_()'s path.
+  this->clear_pending_ack_();
   this->address_ = address;
   if (address == 0) {
     this->address_str_[0] = '\0';
@@ -73,6 +96,9 @@ void BluetoothConnection::reset_connection_(conn_err_t reason) {
   this->state_ = ClientState::IDLE;
   this->services_discovered_ = false;
   this->paired_ = false;
+  // Link gone: the slot may hold a different device before the drain runs.
+  this->clear_pending_ack_();
+  this->batch_stalled_ = false;
   this->backend_->release_services();
   this->proxy_->reset_connection_slot_(this, reason);
 }
@@ -163,13 +189,85 @@ void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint1
            operation, handle, status);
 }
 
+void BluetoothConnection::note_batch_stalled_() {
+  if (this->batch_stalled_)
+    return;
+  this->batch_stalled_ = true;
+  ESP_LOGW(TAG, "[%d] [%s] Service batch deferred, TCP buffer full; retrying", this->connection_index_,
+           this->address_str_);
+}
+
+/// Both payload-free acks are just (address, handle); only the type differs.
+template<typename Response>
+static bool send_handle_reply(api::APIConnection *api_connection, uint64_t address, uint16_t handle) {
+  Response resp;
+  resp.address = address;
+  resp.handle = handle;
+  return api_connection->send_message(resp);
+}
+
+/// Sole construction site, so a re-offer cannot drift from the original.
+bool BluetoothConnection::try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
+  if (kind == PendingAck::PENDING_ACK_ERROR) {
+    // Proxy owns the error reply and reports a refusal the same way.
+    return this->proxy_->send_gatt_error(this->address_, handle, error);
+  }
+  auto *api_connection = this->proxy_->get_api_connection();
+  if (api_connection == nullptr)
+    return true;  // Nobody subscribed: nothing is owed
+  switch (kind) {
+    case PendingAck::PENDING_ACK_WRITE:
+      return send_handle_reply<api::BluetoothGATTWriteResponse>(api_connection, this->address_, handle);
+    case PendingAck::PENDING_ACK_NOTIFY:
+      return send_handle_reply<api::BluetoothGATTNotifyResponse>(api_connection, this->address_, handle);
+    case PendingAck::PENDING_ACK_NONE:
+    case PendingAck::PENDING_ACK_ERROR:  // returned above
+      return true;
+  }
+  // No default label above, so a new enumerator is a -Wswitch warning rather
+  // than a silent notify reply. This return only satisfies -Wreturn-type.
+  return true;
+}
+
+void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t error) {
+  if (this->try_send_ack_(kind, handle, error))
+    return;
+  // Report a newly owed reply and a displaced one; displacing is the case
+  // that loses a reply. Re-refusing the same one stays quiet.
+  if (!this->has_pending_ack_()) {
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X deferred, TCP buffer full", this->connection_index_,
+             this->address_str_, handle);
+  } else if (this->pending_ack_handle_ != handle || this->pending_ack_ != kind) {
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X dropped for handle 0x%04X", this->connection_index_,
+             this->address_str_, this->pending_ack_handle_, handle);
+  }
+  this->latch_pending_ack_(kind, handle, error);
+}
+
+void BluetoothConnection::flush_pending_ack_() {
+  // No-op on its own rather than relying on the proxy drain's pre-check.
+  if (!this->has_pending_ack_())
+    return;
+  if (this->try_send_ack_(this->pending_ack_, this->pending_ack_handle_, this->pending_ack_error_)) {
+    this->clear_pending_ack_();
+    return;
+  }
+  if (++this->pending_ack_retries_ >= PENDING_ACK_RETRY_LIMIT) {
+    // Undeliverable: past here the client has given up and may have re-asked,
+    // and a late reply would answer the new request instead of this one.
+    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X undeliverable, abandoning", this->connection_index_,
+             this->address_str_, this->pending_ack_handle_);
+    this->clear_pending_ack_();
+  }
+}
+
 void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {
   // Late completion for a freed slot; nothing to report.
   if (this->address_ == 0)
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("reading char/descriptor", handle, error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
   auto *api_connection = this->proxy_->get_api_connection();
@@ -180,6 +278,8 @@ void BluetoothConnection::on_read_result(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
+    // Not latched: would mean holding the payload through the congestion
+    // that refused it. The client's read timeout arbitrates.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send read response", this->connection_index_, this->address_str_);
   }
 }
@@ -189,18 +289,10 @@ void BluetoothConnection::on_write_result(uint16_t handle, int error) {
     return;
   if (error != 0) {
     this->log_gatt_operation_error_("writing char/descriptor", handle, error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
-  auto *api_connection = this->proxy_->get_api_connection();
-  if (api_connection == nullptr)
-    return;
-  api::BluetoothGATTWriteResponse resp;
-  resp.address = this->address_;
-  resp.handle = handle;
-  if (!api_connection->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send write response", this->connection_index_, this->address_str_);
-  }
+  this->send_ack_(PendingAck::PENDING_ACK_WRITE, handle);
 }
 
 void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int error) {
@@ -209,18 +301,10 @@ void BluetoothConnection::on_notify_state(uint16_t handle, bool enabled, int err
   if (error != 0) {
     this->log_gatt_operation_error_(enabled ? "registering notifications" : "unregistering notifications", handle,
                                     error);
-    this->proxy_->send_gatt_error(this->address_, handle, error);
+    this->send_gatt_error_(handle, error);
     return;
   }
-  auto *api_connection = this->proxy_->get_api_connection();
-  if (api_connection == nullptr)
-    return;
-  api::BluetoothGATTNotifyResponse resp;
-  resp.address = this->address_;
-  resp.handle = handle;
-  if (!api_connection->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send notify state response", this->connection_index_, this->address_str_);
-  }
+  this->send_ack_(PendingAck::PENDING_ACK_NOTIFY, handle);
 }
 
 void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, uint16_t len) {
@@ -235,6 +319,8 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
   resp.handle = handle;
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
+    // Not latched, same reason as the read reply. Notify data is lossy: the
+    // peripheral will not resend it.
     ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
   }
 }
@@ -251,6 +337,7 @@ conn_err_t BluetoothConnection::check_connected_op_(const char *action, const ch
 }
 
 conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NONE);
   if (conn_err_t err = this->check_connected_op_("read", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
@@ -259,6 +346,7 @@ conn_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
 
 conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8_t *data, size_t length,
                                                      bool response) {
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_WRITE);
   if (conn_err_t err = this->check_connected_op_("write", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
@@ -266,6 +354,7 @@ conn_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint
 }
 
 conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NONE);
   if (conn_err_t err = this->check_connected_op_("read", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
@@ -276,6 +365,7 @@ conn_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
 // the response flag is intentionally ignored (esp32 maps it to RSP/NO_RSP).
 conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *data, size_t length,
                                                  bool /*response*/) {
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_WRITE);
   if (conn_err_t err = this->check_connected_op_("write", "descriptor"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
@@ -283,6 +373,7 @@ conn_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t 
 }
 
 conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enable) {
+  this->supersede_pending_ack_(handle, PendingAck::PENDING_ACK_NOTIFY);
   if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
@@ -413,9 +504,11 @@ void BluetoothConnection::send_service_for_discovery_() {
   // (bounded: a subscriber that stays gone ends streaming via the api-lost
   // rewind above).
   if (!api_conn->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", this->connection_index_, this->address_str_);
+    this->note_batch_stalled_();
     this->send_service_ = batch_start;
+    return;
   }
+  this->batch_stalled_ = false;
 }
 
 }  // namespace esphome::bluetooth_connection
