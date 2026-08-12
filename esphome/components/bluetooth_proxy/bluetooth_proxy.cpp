@@ -672,13 +672,17 @@ void BluetoothProxy::loop() {
   }
 #endif
 
-  // Every other 100 ms tick (~200 ms): gives partial batches time to fill
-  // toward BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE, so congestion is fed
-  // fewer, fuller frames. Full batches still ship immediately from the
-  // queueing path; the owed-reply drains above keep the 100 ms cadence.
-  this->adv_flush_toggle_ = !this->adv_flush_toggle_;
-  if (this->adv_flush_toggle_) {
-    this->flush_pending_advertisements_();
+  // Every other non-empty 100 ms tick (~200 ms): gives partial batches time
+  // to fill toward BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE, so the link is
+  // fed fewer, fuller frames. Full batches still ship immediately from the
+  // queueing path, the owed-reply drains above keep the 100 ms cadence, and
+  // empty ticks leave the phase alone so the first advertisement after an
+  // idle gap ships on the next tick instead of paying the worst case.
+  if (this->response_.advertisements_len != 0) {
+    this->adv_flush_toggle_ = !this->adv_flush_toggle_;
+    if (this->adv_flush_toggle_) {
+      this->flush_pending_advertisements_();
+    }
   }
 }
 
