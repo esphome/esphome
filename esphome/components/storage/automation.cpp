@@ -472,7 +472,7 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
 StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len,
                                bool erase_first) {
   if (len == 0)
-    return StorageError::OK;
+    return StorageError::INVALID_ARGS;  // a raw write of 0 bytes is meaningless (unlike an empty file)
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "write", address, len, &geo);
   if (pf != StorageError::OK)
