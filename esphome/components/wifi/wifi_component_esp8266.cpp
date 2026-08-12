@@ -516,7 +516,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                  (const char *) it.ssid);
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_NOT_FOUND);
       } else {
-        char bssid_s[18];
+        char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));

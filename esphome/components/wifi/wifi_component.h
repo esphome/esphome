@@ -65,6 +65,12 @@ extern "C" {
 #include <freertos/semphr.h>
 #endif
 
+#ifdef USE_ESP32
+// Forward declaration matching esp_netif's own typedef; avoids pulling esp_netif.h
+// into this widely-included header.
+using esp_netif_t = struct esp_netif_obj;
+#endif
+
 namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
@@ -468,6 +474,12 @@ class WiFiComponent final : public Component {
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected() const { return this->connected_; }
+
+#ifdef USE_ESP32
+  /// esp_netif handle of the station interface, used by network for default-route
+  /// arbitration. nullptr until wifi_lazy_init_() has run.
+  esp_netif_t *get_esp_netif_sta();
+#endif
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }

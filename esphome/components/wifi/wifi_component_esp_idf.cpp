@@ -140,7 +140,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   if (has_custom_mac_address()) {
     get_mac_address_raw(mac);
     set_mac_address(mac);
@@ -620,6 +620,8 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   return true;
 }
 
+esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
+
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
@@ -860,7 +862,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     } else {
-      char bssid_s[18];
+      char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
