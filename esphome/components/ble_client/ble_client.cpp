@@ -145,6 +145,7 @@ void BLEClient::register_gatt_node(BLEClientNode *node) {
     // push_back past capacity is a silent no-op; an undersized slot count
     // must be loud at boot, not an unresolvable node at runtime.
     ESP_LOGE(TAG, "[%s] Node capacity exceeded; node dropped", this->address_str());
+    this->status_set_error(LOG_STR("node capacity exceeded"));
     return;
   }
   this->gatt_nodes_.push_back(node);
@@ -324,7 +325,7 @@ int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
     esp_err_t err = this->register_for_notify(handle);
     if (err == ESP_OK)
       this->pending_gatt_regs_[this->pending_gatt_reg_count_++] = handle;
-    return err;
+    return this->check_and_log_error_("register_for_notify", err);
   }
   return this->check_and_log_error_("esp_ble_gattc_unregister_for_notify",
                                     esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle));

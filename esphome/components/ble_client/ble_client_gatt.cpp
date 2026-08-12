@@ -15,6 +15,7 @@ void BLEClient::register_ble_node(BLEClientNode *node) {
     // push_back past capacity is a silent no-op; an undersized slot count
     // must be loud at boot, not an unresolvable node at runtime.
     ESP_LOGE(TAG, "[%s] Node capacity exceeded; node dropped", this->address_str_);
+    this->status_set_error(LOG_STR("node capacity exceeded"));
     return;
   }
   this->nodes_.push_back(node);
