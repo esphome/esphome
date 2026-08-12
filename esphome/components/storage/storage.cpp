@@ -16,11 +16,10 @@ static const char *const TAG = "storage";
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_STORAGE_CHANGE_FEED
-// Collapse duplicate slashes and drop any trailing slash, so a directory is reported to the
-// change feed in exactly the form the browser holds it as an openDirs key (the same shape the
-// file API's normalize_vfs_path produces). Callers assemble paths as mount_path + "/" + rel,
-// which can introduce "//" (empty rel, or a rel with a leading slash) or a trailing slash -- an
-// un-normalized string would never string-match the client's key and the relist would be lost.
+// Collapse duplicate slashes and drop any trailing slash, so a directory reaches the change feed
+// in the exact form the browser holds as an openDirs key (what the file API's normalize_vfs_path
+// produces). Callers build mount_path + "/" + rel, which can yield "//" (empty/leading-slash rel)
+// or a trailing slash; un-normalized it would never match the client's key and the relist is lost.
 // "" (the roots marker) passes through unchanged.
 static std::string normalize_feed_dir(const std::string &dir) {
   std::string out;
@@ -119,11 +118,10 @@ void StorageRegistry::quiesce_storage(Storage *s) {
     if (!found)
       return;
   }
-  // Same drain as unregister_storage() (see the comment there on why this must run while
-  // the entry is still registered), just without the removal afterwards. Only the drain
-  // channel fires: the device stays registered and usable once its medium is back, so
-  // telling on_unregistered_ subscribers it went away would be a departure they never see
-  // a matching registration for.
+  // Same drain as unregister_storage() (see there on why it runs while still registered), without
+  // the removal. Only the drain channel fires: the device stays registered and usable once its
+  // medium is back, so telling on_unregistered_ subscribers it went away would be a departure with
+  // no matching registration.
   this->on_quiesce_.call(s);
 }
 
@@ -144,15 +142,14 @@ void StorageRegistry::unregister_storage(Storage *s) {
       return;
   }
 
-  // Drain FIRST, while the entry is still registered: the worker's drain handler
-  // synchronously cancels/waits out any in-flight task work on this storage, and the task's
-  // per-chunk is_registered() checks must be able to run against an intact vector until that
-  // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
-  // enough: removing before the drain would free this storage's slot while the task may
+  // Drain FIRST, while the entry is still registered: the worker's drain handler synchronously
+  // cancels/waits out in-flight task work on this storage, and the task's per-chunk is_registered()
+  // checks need an intact vector until that completes. Only then is it safe to mutate storages_.
+  // (The lock alone is not enough: removing before the drain frees this slot while the task may
   // still be inside a blocking I/O call on it.)
   //
-  // Removal implies quiescing, so both channels fire, drain first. Both run before the entry
-  // is taken out, which is the timing on_unregistered_ subscribers already had.
+  // Removal implies quiescing, so both channels fire, drain first, both before the entry is taken
+  // out -- the timing on_unregistered_ subscribers already had.
   this->on_quiesce_.call(s);
   this->on_unregistered_.call(s);
 
@@ -889,19 +886,17 @@ static StorageError copy_tree_at_depth(PathStorage *src_storage, char *src_path,
   return ctx.err;
 }
 
-// Streaming-buffer allocation with placement chosen from the execution context. See the
-// declaration in storage.h for the policy; the mechanics live here.
+// Streaming-buffer allocation; placement chosen from the execution context. Policy is on the
+// declaration in storage.h; the mechanics live here.
 //
-// The 20 ms loop-slice budget caps a main-loop chunk at ~16 kB even on the fastest S3 SD path
-// (a slow SPI write does not manage more in 20 ms), so the loop path stays at `want` in internal
-// RAM. The worker task carries no such budget, so on a chip whose PSRAM can be a DMA target
-// (S3/P4) it stages a larger chunk (64 kB on P4, 32 kB on S3) in DMA-capable PSRAM -- fewer I/O
-// calls, DMA straight out of the arena. Everywhere else the task path is the same as the loop
-// path: `want` internal.
+// The 20 ms loop-slice budget caps a main-loop chunk at ~16 kB even on the fastest S3 SD path, so
+// the loop path stays at `want` in internal RAM. The task has no such budget, so where PSRAM is a
+// DMA target (S3/P4) it stages a larger chunk (64 kB P4, 32 kB S3) in DMA-capable PSRAM; everywhere
+// else the task path equals the loop path (`want` internal).
 //
 // Uses heap_caps_malloc directly (not RAMAllocator) because only the cap-based API can request
-// MALLOC_CAP_DMA. The result still frees through RamBufferDeleter: on ESP32 free() routes to the
-// owning heap, so a heap_caps_malloc'd block and a RAMAllocator block are freed identically.
+// MALLOC_CAP_DMA. Still frees through RamBufferDeleter: on ESP32 free() routes to the owning heap,
+// so heap_caps_malloc'd and RAMAllocator blocks free identically.
 RamBuffer alloc_dma_capable(size_t want, bool on_task, size_t *actual_size) {
   uint8_t *raw = nullptr;
 #ifdef USE_ESP32
@@ -910,11 +905,10 @@ RamBuffer alloc_dma_capable(size_t want, bool on_task, size_t *actual_size) {
 #else
   constexpr bool psram_dma = false;
 #endif
-  // Task path on a PSRAM-DMA chip: stage a large DMA-capable PSRAM chunk. Sizes match the
-  // proven throughput of the previous monolithic component -- 64 kB on P4 (wide SDMMC bus +
-  // guaranteed PSRAM), 32 kB on S3. Bigger fread/fwrite blocks cut per-call VFS/FatFs overhead,
-  // and the task carries no 20 ms loop budget so the larger block is safe here. On failure fall
-  // through to the internal path below at `want` (never leaves the transfer without a buffer).
+  // Task path on a PSRAM-DMA chip: stage a large DMA-capable PSRAM chunk. Sizes match the proven
+  // throughput of the previous monolithic component -- 64 kB on P4 (wide SDMMC bus + guaranteed
+  // PSRAM), 32 kB on S3; bigger fread/fwrite blocks cut per-call VFS/FatFs overhead, and the task
+  // has no 20 ms budget. On failure fall through to the internal path below at `want`.
 #if defined(USE_ESP32_VARIANT_ESP32P4)
   constexpr size_t task_psram_chunk = 65536;
 #else
@@ -970,10 +964,9 @@ StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *d
 
   if (src_storage == dst_storage) {
     // Copying a file onto itself would truncate the destination before the first read of the
-    // source, leaving an empty file where the data was. And copying a directory into its own
-    // subtree walks what the walk is creating: it terminates on STORAGE_MAX_RECURSION_DEPTH,
-    // but only after landing several levels of duplicates that the caller then has to undo.
-    // Both are rejected outright; neither has a sensible outcome to produce.
+    // source, leaving an empty file. Copying a directory into its own subtree walks what the walk
+    // creates: it terminates on STORAGE_MAX_RECURSION_DEPTH, but only after landing levels of
+    // duplicates the caller must undo. Both are rejected -- neither has a sensible outcome.
     size_t src_len = strlen(src_path);
     if (strcmp(src_path, dst_path) == 0)
       return StorageError::INVALID_ARGS;

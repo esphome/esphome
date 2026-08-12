@@ -73,26 +73,23 @@ CONFIG_SCHEMA = cv.Schema(
         # raises the tree walks' stack use -- two buffers per recursion level -- so the range
         # is bounded and _validate_walk_budget() below checks it against task_stack_size.
         cv.Optional(CONF_PATH_MAX): cv.int_range(min=64, max=1024),
-        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload
-        # in RAM: storage.file_read takes whatever size the file happens to be, and on a node
-        # without PSRAM that is the one storage action whose cost the automation author does
-        # not choose. Anything bigger belongs on the worker (storage.file_copy, raw_write
-        # from_file). It also bounds storage.preferences_export/import, which share these
-        # helpers -- an export past the ceiling is a sign to narrow it with the action's
-        # `preferences:` filter. 0 disables the check. See storage.h for the C++ side.
+        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload in RAM.
+        # storage.file_read takes whatever size the file happens to be -- on a node without PSRAM,
+        # the one storage action whose cost the author does not choose; anything bigger belongs on
+        # the worker. It also bounds storage.preferences_export/import (same helpers); past the
+        # ceiling, narrow with the action's `preferences:` filter. 0 disables. See storage.h.
         cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
             min=0
         ),
-        # A same-storage move is a rename, which some backends refuse across their own
-        # internals (an NFS export can span file systems, and RENAME never crosses one).
-        # On, such a refusal is redone as copy + remove so the move still happens; off, it is
-        # reported instead of quietly turning a directory-entry update into a full copy.
+        # A same-storage move is a rename, which some backends refuse across their own internals
+        # (an NFS export can span file systems, and RENAME never crosses one). On: redo the refusal
+        # as copy + remove so the move still happens; off: report it instead of quietly turning a
+        # directory-entry update into a full copy.
         cv.Optional(CONF_MOVE_FALLBACK_COPY, default=True): cv.boolean,
-        # Fired for every storage device, not just file-browser-style consumers -- any
-        # component that cares about hotplug/availability can listen here instead of
-        # each reinventing its own notion of "storage changed". See
-        # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
-        # in storage.h.
+        # Fired for every storage device, not just file-browser consumers -- any component that
+        # cares about hotplug/availability listens here instead of reinventing "storage changed".
+        # See StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback() in
+        # storage.h.
         cv.Optional(CONF_ON_REGISTERED): automation.validate_automation({}),
         cv.Optional(CONF_ON_UNREGISTERED): automation.validate_automation({}),
     }
@@ -247,13 +244,12 @@ def register_mount_path(path: str) -> None:
     data.mount_path_max = max(data.mount_path_max, len(path))
 
 
-# Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
-# (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
-# so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
-# allocator (alloc_dma_capable): on the worker task -- which has no 20 ms budget -- S3/P4 stage a
-# 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
-# explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
-# to keep FATFS whole-sector transfers.
+# Default streaming/copy chunk size. Flat 16 kB everywhere: the 20 ms loop-slice budget caps a
+# main-loop chunk near 16 kB even on the fastest S3 SD path, so a larger loop chunk is unsafe. The
+# platform distinction lives one level down in the C++ allocator (alloc_dma_capable): the worker
+# task (no 20 ms budget) stages a larger DMA-capable PSRAM chunk on S3/P4, loop-path buffers stay
+# 16 kB internal. An explicit copy_chunk_size overrides this. Multiple of 512 for FATFS
+# whole-sector transfers.
 _DEFAULT_COPY_CHUNK_SIZE = 16384
 
 
@@ -341,12 +337,11 @@ def _default_copy_chunk_size() -> int:
     return _DEFAULT_COPY_CHUNK_SIZE
 
 
-# storage is a dependency of every driver and would otherwise run BEFORE them (default
-# priority), reading device_count as 0 -- every driver's own to_code() is where
-# request_storage_device() actually gets called. LATE (-100) runs
-# after all default-priority driver to_code()s, so those counts are final by the time this
-# reads them. Consumers awaiting the registry variable (e.g. via cg.get_variable())
-# are unaffected either way, since that call already suspends until the variable exists.
+# storage is a dependency of every driver and would otherwise run BEFORE them (default priority),
+# reading device_count as 0 -- each driver's own to_code() is where request_storage_device() is
+# called. LATE (-100) runs after all default-priority driver to_code()s, so those counts are final
+# here. Consumers awaiting the registry variable (cg.get_variable()) are unaffected -- that call
+# already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
     var = cg.new_Pvariable(config[cv.GenerateID()])
