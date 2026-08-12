@@ -9,11 +9,6 @@ namespace esphome::ble_client {
 
 static const char *const TAG = "ble_client";
 
-// Hold-off step per consecutive failure; capped so a flapping peer retries
-// within a minute at worst.
-static const uint32_t FAILURE_HOLD_OFF_STEP_MS = 10000;
-static const uint8_t FAILURE_HOLD_OFF_MAX_STEPS = 6;
-
 void BLEClient::register_ble_node(BLEClientNode *node) {
   node->set_ble_client_parent(this);
   if (this->nodes_.size() == ESPHOME_BLE_CLIENT_MAX_NODES) {
@@ -43,8 +38,7 @@ void BLEClient::set_enabled(bool enabled) {
   }
   // A re-enable clears the backoff; the next sighting connects (legacy
   // parity: enabling does not itself connect).
-  this->consecutive_failures_ = 0;
-  this->hold_off_ms_ = 0;
+  this->backoff_.reset();
 }
 
 bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -55,7 +49,7 @@ bool BLEClient::parse_device(const ble_device_base::ESPBTDevice &device) {
   this->address_type_known_ = true;
   if (!this->enabled || !this->auto_connect_ || this->state_ != State::IDLE)
     return true;
-  if (this->hold_off_ms_ != 0 && millis() - this->hold_off_start_ < this->hold_off_ms_)
+  if (this->backoff_.holding_off())
     return true;
   this->attempt_connect_();
   return true;
@@ -84,7 +78,7 @@ void BLEClient::attempt_connect_() {
     // backoff, and resolve any waiting connect action through the failure
     // path so its chain terminates.
     ESP_LOGW(TAG, "[%s] Connect refused, err=%d", this->address_str_, err);
-    this->register_failure_();
+    this->backoff_.register_failure(this->address_str_);
     this->defer([this]() { this->connect_failed_callbacks_.call(); });
     return;
   }
@@ -108,15 +102,6 @@ void BLEClient::disconnect() {
   }
 }
 
-void BLEClient::register_failure_() {
-  if (this->consecutive_failures_ < FAILURE_HOLD_OFF_MAX_STEPS)
-    this->consecutive_failures_++;
-  this->hold_off_start_ = millis();
-  this->hold_off_ms_ = this->consecutive_failures_ * FAILURE_HOLD_OFF_STEP_MS;
-  ESP_LOGW(TAG, "[%s] Holding off reconnect for %u s", this->address_str_,
-           this->consecutive_failures_ * (FAILURE_HOLD_OFF_STEP_MS / 1000));
-}
-
 void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
   if (connected) {
     this->state_ = State::DISCOVERING;
@@ -124,7 +109,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
     if (discover_err != 0) {
       // Synchronous refusal: no discovery completion will follow.
       ESP_LOGW(TAG, "[%s] Service discovery refused, err=%d", this->address_str_, discover_err);
-      this->register_failure_();
+      this->backoff_.register_failure(this->address_str_);
       // Deliberate teardown: its report must not charge the backoff again.
       this->disconnect();
     }
@@ -148,7 +133,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
       ESP_LOGD(TAG, "[%s] Connect attempt cancelled, status=%d", this->address_str_, error);
     } else {
       ESP_LOGW(TAG, "[%s] Connect failed, status=%d", this->address_str_, error);
-      this->register_failure_();
+      this->backoff_.register_failure(this->address_str_);
     }
     this->defer([this]() { this->connect_failed_callbacks_.call(); });
   }
@@ -157,7 +142,7 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
 void BLEClient::on_service_discovery_done(int error) {
   if (error != 0) {
     ESP_LOGW(TAG, "[%s] Service discovery failed, status=%d", this->address_str_, error);
-    this->register_failure_();
+    this->backoff_.register_failure(this->address_str_);
     // The teardown is deliberate: do not charge the backoff again for its
     // connection report.
     this->disconnect();
@@ -175,7 +160,7 @@ void BLEClient::on_service_discovery_done(int error) {
       // connect_failed, never a spurious on_disconnect.
       ESP_LOGW(TAG, "[%s] Service table is empty; treating as failed discovery", this->address_str_);
       this->backend_->release_services();
-      this->register_failure_();
+      this->backoff_.register_failure(this->address_str_);
       this->disconnect();
       return;
     }
@@ -194,8 +179,7 @@ void BLEClient::on_service_discovery_done(int error) {
     }
   }
   this->backend_->release_services();
-  this->consecutive_failures_ = 0;
-  this->hold_off_ms_ = 0;
+  this->backoff_.reset();
   ESP_LOGI(TAG, "[%s] Connected", this->address_str_);
   this->defer([this]() { this->connect_callbacks_.call(); });
 }

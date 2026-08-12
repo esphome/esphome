@@ -16,6 +16,7 @@
 #if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
 
 #include "ble_client_node.h"
+#include "connect_backoff.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"
@@ -110,7 +111,6 @@ class BLEClient : public Component,
   enum class State : uint8_t { IDLE, CONNECTING, DISCOVERING, CONNECTED };
 
   void attempt_connect_();
-  void register_failure_();
 
   // Group 1: pointers / containers
   ble_device_base::BLEGattConnection *backend_{nullptr};
@@ -126,11 +126,9 @@ class BLEClient : public Component,
   LazyCallbackManager<void()> connect_failed_callbacks_;
 
   // Group 4: 4-byte types
-  // Backoff after repeated failures so an undiscoverable database or a
-  // dead peer cannot produce a battery-draining connect loop (wrap-safe
-  // start+duration pair).
-  uint32_t hold_off_start_{0};
-  uint32_t hold_off_ms_{0};
+  // Backoff so an undiscoverable database or a dead peer cannot produce a
+  // battery-draining connect loop.
+  ConnectBackoff backoff_;
 
   // Group 5: arrays
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
@@ -144,7 +142,6 @@ class BLEClient : public Component,
   // A user-initiated teardown in flight; its failure report is not a
   // connect failure and must not feed the backoff.
   bool cancel_requested_{false};
-  uint8_t consecutive_failures_{0};
 };
 
 }  // namespace esphome::ble_client

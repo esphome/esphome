@@ -5,6 +5,7 @@
 #ifdef USE_ESP32
 
 #include "ble_client_node.h"
+#include "connect_backoff.h"
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
@@ -14,8 +15,6 @@
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_common_api.h>
 #include <esp_gattc_api.h>
-#include <array>
-#include <string>
 #include <vector>
 
 namespace esphome::ble_client {
@@ -69,9 +68,12 @@ class BLEClient final : public BLEClientBase {
   bool all_nodes_established_();
   void maybe_release_services_();
 #ifdef USE_BLE_CLIENT_GATT_NODES
-  int check_gatt_op_(const char *operation, esp_err_t err);
-  void register_gatt_failure_();
-  bool dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
+  int check_and_log_error_(const char *operation, esp_err_t err);
+  int find_pending_gatt_reg_(uint16_t handle) const;
+  void notify_state_to_gatt_nodes_(uint16_t handle, bool enabled, int error);
+  void dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
+  // False = failed discovery: the link comes down and the caller suppresses
+  // the legacy fan-out.
   bool handle_gatt_search_cmpl_(esp_gatt_status_t status);
   bool take_pending_gatt_reg_(uint16_t handle);
   void on_disconnect_complete(esp_err_t reason) override;
@@ -81,16 +83,16 @@ class BLEClient final : public BLEClientBase {
 #ifdef USE_BLE_CLIENT_GATT_NODES
   // Nodes on the neutral surface; fed the translated callbacks and
   // auto-established after the on_connected fan-out.
+  static constexpr uint8_t MAX_PENDING_NOTIFY_REGS = 4;
+
   StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> gatt_nodes_;
+  // Reconnect backoff after materializer failures.
+  ConnectBackoff gatt_backoff_;
   // Bridge-initiated notify registrations awaiting REG_FOR_NOTIFY_EVT.
-  uint16_t pending_gatt_regs_[ESPHOME_BLE_CLIENT_MAX_NODES];
+  uint16_t pending_gatt_regs_[MAX_PENDING_NOTIFY_REGS];
   uint8_t pending_gatt_reg_count_{0};
   // on_connected fan-out started; on_disconnected is owed at teardown.
   bool gatt_connected_{false};
-  // Reconnect backoff after materializer failures (wrap-safe start+duration).
-  uint32_t gatt_hold_off_start_{0};
-  uint32_t gatt_hold_off_ms_{0};
-  uint8_t gatt_consecutive_failures_{0};
 #endif
 };
 
