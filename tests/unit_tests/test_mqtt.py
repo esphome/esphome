@@ -107,21 +107,29 @@ def _discovery_config() -> dict:
     }
 
 
+def _deliver_on_loop_start(mock_prepare, client, payload: bytes) -> None:
+    """Deliver a discovery answer as soon as the network loop starts."""
+
+    def deliver(*args, **kwargs):
+        msg = MagicMock()
+        msg.payload = payload
+        mock_prepare.call_args.args[2](client, None, msg)
+
+    client.loop_start.side_effect = deliver
+
+
 def test_get_esphome_device_ip_success() -> None:
     """A device answer on the discovery topic returns its IPs."""
     client = MagicMock()
 
     with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
-        # Deliver the device answer as soon as the network loop starts
-        def deliver(*args, **kwargs):
-            msg = MagicMock()
-            msg.payload = json.dumps(
+        _deliver_on_loop_start(
+            mock_prepare,
+            client,
+            json.dumps(
                 {"name": "test-device", "ip": "10.0.0.5", "ip1": "10.0.0.6"}
-            ).encode()
-            on_message = mock_prepare.call_args.args[2]
-            on_message(client, None, msg)
-
-        client.loop_start.side_effect = deliver
+            ).encode(),
+        )
 
         result = get_esphome_device_ip(_discovery_config())
 
@@ -215,26 +223,61 @@ def test_get_esphome_device_ip_replaces_reconnect_handler(
     assert "Disconnected from MQTT broker (5)" in caplog.text
 
 
-def test_get_esphome_device_ip_answer_without_ip_keeps_waiting(
+def test_get_esphome_device_ip_answer_without_ip_fails_fast(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A device answer with no IP fields is not treated as a result."""
+    """A device answer with no IP fields fails promptly, not at the timeout."""
     client = MagicMock()
 
     with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+        _deliver_on_loop_start(
+            mock_prepare, client, json.dumps({"name": "test-device"}).encode()
+        )
 
-        def deliver(*args, **kwargs):
-            msg = MagicMock()
-            msg.payload = json.dumps({"name": "test-device"}).encode()
-            on_message = mock_prepare.call_args.args[2]
-            on_message(client, None, msg)
+        start = time.monotonic()
+        with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
+            get_esphome_device_ip(_discovery_config(), timeout=5)
 
-        client.loop_start.side_effect = deliver
+    assert time.monotonic() - start < 1
+    assert "Device answer did not include an IP address" in caplog.text
+
+
+@pytest.mark.parametrize("payload", [b"not json {", b"123", b"null"])
+def test_get_esphome_device_ip_unparsable_payload_ignored(
+    caplog: pytest.LogCaptureFixture,
+    payload: bytes,
+) -> None:
+    """Garbage on the discovery topic must not kill paho's network thread."""
+    client = MagicMock()
+
+    with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
+        _deliver_on_loop_start(mock_prepare, client, payload)
 
         with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
-            get_esphome_device_ip(_discovery_config(), timeout=0.25)
+            get_esphome_device_ip(_discovery_config(), timeout=0)
 
-    assert "Device answer did not include an IP address" in caplog.text
+    assert "Ignoring unparsable discovery payload" in caplog.text
+
+
+def test_get_esphome_device_ip_broker_disconnect_fails_fast(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A broker-initiated disconnect aborts the wait instead of timing out."""
+    client = MagicMock()
+
+    with patch("esphome.mqtt.prepare", return_value=client):
+
+        def drop_connection(*args, **kwargs):
+            client.on_disconnect(client, None, 5)
+
+        client.loop_start.side_effect = drop_connection
+
+        start = time.monotonic()
+        with pytest.raises(EsphomeError, match="Failed to find IP via MQTT"):
+            get_esphome_device_ip(_discovery_config(), timeout=5)
+
+    assert time.monotonic() - start < 1
+    assert "Disconnected from MQTT broker (5)" in caplog.text
 
 
 def test_get_esphome_device_ip_sends_discovery_ping() -> None:
@@ -269,13 +312,11 @@ def test_get_esphome_device_ip_disconnect_error_does_not_mask_result(
     client.disconnect.side_effect = [None, OSError("socket already closed")]
 
     with patch("esphome.mqtt.prepare", return_value=client) as mock_prepare:
-
-        def deliver(*args, **kwargs):
-            msg = MagicMock()
-            msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
-            mock_prepare.call_args.args[2](client, None, msg)
-
-        client.loop_start.side_effect = deliver
+        _deliver_on_loop_start(
+            mock_prepare,
+            client,
+            json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode(),
+        )
 
         result = get_esphome_device_ip(_discovery_config())
 

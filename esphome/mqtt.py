@@ -187,19 +187,27 @@ def get_esphome_device_ip(
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]
     dev_ip = None
+    failed = False
 
     topic = "esphome/discover/" + dev_name
     _LOGGER.info("Starting looking for IP in topic %s", topic)
 
     def on_message(client, userdata, msg):
-        nonlocal dev_ip
+        nonlocal dev_ip, failed
         time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
             _LOGGER.debug(message)
 
-            data = json.loads(payload)
+            try:
+                data = json.loads(payload)
+            except ValueError:
+                data = None
+            if not isinstance(data, dict):
+                # A raise in this handler would kill paho's network thread
+                _LOGGER.warning("Ignoring unparsable discovery payload")
+                return
             if "name" not in data or data["name"] != dev_name:
                 _LOGGER.warning("Wrong device answer")
                 return
@@ -213,11 +221,12 @@ def get_esphome_device_ip(
                 key = "ip" + str(n)
 
             if not addresses:
-                # Keep waiting; an answer with no address is not a result
                 _LOGGER.warning("Device answer did not include an IP address")
+                failed = True
                 return
 
             dev_ip = addresses
+            failed = False  # a complete answer wins over an earlier empty one
             client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
@@ -230,8 +239,10 @@ def get_esphome_device_ip(
         return []
 
     def on_disconnect(client, userdata, result_code):
+        nonlocal failed
         if result_code != 0:
             _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+            failed = True
 
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
@@ -249,7 +260,7 @@ def get_esphome_device_ip(
         if not stopped:
             mqtt_client.loop_start()
             while timeout > 0:
-                if dev_ip is not None:
+                if dev_ip is not None or failed:
                     break
                 if stop_event.wait(0.250):
                     stopped = True
