@@ -76,6 +76,12 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
+# Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
+# to clean up a half-open connection (its handshake watchdog runs at 20s) before it
+# accepts a new one, so wait between attempts instead of failing the upload outright.
+MAX_UPLOAD_ATTEMPTS = 3
+UPLOAD_RETRY_DELAY = 5.0
+
 _LOGGER = logging.getLogger(__name__)
 
 # Authentication method lookup table: response -> (hash_func, nonce_size, name)
@@ -171,6 +177,10 @@ class OTAError(EsphomeError):
     pass
 
 
+class OTANetworkError(OTAError):
+    """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
+
+
 def recv_decode(
     sock: socket.socket, amount: int, decode: bool = True
 ) -> bytes | list[int]:
@@ -209,19 +219,21 @@ def receive_exactly(
     try:
         data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
-        raise OTAError(f"receiving {msg} response: {err}") from err
+        raise OTANetworkError(f"receiving {msg} response: {err}") from err
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError(f"receiving {msg}: {err}") from err
+        # Preserve the subclass (OTANetworkError vs OTAError) so callers can
+        # distinguish retryable network failures from device-reported errors.
+        raise type(err)(f"receiving {msg}: {err}") from err
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
         except OSError as err:
-            raise OTAError(f"receiving {msg}: {err}") from err
+            raise OTANetworkError(f"receiving {msg}: {err}") from err
     return data
 
 
@@ -237,7 +249,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     # accept-any-response reads (e.g. feature negotiation, auth nonces) would be
     # silently passed through and surface later as cryptic decode/timeout failures.
     if not data:
-        raise OTAError(
+        raise OTANetworkError(
             "Device closed connection without responding. "
             "This may indicate the device ran out of memory, "
             "a network issue, or the connection was interrupted."
@@ -274,7 +286,7 @@ def send_check(
 
         sock.sendall(data)
     except OSError as err:
-        raise OTAError(f"sending {msg}: {err}") from err
+        raise OTANetworkError(f"sending {msg}: {err}") from err
 
 
 def perform_ota(
@@ -461,7 +473,7 @@ def perform_ota(
                 receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
         except OSError as err:
             sys.stderr.write("\n")
-            raise OTAError(f"sending data: {err}") from err
+            raise OTANetworkError(f"sending data: {err}") from err
 
         progress.update(offset / upload_size)
     progress.done()
@@ -510,32 +522,49 @@ def run_ota_impl_(
         )
         raise OTAError(err) from err
 
-    for r in res:
-        af, socktype, _, _, sa = r
-        _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
-        sock = socket.socket(af, socktype)
-        sock.settimeout(20.0)
-        try:
-            sock.connect(sa)
-        except OSError as err:
-            sock.close()
-            _LOGGER.error("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
-            continue
-
-        _LOGGER.info("Connected to %s", sa[0])
-        with Path(filename).open("rb") as file_handle:
+    for attempt in range(1, MAX_UPLOAD_ATTEMPTS + 1):
+        if attempt > 1:
+            _LOGGER.info(
+                "Retrying in %.0f seconds (attempt %d of %d)...",
+                UPLOAD_RETRY_DELAY,
+                attempt,
+                MAX_UPLOAD_ATTEMPTS,
+            )
+            time.sleep(UPLOAD_RETRY_DELAY)
+        for r in res:
+            af, socktype, _, _, sa = r
+            _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
+            sock = socket.socket(af, socktype)
+            sock.settimeout(20.0)
             try:
-                perform_ota(sock, password, file_handle, filename, ota_type)
-            except OTAError as err:
-                _LOGGER.error(str(err))
-                return 1, None
-            finally:
+                sock.connect(sa)
+            except OSError as err:
                 sock.close()
+                _LOGGER.warning(
+                    "Connecting to %s port %s failed: %s", sa[0], sa[1], err
+                )
+                continue
 
-        # Successfully uploaded to sa[0]
-        return 0, sa[0]
+            _LOGGER.info("Connected to %s", sa[0])
+            with Path(filename).open("rb") as file_handle:
+                try:
+                    perform_ota(sock, password, file_handle, filename, ota_type)
+                except OTANetworkError as err:
+                    # Transient network failure; try the next address or attempt
+                    _LOGGER.warning(str(err))
+                    continue
+                except OTAError as err:
+                    # Device-reported error (wrong password, wrong flash size,
+                    # ...); retrying cannot succeed, so fail immediately
+                    _LOGGER.error(str(err))
+                    return 1, None
+                finally:
+                    sock.close()
 
-    _LOGGER.error("Connection failed.")
+            # Successfully uploaded to sa[0]
+            return 0, sa[0]
+
+    _LOGGER.error("Connection failed after %d attempts.", MAX_UPLOAD_ATTEMPTS)
     return 1, None
 
 
