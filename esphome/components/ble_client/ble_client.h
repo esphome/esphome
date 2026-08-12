@@ -81,10 +81,11 @@ class BLEClient final : public BLEClientBase {
 
   std::vector<BLEClientNode *> nodes_;
 #ifdef USE_BLE_CLIENT_GATT_NODES
-  // Nodes on the neutral surface; fed the translated callbacks and
-  // auto-established after the on_connected fan-out.
+  // Raise if a migrated node needs more concurrent registrations.
   static constexpr uint8_t MAX_PENDING_NOTIFY_REGS = 4;
 
+  // Nodes on the neutral surface; fed the translated callbacks and
+  // auto-established after the on_connected fan-out.
   StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> gatt_nodes_;
   // Reconnect backoff after materializer failures.
   ConnectBackoff gatt_backoff_;
