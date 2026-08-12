@@ -199,8 +199,9 @@ void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); 
 
 void ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
-    // If scanner is already idle, there's nothing to stop - this is not an error
-    if (this->scanner_state_ != ScannerState::IDLE) {
+    // IDLE means there is nothing to stop; STOPPING means a stop is already in
+    // flight and will finish on its own. Neither is an error.
+    if (this->scanner_state_ != ScannerState::IDLE && this->scanner_state_ != ScannerState::STOPPING) {
       ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
     }
     return;
