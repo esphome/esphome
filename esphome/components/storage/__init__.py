@@ -79,8 +79,8 @@ CONFIG_SCHEMA = cv.Schema(
         # the one storage action whose cost the author does not choose; anything bigger belongs on
         # the worker. It also bounds storage.preferences_export/import (same helpers); past the
         # ceiling, narrow with the action's `preferences:` filter. 0 disables. See storage.h.
-        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
-            min=0
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.All(
+            cv.validate_bytes, cv.int_range(min=0)
         ),
         # A same-storage move is a rename, which some backends refuse across their own internals
         # (an NFS export can span file systems, and RENAME never crosses one). On: redo the refusal
