@@ -1535,6 +1535,9 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
     }
   }
   if (err != StorageError::OK || moved == 0) {
+    // A zero-byte result with err==OK is a stalled read on the SOURCE side. On the to_file path the
+    // source is the raw device, so report READ_ERROR (not WRITE_ERROR, which would point diagnosis
+    // at the destination file); the file-to-device path keeps WRITE_ERROR for its device write.
     StorageError zero_err = to_file ? StorageError::READ_ERROR : StorageError::WRITE_ERROR;
     finish_request(req, err != StorageError::OK ? err : zero_err);
     return;
@@ -2144,6 +2147,8 @@ static void run_stream_step(StreamRequest &req) {
       }
       if (err == StorageError::OK)
         req.offset += bytes_read;
+      // storage.h: *bytes_transferred is unspecified when read()/read_chunk() returns non-OK, so a
+      // consumer must not see a stale count. Report 0 on error, the real count only on success.
       if (req.bytes_transferred_out != nullptr)
         *req.bytes_transferred_out = (err == StorageError::OK) ? bytes_read : 0;
       req.pending_read_buf = nullptr;

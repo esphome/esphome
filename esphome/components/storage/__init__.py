@@ -132,7 +132,8 @@ CONFIG_SCHEMA = cv.Schema(
         # FreeRTOS priority: above idle (0), below networking tasks (typically higher).
         cv.Optional(CONF_TASK_PRIORITY, default=1): cv.int_range(min=1, max=23),
         # Fixed request pool/queue depth -- sized exactly at codegen like the storage
-        # registry's device count, no heap allocation per request at runtime.
+        # registry's device count, so the slot itself never allocates at runtime. (The
+        # completion callback is a std::function and may allocate for a large lambda capture.)
         cv.Optional(CONF_MAX_PENDING, default=4): cv.int_range(min=1, max=16),
         # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) --
         # streams are typically much longer-lived than a single copy/move (e.g. one HTTP

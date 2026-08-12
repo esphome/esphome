@@ -174,9 +174,10 @@ struct TransferStatus {
   char file[FILE_LABEL_LEN]{};
 };
 
-// One pooled transfer request. Fixed-size, no heap allocation -- the pool is a FixedVector of
-// these, sized exactly to max_pending at codegen. Path buffers and the callback are only valid
-// while state != FREE.
+// One pooled transfer request. The slot is fixed-size and never allocates -- the pool is a
+// FixedVector of these, sized exactly to max_pending at codegen. (The completion callback is a
+// std::function and may allocate for a large lambda capture.) Path buffers and the callback are
+// only valid while state != FREE.
 // Position inside a directory tree, allocated only for COPY_TREE/MOVE_TREE. Kept out of
 // TransferRequest so a pool sized for plain file transfers does not carry it per slot.
 struct TreeWalk {
@@ -349,7 +350,8 @@ struct StreamHandle {
   uint32_t generation;
 };
 
-// One pooled stream. Fixed-size, no heap allocation -- pool is a FixedVector sized to
+// One pooled stream. The slot is fixed-size and never allocates (the completion callback is a
+// std::function and may allocate for a large lambda capture) -- pool is a FixedVector sized to
 // max_streams at codegen (separate limit from max_pending, since streams are typically much
 // longer-lived than a single copy/move and a node doing e.g. one upload at a time needs very
 // few slots).
