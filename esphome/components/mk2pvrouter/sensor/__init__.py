@@ -94,11 +94,11 @@ SENSOR_CONFIGS = {
     },
     # Exact tag configs for single-letter or special tags
     "exact": {
-        "P": POWER_CONFIG,  # Power readings
-        "D": POWER_CONFIG,  # Diverter power
-        "R": POWER_CONFIG,  # Power reading for single R tag
-        "V": VOLTAGE_CONFIG,  # Voltage readings
-        "E": ENERGY_CONFIG,  # Energy readings
+        "P": POWER_CONFIG,  # Total power (single-phase)
+        "D": POWER_CONFIG,  # Diverted power (single-phase, W)
+        "V": VOLTAGE_CONFIG,  # Voltage (single-phase)
+        "E": ENERGY_CONFIG,  # Diverted energy (single-phase)
+        "R": POWER_CONFIG,  # Mean power for relay diversion (signed 6 digits)
     },
 }
 

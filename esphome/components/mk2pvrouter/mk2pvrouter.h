@@ -4,8 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
-#include <cstring>
-
 namespace esphome::mk2pvrouter {
 /*
  * Buffer sizes based on mk2pvrouter telemetry protocol (from teleinfo.h):
@@ -28,6 +26,7 @@ static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features e
  */
 class Mk2PVRouterListener {
  public:
+  virtual ~Mk2PVRouterListener() = default;
   void set_tag(const char *tag) { this->tag_ = tag; }
   const char *get_tag() const { return this->tag_; }
   virtual void publish_val(const char *val) = 0;
@@ -43,9 +42,8 @@ class Mk2PVRouterListener {
  * The Mk2PVRouter processes incoming data frames via UART, validates their CRC,
  * extracts tags and values, and publishes them to registered listeners.
  */
-class Mk2PVRouter : public Component, public uart::UARTDevice {
+class Mk2PVRouter final : public Component, public uart::UARTDevice {
  public:
-  Mk2PVRouter() = default;
   void init_listeners(size_t count) { this->mk2pvrouter_listeners_.init(count); }
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
   void loop() override;

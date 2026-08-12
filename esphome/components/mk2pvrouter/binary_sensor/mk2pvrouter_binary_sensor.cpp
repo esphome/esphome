@@ -1,6 +1,5 @@
-#include "esphome/core/log.h"
 #include "mk2pvrouter_binary_sensor.h"
-
+#include "esphome/core/log.h"
 #include <cstring>
 
 namespace esphome::mk2pvrouter {

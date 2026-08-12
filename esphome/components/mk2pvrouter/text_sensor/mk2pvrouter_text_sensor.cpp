@@ -1,5 +1,5 @@
-#include "esphome/core/log.h"
 #include "mk2pvrouter_text_sensor.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mk2pvrouter {
 

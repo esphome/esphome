@@ -60,7 +60,13 @@ def final_validate(config: ConfigType) -> ConfigType:
 
     # Validate UART settings
     schema = uart.final_validate_device_schema(
-        "mk2pvrouter", baud_rate=9600, parity="EVEN", data_bits=7, require_rx=True
+        "mk2pvrouter",
+        baud_rate=9600,
+        parity="EVEN",
+        data_bits=7,
+        stop_bits=1,
+        require_rx=True,
+        require_tx=False,
     )
     return schema(config)
 
@@ -73,7 +79,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    # Initialize listener storage with exact count from final_validate
-    listener_count = _get_data().listener_count
-    if listener_count > 0:
-        cg.add(var.init_listeners(listener_count))
+    cg.add(var.init_listeners(_get_data().listener_count))

@@ -1,5 +1,6 @@
 #include "mk2pvrouter.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::mk2pvrouter {
 
@@ -226,6 +227,7 @@ void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
  */
 void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
+  ESP_LOGCONFIG(TAG, "  Listeners: %zu", this->mk2pvrouter_listeners_.size());
   this->check_uart_settings(BAUD_RATE, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
 }
 
