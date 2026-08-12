@@ -73,7 +73,7 @@ def _validate_position(config: dict) -> dict:
     raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
 
-def _validate_headless(config: dict) -> dict:
+def _validate_headless(config: ConfigType) -> ConfigType:
     if not config[CONF_HEADLESS]:
         return config
     if CONF_WINDOW_OPTIONS in config:
@@ -121,7 +121,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
             }
         )
-    ).add_extra(_validate_headless),
+    ),
+    _validate_headless,
     cv.only_on(PLATFORM_HOST),
 )
 
@@ -133,7 +134,7 @@ def headless_final_validate(platform: str):
     would never report anything.
     """
 
-    def validate_display(display_config):
+    def validate_display(display_config: ConfigType) -> ConfigType:
         if display_config.get(CONF_HEADLESS):
             raise cv.Invalid(
                 f"The sdl {platform} platform needs a window, but its display has "
@@ -158,7 +159,12 @@ def headless_final_validate(platform: str):
     ),
     synchronous=True,
 )
-async def sdl_screenshot_to_code(config, action_id, template_arg, args):
+async def sdl_screenshot_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if (filename := config.get(CONF_FILENAME)) is not None:
@@ -166,7 +172,7 @@ async def sdl_screenshot_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType):
     for option in config[CONF_SDL_OPTIONS].split():
         cg.add_build_flag(option)
     cg.add_build_flag("-DSDL_BYTEORDER=4321")
