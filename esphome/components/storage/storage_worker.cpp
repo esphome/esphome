@@ -1133,11 +1133,6 @@ bool StorageWorker::begin_verify_pass_(TransferRequest &req) {
   return true;
 }
 
-// One verify chunk: read the device span [raw_address+offset, +want) into the engine's chunk buffer,
-// then read the same span from the source file in small stack slices and memcmp each -- so the whole
-// comparison needs only that one buffer plus a tiny stack buffer, no second large allocation.
-// Returns false when it has finished the request (mismatch, I/O error, completed pass) or is waiting
-// on the network.
 uint8_t *StorageWorker::chunk_buffer_(bool on_task, size_t *size_out) {
   RamBuffer &buf = on_task ? this->chunk_buf_task_ : this->chunk_buf_loop_;
   size_t &size = on_task ? this->chunk_size_task_ : this->chunk_size_loop_;
@@ -1152,24 +1147,29 @@ uint8_t *StorageWorker::chunk_buffer_(bool on_task, size_t *size_out) {
   return buf.get();
 }
 
-bool StorageWorker::verify_chunk_(TransferRequest &req, bool on_task) {
+// One verify chunk: read the device span [raw_address+offset, +want) into the engine's chunk buffer,
+// then read the same span from the source file in small stack slices and memcmp each -- so the whole
+// comparison needs only that one buffer plus a tiny stack buffer, no second large allocation. Processes
+// exactly one chunk per call, finishing the request on mismatch/error/completion or yielding while
+// waiting on the network; the caller must always return afterwards.
+void StorageWorker::verify_chunk_(TransferRequest &req, bool on_task) {
   const uint64_t total = req.bytes_total.load();
   size_t chunk_size = 0;
   uint8_t *chunk = this->chunk_buffer_(on_task, &chunk_size);
   if (chunk == nullptr) {
     finish_request(req, StorageError::NO_SPACE);
-    return false;
+    return;
   }
   size_t want = static_cast<size_t>(std::min<uint64_t>(chunk_size, total - req.offset));
   size_t got = 0;
   StorageError err = req.raw_device->read(req.raw_address + req.offset, chunk, want, &got);
   if (err != StorageError::OK) {
     finish_request(req, err);
-    return false;
+    return;
   }
   if (got == 0) {
     finish_request(req, StorageError::READ_ERROR);
-    return false;
+    return;
   }
   // Compare against the file in small slices reusing a stack buffer.
   uint8_t cmp[256];
@@ -1186,20 +1186,20 @@ bool StorageWorker::verify_chunk_(TransferRequest &req, bool on_task) {
                 ->read_chunk(req.src_path, cmp, req.offset + compared, slice, &fgot);
     }
     if (this->wait_for_network_ready_(req, err, file_storage))
-      return false;
+      return;
     if (err != StorageError::OK) {
       finish_request(req, err);
-      return false;
+      return;
     }
     if (fgot == 0) {
       finish_request(req, StorageError::READ_ERROR);  // file shrank underneath the verify
-      return false;
+      return;
     }
     if (memcmp(chunk + compared, cmp, fgot) != 0) {
       ESP_LOGW(TAG, "Verify FAILED: mismatch on pass %u/%u at byte %llu", req.verify_pass_done + 1, req.verify_passes,
                static_cast<unsigned long long>(req.offset + compared));
       finish_request(req, StorageError::VERIFY_MISMATCH);
-      return false;
+      return;
     }
     compared += fgot;
   }
@@ -1210,7 +1210,7 @@ bool StorageWorker::verify_chunk_(TransferRequest &req, bool on_task) {
     req.verify_pass_done++;
     req.verifying = false;  // the outer loop's offset>=total branch decides next pass vs done
   }
-  return false;  // one chunk per call; the loop re-enters via the engine
+  return;  // one chunk per call; the loop re-enters via the engine
 }
 
 // One step of a directory walk. Everything here is control plane -- list, mkdir, rmdir, remove --
@@ -1480,9 +1480,8 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
   if (req.verifying) {
     // Verify phase: read one device chunk into the engine buffer, then read the same span from the file
     // in small slices and memcmp -- no second full buffer. A mismatch fails the request.
-    if (!this->verify_chunk_(req, on_task))
-      return;  // verify_chunk_ finished the request (mismatch or error) or is waiting on network
-    return;
+    this->verify_chunk_(req, on_task);
+    return;  // one chunk per call (or finished/waiting) -- always yield back to the engine
   }
   size_t want = static_cast<size_t>(std::min<uint64_t>(chunk_size, total - req.offset));
   size_t moved = 0;

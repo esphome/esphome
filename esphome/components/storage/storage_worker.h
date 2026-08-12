@@ -611,11 +611,13 @@ class StorageWorker : public PollingComponent {
   bool is_task_safe_(const TransferRequest &req) const;
   bool wait_for_network_ready_(TransferRequest &req, storage::StorageError err, const storage::Storage *side);
   // Verify phase for RAW_WRITE_FROM_FILE. begin_verify_pass_ rewinds the source file and resets
-  // the cursor to start a read-back pass; verify_chunk_ reads one device chunk and compares it
-  // against the file. Both return false when they have finished the request (error/mismatch) or
-  // are waiting on the network -- the caller must return immediately in that case.
+  // the cursor to start a read-back pass; it returns false (after finishing the request) on a rewind
+  // error and true to proceed, so the caller must return immediately on false. verify_chunk_ reads
+  // one device chunk and compares it against the file; it processes exactly one chunk per call and
+  // finishes the request on mismatch/error/completion or yields waiting on the network, so the caller
+  // must always return after calling it.
   bool begin_verify_pass_(TransferRequest &req);
-  bool verify_chunk_(TransferRequest &req, bool on_task);
+  void verify_chunk_(TransferRequest &req, bool on_task);
   storage::StorageError submit_raw_(RequestOp op, storage::RawStorage *device, uint64_t address, uint64_t size,
                                     storage::PathStorage *file_side, const char *file_path, bool erase_first,
                                     bool overwrite, CompletionCallback &&on_done, TransferJob *job_out,
