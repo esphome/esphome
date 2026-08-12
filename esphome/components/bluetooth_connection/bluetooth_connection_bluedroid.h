@@ -22,7 +22,7 @@
 
 namespace esphome::bluetooth_connection {
 
-#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 class BluetoothConnection;
 #endif
 
@@ -86,7 +86,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 #endif
   void release_services();
 
-#ifdef BLUETOOTH_CONNECTION_SERVES_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// In-place service streamer (the proxy wrapper detects and prefers it):
   /// builds one api response batch directly from Bluedroid's cached database,
   /// so the streaming peak is the response itself - the old esp32 model.

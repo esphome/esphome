@@ -18,11 +18,11 @@ from ..types import SetCoreConfigCallable
 def test_gatt_slot_ledger_rejects_overcommit_on_rp2(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # The cap logic in isolation: two hand charges must trip it.
+    # The cap logic in isolation: hand charges past the cap must trip it.
     set_core_config(PlatformFramework.RP2_ARDUINO)
-    bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
+    bluetooth_connection.consume_gatt_slot("bluetooth_proxy", 3)({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})
-    with pytest.raises(cv.Invalid, match="supports at most 1 GATT client"):
+    with pytest.raises(cv.Invalid, match="supports at most 3 GATT client"):
         bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
 
 
@@ -32,7 +32,7 @@ def test_gatt_slot_ledger_skipped_in_testing_mode(
     # Grouped component builds merge fixtures past the cap; the check defers
     # to testing mode like esp32_ble.validate_connection_slots.
     set_core_config(PlatformFramework.RP2_ARDUINO)
-    bluetooth_connection.consume_gatt_slot("bluetooth_proxy")({})
+    bluetooth_connection.consume_gatt_slot("bluetooth_proxy", 3)({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})
     CORE.testing_mode = True
     try:
@@ -51,5 +51,10 @@ def test_real_validators_charge_the_ledger_on_rp2(
     CORE.loaded_integrations.add("rp2_ble_tracker")
     bluetooth_proxy.CONFIG_SCHEMA({})
     ble_client.CONFIG_SCHEMA({CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"})
-    with pytest.raises(cv.Invalid, match="requested by: bluetooth_proxy, ble_client"):
+    # The proxy defaults to 3 slots on rp2; ble_client's claim overcommits.
+    with pytest.raises(
+        cv.Invalid,
+        match="requested by: bluetooth_proxy, bluetooth_proxy, bluetooth_proxy, "
+        "ble_client",
+    ):
         bluetooth_connection.FINAL_VALIDATE_SCHEMA({})

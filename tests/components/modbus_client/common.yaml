@@ -35,6 +35,8 @@ button:
           id(bare_client).write_single_register(0x10, 42);
           id(bare_client).write_single_coil(0x01, true);
           id(bare_client_explicit_hub).read_holding_registers(0x20, 4);
+          const uint16_t rw_vals[] = {1, 2};
+          id(bare_client).read_write_multiple_registers(0x0400, 2, 0x0300, rw_vals);
   - platform: template
     name: "Send Read"
     on_press:
@@ -134,3 +136,13 @@ button:
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0300
+          values: !lambda "return {1, 2};"
+          read_address: 0x0400
+          read_count: 2
+          on_response:
+            then:
+              # `values` here is the READ-BACK block, not the written block above
+              - lambda: 'ESP_LOGI("modbus_client.test", "rw read0=%u n=%u", values[0], (unsigned) values.size());'
