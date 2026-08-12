@@ -55,6 +55,7 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    ESP_LOGD(TAG, "Stopping scan for OTA");
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
@@ -190,7 +191,9 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
-  ESP_LOGD(TAG, "Stopping scan.");
+  // V to match the start log: the mode-switch and OTA callers narrate their
+  // reason at D themselves, and the user-facing stop action is deliberate.
+  ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
   this->stop_scan_();
 }
