@@ -8,6 +8,7 @@ from esphome.components import (
     ble_device_base,
     bluetooth_connection,
     bluetooth_proxy,
+    rp2040_ble,
 )
 from esphome.const import CONF_MAC_ADDRESS, PlatformFramework
 from esphome.core import CORE
@@ -18,12 +19,14 @@ from ..types import SetCoreConfigCallable
 def test_gatt_slot_ledger_rejects_overcommit_on_rp2(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # The cap logic in isolation: hand charges past the cap must trip it.
+    # rp2 owns its budget: the stack's validation reports the overcommit and
+    # the neutral cap check stays silent (one message per misconfiguration).
     set_core_config(PlatformFramework.RP2_ARDUINO)
     bluetooth_connection.consume_gatt_slot("bluetooth_proxy", 3)({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})
-    with pytest.raises(cv.Invalid, match="supports at most 3 GATT client"):
-        bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
+    bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
+    with pytest.raises(cv.Invalid, match="rp2 maximum is 3"):
+        rp2040_ble.validate_connection_slots()
 
 
 def test_gatt_slot_ledger_skipped_in_testing_mode(
@@ -37,6 +40,7 @@ def test_gatt_slot_ledger_skipped_in_testing_mode(
     CORE.testing_mode = True
     try:
         bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
+        rp2040_ble.validate_connection_slots()
     finally:
         CORE.testing_mode = False
 
@@ -51,10 +55,11 @@ def test_real_validators_charge_the_ledger_on_rp2(
     CORE.loaded_integrations.add("rp2_ble_tracker")
     bluetooth_proxy.CONFIG_SCHEMA({})
     ble_client.CONFIG_SCHEMA({CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"})
-    # The proxy defaults to 3 slots on rp2; ble_client's claim overcommits.
+    # The proxy defaults to 3 slots on rp2; ble_client's claim overcommits
+    # and rp2's own budget names every claimant.
     with pytest.raises(
         cv.Invalid,
-        match="requested by: bluetooth_proxy, bluetooth_proxy, bluetooth_proxy, "
+        match="Components: bluetooth_proxy, bluetooth_proxy, bluetooth_proxy, "
         "ble_client",
     ):
-        bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
+        rp2040_ble.validate_connection_slots()

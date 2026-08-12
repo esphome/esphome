@@ -236,6 +236,9 @@ def _gatt_config_schema(platform: str) -> cv.All:
 @schema_extractor("schema")
 def _validate_platform(config: ConfigType) -> ConfigType:
     if config is SCHEMA_EXTRACT:
+        # Deliberate gap (the bluetooth_proxy pattern): the dumper gets only
+        # this shape, so the neutral arm's ble_hub_id is absent from editor
+        # schemas and the esp32-only keys are advertised on every platform.
         # The language-schema dumper runs without a platform; expose the
         # esp32 (legacy-engine) shape.
         return _esp32_config_schema()
