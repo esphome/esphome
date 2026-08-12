@@ -318,7 +318,7 @@ def perform_ota(
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    _LOGGER.debug("Device support OTA version: %s", version)
+    _LOGGER.info("Connection established; device supports OTA version %s", version)
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
         raise OTAError(
@@ -428,6 +428,8 @@ def perform_ota(
     if auth != RESPONSE_AUTH_OK:
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
+
+    _LOGGER.info("Handshake complete")
 
     # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
     sock.settimeout(90.0)
