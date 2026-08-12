@@ -2,6 +2,7 @@
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -15,6 +16,13 @@
 namespace esphome::ble_client {
 
 static const char *const TAG = "ble_client";
+
+#ifdef USE_BLE_CLIENT_GATT_NODES
+// Hold-off step per consecutive materializer failure, capped so a flapping
+// peer retries within a minute at worst (neutral-engine parity).
+static const uint32_t GATT_FAILURE_HOLD_OFF_STEP_MS = 10000;
+static const uint8_t GATT_FAILURE_HOLD_OFF_MAX_STEPS = 6;
+#endif
 
 void BLEClient::setup() {
   BLEClientBase::setup();
@@ -35,6 +43,11 @@ void BLEClient::dump_config() {
 bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
   if (!this->enabled)
     return false;
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  if (this->gatt_hold_off_ms_ != 0 && millis() - this->gatt_hold_off_start_ < this->gatt_hold_off_ms_ &&
+      device.address_uint64() == this->address_)
+    return false;
+#endif
   return BLEClientBase::parse_device(device);
 }
 
@@ -202,6 +215,7 @@ void BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
     // Distinguishes a failed search/count from a genuinely service-less peer.
     ESP_LOGW(TAG, "[%s] Service table unavailable (status=%d, services=%u); treating as failed discovery",
              this->address_str(), status, service_total);
+    this->register_gatt_failure_();
     this->disconnect();
     return;
   }
@@ -220,6 +234,17 @@ void BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
   // nodes just made hold it via the pending notify-registration count.
   for (auto *node : this->gatt_nodes_)
     node->node_state = espbt::ClientState::ESTABLISHED;
+  this->gatt_consecutive_failures_ = 0;
+  this->gatt_hold_off_ms_ = 0;
+}
+
+void BLEClient::register_gatt_failure_() {
+  if (this->gatt_consecutive_failures_ < GATT_FAILURE_HOLD_OFF_MAX_STEPS)
+    this->gatt_consecutive_failures_++;
+  this->gatt_hold_off_start_ = millis();
+  this->gatt_hold_off_ms_ = this->gatt_consecutive_failures_ * GATT_FAILURE_HOLD_OFF_STEP_MS;
+  ESP_LOGW(TAG, "[%s] Holding off reconnect for %u s", this->address_str(),
+           this->gatt_consecutive_failures_ * (GATT_FAILURE_HOLD_OFF_STEP_MS / 1000));
 }
 
 void BLEClient::on_disconnect_complete(esp_err_t reason) {
