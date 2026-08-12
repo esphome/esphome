@@ -370,6 +370,8 @@ static StorageError raw_read_into(RawStorage *device, uint64_t address, uint8_t 
 }
 
 StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
+  if (size == 0)
+    return StorageError::INVALID_ARGS;  // a raw read of 0 bytes is meaningless (unlike an empty file)
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "read", address, size, &geo);
   if (pf != StorageError::OK)
