@@ -551,6 +551,8 @@ StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t si
     address = 0;
     size = geo.capacity;
   }
+  if (size == 0)
+    return StorageError::INVALID_ARGS;  // a raw erase of 0 bytes is meaningless (unlike an empty file)
   StorageError pf = raw_preflight(device, "erase", address, size, &geo);
   if (pf != StorageError::OK)
     return pf;
