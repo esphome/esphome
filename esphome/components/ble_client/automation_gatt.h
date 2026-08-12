@@ -18,12 +18,6 @@
 
 namespace esphome::ble_client {
 
-// placeholder class for static TAG (shared with automation.cpp).
-class Automation {
- public:
-  static const char *const TAG;
-};
-
 class BLEClientConnectTrigger final : public Trigger<> {
  public:
   explicit BLEClientConnectTrigger(BLEClient *parent) {

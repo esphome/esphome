@@ -7,13 +7,6 @@
 
 namespace esphome::ble_client {
 
-// placeholder class for static TAG .
-class Automation {
- public:
-  // could be made inline with C++17
-  static const char *const TAG;
-};
-
 // implement on_connect automation.
 class BLEClientConnectTrigger final : public Trigger<>, public BLEClientNode {
  public:
