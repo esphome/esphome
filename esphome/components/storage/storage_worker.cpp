@@ -2103,9 +2103,14 @@ bool StorageWorker::is_task_safe_(const StreamRequest &req) const {
 // begin_*()/write_chunk()/read_chunk()/end_*() call, this function just executes it once.
 static void run_stream_step(StreamRequest &req) {
   if (req.state.load() == StreamState::CANCELLED) {
+    // Same close-result-and-handle handling as the IDLE quiesce drain: a flush failure on a
+    // cancelled write stream is the real outcome, and the handle must not be left dangling. A clean
+    // close keeps NOT_READY (the cancel answer); only a failing close overrides it.
+    StorageError close_err = StorageError::OK;
     if (req.is_fs && req.handle != nullptr)
-      static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
-    req.result = StorageError::NOT_READY;
+      close_err = static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
+    req.handle = nullptr;
+    req.result = close_err != StorageError::OK ? close_err : StorageError::NOT_READY;
     req.state = StreamState::DONE;
     return;
   }
