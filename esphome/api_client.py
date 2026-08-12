@@ -75,6 +75,17 @@ async def async_run_logs(
     mqtt_task: asyncio.Task[None] | None = None
     mqtt_stop_event = threading.Event()
 
+    def _cancel_mqtt_discovery() -> None:
+        """Stop the broker lookup once a connection has been established.
+
+        Its answer is only useful while still disconnected: after that it
+        either duplicates the connected address or arrives too late to
+        matter, so don't keep an idle broker session open for it.
+        """
+        mqtt_stop_event.set()
+        if mqtt_task is not None and not mqtt_task.done():
+            mqtt_task.cancel()
+
     async def _resolve_mqtt_addresses() -> None:
         """Discover the device address via the MQTT broker in the background."""
         try:
@@ -130,9 +141,13 @@ async def async_run_logs(
         # A top-level ``deep_sleep:`` block means the device is only awake
         # briefly; cap the reconnect backoff so a wake window is not missed.
         deep_sleep="deep_sleep" in config,
+        on_connect=_cancel_mqtt_discovery if mqtt_resolver is not None else None,
     )
     try:
-        if mqtt_resolver is not None:
+        # Don't start (or keep) the broker lookup if a connection already
+        # succeeded; the stop event doubles as the not-needed-anymore latch
+        # and get_esphome_device_ip returns immediately when it is set.
+        if mqtt_resolver is not None and not mqtt_stop_event.is_set():
             mqtt_task = asyncio.create_task(_resolve_mqtt_addresses())
         await asyncio.Event().wait()
     finally:
