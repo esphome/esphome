@@ -16,6 +16,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -45,7 +46,7 @@ MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 
 
-def validate_sector_multiple(value):
+def validate_sector_multiple(value: int) -> int:
     """Require a multiple of 512 (the common sector size).
 
     Anything else loses the FATFS direct-sector-read path that motivated picking a
@@ -96,7 +97,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _collect_mount_paths(fragment, where, out):
+def _collect_mount_paths(
+    fragment: object, where: str, out: list[tuple[str, str]]
+) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
@@ -113,7 +116,7 @@ def _collect_mount_paths(fragment, where, out):
             _collect_mount_paths(item, where, out)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     """Reject two storage devices claiming the same mount point.
 
     This lives here and not in the drivers because no driver can see the others' configuration.
@@ -198,7 +201,7 @@ def request_fatfs_path_length() -> None:
     _get_data().fatfs_path_bound = True
 
 
-def validate_mount_path(value):
+def validate_mount_path(value: str) -> str:
     """Validate a storage device's mount point. Drivers use this in place of cv.string.
 
     The interface treats the mount path as an invariant: set once at construction time and
@@ -288,7 +291,7 @@ _FATFS_MAX_LFN_DEFAULT = 255
 _FATFS_SHORT_NAME_MAX = 13
 
 
-def _resolve_path_max(config) -> int:
+def _resolve_path_max(config: ConfigType) -> int:
     """The API's path bound, resolved once every contributor has had its say.
 
     An explicit `path_max:` wins. Otherwise it is the largest bound any configured driver
