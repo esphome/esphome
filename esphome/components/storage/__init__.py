@@ -357,7 +357,7 @@ def _default_copy_chunk_size() -> int:
 # here. Consumers awaiting the registry variable (cg.get_variable()) are unaffected -- that call
 # already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
