@@ -44,7 +44,8 @@ async def async_run_logs(
     attempts to ``addresses``, and any addresses it discovers are fed into
     the running client. It owns its own failure handling (returning [] when
     discovery fails) and must honor the ``threading.Event`` it is passed so
-    teardown is not delayed by a slow broker lookup.
+    teardown is not delayed by the lookup's wait window; the initial broker
+    connect itself is only bounded by the socket timeout.
     """
     from datetime import datetime
 
@@ -91,6 +92,10 @@ async def async_run_logs(
         try:
             mqtt_ips = await asyncio.to_thread(mqtt_resolver, mqtt_stop_event)
             if not mqtt_ips:
+                _LOGGER.debug(
+                    "MQTT discovery %s",
+                    "aborted" if mqtt_stop_event.is_set() else "found no addresses",
+                )
                 return
             if cli.add_addresses(mqtt_ips):
                 _LOGGER.info("Discovered address(es) via MQTT: %s", ", ".join(mqtt_ips))
@@ -151,21 +156,24 @@ async def async_run_logs(
             mqtt_task = asyncio.create_task(_resolve_mqtt_addresses())
         await asyncio.Event().wait()
     finally:
-        if mqtt_task is not None:
-            # Unblock the worker thread first so it can't hold up
-            # loop.shutdown_default_executor() for the full lookup timeout.
-            mqtt_stop_event.set()
-            mqtt_task.cancel()
-            # return_exceptions keeps the CancelledError from the cancel()
-            # above from re-raising here and jumping over the stop() below.
-            # The task handles Exception itself, so only a BaseException
-            # escape (e.g. SystemExit from the worker) can land here.
-            (result,) = await asyncio.gather(mqtt_task, return_exceptions=True)
-            if isinstance(result, BaseException) and not isinstance(
-                result, asyncio.CancelledError
-            ):
-                _LOGGER.error("MQTT address discovery failed", exc_info=result)
-        await stop()
+        try:
+            if mqtt_task is not None:
+                # Unblock the worker thread first so it can't hold up
+                # loop.shutdown_default_executor() for the full lookup timeout.
+                mqtt_stop_event.set()
+                mqtt_task.cancel()
+                # return_exceptions keeps the CancelledError from the cancel()
+                # above from re-raising here and jumping over the stop() below.
+                # The task handles Exception itself, so only a BaseException
+                # escape (e.g. SystemExit from the worker) can land here.
+                (result,) = await asyncio.gather(mqtt_task, return_exceptions=True)
+                if isinstance(result, BaseException) and not isinstance(
+                    result, asyncio.CancelledError
+                ):
+                    _LOGGER.error("MQTT address discovery failed", exc_info=result)
+        finally:
+            # Must run even if a second cancellation lands mid-cleanup above
+            await stop()
 
 
 def run_logs(

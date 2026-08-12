@@ -227,6 +227,9 @@ def get_esphome_device_ip(
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
     )
+    # Discovery is one-shot; prepare()'s reconnect-forever on_disconnect runs
+    # on the network thread and would make loop_stop() below join forever.
+    mqtt_client.on_disconnect = None
 
     if stop_event is None:
         import threading
@@ -244,12 +247,13 @@ def get_esphome_device_ip(
                     break
                 timeout -= 0.250
     finally:
-        # Always close the broker session; the success path already sent a
-        # disconnect from on_message and a second one is harmless. A cleanup
-        # failure must not replace the discovery result or its EsphomeError.
-        with contextlib.suppress(Exception):
+        # A cleanup failure must not replace the discovery result or its
+        # EsphomeError; a second disconnect after on_message's is harmless.
+        try:
             mqtt_client.disconnect()
-        mqtt_client.loop_stop()
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug("Error disconnecting from MQTT broker", exc_info=True)
+        mqtt_client.loop_stop()  # only signals and joins; does not raise
 
     if dev_ip is None:
         if stopped:

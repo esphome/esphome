@@ -126,6 +126,9 @@ def test_get_esphome_device_ip_success() -> None:
         result = get_esphome_device_ip(_discovery_config())
 
     assert result == ["10.0.0.5", "10.0.0.6"]
+    # The one-shot discovery client must not inherit the reconnect-forever
+    # handler, which would make loop_stop() join the network thread forever
+    assert client.on_disconnect is None
     client.loop_stop.assert_called_once_with()
     # Once from on_message on receiving the answer, once from the finally
     assert client.disconnect.call_count == 2
