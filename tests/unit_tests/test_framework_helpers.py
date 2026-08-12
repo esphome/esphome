@@ -1518,6 +1518,27 @@ class TestDownloadFromMirrors:
         assert dest.read_bytes() == b"data"
         mock_sleep.assert_called_once_with(2)
 
+    def test_error_reports_failure_modes_from_all_sweeps(self, tmp_path: Path) -> None:
+        """A failure mode that changes between sweeps stays in the final
+        error; the first failure (the one that started the retries) is
+        chained as the cause."""
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("dropped by middlebox"),
+                    _mock_response(b"", ok=False, status=404),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert "dropped by middlebox" in str(ei.value)
+        assert "404" in str(ei.value)
+        assert isinstance(ei.value.__cause__, req.ConnectionError)
+        mock_sleep.assert_called_once_with(2)
+
     def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
         """A file-like mirror that spent all its mid-stream attempts is not
         retried again at the sweep level; both target kinds get the same

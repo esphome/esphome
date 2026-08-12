@@ -1112,16 +1112,19 @@ def download_from_mirrors(
     # 3. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
+    failures: list[tuple[str, Exception]] = []
     for sweep in range(1, _MIRROR_SWEEP_ATTEMPTS + 1):
-        failures: list[tuple[str, Exception]] = []
+        sweep_failures: list[tuple[str, Exception]] = []
         if (
-            url := _try_mirrors_once(urls, path_target, f, timeout, failures)
+            url := _try_mirrors_once(urls, path_target, f, timeout, sweep_failures)
         ) is not None:
             return url
+        failures.extend(sweep_failures)
         # Permanent failures (404, verification mismatch) won't heal;
         # only retry when a transient error is in the mix (as git.py does).
         transient = next(
-            ((u, e) for u, e in failures if _is_transient_download_error(e)), None
+            ((u, e) for u, e in sweep_failures if _is_transient_download_error(e)),
+            None,
         )
         if transient is None:
             break
@@ -1137,14 +1140,17 @@ def download_from_mirrors(
             )
             time.sleep(delay)
 
-    # 4. Report every attempted URL if all mirrors failed. Falling back
-    # past an early mirror is normal (e.g. only one of the framework URL
-    # templates matches a given version's tag), so raising only the last
-    # error would hide the failure that actually matters.
+    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # all sweeps (deduplicated by URL and reason), so neither an early
+    # mirror's failure nor an earlier sweep's failure mode is hidden.
     if failures:
-        attempts = "".join(
-            f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
-        )
+        seen: set[tuple[str, str]] = set()
+        attempts = ""
+        for url, e in failures:
+            reason = _failure_reason(e)
+            if (url, reason) not in seen:
+                seen.add((url, reason))
+                attempts += f"\n  {url}\n    {reason}"
         attempts += "".join(f"\n  {mirror}\n    {reason}" for mirror, reason in skipped)
         raise EsphomeError(
             f"Failed to download from all mirrors:{attempts}"
