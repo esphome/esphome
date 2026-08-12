@@ -292,14 +292,18 @@ static bool raw_preflight(RawStorage *device, const char *op, uint64_t address, 
 }
 
 // Same guard rail the blocking file helpers use: these actions run on the main loop.
-static bool raw_size_allowed(const char *op, uint64_t size) {
-  uint64_t limit = global_storage_registry != nullptr ? global_storage_registry->get_max_blocking_transfer_size() : 0;
+static StorageError raw_size_allowed(const char *op, uint64_t size) {
+  if (global_storage_registry == nullptr) {
+    ESP_LOGE(TAG, "raw_%s: no storage registry", op);
+    return StorageError::NOT_READY;  // not "unlimited" -- the guard is simply unavailable
+  }
+  uint64_t limit = global_storage_registry->get_max_blocking_transfer_size();
   if (limit != 0 && size > limit) {
     ESP_LOGE(TAG, "raw_%s: %" PRIu32 " bytes exceeds max_blocking_transfer_size (%" PRIu32 ")", op, (uint32_t) size,
              (uint32_t) limit);
-    return false;
+    return StorageError::TRANSFER_TOO_LARGE;
   }
-  return true;
+  return StorageError::OK;
 }
 
 // Erases the sector range covering [address, address+len) -- expanding to sector bounds, which
@@ -363,7 +367,7 @@ static bool raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, si
 
 bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
   RawGeometry geo;
-  if (!raw_preflight(device, "read", address, size, &geo) || !raw_size_allowed("read", size))
+  if (!raw_preflight(device, "read", address, size, &geo) || raw_size_allowed("read", size) != StorageError::OK)
     return false;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_read: device is busy with a background transfer -- refusing blocking I/O");
@@ -405,8 +409,11 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
     size = geo.capacity > address ? geo.capacity - address : 0;
   ESP_LOGI(TAG, "Transfer started: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) size,
            path.c_str());
-  if (!raw_preflight(device, "read", address, size, &geo) || !raw_size_allowed("read", size))
+  if (!raw_preflight(device, "read", address, size, &geo))
     return StorageError::INVALID_ARGS;
+  StorageError sz = raw_size_allowed("read", size);
+  if (sz != StorageError::OK)
+    return sz;
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_read: no storage registry");
     return StorageError::NOT_READY;
@@ -454,8 +461,11 @@ StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8
   if (len == 0)
     return StorageError::OK;
   RawGeometry geo;
-  if (!raw_preflight(device, "write", address, len, &geo) || !raw_size_allowed("write", len))
+  if (!raw_preflight(device, "write", address, len, &geo))
     return StorageError::INVALID_ARGS;
+  StorageError sz = raw_size_allowed("write", len);
+  if (sz != StorageError::OK)
+    return sz;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
     return StorageError::NOT_READY;
