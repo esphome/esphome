@@ -1556,6 +1556,25 @@ class TestDownloadFromMirrors:
         assert mock_get.call_count == 3
         mock_sleep.assert_not_called()
 
+    def test_mid_stream_drop_then_connect_error_not_swept(self) -> None:
+        """A connect error on a later attempt (after a mid-stream drop spent
+        one) also counts as spent budget and does not re-arm the sweep."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _interrupted_response(b"1234"),
+                    req.ConnectionError("down"),
+                ],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 2 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 2
+        mock_sleep.assert_not_called()
+
 
 def _http_error(status: int) -> req.HTTPError:
     """An HTTPError carrying a response with the given status, as raised by

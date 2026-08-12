@@ -891,6 +891,16 @@ def _failure_reason(e: Exception) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
+def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
+    """Wrap a failure whose mirror already consumed download attempts, so
+    the sweep classifies it as permanent."""
+    from esphome.core import EsphomeError
+
+    err = EsphomeError(f"failed after {attempts} attempts: {_failure_reason(e)}")
+    err.__cause__ = e
+    return err
+
+
 def _is_transient_download_error(e: Exception) -> bool:
     """Return True when a download failure is worth retrying.
 
@@ -973,9 +983,12 @@ def _try_mirrors_once(
             try:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
             except (requests.RequestException, OSError) as e:
-                # Connect/HTTP error, no bytes flowed — next mirror.
+                # Connect/HTTP error, no bytes flowed — next mirror. Wrap
+                # when earlier attempts were already spent on this mirror.
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
+                failures.append(
+                    (url, _spent_attempts_error(e, attempt + 1) if attempt else e)
+                )
                 break
 
             try:
@@ -1026,14 +1039,7 @@ def _try_mirrors_once(
                     )
                     offset = 0
                 if attempt == _MIRROR_ATTEMPTS - 1:
-                    # Wrap like download_with_resume so the sweep sees
-                    # these attempts as already spent
-                    err = EsphomeError(
-                        f"failed after {_MIRROR_ATTEMPTS} attempts: "
-                        f"{_failure_reason(e)}"
-                    )
-                    err.__cause__ = e
-                    failures.append((url, err))
+                    failures.append((url, _spent_attempts_error(e, _MIRROR_ATTEMPTS)))
 
     return None
 
