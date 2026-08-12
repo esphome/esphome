@@ -10,6 +10,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_BLE_CLIENT_GATT_NODES
+#include "esphome/components/bluetooth_connection/gatt_service_table_bluedroid.h"
+#endif
+
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_common_api.h>
@@ -47,10 +51,43 @@ class BLEClient final : public BLEClientBase {
 
   void set_state(espbt::ClientState state) override;
 
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  // ---- the neutral node surface (signatures shared with the non-esp32
+  // engine, so nodes on the neutral interface compile against either) ----
+  void register_gatt_node(BLEClientNode *node);
+
+  bool idle() const { return this->state() == espbt::ClientState::IDLE; }
+
+  int write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response);
+  int read_characteristic(uint16_t handle);
+  int read_descriptor(uint16_t handle);
+  int write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len);
+  /// Local registration only; per the neutral contract the CCCD write is the
+  /// node's job (the legacy auto-CCCD is suppressed for these handles).
+  int notify_characteristic(uint16_t handle, bool enable);
+  int unpair();
+#endif
+
  protected:
   bool all_nodes_established_();
+  void maybe_release_services_();
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  void dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param);
+  void handle_gatt_search_cmpl_(esp_gatt_status_t status);
+  bool take_pending_gatt_reg_(uint16_t handle);
+  void on_disconnect_complete(esp_err_t reason) override;
+#endif
 
   std::vector<BLEClientNode *> nodes_;
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  // Nodes on the neutral surface; fed the translated callbacks and
+  // auto-established after the on_connected fan-out.
+  StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> gatt_nodes_;
+  // Bridge-initiated notify registrations awaiting REG_FOR_NOTIFY_EVT.
+  std::vector<uint16_t> pending_gatt_regs_;
+  // on_connected fan-out started; on_disconnected is owed at teardown.
+  bool gatt_connected_{false};
+#endif
 };
 
 }  // namespace esphome::ble_client

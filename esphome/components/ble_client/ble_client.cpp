@@ -7,6 +7,10 @@
 
 #ifdef USE_ESP32
 
+#ifdef USE_BLE_CLIENT_GATT_NODES
+#include "esphome/components/bluetooth_connection/bluetooth_connection.h"
+#endif
+
 namespace esphome::ble_client {
 
 static const char *const TAG = "ble_client";
@@ -45,19 +49,41 @@ void BLEClient::set_enabled(bool enabled) {
 
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  // A bridge-initiated notify registration must bypass BLEClientBase's
+  // REG_FOR_NOTIFY handling: its automatic CCCD write would double the
+  // node's own (the neutral contract makes the CCCD the node's job).
+  if (event == ESP_GATTC_REG_FOR_NOTIFY_EVT && esp_gattc_if == this->gattc_if_ &&
+      this->take_pending_gatt_reg_(param->reg_for_notify.handle)) {
+    if (this->pending_notify_regs_ > 0)
+      this->pending_notify_regs_--;
+    int err = param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status;
+    for (auto *node : this->gatt_nodes_)
+      node->on_notify_state(param->reg_for_notify.handle, true, err);
+    // A retiring last registration must still release the cache.
+    this->maybe_release_services_();
+    return true;
+  }
+#endif
   if (!BLEClientBase::gattc_event_handler(event, esp_gattc_if, param))
     return false;
 
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  this->dispatch_gatt_event_(event, param);
+#endif
+  this->maybe_release_services_();
+  return true;
+}
 
+void BLEClient::maybe_release_services_() {
   // The release frees the GATT cache that BLEClientBase's CCCD lookup still needs.
   // The last REG_FOR_NOTIFY event clears the counter before node dispatch, so the release still runs here.
   if (!this->services_.empty() && !this->notify_registration_pending() && this->all_nodes_established_()) {
     this->release_services();
     ESP_LOGD(TAG, "All clients established, services released");
   }
-  return true;
 }
 
 void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -65,12 +91,25 @@ void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 
   for (auto *node : this->nodes_)
     node->gap_event_handler(event, param);
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  if (event == ESP_GAP_BLE_AUTH_CMPL_EVT && this->check_addr(param->ble_security.auth_cmpl.bd_addr)) {
+    int status = param->ble_security.auth_cmpl.success ? 0 : param->ble_security.auth_cmpl.fail_reason;
+    for (auto *node : this->gatt_nodes_)
+      node->on_pairing_result(status);
+  }
+#endif
 }
 
 void BLEClient::set_state(espbt::ClientState state) {
   BLEClientBase::set_state(state);
   for (auto &node : nodes_)
     node->node_state = state;
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  // ESTABLISHED never flows through here (the base sets it internally);
+  // gatt nodes are promoted explicitly after the on_connected fan-out.
+  for (auto *node : this->gatt_nodes_)
+    node->node_state = state;
+#endif
 }
 
 bool BLEClient::all_nodes_established_() {
@@ -80,8 +119,175 @@ bool BLEClient::all_nodes_established_() {
     if (node->node_state != espbt::ClientState::ESTABLISHED)
       return false;
   }
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  for (auto *node : this->gatt_nodes_) {
+    if (node->node_state != espbt::ClientState::ESTABLISHED)
+      return false;
+  }
+#endif
   return true;
 }
+
+#ifdef USE_BLE_CLIENT_GATT_NODES
+
+void BLEClient::register_gatt_node(BLEClientNode *node) {
+  node->set_ble_client_parent(this);
+  if (this->gatt_nodes_.size() == ESPHOME_BLE_CLIENT_MAX_NODES) {
+    // push_back past capacity is a silent no-op; an undersized slot count
+    // must be loud at boot, not an unresolvable node at runtime.
+    ESP_LOGE(TAG, "[%s] Node capacity exceeded; node dropped", this->address_str());
+    return;
+  }
+  this->gatt_nodes_.push_back(node);
+}
+
+bool BLEClient::take_pending_gatt_reg_(uint16_t handle) {
+  bool found = false;
+  // Erase every match: a stale duplicate must never swallow a later legacy
+  // registration of the same handle.
+  auto &regs = this->pending_gatt_regs_;
+  for (auto it = regs.begin(); it != regs.end();) {
+    if (*it == handle) {
+      it = regs.erase(it);
+      found = true;
+    } else {
+      ++it;
+    }
+  }
+  return found;
+}
+
+void BLEClient::dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_cb_param_t *param) {
+  if (this->gatt_nodes_.empty())
+    return;
+  switch (event) {
+    case ESP_GATTC_SEARCH_CMPL_EVT:
+      this->handle_gatt_search_cmpl_(param->search_cmpl.status);
+      break;
+    case ESP_GATTC_READ_CHAR_EVT:
+    case ESP_GATTC_READ_DESCR_EVT: {
+      bool ok = param->read.status == ESP_GATT_OK;
+      for (auto *node : this->gatt_nodes_) {
+        node->on_read_result(param->read.handle, ok ? param->read.value : nullptr, ok ? param->read.value_len : 0,
+                             ok ? 0 : param->read.status);
+      }
+      break;
+    }
+    case ESP_GATTC_WRITE_CHAR_EVT:
+    case ESP_GATTC_WRITE_DESCR_EVT:
+      for (auto *node : this->gatt_nodes_) {
+        node->on_write_result(param->write.handle, param->write.status == ESP_GATT_OK ? 0 : param->write.status);
+      }
+      break;
+    case ESP_GATTC_NOTIFY_EVT:
+      for (auto *node : this->gatt_nodes_) {
+        node->on_notify(param->notify.handle, param->notify.value, param->notify.value_len);
+      }
+      break;
+    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT:
+      // The base does no CCCD work for unregister; no interception needed.
+      for (auto *node : this->gatt_nodes_) {
+        node->on_notify_state(param->unreg_for_notify.handle, false,
+                              param->unreg_for_notify.status == ESP_GATT_OK ? 0 : param->unreg_for_notify.status);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+void BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
+  // The base establishes without reading the search status; the neutral
+  // contract treats a failed or empty discovery as a failed connection.
+  uint16_t primary = 0;
+  uint16_t secondary = 0;
+  bool counted = status == ESP_GATT_OK &&
+                 esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_PRIMARY_SERVICE, 0x0001,
+                                              0xFFFF, 0, &primary) == ESP_GATT_OK &&
+                 esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_SECONDARY_SERVICE, 0x0001,
+                                              0xFFFF, 0, &secondary) == ESP_GATT_OK;
+  // Stack-owned: freed on scope exit; nodes copy their handles during
+  // on_connected() per the borrowed-table contract.
+  bluetooth_connection::BluedroidServiceTable table;
+  if (!counted || primary + secondary == 0 ||
+      !table.build(this->gattc_if_, this->conn_id_, primary + secondary, this->connection_index_)) {
+    ESP_LOGW(TAG, "[%s] Service table is empty; treating as failed discovery", this->address_str());
+    this->disconnect();
+    return;
+  }
+  this->gatt_connected_ = true;
+  auto view = table.view();
+  for (auto *node : this->gatt_nodes_) {
+    node->on_connected(view);
+    if (this->state() != espbt::ClientState::ESTABLISHED) {
+      // The node tore the link down; remaining nodes get on_disconnected
+      // with no preceding on_connected, so leave a trace of why.
+      ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str());
+      return;
+    }
+  }
+  // Promote so the legacy release condition can fire; subscriptions the
+  // nodes just made hold it via the pending notify-registration count.
+  for (auto *node : this->gatt_nodes_)
+    node->node_state = espbt::ClientState::ESTABLISHED;
+}
+
+void BLEClient::on_disconnect_complete(esp_err_t reason) {
+  this->pending_gatt_regs_.clear();
+  if (!this->gatt_connected_)
+    return;  // Never-established links report nothing (neutral parity).
+  this->gatt_connected_ = false;
+  for (auto *node : this->gatt_nodes_)
+    node->on_disconnected();
+}
+
+int BLEClient::write_characteristic(uint16_t handle, const uint8_t *data, uint16_t len, bool response) {
+  if (this->conn_id_ == UNSET_CONN_ID)
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  return esp_ble_gattc_write_char(this->gattc_if_, this->conn_id_, handle, len, const_cast<uint8_t *>(data),
+                                  response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP,
+                                  ESP_GATT_AUTH_REQ_NONE);
+}
+
+int BLEClient::read_characteristic(uint16_t handle) {
+  if (this->conn_id_ == UNSET_CONN_ID)
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  return esp_ble_gattc_read_char(this->gattc_if_, this->conn_id_, handle, ESP_GATT_AUTH_REQ_NONE);
+}
+
+int BLEClient::read_descriptor(uint16_t handle) {
+  if (this->conn_id_ == UNSET_CONN_ID)
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  return esp_ble_gattc_read_char_descr(this->gattc_if_, this->conn_id_, handle, ESP_GATT_AUTH_REQ_NONE);
+}
+
+int BLEClient::write_descriptor(uint16_t handle, const uint8_t *data, uint16_t len) {
+  if (this->conn_id_ == UNSET_CONN_ID)
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  return esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, handle, len, const_cast<uint8_t *>(data),
+                                        ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+}
+
+int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
+  if (this->conn_id_ == UNSET_CONN_ID)
+    return ble_device_base::GATT_ERR_NOT_CONNECTED;
+  if (enable) {
+    // Reuses the base helper so its pending count holds the service-release
+    // until the registration completes; the completion is intercepted before
+    // the base's automatic CCCD write.
+    if (this->take_pending_gatt_reg_(handle))
+      ESP_LOGW(TAG, "[%s] Duplicate notify registration for handle 0x%04x", this->address_str(), handle);
+    esp_err_t err = this->register_for_notify(handle);
+    if (err == ESP_OK)
+      this->pending_gatt_regs_.push_back(handle);
+    return err;
+  }
+  return esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle);
+}
+
+int BLEClient::unpair() { return bluetooth_connection::unpair_device(this->get_address()); }
+
+#endif  // USE_BLE_CLIENT_GATT_NODES
 
 }  // namespace esphome::ble_client
 
