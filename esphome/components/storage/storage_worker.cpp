@@ -3,6 +3,7 @@
 #include "esphome/core/wake.h"
 
 #include <cstring>
+#include <new>
 
 #ifdef USE_STORAGE_WORKER
 
@@ -160,8 +161,15 @@ static bool is_tree_op(RequestOp op) { return op == RequestOp::COPY_TREE || op =
 // bytes of allocate/free per tree operation is the churn this avoids. False if it cannot be had.
 static bool ensure_tree(TransferRequest &req) {
   if (req.tree == nullptr) {
-    req.tree = make_unique<TreeWalk>();
-    return req.tree != nullptr;
+    // Allocate through RAMAllocator (PSRAM-capable, nothrow) like the rest of the component, so an
+    // OOM returns nullptr -- the caller reports NO_SPACE -- rather than aborting under
+    // -fno-exceptions. TreeWalk holds three STORAGE_WORKER_MAX_PATH buffers, a few kB better placed
+    // in external RAM.
+    TreeWalk *raw = RAMAllocator<TreeWalk>().allocate(1);
+    if (raw == nullptr)
+      return false;
+    req.tree.reset(new (raw) TreeWalk());
+    return true;
   }
   *req.tree = TreeWalk{};
   return true;
