@@ -318,6 +318,15 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   if (slot == nullptr)
     return StorageError::NOT_READY;
 
+  // For a tree op, claim the TreeWalk allocation before arming the poller or taking the caller's
+  // callback: a failed allocation then returns the slot to FREE with the caller's callback still
+  // theirs (its captures not stranded on a freed slot) and no poller wake queued for a request that
+  // will never exist.
+  if ((op == RequestOp::COPY_TREE || op == RequestOp::MOVE_TREE) && !ensure_tree(*slot)) {
+    slot->state = RequestState::FREE;
+    return StorageError::NO_SPACE;  // same answer the chunk buffer gives when it cannot be had
+  }
+
   // Work is pending from here on: start the poller (idempotent -- set_interval replaces any
   // existing one). The scheduler then services update() every update_interval until update()
   // stops the poller again once every slot and stream is FREE. This is the single funnel for
@@ -361,10 +370,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   // Tree ops keep their roots aside: src_path/dst_path are reused for the file currently in
   // flight, so everything below this point works on a tree exactly as it does on one file.
   if (op == RequestOp::COPY_TREE || op == RequestOp::MOVE_TREE) {
-    if (!ensure_tree(*slot)) {
-      slot->state = RequestState::FREE;
-      return StorageError::NO_SPACE;  // same answer the chunk buffer gives when it cannot be had
-    }
+    // Tree allocation was already claimed above; here we only stash the walk roots.
     strncpy(slot->tree->src_root, src_path, STORAGE_WORKER_MAX_PATH - 1);
     strncpy(slot->tree->dst_root, dst_path, STORAGE_WORKER_MAX_PATH - 1);
   }
