@@ -130,8 +130,11 @@ async def async_run_logs(
             # loop.shutdown_default_executor() for the full lookup timeout.
             mqtt_stop_event.set()
             mqtt_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await mqtt_task
+            # return_exceptions so a task that already died with an error
+            # can't re-raise here and jump over the stop() below
+            (result,) = await asyncio.gather(mqtt_task, return_exceptions=True)
+            if isinstance(result, Exception):
+                _LOGGER.error("MQTT address discovery failed: %s", result)
         await stop()
 
 

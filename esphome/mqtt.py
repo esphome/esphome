@@ -220,6 +220,10 @@ def get_esphome_device_ip(
         _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
         client.publish(topic, None, retain=False)
 
+    if stop_event is not None and stop_event.is_set():
+        # Teardown already started; don't open a broker connection at all
+        return []
+
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
     )
@@ -228,16 +232,26 @@ def get_esphome_device_ip(
         import threading
 
         stop_event = threading.Event()  # never set; wait() below is a plain sleep
+    stopped = False
     mqtt_client.loop_start()
-    while timeout > 0:
-        if dev_ip is not None:
-            break
-        if stop_event.wait(0.250):
-            break
-        timeout -= 0.250
-    mqtt_client.loop_stop()
+    try:
+        while timeout > 0:
+            if dev_ip is not None:
+                break
+            if stop_event.wait(0.250):
+                stopped = True
+                break
+            timeout -= 0.250
+    finally:
+        # Always close the broker session; the success path already sent a
+        # disconnect from on_message and a second one is harmless.
+        mqtt_client.disconnect()
+        mqtt_client.loop_stop()
 
     if dev_ip is None:
+        if stopped:
+            # Aborted by the caller, not a failure; stay quiet
+            return []
         raise EsphomeError("Failed to find IP via MQTT")
 
     _LOGGER.info("Found IP: %s", dev_ip)

@@ -127,24 +127,37 @@ def test_get_esphome_device_ip_success() -> None:
 
     assert result == ["10.0.0.5", "10.0.0.6"]
     client.loop_stop.assert_called_once_with()
-    client.disconnect.assert_called_once_with()
+    # Once from on_message on receiving the answer, once from the finally
+    assert client.disconnect.call_count == 2
 
 
-def test_get_esphome_device_ip_stop_event_aborts_wait() -> None:
-    """A set stop event exits the wait loop immediately and raises."""
+def test_get_esphome_device_ip_preset_stop_event_skips_lookup() -> None:
+    """A stop event set before the call returns [] without touching the broker."""
     stop_event = threading.Event()
     stop_event.set()
 
-    client = MagicMock()
-    start = time.monotonic()
-    with (
-        patch("esphome.mqtt.prepare", return_value=client),
-        pytest.raises(EsphomeError, match="Failed to find IP via MQTT"),
-    ):
-        get_esphome_device_ip(_discovery_config(), stop_event=stop_event)
+    with patch("esphome.mqtt.prepare") as mock_prepare:
+        result = get_esphome_device_ip(_discovery_config(), stop_event=stop_event)
 
-    # Nowhere near the 25s default timeout
+    assert result == []
+    mock_prepare.assert_not_called()
+
+
+def test_get_esphome_device_ip_stop_event_aborts_wait() -> None:
+    """A stop event set mid-wait exits quietly with no addresses."""
+    stop_event = threading.Event()
+    client = MagicMock()
+    # Simulate teardown starting right after the network loop spins up
+    client.loop_start.side_effect = stop_event.set
+
+    start = time.monotonic()
+    with patch("esphome.mqtt.prepare", return_value=client):
+        result = get_esphome_device_ip(_discovery_config(), stop_event=stop_event)
+
+    # An abort is not a failure and must be nowhere near the 25s timeout
+    assert result == []
     assert time.monotonic() - start < 5
+    client.disconnect.assert_called_once_with()
     client.loop_stop.assert_called_once_with()
 
 
@@ -157,4 +170,5 @@ def test_get_esphome_device_ip_timeout_raises() -> None:
     ):
         get_esphome_device_ip(_discovery_config(), timeout=0.25)
 
+    client.disconnect.assert_called_once_with()
     client.loop_stop.assert_called_once_with()

@@ -56,7 +56,7 @@ async def test_async_run_logs_full_flow(caplog) -> None:
 
     with (
         patch.object(api_client, "async_run", mock_run),
-        patch.object(api_client, "APIClient") as mock_client,
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
         patch.object(api_client, "safe_print", printed.append),
     ):
         task = asyncio.get_running_loop().create_task(
@@ -180,7 +180,7 @@ async def test_async_run_logs_mqtt_resolver_feeds_addresses(caplog) -> None:
 
     with (
         patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
-        patch.object(api_client, "APIClient") as mock_client,
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
     ):
         mock_client.return_value.add_addresses.side_effect = lambda addrs: (
             fed.set() or True
@@ -219,7 +219,7 @@ async def test_async_run_logs_mqtt_resolver_no_addresses_keeps_running() -> None
 
     with (
         patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
-        patch.object(api_client, "APIClient") as mock_client,
+        patch.object(api_client, "APIClient", autospec=True) as mock_client,
     ):
         task = asyncio.get_running_loop().create_task(
             api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
@@ -269,4 +269,37 @@ async def test_async_run_logs_mqtt_resolver_stopped_on_teardown() -> None:
 
     assert captured_event is not None
     assert captured_event.is_set()
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_run_logs_mqtt_resolver_crash_still_stops_cleanly(caplog) -> None:
+    """A resolver raising unexpectedly must not skip stop() at teardown."""
+    import threading
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+    config = {"esphome": {"name": "test"}, "api": {CONF_PORT: 6053}}
+
+    stop = AsyncMock()
+    resolver_ran = threading.Event()
+
+    def resolver(stop_event):
+        resolver_ran.set()
+        raise RuntimeError("resolver blew up")
+
+    with (
+        patch.object(api_client, "async_run", AsyncMock(return_value=stop)),
+        patch.object(api_client, "APIClient", autospec=True),
+    ):
+        task = asyncio.get_running_loop().create_task(
+            api_client.async_run_logs(config, ["1.2.3.4"], mqtt_resolver=resolver)
+        )
+        await asyncio.to_thread(resolver_ran.wait, 1)
+        await asyncio.sleep(0.05)
+        assert not task.done()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert "MQTT address discovery failed" in caplog.text
     stop.assert_awaited_once()
