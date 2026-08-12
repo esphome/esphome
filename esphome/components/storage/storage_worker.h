@@ -450,11 +450,11 @@ class StorageWorker : public PollingComponent {
   // and DMA-capability, and the platform those were chosen for -- so the buffer policy is
   // visible in the boot log without reading defines.
   void dump_config() override;
-  // The engine: advances the loop-sliced transfer/stream slots one time-budgeted batch per
-  // call. Called by PollingComponent's scheduler interval (started with the first pending
-  // work via start_poller() at the submit funnels, stopped again by update() itself once
-  // every slot and stream is FREE). No custom driver: the scheduler runs this on Phase A of
-  // every fired tick, independent of the gated component loop().
+  // The engine: advances the loop-sliced transfer/stream slots by one chunk, plus one completion-
+  // delivery sweep, per call -- not a time-budgeted batch. Called by PollingComponent's scheduler
+  // interval (started with the first pending work via start_poller() at the submit funnels,
+  // stopped again by update() itself once every slot and stream is FREE). No custom driver: the
+  // scheduler runs this on Phase A of every fired tick, independent of the gated component loop().
   void update() override;
   // DATA, not AFTER_CONNECTION: the worker has no networking dependency of its own (NFS/SMB are
   // reached through the storage:: interface, not directly), so pool/task creation need not wait for
@@ -653,9 +653,9 @@ class StorageWorker : public PollingComponent {
   // as RUNNING here, which merely delays dispatch by one loop iteration (safe/conservative).
   bool overlaps_active_(const TransferRequest &candidate) const;
 
-  // Frees DONE slots and fires their completion callbacks (always on the main loop). Called
-  // at the top of loop() and again after the chunk batch, so a completion produced inside
-  // the current pass is delivered in the same pass instead of waiting for the next one.
+  // Frees DONE slots and fires their completion callbacks (always on the main loop). Called once
+  // at the top of update(), so a completion produced by this tick's chunk is delivered on the next
+  // tick rather than the current one.
   void deliver_completions_();
 
   // Advances one request by exactly one chunk. Used by both the loop-sliced engine (from loop(),
