@@ -18,8 +18,7 @@ namespace esphome::ble_client {
 static const char *const TAG = "ble_client";
 
 #ifdef USE_BLE_CLIENT_GATT_NODES
-// Hold-off step per consecutive materializer failure, capped so a flapping
-// peer retries within a minute at worst (neutral-engine parity).
+// Hold-off per consecutive materializer failure (neutral-engine parity).
 static const uint32_t GATT_FAILURE_HOLD_OFF_STEP_MS = 10000;
 static const uint8_t GATT_FAILURE_HOLD_OFF_MAX_STEPS = 6;
 #endif
@@ -64,12 +63,10 @@ void BLEClient::set_enabled(bool enabled) {
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
 #ifdef USE_BLE_CLIENT_GATT_NODES
-  // A bridge-initiated notify registration must bypass BLEClientBase's
-  // REG_FOR_NOTIFY handling: its automatic CCCD write would double the
-  // node's own (the neutral contract makes the CCCD the node's job).
-  // The match is by handle: a legacy and a neutral node subscribing the SAME
-  // characteristic on one client is unsupported during the migration window
-  // (each migration removes the legacy half).
+  // Bridge-initiated registrations bypass the base's REG_FOR_NOTIFY handling:
+  // its automatic CCCD write would double the node's own.
+  // Handle-keyed: mixed legacy/neutral subscriptions to one characteristic
+  // are unsupported during the migration window.
   if (event == ESP_GATTC_REG_FOR_NOTIFY_EVT && esp_gattc_if == this->gattc_if_ &&
       this->take_pending_gatt_reg_(param->reg_for_notify.handle)) {
     if (this->pending_notify_regs_ > 0)
@@ -77,8 +74,7 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     int err = param->reg_for_notify.status == ESP_GATT_OK ? 0 : param->reg_for_notify.status;
     for (auto *node : this->gatt_nodes_)
       node->on_notify_state(param->reg_for_notify.handle, true, err);
-    // A retiring last registration must still release the cache (the counter
-    // was cleared above, before the node dispatch).
+    // A retiring last registration must still release the cache.
     this->maybe_release_services_();
     return true;
   }
@@ -87,13 +83,9 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     return false;
 
 #ifdef USE_BLE_CLIENT_GATT_NODES
-  // Before the legacy fan-out so gatt nodes resolve their handles before any
-  // legacy trigger (e.g. on_connect at SEARCH_CMPL) fires - the neutral
-  // engine's order.
+  // Before the legacy fan-out so gatt nodes resolve before any trigger fires.
   if (!this->dispatch_gatt_event_(event, param)) {
-    // Failed discovery: the link is coming down, so the legacy fan-out must
-    // not observe the event as a connection (the on_connect trigger would
-    // fire into the teardown).
+    // Failed discovery: the on_connect trigger must not fire into the teardown.
     return true;
   }
 #endif
@@ -127,8 +119,8 @@ void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 
 void BLEClient::set_state(espbt::ClientState state) {
   BLEClientBase::set_state(state);
-  // ESTABLISHED never flows through here (the base sets it internally); gatt
-  // nodes (members of nodes_ too) are promoted after the on_connected fan-out.
+  // ESTABLISHED never flows through here; gatt nodes are promoted after the
+  // on_connected fan-out.
   for (auto &node : nodes_)
     node->node_state = state;
 }
@@ -153,14 +145,13 @@ void BLEClient::register_gatt_node(BLEClientNode *node) {
     return;
   }
   this->gatt_nodes_.push_back(node);
-  // Membership in nodes_ covers the shared state bookkeeping (node_state,
-  // release condition); gatt_nodes_ is the neutral fan-out subset.
+  // nodes_ covers the shared state bookkeeping; gatt_nodes_ is the neutral
+  // fan-out subset.
   this->register_ble_node(node);
 }
 
 bool BLEClient::take_pending_gatt_reg_(uint16_t handle) {
-  // No duplicates possible: notify_characteristic() refuses a re-push while
-  // one is pending, so a single swap-with-last removal suffices.
+  // No duplicates (notify_characteristic refuses a re-push); swap-with-last.
   for (uint8_t i = 0; i < this->pending_gatt_reg_count_; i++) {
     if (this->pending_gatt_regs_[i] == handle) {
       this->pending_gatt_regs_[i] = this->pending_gatt_regs_[--this->pending_gatt_reg_count_];
@@ -209,16 +200,14 @@ bool BLEClient::dispatch_gatt_event_(esp_gattc_cb_event_t event, esp_ble_gattc_c
   return true;
 }
 
-// Returns whether the discovery stands: false tears the link down and the
-// caller suppresses the legacy fan-out of the event.
+// False = failed discovery: the link comes down and the caller suppresses
+// the legacy fan-out.
 bool BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
-  // The base establishes without reading the search status; the neutral
-  // contract treats a failed or empty discovery as a failed connection.
+  // The base ignores the search status; the neutral contract must not.
   uint16_t service_total = 0;
   bool counted = status == ESP_GATT_OK && bluetooth_connection::BluedroidServiceTable::count_services(
                                               this->gattc_if_, this->conn_id_, &service_total);
-  // Stack-owned: freed on scope exit; nodes copy their handles during
-  // on_connected() per the borrowed-table contract.
+  // Stack-owned; nodes copy their handles during on_connected().
   bluetooth_connection::BluedroidServiceTable table;
   if (!counted || service_total == 0 ||
       !table.build(this->gattc_if_, this->conn_id_, service_total, this->connection_index_)) {
@@ -240,8 +229,7 @@ bool BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
       return false;
     }
   }
-  // Promote so the legacy release condition can fire; subscriptions the
-  // nodes just made hold it via the pending notify-registration count.
+  // Promote so the legacy release condition can fire.
   for (auto *node : this->gatt_nodes_)
     node->node_state = espbt::ClientState::ESTABLISHED;
   this->gatt_consecutive_failures_ = 0;
@@ -318,14 +306,12 @@ int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
       }
     }
     if (this->pending_gatt_reg_count_ == ESPHOME_BLE_CLIENT_MAX_NODES) {
-      // Registering without a pending entry would let the base's automatic
-      // CCCD write through; refuse loudly instead.
+      // An untracked registration would let the base's auto-CCCD through.
       ESP_LOGE(TAG, "[%s] Too many pending notify registrations", this->address_str());
       return ble_device_base::GATT_ERR_NO_MEMORY;
     }
-    // Reuses the base helper so its pending count holds the service-release
-    // until the registration completes; the completion is intercepted before
-    // the base's automatic CCCD write.
+    // The base helper's pending count holds the service-release until the
+    // (intercepted) completion.
     esp_err_t err = this->register_for_notify(handle);
     if (err == ESP_OK)
       this->pending_gatt_regs_[this->pending_gatt_reg_count_++] = handle;

@@ -25,9 +25,8 @@ class BLEClient;
 class BLEClientNode {
  public:
 #ifdef USE_BLE_CLIENT_GATT_NODES
-  // Neutral surface, delivered by both engines. The table is borrowed
-  // backend storage, valid only for the duration of on_connected(): copy the
-  // handles you need. All nodes see all completions/notifications; filter by
+  // Neutral surface, delivered by both engines. The table is borrowed: copy
+  // handles during on_connected(). All nodes see all completions; filter by
   // handle.
   virtual void on_connected(const ble_device_base::GattServiceTable &table) {}
   virtual void on_disconnected() {}
