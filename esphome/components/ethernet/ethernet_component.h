@@ -140,6 +140,12 @@ class EthernetComponent final : public Component {
   bool is_disabled() { return this->disabled_; }
   bool is_enabled() { return !this->disabled_; }
 
+#ifdef USE_ESP32
+  /// esp_netif handle, used by network for default-route arbitration.
+  /// nullptr until the driver/netif installation has run.
+  esp_netif_t *get_esp_netif() { return this->eth_netif_; }
+#endif
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
