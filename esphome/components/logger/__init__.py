@@ -30,6 +30,7 @@ from esphome.components.libretiny.const import (
 )
 from esphome.components.zephyr import (
     VARIANTS,
+    ZEPHYR_VARIANT_ESP32_C3,
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
@@ -204,6 +205,7 @@ def uart_selection(value):
             ZEPHYR_VARIANT_ESP32_H2,
             ZEPHYR_VARIANT_ESP32_C6,
             ZEPHYR_VARIANT_ESP32_C5,
+            ZEPHYR_VARIANT_ESP32_C3,
         ):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
         family = zephyr_variant_family()
@@ -336,6 +338,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32h2=USB_SERIAL_JTAG,
                 zephyr_esp32c6=USB_SERIAL_JTAG,
                 zephyr_esp32c5=USB_SERIAL_JTAG,
+                zephyr_esp32c3=USB_SERIAL_JTAG,
                 zephyr_nrf52=USB_CDC,
                 zephyr_rp2040=USB_CDC,
                 zephyr_rp2350=USB_CDC,
