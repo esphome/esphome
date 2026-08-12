@@ -32,10 +32,6 @@ using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 using esp32_ble_tracker::ClientState;
 using esp32_ble_tracker::ConnectionType;
 
-// Bounds one characteristic's descriptor walk against a stack that never
-// reports end-of-range.
-static constexpr uint16_t MAX_DESCRIPTORS_PER_CHARACTERISTIC = 64;
-
 // ---- tracker surface ----
 
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
@@ -306,7 +302,7 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
 #ifdef USE_BLE_GATT_SERVICE_TABLE
-  this->free_service_table_();
+  this->table_.free();
 #endif
   // Always set: terminates any in-flight stream on every cache config.
   this->services_released_ = true;
@@ -322,197 +318,19 @@ void BluedroidGattClient::release_services() {
 
 #ifdef USE_BLE_GATT_SERVICE_TABLE
 ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
-  if (this->table_storage_ == nullptr &&
-      (this->services_released_ || this->service_total_ == 0 || !this->build_service_table_())) {
+  // Lifetime: every teardown path (CLOSE_EVT, the safety timeout, stack-down,
+  // passive DISCONNECT) routes through release_services(), so a materialized
+  // table cannot outlive its link.
+  if (this->table_.empty() &&
+      (this->services_released_ || this->service_total_ == 0 ||
+       !this->table_.build(this->gattc_if_, this->conn_id_, this->service_total_, this->connection_index_))) {
     // Released / no services / failed build all collapse to empty; the
     // build failures warned above, log the quiet two.
     ESP_LOGD(TAG, "[%d] No service table (released=%d, services=%u)", this->connection_index_, this->services_released_,
              this->service_total_);
     return {};
   }
-  return this->table_view_();
-}
-
-// The view is carved from the storage block and the counts on each call
-// (a cold path) rather than cached, saving a per-instance table member.
-ble_device_base::GattServiceTable BluedroidGattClient::table_view_() const {
-  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
-  size_t char_bytes = this->table_char_total_ * sizeof(ble_device_base::GattCharacteristic);
-  return {reinterpret_cast<const ble_device_base::GattService *>(this->table_storage_),
-          reinterpret_cast<const ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes),
-          reinterpret_cast<const ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes),
-          this->service_total_,
-          this->table_char_total_,
-          this->table_desc_total_};
-}
-
-// Lifetime: every teardown path (CLOSE_EVT, the safety timeout, stack-down,
-// passive DISCONNECT) routes through release_services(), so a materialized
-// table cannot outlive its link.
-void BluedroidGattClient::free_service_table_() {
-  if (this->table_storage_ == nullptr) {
-    return;
-  }
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  allocator.deallocate(this->table_storage_, 0);
-  this->table_storage_ = nullptr;
-  this->table_char_total_ = 0;
-  this->table_desc_total_ = 0;
-}
-
-template<typename ServiceFn, typename CharFn, typename DescFn>
-bool BluedroidGattClient::walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc) {
-  // Shared enumeration for both table-build passes: an identical walk order
-  // is what lets the counting pass size the block the filling pass fills.
-  // INVALID_OFFSET/NOT_FOUND mean end-of-range; anything else is a failure.
-  for (uint16_t s = 0; s < this->service_total_; s++) {
-    esp_gattc_service_elem_t svc;
-    uint16_t svc_count = 1;
-    auto svc_status = esp_ble_gattc_get_service(this->gattc_if_, this->conn_id_, nullptr, &svc, &svc_count, s);
-    if (svc_status != ESP_GATT_OK || svc_count == 0) {
-      this->log_gattc_warning_("esp_ble_gattc_get_service", svc_status);
-      return false;
-    }
-    if (!on_service(s, svc)) {
-      return false;
-    }
-    uint16_t svc_chars = 0;
-    auto count_status = esp_ble_gattc_get_attr_count(this->gattc_if_, this->conn_id_, ESP_GATT_DB_CHARACTERISTIC,
-                                                     svc.start_handle, svc.end_handle, 0, &svc_chars);
-    if (count_status != ESP_GATT_OK) {
-      this->log_gattc_warning_("esp_ble_gattc_get_attr_count", count_status);
-      return false;
-    }
-    for (uint16_t c = 0; c < svc_chars; c++) {
-      esp_gattc_char_elem_t chr;
-      uint16_t char_count = 1;
-      auto status = esp_ble_gattc_get_all_char(this->gattc_if_, this->conn_id_, svc.start_handle, svc.end_handle, &chr,
-                                               &char_count, c);
-      if (status != ESP_GATT_OK || char_count == 0) {
-        // An early terminator contradicts svc_chars from the same cache;
-        // never build a silently truncated table.
-        this->log_gattc_warning_("esp_ble_gattc_get_all_char", status);
-        return false;
-      }
-      if (!on_char(svc, chr)) {
-        return false;
-      }
-      for (uint16_t d = 0;; d++) {
-        if (d == MAX_DESCRIPTORS_PER_CHARACTERISTIC) {
-          // A stack that never reports end-of-range; fail like every other
-          // inconsistency instead of truncating the table silently.
-          ESP_LOGW(TAG, "[%d] Descriptor walk exceeded %u entries", this->connection_index_,
-                   MAX_DESCRIPTORS_PER_CHARACTERISTIC);
-          return false;
-        }
-        esp_gattc_descr_elem_t desc;
-        uint16_t desc_count = 1;
-        auto desc_status =
-            esp_ble_gattc_get_all_descr(this->gattc_if_, this->conn_id_, chr.char_handle, &desc, &desc_count, d);
-        if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
-          break;
-        }
-        if (desc_status != ESP_GATT_OK || desc_count == 0) {
-          this->log_gattc_warning_("esp_ble_gattc_get_all_descr", desc_status);
-          return false;
-        }
-        if (!on_desc(chr, desc)) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
-bool BluedroidGattClient::build_service_table_() {
-  // Pass 1: count, so one exact-size block holds the whole table.
-  uint16_t char_total = 0;
-  uint16_t desc_total = 0;
-  bool counted = this->walk_database_([](uint16_t, const esp_gattc_service_elem_t &) { return true; },
-                                      [&](const esp_gattc_service_elem_t &, const esp_gattc_char_elem_t &) {
-                                        char_total++;
-                                        return true;
-                                      },
-                                      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &) {
-                                        desc_total++;
-                                        return true;
-                                      });
-  if (!counted) {
-    ESP_LOGW(TAG, "[%d] Service table walk failed during count", this->connection_index_);
-    return false;
-  }
-
-  // The arrays share one block; carving stays aligned because each struct's
-  // strictest member is the UUID and array sizes are multiples of it.
-  size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
-  size_t char_bytes = char_total * sizeof(ble_device_base::GattCharacteristic);
-  size_t total_bytes = svc_bytes + char_bytes + desc_total * sizeof(ble_device_base::GattDescriptor);
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->table_storage_ = allocator.allocate(total_bytes);
-  if (this->table_storage_ == nullptr) {
-    ESP_LOGW(TAG, "[%d] Service table allocation failed (%u bytes)", this->connection_index_,
-             static_cast<unsigned>(total_bytes));
-    return false;
-  }
-  auto *services = reinterpret_cast<ble_device_base::GattService *>(this->table_storage_);
-  auto *characteristics = reinterpret_cast<ble_device_base::GattCharacteristic *>(this->table_storage_ + svc_bytes);
-  auto *descriptors =
-      reinterpret_cast<ble_device_base::GattDescriptor *>(this->table_storage_ + svc_bytes + char_bytes);
-
-  // Pass 2: fill, bounded by the pass-1 totals. A bound trip or a shortfall
-  // means the cached database changed between the passes; fail the build
-  // rather than serve an inconsistent table (the consumer retries).
-  uint16_t char_index = 0;
-  uint16_t desc_index = 0;
-  ble_device_base::GattService *cur_service = nullptr;
-  ble_device_base::GattCharacteristic *cur_char = nullptr;
-  bool filled = this->walk_database_(
-      [&](uint16_t s, const esp_gattc_service_elem_t &svc) {
-        cur_service = &services[s];
-        cur_service->uuid = ble_device_base::ESPBTUUID::from_uuid(svc.uuid);
-        cur_service->start_handle = svc.start_handle;
-        cur_service->end_handle = svc.end_handle;
-        cur_service->first_characteristic = char_index;
-        cur_service->characteristic_count = 0;
-        return true;
-      },
-      [&](const esp_gattc_service_elem_t &svc, const esp_gattc_char_elem_t &chr) {
-        if (char_index >= char_total) {
-          return false;
-        }
-        cur_char = &characteristics[char_index++];
-        cur_char->uuid = ble_device_base::ESPBTUUID::from_uuid(chr.uuid);
-        cur_char->value_handle = chr.char_handle;
-        // Bluedroid addresses descriptors by characteristic handle, so the
-        // table's end_handle only needs the service-bounded upper bound.
-        cur_char->end_handle = svc.end_handle;
-        cur_char->properties = chr.properties;
-        cur_char->first_descriptor = desc_index;
-        cur_char->descriptor_count = 0;
-        cur_service->characteristic_count++;
-        return true;
-      },
-      [&](const esp_gattc_char_elem_t &, const esp_gattc_descr_elem_t &desc) {
-        if (desc_index >= desc_total) {
-          return false;
-        }
-        descriptors[desc_index].uuid = ble_device_base::ESPBTUUID::from_uuid(desc.uuid);
-        descriptors[desc_index].handle = desc.handle;
-        desc_index++;
-        cur_char->descriptor_count++;
-        return true;
-      });
-  if (!filled || char_index != char_total || desc_index != desc_total) {
-    // Walk error or the database changed between passes; better an empty
-    // table than a corrupt one.
-    ESP_LOGW(TAG, "[%d] Service table walk mismatch, discarding", this->connection_index_);
-    this->free_service_table_();
-    return false;
-  }
-  this->table_char_total_ = char_total;
-  this->table_desc_total_ = desc_total;
-  return true;
+  return this->table_.view();
 }
 #endif  // USE_BLE_GATT_SERVICE_TABLE
 
@@ -563,9 +381,9 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 
 int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
 #ifdef USE_BLE_GATT_SERVICE_TABLE
-  // Re-discovery moves the counts table_view_() derives offsets from; free
+  // Re-discovery moves the counts the table view derives offsets from; free
   // the stale table.
-  this->free_service_table_();
+  this->table_.free();
 #endif
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");

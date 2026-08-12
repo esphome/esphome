@@ -12,6 +12,7 @@
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
 #include "bluetooth_connection.h"
+#include "gatt_service_table_bluedroid.h"
 
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -109,20 +110,11 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
                                 const char *param_type);
   int check_and_log_error_(const char *operation, esp_err_t err);
   void log_gattc_warning_(const char *operation, int code);
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  template<typename ServiceFn, typename CharFn, typename DescFn>
-  bool walk_database_(ServiceFn &&on_service, CharFn &&on_char, DescFn &&on_desc);
-  bool build_service_table_();
-  void free_service_table_();
-  ble_device_base::GattServiceTable table_view_() const;
-#endif
 
   // Group 1: pointers / composed objects
   ble_device_base::GattClientListener *listener_{nullptr};
 #ifdef USE_BLE_GATT_SERVICE_TABLE
-  // One exact-size block carved into the three arrays; the view is rebuilt
-  // per (cold) call instead of cached.
-  uint8_t *table_storage_{nullptr};
+  BluedroidServiceTable table_;
 #endif
   // Group 2: 4-byte types
   uint32_t disconnecting_started_{0};
@@ -133,11 +125,6 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   // Group 4: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t service_total_{0};
-#ifdef USE_BLE_GATT_SERVICE_TABLE
-  // Filled element counts of the materialized table (0 when none).
-  uint16_t table_char_total_{0};
-  uint16_t table_desc_total_{0};
-#endif
 
   // Group 5: 1-byte types
   esp_gatt_if_t gattc_if_{ESP_GATT_IF_NONE};  // uint8_t width keeps the object at 48 bytes

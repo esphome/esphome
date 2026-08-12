@@ -259,6 +259,7 @@ async def new_gatt_backend(
 # list (this module cannot import bluetooth_proxy to derive it).
 SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
     "bluetooth_connection_bluedroid.cpp": frameworks_for_platforms([PLATFORM_ESP32]),
+    "gatt_service_table_bluedroid.cpp": frameworks_for_platforms([PLATFORM_ESP32]),
     # Every hub platform the proxy admits (the file compiles empty where
     # USE_BLE_GATT_CLIENT is not defined), so a platform gaining a backend
     # cannot hit a missing-symbol trap here.
