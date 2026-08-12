@@ -815,6 +815,16 @@ void ModbusClientHub::send_next_frame_() {
   }
 
   cmd->sent();
+  if (cmd->frame.address() == BROADCAST_ADDRESS) {
+    // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
+    // reports the transmission, and the entry then retires with no terminal callback instead of
+    // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
+    // spaces the next frame; the following sweep erases the entry.
+    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected (fire-and-forget)");
+    cmd->complete_broadcast();
+    this->sweep_needed_ = true;
+    return;
+  }
   this->waiting_for_response_ = true;
 }
 
@@ -1033,9 +1043,24 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     ESP_LOGE(TAG, "Frame too large, refused: %" PRIu8 ":%zu bytes", address, pdu.size());
     return false;
   }
+  // classify() drives both the broadcast guard and the continuous check below; compute it once.
+  const CommandPriority priority = ModbusDeviceCommand::classify(pdu[0]);
+
+  // A broadcast (address 0) is never answered (Modbus 4.1), so it is only meaningful for a command that
+  // changes state. Refuse a broadcast that expects a reply - anything but a write or a custom/vendor code -
+  // as it could never deliver a result, so the caller learns via the false return (and on_not_sent).
+  // 0x17 (read/write multiple) is a knowing inclusion: classify() treats it as a write, so its write half
+  // lands on every server and its unanswerable read half is simply discarded. An exception-flagged custom
+  // code (0x80 bit set) is refused: is_function_code_custom() masks that bit away, so exclude it explicitly
+  // here to match classify()'s exception-first handling of the write side.
+  if (address == BROADCAST_ADDRESS && priority != CommandPriority::WRITE &&
+      (!helpers::is_function_code_custom(pdu[0]) || helpers::is_function_code_exception(pdu[0]))) {
+    ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
+    return false;
+  }
 
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
-  const bool mutates = ModbusDeviceCommand::classify(pdu[0]) == CommandPriority::WRITE;
+  const bool mutates = priority == CommandPriority::WRITE;
   bool continuous = false;
   if (options.continuous) {
     if (mutates) {

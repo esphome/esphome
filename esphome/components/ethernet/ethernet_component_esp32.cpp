@@ -429,9 +429,9 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif  // !USE_ETHERNET_SPI
 
   // use ESP internal eth mac
-  uint8_t mac_addr[6];
+  uint8_t mac_addr[MAC_ADDRESS_SIZE];
   if (this->fixed_mac_.has_value()) {
-    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+    memcpy(mac_addr, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
   } else {
     esp_read_mac(mac_addr, ESP_MAC_ETH);
   }
@@ -789,16 +789,25 @@ void EthernetComponent::start_connect_() {
 
 #ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
-    LwIPLock lock;
+    // Set DNS through esp_netif so the servers are stored in the netif's own
+    // dns[] array; raw dns_setserver() would be lost when the default-route
+    // arbitration re-applies the default netif's DNS.
+    // Log-only on failure: the link still has a working IP/gateway, so degraded
+    // name resolution does not justify marking the whole component failed.
+    esp_netif_dns_info_t dns{};
     if (this->manual_ip_->dns1.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns1;
-      dns_setserver(0, &d);
+      dns.ip = this->manual_ip_->dns1;
+      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
+      }
     }
     if (this->manual_ip_->dns2.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns2;
-      dns_setserver(1, &d);
+      dns.ip = this->manual_ip_->dns2;
+      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+      }
     }
   } else
 #endif
@@ -926,7 +935,7 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
     // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
     if (this->fixed_mac_.has_value()) {
-      memcpy(mac, this->fixed_mac_->data(), 6);
+      memcpy(mac, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
     } else {
       esp_read_mac(mac, ESP_MAC_ETH);
     }
@@ -944,7 +953,7 @@ std::string EthernetComponent::get_eth_mac_address_pretty() {
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();
