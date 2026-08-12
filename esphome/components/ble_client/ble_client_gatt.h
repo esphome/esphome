@@ -15,8 +15,10 @@
 
 #if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
 
+#include "ble_client_node.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
+#include "esphome/components/bluetooth_connection/bluetooth_connection.h"
 #include "esphome/components/bluetooth_connection/bluetooth_connection_gatt_backend.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -25,27 +27,6 @@
 #include <functional>
 
 namespace esphome::ble_client {
-
-class BLEClient;
-
-/// The neutral node interface. Nodes resolve their handles from the service
-/// table during on_connected() and MUST copy what they need: the table is
-/// borrowed backend storage, valid only for the duration of that call.
-class BLEClientNode {
- public:
-  virtual void on_connected(const ble_device_base::GattServiceTable &table) {}
-  virtual void on_disconnected() {}
-  virtual void on_notify(uint16_t handle, const uint8_t *data, uint16_t len) {}
-  virtual void on_notify_state(uint16_t handle, bool enabled, int error) {}
-  virtual void on_read_result(uint16_t handle, const uint8_t *data, uint16_t len, int error) {}
-  virtual void on_write_result(uint16_t handle, int error) {}
-
-  BLEClient *parent() const { return this->parent_; }
-  void set_ble_client_parent(BLEClient *parent) { this->parent_ = parent; }
-
- protected:
-  BLEClient *parent_{nullptr};
-};
 
 class BLEClient : public Component,
                   public ble_device_base::ESPBTDeviceListener,
@@ -95,6 +76,8 @@ class BLEClient : public Component,
   int notify_characteristic(uint16_t handle, bool enable) {
     return this->backend_->notify_characteristic(handle, enable);
   }
+  int pair() { return this->backend_->pair(); }
+  int unpair() { return bluetooth_connection::unpair_device(this->address_); }
 
   // Automation callback registration.
   template<typename F> void add_on_connect_callback(F &&callback) {

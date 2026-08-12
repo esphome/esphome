@@ -23,19 +23,24 @@ const GattCharacteristic *find_characteristic(const GattServiceTable &table, con
   return nullptr;
 }
 
-uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic) {
+const GattDescriptor *find_descriptor(const GattServiceTable &table, const GattCharacteristic &characteristic,
+                                      const ESPBTUUID &uuid) {
   uint32_t end = uint32_t(characteristic.first_descriptor) + characteristic.descriptor_count;
   if (end > table.descriptor_count) {
-    // Corrupt range, not a missing CCCD.
+    // Corrupt range, not a missing descriptor.
     ESP_LOGW(TAG, "descriptor range out of bounds");
-    return 0;
+    return nullptr;
   }
-  const ESPBTUUID cccd_uuid = ESPBTUUID::from_uint16(CCCD_UUID);
   for (uint32_t i = characteristic.first_descriptor; i < end; i++) {
-    if (table.descriptors[i].uuid == cccd_uuid)
-      return table.descriptors[i].handle;
+    if (table.descriptors[i].uuid == uuid)
+      return &table.descriptors[i];
   }
-  return 0;
+  return nullptr;
+}
+
+uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic) {
+  const GattDescriptor *desc = find_descriptor(table, characteristic, ESPBTUUID::from_uint16(CCCD_UUID));
+  return desc != nullptr ? desc->handle : 0;
 }
 
 }  // namespace esphome::ble_device_base

@@ -171,6 +171,9 @@ inline const GattService *find_service(const GattServiceTable &table, const ESPB
 const GattCharacteristic *find_characteristic(const GattServiceTable &table, const GattService &service,
                                               const ESPBTUUID &uuid);
 
+const GattDescriptor *find_descriptor(const GattServiceTable &table, const GattCharacteristic &characteristic,
+                                      const ESPBTUUID &uuid);
+
 /// Handle of the characteristic's Client Characteristic Configuration
 /// descriptor (0x2902), or 0 when it has none.
 uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic);

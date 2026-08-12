@@ -243,6 +243,9 @@ void BLEClient::on_pairing_result(int status) {
   } else {
     ESP_LOGI(TAG, "[%s] Paired", this->address_str_);
   }
+  for (auto *node : this->nodes_) {
+    node->on_pairing_result(status);
+  }
 }
 
 void BLEClient::dump_config() {
