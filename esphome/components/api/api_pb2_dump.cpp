@@ -816,6 +816,16 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::ZWaveProxyStatus>(enums::ZWaveProxyStatus value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_STATUS_OK:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_OK");
+    case enums::ZWAVE_PROXY_STATUS_IN_USE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_IN_USE");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #endif
 #ifdef USE_SERIAL_PROXY
 template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::SerialProxyParity value) {
@@ -838,6 +848,10 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE");
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_FLUSH");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_CONFIGURE");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -854,6 +868,10 @@ template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::Ser
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_TIMEOUT");
     case enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED:
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_NOT_SUPPORTED");
+    case enums::SERIAL_PROXY_STATUS_PORT_IN_USE:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_PORT_IN_USE");
+    case enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_INVALID_ARGUMENT");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -2642,6 +2660,12 @@ const char *ZWaveProxyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyRequest"));
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZWaveProxyRequestType>(this->type));
   dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *ZWaveProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyRequestResponse"));
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZWaveProxyRequestType>(this->type));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::ZWaveProxyStatus>(this->status));
   return out.c_str();
 }
 #endif

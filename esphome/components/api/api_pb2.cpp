@@ -3945,6 +3945,18 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
   size += ProtoSize::calc_length(1, this->data_len);
   return size;
 }
+uint8_t *ZWaveProxyRequestResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->type));
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->status));
+  return pos;
+}
+uint32_t ZWaveProxyRequestResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += this->type ? 2 : 0;
+  size += this->status ? 2 : 0;
+  return size;
+}
 #endif
 #ifdef USE_INFRARED
 uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {

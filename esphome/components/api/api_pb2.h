@@ -334,6 +334,10 @@ enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
   ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
+enum ZWaveProxyStatus : uint32_t {
+  ZWAVE_PROXY_STATUS_OK = 0,
+  ZWAVE_PROXY_STATUS_IN_USE = 1,
+};
 #endif
 #ifdef USE_SERIAL_PROXY
 enum SerialProxyParity : uint32_t {
@@ -345,6 +349,8 @@ enum SerialProxyRequestType : uint32_t {
   SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
   SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2,
+  SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3,
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4,
 };
 enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_OK = 0,
@@ -352,6 +358,8 @@ enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_ERROR = 2,
   SERIAL_PROXY_STATUS_TIMEOUT = 3,
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4,
+  SERIAL_PROXY_STATUS_PORT_IN_USE = 5,
+  SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6,
 };
 #endif
 
@@ -3129,6 +3137,23 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
+};
+class ZWaveProxyRequestResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 151;
+  static constexpr uint8_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("z_wave_proxy_request_response"); }
+#endif
+  enums::ZWaveProxyRequestType type{};
+  enums::ZWaveProxyStatus status{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_INFRARED
