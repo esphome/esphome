@@ -306,7 +306,7 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 
 // Reads [address, address+size) into `out`. Returns false (already logged) on any failure;
 // `out` is left empty then, so a trigger never fires with half a result.
-bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
+StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
 // Same, but streams into a file on a mounted storage. size == 0 means "to the end of the device".
 StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
 // Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
@@ -354,9 +354,15 @@ template<typename... Ts> class RawReadAction : public Action<Ts...> {
     // Read-into-variable: this returns the bytes in a std::vector (RAM), so it stays
     // synchronous and is meant for small reads. Large content should use to_file instead.
     std::vector<uint8_t> data;
-    if (!perform_raw_read(this->device_, address, size, data))
-      return;  // already logged; no trigger on a failed read
+    StorageError err = perform_raw_read(this->device_, address, size, data);
+    if (err != StorageError::OK) {
+      // Failure was invisible before -- on_value simply never fired. Report it on on_complete
+      // (now allowed on the sync path too), matching the file actions.
+      this->complete_trigger_.trigger(std::string(error_to_string(err)));
+      return;
+    }
     this->value_trigger_.trigger(data);
+    this->complete_trigger_.trigger(std::string());  // success, empty error text
   }
 
  protected:

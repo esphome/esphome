@@ -368,13 +368,16 @@ static bool raw_read_into(RawStorage *device, uint64_t address, uint8_t *buf, si
   return true;
 }
 
-bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
+StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
   RawGeometry geo;
-  if (!raw_preflight(device, "read", address, size, &geo) || raw_size_allowed("read", size) != StorageError::OK)
-    return false;
+  if (!raw_preflight(device, "read", address, size, &geo))
+    return StorageError::INVALID_ARGS;
+  StorageError sz = raw_size_allowed("read", size);
+  if (sz != StorageError::OK)
+    return sz;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_read: device is busy with a background transfer -- refusing blocking I/O");
-    return false;
+    return StorageError::NOT_READY;
   }
   // std::vector::resize() cannot report a failed allocation in an exceptions-free build -- it
   // aborts. Ask the nothrow allocator first (null on failure) and hand the block straight back:
@@ -387,7 +390,7 @@ bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::ve
     uint8_t *probe = allocator.allocate(size);
     if (probe == nullptr) {
       ESP_LOGE(TAG, "raw_read: cannot allocate %" PRIu32 " bytes", (uint32_t) size);
-      return false;
+      return StorageError::NO_SPACE;
     }
     allocator.deallocate(probe, size);
   }
@@ -395,10 +398,10 @@ bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::ve
   size_t done = 0;
   if (!raw_read_into(device, address, out.data(), size, &done)) {
     out.clear();
-    return false;
+    return StorageError::READ_ERROR;
   }
   out.resize(done);
-  return true;
+  return StorageError::OK;
 }
 
 StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path) {
