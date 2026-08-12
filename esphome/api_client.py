@@ -79,8 +79,14 @@ async def async_run_logs(
         """Discover the device address via the MQTT broker in the background."""
         try:
             mqtt_ips = await asyncio.to_thread(mqtt_resolver, mqtt_stop_event)
-            if mqtt_ips and cli.add_addresses(mqtt_ips):
+            if not mqtt_ips:
+                return
+            if cli.add_addresses(mqtt_ips):
                 _LOGGER.info("Discovered address(es) via MQTT: %s", ", ".join(mqtt_ips))
+            else:
+                _LOGGER.debug(
+                    "MQTT-discovered address(es) already known: %s", ", ".join(mqtt_ips)
+                )
         except Exception:  # pylint: disable=broad-except
             # A background task failure would otherwise stay invisible for
             # the whole session and only re-raise at teardown
@@ -135,10 +141,14 @@ async def async_run_logs(
             # loop.shutdown_default_executor() for the full lookup timeout.
             mqtt_stop_event.set()
             mqtt_task.cancel()
-            # return_exceptions so a task that already died with an error
-            # can't re-raise here and jump over the stop() below
+            # return_exceptions keeps the CancelledError from the cancel()
+            # above from re-raising here and jumping over the stop() below.
+            # The task handles Exception itself, so only a BaseException
+            # escape (e.g. SystemExit from the worker) can land here.
             (result,) = await asyncio.gather(mqtt_task, return_exceptions=True)
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException) and not isinstance(
+                result, asyncio.CancelledError
+            ):
                 _LOGGER.error("MQTT address discovery failed", exc_info=result)
         await stop()
 
