@@ -1531,7 +1531,22 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
           req.raw_erase_pos += step;
         }
       }
-      err = req.raw_device->write(req.raw_address + req.offset, chunk, got, &moved);
+      // Write the chunk out fully -- write() may return a partial write, which is not an error
+      // (same retry-until-full loop the to_file branch above uses). The file source handle has
+      // already advanced by got, so the device offset must advance by got too; stopping at a short
+      // write would leave an unwritten hole and desync the two sides while still reporting OK.
+      size_t total_written = 0;
+      while (err == StorageError::OK && total_written < got) {
+        size_t written = 0;
+        err = req.raw_device->write(req.raw_address + req.offset + total_written, chunk + total_written,
+                                    got - total_written, &written);
+        if (err == StorageError::OK && written == 0) {
+          err = StorageError::WRITE_ERROR;  // no progress and no error -- a genuinely stuck device
+          break;
+        }
+        total_written += written;
+      }
+      moved = total_written;
     }
   }
   if (err != StorageError::OK || moved == 0) {
