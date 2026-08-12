@@ -248,7 +248,9 @@ void VoiceAssistant::stream_api_audio_() {
       msg.data2_len = available2;
     }
 
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      ESP_LOGV(TAG, "Audio frame dropped, TCP buffer full");
+    }
 
     this->audio_source_->consume(available);
     if (this->audio_source2_ != nullptr) {
@@ -477,7 +479,9 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg);
+          if (!this->api_client_->send_message(msg)) {
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+          }
           break;
         }
       }
@@ -741,7 +745,9 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg);
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
+  }
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -753,7 +759,9 @@ void VoiceAssistant::start_playback_timeout_() {
       return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+    }
   });
 }
 

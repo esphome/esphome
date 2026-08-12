@@ -234,16 +234,15 @@ class BluetoothProxy final : public Component {
   void flush_pending_advertisements_() {
     if (this->response_.advertisements_len == 0)
       return;
-    // The one deliberately ignored result: advertisements are perishable and
-    // this is the highest-frequency send here, so reporting each drop would be
-    // the flood the batch pacing exists to avoid.
-    this->api_connection_->send_message(this->response_);
+    // Perishable and the highest-frequency send here: a drop only reports at
+    // V, anything louder would be the flood the batch pacing exists to avoid.
+    [[maybe_unused]] bool sent = this->api_connection_->send_message(this->response_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    this->log_advertisement_flush_();
+    this->log_advertisement_flush_(sent);
 #endif
     this->response_.advertisements_len = 0;
   }
-  void log_advertisement_flush_();
+  void log_advertisement_flush_(bool sent);
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
