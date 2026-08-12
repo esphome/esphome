@@ -358,8 +358,10 @@ bool StorageRegistry::build_path(const PathStorage *s, const char *rel, char *ou
 // Shared guard-rail check for the blocking helpers below. No-op (returns OK) when no limit is
 // configured (registry unset, or max_blocking_transfer_size == 0).
 static StorageError check_blocking_transfer_size(uint64_t size) {
-  if (global_storage_registry == nullptr)
-    return StorageError::OK;
+  if (global_storage_registry == nullptr) {
+    ESP_LOGE(TAG, "no storage registry -- blocking-transfer size guard unavailable");
+    return StorageError::NOT_READY;  // guard unavailable, not "unlimited" -- matches raw_size_allowed()
+  }
   uint64_t limit = global_storage_registry->get_max_blocking_transfer_size();
   if (limit != 0 && size > limit)
     return StorageError::TRANSFER_TOO_LARGE;
