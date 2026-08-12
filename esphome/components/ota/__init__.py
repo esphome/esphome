@@ -99,7 +99,7 @@ async def to_code(config):
     cg.add_define("USE_OTA")
     CORE.add_job(final_step)
 
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("Updater", None)
 
 
@@ -151,14 +151,14 @@ async def final_step():
         cg.add_define("USE_OTA_STATE_LISTENER")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_backend_source_files = filter_source_files_from_platform(
     {
         "ota_backend_esp_idf.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
@@ -167,3 +167,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    files = _filter_backend_source_files()
+    # ota_signature_esp_idf.cpp implements multi-key OTA signature verification,
+    # compiled only when the esp32 component enables it (external RSA signed
+    # OTA sets USE_OTA_SIGNED_VERIFICATION_MULTI_KEY). The define is set only on
+    # ESP32/IDF, so this also excludes the file on every other platform. Filter
+    # it out otherwise so the (otherwise fully #ifdef'd-out) file isn't opened
+    # and parsed on every build.
+    if not any(
+        define.name == "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY"
+        for define in CORE.defines
+    ):
+        files.append("ota_signature_esp_idf.cpp")
+    return files

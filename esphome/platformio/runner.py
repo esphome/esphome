@@ -51,9 +51,13 @@ def patch_file_downloader() -> None:
     """Retry PlatformIO package downloads with exponential backoff.
 
     PlatformIO's ``FileDownloader`` uses an ``HTTPSession`` without built-in
-    retry for 502/503 errors. We wrap ``__init__`` to retry on
-    ``PackageException`` and close the session between attempts so a new
-    TCP connection can route to a different CDN edge node.
+    retry. We wrap ``__init__`` to retry on transient failures and close the
+    session between attempts so a new TCP connection can route to a different
+    CDN edge node. We catch both ``PackageException`` (raised when the server
+    returns a non-200 status such as 502/503) and ``OSError`` -- which covers
+    ``requests.exceptions.ConnectionError``, ``ReadTimeout``, and
+    ``ChunkedEncodingError`` (all subclasses of ``OSError``) that get raised
+    when the connection is aborted before a response is parsed.
     """
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
@@ -70,7 +74,7 @@ def patch_file_downloader() -> None:
             try:
                 original_init(self, *args, **kwargs)
                 return
-            except PackageException as e:
+            except (PackageException, OSError) as e:
                 if attempt < max_retries - 1:
                     delay = 2 ** (attempt + 1)
                     _LOGGER.warning(
@@ -90,7 +94,7 @@ def patch_file_downloader() -> None:
                             self._http_response.close()
                         if hasattr(self, "_http_session"):
                             self._http_session.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                     # pylint: enable=protected-access,broad-except
                     time.sleep(delay)
@@ -175,12 +179,24 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
     filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
 
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    stdout_redirect = sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    stderr_redirect = sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     import platformio.__main__
 
-    return platformio.__main__.main() or 0
+    # PlatformIO exits through ``sys.exit``, so drain from a finally to give
+    # a last line without a terminator a chance to reach the user. Drain the
+    # wrappers we made rather than sys.stdout, which PlatformIO is free to
+    # replace while it runs.
+    try:
+        return platformio.__main__.main() or 0
+    finally:
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
 
 
 if __name__ == "__main__":

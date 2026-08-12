@@ -13,9 +13,9 @@
 
 namespace esphome::atm90e32 {
 
-class ATM90E32Component : public PollingComponent,
-                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+class ATM90E32Component final : public PollingComponent,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;

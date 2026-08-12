@@ -25,7 +25,7 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
 #elif defined(USE_ETHERNET_W5100)
@@ -86,6 +86,9 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
+  ETHERNET_TYPE_GENERIC,
+  ETHERNET_TYPE_YT8531,
+  ETHERNET_TYPE_CH390,
 };
 
 struct ManualIP {
@@ -110,8 +113,10 @@ enum class EthernetComponentState : uint8_t {
 
 // Platform-neutral duplex/speed types
 #ifndef USE_ESP32
+// NOLINTBEGIN(readability-identifier-naming)
 enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
 enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
+// NOLINTEND(readability-identifier-naming)
 #endif
 
 class EthernetComponent final : public Component {
@@ -124,14 +129,33 @@ class EthernetComponent final : public Component {
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
+  // Per-interface lifecycle (parallels WiFiComponent::enable/disable/is_disabled).
+  // enable_on_boot defaults to true; when false, setup() runs all the driver/netif
+  // installation but skips esp_eth_start(), keeping the link cold until enable() is
+  // called. This is the primary lever for memory reclamation in multi-interface
+  // configurations where only one interface should carry traffic at a time.
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
+  bool is_disabled() { return this->disabled_; }
+  bool is_enabled() { return !this->disabled_; }
+
+#ifdef USE_ESP32
+  /// esp_netif handle, used by network for default-route arbitration.
+  /// nullptr until the driver/netif installation has run.
+  esp_netif_t *get_esp_netif() { return this->eth_netif_; }
+#endif
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
 #endif
-  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
+  void set_fixed_mac(const std::array<uint8_t, MAC_ADDRESS_SIZE> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
@@ -169,14 +193,14 @@ class EthernetComponent final : public Component {
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_clk_pin(uint8_t clk_pin);
   void set_miso_pin(uint8_t miso_pin);
   void set_mosi_pin(uint8_t mosi_pin);
   void set_cs_pin(uint8_t cs_pin);
   void set_interrupt_pin(int8_t interrupt_pin);
   void set_reset_pin(int8_t reset_pin);
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
@@ -194,6 +218,16 @@ class EthernetComponent final : public Component {
   void finish_connect_();
   void dump_connect_params_();
 
+#ifdef USE_ESP32
+  // ESP-IDF only: defers the SPI bus init, netif creation, MAC/PHY install, driver
+  // install, netif attach, and event handler registration (which together allocate
+  // ~3-8KB of DMA-capable internal SRAM via SPI driver state + eth driver RX queue)
+  // until ethernet actually needs to come up. Idempotent — guarded by the
+  // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
+  // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
+  void ethernet_lazy_init_();
+#endif
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
@@ -208,6 +242,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
+#ifdef USE_ETHERNET_YT8531
+  /// @brief Apply YT8531-specific config: re-enable auto-negotiation (disabled on
+  /// reset) and set the RGMII Tx/Rx clock delays needed for reliable data sampling.
+  void yt8531_phy_init_();
 #endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
@@ -244,7 +283,7 @@ class EthernetComponent final : public Component {
   esp_eth_phy_t *phy_{nullptr};
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
 #if defined(USE_ETHERNET_W5100)
   static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
@@ -273,7 +312,7 @@ class EthernetComponent final : public Component {
   uint8_t cs_pin_;
   int8_t interrupt_pin_{-1};
   int8_t reset_pin_{-1};
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
   // Common members
 #ifdef USE_ETHERNET_MANUAL_IP
@@ -287,12 +326,23 @@ class EthernetComponent final : public Component {
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  // Codegen-time YAML option. When false, setup() defers esp_eth_start().
+  bool enable_on_boot_{true};
+  // Mirror of "is the link intentionally stopped" — set when setup() honors
+  // enable_on_boot=false, cleared by enable(), set again by disable().
+  bool disabled_{false};
+#ifdef USE_ESP32
+  // Tracks whether ethernet_lazy_init_() has completed successfully. Allows enable()
+  // to be called at runtime after enable_on_boot:false without re-allocating, and
+  // ensures setup() skips the heavy init when enable_on_boot_ is false.
+  bool ethernet_initialized_{false};
+#endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
   bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
 
-  optional<std::array<uint8_t, 6>> fixed_mac_;
+  optional<std::array<uint8_t, MAC_ADDRESS_SIZE>> fixed_mac_;
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
@@ -307,7 +357,7 @@ class EthernetComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
