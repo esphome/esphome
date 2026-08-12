@@ -304,10 +304,11 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 // data are SYNCHRONOUS. The sync perform_raw_* helpers below back the small-content paths and the
 // no-worker fallback; the perform_*_async ones back the rest.
 
-// Reads [address, address+size) into `out`. Returns false (already logged) on any failure;
-// `out` is left empty then, so a trigger never fires with half a result.
+// Reads [address, address+size) into `out`. Returns a non-OK StorageError (already logged) on any
+// failure; `out` is left empty then, so a trigger never fires with half a result.
 StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
-// Same, but streams into a file on a mounted storage. size == 0 means "to the end of the device".
+// Same read, but written to a file on a mounted storage; the range is buffered in RAM as one block,
+// not streamed. size == 0 means "to the end of the device".
 StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
 // Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
