@@ -415,7 +415,12 @@ def _resolve_path_max(config: ConfigType) -> int:
         lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() in ("y", "true", "1"):
-            bounds.append(_FATFS_SHORT_NAME_MAX)
+            # 8.3 names only: STORAGE_PATH_MAX bounds the whole relative path (append_path_segment
+            # builds "/<name>" per level into one shared buffer), not a single filename. Size it for
+            # the deepest tree the walks descend -- _MAX_RECURSION_DEPTH segments of "/<short name>"
+            # plus the terminator -- so ordinary nested paths are not rejected with INVALID_ARGS on
+            # the device.
+            bounds.append(_FATFS_SHORT_NAME_MAX * _MAX_RECURSION_DEPTH + 1)
             return max(bounds)
         lfn = opts.get("CONFIG_FATFS_MAX_LFN", _FATFS_MAX_LFN_DEFAULT)
         # A YAML sdkconfig_options entry arrives wrapped so it is written out verbatim; the
