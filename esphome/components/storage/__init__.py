@@ -358,6 +358,10 @@ def _default_copy_chunk_size() -> int:
 # already suspends until the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config: ConfigType) -> None:
+    _LOGGER.warning(
+        "The storage component is experimental; its configuration and C++ API may change "
+        "without following the normal breaking-changes policy."
+    )
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
