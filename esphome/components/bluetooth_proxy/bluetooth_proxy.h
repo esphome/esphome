@@ -286,6 +286,12 @@ class BluetoothProxy final : public Component {
   void latch_pending_disconnection_(uint64_t address, conn_err_t error);
 #endif
 
+  /// Drop everything the ending session was owed. One list, so a new latch is
+  /// one edit rather than two call sites where an omission looks deliberate.
+  /// Drops state only, never sends: api_connection_ is the departing
+  /// subscriber on subscribe and nullptr on unsubscribe.
+  void reset_owed_replies_();
+
   // Memory optimized layout for 32-bit systems
   // Group 1: Pointers (4 bytes each, naturally aligned)
   api::APIConnection *api_connection_{nullptr};
