@@ -82,15 +82,12 @@ class BLEClient final : public BLEClientBase {
   // Nodes on the neutral surface; fed the translated callbacks and
   // auto-established after the on_connected fan-out.
   StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> gatt_nodes_;
-  // Bridge-initiated notify registrations awaiting REG_FOR_NOTIFY_EVT;
-  // bounded by the node count (one in-flight registration per node).
+  // Bridge-initiated notify registrations awaiting REG_FOR_NOTIFY_EVT.
   uint16_t pending_gatt_regs_[ESPHOME_BLE_CLIENT_MAX_NODES];
   uint8_t pending_gatt_reg_count_{0};
   // on_connected fan-out started; on_disconnected is owed at teardown.
   bool gatt_connected_{false};
-  // Backoff after materializer failures so a peer that reliably fails
-  // discovery cannot produce an unbounded reconnect loop (neutral-engine
-  // parity; wrap-safe start+duration pair).
+  // Reconnect backoff after materializer failures (wrap-safe start+duration).
   uint32_t gatt_hold_off_start_{0};
   uint32_t gatt_hold_off_ms_{0};
   uint8_t gatt_consecutive_failures_{0};
