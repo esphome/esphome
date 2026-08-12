@@ -331,6 +331,9 @@ def set_core_data(
     board_edt_cache: dict | None = None,
     board_yaml_cache: dict | None = None,
     board_root: Path | None = None,
+    shields: list[str] | None = None,
+    shield_root: Path | None = None,
+    snippet_root: Path | None = None,
 ) -> None:
     """Populate CORE.data for a Zephyr variant's config_schema().
 
@@ -376,6 +379,9 @@ def set_core_data(
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
         single_slot=config.get(CONF_SINGLE_SLOT, False),
+        shields=shields if shields is not None else [],
+        shield_root=shield_root,
+        snippet_root=snippet_root,
     )
 
 

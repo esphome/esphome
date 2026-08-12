@@ -13,7 +13,14 @@ import yaml
 import esphome.config_validation as cv
 from esphome.core import CORE
 
-from .const import KEY_BOARD_ROOT, KEY_ZEPHYR
+from .const import (
+    KEY_BOARD_ROOT,
+    KEY_SHIELD_ROOT,
+    KEY_SHIELDS,
+    KEY_SNIPPET_ROOT,
+    KEY_SNIPPETS,
+    KEY_ZEPHYR,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,25 +243,31 @@ def _load_edtlib(zephyr_base: Path | None):
 
 
 def _get_edt(board: str):
-    """Return a parsed edtlib.EDT for the board, or None when unavailable.
+    """Return a parsed edtlib.EDT for the board (merged with any selected shields:
+    and snippets: devicetree overlays), or None when unavailable.
 
-    Result is cached in CORE.data[KEY_ZEPHYR]["board_edt_cache"] so cpp is
-    only invoked once per board per run even when multiple lookups need it.
+    Result is cached in CORE.data[KEY_ZEPHYR]["board_edt_cache"], keyed on the
+    board plus the selected shields/snippets (a different selection can add or
+    remove nodes), so cpp is only invoked once per unique combination per run.
     """
+    zd = CORE.data.get(KEY_ZEPHYR, {})
+    shields: list[str] = zd.get(KEY_SHIELDS) or []
+    snippets: list[str] = zd.get(KEY_SNIPPETS) or []
+    cache_key = (board, tuple(shields), tuple(snippets))
+
     cache = CORE.data[KEY_ZEPHYR]["board_edt_cache"]
-    if board in cache:
-        result = cache[board]
+    if cache_key in cache:
+        result = cache[cache_key]
         return None if result is _NOT_FOUND else result
 
-    zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
 
     edtlib = _load_edtlib(Path(dts_base) if dts_base else None)
     if edtlib is None:
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
     if not dts_base:
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
 
     zephyr_base = Path(dts_base)
@@ -262,24 +275,69 @@ def _get_edt(board: str):
     board_dir = _find_board_dir(zephyr_base, board)
     if board_dir is None:
         _LOGGER.debug("[zephyr] Board directory not found for '%s'", board)
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
 
     dts_file = _find_dts_file(board_dir, board)
     if dts_file is None:
         _LOGGER.debug("[zephyr] No .dts file found for '%s' in %s", board, board_dir)
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
 
     preprocessed = _preprocess_dts(dts_file, zephyr_base, board_dir)
     if preprocessed is None:
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
+
+    # Shields/snippets contribute additional devicetree overlay fragments on top of
+    # the base board tree, applied at real build time via `-DSHIELD=`/`-S`. Mirror
+    # that here by cpp-preprocessing each fragment and concatenating it after the
+    # base dts text -- the same "one combined pre-processed file" approach Zephyr's
+    # own build (cmake/modules/dts.cmake) uses, so `&label { ... };` overlay-override
+    # syntax resolves against the preceding base tree exactly as it would for real.
+    overlay_texts = [preprocessed]
+    shield_root = zd.get(KEY_SHIELD_ROOT)
+    shield_search_roots = (
+        [Path(shield_root), zephyr_base] if shield_root else [zephyr_base]
+    )
+    for shield in shields:
+        shield_dir = _find_shield_dir(shield_search_roots, shield)
+        if shield_dir is None:
+            _LOGGER.debug(
+                "[zephyr] Shield directory not found for '%s'; DTS validation "
+                "won't see its nodes",
+                shield,
+            )
+            continue
+        for overlay_file in _shield_overlay_files(shield_dir, board):
+            text = _preprocess_dts_file(overlay_file, zephyr_base, [str(shield_dir)])
+            if text is not None:
+                overlay_texts.append(text)
+
+    snippet_root = zd.get(KEY_SNIPPET_ROOT)
+    snippet_search_roots = (
+        [Path(snippet_root), zephyr_base] if snippet_root else [zephyr_base]
+    )
+    for snippet in snippets:
+        snippet_dir = _find_snippet_dir(snippet_search_roots, snippet)
+        if snippet_dir is None:
+            _LOGGER.debug(
+                "[zephyr] Snippet directory not found for '%s'; DTS validation "
+                "won't see its nodes",
+                snippet,
+            )
+            continue
+        for overlay_file in _snippet_overlay_files(snippet_dir, board):
+            text = _preprocess_dts_file(
+                overlay_file, zephyr_base, [str(overlay_file.parent)]
+            )
+            if text is not None:
+                overlay_texts.append(text)
 
     with tempfile.NamedTemporaryFile(
         suffix=".dts", mode="w", delete=False, encoding="utf-8"
     ) as f:
-        f.write(preprocessed)
+        f.write("\n".join(overlay_texts))
         tmp_path = Path(f.name)
 
     try:
@@ -288,11 +346,11 @@ def _get_edt(board: str):
         edt = edtlib.EDT(
             str(tmp_path), bindings_dirs, warn_reg_unit_address_mismatch=False
         )
-        cache[board] = edt
+        cache[cache_key] = edt
         return edt
     except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.debug("[zephyr] edtlib parsing failed for '%s': %s", board, exc)
-        cache[board] = _NOT_FOUND
+        cache[cache_key] = _NOT_FOUND
         return None
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -449,7 +507,9 @@ def _read_dts_with_includes(
     return re.sub(r'#include\s+"([^"]+)"', _inline_include, text)
 
 
-def _preprocess_dts(dts_file: Path, zephyr_base: Path, board_dir: Path) -> str | None:
+def _preprocess_dts_file(
+    src_file: Path, zephyr_base: Path, extra_include_dirs: list[str]
+) -> str | None:
     cpp = _find_cpp()
     if cpp is None:
         _LOGGER.debug(
@@ -458,21 +518,137 @@ def _preprocess_dts(dts_file: Path, zephyr_base: Path, board_dir: Path) -> str |
         )
         return None
 
-    include_dirs = _get_dts_include_paths(zephyr_base) + [str(board_dir)]
+    include_dirs = _get_dts_include_paths(zephyr_base) + extra_include_dirs
 
     cmd = [cpp, "-x", "assembler-with-cpp", "-nostdinc", "-E", "-P"]
     for d in include_dirs:
         cmd += ["-I", d]
-    cmd.append(str(dts_file))
+    cmd.append(str(src_file))
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
         return result.stdout
     except subprocess.CalledProcessError as exc:
         _LOGGER.debug(
-            "[zephyr] cpp failed on %s: %s", dts_file.name, exc.stderr.strip()
+            "[zephyr] cpp failed on %s: %s", src_file.name, exc.stderr.strip()
         )
         return None
+
+
+def _preprocess_dts(dts_file: Path, zephyr_base: Path, board_dir: Path) -> str | None:
+    return _preprocess_dts_file(dts_file, zephyr_base, [str(board_dir)])
+
+
+def _find_in_search_roots(
+    search_roots: list[Path], subpath: str, name: str
+) -> Path | None:
+    """Return the first `<root>/<subpath>/<name>` directory that exists, or None.
+
+    Shared by _find_shield_dir()/_find_snippet_dir() -- both just need the first
+    matching root under a different fixed subpath (shields have no vendor
+    subdirectory layer, unlike boards, so the path is always directly
+    boards/shields/<shield>/; snippets are always directly under snippets/<name>/).
+    """
+    for root in search_roots:
+        candidate = root / subpath / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def _find_shield_dir(search_roots: list[Path], shield: str) -> Path | None:
+    """Find a shield's directory (boards/shields/<shield>/) under any search root."""
+    return _find_in_search_roots(search_roots, "boards/shields", shield)
+
+
+def _shield_overlay_files(shield_dir: Path, board: str) -> list[Path]:
+    """Return a shield's devicetree overlay file(s) for the given board.
+
+    A shield always contributes <shield_dir>/<shield>.overlay (applied to every
+    board it's used with), and may additionally contribute a board-specific
+    override at <shield_dir>/boards/<qualified board name>.overlay -- e.g. real
+    upstream shields name this file boards/nrf5340dk_nrf5340_cpuapp.overlay for
+    board "nrf5340dk/nrf5340/cpuapp", keeping every board-string segment (unlike
+    some base board .dts files, which drop a redundant soc segment). Reuses
+    _find_qualified_file()'s exact naming/fallback convention rather than
+    reimplementing a (previously buggy) bare-board-name-only lookup.
+    """
+    files = []
+    base_overlay = shield_dir / f"{shield_dir.name}.overlay"
+    if base_overlay.is_file():
+        files.append(base_overlay)
+    board_overlay = _find_qualified_file(shield_dir / "boards", board, ".overlay")
+    if board_overlay is not None:
+        files.append(board_overlay)
+    return files
+
+
+def _find_snippet_dir(search_roots: list[Path], snippet: str) -> Path | None:
+    """Find a snippet's directory (snippets/<snippet>/) under any search root."""
+    return _find_in_search_roots(search_roots, "snippets", snippet)
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Normalize a snippet.yml append: value into a list of strings.
+
+    CMake's EXTRA_DTC_OVERLAY_FILE is itself a list-typed cache variable, so a
+    snippet.yml is free to declare it as a YAML list rather than a single string --
+    without this, a list value would reach `snippet_dir / p` and raise TypeError.
+    """
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    return [str(value)]
+
+
+def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
+    """Return a snippet's devicetree overlay file(s) for board, from snippet.yml.
+
+    A real snippet.yml declares overlay paths rather than shipping a fixed
+    <name>.overlay at its root -- e.g. Espressif's own flash-size snippets (cited in
+    zephyr:'s snippets: schema comment) key an EXTRA_DTC_OVERLAY_FILE path per-SoC
+    under boards: <regex>:. Both the top-level append: (applies to every board) and
+    any boards: entry whose regex matches `board` are included -- CMake's
+    zephyr_get() accumulates rather than replaces, so a real `west build` applies
+    both together when both are present.
+    """
+    yml_file = snippet_dir / "snippet.yml"
+    if not yml_file.is_file():
+        return []
+    try:
+        doc = yaml.safe_load(yml_file.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        _LOGGER.debug(
+            "[zephyr] Failed to parse snippet.yml for '%s': %s", snippet_dir.name, exc
+        )
+        return []
+    if not isinstance(doc, dict):
+        return []
+
+    rel_paths: list[str] = []
+    rel_paths.extend(
+        _as_str_list((doc.get("append") or {}).get("EXTRA_DTC_OVERLAY_FILE"))
+    )
+
+    for pattern, board_conf in (doc.get("boards") or {}).items():
+        # Patterns are written /<regex>/ -- strip the delimiters before matching.
+        regex = pattern.strip("/")
+        if not isinstance(board_conf, dict):
+            continue
+        try:
+            matched = re.fullmatch(regex, board) is not None
+        except re.error:
+            matched = False
+        if matched:
+            rel_paths.extend(
+                _as_str_list(
+                    (board_conf.get("append") or {}).get("EXTRA_DTC_OVERLAY_FILE")
+                )
+            )
+
+    files = [snippet_dir / p for p in rel_paths]
+    return [f for f in files if f.is_file()]
 
 
 def _find_cpp() -> str | None:
@@ -846,6 +1022,7 @@ def log_board_capabilities(
     variant,
     framework_ver: str,
     board_root: Path | None,
+    shields: list[str] | None = None,
 ) -> None:
     """Log one combined block describing what Zephyr thinks this board can do.
 
@@ -862,11 +1039,14 @@ def log_board_capabilities(
     )
     lines = [
         f"[zephyr] Board '{board}' ({source}), Zephyr {framework_ver}",
-        (
-            "[zephyr] hardware, as defined by the board itself "
-            "(independent of what ESPHome currently uses):"
-        ),
     ]
+    if shields:
+        lines.append(f"[zephyr] Shields: {', '.join(shields)}")
+    lines.append(
+        "[zephyr] hardware, as defined by the board itself"
+        + (" and its shield(s)" if shields else "")
+        + " (independent of what ESPHome currently uses):"
+    )
 
     yaml_supported = get_board_yaml_supported(board)
     lines.append(

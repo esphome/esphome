@@ -215,6 +215,9 @@ def run_west_build(
     extra_modules: list[Path] | None = None,
     board_root: Path | None = None,
     snippets: list[str] | None = None,
+    shield_root: Path | None = None,
+    shields: list[str] | None = None,
+    snippet_root: Path | None = None,
 ) -> None:
     """Run west build for a Zephyr native build.
 
@@ -255,6 +258,12 @@ def run_west_build(
         west_cmd.append(f"--cmake-opt=-DEXTRA_ZEPHYR_MODULES={modules_list}")
     if board_root is not None:
         west_cmd.append(f"--cmake-opt=-DBOARD_ROOT={board_root}")
+    if shield_root is not None:
+        west_cmd.append(f"--cmake-opt=-DSHIELD_ROOT={shield_root}")
+    if shields:
+        west_cmd.append(f"--cmake-opt=-DSHIELD={';'.join(shields)}")
+    if snippet_root is not None:
+        west_cmd.append(f"--cmake-opt=-DSNIPPET_ROOT={snippet_root}")
     for snippet in snippets or []:
         west_cmd += ["-S", snippet]
 
