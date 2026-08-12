@@ -111,6 +111,7 @@ bool BluedroidServiceTable::build(esp_gatt_if_t gattc_if, uint16_t conn_id, uint
                              });
   if (!counted) {
     ESP_LOGW(TAG, "[%d] Service table walk failed during count", this->log_index_);
+    this->free();
     return false;
   }
 
@@ -124,6 +125,7 @@ bool BluedroidServiceTable::build(esp_gatt_if_t gattc_if, uint16_t conn_id, uint
   if (this->storage_ == nullptr) {
     ESP_LOGW(TAG, "[%d] Service table allocation failed (%u bytes)", this->log_index_,
              static_cast<unsigned>(total_bytes));
+    this->free();
     return false;
   }
   auto *services = reinterpret_cast<ble_device_base::GattService *>(this->storage_);

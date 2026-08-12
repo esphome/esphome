@@ -57,7 +57,13 @@ void BLEClient::set_enabled(bool enabled) {
   if (!enabled) {
     ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str());
     this->disconnect();
+    return;
   }
+#ifdef USE_BLE_CLIENT_GATT_NODES
+  // A re-enable clears the backoff (neutral-engine parity).
+  this->gatt_consecutive_failures_ = 0;
+  this->gatt_hold_off_ms_ = 0;
+#endif
 }
 
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -301,6 +307,7 @@ int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
   if (enable) {
     for (uint8_t i = 0; i < this->pending_gatt_reg_count_; i++) {
       if (this->pending_gatt_regs_[i] == handle) {
+        // ESP_OK: the in-flight registration's completion fans out to all nodes.
         ESP_LOGW(TAG, "[%s] Notify registration already pending for handle 0x%04x", this->address_str(), handle);
         return ESP_OK;
       }

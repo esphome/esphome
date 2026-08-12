@@ -41,13 +41,14 @@ class BluedroidServiceTable {
             this->desc_total_};
   }
 
+  // Always resets the counts: a failed build must never leave a non-zero
+  // service_total_ behind a null table.
   void free() {
-    if (this->storage_ == nullptr) {
-      return;
+    if (this->storage_ != nullptr) {
+      RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+      allocator.deallocate(this->storage_, 0);
+      this->storage_ = nullptr;
     }
-    RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-    allocator.deallocate(this->storage_, 0);
-    this->storage_ = nullptr;
     this->service_total_ = 0;
     this->char_total_ = 0;
     this->desc_total_ = 0;
