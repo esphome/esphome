@@ -787,10 +787,15 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
     if (state == StreamState::FREE || state == StreamState::DONE)
       continue;
     if (state == StreamState::IDLE) {
-      // No I/O in flight and no pending step queued -- finish immediately, no drain needed.
+      // No I/O in flight and no pending step queued -- finish immediately, no drain needed. Capture
+      // the close result (a FATFS flush failure surfaces here) and clear the handle, so a failed
+      // flush is not lost and the slot does not carry a dangling pointer until the next begin_*().
+      StorageError close_err = StorageError::OK;
       if (req.is_fs && req.handle != nullptr)
-        static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
-      req.result = StorageError::NOT_READY;
+        close_err = static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
+      req.handle = nullptr;
+      // Only fall back to NOT_READY (this drain's "storage went away" answer) when the close was clean.
+      req.result = close_err != StorageError::OK ? close_err : StorageError::NOT_READY;
       req.state = StreamState::DONE;
       continue;
     }
