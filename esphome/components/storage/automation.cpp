@@ -183,24 +183,24 @@ static bool worker_task_busy(const Storage *s) {
 #endif
 }
 
-void perform_file_write(const std::string &path, std::string content, bool append, bool newline) {
+StorageError perform_file_write(const std::string &path, std::string content, bool append, bool newline) {
   const char *op = append ? "append" : "write";
   if (newline)
     content += '\n';
 
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage registry", op);
-    return;
+    return StorageError::NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage mounted for '%s'", op, path.c_str());
-    return;
+    return StorageError::NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "file_%s: '%s' is busy with a background transfer -- refusing blocking I/O", op, path.c_str());
-    return;
+    return StorageError::NOT_READY;
   }
 
   StorageError err;
@@ -216,6 +216,7 @@ void perform_file_write(const std::string &path, std::string content, bool appen
   if (err != StorageError::OK) {
     ESP_LOGE(TAG, "file_%s: writing '%s' failed (%s)", op, path.c_str(), error_to_string(err));
   }
+  return err;
 }
 
 bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out) {
@@ -244,7 +245,13 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
     return false;
   }
 
-  out.assign(reinterpret_cast<const char *>(buf.get()), size);
+  // read_file() hands back a null buffer for a zero-byte file; assign(nullptr, 0) is UB the
+  // standard does not permit (trips _GLIBCXX_ASSERTIONS / UBSan), so guard the empty case.
+  if (size > 0) {
+    out.assign(reinterpret_cast<const char *>(buf.get()), size);
+  } else {
+    out.clear();
+  }
   for (const auto &step : steps) {
     if (!apply_extract_step(step, out))
       return false;  // step already logged; global untouched, no trigger
@@ -402,6 +409,12 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
     return StorageError::NOT_READY;
   }
 
+  if constexpr (sizeof(size_t) < sizeof(uint64_t)) {
+    if (size > static_cast<uint64_t>(SIZE_MAX)) {
+      ESP_LOGE(TAG, "raw_read: requested size exceeds this target's address space");
+      return StorageError::NO_SPACE;
+    }
+  }
   auto buf_size = static_cast<size_t>(size);
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr) {

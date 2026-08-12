@@ -41,7 +41,7 @@ namespace esphome::storage {
 // manual .c_str() -- and args that already have one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
 template<typename T> inline T printf_arg(T v) {
-  static_assert(std::is_trivially_copyable_v<T>,
+  static_assert(std::is_scalar_v<T>,
                 "storage printf args must be scalars or strings; add .c_str() or convert first");
   return v;
 }
@@ -200,7 +200,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
                              Trigger<std::string> *on_complete);
 StorageError perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
-void perform_file_write(const std::string &path, std::string content, bool append, bool newline);
+StorageError perform_file_write(const std::string &path, std::string content, bool append, bool newline);
 bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out);
 
 // ---------------------------------------------------------------------------
@@ -218,13 +218,18 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, content)
   void set_newline(bool newline) { this->newline_ = newline; }
 
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
+
   void play(const Ts &...x) override {
-    perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    StorageError err =
+        perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
   bool append_;
   bool newline_{false};
+  Trigger<std::string> complete_trigger_;
 };
 
 // ---------------------------------------------------------------------------

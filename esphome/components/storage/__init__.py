@@ -577,6 +577,9 @@ def _file_write_schema(newline_default: bool) -> cv.All:
                 cv.Optional(CONF_FORMAT): cv.string,
                 cv.Optional(CONF_ARGS, default=[]): cv.ensure_list(cv.lambda_),
                 cv.Optional(CONF_NEWLINE, default=newline_default): cv.boolean,
+                # Fires (error text, empty = success) after the write/append: a refused (busy) or
+                # failed write is otherwise invisible to the automation.
+                cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
             }
         ),
         _validate_write_content,
@@ -714,6 +717,10 @@ async def _build_write_action(
         )
         cg.add(var.set_content(lambda_))
     cg.add(var.set_newline(config[CONF_NEWLINE]))
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
     return var
 
 
