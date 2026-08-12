@@ -55,22 +55,20 @@ def validate_sector_multiple(value: int) -> int:
     return value
 
 
-# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
-# Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
-# is a sanity cap so a typo can't request an unreasonable single allocation (e.g. 16777216).
+# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h. Lower bound matches
+# copy()'s allocation floor (4096, storage.cpp); upper bound is a sanity cap against a typo
+# requesting an unreasonable single allocation.
 #
-# The task_*/max_pending keys only take effect when the async worker (storage_worker.h/.cpp,
-# compiled in as USE_STORAGE_WORKER) is actually pulled in by a path-based driver, via that
-# driver's own request_storage_worker() call in its to_code() (mirrors how sd_storage already
-# calls request_storage_device()). If no such driver is configured, these keys are simply
-# unused, same as any other config key with no effect in a given configuration.
+# The task_*/max_pending keys take effect only when the async worker (USE_STORAGE_WORKER) is pulled
+# in by a path-based driver via its own request_storage_worker() in to_code() (mirrors sd_storage's
+# request_storage_device()). With no such driver they are simply unused.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
-        # The async worker is a second component minted from this same storage: block. Declaring
-        # its id here means validation registers it like any component, so the standard component
-        # count includes it -- it is only actually built (new_Pvariable) when a driver pulls the
-        # worker in via request_storage_worker().
+        # The async worker is a second component minted from this same storage: block. Declaring its
+        # id here lets validation register it like any component, so the component count includes it;
+        # it is only built (new_Pvariable) when a driver pulls the worker in via
+        # request_storage_worker().
         cv.GenerateID(CONF_WORKER_ID): cv.declare_id(StorageWorker),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
@@ -78,25 +76,23 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_COPY_CHUNK_SIZE): cv.All(
             cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
-        # Longest relative path the API carries. No static default: absent means "the largest
-        # any configured driver asked for" (see request_path_length / to_code). Raising it also
-        # raises the tree walks' stack use -- two buffers per recursion level -- so the range
-        # is bounded and _validate_walk_budget() below checks it against task_stack_size.
+        # Longest relative path the API carries. No static default: absent means "the largest any
+        # configured driver asked for" (see request_path_length / to_code). Raising it also raises
+        # the tree walks' stack use (two buffers per level), so the range is bounded and
+        # _validate_walk_budget() below checks it against task_stack_size.
         cv.Optional(CONF_PATH_MAX): cv.int_range(min=64, max=1024),
-        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload
-        # in RAM: storage.file_read takes whatever size the file happens to be, and on a node
-        # without PSRAM that is the one storage action whose cost the automation author does
-        # not choose. Anything bigger belongs on the worker (storage.file_copy, raw_write
-        # from_file). It also bounds storage.preferences_export/import, which share these
-        # helpers -- an export past the ceiling is a sign to narrow it with the action's
-        # `preferences:` filter. 0 disables the check. See storage.h for the C++ side.
+        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload in RAM.
+        # storage.file_read takes whatever size the file happens to be -- on a node without PSRAM,
+        # the one storage action whose cost the author does not choose; anything bigger belongs on
+        # the worker. It also bounds storage.preferences_export/import (same helpers); past the
+        # ceiling, narrow with the action's `preferences:` filter. 0 disables. See storage.h.
         cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
             min=0
         ),
-        # A same-storage move is a rename, which some backends refuse across their own
-        # internals (an NFS export can span file systems, and RENAME never crosses one).
-        # On, such a refusal is redone as copy + remove so the move still happens; off, it is
-        # reported instead of quietly turning a directory-entry update into a full copy.
+        # A same-storage move is a rename, which some backends refuse across their own internals
+        # (an NFS export can span file systems, and RENAME never crosses one). On: redo the refusal
+        # as copy + remove so the move still happens; off: report it instead of quietly turning a
+        # directory-entry update into a full copy.
         cv.Optional(CONF_MOVE_FALLBACK_COPY, default=True): cv.boolean,
         # FATFS LFN + NFS/lwIP transfers both need headroom on the worker task's stack.
         cv.Optional(CONF_TASK_STACK_SIZE, default=8192): cv.int_range(
@@ -118,11 +114,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_WORKER_UPDATE_INTERVAL, default="5ms"
         ): cv.positive_time_period_milliseconds,
-        # Fired for every storage device, not just file-browser-style consumers -- any
-        # component that cares about hotplug/availability can listen here instead of
-        # each reinventing its own notion of "storage changed". See
-        # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
-        # in storage.h.
+        # Fired for every storage device, not just file-browser consumers -- any component that
+        # cares about hotplug/availability listens here instead of reinventing "storage changed".
+        # See StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback() in
+        # storage.h.
         cv.Optional(CONF_ON_REGISTERED): automation.validate_automation({}),
         cv.Optional(CONF_ON_UNREGISTERED): automation.validate_automation({}),
     }
@@ -310,13 +305,12 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
-# Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
-# (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
-# so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
-# allocator (alloc_dma_capable): on the worker task -- which has no 20 ms budget -- S3/P4 stage a
-# 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
-# explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
-# to keep FATFS whole-sector transfers.
+# Default streaming/copy chunk size. Flat 16 kB everywhere: the 20 ms loop-slice budget caps a
+# main-loop chunk near 16 kB even on the fastest S3 SD path, so a larger loop chunk is unsafe. The
+# platform distinction lives one level down in the C++ allocator (alloc_dma_capable): the worker
+# task (no 20 ms budget) stages a larger DMA-capable PSRAM chunk on S3/P4, loop-path buffers stay
+# 16 kB internal. An explicit copy_chunk_size overrides this. Multiple of 512 for FATFS
+# whole-sector transfers.
 _DEFAULT_COPY_CHUNK_SIZE = 16384
 
 
@@ -324,10 +318,10 @@ _DEFAULT_COPY_CHUNK_SIZE = 16384
 # Mirrors STORAGE_PATH_MAX's compile-time fallback in storage.h.
 _DEFAULT_PATH_MAX = 256
 
-# The copy walk's two path buffers are allocated once and shared by every level (see
-# append_path_segment in storage.cpp), so they are a flat cost. What scales with depth is the
-# walk's own frame plus the driver's list_dir()/remove() frames, where the FATFS LFN buffers
-# dominate. Keep 25% of the task stack free for whatever called into the walk.
+# The copy walk's two path buffers are allocated once and shared by every level (append_path_segment
+# in storage.cpp), a flat cost. What scales with depth is the walk's own frame plus the driver's
+# list_dir()/remove() frames (FATFS LFN buffers dominate). Keep 25% of the task stack free for the
+# caller.
 _WALK_DRIVER_STACK_PER_LEVEL = 830
 _WALK_STACK_HEADROOM = 0.75
 
@@ -404,12 +398,12 @@ def _default_copy_chunk_size() -> int:
     return _DEFAULT_COPY_CHUNK_SIZE
 
 
-# storage is a dependency of every driver and would otherwise run BEFORE them (default
-# priority), reading device_count/worker_count as 0 -- every driver's own to_code() is where
-# request_storage_device()/request_storage_worker() actually get called. LATE (-100) runs
-# after all default-priority driver to_code()s, so those counts are final by the time this
-# reads them. Consumers awaiting the registry/worker variables (e.g. via cg.get_variable())
-# are unaffected either way, since that call already suspends until the variable exists.
+# storage is a dependency of every driver and would otherwise run BEFORE them (default priority),
+# reading device_count/worker_count as 0 -- each driver's own to_code() is where
+# request_storage_device()/request_storage_worker() are called. LATE (-100) runs after all
+# default-priority driver to_code()s, so those counts are final here. Consumers awaiting the
+# registry/worker variables (cg.get_variable()) are unaffected -- that call already suspends until
+# the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[cv.GenerateID()])
@@ -417,10 +411,9 @@ async def to_code(config: ConfigType) -> None:
 
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
-    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
-    # Only emit it when a driver actually registered a device; with none (every config in
-    # tests/components/storage/) storage.h keeps its own >0 fallback, so the header comment
-    # that the fallback is unreachable in real builds stays true.
+    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*. Only emit it
+    # when a driver registered a device; with none (every tests/components/storage/ config) storage.h
+    # keeps its own >0 fallback, so the header's "fallback unreachable in real builds" stays true.
     if device_count > 0:
         cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
@@ -448,10 +441,9 @@ async def to_code(config: ConfigType) -> None:
             raw = config[CONF_TASK_STACK_SIZE]
             budget = int(raw * _WALK_STACK_HEADROOM)
             if needed > raw:
-                # This runs in a codegen job (path_max can depend on a FATFS bound the esp32
-                # component reconciles at FINAL), not during validation, so cv.Invalid would escape
-                # the validation machinery and reach the user as a raw traceback. EsphomeError is
-                # caught by the CLI and logged as a clean error line.
+                # Runs in a codegen job (path_max can depend on a FATFS bound the esp32 component
+                # reconciles at FINAL), not validation, so cv.Invalid would escape and reach the user
+                # as a raw traceback. EsphomeError is caught by the CLI and logged cleanly.
                 raise EsphomeError(
                     f"storage: a {_MAX_RECURSION_DEPTH}-level tree walk with path_max {path_max} "
                     f"needs roughly {needed} bytes of stack, which exceeds task_stack_size ({raw}) "
