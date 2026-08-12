@@ -600,6 +600,11 @@ class StorageWorker : public PollingComponent {
   // never actually issues an async transfer or stream never pays for any of it -- setup() itself
   // only subscribes to the hotplug callback. Idempotent: subsequent calls are a no-op once
   // started_ is set.
+  //
+  // Tradeoff: deliberate heap use after setup() (AGENTS.md #7) -- both pools, queue and task stack,
+  // several kB in one go at first submit, not boot, when the heap is most fragmented. One-shot. Cost
+  // is diagnosability: a boot failure is obvious; the same at first use degrades to loop-sliced (or
+  // fails the submit).
   void ensure_started_();
 
   // True if every storage involved may have its data-plane calls run off the main loop.
