@@ -12,12 +12,9 @@
 #if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
 
 #include <tuple>
-#include <vector>
 
 #include "ble_client_gatt.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 
 namespace esphome::ble_client {
 

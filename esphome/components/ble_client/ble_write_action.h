@@ -6,20 +6,22 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_BLE_CLIENT_GATT_NODES) || (defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32))
+#ifdef USE_BLE_CLIENT_GATT_NODES
 
 #include <tuple>
 #include <vector>
 
-// One of the two resolves per build; both define class Automation's TAG box.
-#include "automation.h"
-#include "automation_gatt.h"
+// One of the two engine headers resolves per build.
+#include "ble_client.h"
+#include "ble_client_gatt.h"
 #include "ble_client_node.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ble_client {
+
+static const char *const BLE_WRITE_TAG = "ble_client.automation";
 
 // Maximum bytes to log in hex format for BLE writes (many logging buffers are 256 chars)
 static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 64;
@@ -75,20 +77,20 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
   // handle is armed before the backend is touched.
   bool write(const uint8_t *data, size_t len) {
     if (!this->ble_client_->connected()) {
-      esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
+      esph_log_w(BLE_WRITE_TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
     if (!this->resolved_) {
-      esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - characteristic was not resolved");
+      esph_log_w(BLE_WRITE_TAG, "Cannot write to BLE characteristic - characteristic was not resolved");
       return false;
     }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     char hex_buf[format_hex_pretty_size(BLE_WRITE_MAX_LOG_BYTES)];
-    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty_to(hex_buf, data, len));
+    esph_log_vv(BLE_WRITE_TAG, "Will write %d bytes: %s", len, format_hex_pretty_to(hex_buf, data, len));
 #endif
     int err = this->ble_client_->write_characteristic(this->char_handle_, data, len, this->write_response_);
     if (err != 0) {
-      esph_log_e(Automation::TAG, "Error writing to characteristic: %d!", err);
+      esph_log_e(BLE_WRITE_TAG, "Error writing to characteristic: %d!", err);
       return false;
     }
     return true;
@@ -101,7 +103,7 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
     if (chr == nullptr) {
       char char_buf[ble_device_base::UUID_STR_LEN];
       char service_buf[ble_device_base::UUID_STR_LEN];
-      esph_log_w("ble_write_action", "Characteristic %s was not found in service %s", this->char_uuid_.to_str(char_buf),
+      esph_log_w(BLE_WRITE_TAG, "Characteristic %s was not found in service %s", this->char_uuid_.to_str(char_buf),
                  this->service_uuid_.to_str(service_buf));
       return;
     }
@@ -111,13 +113,13 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
       this->write_response_ = false;
     } else {
       char char_buf[ble_device_base::UUID_STR_LEN];
-      esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
+      esph_log_e(BLE_WRITE_TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
       return;
     }
     this->char_handle_ = chr->value_handle;
     this->resolved_ = true;
     char char_buf[ble_device_base::UUID_STR_LEN];
-    esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
+    esph_log_d(BLE_WRITE_TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
                this->ble_client_->address_str());
   }
 
@@ -135,13 +137,13 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
     if (!this->resolved_ || handle != this->char_handle_) {
       // A parked chain waiting on a completion that never matches would
       // otherwise stall silently until disconnect.
-      esph_log_d(Automation::TAG, "Write result for handle 0x%04x ignored, waiting on 0x%04x", handle,
+      esph_log_d(BLE_WRITE_TAG, "Write result for handle 0x%04x ignored, waiting on 0x%04x", handle,
                  this->char_handle_);
       return;
     }
     if (error != 0) {
       // Continue the chain (legacy parity) but leave a breadcrumb.
-      esph_log_w(Automation::TAG, "Write completed with status %d", error);
+      esph_log_w(BLE_WRITE_TAG, "Write completed with status %d", error);
     }
     this->ble_client_->run_later([this]() { this->play_next_tuple_(this->var_); });
   }
@@ -163,4 +165,4 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
 
 }  // namespace esphome::ble_client
 
-#endif  // USE_BLE_CLIENT_GATT_NODES || (USE_BLE_GATT_CLIENT && !USE_ESP32)
+#endif  // USE_BLE_CLIENT_GATT_NODES

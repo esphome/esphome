@@ -24,7 +24,7 @@ class BLEClient;
 
 class BLEClientNode {
  public:
-#if defined(USE_BLE_CLIENT_GATT_NODES) || (defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32))
+#ifdef USE_BLE_CLIENT_GATT_NODES
   // Neutral surface, delivered by both engines. The table is borrowed
   // backend storage, valid only for the duration of on_connected(): copy the
   // handles you need. All nodes see all completions/notifications; filter by

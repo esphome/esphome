@@ -338,13 +338,13 @@ async def register_ble_node(var, config):
 
 
 def _request_gatt_node_build() -> None:
-    """Node storage plus, on esp32, the bridge and shared-materializer
-    defines one neutral node needs compiled in."""
+    """Node storage and the one define meaning "the neutral node surface is
+    compiled in", plus the esp32 bridge/materializer defines."""
     _request_node_slot()
+    cg.add_define("USE_BLE_CLIENT_GATT_NODES")
     if CORE.is_esp32:
         # Deliberately not ble_device_base.request_gatt_client(): that would
         # claim a phantom backend slot on combined proxy builds.
-        cg.add_define("USE_BLE_CLIENT_GATT_NODES")
         cg.add_define("USE_BLE_GATT_CLIENT")
         cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
 
@@ -538,7 +538,9 @@ _request_node_slot = cg.slot_counter("ESPHOME_BLE_CLIENT_MAX_NODES")
 
 
 async def _to_code_gatt(config: ConfigType) -> cg.MockObj:
-    _request_node_slot()
+    # The engine always carries the node surface (the client itself owns the
+    # baseline slot).
+    _request_gatt_node_build()
     backend = await bluetooth_connection.new_gatt_backend(config)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
