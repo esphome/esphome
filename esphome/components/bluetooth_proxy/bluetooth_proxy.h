@@ -348,6 +348,12 @@ class BluetoothProxy final : public Component {
   uint8_t connection_count_{0};
 #endif
   bool configured_scan_active_{false};  // Configured scan mode from YAML
+#ifdef USE_WIFI
+  /// Wi-Fi only: flush on every other non-empty tick (~200 ms) so partial
+  /// batches fill; an idle tick re-arms, so the first batch after a gap
+  /// still ships on the next tick. See loop().
+  bool adv_flush_toggle_{false};
+#endif
 #ifdef USE_BLE_SCANNER_STATE_CALLBACK
   // A dropped push (full TX buffer) is re-queried from the hub and resent
   // from loop(); the hub's current state is idempotent by construction.
