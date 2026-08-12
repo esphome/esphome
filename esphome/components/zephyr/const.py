@@ -30,6 +30,12 @@ CONF_SNIPPETS = "snippets"
 KEY_SNIPPETS: Final = "snippets"
 CONF_SINGLE_SLOT = "single_slot"
 KEY_SINGLE_SLOT: Final = "single_slot"
+CONF_SHIELDS = "shields"
+CONF_SHIELD_SOURCE = "shield_source"
+KEY_SHIELDS: Final = "shields"
+KEY_SHIELD_ROOT: Final = "shield_root"
+CONF_SNIPPET_SOURCE = "snippet_source"
+KEY_SNIPPET_ROOT: Final = "snippet_root"
 
 # zephyr: version: "recommended" -- explicit alias for the variant's default_version,
 # same as omitting `version:` entirely.

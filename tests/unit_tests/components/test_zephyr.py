@@ -8,6 +8,8 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.zephyr import (
+    _resolve_shield_source,
+    _resolve_snippet_source,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
@@ -580,3 +582,41 @@ def test_upload_program_raises_when_zephyr_config_missing_from_cache() -> None:
 
     with pytest.raises(EsphomeError, match="re-validate and recompile"):
         upload_program(config, object(), "some_host")
+
+
+# ---------------------------------------------------------------------------
+# _resolve_shield_source / _resolve_snippet_source -- board_root fallback must
+# still be validated against, not just an explicit shield_source:/snippet_source:
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_shield_source_returns_none_without_board_root() -> None:
+    # No shield_source: and no board_source: (board_root=None) either -- nothing
+    # to validate against, defers to DTS validation against the SDK's own tree.
+    assert _resolve_shield_source({}, ["nrf7002ek"], None) is None
+
+
+def test_resolve_shield_source_validates_against_board_root_fallback(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "boards" / "shields" / "nrf7002ek").mkdir(parents=True)
+    (tmp_path / "boards" / "shields" / "nrf7002ek" / "shield.yml").write_text(
+        "shield:\n  name: nrf7002ek\n"
+    )
+
+    result = _resolve_shield_source({}, ["nrf7002ek"], tmp_path)
+    assert result == tmp_path
+
+
+def test_resolve_shield_source_raises_for_missing_shield_under_board_root(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(cv.Invalid, match="Could not find boards/shields"):
+        _resolve_shield_source({}, ["no_such_shield"], tmp_path)
+
+
+def test_resolve_snippet_source_raises_for_missing_snippet_under_board_root(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(cv.Invalid, match="Could not find snippets"):
+        _resolve_snippet_source({}, ["no_such_snippet"], tmp_path)

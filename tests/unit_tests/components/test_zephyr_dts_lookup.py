@@ -13,8 +13,13 @@ from esphome.components.zephyr.dts_lookup import (
     _find_board_dir,
     _find_board_yaml,
     _find_dts_file,
+    _find_shield_dir,
+    _find_snippet_dir,
     _format_size,
+    _get_edt,
     _read_dts_with_includes,
+    _shield_overlay_files,
+    _snippet_overlay_files,
     get_board_partitions,
     get_board_yaml_supported,
     get_enabled_spi_buses,
@@ -666,3 +671,281 @@ def test_log_board_capabilities_empty_swap_methods_omits_partitions(
     assert "MCUboot swap methods this variant's port supports: (none)" in message
     assert "Flash partitions" not in message
     assert not partitions_called
+
+
+def test_log_board_capabilities_lists_shields(monkeypatch, caplog) -> None:
+    from esphome.components.zephyr.variants import ZephyrSDK, ZephyrVariant
+
+    _fake_sdk = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
+    variant = ZephyrVariant(sdk=_fake_sdk)
+    for name in (
+        "get_board_yaml_supported",
+        "get_board_features",
+        "get_enabled_i2c_buses",
+        "get_enabled_spi_buses",
+        "get_enabled_uart_buses",
+        "get_board_partitions",
+    ):
+        monkeypatch.setattr(dts_lookup, name, lambda board: None)
+
+    with caplog.at_level("INFO"):
+        log_board_capabilities(
+            "my_board", "esp32_c6", variant, "4.4.1", None, ["nrf7002ek"]
+        )
+
+    message = caplog.text
+    assert "Shields: nrf7002ek" in message
+    assert "hardware, as defined by the board itself and its shield(s)" in message
+
+
+# ---------------------------------------------------------------------------
+# _find_shield_dir / _shield_overlay_files / _snippet_overlay_files -- pure
+# filesystem lookups, no cpp/edtlib dependency
+# ---------------------------------------------------------------------------
+
+
+def test_find_shield_dir_locates_first_matching_root(tmp_path: Path) -> None:
+    root_a = tmp_path / "root_a"
+    root_b = tmp_path / "root_b"
+    (root_b / "boards" / "shields" / "nrf7002ek").mkdir(parents=True)
+
+    result = _find_shield_dir([root_a, root_b], "nrf7002ek")
+    assert result == root_b / "boards" / "shields" / "nrf7002ek"
+
+
+def test_find_shield_dir_returns_none_when_absent(tmp_path: Path) -> None:
+    assert _find_shield_dir([tmp_path], "no_such_shield") is None
+
+
+def test_shield_overlay_files_includes_base_and_board_specific(
+    tmp_path: Path,
+) -> None:
+    shield_dir = tmp_path / "boards" / "shields" / "nrf7002ek"
+    (shield_dir / "boards").mkdir(parents=True)
+    (shield_dir / "nrf7002ek.overlay").write_text("/* base */")
+    (shield_dir / "boards" / "nrf52840dk.overlay").write_text("/* board */")
+
+    result = _shield_overlay_files(shield_dir, "nrf52840dk")
+    assert result == [
+        shield_dir / "nrf7002ek.overlay",
+        shield_dir / "boards" / "nrf52840dk.overlay",
+    ]
+
+
+def test_shield_overlay_files_board_specific_keeps_full_qualified_segments(
+    tmp_path: Path,
+) -> None:
+    """Regression test: real upstream shields name a board-specific overlay with
+    every board-string segment joined by '_' (e.g. nrf7002ek's actual
+    boards/nrf5340dk_nrf5340_cpuapp.overlay for board "nrf5340dk/nrf5340/cpuapp"),
+    not just the bare board dirname -- must not be truncated to "nrf5340dk.overlay"."""
+    shield_dir = tmp_path / "boards" / "shields" / "nrf7002ek"
+    (shield_dir / "boards").mkdir(parents=True)
+    (shield_dir / "boards" / "nrf5340dk_nrf5340_cpuapp.overlay").write_text(
+        "/* board */"
+    )
+
+    result = _shield_overlay_files(shield_dir, "nrf5340dk/nrf5340/cpuapp")
+    assert result == [shield_dir / "boards" / "nrf5340dk_nrf5340_cpuapp.overlay"]
+
+
+def test_shield_overlay_files_board_specific_optional(tmp_path: Path) -> None:
+    shield_dir = tmp_path / "boards" / "shields" / "nrf7002ek"
+    shield_dir.mkdir(parents=True)
+    (shield_dir / "nrf7002ek.overlay").write_text("/* base */")
+
+    result = _shield_overlay_files(shield_dir, "some_other_board")
+    assert result == [shield_dir / "nrf7002ek.overlay"]
+
+
+def test_find_snippet_dir_locates_first_matching_root(tmp_path: Path) -> None:
+    root_a = tmp_path / "root_a"
+    root_b = tmp_path / "root_b"
+    (root_b / "snippets" / "slot1-partition").mkdir(parents=True)
+
+    result = _find_snippet_dir([root_a, root_b], "slot1-partition")
+    assert result == root_b / "snippets" / "slot1-partition"
+
+
+def test_find_snippet_dir_returns_none_when_absent(tmp_path: Path) -> None:
+    assert _find_snippet_dir([tmp_path], "no_such_snippet") is None
+
+
+def test_snippet_overlay_files_top_level_append_applies_to_any_board(
+    tmp_path: Path,
+) -> None:
+    """slot1-partition-shaped case: a flat append: with no boards: section applies
+    unconditionally."""
+    snippet_dir = tmp_path / "snippets" / "slot1-partition"
+    snippet_dir.mkdir(parents=True)
+    (snippet_dir / "slot1-partition.overlay").write_text("/* snippet */")
+    (snippet_dir / "snippet.yml").write_text(
+        "name: slot1-partition\n"
+        "append:\n"
+        "  EXTRA_DTC_OVERLAY_FILE: slot1-partition.overlay\n"
+    )
+
+    result = _snippet_overlay_files(snippet_dir, "any_board/soc")
+    assert result == [snippet_dir / "slot1-partition.overlay"]
+
+
+def test_snippet_overlay_files_board_regex_match_espressif_flash_shape(
+    tmp_path: Path,
+) -> None:
+    """espressif-flash-4M-shaped case (cited in zephyr:'s snippets: schema comment):
+    no top-level append:, only per-SoC overlays selected by a boards: <regex>:
+    match against the full board string."""
+    snippet_dir = tmp_path / "snippets" / "espressif-flash-4M"
+    soc_dir = snippet_dir / "soc"
+    soc_dir.mkdir(parents=True)
+    (soc_dir / "flash_0x0_default_4M.overlay").write_text("/* c3 */")
+    (soc_dir / "flash_0x1000_amp_4M.overlay").write_text("/* esp32 */")
+    (snippet_dir / "snippet.yml").write_text(
+        "name: espressif-flash-4M\n"
+        "boards:\n"
+        "  /.*/esp32/.*/:\n"
+        "    append:\n"
+        "      EXTRA_DTC_OVERLAY_FILE: soc/flash_0x1000_amp_4M.overlay\n"
+        "  /.*/esp32c3/.*/:\n"
+        "    append:\n"
+        "      EXTRA_DTC_OVERLAY_FILE: soc/flash_0x0_default_4M.overlay\n"
+    )
+
+    result_c3 = _snippet_overlay_files(snippet_dir, "esp32c3_devkitm/esp32c3/procpu")
+    assert result_c3 == [soc_dir / "flash_0x0_default_4M.overlay"]
+
+    result_none = _snippet_overlay_files(snippet_dir, "rpi_pico/rp2040")
+    assert result_none == []
+
+
+def test_snippet_overlay_files_combines_top_level_and_board_specific(
+    tmp_path: Path,
+) -> None:
+    """nordic-flpr-shaped case: a matching board gets both the generic top-level
+    overlay AND its own board-specific one, stacked -- CMake's zephyr_get()
+    accumulates rather than replaces."""
+    snippet_dir = tmp_path / "snippets" / "nordic-flpr"
+    soc_dir = snippet_dir / "soc"
+    soc_dir.mkdir(parents=True)
+    (snippet_dir / "nordic-flpr.overlay").write_text("/* generic */")
+    (soc_dir / "nrf54l15_cpuapp.overlay").write_text("/* l15 */")
+    (snippet_dir / "snippet.yml").write_text(
+        "name: nordic-flpr\n"
+        "append:\n"
+        "  EXTRA_DTC_OVERLAY_FILE: nordic-flpr.overlay\n"
+        "boards:\n"
+        "  /.*/nrf54l15/cpuapp/:\n"
+        "    append:\n"
+        "      EXTRA_DTC_OVERLAY_FILE: soc/nrf54l15_cpuapp.overlay\n"
+    )
+
+    result = _snippet_overlay_files(snippet_dir, "nrf54l15dk/nrf54l15/cpuapp")
+    assert result == [
+        snippet_dir / "nordic-flpr.overlay",
+        soc_dir / "nrf54l15_cpuapp.overlay",
+    ]
+
+
+def test_snippet_overlay_files_returns_empty_when_snippet_yml_absent(
+    tmp_path: Path,
+) -> None:
+    missing_dir = tmp_path / "snippets" / "no_such_snippet"
+    assert _snippet_overlay_files(missing_dir, "any_board") == []
+
+
+def test_snippet_overlay_files_handles_list_valued_overlay_file(
+    tmp_path: Path,
+) -> None:
+    """Regression test: EXTRA_DTC_OVERLAY_FILE is a list-typed CMake variable, so a
+    snippet.yml declaring it as a YAML list (not just a single string) must not
+    crash -- both entries should be picked up."""
+    snippet_dir = tmp_path / "snippets" / "multi-overlay"
+    snippet_dir.mkdir(parents=True)
+    (snippet_dir / "a.overlay").write_text("/* a */")
+    (snippet_dir / "b.overlay").write_text("/* b */")
+    (snippet_dir / "snippet.yml").write_text(
+        "name: multi-overlay\n"
+        "append:\n"
+        "  EXTRA_DTC_OVERLAY_FILE:\n"
+        "    - a.overlay\n"
+        "    - b.overlay\n"
+    )
+
+    result = _snippet_overlay_files(snippet_dir, "any_board")
+    assert result == [snippet_dir / "a.overlay", snippet_dir / "b.overlay"]
+
+
+# ---------------------------------------------------------------------------
+# _get_edt -- cache key must vary with shields/snippets, and shield/snippet
+# overlays must be merged in alongside the base board dts
+# ---------------------------------------------------------------------------
+
+
+def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> None:
+    """Same board, different shields: selection must not share a cached EDT --
+    otherwise a config change (adding/removing a shield) would silently keep
+    validating against the wrong (stale) merged devicetree."""
+    (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
+        "/ { };"
+    )
+
+    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir):
+        return "/* base */"
+
+    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
+        return object()  # a fresh, distinct object each call
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
+    monkeypatch.setattr(
+        dts_lookup,
+        "_load_edtlib",
+        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
+    )
+
+    zd = _empty_zd(dts_base_path=str(tmp_path), shields=[])
+    CORE.data[KEY_ZEPHYR] = zd
+    edt_no_shield = _get_edt("my_board")
+
+    zd["shields"] = ["nrf7002ek"]
+    edt_with_shield = _get_edt("my_board")
+
+    assert edt_no_shield is not edt_with_shield
+    cache = zd["board_edt_cache"]
+    assert ("my_board", (), ()) in cache
+    assert ("my_board", ("nrf7002ek",), ()) in cache
+
+
+def test_get_edt_merges_shield_overlay_text(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
+        "/* base */"
+    )
+    shield_dir = tmp_path / "boards" / "shields" / "nrf7002ek"
+    shield_dir.mkdir(parents=True)
+    (shield_dir / "nrf7002ek.overlay").write_text('&spi0 { status = "okay"; };')
+
+    def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
+        return src_file.read_text()
+
+    seen_texts: list[str] = []
+
+    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
+        seen_texts.append(Path(path).read_text(encoding="utf-8"))
+        return object()
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    monkeypatch.setattr(
+        dts_lookup,
+        "_load_edtlib",
+        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
+    )
+
+    CORE.data[KEY_ZEPHYR] = _empty_zd(
+        dts_base_path=str(tmp_path), shields=["nrf7002ek"]
+    )
+    _get_edt("my_board")
+
+    assert len(seen_texts) == 1
+    assert "/* base */" in seen_texts[0]
+    assert '&spi0 { status = "okay"; };' in seen_texts[0]

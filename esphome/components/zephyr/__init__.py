@@ -47,7 +47,10 @@ from .const import (
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
+    CONF_SHIELD_SOURCE,
+    CONF_SHIELDS,
     CONF_SINGLE_SLOT,
+    CONF_SNIPPET_SOURCE,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
@@ -60,7 +63,10 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SHIELD_ROOT,
+    KEY_SHIELDS,
     KEY_SINGLE_SLOT,
+    KEY_SNIPPET_ROOT,
     KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
@@ -180,7 +186,9 @@ class ZephyrData(TypedDict):
     cpp_path: str | None  # "" = unchecked; None = not found; else = executable path
     board_dir_cache: dict[str, str]  # board -> abs path str, "" = not found
     dts_include_paths: list[str] | None  # None = not yet computed
-    board_edt_cache: dict[str, object]  # board -> EDT | _NOT_FOUND; cleared each run
+    # (board, shields, snippets) -> EDT | _NOT_FOUND; cleared each run. Value stays
+    # `object` since edtlib.EDT isn't imported here (dts_lookup.py's own concern).
+    board_edt_cache: dict[tuple[str, tuple[str, ...], tuple[str, ...]], object]
     board_yaml_cache: dict[
         str, object
     ]  # board -> list[str] | _NOT_FOUND; cleared each run
@@ -190,6 +198,13 @@ class ZephyrData(TypedDict):
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
     single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
+    shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
+    shield_root: (
+        Path | None
+    )  # resolved zephyr: shield_source: dir, or board_root, or None
+    snippet_root: (
+        Path | None
+    )  # resolved zephyr: snippet_source: dir, or board_root, or None
 
 
 # platform: nrf52 use only
@@ -225,6 +240,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         ninja_version=None,
         snippets=[],
         single_slot=False,
+        shields=[],
+        shield_root=None,
+        snippet_root=None,
     )
 
 
@@ -1007,6 +1025,31 @@ _BOARD_SOURCE_SCHEMA = cv.Any(
 # constant for that case instead of relying on the schema to inject it.
 _DEFAULT_REFRESH = cv.All(cv.string, cv.source_refresh)("1d")
 
+# shield_source: is only needed when a shield lives outside board_source:'s repo (the
+# uncommon case) -- same git/local shape as board_source:, so reuse its git schema
+# rather than duplicating it.
+_SHIELD_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
+# snippet_source: mirrors shield_source: -- only needed when a snippet lives outside
+# board_source:'s repo (the uncommon case); same git/local shape.
+_SNIPPET_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
 _ZEPHYR_SCHEMA = cv.Schema(
@@ -1014,6 +1057,16 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Required(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
         cv.Optional(CONF_BOARD): cv.string_strict,
         cv.Optional(CONF_BOARD_SOURCE): _BOARD_SOURCE_SCHEMA,
+        # Zephyr shields (physical add-on boards, e.g. an nRF7002 Wi-Fi/Zigbee
+        # companion board) -- one `-DSHIELD=` entry per item, natively space/semicolon
+        # stackable, hence a list rather than a single value.
+        cv.Optional(CONF_SHIELDS, default=[]): cv.ensure_list(cv.string_strict),
+        # Only needed when a shield doesn't live under board_source:'s (or the SDK's
+        # own) root -- see _resolve_shield_source().
+        cv.Optional(CONF_SHIELD_SOURCE): _SHIELD_SOURCE_SCHEMA,
+        # Only needed when a snippet doesn't live under board_source:'s (or the
+        # SDK's own) root -- see _resolve_snippet_source().
+        cv.Optional(CONF_SNIPPET_SOURCE): _SNIPPET_SOURCE_SCHEMA,
         # Which SDK to build against (type:), its version, where to fetch it from
         # (source:), and how often to recheck a git source: (refresh:) -- see
         # resolve_framework_version() in variants/__init__.py for the full resolution
@@ -1095,6 +1148,108 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     return root
 
 
+def _resolve_extra_source(
+    config: ConfigType,
+    items: list[str],
+    board_root: Path | None,
+    *,
+    source_key: str,
+    items_key: str,
+    marker_relpath: Callable[[str], str],
+    kind_label: str,
+) -> Path | None:
+    """Resolve a zephyr: <kind>_source: into a local root directory.
+
+    Shared by _resolve_shield_source()/_resolve_snippet_source() -- both mirror
+    board_source:'s own git/local resolution exactly, differing only in the config
+    key and the per-item existence-check path. <kind>_source: is optional even when
+    <items>: is set -- the root defaults to board_root (a shield/snippet
+    accompanying a custom board conventionally lives alongside that root's boards/,
+    mirroring Zephyr's own repo layout and its own SHIELD_ROOT/SNIPPET_ROOT
+    default), or to None (let west/dts_lookup search the SDK's own tree) when
+    board_source: wasn't set either.
+
+    Existence is validated against whichever root is ultimately used -- including
+    the board_root fallback, not just an explicit <kind>_source: override -- so a
+    typo'd or genuinely missing item is caught here at config time instead of
+    silently falling through to a debug-only "not found" warning during DTS
+    validation.
+    """
+    explicit = source_key in config
+    if not explicit:
+        root = board_root
+    else:
+        conf = config[source_key]
+        if conf[CONF_TYPE] == TYPE_GIT:
+            with cv.prepend_path([source_key]):
+                root, _ = git.clone_or_update(
+                    url=conf[CONF_URL],
+                    ref=conf.get(CONF_REF),
+                    refresh=conf.get(CONF_REFRESH, _DEFAULT_REFRESH),
+                    domain=KEY_ZEPHYR,
+                    username=conf.get(CONF_USERNAME),
+                    password=conf.get(CONF_PASSWORD),
+                )
+                if path := conf.get(CONF_PATH):
+                    root = root / path
+        elif conf[CONF_TYPE] == TYPE_LOCAL:
+            root = Path(CORE.relative_config_path(conf[CONF_PATH]))
+        else:
+            raise NotImplementedError
+
+    if root is None:
+        # No override and no board_source: either -- nothing to validate against,
+        # same as a bare `board:` with no board_source: (checked later, at DTS
+        # validation time, against the SDK's own tree instead).
+        return None
+
+    error_path = [source_key] if explicit else [items_key]
+    source_desc = (
+        f"this {source_key}"
+        if explicit
+        else f"'{CONF_BOARD_SOURCE}' (the default root, since '{source_key}' wasn't set)"
+    )
+    for item in items:
+        if not (root / marker_relpath(item)).is_file():
+            raise cv.Invalid(
+                f"Could not find {marker_relpath(item)} under {source_desc}. "
+                f"Please check the source contains that {kind_label}, or set "
+                f"'{source_key}' explicitly.",
+                error_path,
+            )
+    return root
+
+
+def _resolve_shield_source(
+    config: ConfigType, shields: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: shield_source: into a local SHIELD_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        shields,
+        board_root,
+        source_key=CONF_SHIELD_SOURCE,
+        items_key=CONF_SHIELDS,
+        marker_relpath=lambda shield: f"boards/shields/{shield}/shield.yml",
+        kind_label="shield",
+    )
+
+
+def _resolve_snippet_source(
+    config: ConfigType, snippets: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: snippet_source: into a local SNIPPET_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        snippets,
+        board_root,
+        source_key=CONF_SNIPPET_SOURCE,
+        items_key=CONF_SNIPPETS,
+        marker_relpath=lambda snippet: f"snippets/{snippet}/snippet.yml",
+        kind_label="snippet",
+    )
+
+
 def _variant_config_schema(config: ConfigType) -> ConfigType:
     # CORE.is_zephyr can't be used here: for a genuine `platform: zephyr` config, this
     # very function is what sets target_platform. Only skip when some OTHER platform
@@ -1141,6 +1296,24 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 f"See https://esphome.io/components/zephyr.html for valid boards.",
                 [CONF_BOARD],
             )
+    shields = config.get(CONF_SHIELDS, [])
+    if CONF_SHIELD_SOURCE in config and not shields:
+        raise cv.Invalid(
+            f"'{CONF_SHIELD_SOURCE}' requires '{CONF_SHIELDS}' to also be set",
+            [CONF_SHIELD_SOURCE],
+        )
+    shield_root = (
+        _resolve_shield_source(config, shields, board_root) if shields else None
+    )
+    snippets = config.get(CONF_SNIPPETS, [])
+    if CONF_SNIPPET_SOURCE in config and not snippets:
+        raise cv.Invalid(
+            f"'{CONF_SNIPPET_SOURCE}' requires '{CONF_SNIPPETS}' to also be set",
+            [CONF_SNIPPET_SOURCE],
+        )
+    snippet_root = (
+        _resolve_snippet_source(config, snippets, board_root) if snippets else None
+    )
     if variant == ZEPHYR_VARIANT_ESP32:
         from .variants.esp32 import config_schema as _esp32_config_schema
 
@@ -1198,6 +1371,9 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
             [CONF_SINGLE_SLOT],
         )
     zephyr_data()[KEY_BOARD_ROOT] = board_root
+    zephyr_data()[KEY_SHIELDS] = shields
+    zephyr_data()[KEY_SHIELD_ROOT] = shield_root
+    zephyr_data()[KEY_SNIPPET_ROOT] = snippet_root
     return config
 
 
@@ -1248,6 +1424,7 @@ async def to_code(config: ConfigType) -> None:
         VARIANTS[variant],
         str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
         zephyr_data()["board_root"],
+        zephyr_data()[KEY_SHIELDS],
     )
 
     if variant == ZEPHYR_VARIANT_ESP32:
@@ -1704,6 +1881,9 @@ def run_compile(args, config: ConfigType) -> bool:
         extra_modules=extra_modules,
         board_root=zephyr_data().get(KEY_BOARD_ROOT),
         snippets=zephyr_data()[KEY_SNIPPETS],
+        shield_root=zephyr_data().get(KEY_SHIELD_ROOT),
+        shields=zephyr_data()[KEY_SHIELDS],
+        snippet_root=zephyr_data().get(KEY_SNIPPET_ROOT),
     )
     return True
 
