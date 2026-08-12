@@ -5,15 +5,19 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
+import pytest
+
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_SOURCE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain
 
 
@@ -52,7 +56,7 @@ def test_get_esphome_esp_idf_paths_forwards_source_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=url)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=url)
 
 
 def test_get_esphome_esp_idf_paths_no_override():
@@ -63,7 +67,28 @@ def test_get_esphome_esp_idf_paths_no_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=None)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
+
+
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
+    """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() == ["esp32s3"]
+
+
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
+    """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() is None
 
 
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
@@ -105,7 +130,7 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     compile_commands.parent.mkdir(parents=True, exist_ok=True)
     compile_commands.write_text("[]")
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text('{"cxx_path": "cached"}')
+    cache.write_text('{"cc_path": "cached-gcc", "cxx_path": "cached"}')
     cc_mtime = compile_commands.stat().st_mtime
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
@@ -113,7 +138,31 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_not_called()
-    assert result == {"cxx_path": "cached"}
+    assert result == {"cc_path": "cached-gcc", "cxx_path": "cached"}
+
+
+def test_get_idedata_regenerates_cache_without_cc_path(setup_core: Path) -> None:
+    """A cache predating cc_path is rebuilt even though it is newer.
+
+    Such a cache stays newer than the compile DB forever, so consumers that
+    derive the binutils paths from cc_path would keep failing on it.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "cached"}')
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result["cc_path"] == "gcc"
 
 
 def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -> None:
@@ -134,6 +183,33 @@ def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -
 
     mock_transform.assert_called_once()
     assert result == {"cxx_path": "fresh", "prog_path": str(toolchain.get_elf_path())}
+
+
+@pytest.mark.parametrize("cached", ['"cc_path is a string"', "[]", "42"])
+def test_get_idedata_regenerates_on_non_dict_cache(
+    setup_core: Path, cached: str
+) -> None:
+    """A newer cache holding valid JSON that is not an object is regenerated.
+
+    A bare string would otherwise pass the cc_path check by substring and be
+    handed to consumers expecting a dict.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(cached)
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert isinstance(result, dict)
 
 
 def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
@@ -187,6 +263,77 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
         env = toolchain._get_idf_env(version="5.5.4")
     assert CORE.config_dir == setup_core
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
+def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
+    """A build dir that was never created raises EsphomeError.
+
+    Without this, subprocess.run(cwd=build_dir) raises FileNotFoundError, which
+    the log stack-trace decoder doesn't recognise as a decode failure.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    assert not build_dir.exists()
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_without_cmake_cache(setup_core: Path) -> None:
+    """A build dir that exists but was never configured raises EsphomeError."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
+    """A configured build still runs cmake and caches the output.
+
+    The missing-build guard must not get in the way of a real build.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+    (build_dir / "CMakeCache.txt").write_text("")
+
+    completed = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="CMAKE_ADDR2LINE:FILEPATH=/tool/addr2line\n"
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", return_value=completed) as mock_run,
+    ):
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+        # Second call is served from the cache rather than re-running cmake.
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+
+    mock_run.assert_called_once()
+    assert toolchain._get_cmake_tool_path("CMAKE_ADDR2LINE") == Path("/tool/addr2line")
+
+
+def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
+    setup_core: Path,
+) -> None:
+    """The build check runs before the env is resolved.
+
+    Resolving the env calls check_esp_idf_install(), which can download and
+    extract the whole framework. A doomed call must never start that.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+
+    with (
+        patch.object(toolchain, "_get_idf_env") as mock_env,
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        pytest.raises(EsphomeError),
+    ):
+        toolchain._get_cmake_output(build_dir)
+
+    mock_env.assert_not_called()
+    mock_run.assert_not_called()
 
 
 def test_run_idf_py_jobs_sets_build_jobs_env(setup_core: Path) -> None:

@@ -26,6 +26,7 @@ static bool s_flash_dirty = false;               // NOLINT(cppcoreguidelines-avo
 // No preference can exceed the total flash storage, so stack buffer covers all cases.
 static constexpr size_t PREF_MAX_BUFFER_SIZE = RP2040_FLASH_STORAGE_SIZE;
 
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern "C" uint8_t _EEPROM_start;
 
 template<class It> uint8_t calculate_crc(It first, It last, uint32_t type) {
@@ -38,9 +39,9 @@ template<class It> uint8_t calculate_crc(It first, It last, uint32_t type) {
 }
 
 bool RP2PreferenceBackend::save(const uint8_t *data, size_t len) {
-  const size_t buffer_size = len + 1;
-  if (buffer_size > PREF_MAX_BUFFER_SIZE)
+  if (len >= PREF_MAX_BUFFER_SIZE)
     return false;
+  const size_t buffer_size = len + 1;
   uint8_t buffer[PREF_MAX_BUFFER_SIZE];
   memcpy(buffer, data, len);
   buffer[len] = calculate_crc(buffer, buffer + len, this->type);
@@ -59,9 +60,9 @@ bool RP2PreferenceBackend::save(const uint8_t *data, size_t len) {
 }
 
 bool RP2PreferenceBackend::load(uint8_t *data, size_t len) {
-  const size_t buffer_size = len + 1;
-  if (buffer_size > PREF_MAX_BUFFER_SIZE)
+  if (len >= PREF_MAX_BUFFER_SIZE)
     return false;
+  const size_t buffer_size = len + 1;
   uint8_t buffer[PREF_MAX_BUFFER_SIZE];
 
   for (size_t i = 0; i < buffer_size; i++) {
