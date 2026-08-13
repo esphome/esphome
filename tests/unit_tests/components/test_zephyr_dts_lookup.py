@@ -13,6 +13,7 @@ from esphome.components.zephyr.dts_lookup import (
     _find_board_dir,
     _find_board_yaml,
     _find_dts_file,
+    _find_revision_overlay,
     _find_shield_dir,
     _find_snippet_dir,
     _format_size,
@@ -27,6 +28,7 @@ from esphome.components.zephyr.dts_lookup import (
     get_i2c_pinctrl_esp32,
     log_board_capabilities,
     resolve_zephyr_bus,
+    validate_board_revision,
 )
 import esphome.config_validation as cv
 from esphome.core import CORE
@@ -180,9 +182,25 @@ def test_find_board_dir_returns_none_for_unknown_board(fake_zephyr_base: Path) -
     assert _find_board_dir(fake_zephyr_base, "no_such_board/soc") is None
 
 
+def test_find_board_dir_strips_revision_suffix(fake_zephyr_base: Path) -> None:
+    """A "@<revision>" suffix must not leak into the vendor-folder scan -- otherwise
+    a revisioned board string would never resolve to its directory."""
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    result = _find_board_dir(fake_zephyr_base, "esp32h2_devkitm@1.0.0/esp32h2")
+    assert result == fake_zephyr_base / "boards" / "espressif" / "esp32h2_devkitm"
+
+
 def test_find_dts_file_two_part_board_string(fake_zephyr_base: Path) -> None:
     board_dir = fake_zephyr_base / "boards" / "espressif" / "esp32h2_devkitm"
     result = _find_dts_file(board_dir, "esp32h2_devkitm/esp32h2")
+    assert result == board_dir / "esp32h2_devkitm.dts"
+
+
+def test_find_dts_file_strips_revision_suffix(fake_zephyr_base: Path) -> None:
+    """The base .dts file is never revision-suffixed -- a "@<revision>" on the bare
+    name must be stripped before building the candidate filename."""
+    board_dir = fake_zephyr_base / "boards" / "espressif" / "esp32h2_devkitm"
+    result = _find_dts_file(board_dir, "esp32h2_devkitm@1.0.0/esp32h2")
     assert result == board_dir / "esp32h2_devkitm.dts"
 
 
@@ -284,6 +302,45 @@ def test_find_dts_file_five_segment_cpucluster_and_nested_variant(
 
     result_cluster_only = _find_dts_file(board_dir, "rpi_pico2/rp2350a/m33")
     assert result_cluster_only == board_dir / "rpi_pico2_rp2350a_m33.dts"
+
+
+# Real-world qualifier depths, 1 through 5 total board-string segments (0 through 4
+# "/"-qualifiers after the bare name) -- see the fixtures built above for each
+# shape's real upstream precedent (esp32h2_devkitm: 1 qualifier, esp32c6_devkitc: 2,
+# adafruit_feather_nrf52840: 3, rpi_pico2: 4, the deepest real case). A purpose-built
+# board (rather than reusing those DTS-shape fixtures directly) keeps the qualified
+# filename unambiguous at every depth, isolating "does revision handling regress at
+# this depth" from the soc-dropping/doubled-segment concerns those fixtures target.
+@pytest.mark.parametrize(
+    "qualifiers",
+    [
+        pytest.param([], id="1_segment_no_qualifiers"),
+        pytest.param(["soc"], id="2_segments_1_qualifier"),
+        pytest.param(["soc", "cpu"], id="3_segments_2_qualifiers"),
+        pytest.param(["soc", "sense", "uf2"], id="4_segments_3_qualifiers"),
+        pytest.param(["soc", "m33", "w", "mcuboot"], id="5_segments_4_qualifiers"),
+    ],
+)
+def test_find_board_dir_dts_file_and_revision_overlay_at_each_depth(
+    tmp_path: Path, qualifiers: list[str]
+) -> None:
+    board_dir = tmp_path / "boards" / "acme" / "depth_board"
+    board_dir.mkdir(parents=True)
+    suffix = ("_" + "_".join(qualifiers)) if qualifiers else ""
+    (board_dir / f"depth_board{suffix}.dts").write_text("/* base */")
+    (board_dir / f"depth_board{suffix}_1_0_0.overlay").write_text("/* rev 1.0.0 */")
+
+    board = "depth_board@1.0.0" + "".join(f"/{q}" for q in qualifiers)
+
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    found_board_dir = _find_board_dir(tmp_path, board)
+    assert found_board_dir == board_dir
+
+    dts_file = _find_dts_file(found_board_dir, board)
+    assert dts_file == board_dir / f"depth_board{suffix}.dts"
+
+    overlay = _find_revision_overlay(found_board_dir, board, "1.0.0")
+    assert overlay == board_dir / f"depth_board{suffix}_1_0_0.overlay"
 
 
 # ---------------------------------------------------------------------------
@@ -949,3 +1006,161 @@ def test_get_edt_merges_shield_overlay_text(monkeypatch, tmp_path: Path) -> None
     assert len(seen_texts) == 1
     assert "/* base */" in seen_texts[0]
     assert '&spi0 { status = "okay"; };' in seen_texts[0]
+
+
+# ---------------------------------------------------------------------------
+# _find_revision_overlay / get_board_edt revision merge / validate_board_revision
+# ---------------------------------------------------------------------------
+
+
+def _revisioned_board_dir(tmp_path: Path) -> Path:
+    """boards/actinius/icarus-shaped fixture: a board.yml declaring revisions
+    1.4.0/2.0.0 (major.minor.patch, closest-lower matching), a base .dts, and one
+    overlay per declared revision -- mirrors the real upstream layout exactly."""
+    board_dir = tmp_path / "boards" / "actinius" / "icarus"
+    board_dir.mkdir(parents=True)
+    (board_dir / "board.yml").write_text(
+        "board:\n"
+        "  name: actinius_icarus\n"
+        "  vendor: actinius\n"
+        "  revision:\n"
+        "    format: major.minor.patch\n"
+        "    default: '2.0.0'\n"
+        "    revisions:\n"
+        "      - name: '1.4.0'\n"
+        "      - name: '2.0.0'\n"
+    )
+    (board_dir / "actinius_icarus_nrf9160_ns.dts").write_text("/* base */")
+    (board_dir / "actinius_icarus_nrf9160_ns_1_4_0.overlay").write_text(
+        "/* rev 1.4.0 */"
+    )
+    (board_dir / "actinius_icarus_nrf9160_ns_2_0_0.overlay").write_text(
+        "/* rev 2.0.0 */"
+    )
+    return board_dir
+
+
+def test_find_revision_overlay_exact_match(tmp_path: Path) -> None:
+    board_dir = _revisioned_board_dir(tmp_path)
+    result = _find_revision_overlay(board_dir, "actinius_icarus/nrf9160/ns", "2.0.0")
+    assert result == board_dir / "actinius_icarus_nrf9160_ns_2_0_0.overlay"
+
+
+def test_find_revision_overlay_returns_none_when_absent(tmp_path: Path) -> None:
+    board_dir = _revisioned_board_dir(tmp_path)
+    result = _find_revision_overlay(board_dir, "actinius_icarus/nrf9160/ns", "9.9.9")
+    assert result is None
+
+
+def test_find_revision_overlay_no_qualifiers(tmp_path: Path) -> None:
+    """A board with no "/" qualifiers still finds its revision overlay -- the
+    revision is the only trailing segment in that case."""
+    board_dir = tmp_path / "boards" / "acme" / "my_board"
+    board_dir.mkdir(parents=True)
+    (board_dir / "my_board_1_0_0.overlay").write_text("/* rev */")
+    result = _find_revision_overlay(board_dir, "my_board", "1.0.0")
+    assert result == board_dir / "my_board_1_0_0.overlay"
+
+
+def test_get_edt_merges_revision_overlay_text(monkeypatch, tmp_path: Path) -> None:
+    _revisioned_board_dir(tmp_path)
+
+    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir_arg):
+        return dts_file.read_text()
+
+    def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
+        return src_file.read_text()
+
+    seen_texts: list[str] = []
+
+    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
+        seen_texts.append(Path(path).read_text(encoding="utf-8"))
+        return object()
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
+    monkeypatch.setattr(
+        dts_lookup,
+        "_load_edtlib",
+        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
+    )
+
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    # Requesting 1.9.0 must resolve to the closest lower declared revision, 1.4.0,
+    # and merge in *that* revision's overlay -- not 2.0.0's.
+    _get_edt("actinius_icarus@1.9.0/nrf9160/ns")
+
+    assert len(seen_texts) == 1
+    assert "/* base */" in seen_texts[0]
+    assert "/* rev 1.4.0 */" in seen_texts[0]
+    assert "/* rev 2.0.0 */" not in seen_texts[0]
+
+
+def test_get_edt_ignores_revision_when_board_has_none(
+    monkeypatch, tmp_path: Path
+) -> None:
+    (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
+        "/* base */"
+    )
+
+    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir_arg):
+        return "/* base */"
+
+    seen_texts: list[str] = []
+
+    def _fake_edt_ctor(path, bindings_dirs, **kwargs):
+        seen_texts.append(Path(path).read_text(encoding="utf-8"))
+        return object()
+
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
+    monkeypatch.setattr(
+        dts_lookup,
+        "_load_edtlib",
+        lambda base: type("_FakeEdtlib", (), {"EDT": staticmethod(_fake_edt_ctor)}),
+    )
+
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    # "@1.0.0" on a board that declares no revisions at all -- silently ignored,
+    # same as Zephyr's own build would do for a stray, meaningless revision.
+    _get_edt("my_board@1.0.0")
+
+    assert seen_texts == ["/* base */"]
+
+
+def test_validate_board_revision_returns_none_without_revision_suffix(
+    tmp_path: Path,
+) -> None:
+    _revisioned_board_dir(tmp_path)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert validate_board_revision("actinius_icarus/nrf9160/ns") is None
+
+
+def test_validate_board_revision_returns_none_without_dts_base_path() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=None)
+    assert validate_board_revision("actinius_icarus@1.4.0/nrf9160/ns") is None
+
+
+def test_validate_board_revision_true_for_resolvable_revision(tmp_path: Path) -> None:
+    _revisioned_board_dir(tmp_path)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert validate_board_revision("actinius_icarus@1.9.0/nrf9160/ns") is True
+
+
+def test_validate_board_revision_false_for_unresolvable_revision(
+    tmp_path: Path,
+) -> None:
+    _revisioned_board_dir(tmp_path)
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert validate_board_revision("actinius_icarus@0.1.0/nrf9160/ns") is False
+
+
+def test_validate_board_revision_returns_none_for_board_without_revisions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "boards" / "espressif" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "espressif" / "my_board" / "my_board.dts").write_text(
+        "/* base */"
+    )
+    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
+    assert validate_board_revision("my_board@1.0.0") is None

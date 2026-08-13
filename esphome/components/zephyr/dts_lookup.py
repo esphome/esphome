@@ -13,6 +13,7 @@ import yaml
 import esphome.config_validation as cv
 from esphome.core import CORE
 
+from .board_revision import parse_board_string, resolve_revision
 from .const import (
     KEY_BOARD_ROOT,
     KEY_SHIELD_ROOT,
@@ -253,6 +254,8 @@ def _get_edt(board: str):
     zd = CORE.data.get(KEY_ZEPHYR, {})
     shields: list[str] = zd.get(KEY_SHIELDS) or []
     snippets: list[str] = zd.get(KEY_SNIPPETS) or []
+    # Revision is already embedded in `board` itself, but spelling it out keeps the
+    # cache key's intent obvious and matches the other two selections' explicitness.
     cache_key = (board, tuple(shields), tuple(snippets))
 
     cache = CORE.data[KEY_ZEPHYR]["board_edt_cache"]
@@ -296,6 +299,36 @@ def _get_edt(board: str):
     # own build (cmake/modules/dts.cmake) uses, so `&label { ... };` overlay-override
     # syntax resolves against the preceding base tree exactly as it would for real.
     overlay_texts = [preprocessed]
+
+    # A `board@revision` target layers a revision-specific overlay on top of the base
+    # board tree, same as a shield/snippet -- resolve and apply it first so shields/
+    # snippets below can still override anything it sets.
+    requested_revision = parse_board_string(board).revision
+    if requested_revision is not None:
+        resolved_revision, declares_revisions = resolve_revision(
+            board_dir, requested_revision
+        )
+        if declares_revisions and resolved_revision is not None:
+            overlay_file = _find_revision_overlay(board_dir, board, resolved_revision)
+            if overlay_file is not None:
+                text = _preprocess_dts_file(overlay_file, zephyr_base, [str(board_dir)])
+                if text is not None:
+                    overlay_texts.append(text)
+            else:
+                _LOGGER.debug(
+                    "[zephyr] No revision overlay file found for '%s' (resolved "
+                    "revision '%s'); DTS validation won't see its changes",
+                    board,
+                    resolved_revision,
+                )
+        elif declares_revisions:
+            _LOGGER.debug(
+                "[zephyr] Revision '%s' does not resolve against board '%s''s "
+                "declared revisions; DTS validation uses the base board tree only",
+                requested_revision,
+                board,
+            )
+
     shield_root = zd.get(KEY_SHIELD_ROOT)
     shield_search_roots = (
         [Path(shield_root), zephyr_base] if shield_root else [zephyr_base]
@@ -365,7 +398,9 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
     # HWMv2 board names are "<board>/<soc>" (e.g. "esp32h2_devkitm/esp32h2") but on
     # disk the directory is just "<board>" under a vendor folder. All supported
     # variants require Zephyr >= 4.4.0, which is always HWMv2 (introduced in 3.7.0).
-    board_dirname = board.split("/", maxsplit=1)[0]
+    # An optional "@<revision>" suffix (e.g. "scobc_a1@1.0.0/soc") sits between the
+    # bare name and any "/" qualifiers, so it must be stripped here too.
+    board_dirname = parse_board_string(board).name
 
     # A board_source: root is searched first, mirroring west's own BOARD_ROOT precedence.
     board_root = CORE.data.get(KEY_ZEPHYR, {}).get(KEY_BOARD_ROOT)
@@ -425,8 +460,13 @@ def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | Non
     # form first (covers rpi_pico_rp2040_mcuboot.dts, adafruit_feather_nrf52840_
     # nrf52840_sense_uf2.dts, rpi_pico2_rp2350a_m33_w_mcuboot.dts), then the same
     # with the soc segment dropped, then the bare board name.
+    #
+    # A "@<revision>" suffix on the bare name (e.g. "scobc_a1@1.0.0/soc") never
+    # appears in base .dts/.yaml filenames -- only revision *overlay* filenames
+    # include it, and those are built as an explicit trailing `rest` segment by
+    # _find_revision_overlay() instead, so it's always stripped here.
     parts = board.split("/")
-    board_dirname = parts[0]
+    board_dirname = parts[0].split("@", 1)[0]
     rest = parts[1:]
 
     if rest:
@@ -444,6 +484,25 @@ def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | Non
         return exact
 
     return None
+
+
+def _find_revision_overlay(
+    board_dir: Path, board: str, resolved_revision: str
+) -> Path | None:
+    """Find a board@revision target's devicetree overlay file, if any.
+
+    Revision overlays are named like base .dts files but with the resolved revision
+    (dots replaced by underscores) appended as an extra trailing segment after any
+    qualifiers, e.g. boards/actinius/icarus/actinius_icarus_nrf9160_ns_2_0_0.overlay
+    for board "actinius_icarus/nrf9160/ns" at revision "2.0.0". Reuses
+    _find_qualified_file()'s existing full/soc-dropped/bare fallback chain by
+    building a synthetic board string with the revision as its own segment.
+    """
+    parts = parse_board_string(board)
+    revision_segment = resolved_revision.replace(".", "_")
+    qualifiers = parts.qualifiers or ""  # Already has a leading "/", or is empty.
+    synthetic = f"{parts.name}{qualifiers}/{revision_segment}"
+    return _find_qualified_file(board_dir, synthetic, ".overlay")
 
 
 def _find_dts_file(board_dir: Path, board: str) -> Path | None:
@@ -1114,6 +1173,30 @@ def validate_board(board: str) -> bool | None:
     if not dts_base:
         return None
     return _find_board_dir(Path(dts_base), board) is not None
+
+
+def validate_board_revision(board: str) -> bool | None:
+    """Check whether `board`'s "@<revision>" (if any) resolves against its board.yml.
+
+    Returns None when there's nothing to check: the standard tree isn't available, the
+    board itself doesn't resolve, `board` has no "@<revision>" suffix, or the resolved
+    board declares no revisions at all (a revision on such a board is meaningless, but
+    not this function's job to reject -- Zephyr's own build would just ignore it).
+    """
+    requested_revision = parse_board_string(board).revision
+    if requested_revision is None:
+        return None
+    zd = CORE.data.get(KEY_ZEPHYR, {})
+    dts_base = zd.get("dts_base_path")
+    if not dts_base:
+        return None
+    board_dir = _find_board_dir(Path(dts_base), board)
+    if board_dir is None:
+        return None
+    resolved, declares_revisions = resolve_revision(board_dir, requested_revision)
+    if not declares_revisions:
+        return None
+    return resolved is not None
 
 
 # ---------------------------------------------------------------------------

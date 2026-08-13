@@ -40,6 +40,7 @@ from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
+from .board_revision import declared_revisions, parse_board_string, resolve_revision
 from .const import (
     BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
@@ -1137,14 +1138,32 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     else:
         raise NotImplementedError
 
-    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully qualified.
-    board_name = board.split("/", 1)[0]
-    if not list(root.glob(f"boards/*/{board_name}/board.yml")):
+    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully
+    # qualified and/or carries an "@<revision>" suffix.
+    parts = parse_board_string(board)
+    board_yml_matches = list(root.glob(f"boards/*/{parts.name}/board.yml"))
+    if not board_yml_matches:
         raise cv.Invalid(
-            f"Could not find boards/*/{board_name}/board.yml under this board_source. "
+            f"Could not find boards/*/{parts.name}/board.yml under this board_source. "
             f"Please check the source contains that board.",
             [CONF_BOARD_SOURCE],
         )
+    if parts.revision is not None:
+        board_dir = board_yml_matches[0].parent
+        resolved, declares_revisions = resolve_revision(board_dir, parts.revision)
+        if not declares_revisions:
+            raise cv.Invalid(
+                f"Board {parts.name!r} does not declare any revisions, but "
+                f"'{CONF_BOARD}' requested '@{parts.revision}'.",
+                [CONF_BOARD],
+            )
+        if resolved is None:
+            revisions = declared_revisions(board_dir)
+            raise cv.Invalid(
+                f"Revision {parts.revision!r} is not valid for board {parts.name!r}. "
+                f"Declared revisions: {', '.join(revisions)}",
+                [CONF_BOARD],
+            )
     return root
 
 
@@ -1401,7 +1420,11 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_FRAMEWORK][CONF_REFRESH],
     )
 
-    from .dts_lookup import log_board_capabilities, validate_board
+    from .dts_lookup import (
+        log_board_capabilities,
+        validate_board,
+        validate_board_revision,
+    )
 
     board = zephyr_data()["board"]
     board_valid = validate_board(board)
@@ -1417,6 +1440,11 @@ async def to_code(config: ConfigType) -> None:
             "fail later inside the build instead of here.",
             board,
             board,
+        )
+    elif validate_board_revision(board) is False:
+        raise EsphomeError(
+            f"Board '{board}' requests a revision that is not valid for that board. "
+            f"Check the '@<revision>' suffix in '{CONF_BOARD}'."
         )
     log_board_capabilities(
         board,
