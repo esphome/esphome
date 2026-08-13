@@ -243,28 +243,51 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     return config
 
 
+# The historical scan window default shared by the trackers that do not pin
+# their own; also the fallback for esp32's conditional default.
+DEFAULT_SCAN_WINDOW = "30ms"
+
+
 def scan_parameters_schema(
     interval_default: str,
     *,
-    window_default: str = "30ms",
+    window_default: str = DEFAULT_SCAN_WINDOW,
+    window_defaulter: Callable[[ConfigType], ConfigType] | None = None,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
     interval_default and window_default are per chip (e.g. esp32 320/30 ms,
     bk72xx/rp2 100/30 ms — the reference scan rates of the respective stacks;
-    LN882H's SDK recommends 100/50 ms). The `active` option (default on) is
+    LN882H's SDK recommends 100/50 ms). A window_defaulter replaces the
+    schema-level window default: it runs between the schema and
+    validate_scan_parameters and must fill in CONF_WINDOW when the user
+    omitted it (esp32 uses this to pick the default from the loaded
+    integrations and the IDF version, both known by schema-validation time
+    because the target platform validates first and component loading
+    precedes schema validation). The `active` option (default on) is
     unconditional: active scanning is part of the tracker contract — every
     current proxy client assumes it, so a passive-only tracker must not share
     this schema.
     """
-    schema = {
-        cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
-        cv.Optional(CONF_INTERVAL, default=interval_default): cv.positive_time_period,
-        cv.Optional(CONF_WINDOW, default=window_default): cv.positive_time_period,
-        cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
-        cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
-    }
-    return cv.All(cv.Schema(schema), validate_scan_parameters)
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
+            cv.Optional(
+                CONF_INTERVAL, default=interval_default
+            ): cv.positive_time_period,
+            cv.Optional(
+                CONF_WINDOW,
+                default=cv.UNDEFINED
+                if window_defaulter is not None
+                else window_default,
+            ): cv.positive_time_period,
+            cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
+            cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
+        }
+    )
+    if window_defaulter is not None:
+        return cv.All(schema, window_defaulter, validate_scan_parameters)
+    return cv.All(schema, validate_scan_parameters)
 
 
 BT_UUID16_FORMAT = "XXXX"

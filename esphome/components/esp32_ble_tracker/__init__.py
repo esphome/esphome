@@ -8,6 +8,7 @@ from esphome.components import ble_device_base, esp32_ble, ota
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
+    idf_version,
     request_bluetooth,
     request_software_coexistence,
 )
@@ -125,10 +126,44 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
+# ESP-IDF 5.5.5 fixed a coexistence bug on the ESP32 where BLE scans ran far
+# longer than the configured window (espressif/esp-idf#18931). Before the fix,
+# the default 30 ms window in a 320 ms interval effectively scanned at a much
+# higher duty cycle than requested; with the fix, that same default only
+# listens 9.4 % of the time and misses most advertisements when wifi shares
+# the radio. Espressif recommends setting the window equal to the interval in
+# that case: the coexistence arbiter still shares the radio with wifi, and
+# BLE uses the airtime wifi does not claim.
+IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
+
+
+def _default_scan_window(params: ConfigType) -> ConfigType:
+    """Fill in the scan window default for a user who did not set one.
+
+    With wifi sharing the radio on an IDF that honors the window strictly
+    (>= 5.5.5), the window defaults to the interval, as Espressif recommends;
+    otherwise the historical 30 ms default is kept.
+    """
+    if CONF_WINDOW not in params:
+        if (
+            "wifi" in CORE.loaded_integrations
+            and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
+        ):
+            params[CONF_WINDOW] = params[CONF_INTERVAL]
+        else:
+            params[CONF_WINDOW] = cv.positive_time_period(
+                ble_device_base.DEFAULT_SCAN_WINDOW
+            )
+    return params
+
+
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("320ms")
+# The window default is conditional (see _default_scan_window above).
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
+    "320ms", window_defaulter=_default_scan_window
+)
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.
