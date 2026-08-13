@@ -79,7 +79,9 @@ UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 # Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
 # to clean up a half-open connection (its handshake watchdog runs at 20s) before it
 # accepts a new one, so wait between attempts instead of failing the upload outright.
-MAX_UPLOAD_ATTEMPTS = 3
+# Every resolved address is tried once, and this many extra attempts are shared
+# across the addresses on top of that.
+EXTRA_UPLOAD_ATTEMPTS = 2
 UPLOAD_RETRY_DELAY = 5.0
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,6 +181,19 @@ class OTAError(EsphomeError):
 
 class OTANetworkError(OTAError):
     """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
+
+
+def _committed_error(err: OTANetworkError) -> OTAError:
+    """Wrap a network failure that happened once the device had the full image.
+
+    Past that point the device commits and reboots on its own, so the failure
+    must not be retried; a re-upload could flash a device that already updated.
+    """
+    return OTAError(
+        f"{err} (the device may have already committed the update and "
+        f"be rebooting; check whether it comes back with the new "
+        f"firmware before uploading again)"
+    )
 
 
 def recv_decode(
@@ -473,10 +488,24 @@ def perform_ota(
 
             try:
                 sock.sendall(chunk)
-                if version >= OTA_VERSION_2_0:
-                    receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
             except OSError as err:
+                # A send failure can hide an error byte the device reported
+                # just before dropping the connection; surface that as the
+                # real, non-retryable cause when it is available
+                with contextlib.suppress(OSError, OTANetworkError):
+                    sock.settimeout(1.0)
+                    check_error(recv_decode(sock, 1), None)
                 raise OTANetworkError(f"sending data: {err}") from err
+
+            if version >= OTA_VERSION_2_0:
+                try:
+                    receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
+                except OTANetworkError as err:
+                    if offset < upload_size:
+                        raise
+                    # The device already had the complete image when this ack
+                    # was lost, so it may be committing; do not retry
+                    raise _committed_error(err) from err
 
             progress.update(offset / upload_size)
     except OTAError:
@@ -499,11 +528,7 @@ def perform_ota(
         receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
         receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
     except OTANetworkError as err:
-        raise OTAError(
-            f"{err} (the device may have already committed the update and "
-            f"be rebooting; check whether it comes back with the new "
-            f"firmware before uploading again)"
-        ) from err
+        raise _committed_error(err) from err
 
     try:
         send_check(sock, RESPONSE_OK, "end acknowledgement")
@@ -551,13 +576,13 @@ def run_ota_impl_(
         _LOGGER.error("No addresses to connect to for %s", remote_host)
         return 1, None
 
-    # Every address is tried at least once and the budget grants
-    # MAX_UPLOAD_ATTEMPTS - 1 extra retries, cycling through the addresses.
-    # Wait before an attempt when the previous one actually reached the
-    # device, or when revisiting an address, so a flaky link can recover and
-    # the device can clean up a half-open connection (its handshake watchdog
-    # runs at 20s); moving on to the next address family stays immediate.
-    total_attempts = len(res) + MAX_UPLOAD_ATTEMPTS - 1
+    # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
+    # are shared across the addresses, cycling through them. Wait before an
+    # attempt when the previous one actually reached the device, or when
+    # revisiting an address, so a flaky link can recover and the device can
+    # clean up a half-open connection (its handshake watchdog runs at 20s);
+    # moving on to the next address family stays immediate.
+    total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
     reached_device = False
     for attempt in range(total_attempts):
