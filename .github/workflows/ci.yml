@@ -477,7 +477,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@88472375d0a4572cf70a9f1fe3a4e0ab8da1b924 # v5.0.1
+        uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
         with:
           run: |
             . venv/bin/activate
@@ -527,7 +527,6 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         include:
           - id: clang-tidy
@@ -718,7 +717,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -798,7 +796,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -885,7 +882,7 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
+      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 32 || 16 }}
       matrix:
         batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:

@@ -5,7 +5,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     request_bluetooth,
@@ -43,8 +43,9 @@ AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
+ble_device_base.register_hub_provider("esp32_ble_tracker")
+
 CONF_ESP32_BLE_ID = "esp32_ble_id"
-CONF_ON_SCAN_END = "on_scan_end"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,12 +66,9 @@ def _get_required_features() -> set[BLEFeatures]:
 
 
 # Slot counters sizing the tracker's StaticVector storage; one request per
-# registered listener, client, or scanner state listener.
+# registered listener or client.
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
 _request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
-_request_scanner_state_listener_slot = cg.slot_counter(
-    "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT"
-)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -130,9 +128,7 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", supports_active=True
-)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("320ms")
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.
@@ -206,6 +202,9 @@ async def to_code(config):
     # Behavior parity with the pre-split tracker: IRK resolution is always
     # available on esp32 (sensors with irk: worked without opting in).
     ble_device_base.request_irk_support()
+
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_ESP32_BLE_TRACKER")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -373,20 +372,6 @@ async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExp
     return var
 
 
-async def register_raw_ble_device(
-    var: cg.SafeExpType, config: ConfigType
-) -> cg.SafeExpType:
-    """Register a BLE device listener that only needs raw advertisement data.
-
-    This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
-    will not be compiled in if this is the only registration method used.
-    """
-    _request_listener_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.register_listener(var))
-    return var
-
-
 async def register_raw_client(
     var: cg.SafeExpType, config: ConfigType
 ) -> cg.SafeExpType:
@@ -398,18 +383,4 @@ async def register_raw_client(
     _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
-    return var
-
-
-async def register_scanner_state_listener(
-    var: cg.SafeExpType, config: ConfigType
-) -> cg.SafeExpType:
-    """Register a listener for scanner state changes.
-
-    The slot request here is what sizes the tracker's listener storage; a
-    build with no registrations compiles the storage out entirely.
-    """
-    _request_scanner_state_listener_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.add_scanner_state_listener(var))
     return var
