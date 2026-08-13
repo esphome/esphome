@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2450_ID, LD2450Component
 
@@ -226,7 +227,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
 
     if target_count_config := config.get(CONF_TARGET_COUNT):
