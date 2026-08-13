@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
@@ -58,7 +60,7 @@ def _validate_audio_compatibility(config: ConfigType) -> None:
     )(config)
 
 
-def _validate_taps(taps: int) -> int:
+def _validate_taps(taps: Any) -> int:
     value = cv.int_range(min=16, max=128)(taps)
     if value % 4 != 0:
         raise cv.Invalid("Number of taps must be divisible by 4")

@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -10,7 +12,7 @@ from . import CONF_RC522_ID, RC522, rc522_ns
 DEPENDENCIES = ["rc522"]
 
 
-def validate_uid(value: str) -> str:
+def validate_uid(value: Any) -> str:
     value = cv.string_strict(value)
     for x in value.split("-"):
         if len(x) != 2:
