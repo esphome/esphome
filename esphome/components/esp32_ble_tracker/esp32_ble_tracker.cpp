@@ -55,6 +55,7 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    ESP_LOGD(TAG, "Stopping scan for OTA");
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
@@ -190,7 +191,9 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
-  ESP_LOGD(TAG, "Stopping scan.");
+  // V to match the start log: the mode-switch and OTA callers narrate their
+  // reason at D themselves, and the user-facing stop action is deliberate.
+  ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
   this->stop_scan_();
 }
@@ -199,8 +202,9 @@ void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); 
 
 void ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
-    // If scanner is already idle, there's nothing to stop - this is not an error
-    if (this->scanner_state_ != ScannerState::IDLE) {
+    // IDLE means there is nothing to stop; STOPPING means a stop is already in
+    // flight and will finish on its own. Neither is an error.
+    if (this->scanner_state_ != ScannerState::IDLE && this->scanner_state_ != ScannerState::STOPPING) {
       ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
     }
     return;
