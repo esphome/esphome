@@ -35,9 +35,7 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(
-        var.set_interrupt_pin(
-            await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-        )
+        var.set_interrupt_pin(await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN]))
     )
 
     if reset_pin_config := config.get(CONF_RESET_PIN):
