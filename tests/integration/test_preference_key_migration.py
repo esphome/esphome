@@ -1,9 +1,14 @@
 """Integration test for entity preference key migration.
 
-Entity keys are now the FNV-1 hash of the raw name instead of the sanitized
-object_id (https://github.com/esphome/backlog/issues/85). On key-lookup
-preference backends, make_entity_preference() must move data stored under the
-old key to the new key, so devices keep their restored state after upgrading.
+Entity preference key migration (sanitized-object_id keys to raw-name keys,
+https://github.com/esphome/backlog/issues/85) is written but disabled; nothing
+emits USE_ENTITY_PREFERENCE_KEY_MIGRATION until the Home Assistant esphome
+integration can handle entity key changes without recreating registry entries.
+This test is skipped until the migration is enabled again.
+
+When enabled: on key-lookup preference backends, make_entity_preference() must
+move data stored under the old key to the new key, so devices keep their
+restored state after upgrading.
 
 This test seeds the host preferences file the way a pre-migration firmware
 would have written it and verifies:
@@ -32,6 +37,11 @@ from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs, write_host_prefs
 from .state_utils import InitialStateHelper, require_entity
 from .types import CompileFunction, ConfigWriter
+
+pytestmark = pytest.mark.skip(
+    reason="Entity preference key migration is disabled; nothing emits "
+    "USE_ENTITY_PREFERENCE_KEY_MIGRATION (see entity_base.cpp)"
+)
 
 DEVICE_NAME = "host-pref-key-migration"
 

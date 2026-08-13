@@ -5,11 +5,11 @@ users to lose stored preferences (calibration values, restore states, etc.) on
 firmware upgrades, or break entity state routing to API clients.
 
 Two algorithms are locked here (see https://github.com/esphome/backlog/issues/85):
-1. `fnv1_hash_object_id(name)` - the LEGACY hash (snake_case + sanitize, then FNV-1).
-   Existing devices have preferences stored under keys derived from it; slot-based
-   backends (ESP8266, RP2040) keep using it, and key-lookup backends migrate FROM it.
-2. `fnv1_hash_name(name)` - the entity key (FNV-1 over the raw UTF-8 name bytes).
-   Sent to API clients and used as the preference key base on key-lookup backends.
+1. `fnv1_hash_object_id(name)` - the object_id hash (snake_case + sanitize, then FNV-1).
+   The entity key sent to API clients and the base of every stored preference key.
+2. `fnv1_hash_name(name)` - FNV-1 over the raw UTF-8 name bytes. The key the disabled
+   entity preference key migration writes to (2026.8 beta firmware stored preferences
+   under it), so it must stay stable for that data to be found again.
 
 DO NOT CHANGE THE EXPECTED VALUES - if tests fail after modifying a hash algorithm,
 the change breaks backward compatibility and will cause data loss.
@@ -215,11 +215,11 @@ def test_legacy_preference_key_computation(
     ],
 )
 def test_entity_key_hash_stability(entity_name: str, expected_key: int) -> None:
-    """Verify fnv1_hash_name produces stable entity keys.
+    """Verify fnv1_hash_name produces stable raw-name hashes.
 
-    CRITICAL: These expected values MUST NOT CHANGE. The entity key is sent to
-    API clients and is the new preference key base; changing the algorithm
-    would break state routing and lose stored preferences.
+    CRITICAL: These expected values MUST NOT CHANGE. 2026.8 beta firmware stored
+    preferences under keys derived from this hash, and the disabled preference key
+    migration targets it; changing the algorithm would strand that data.
     Must match C++ fnv1_hash_bytes() in esphome/core/helpers.h.
     """
     actual = fnv1_hash_name(entity_name)
