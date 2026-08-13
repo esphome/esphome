@@ -1,10 +1,21 @@
-from dataclasses import dataclass, field
+"""
+Storage component for ESPHome.
+
+WARNING: This component is EXPERIMENTAL. The API (both Python configuration
+and C++ interfaces) may change at any time without following the normal
+breaking changes policy. Use at your own risk.
+
+Once the API is considered stable, this warning will be removed.
+"""
+
+from dataclasses import dataclass
 import logging
 import re
 
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import globals as globals_
+from esphome.components.logger import validate_printf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -17,13 +28,15 @@ from esphome.const import (
     CONF_ID,
     CONF_INDEX,
     CONF_KEY,
+    CONF_ON_ERROR,
     CONF_ON_VALUE,
     CONF_PATH,
     CONF_SIZE,
     CONF_TO,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@p1ngb4ck"]
 
@@ -44,28 +57,30 @@ CONF_TASK_PRIORITY = "task_priority"
 CONF_MAX_PENDING = "max_pending"
 CONF_MAX_STREAMS = "max_streams"
 CONF_WORKER_UPDATE_INTERVAL = "worker_update_interval"
-CONF_ON_COMPLETE = "on_complete"
+CONF_WORKER_ID = "worker_id"
 
 # Not yet in esphome/const.py
 CONF_ON_REGISTERED = "on_registered"
+CONF_ON_COMPLETE = "on_complete"
 CONF_ON_UNREGISTERED = "on_unregistered"
 
-# json is header-only (ArduinoJson): auto-loading it costs nothing when unused
-# and lets the json extract step and the preferences json format work without
-# an explicit `json:` block in the config.
-AUTO_LOAD = ["json"]
+# No AUTO_LOAD of json: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT, so the json component
+# enters the build only when a config uses a `json:` extract step -- enforced by
+# cv.requires_component("json") on the step (the user adds an explicit `json:` block, like other
+# opt-in json consumers).
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
+FilesystemStorage = storage_ns.class_("FilesystemStorage", PathStorage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
 MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 StorageWorker = storage_ns.class_("StorageWorker", cg.PollingComponent)
 
 
-def validate_sector_multiple(value):
+def validate_sector_multiple(value: int) -> int:
     """Require a multiple of 512 (the common sector size).
 
     Anything else loses the FATFS direct-sector-read path that motivated picking a
@@ -76,43 +91,44 @@ def validate_sector_multiple(value):
     return value
 
 
-# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
-# Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
-# is a sanity cap so a typo can't request an unreasonable single allocation (e.g. 16777216).
+# Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h. Lower bound matches
+# copy()'s allocation floor (4096, storage.cpp); upper bound is a sanity cap against a typo
+# requesting an unreasonable single allocation.
 #
-# The task_*/max_pending keys only take effect when the async worker (storage_worker.h/.cpp,
-# compiled in as USE_STORAGE_WORKER) is actually pulled in by a path-based driver, via that
-# driver's own request_storage_worker() call in its to_code() (mirrors how sd_storage already
-# calls request_storage_device()). If no such driver is configured, these keys are simply
-# unused, same as any other config key with no effect in a given configuration.
+# The task_*/max_pending keys take effect only when the async worker (USE_STORAGE_WORKER) is pulled
+# in by a path-based driver via its own request_storage_worker() in to_code() (mirrors sd_storage's
+# request_storage_device()). With no such driver they are simply unused.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
+        # The async worker is a second component minted from this same storage: block. Declaring its
+        # id here lets validation register it like any component, so the component count includes it;
+        # it is only built (new_Pvariable) when a driver pulls the worker in via
+        # request_storage_worker().
+        cv.GenerateID(CONF_WORKER_ID): cv.declare_id(StorageWorker),
         # No static default: an absent value means "use the per-platform default"
         # (see _default_copy_chunk_size() / to_code). An explicit value overrides it and
         # is still range- and sector-checked here.
         cv.Optional(CONF_COPY_CHUNK_SIZE): cv.All(
             cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
-        # Longest relative path the API carries. No static default: absent means "the largest
-        # any configured driver asked for" (see request_path_length / to_code). Raising it also
-        # raises the tree walks' stack use -- two buffers per recursion level -- so the range
-        # is bounded and _validate_walk_budget() below checks it against task_stack_size.
+        # Longest relative path the API carries. No static default: absent means "the largest any
+        # configured driver asked for" (see request_path_length / to_code). Raising it also raises
+        # the tree walks' stack use (two buffers per level), so the range is bounded and
+        # _validate_walk_budget() below checks it against task_stack_size.
         cv.Optional(CONF_PATH_MAX): cv.int_range(min=64, max=1024),
-        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload
-        # in RAM: storage.file_read takes whatever size the file happens to be, and on a node
-        # without PSRAM that is the one storage action whose cost the automation author does
-        # not choose. Anything bigger belongs on the worker (storage.file_copy, raw_write
-        # from_file). It also bounds storage.preferences_export/import, which share these
-        # helpers -- an export past the ceiling is a sign to narrow it with the action's
-        # `preferences:` filter. 0 disables the check. See storage.h for the C++ side.
-        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.int_range(
-            min=0
+        # Guard-rail for the blocking copy/read/write helpers, which hold the whole payload in RAM.
+        # storage.file_read takes whatever size the file happens to be -- on a node without PSRAM,
+        # the one storage action whose cost the author does not choose; anything bigger belongs on
+        # the worker. It also bounds storage.preferences_export/import (same helpers); past the
+        # ceiling, narrow with the action's `preferences:` filter. 0 disables. See storage.h.
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=16384): cv.All(
+            cv.validate_bytes, cv.int_range(min=0)
         ),
-        # A same-storage move is a rename, which some backends refuse across their own
-        # internals (an NFS export can span file systems, and RENAME never crosses one).
-        # On, such a refusal is redone as copy + remove so the move still happens; off, it is
-        # reported instead of quietly turning a directory-entry update into a full copy.
+        # A same-storage move is a rename, which some backends refuse across their own internals
+        # (an NFS export can span file systems, and RENAME never crosses one). On: redo the refusal
+        # as copy + remove so the move still happens; off: report it instead of quietly turning a
+        # directory-entry update into a full copy.
         cv.Optional(CONF_MOVE_FALLBACK_COPY, default=True): cv.boolean,
         # FATFS LFN + NFS/lwIP transfers both need headroom on the worker task's stack.
         cv.Optional(CONF_TASK_STACK_SIZE, default=8192): cv.int_range(
@@ -121,7 +137,8 @@ CONFIG_SCHEMA = cv.Schema(
         # FreeRTOS priority: above idle (0), below networking tasks (typically higher).
         cv.Optional(CONF_TASK_PRIORITY, default=1): cv.int_range(min=1, max=23),
         # Fixed request pool/queue depth -- sized exactly at codegen like the storage
-        # registry's device count, no heap allocation per request at runtime.
+        # registry's device count, so the slot itself never allocates at runtime. (The
+        # completion callback is a std::function and may allocate for a large lambda capture.)
         cv.Optional(CONF_MAX_PENDING, default=4): cv.int_range(min=1, max=16),
         # Fixed stream pool depth (begin_write()/begin_read() and friends, storage_worker.h) --
         # streams are typically much longer-lived than a single copy/move (e.g. one HTTP
@@ -133,22 +150,29 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_WORKER_UPDATE_INTERVAL, default="5ms"
         ): cv.positive_time_period_milliseconds,
-        # Fired for every storage device, not just file-browser-style consumers -- any
-        # component that cares about hotplug/availability can listen here instead of
-        # each reinventing its own notion of "storage changed". See
-        # StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback()
-        # in storage.h.
+        # Fired for every storage device, not just file-browser consumers -- any component that
+        # cares about hotplug/availability listens here instead of reinventing "storage changed".
+        # See StorageRegistry::add_on_registered_callback()/add_on_unregistered_callback() in
+        # storage.h.
         cv.Optional(CONF_ON_REGISTERED): automation.validate_automation({}),
         cv.Optional(CONF_ON_UNREGISTERED): automation.validate_automation({}),
     }
 )
 
 
-def _collect_mount_paths(fragment, where, out):
+def _collect_mount_paths(
+    fragment: object, where: str, out: list[tuple[str, str]]
+) -> None:
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH and isinstance(value, str):
+            if key == CONF_MOUNT_PATH:
+                # A validated mount_path is always a str; a non-str here means a driver schema let
+                # one through, which would silently skip the duplicate-mount-point check.
+                if not isinstance(value, str):
+                    raise cv.Invalid(
+                        f"mount_path must be a string, not {type(value).__name__}"
+                    )
                 out.append((value, where))
             else:
                 _collect_mount_paths(value, where, out)
@@ -157,7 +181,7 @@ def _collect_mount_paths(fragment, where, out):
             _collect_mount_paths(item, where, out)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     """Reject two storage devices claiming the same mount point.
 
     This lives here and not in the drivers because no driver can see the others' configuration.
@@ -205,12 +229,6 @@ class StorageData:
     fatfs_path_bound: bool = False
     worker_count: int = 0
     worker_task_safe: bool = False
-    # Raw preference regions per device id: every export/import action's address, plus the
-    # container size when it can be computed. Filled while the actions are built and resolved
-    # once at the end -- see _resolve_raw_pref_regions().
-    raw_pref_regions: dict = field(default_factory=dict)
-    raw_pref_job_queued: bool = False
-    sensor_pref_job_queued: bool = False
 
 
 def _get_data() -> StorageData:
@@ -250,7 +268,7 @@ def request_fatfs_path_length() -> None:
     _get_data().fatfs_path_bound = True
 
 
-def validate_mount_path(value):
+def validate_mount_path(value: str) -> str:
     """Validate a storage device's mount point. Drivers use this in place of cv.string.
 
     The interface treats the mount path as an invariant: set once at construction time and
@@ -329,13 +347,12 @@ def request_storage_worker(task_safe: bool = False) -> None:
         data.worker_task_safe = True
 
 
-# Default streaming/copy chunk size. Flat 16 kB on every platform: the 20 ms loop-slice budget
-# (see the buffer-usage plan) caps a main-loop chunk near 16 kB even on the fastest S3 SD path,
-# so a larger loop chunk is unsafe. The platform distinction lives one level down, in the C++
-# allocator (alloc_dma_capable): on the worker task -- which has no 20 ms budget -- S3/P4 stage a
-# 32 kB chunk in DMA-capable PSRAM, while every loop-path buffer stays 16 kB internal. An
-# explicit copy_chunk_size still overrides this default (the user's last word). Multiple of 512
-# to keep FATFS whole-sector transfers.
+# Default streaming/copy chunk size. Flat 16 kB everywhere: the 20 ms loop-slice budget caps a
+# main-loop chunk near 16 kB even on the fastest S3 SD path, so a larger loop chunk is unsafe. The
+# platform distinction lives one level down in the C++ allocator (alloc_dma_capable): the worker
+# task (no 20 ms budget) stages a larger DMA-capable PSRAM chunk on S3/P4, loop-path buffers stay
+# 16 kB internal. An explicit copy_chunk_size overrides this. Multiple of 512 for FATFS
+# whole-sector transfers.
 _DEFAULT_COPY_CHUNK_SIZE = 16384
 
 
@@ -343,10 +360,10 @@ _DEFAULT_COPY_CHUNK_SIZE = 16384
 # Mirrors STORAGE_PATH_MAX's compile-time fallback in storage.h.
 _DEFAULT_PATH_MAX = 256
 
-# The copy walk's two path buffers are allocated once and shared by every level (see
-# append_path_segment in storage.cpp), so they are a flat cost. What scales with depth is the
-# walk's own frame plus the driver's list_dir()/remove() frames, where the FATFS LFN buffers
-# dominate. Keep 25% of the task stack free for whatever called into the walk.
+# The copy walk's two path buffers are allocated once and shared by every level (append_path_segment
+# in storage.cpp), a flat cost. What scales with depth is the walk's own frame plus the driver's
+# list_dir()/remove() frames (FATFS LFN buffers dominate). Keep 25% of the task stack free for the
+# caller.
 _WALK_DRIVER_STACK_PER_LEVEL = 830
 _WALK_STACK_HEADROOM = 0.75
 
@@ -370,7 +387,7 @@ _FATFS_MAX_LFN_DEFAULT = 255
 _FATFS_SHORT_NAME_MAX = 13
 
 
-def _resolve_path_max(config) -> int:
+def _resolve_path_max(config: ConfigType) -> int:
     """The API's path bound, resolved once every contributor has had its say.
 
     An explicit `path_max:` wins. Otherwise it is the largest bound any configured driver
@@ -398,7 +415,12 @@ def _resolve_path_max(config) -> int:
         lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() in ("y", "true", "1"):
-            bounds.append(_FATFS_SHORT_NAME_MAX)
+            # 8.3 names only: STORAGE_PATH_MAX bounds the whole relative path (append_path_segment
+            # builds "/<name>" per level into one shared buffer), not a single filename. Size it for
+            # the deepest tree the walks descend -- _MAX_RECURSION_DEPTH segments of "/<short name>"
+            # plus the terminator -- so ordinary nested paths are not rejected with INVALID_ARGS on
+            # the device.
+            bounds.append(_FATFS_SHORT_NAME_MAX * _MAX_RECURSION_DEPTH + 1)
             return max(bounds)
         lfn = opts.get("CONFIG_FATFS_MAX_LFN", _FATFS_MAX_LFN_DEFAULT)
         # A YAML sdkconfig_options entry arrives wrapped so it is written out verbatim; the
@@ -407,14 +429,14 @@ def _resolve_path_max(config) -> int:
         try:
             # A name plus its terminator is the longest single component FATFS will hand back.
             bounds.append(int(lfn) + 1)
-        except (TypeError, ValueError):
-            _LOGGER.warning(
-                "storage: CONFIG_FATFS_MAX_LFN is %r, which is not a number -- using %d for the "
-                "path bound instead",
-                lfn,
-                _DEFAULT_PATH_MAX,
-            )
-            bounds.append(_DEFAULT_PATH_MAX)
+        except (TypeError, ValueError) as exc:
+            # A non-numeric CONFIG_FATFS_MAX_LFN is a configuration error, not a value to guess a
+            # bound for: a wrong guess sizes USE_STORAGE_PATH_MAX too small and fails legitimate
+            # paths with INVALID_ARGS only at runtime on the device.
+            raise EsphomeError(
+                f"storage: CONFIG_FATFS_MAX_LFN is {lfn!r}, which is not a number -- set it to the "
+                "FatFs long-filename limit (an integer) in sdkconfig_options"
+            ) from exc
     return max(bounds) if bounds else _DEFAULT_PATH_MAX
 
 
@@ -423,21 +445,28 @@ def _default_copy_chunk_size() -> int:
     return _DEFAULT_COPY_CHUNK_SIZE
 
 
-# storage is a dependency of every driver and would otherwise run BEFORE them (default
-# priority), reading device_count/worker_count as 0 -- every driver's own to_code() is where
-# request_storage_device()/request_storage_worker() actually get called. LATE (-100) runs
-# after all default-priority driver to_code()s, so those counts are final by the time this
-# reads them. Consumers awaiting the registry/worker variables (e.g. via cg.get_variable())
-# are unaffected either way, since that call already suspends until the variable exists.
+# storage is a dependency of every driver and would otherwise run BEFORE them (default priority),
+# reading device_count/worker_count as 0 -- each driver's own to_code() is where
+# request_storage_device()/request_storage_worker() are called. LATE (-100) runs after all
+# default-priority driver to_code()s, so those counts are final here. Consumers awaiting the
+# registry/worker variables (cg.get_variable()) are unaffected -- that call already suspends until
+# the variable exists.
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    _LOGGER.warning(
+        "The storage component is experimental; its configuration and C++ API may change "
+        "without following the normal breaking-changes policy."
+    )
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
     device_count = _get_data().device_count
     cg.add(var.set_device_count(device_count))
-    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*.
-    cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
+    # Compile-time bound for the enumeration snapshot in StorageRegistry::for_each*. Only emit it
+    # when a driver registered a device; with none (every tests/components/storage/ config) storage.h
+    # keeps its own >0 fallback, so the header's "fallback unreachable in real builds" stays true.
+    if device_count > 0:
+        cg.add_define("USE_STORAGE_MAX_DEVICES", device_count)
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
@@ -456,11 +485,24 @@ async def to_code(config):
             "USE_STORAGE_VFS_PATH_MAX", path_max + _get_data().mount_path_max + 1
         )
 
-        # The tree walks run on the worker task when one is configured; a path bound raised
-        # past what its stack can carry would overflow rather than fail cleanly.
-        if _get_data().worker_count > 0:
+        # task_stack_size sizes the worker task, which exists only when a task-safe driver pulled
+        # it in (USE_STORAGE_WORKER_TASK). With only non-task-safe drivers the walk runs on the
+        # main-loop stack and task_stack_size is inert, so budget-check it only when that task is
+        # really created -- otherwise a lowered task_stack_size hard-fails the build citing a stack
+        # that never exists.
+        if _get_data().worker_task_safe:
             needed = _walk_stack_bytes(path_max, _MAX_RECURSION_DEPTH)
-            budget = int(config[CONF_TASK_STACK_SIZE] * _WALK_STACK_HEADROOM)
+            raw = config[CONF_TASK_STACK_SIZE]
+            budget = int(raw * _WALK_STACK_HEADROOM)
+            if needed > raw:
+                # Runs in a codegen job (path_max can depend on a FATFS bound the esp32 component
+                # reconciles at FINAL), not validation, so cv.Invalid would escape and reach the user
+                # as a raw traceback. EsphomeError is caught by the CLI and logged cleanly.
+                raise EsphomeError(
+                    f"storage: a {_MAX_RECURSION_DEPTH}-level tree walk with path_max {path_max} "
+                    f"needs roughly {needed} bytes of stack, which exceeds task_stack_size ({raw}) "
+                    f"and would overflow it at runtime. Raise task_stack_size."
+                )
             if needed > budget:
                 _LOGGER.warning(
                     "storage: a %d-level tree walk with path_max %d needs roughly %d bytes of "
@@ -469,7 +511,7 @@ async def to_code(config):
                     _MAX_RECURSION_DEPTH,
                     path_max,
                     needed,
-                    config[CONF_TASK_STACK_SIZE],
+                    raw,
                 )
 
     CORE.add_job(_emit_path_max)
@@ -494,9 +536,7 @@ async def to_code(config):
         if data.worker_task_safe:
             cg.add_define("USE_STORAGE_WORKER_TASK")
 
-        worker_id = ID(f"{var}_worker", is_declaration=True, type=StorageWorker)
-        CORE.component_ids.add(str(worker_id))
-        worker_var = cg.new_Pvariable(worker_id)
+        worker_var = cg.new_Pvariable(config[CONF_WORKER_ID])
         await cg.register_component(worker_var, {})
 
         cg.add(worker_var.set_task_stack_size(config[CONF_TASK_STACK_SIZE]))
@@ -533,17 +573,22 @@ RawEraseAction = storage_ns.class_("RawEraseAction", automation.Action)
 ExtractStepType = storage_ns.enum("ExtractStepType", is_class=True)
 
 
-def _validate_write_content(config):
+def _validate_write_content(config: ConfigType) -> ConfigType:
     has_content = CONF_CONTENT in config
     has_format = CONF_FORMAT in config
     if has_content == has_format:
         raise cv.Invalid("Exactly one of 'content' or 'format' is required")
     if config.get(CONF_ARGS) and not has_format:
         raise cv.Invalid("'args' requires 'format'")
+    if has_format:
+        # Same arity check logger.log uses: format specifiers must match the arg
+        # count. A mismatch passes through C varargs into str_sprintf() at
+        # runtime, which is undefined behavior, not a runtime error.
+        validate_printf(config)
     return config
 
 
-def _file_write_schema(newline_default):
+def _file_write_schema(newline_default: bool) -> cv.All:
     return cv.All(
         cv.Schema(
             {
@@ -552,13 +597,18 @@ def _file_write_schema(newline_default):
                 cv.Optional(CONF_FORMAT): cv.string,
                 cv.Optional(CONF_ARGS, default=[]): cv.ensure_list(cv.lambda_),
                 cv.Optional(CONF_NEWLINE, default=newline_default): cv.boolean,
+                # Fires (error text, empty = success) after the write/append: a refused (busy) or
+                # failed write is otherwise invisible to the automation.
+                cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(
+                    single=True
+                ),
             }
         ),
         _validate_write_content,
     )
 
 
-def _validate_regex(value):
+def _validate_regex(value: str) -> str:
     value = cv.string(value)
     try:
         # Python's re syntax is a close superset of std::regex ECMAScript for the
@@ -567,10 +617,60 @@ def _validate_regex(value):
         re.compile(value)
     except re.error as e:
         raise cv.Invalid(f"Invalid regex: {e}") from e
+    # The runtime compiles with std::regex in default ECMAScript grammar, and ESPHome builds with
+    # -fno-exceptions -- a pattern Python accepts but std::regex rejects would abort the node instead
+    # of raising. Of the '(?...' constructs ECMAScript supports only '(?:' (non-capturing), '(?=' and
+    # '(?!' (lookahead); reject everything else (named groups, lookbehind, inline flags, conditionals,
+    # comments) at config time.
+    i = 0
+    n = len(value)
+    in_class = False  # inside a [...] character class, where '(', '?' etc. are literals
+    prev_quant = False  # last token was a quantifier -- a following '+' is a possessive quantifier
+    while i < n:
+        c = value[i]
+        if c == "\\":
+            # ECMAScript IdentityEscape does not define the alphanumeric anchor escapes Python takes.
+            nxt = value[i + 1] if i + 1 < n else ""
+            if nxt in ("A", "Z", "z"):
+                raise cv.Invalid(
+                    f"Invalid regex: '\\{nxt}' is not supported by std::regex ECMAScript "
+                    "(use '^'/'$') and would crash at runtime"
+                )
+            i += 2
+            prev_quant = False
+            continue
+        if in_class:
+            if c == "]":
+                in_class = False
+            i += 1
+            prev_quant = False
+            continue
+        if c == "[":
+            in_class = True
+            i += 1
+            prev_quant = False
+            continue
+        if c == "(" and i + 1 < n and value[i + 1] == "?":
+            if i + 2 >= n or value[i + 2] not in ":=!":
+                raise cv.Invalid(
+                    "Invalid regex: '(?...' constructs other than '(?:', '(?=' and "
+                    "'(?!' are not supported by std::regex ECMAScript and would "
+                    "crash at runtime"
+                )
+            i += 3
+            prev_quant = False
+            continue
+        if c == "+" and prev_quant:
+            raise cv.Invalid(
+                "Invalid regex: possessive quantifiers ('*+', '++', '?+', '{m,n}+') are not "
+                "supported by std::regex ECMAScript and would crash at runtime"
+            )
+        prev_quant = c in "*+?}"
+        i += 1
     return value
 
 
-def _exactly_one_step_kind(config):
+def _exactly_one_step_kind(config: ConfigType) -> ConfigType:
     kinds = [
         k
         for k in (CONF_LINE, CONF_SPLIT, CONF_KEY, CONF_REGEX, CONF_TRIM, CONF_JSON)
@@ -586,6 +686,10 @@ def _exactly_one_step_kind(config):
         raise cv.Invalid("'separator' is only valid with 'key'")
     if CONF_GROUP in config and CONF_REGEX not in config:
         raise cv.Invalid("'group' is only valid with 'regex'")
+    if CONF_TRIM in config and not config[CONF_TRIM]:
+        raise cv.Invalid(
+            "'trim' must be true; remove the step entirely to skip trimming"
+        )
     return config
 
 
@@ -593,8 +697,11 @@ _EXTRACT_STEP_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_LINE): cv.positive_not_null_int,
-            # '/'-separated pointer into a JSON document ("a/b/0").
-            cv.Optional(CONF_JSON): cv.string_strict,
+            # '/'-separated pointer into a JSON document ("a/b/0"). Requires an
+            # explicit `json:` block so ArduinoJson only enters the build when used.
+            cv.Optional(CONF_JSON): cv.All(
+                cv.requires_component("json"), cv.string_strict
+            ),
             # Non-empty: an empty separator makes the split loop spin without advancing and
             # hand back the whole buffer, and an empty key matches every line -- both are
             # silently useless rather than wrong, which is worse to debug than a rejection.
@@ -611,7 +718,7 @@ _EXTRACT_STEP_SCHEMA = cv.All(
 )
 
 
-def _validate_read(config):
+def _validate_read(config: ConfigType) -> ConfigType:
     if CONF_TO_GLOBAL not in config and CONF_ON_VALUE not in config:
         raise cv.Invalid("At least one of 'to_global' or 'on_value' is required")
     return config
@@ -624,18 +731,27 @@ _FILE_READ_SCHEMA = cv.All(
             cv.Optional(CONF_EXTRACT, default=[]): cv.ensure_list(_EXTRACT_STEP_SCHEMA),
             cv.Optional(CONF_TO_GLOBAL): cv.use_id(globals_.GlobalsComponent),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
+            # Fires the failure cause (medium error text, "extract step N did not match", or a
+            # parse-failure note) when a read yields nothing usable and on_value stays silent.
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
     _validate_read,
 )
 
 
-async def _build_write_action(config, action_id, template_arg, args, append):
+async def _build_write_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+    append: bool,
+):
     var = cg.new_Pvariable(action_id, template_arg, append)
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
-    if CONF_CONTENT in config:
-        template_ = await cg.templatable(config[CONF_CONTENT], args, cg.std_string)
+    if (content := config.get(CONF_CONTENT)) is not None:
+        template_ = await cg.templatable(content, args, cg.std_string)
         cg.add(var.set_content(template_))
     else:
         # Render printf-style format + args into the content string, logger.log-style:
@@ -653,6 +769,10 @@ async def _build_write_action(config, action_id, template_arg, args, append):
         )
         cg.add(var.set_content(lambda_))
     cg.add(var.set_newline(config[CONF_NEWLINE]))
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
     return var
 
 
@@ -662,7 +782,9 @@ async def _build_write_action(config, action_id, template_arg, args, append):
     _file_write_schema(newline_default=False),
     synchronous=True,
 )
-async def file_write_action_to_code(config, action_id, template_arg, args):
+async def file_write_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_write_action(config, action_id, template_arg, args, False)
 
 
@@ -672,7 +794,9 @@ async def file_write_action_to_code(config, action_id, template_arg, args):
     _file_write_schema(newline_default=True),
     synchronous=True,
 )
-async def file_append_action_to_code(config, action_id, template_arg, args):
+async def file_append_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_write_action(config, action_id, template_arg, args, True)
 
 
@@ -682,11 +806,15 @@ async def file_append_action_to_code(config, action_id, template_arg, args):
     _FILE_READ_SCHEMA,
     synchronous=True,
 )
-async def file_read_action_to_code(config, action_id, template_arg, args):
+async def file_read_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
 
+    if config[CONF_EXTRACT]:
+        cg.add(var.reserve_steps(len(config[CONF_EXTRACT])))
     for step in config[CONF_EXTRACT]:
         if CONF_LINE in step:
             cg.add(var.add_step(ExtractStepType.LINE, "", "", step[CONF_LINE]))
@@ -723,18 +851,22 @@ async def file_read_action_to_code(config, action_id, template_arg, args):
         elif CONF_TRIM in step and step[CONF_TRIM]:
             cg.add(var.add_step(ExtractStepType.TRIM, "", "", 0))
 
-    if CONF_TO_GLOBAL in config:
-        glob = await cg.get_variable(config[CONF_TO_GLOBAL])
+    if (to_global := config.get(CONF_TO_GLOBAL)) is not None:
+        glob = await cg.get_variable(to_global)
         cg.add(
             var.set_global_setter(
                 cg.RawExpression(
-                    f"[](const std::string &x) {{ {storage_ns}::assign_from_string({glob}, x); }}"
+                    f"[](const std::string &x) {{ return {storage_ns}::assign_from_string({glob}, x); }}"
                 )
             )
         )
-    if CONF_ON_VALUE in config:
+    if (on_value := config.get(CONF_ON_VALUE)) is not None:
         await automation.build_automation(
-            var.get_value_trigger(), [(cg.std_string, "x")], config[CONF_ON_VALUE]
+            var.get_value_trigger(), [(cg.std_string, "x")], on_value
+        )
+    if (on_error := config.get(CONF_ON_ERROR)) is not None:
+        await automation.build_automation(
+            var.get_error_trigger(), [(cg.std_string, "x")], on_error
         )
     return var
 
@@ -757,19 +889,24 @@ _FILE_COPY_SCHEMA = cv.Schema(
 )
 
 
-async def _build_copy_action(config, action_id, template_arg, args, is_move):
-    # file_copy/move prefer the async worker (see perform_file_copy_async). We deliberately do
-    # NOT request_storage_worker() here: action codegen can run after the storage to_code has
-    # already snapshotted the worker count (LATE), so a late request would compile the action
-    # against a worker that was never created. Instead the C++ side degrades cleanly -- if the
-    # worker isn't compiled in (no path driver requested it), it runs the blocking helper. Any
-    # node that can actually do file ops has a path driver, which requests the worker anyway.
+async def _build_copy_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+    is_move: bool,
+):
+    # file_copy/move prefer the async worker (perform_file_copy_async). Deliberately NO
+    # request_storage_worker() here: action codegen can run after storage to_code snapshotted the
+    # worker count (LATE), so a late request would compile the action against a worker never created.
+    # The C++ side degrades cleanly -- no worker compiled in (no path driver) means the blocking
+    # helper runs. Any node that can do file ops has a path driver, which requests the worker anyway.
     var = cg.new_Pvariable(action_id, template_arg, is_move)
     cg.add(var.set_from(await cg.templatable(config[CONF_FROM], args, cg.std_string)))
     cg.add(var.set_to(await cg.templatable(config[CONF_TO], args, cg.std_string)))
-    if CONF_ON_COMPLETE in config:
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
         await automation.build_automation(
-            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
         )
     return var
 
@@ -777,7 +914,9 @@ async def _build_copy_action(config, action_id, template_arg, args, is_move):
 @automation.register_action(
     "storage.file_copy", FileCopyAction, _FILE_COPY_SCHEMA, synchronous=True
 )
-async def file_copy_action_to_code(config, action_id, template_arg, args):
+async def file_copy_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_copy_action(config, action_id, template_arg, args, False)
 
 
@@ -785,7 +924,9 @@ async def file_copy_action_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "storage.file_move", FileCopyAction, _FILE_COPY_SCHEMA, synchronous=True
 )
-async def file_move_action_to_code(config, action_id, template_arg, args):
+async def file_move_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_copy_action(config, action_id, template_arg, args, True)
 
 
@@ -796,14 +937,23 @@ async def file_move_action_to_code(config, action_id, template_arg, args):
         {
             cv.Required(CONF_PATH): cv.templatable(cv.string),
             cv.Optional(CONF_RECURSIVE, default=False): cv.boolean,
+            # Fires (error text, empty = success) after the delete: a refused (busy) or failed
+            # delete is otherwise invisible to the automation.
+            cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
     ),
     synchronous=True,
 )
-async def file_delete_action_to_code(config, action_id, template_arg, args):
+async def file_delete_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
     cg.add(var.set_recursive(config[CONF_RECURSIVE]))
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
     return var
 
 
@@ -814,7 +964,9 @@ async def file_delete_action_to_code(config, action_id, template_arg, args):
         {cv.Required(CONF_PATH): cv.templatable(cv.string)}, key=CONF_PATH
     ),
 )
-async def file_exists_condition_to_code(config, condition_id, template_arg, args):
+async def file_exists_condition_to_code(
+    config: ConfigType, condition_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     var = cg.new_Pvariable(condition_id, template_arg)
     cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
     return var
@@ -823,28 +975,78 @@ async def file_exists_condition_to_code(config, condition_id, template_arg, args
 MountAction = storage_ns.class_("MountAction", automation.Action)
 
 _MOUNT_SCHEMA = cv.maybe_simple_value(
-    {cv.Required(CONF_ID): cv.use_id(MountableStorage)}, key=CONF_ID
+    {
+        cv.Required(CONF_ID): cv.use_id(MountableStorage),
+        # Fires (error text, empty = success) when the mount/unmount finishes. mount is
+        # worker-routed and async, so sequence dependent actions from here, not by ordering.
+        cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+    },
+    key=CONF_ID,
 )
 
 
-async def _build_mount_action(config, action_id, template_arg, args, mount):
+async def _build_mount_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+    mount: bool,
+):
     # cv.use_id(MountableStorage) already rejected non-removable targets at YAML time.
     target = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, target, mount)
+    var = cg.new_Pvariable(action_id, template_arg, target, mount)
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
+    return var
 
 
 @automation.register_action(
     "storage.mount", MountAction, _MOUNT_SCHEMA, synchronous=True
 )
-async def mount_action_to_code(config, action_id, template_arg, args):
+async def mount_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_mount_action(config, action_id, template_arg, args, True)
 
 
 @automation.register_action(
     "storage.unmount", MountAction, _MOUNT_SCHEMA, synchronous=True
 )
-async def unmount_action_to_code(config, action_id, template_arg, args):
+async def unmount_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     return await _build_mount_action(config, action_id, template_arg, args, False)
+
+
+FormatAction = storage_ns.class_("FormatAction", automation.Action)
+
+_FORMAT_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_ID): cv.use_id(FilesystemStorage),
+        # Fires (error text, empty = success) when the format finishes on the worker.
+        cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
+    },
+    key=CONF_ID,
+)
+
+
+@automation.register_action(
+    "storage.format", FormatAction, _FORMAT_SCHEMA, synchronous=True
+)
+async def format_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
+    # Any FilesystemStorage may be a target; the driver's format() reports NOT_SUPPORTED at
+    # runtime if its backend cannot format.
+    target = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, target)
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
+    return var
 
 
 # ---------------------------------------------------------------------------
@@ -859,31 +1061,42 @@ CONF_ERASE_FIRST = "erase_first"
 CONF_FORCE_SLICED_ERASE = "force_sliced_erase"
 
 
-def _validate_raw_data(value):
+def _validate_raw_data(value: str | list) -> bytes | list:
     if isinstance(value, str):
-        return value.encode("utf-8")
-    if isinstance(value, list):
-        return cv.Schema([cv.hex_uint8_t])(value)
-    raise cv.Invalid(
-        "data must either be a string wrapped in quotes or a list of bytes"
-    )
+        data = value.encode("utf-8")
+    elif isinstance(value, list):
+        data = cv.Schema([cv.hex_uint8_t])(value)
+    else:
+        raise cv.Invalid(
+            "data must either be a string wrapped in quotes or a list of bytes"
+        )
+    if len(data) == 0:
+        raise cv.Invalid(
+            "data must not be empty; a raw write of 0 bytes is rejected at runtime"
+        )
+    return data
 
 
-def _validate_raw_read(config):
+def _validate_raw_read(config: ConfigType) -> ConfigType:
     if CONF_TO_FILE not in config and CONF_ON_VALUE not in config:
         raise cv.Invalid("At least one of 'to_file' or 'on_value' is required")
+    if CONF_TO_FILE in config and CONF_ON_VALUE in config:
+        # The to_file path streams through the worker and never materializes the
+        # data in RAM, so an on_value trigger could not fire -- reject the
+        # combination instead of silently dropping the trigger.
+        raise cv.Invalid("'on_value' cannot be combined with 'to_file'")
     if CONF_SIZE not in config and CONF_TO_FILE not in config:
         raise cv.Invalid("'size' is required unless reading into a file with 'to_file'")
     return config
 
 
-def _validate_raw_write(config):
+def _validate_raw_write(config: ConfigType) -> ConfigType:
     if (CONF_DATA in config) == (CONF_FROM_FILE in config):
         raise cv.Invalid("Exactly one of 'data' or 'from_file' is required")
     return config
 
 
-def _validate_raw_erase(config):
+def _validate_raw_erase(config: ConfigType) -> ConfigType:
     if config[CONF_ALL]:
         if CONF_ADDRESS in config or CONF_SIZE in config:
             raise cv.Invalid("'all' erases the whole device -- remove 'address'/'size'")
@@ -900,7 +1113,7 @@ _RAW_READ_SCHEMA = cv.All(
             cv.Required(CONF_ID): cv.use_id(RawStorage),
             cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
             # Omitted with to_file: read to the end of the device (0 = rest, see the action).
-            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_SIZE): cv.templatable(cv.int_range(min=0, max=0xFFFFFFFF)),
             cv.Optional(CONF_TO_FILE): cv.templatable(cv.string),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
             # Fires (error text, empty = success) when a to_file read lands on the worker.
@@ -932,7 +1145,7 @@ _RAW_ERASE_SCHEMA = cv.All(
         {
             cv.Required(CONF_ID): cv.use_id(RawStorage),
             cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
-            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_SIZE): cv.templatable(cv.int_range(min=0, max=0xFFFFFFFF)),
             cv.Optional(CONF_ALL, default=False): cv.boolean,
             # Opt out of the whole-chip fast path: force the block-by-block erase even where a
             # single chip erase would be used (task-safe device, full span). Default keeps the
@@ -949,7 +1162,9 @@ _RAW_ERASE_SCHEMA = cv.All(
 @automation.register_action(
     "storage.raw_read", RawReadAction, _RAW_READ_SCHEMA, synchronous=True
 )
-async def raw_read_action_to_code(config, action_id, template_arg, args):
+async def raw_read_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     cg.add_define("USE_STORAGE_RAW_ACTIONS")
     device = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, device)
@@ -961,22 +1176,18 @@ async def raw_read_action_to_code(config, action_id, template_arg, args):
     cg.add(
         var.set_size(await cg.templatable(config.get(CONF_SIZE, 0), args, cg.uint32))
     )
-    if CONF_TO_FILE in config:
-        cg.add(
-            var.set_to_file(
-                await cg.templatable(config[CONF_TO_FILE], args, cg.std_string)
-            )
-        )
+    if (to_file := config.get(CONF_TO_FILE)) is not None:
+        cg.add(var.set_to_file(await cg.templatable(to_file, args, cg.std_string)))
         cg.add(var.set_has_to_file(True))
-    if CONF_ON_VALUE in config:
+    if (on_value := config.get(CONF_ON_VALUE)) is not None:
         await automation.build_automation(
             var.get_value_trigger(),
             [(cg.std_vector.template(cg.uint8), "x")],
-            config[CONF_ON_VALUE],
+            on_value,
         )
-    if CONF_ON_COMPLETE in config:
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
         await automation.build_automation(
-            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
         )
     return var
 
@@ -984,7 +1195,9 @@ async def raw_read_action_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "storage.raw_write", RawWriteAction, _RAW_WRITE_SCHEMA, synchronous=True
 )
-async def raw_write_action_to_code(config, action_id, template_arg, args):
+async def raw_write_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     cg.add_define("USE_STORAGE_RAW_ACTIONS")
     device = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, device)
@@ -994,36 +1207,36 @@ async def raw_write_action_to_code(config, action_id, template_arg, args):
         )
     )
     cg.add(var.set_erase_first(config[CONF_ERASE_FIRST]))
-    if CONF_FROM_FILE in config:
-        cg.add(
-            var.set_from_file(
-                await cg.templatable(config[CONF_FROM_FILE], args, cg.std_string)
-            )
-        )
+    if (from_file := config.get(CONF_FROM_FILE)) is not None:
+        cg.add(var.set_from_file(await cg.templatable(from_file, args, cg.std_string)))
         cg.add(var.set_has_from_file(True))
-    if CONF_ON_COMPLETE in config:
-        await automation.build_automation(
-            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
-        )
-        return var
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
     else:
-        # Static payload stays in flash -- no RAM copy (same as uart.write).
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
+        # _validate_raw_write guarantees exactly one of data/from_file, so this
+        # branch always has CONF_DATA.
+        data = config[CONF_DATA]
+        if isinstance(data, bytes):
+            data = list(data)
+        if cg.is_template(data):
+            templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+            cg.add(var.set_data_template(templ))
+        else:
+            # Static payload stays in flash -- no RAM copy (same as uart.write).
+            arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+            cg.add(var.set_data_static(arr, len(data)))
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
+        await automation.build_automation(
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
+        )
     return var
 
 
 @automation.register_action(
     "storage.raw_erase", RawEraseAction, _RAW_ERASE_SCHEMA, synchronous=True
 )
-async def raw_erase_action_to_code(config, action_id, template_arg, args):
+async def raw_erase_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
     cg.add_define("USE_STORAGE_RAW_ACTIONS")
     device = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, device)
@@ -1037,8 +1250,8 @@ async def raw_erase_action_to_code(config, action_id, template_arg, args):
     )
     cg.add(var.set_all(config[CONF_ALL]))
     cg.add(var.set_force_sliced_erase(config[CONF_FORCE_SLICED_ERASE]))
-    if CONF_ON_COMPLETE in config:
+    if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
         await automation.build_automation(
-            var.get_complete_trigger(), [(cg.std_string, "x")], config[CONF_ON_COMPLETE]
+            var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
         )
     return var

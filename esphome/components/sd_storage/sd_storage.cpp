@@ -1,4 +1,5 @@
 #include "sd_storage.h"
+#include "esphome/components/storage/fatfs_select.h"
 
 #ifdef USE_SD_STORAGE_SDMMC
 
@@ -10,6 +11,11 @@
 #include "esp_vfs_fat.h"
 #include "ff.h"
 #include "diskio_sdmmc.h"
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+// FF_DRV_NOT_USED, ff_diskio_get_drive(), ff_diskio_register() -- the generic diskio layer
+// the manual mount mirror drives; diskio_sdmmc.h above only covers the sdmmc binding.
+#include "diskio_impl.h"
+#endif
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #include "freertos/FreeRTOS.h"
@@ -82,6 +88,95 @@ void SdMmc::dump_config() {
   }
 }
 
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_config) {
+  // Step for step what esp_vfs_fat_sdmmc_mount does (all public IDF API), with the probe
+  // window inserted between diskio registration and f_mount.
+  auto *card = new sdmmc_card_t{};  // NOLINT(cppcoreguidelines-owning-memory) - freed in unmount_manual_
+  esp_err_t err = host.init != nullptr ? host.init() : ESP_OK;
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {  // INVALID_STATE: host already up
+    delete card;                                        // NOLINT(cppcoreguidelines-owning-memory)
+    return err;
+  }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // Pre-6 builds initialised the slot before mount() already (see setup above).
+  err = sdmmc_host_init_slot(host.slot, &slot_config);
+  if (err != ESP_OK) {
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return err;
+  }
+#else
+  (void) slot_config;
+#endif
+  err = ESP_FAIL;
+  for (int attempt = 1; attempt <= 3; attempt++) {
+    ESP_LOGD(TAG, "Initialising SD card slot %d (attempt %d/3)", this->slot_, attempt);
+    err = sdmmc_card_init(&host, card);
+    if (err == ESP_OK)
+      break;
+    ESP_LOGW(TAG, "Card init attempt %d failed: %s", attempt, esp_err_to_name(err));
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  if (err != ESP_OK) {
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return err;
+  }
+
+  BYTE pdrv = FF_DRV_NOT_USED;
+  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == FF_DRV_NOT_USED) {
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return ESP_ERR_NO_MEM;
+  }
+  ff_diskio_register_sdmmc(pdrv, card);
+  char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
+
+  // The point of this path: the requested filesystem is enforced BEFORE the mount.
+  if (!storage::ensure_requested_filesystem(TAG, pdrv, drv, this->requested_file_system_)) {
+    ff_diskio_register(pdrv, nullptr);
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return ESP_FAIL;
+  }
+
+  FATFS *fs = nullptr;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+  esp_vfs_fat_conf_t vfs_conf = {
+      .base_path = this->mount_path_,
+      .fat_drive = drv,
+      .max_files = 16,
+  };
+  err = esp_vfs_fat_register_cfg(&vfs_conf, &fs);
+#else
+  err = esp_vfs_fat_register(this->mount_path_, drv, 16, &fs);
+#endif
+  if (err != ESP_OK) {
+    ff_diskio_register(pdrv, nullptr);
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return err;
+  }
+  FRESULT res = f_mount(fs, drv, 1);
+  if (res != FR_OK) {
+    ESP_LOGE(TAG, "f_mount failed: %d", res);
+    esp_vfs_fat_unregister_path(this->mount_path_);
+    ff_diskio_register(pdrv, nullptr);
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    return ESP_FAIL;
+  }
+  this->card_ = card;
+  return ESP_OK;
+}
+
+void SdMmc::unmount_manual_() {
+  BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
+  if (pdrv != FF_DRV_NOT_USED) {
+    char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
+    f_mount(nullptr, drv, 0);
+    ff_diskio_register(pdrv, nullptr);
+  }
+  esp_vfs_fat_unregister_path(this->mount_path_);
+  delete this->card_;  // NOLINT(cppcoreguidelines-owning-memory)
+}
+#endif  // USE_STORAGE_FILE_SYSTEM_SELECT
+
 storage::StorageError SdMmc::mount() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.max_freq_khz = static_cast<int>(this->data_rate_khz_);
@@ -120,6 +215,10 @@ storage::StorageError SdMmc::mount() {
   };
 
   esp_err_t ret = ESP_FAIL;
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  (void) mount_config;
+  ret = this->mount_manual_(host, slot_config);
+#else
   for (int attempt = 1; attempt <= 3; attempt++) {
     ESP_LOGD(TAG, "Mounting SD card slot %d to '%s' (attempt %d/3)", this->slot_, this->mount_path_, attempt);
     ret = esp_vfs_fat_sdmmc_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
@@ -128,6 +227,7 @@ storage::StorageError SdMmc::mount() {
     ESP_LOGW(TAG, "Mount attempt %d failed: %s", attempt, esp_err_to_name(ret));
     vTaskDelay(pdMS_TO_TICKS(100));
   }
+#endif
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to mount SD card: %s", esp_err_to_name(ret));
@@ -185,7 +285,11 @@ storage::StorageError SdMmc::unmount() {
   this->flush_open_handles_();
   ESP_LOGD(TAG, "All data flushed");
 
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  this->unmount_manual_();
+#else
   esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
+#endif
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED

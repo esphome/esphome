@@ -1,5 +1,8 @@
 #pragma once
 
+// WARNING: This component is EXPERIMENTAL. The API may change at any time
+// without following the normal breaking changes policy. Use at your own risk.
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -51,31 +54,35 @@ enum class RequestOp : uint8_t {
   // side like RAW_WRITE_FROM_FILE does.
   RAW_VERIFY_FILE,
   // Whole directory tree, walked by the engine itself: list, mkdir, copy each file, and for a
-  // move remove each source entry as it is drained. Deliberately here and not in the caller:
-  // on task-safe media the worker task then owns the entire operation start to finish, exactly
-  // like a single file does. A caller that walks the tree itself can only step forward when
-  // its own loop() runs, which makes the transfer depend on the main loop being scheduled --
-  // it is not the caller's business, and nothing asks the main loop to run on their behalf.
+  // move remove each source entry as it is drained. In the engine, not the caller, so on task-safe
+  // media the worker task owns the whole operation start to finish like a single file -- a
+  // caller-side walk could only step forward on its own loop(), making the transfer depend on
+  // main-loop scheduling.
   COPY_TREE,
   MOVE_TREE,
+  // Filesystem format: a single blocking control-plane call (f_mkfs and the like). Run as a
+  // one-shot on the worker task for task-safe media (main loop free, watchdog-safe) or from a
+  // loop() step otherwise. Moves no bytes and opens no handles.
+  FORMAT,
+  // Mountable-device mount -- the same single-blocking-call shape as FORMAT: network mounts
+  // resolve, connect and probe, which must never sit on the main loop. The target rides in
+  // dst_storage; run resolves it back to MountableStorage via as_mountable().
+  MOUNT,
 };
 
 // Where a request currently stands. Transitions:
 //   FREE -> PENDING (submit) -> RUNNING (engine picks it up) -> DONE (engine finishes)
 //     -> FREE (main loop delivers the completion callback and releases the slot)
-// RUNNING requests can also be marked CANCELLED, either by the engine's own per-chunk
-// cancellation check or, synchronously, by on_storage_unregistered_() when a storage they use
-// is removed: a PENDING request is finished immediately (no I/O to unwind); a RUNNING request
-// on the loop-sliced engine is drained in place (run_chunk_() is called directly, right there
-// in the hotplug callback, closing any open handles before the driver's unmount() proceeds); a
-// RUNNING request on the worker task has its state set to CANCELLED and is then waited on
-// (yielding, bounded by a timeout) until the task observes it and reaches DONE. Either way,
-// the goal is the same: by the time on_storage_unregistered_() returns, no data-plane call
-// into the removed storage is still in flight. See on_storage_unregistered_()'s own comment
-// for the full drain sequence and its timeout behavior.
-// Both engines must keep calling run_chunk_() until the state is DONE, not just while it's
-// RUNNING -- CANCELLED is only ever acted on inside run_chunk_()'s own entry check, so a loop
-// that stops as soon as the state leaves RUNNING would never actually observe/handle it.
+// A RUNNING request can also be marked CANCELLED -- by the engine's per-chunk check or,
+// synchronously, by on_storage_unregistered_() when a storage it uses is removed: a PENDING one is
+// finished immediately (no I/O to unwind); a RUNNING one on the loop engine is drained in place
+// (run_chunk_() called directly in the hotplug callback, closing handles before unmount()); a
+// RUNNING one on the worker task is set CANCELLED and waited on (yielding, timeout-bounded) until
+// the task reaches DONE. Either way, by the time on_storage_unregistered_() returns no data-plane
+// call into the removed storage is in flight (see there for the full drain sequence and timeout).
+// Both engines must keep calling run_chunk_() until DONE, not just while RUNNING -- CANCELLED is
+// acted on only inside run_chunk_()'s entry check, so stopping when state leaves RUNNING would
+// never observe it.
 enum class RequestState : uint8_t {
   FREE,
   PENDING,
@@ -121,15 +128,13 @@ inline bool join_walk_path(char *out, size_t out_size, const char *root, const c
   return n > 0 && static_cast<size_t>(n) < out_size;
 }
 
-// 64-bit progress counter for TransferRequest, atomic only when it has to be. With the
-// background worker task the counters are written from the task while the main loop reads
-// them concurrently -- that build uses std::atomic<uint64_t>. Every other build runs the
-// loop-sliced engine exclusively, so all access is main-loop-only and a plain field is
-// sufficient; this matters because 64-bit atomics are not lock-free on several supported
-// cores and GCC lowers them to __atomic_*_8 libcalls that toolchains without libatomic
-// (e.g. arm-none-eabi as used for LibreTiny/bk72xx) fail to link. The plain variant mirrors
-// the tiny slice of the std::atomic interface the worker actually uses (load/store/assign)
-// so every call site compiles unchanged against either type.
+// 64-bit progress counter for TransferRequest, atomic only when it has to be. In task builds the
+// counters are written from the task and read concurrently by the main loop -- std::atomic<uint64_t>.
+// Every other build is loop-sliced only, so access is main-loop-only and a plain field suffices;
+// this matters because 64-bit atomics are not lock-free on several supported cores and GCC lowers
+// them to __atomic_*_8 libcalls that toolchains without libatomic (arm-none-eabi for LibreTiny/
+// bk72xx) fail to link. The plain variant mirrors the slice of std::atomic the worker uses
+// (load/store/assign) so every call site compiles unchanged against either type.
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
 using ProgressCounter = std::atomic<uint64_t>;
 #else
@@ -169,9 +174,10 @@ struct TransferStatus {
   char file[FILE_LABEL_LEN]{};
 };
 
-// One pooled transfer request. Fixed-size, no heap allocation -- the pool is a FixedVector of
-// these, sized exactly to max_pending at codegen. Path buffers and the callback are only valid
-// while state != FREE.
+// One pooled transfer request. The slot is fixed-size and never allocates -- the pool is a
+// FixedVector of these, sized exactly to max_pending at codegen. (The completion callback is a
+// std::function and may allocate for a large lambda capture.) Path buffers and the callback are
+// only valid while state != FREE.
 // Position inside a directory tree, allocated only for COPY_TREE/MOVE_TREE. Kept out of
 // TransferRequest so a pool sized for plain file transfers does not carry it per slot.
 struct TreeWalk {
@@ -193,6 +199,17 @@ struct TreeWalk {
   // Bytes of the files already finished; the one in flight adds its own offset on top, so
   // progress counts the whole tree rather than restarting with every file.
   uint64_t bytes_base{0};
+};
+
+// TreeWalk is allocated through RAMAllocator (PSRAM-capable) rather than operator new, so it must be
+// destroyed and freed the same way. Stateless: RAMAllocator::deallocate ignores the object count.
+struct TreeWalkDeleter {
+  void operator()(TreeWalk *ptr) const {
+    if (ptr != nullptr) {
+      ptr->~TreeWalk();
+      RAMAllocator<TreeWalk>().deallocate(ptr, 1);
+    }
+  }
 };
 
 struct TransferRequest {
@@ -263,17 +280,22 @@ struct TransferRequest {
   // no second full buffer is allocated.
   uint8_t verify_passes{0};
   uint8_t verify_pass_done{0};
-  bool verifying{false};
-  // Set by the worker task right before a blocking whole-chip erase(0, capacity) and cleared
-  // right after. A chip erase busy-waits for its full duration (tens of seconds) without
-  // advancing bytes_done, so the stall watchdog (check_stalled_, main loop) would otherwise
-  // time it out; it skips a RUNNING request while this is set. Only ever true on the worker
-  // task (the loop-sliced engine never does a whole-chip erase), so it is bounded by the
-  // driver's own wait_ready timeout -- no risk of blinding the watchdog indefinitely.
-  // std::atomic<bool> is lock-free on every supported core (unlike the 64-bit counters), so
-  // it needs no conditional-atomic dance; the flag is written on the task and read on the
-  // main loop.
+  std::atomic<bool> verifying{false};
+  // Set by the worker task around a blocking whole-chip erase(0, capacity). A chip erase busy-waits
+  // for tens of seconds without advancing bytes_done, so the stall watchdog (check_stalled_) would
+  // time it out; it skips a RUNNING request while this is set. Only ever true on the task (the loop
+  // engine never whole-chip erases), bounded by the driver's own wait_ready timeout, so it cannot
+  // blind the watchdog indefinitely. std::atomic<bool> is lock-free on every supported core (unlike
+  // the 64-bit counters), so no conditional-atomic dance; written on the task, read on the loop.
   std::atomic<bool> blocking_erase_active{false};
+  // Set when the worker task dequeues this request. The stall watchdog skips a task-dispatched
+  // request that is still queued (RUNNING but not started yet), so a long transfer ahead of it does
+  // not get it timed out before it ever runs.
+  std::atomic<bool> task_started_{false};
+  // Set by wait_for_network_ready_() when a chunk stayed RUNNING waiting for a network
+  // storage to come up; the worker-task loop paces its retry on it (loop-sliced paces
+  // naturally via update()). Reset at the top of each run_chunk_().
+  bool network_waiting{false};
 
   // Externally observable progress (see get_transfer_status()): bytes_done is advanced by
   // run_chunk_() on whichever engine runs the transfer (possibly the worker task) while the
@@ -294,19 +316,17 @@ struct TransferRequest {
   uint32_t generation{0};
 
   // Set for COPY_TREE/MOVE_TREE only; owns the walk position for the duration of the request.
-  std::unique_ptr<TreeWalk> tree;
+  std::unique_ptr<TreeWalk, TreeWalkDeleter> tree;
 };
 
 // ===========================================================================================
-// Streaming request types -- chunked read/write against externally-driven data (e.g. an HTTP
-// request body being uploaded, or an HTTP response being streamed out), as opposed to
-// async_copy()/async_move() below which read/write both ends themselves via the storage::
-// interface. A separate pool/state machine from TransferRequest/run_chunk_() rather than a
-// third RequestOp: those assume the worker itself pulls each chunk (read() then write()) in
-// one run_chunk_() call; here the caller supplies (WRITE) or wants delivered (READ) exactly
-// one chunk at a time, on its own schedule (e.g. once per handleUpload() invocation), so the
-// two shapes fundamentally differ in what drives progress. Same worker, same background task
-// and transparency contract as async_copy()/async_move() though -- see StorageWorker below.
+// Streaming request types -- chunked read/write against externally-driven data (an HTTP upload
+// body in, an HTTP response streamed out), as opposed to async_copy()/async_move() which read/write
+// both ends themselves. A separate pool/state machine, not a third RequestOp: those assume the
+// worker pulls each chunk (read() then write()) in one run_chunk_() call; here the caller supplies
+// (WRITE) or consumes (READ) one chunk at a time on its own schedule (e.g. per handleUpload()), so
+// what drives progress differs. Same worker, task, and transparency contract as async_copy() --
+// see StorageWorker below.
 enum class StreamOp : uint8_t {
   WRITE,  // caller pushes chunks in; storage receives them (e.g. HTTP upload -> file)
   READ,   // caller requests chunks out; storage supplies them (e.g. file -> HTTP download)
@@ -328,6 +348,9 @@ enum class StreamState : uint8_t {
   CLOSING,
   CANCELLED,
   DONE,
+  // Cursor control between chunks -- IDLE-only single steps, like READING.
+  SEEKING,
+  TELLING,
 };
 
 // Opaque handle returned to the caller -- valid for the stream's lifetime (begin_* through
@@ -342,7 +365,8 @@ struct StreamHandle {
   uint32_t generation;
 };
 
-// One pooled stream. Fixed-size, no heap allocation -- pool is a FixedVector sized to
+// One pooled stream. The slot is fixed-size and never allocates (the completion callback is a
+// std::function and may allocate for a large lambda capture) -- pool is a FixedVector sized to
 // max_streams at codegen (separate limit from max_pending, since streams are typically much
 // longer-lived than a single copy/move and a node doing e.g. one upload at a time needs very
 // few slots).
@@ -370,6 +394,11 @@ struct StreamRequest {
   uint8_t *pending_read_buf{nullptr};
   size_t *bytes_transferred_out{nullptr};  // read_chunk() writes the actual count here
 
+  // seek()/tell(): target + mode for a SEEKING step; tell() writes the position here.
+  int64_t seek_target{0};
+  storage::SeekMode seek_mode{storage::SeekMode::SET};
+  uint64_t *tell_out{nullptr};
+
   // Bumped on every slot claim so a StreamHandle from a finished stream stops matching once
   // the slot is reused (never 0 -- that is the unclaimed value). Main-loop-only.
   uint32_t generation{0};
@@ -380,6 +409,10 @@ struct StreamRequest {
   // read_chunk/end_* call. Not used on the task path, which runs the step directly off the
   // shared queue.
   bool pending_step_{false};
+  // Set when either engine actually starts running this stream's queued step. The idle sweep skips a
+  // step still sitting in the worker-task queue so a long transfer ahead of it is not mistaken for a
+  // vanished client.
+  std::atomic<bool> step_started_{false};
 };
 
 // Tags a background-task queue entry so the single shared task can dispatch to either engine's
@@ -395,23 +428,19 @@ struct QueueEntry {
   size_t index;
 };
 
-// Asynchronous, chunked file copy/move/read/write on top of the storage:: interface (storage.h
-// itself is unmodified by this component). See the design note in storage.h's control-/data-
-// plane contract: STORAGE_CAP_IO_TASK_SAFE storages get offloaded to a single shared
-// background FreeRTOS task on platforms that have one; everything else -- including all
-// non-ESP32 platforms -- runs in loop-sliced mode, processing one chunk/step per main loop
-// iteration. The public API is identical either way; callers cannot tell the difference except
-// in timing. Requests/streams that share a storage instance never run concurrently across the
-// two engines -- see overlaps_active_() below -- since the interface requires all data-plane
-// calls on a given instance to be externally serialized.
+// Asynchronous, chunked file copy/move/read/write on top of the storage:: interface (storage.h is
+// unmodified by this component). Per storage.h's control-/data-plane note: STORAGE_CAP_IO_TASK_SAFE
+// storages are offloaded to a single shared background FreeRTOS task where one exists; everything
+// else (including all non-ESP32) runs loop-sliced, one chunk/step per main-loop iteration. The
+// public API is identical; callers cannot tell except in timing. Requests/streams sharing a storage
+// instance never run concurrently across the two engines (overlaps_active_() below), since the
+// interface requires per-instance external serialization.
 //
-// Two independent pools live here: `pool_` (TransferRequest, for async_copy()/async_move())
-// and `stream_pool_` (StreamRequest, for begin_write()/write_chunk()/.../begin_read()/
-// read_chunk()/...). They're separate state machines -- TransferRequest auto-advances through
-// its own chunks via run_chunk_(), StreamRequest only ever advances when the caller supplies
-// the next chunk via run_stream_step_() -- but share one task_stack_size_/task_priority_, one
-// background task, and one task_queue_ (tagged by QueueEntry::kind) rather than paying for two
-// of each.
+// Two pools: `pool_` (TransferRequest, async_copy/move) and `stream_pool_` (StreamRequest, the
+// begin_*/write_chunk/read_chunk/... stream API). Separate state machines -- TransferRequest
+// auto-advances via run_chunk_(), StreamRequest advances only when the caller supplies the next
+// chunk -- but share one task_stack_size_/task_priority_, one task, and one task_queue_ (tagged by
+// QueueEntry::kind) rather than two of each.
 class StorageWorker : public PollingComponent {
  public:
   // update_interval defaults to 5 ms (codegen sets it via set_update_interval); the engine is
@@ -429,29 +458,24 @@ class StorageWorker : public PollingComponent {
   // and DMA-capability, and the platform those were chosen for -- so the buffer policy is
   // visible in the boot log without reading defines.
   void dump_config() override;
-  // The engine: advances the loop-sliced transfer/stream slots one time-budgeted batch per
-  // call. Called by PollingComponent's scheduler interval (started with the first pending
-  // work via start_poller() at the submit funnels, stopped again by update() itself once
-  // every slot and stream is FREE). No custom driver: the scheduler runs this on Phase A of
-  // every fired tick, independent of the gated component loop().
+  // The engine: advances the loop-sliced transfer/stream slots by one chunk, plus one completion-
+  // delivery sweep, per call -- not a time-budgeted batch. Called by PollingComponent's scheduler
+  // interval (started with the first pending work via start_poller() at the submit funnels,
+  // stopped again by update() itself once every slot and stream is FREE). No custom driver: the
+  // scheduler runs this on Phase A of every fired tick, independent of the gated component loop().
   void update() override;
-  // DATA, not AFTER_CONNECTION: the worker has no networking dependency of its own (NFS/SMB
-  // storages are accessed through the storage:: interface, not directly), so there's no reason
-  // to delay pool/task creation until after Wi-Fi/API come up. StorageRegistry (BUS) is
-  // guaranteed to exist by DATA, and setting up this early means async_copy()/async_move()
-  // work correctly even if called from another component's setup() (as long as that
-  // component's own setup_priority is lower than DATA).
+  // DATA, not AFTER_CONNECTION: the worker has no networking dependency of its own (NFS/SMB are
+  // reached through the storage:: interface, not directly), so pool/task creation need not wait for
+  // Wi-Fi/API. StorageRegistry (BUS) exists by DATA, and setting up this early means async_copy/move
+  // work even when called from another component's setup() (if its setup_priority is below DATA).
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  // Submits an async copy/move. Returns StorageError::OK once the request is queued (the
-  // callback will be invoked exactly once, later, always on the main loop) -- or an error
-  // immediately if the request could not be queued, in which case the callback is NOT
-  // invoked. Rejections: StorageError::NOT_READY (request pool full -- this is backpressure,
-  // not a frozen-enum addition, see the PR notes) or StorageError::INVALID_ARGS (a path
-  // exceeds STORAGE_WORKER_MAX_PATH).
-  // overwrite=false answers ALREADY_EXISTS for an occupied destination; true clears it first
-  // (recursively for trees) -- inside the worker, never in a caller's context. The worker also
-  // decides tree-vs-file itself by stat()ing the source: callers no longer pre-classify.
+  // Submits an async copy/move. Returns OK once queued (the callback fires exactly once, later,
+  // always on the main loop) -- or an immediate error, in which case the callback is NOT invoked:
+  // NOT_READY (pool full -- backpressure, not a frozen-enum addition) or INVALID_ARGS (a path
+  // exceeds STORAGE_WORKER_MAX_PATH). overwrite=false answers ALREADY_EXISTS for an occupied
+  // destination; true clears it first (recursively for trees), inside the worker. The worker also
+  // decides tree-vs-file itself by stat()ing the source -- callers no longer pre-classify.
   storage::StorageError async_copy(storage::PathStorage *src, const char *src_path, storage::PathStorage *dst,
                                    const char *dst_path, CompletionCallback &&on_done, TransferJob *job_out = nullptr,
                                    bool overwrite = false);
@@ -467,6 +491,17 @@ class StorageWorker : public PollingComponent {
   storage::StorageError async_move_tree(storage::PathStorage *src, const char *src_path, storage::PathStorage *dst,
                                         const char *dst_path, CompletionCallback &&on_done,
                                         TransferJob *job_out = nullptr);
+
+  // Filesystem format -- a single blocking control-plane call, routed through the engine so
+  // it runs on the worker task for task-safe media (main loop free, watchdog-safe) instead of
+  // blocking the caller. on_done fires once with the driver's result, like any transfer.
+  // Mount -- same contract as async_format(): one blocking control-plane call on the worker
+  // task for task-safe devices (main loop free, watchdog-safe), loop-sliced otherwise; on_done
+  // fires once with the driver's mount() result.
+  storage::StorageError async_mount(storage::PathStorage *target, CompletionCallback &&on_done,
+                                    TransferJob *job_out = nullptr);
+  storage::StorageError async_format(storage::FilesystemStorage *target, CompletionCallback &&on_done,
+                                     TransferJob *job_out = nullptr);
 
   // Raw-device transfers -- the storage-interface home of what the raw HTTP API used to
   // hand-roll. async_raw_read streams device bytes [address, address+size) into a file
@@ -509,6 +544,16 @@ class StorageWorker : public PollingComponent {
   // so they never ask.
   bool is_busy_with(const storage::Storage *storage) const;
 
+  // The contention twin of is_busy_with(): true while the BACKGROUND TASK may do I/O on `storage`
+  // concurrently with the caller -- a task-owned transfer in RUNNING/CANCELLED (it chunks between
+  // main-loop ticks; a cancelled one still closes handles), or a stream whose current step is on the
+  // task. PENDING and loop-sliced work never count (the loop engine advances only on the caller's
+  // thread), nor do IDLE streams (an open handle is not an in-flight call). Main-loop-only. For
+  // consumers about to run a blocking helper (read_file/write_file/raw I/O) on the main loop: doing
+  // so while this is true would put two threads into one medium -- the corruption the cross-engine
+  // serialization prevents. Always false without the task.
+  bool has_active_task_io(const storage::Storage *storage) const;
+
   // Opens `path` for writing (create/truncate, like OpenMode::WRITE) and returns a handle
   // immediately if a slot was available -- StorageError::NOT_READY (pool full) or
   // StorageError::INVALID_ARGS (path too long) otherwise, in which case on_open is NOT
@@ -518,8 +563,11 @@ class StorageWorker : public PollingComponent {
                                     CompletionCallback &&on_open);
   // Pushes exactly one chunk. `data` must remain valid until on_written fires -- the worker
   // does not copy it (streams are expected to be large/frequent; copying would defeat the
-  // point). Returns StorageError::OK once queued or an immediate error (handle unknown/not
-  // IDLE) in which case on_written is NOT invoked.
+  // point). Returns StorageError::OK once queued or an immediate error (handle unknown, not
+  // IDLE, or the previous step's completion has not been delivered yet) in which case
+  // on_written is NOT invoked. This applies to every per-chunk call below (read_chunk, end_*,
+  // seek, tell): stream calls are sequenced by their completions -- wait for the callback
+  // before issuing the next call, or NOT_READY is returned.
   storage::StorageError write_chunk(const StreamHandle &handle, const uint8_t *data, size_t len,
                                     CompletionCallback &&on_written);
   // Closes the handle (closes the underlying FileHandle for FilesystemStorage; a no-op data-
@@ -537,7 +585,20 @@ class StorageWorker : public PollingComponent {
                                    CompletionCallback &&on_read);
   storage::StorageError end_read(const StreamHandle &handle, CompletionCallback &&on_closed);
 
+  // Repositions the stream's cursor (SeekMode as in storage.h: SET/CUR/END). For a filesystem
+  // stream this seeks the open handle; for a network stream it is arithmetic on the read/write
+  // offset (END consults file_size()). on_seeked fires once, later, on the main loop; the stream
+  // must be IDLE (between chunks). NOT_READY if a step is in flight or its completion is still
+  // undelivered, INVALID_ARGS on an unknown handle or a resulting negative position.
+  storage::StorageError seek(const StreamHandle &handle, int64_t offset, storage::SeekMode mode,
+                             CompletionCallback &&on_seeked);
+  // Reports the current cursor position into *position before on_told fires. Same IDLE-only,
+  // main-loop-callback contract as the rest of the stream API.
+  storage::StorageError tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told);
+
  protected:
+  storage::StorageError submit_control_op_(RequestOp op, storage::PathStorage *target, CompletionCallback &&on_done,
+                                           TransferJob *job_out);
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,
                                 storage::PathStorage *dst, const char *dst_path, CompletionCallback &&on_done,
                                 TransferJob *job_out = nullptr, bool overwrite = false);
@@ -547,17 +608,24 @@ class StorageWorker : public PollingComponent {
   // never actually issues an async transfer or stream never pays for any of it -- setup() itself
   // only subscribes to the hotplug callback. Idempotent: subsequent calls are a no-op once
   // started_ is set.
+  //
+  // Tradeoff: deliberate heap use after setup() (AGENTS.md #7) -- both pools, queue and task stack,
+  // several kB in one go at first submit, not boot, when the heap is most fragmented. One-shot. Cost
+  // is diagnosability: a boot failure is obvious; the same at first use degrades to loop-sliced (or
+  // fails the submit).
   void ensure_started_();
 
   // True if every storage involved may have its data-plane calls run off the main loop.
   bool is_task_safe_(const TransferRequest &req) const;
   bool wait_for_network_ready_(TransferRequest &req, storage::StorageError err, const storage::Storage *side);
   // Verify phase for RAW_WRITE_FROM_FILE. begin_verify_pass_ rewinds the source file and resets
-  // the cursor to start a read-back pass; verify_chunk_ reads one device chunk and compares it
-  // against the file. Both return false when they have finished the request (error/mismatch) or
-  // are waiting on the network -- the caller must return immediately in that case.
+  // the cursor to start a read-back pass; it returns false (after finishing the request) on a rewind
+  // error and true to proceed, so the caller must return immediately on false. verify_chunk_ reads
+  // one device chunk and compares it against the file; it processes exactly one chunk per call and
+  // finishes the request on mismatch/error/completion or yields waiting on the network, so the caller
+  // must always return after calling it.
   bool begin_verify_pass_(TransferRequest &req);
-  bool verify_chunk_(TransferRequest &req, bool on_task);
+  void verify_chunk_(TransferRequest &req, bool on_task);
   storage::StorageError submit_raw_(RequestOp op, storage::RawStorage *device, uint64_t address, uint64_t size,
                                     storage::PathStorage *file_side, const char *file_path, bool erase_first,
                                     bool overwrite, CompletionCallback &&on_done, TransferJob *job_out,
@@ -593,21 +661,19 @@ class StorageWorker : public PollingComponent {
   // as RUNNING here, which merely delays dispatch by one loop iteration (safe/conservative).
   bool overlaps_active_(const TransferRequest &candidate) const;
 
-  // Frees DONE slots and fires their completion callbacks (always on the main loop). Called
-  // at the top of loop() and again after the chunk batch, so a completion produced inside
-  // the current pass is delivered in the same pass instead of waiting for the next one.
+  // Frees DONE slots and fires their completion callbacks (always on the main loop). Called once
+  // at the top of update(), so a completion produced by this tick's chunk is delivered on the next
+  // tick rather than the current one.
   void deliver_completions_();
 
-  // Advances one request by exactly one chunk. Used by both the loop-sliced engine (called
-  // from loop(), once per iteration of its chunk batch) and the worker task (called in its
-  // own loop). Owns
-  // opening/closing handles and the chunk buffer, offset tracking, cancellation/hotplug
-  // checks, and the same-storage rename() fast path for MOVE. On completion (success, error,
-  // or cancellation) sets req.result and req.state = RequestState::DONE; the caller (loop()
-  // or the task) must not touch req again until the main loop has delivered the callback.
-  // on_task is true only when called from the worker task_loop_, false from the loop-sliced
-  // engine. It gates the one operation that may block for a long time -- a whole-chip erase --
-  // to the task, where a long block is safe (the task is deliberately not on the 5s watchdog).
+  // Advances one request by exactly one chunk. Used by both the loop-sliced engine (from loop(),
+  // once per chunk-batch iteration) and the worker task (in its own loop). Owns opening/closing
+  // handles and the chunk buffer, offset tracking, cancellation/hotplug checks, and the
+  // same-storage rename() fast path for MOVE. On completion (success, error, or cancellation) sets
+  // req.result and req.state = DONE; the caller must not touch req again until the main loop
+  // delivers the callback. on_task is true only on the worker task; it gates the one long-blocking
+  // operation -- a whole-chip erase -- to the task, where a long block is safe (not on the 5s
+  // watchdog).
   void run_chunk_(TransferRequest &req, bool on_task);
   // One step of a directory walk: pick the next entry, create a directory, or set up the next
   // file for the chunk loop. Returns false when the walk is over (request already finished).
@@ -631,13 +697,12 @@ class StorageWorker : public PollingComponent {
   // the full per-engine drain sequence.
   void on_storage_unregistered_(storage::Storage *s);
 
-  // One streaming buffer per engine rather than one per request. A buffer's content never
-  // outlives the run_chunk_() call that filled it, and neither engine runs two requests at
-  // once, so requests can share. The two engines keep their own because the size and heap
-  // follow the execution context (see alloc_dma_capable): the loop path stays small enough for
-  // its 20 ms slice, the task path stages a larger DMA-capable PSRAM chunk. Allocated on first
-  // use and kept afterwards -- a 16-64 kB allocate/free cycle per transfer is exactly the
-  // fragmentation pattern to avoid.
+  // One streaming buffer per engine, not per request: a buffer's content never outlives the
+  // run_chunk_() that filled it and neither engine runs two requests at once, so requests share.
+  // The two engines keep separate ones because size and heap follow the execution context
+  // (alloc_dma_capable): the loop path stays within its 20 ms slice, the task path stages a larger
+  // DMA-capable PSRAM chunk. Allocated on first use and kept -- a 16-64 kB allocate/free per
+  // transfer is exactly the fragmentation to avoid.
   storage::RamBuffer chunk_buf_loop_;
   storage::RamBuffer chunk_buf_task_;
   size_t chunk_size_loop_{0};

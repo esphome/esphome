@@ -1,5 +1,12 @@
 #include <gtest/gtest.h>
 
+// storage_worker.h is empty unless a config requests the worker (see the
+// USE_STORAGE_WORKER gate at its top). The helpers under test are header-only
+// inlines behind that gate, so enable it for this TU -- same pattern as
+// USE_TIME_TIMEZONE in the time component's tests. storage_worker.cpp carries
+// the same gate and stays empty on the host, so nothing else is pulled in.
+#define USE_STORAGE_WORKER
+
 #include "esphome/components/storage/storage_worker.h"
 
 // Covers the parts of the worker that are pure logic: the transfer-job handle encoding and

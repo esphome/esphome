@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cstdio>
 #include "esphome/components/storage/storage.h"
+#include "esphome/components/storage/fatfs_select.h"
 
 namespace esphome::sd_storage {
 
@@ -88,8 +89,29 @@ storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
 }
 
 storage::StorageError SdStorageBase::format() {
-  ESP_LOGW(TAG_BASE, "Format not implemented for SD cards");
-  return storage::StorageError::NOT_SUPPORTED;
+  if (this->fatfs_drive_[0] == '\0') {
+    ESP_LOGE(TAG_BASE, "Cannot format: card not mounted (no FATFS drive)");
+    return storage::StorageError::NOT_FOUND;
+  }
+  // Detach the mounted FATFS volume but keep the diskio drive registered so f_mkfs can reach the
+  // medium; then re-register the VFS via mount() to expose the fresh, empty filesystem. The FAT
+  // family is used (FatFs picks the width the medium allows); exFAT selection lives with the
+  // subclass config and can be threaded through later.
+  f_mount(nullptr, this->fatfs_drive_, 0);
+  auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
+  MKFS_PARM parm{};
+  parm.fmt = FM_FAT | FM_FAT32;
+  ESP_LOGI(TAG_BASE, "Formatting '%s' as FAT...", this->fatfs_drive_);
+  FRESULT res = f_mkfs(this->fatfs_drive_, &parm, work.get(), FF_MAX_SS);
+  if (res != FR_OK) {
+    ESP_LOGE(TAG_BASE, "f_mkfs failed (%d)", static_cast<int>(res));
+    this->unmount();
+    this->mount();
+    return storage::StorageError::WRITE_ERROR;
+  }
+  this->unmount();
+  this->mount();
+  return storage::StorageError::OK;
 }
 
 void SdStorageBase::loop_cd_() {

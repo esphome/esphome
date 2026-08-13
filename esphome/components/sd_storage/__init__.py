@@ -9,11 +9,16 @@ from esphome.components.esp32.const import (
 )
 from esphome.components.storage import (
     CONF_MOUNT_PATH,
+    FILE_SYSTEM_SCHEMA_ENTRY,
+    FilesystemStorage,
     MountableStorage,
+    file_system_to_code,
+    final_validate_file_system,
     register_mount_path,
     request_fatfs_path_length,
     request_storage_device,
     request_storage_worker,
+    validate_file_system_value,
     validate_mount_path,
 )
 import esphome.config_validation as cv
@@ -37,7 +42,7 @@ AUTO_LOAD = ["storage"]
 sd_storage_ns = cg.esphome_ns.namespace("sd_storage")
 # MountableStorage parent makes SD ids valid targets for the generic storage.mount /
 # storage.unmount actions (cv.use_id(MountableStorage) checks declared Python parents).
-SdStorageBase = sd_storage_ns.class_("SdStorageBase", cg.Component, MountableStorage)
+SdStorageBase = sd_storage_ns.class_("SdStorageBase", FilesystemStorage, MountableStorage)
 SdMmc = sd_storage_ns.class_("SdMmc", SdStorageBase)
 SdSpi = sd_storage_ns.class_("SdSpi", spi.SPIDevice, SdStorageBase)
 
@@ -128,6 +133,8 @@ def validate_platform_variant(config):
 
 SD_MMC_SCHEMA = cv.Schema(
     {
+        # Only exists together with esp32 enable_exfat -- see storage/__init__.py.
+        FILE_SYSTEM_SCHEMA_ENTRY: validate_file_system_value,
         cv.GenerateID(): cv.declare_id(SdMmc),
         cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_CMD_PIN): pins.internal_gpio_output_pin_number,
@@ -299,6 +306,7 @@ def _final_validate_assume_exclusive_bus(config):
 def _final_validate(config):
     _final_validate_spi_interface(config)
     _final_validate_assume_exclusive_bus(config)
+    final_validate_file_system(config)
     return config
 
 
@@ -317,6 +325,7 @@ async def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await file_system_to_code(var, config)
 
     card_type = config[CONF_TYPE]
     if card_type == TYPE_SD_SPI:
