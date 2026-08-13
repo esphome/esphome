@@ -129,7 +129,7 @@ def _transform_schema(defaults: dict) -> dict:
 def touchscreen_schema(
     default_touch_timeout: Any = cv.UNDEFINED,
     calibration_required: bool = False,
-    defaults: dict = None,
+    defaults: dict | None = None,
 ) -> cv.Schema:
     defaults = defaults or {}
     return cv.Schema(

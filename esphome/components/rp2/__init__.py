@@ -179,7 +179,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
 
 
-def _parse_platform_version(value: str) -> str:
+def _parse_platform_version(value: Any) -> str:
     value = cv.string(value)
     if value.startswith("http"):
         return value
