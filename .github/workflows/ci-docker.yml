@@ -61,9 +61,9 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
       push: ${{ steps.tag.outputs.push }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - name: Set up Docker Buildx
@@ -71,11 +71,13 @@ jobs:
 
       - name: Determine tag and whether to push
         id: tag
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
           # Sanitize the branch name into a valid docker tag: replace invalid
           # characters, ensure the first character is valid (tags must start
           # with [A-Za-z0-9_]), and cap the length at 128 characters.
-          branch="${{ github.head_ref || github.ref_name }}"
+          branch="$HEAD_REF"
           tag="${branch//[^a-zA-Z0-9_.-]/-}"
           case "$tag" in
             [a-zA-Z0-9_]*) ;;
@@ -96,7 +98,7 @@ jobs:
 
       - name: Log in to the GitHub container registry
         if: steps.tag.outputs.push == 'true'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -145,16 +147,16 @@ jobs:
           - "ha-addon"
           - "docker"
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -180,8 +182,8 @@ jobs:
       contents: read  # actions/checkout to load the test configs
     strategy:
       fail-fast: false
-      # Cap concurrency so this smoke test doesn't hog all the shared runners.
-      max-parallel: 2
+      # Modest cap so this smoke test leaves room on the shared runner pool.
+      max-parallel: 8
       matrix:
         # One entry per distinct toolchain. ESP32 variants (c3/c6/s2/s3/p4)
         # share a toolchain bundle, so esp32 is exercised on the base variant
@@ -202,7 +204,7 @@ jobs:
           - nrf52
           - host
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Download image artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
