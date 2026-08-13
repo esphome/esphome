@@ -1378,10 +1378,11 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
         finish_request(req, StorageError::INVALID_ARGS);
         return;
       }
-      // A raw write of 0 bytes is meaningless, same as the synchronous perform_raw_write(); reject an
-      // empty source here so the two paths agree instead of the worker reporting a no-op as success.
-      // Only the raw write: an empty file is a valid verify target and a valid path-to-path source.
-      if (req.op == RequestOp::RAW_WRITE_FROM_FILE && src_st.size == 0) {
+      // A raw write or verify against a 0-byte source is meaningless -- writing nothing, or verifying a
+      // device against nothing -- and the synchronous perform_raw_write() already rejects an empty write
+      // with INVALID_ARGS. Reject an empty source for both here so the paths agree. Raw file side only:
+      // an empty file is still a valid path-to-path copy source and a valid file to create.
+      if ((req.op == RequestOp::RAW_WRITE_FROM_FILE || req.op == RequestOp::RAW_VERIFY_FILE) && src_st.size == 0) {
         finish_request(req, StorageError::INVALID_ARGS);
         return;
       }
