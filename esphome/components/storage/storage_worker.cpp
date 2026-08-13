@@ -894,6 +894,14 @@ void StorageWorker::deliver_completions_() {
             ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", src_rel);
           }
         }
+      } else if (global_storage_registry != nullptr && req.dst_storage != nullptr &&
+                 (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)) {
+        // FORMAT wipes every directory on the target; MOUNT makes its whole tree appear. Note the
+        // target's mount root, plus the "" roots level the header documents for a mount coming/going.
+        if (StorageRegistry::build_path(req.dst_storage, "", feed_path, sizeof(feed_path))) {
+          global_storage_registry->note_dir_changed(feed_path);
+        }
+        global_storage_registry->note_dir_changed("");
       }
 #endif
       CompletionCallback cb = std::move(req.callback);
