@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_LABEL, CONF_TEXT
+from esphome.components.cons import CONF_LABEL
+from esphome.const import CONF_TEXT
 
 from ..defines import (
     CONF_LONG_MODE,
