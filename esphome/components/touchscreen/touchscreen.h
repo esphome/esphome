@@ -117,7 +117,6 @@ class Touchscreen : public PollingComponent {
   bool is_touched_{false};
   bool was_touched_{false};
   bool skip_update_{false};
-  bool conversion_to_resolution_{true};
 };
 
 }  // namespace esphome::touchscreen
