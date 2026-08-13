@@ -6,7 +6,6 @@
 #include <cstring>
 #include <cstdio>
 #include "esphome/components/storage/storage.h"
-#include "esphome/components/storage/fatfs_select.h"
 
 namespace esphome::sd_storage {
 

@@ -10,9 +10,6 @@
 
 #ifdef USE_ESP_IDF
 #include "sdmmc_cmd.h"
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-#include "driver/sdspi_host.h"
-#endif
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
 #endif
@@ -25,10 +22,6 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
                                     spi::DATA_RATE_10MHZ>,
               public SdStorageBase {
  public:
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat.
-  void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
-#endif
   enum class ErrorCode : uint8_t {
     ERR_MOUNT,
     ERR_NO_CARD,
@@ -79,14 +72,6 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
 
 #ifdef USE_ESP_IDF
   sdmmc_card_t *card_{nullptr};
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  uint8_t requested_file_system_{0};
-  sdspi_dev_handle_t sdspi_handle_{-1};
-  // Manual mirror of esp_vfs_fat_sdspi_mount -- same public-API steps, with the probe
-  // window between diskio registration and f_mount (see SdMmc::mount_manual_).
-  esp_err_t mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_config, uint32_t max_freq_khz);
-  void unmount_manual_();
-#endif
 #endif
 
   SdFileHandle handle_pool_[MAX_OPEN_FILES]{};
