@@ -38,7 +38,9 @@ AUTO_LOAD = ["storage"]
 sd_storage_ns = cg.esphome_ns.namespace("sd_storage")
 # MountableStorage parent makes SD ids valid targets for the generic storage.mount /
 # storage.unmount actions (cv.use_id(MountableStorage) checks declared Python parents).
-SdStorageBase = sd_storage_ns.class_("SdStorageBase", FilesystemStorage, MountableStorage)
+SdStorageBase = sd_storage_ns.class_(
+    "SdStorageBase", FilesystemStorage, MountableStorage
+)
 SdMmc = sd_storage_ns.class_("SdMmc", SdStorageBase)
 SdSpi = sd_storage_ns.class_("SdSpi", spi.SPIDevice, SdStorageBase)
 
