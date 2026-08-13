@@ -1,3 +1,4 @@
+import functools
 import re
 
 from esphome import automation
@@ -112,6 +113,7 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
+@functools.cache
 def _uart_selection_esp32() -> dict[str, list[str]]:
     from esphome.components.esp32 import (
         VARIANT_ESP32,
@@ -146,6 +148,7 @@ def _uart_selection_esp32() -> dict[str, list[str]]:
     }
 
 
+@functools.cache
 def _uart_selection_libretiny() -> dict[str, list[str]]:
     from esphome.components.libretiny.const import (
         COMPONENT_BK72XX,
@@ -160,14 +163,22 @@ def _uart_selection_libretiny() -> dict[str, list[str]]:
     }
 
 
-def __getattr__(name: str):
-    # These tables are introspected by external tooling (esphome/device-builder);
-    # built on access so the platform packages stay out of module import.
-    if name == "UART_SELECTION_ESP32":
-        return _uart_selection_esp32()
-    if name == "UART_SELECTION_LIBRETINY":
-        return _uart_selection_libretiny()
+# These tables are introspected by external tooling (esphome/device-builder);
+# built on access so the platform packages stay out of module import.
+_LAZY_UART_SELECTION_TABLES = {
+    "UART_SELECTION_ESP32": _uart_selection_esp32,
+    "UART_SELECTION_LIBRETINY": _uart_selection_libretiny,
+}
+
+
+def __getattr__(name: str) -> dict[str, list[str]]:
+    if (table := _LAZY_UART_SELECTION_TABLES.get(name)) is not None:
+        return table()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return [*globals(), *_LAZY_UART_SELECTION_TABLES]
 
 
 def uart_selection(value):
