@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
 from hypothesis import given
@@ -212,6 +214,31 @@ class TestLambda:
         target = core.Lambda(value)
 
         assert str(target) is value.value
+
+    def test_init__expression_initializer(self):
+        from esphome.cpp_generator import RawExpression
+
+        target = core.Lambda(RawExpression("foo()"))
+
+        assert target.value == "foo();"
+
+    def test_init__other_initializer(self):
+        target = core.Lambda(123)
+
+        assert target.value == 123
+
+    def test_init_from_str_does_not_import_codegen(self):
+        """The validated-config cache revives Lambdas on the upload fast path."""
+        # sys.exit rather than assert so ambient PYTHONOPTIMIZE can't strip it.
+        check = (
+            "import sys; from esphome.core import Lambda; "
+            "Lambda('return 1;'); "
+            "sys.exit('codegen leaked' if 'esphome.cpp_generator' in sys.modules else 0)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", check], capture_output=True, text=True, check=False
+        )
+        assert result.returncode == 0, result.stderr
 
     def test_parts(self):
         target = core.Lambda(SAMPLE_LAMBDA.strip())
@@ -590,6 +617,36 @@ class TestEsphomeCore:
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
+
+    def test_is_rp2(self, target):
+        """The canonical RP2 family gate flips on for the rp2 platform."""
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
+
+        assert target.is_rp2 is True
+        assert target.is_esp32 is False
+        assert target.is_esp8266 is False
+
+    def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target, caplog):
+        """``is_rp2040`` is kept as a deprecation shim that returns whatever
+        ``is_rp2`` returns; both must agree across platform values. A
+        one-shot deprecation warning is emitted on first access and
+        deduped via ``CORE.data`` for the rest of the run."""
+        import logging
+
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
+        with caplog.at_level(logging.WARNING, logger="esphome.core"):
+            assert target.is_rp2040 is True
+            assert target.is_rp2040 == target.is_rp2
+
+            warnings = [r for r in caplog.records if "is_rp2040" in r.message]
+            assert len(warnings) == 1
+            assert "2027.7.0" in warnings[0].message
+
+        # Reset the dedupe so the False-platform branch also runs the shim.
+        target.data.pop("_core_is_rp2040_deprecated_warned", None)
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        assert target.is_rp2040 is False
+        assert target.is_rp2040 == target.is_rp2
 
     def test_firmware_bin__default(self, target):
         """Default platforms produce <pioenvs>/<name>/firmware.bin."""

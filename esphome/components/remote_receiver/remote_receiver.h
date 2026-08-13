@@ -14,7 +14,7 @@
 
 namespace esphome::remote_receiver {
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 struct RemoteReceiverComponentStore {
   static void gpio_intr(RemoteReceiverComponentStore *arg);
 
@@ -55,11 +55,11 @@ struct RemoteReceiverComponentStore {
 };
 #endif
 
-class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
-                                public Component
+class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
+                                      public Component
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                public remote_base::RemoteRMTChannel
+                                      public remote_base::RemoteRMTChannel
 #endif
 
 {
@@ -93,11 +93,11 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   std::string error_string_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)
   RemoteReceiverComponentStore store_;
 #endif
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   HighFrequencyLoopRequester high_freq_;
 #endif
 
