@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -20,8 +21,10 @@ from esphome.const import (
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, ID, Lambda
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.helpers import IS_MACOS
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
@@ -63,14 +66,14 @@ CONF_BODY = "body"
 CONF_JSON = "json"
 
 
-def validate_url(value):
+def validate_url(value: Any) -> str:
     value = cv.url(value)
     if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
 
-def validate_ssl_verification(config):
+def validate_ssl_verification(config: ConfigType) -> ConfigType:
     error_message = ""
 
     if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
@@ -91,7 +94,7 @@ def validate_ssl_verification(config):
     return config
 
 
-def _declare_request_class(value):
+def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
     if CORE.is_esp32:
@@ -151,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
@@ -298,7 +301,12 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def http_request_action_to_code(config, action_id, template_arg, args):
+async def http_request_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

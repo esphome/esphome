@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -15,6 +17,8 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.core import CORE, ID, coroutine
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
@@ -32,7 +36,7 @@ MCP23XXX_INTERRUPT_MODES = {
 }
 
 
-def _validate_interrupt_pin(value):
+def _validate_interrupt_pin(value: Any) -> ConfigType:
     # The MCP component owns INT polarity (active-low, hardcoded falling-edge ISR)
     # and installs a single ISR per GPIO, so neither inversion nor sharing is supported.
     value = pins.internal_gpio_input_pin_schema(value)
@@ -59,7 +63,7 @@ MCP23XXX_CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-async def register_mcp23xxx(config, num_pins):
+async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     id: ID = config[CONF_ID]
     var = cg.new_Pvariable(id)
     await cg.register_component(var, config)
@@ -70,7 +74,7 @@ async def register_mcp23xxx(config, num_pins):
     return var
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -99,7 +103,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
-async def mcp23xxx_pin_to_code(config):
+async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
     parent_id: ID = config[CONF_MCP23XXX]
     parent = await cg.get_variable(parent_id)
 
