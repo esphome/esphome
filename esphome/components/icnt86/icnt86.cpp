@@ -11,7 +11,7 @@ void ICNT86Touchscreen::setup() {
   // Register interrupt pin
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
-  this->attach_interrupt_(interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+  this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   // Perform reset if necessary
   if (this->reset_pin_ != nullptr) {
@@ -19,12 +19,17 @@ void ICNT86Touchscreen::setup() {
     this->reset_();
   }
 
-  this->x_raw_max_ = this->display_->get_native_height();
-  this->y_raw_max_ = this->display_->get_native_width();
+  // Swap intentional: this touch chip's raw axes are transposed relative to the display's native orientation.
+  if (this->x_raw_max_ == this->x_raw_min_) {
+    this->x_raw_max_ = this->display_->get_native_height();
+  }
+  if (this->y_raw_max_ == this->y_raw_min_) {
+    this->y_raw_max_ = this->display_->get_native_width();
+  }
 }
 
 void ICNT86Touchscreen::update_touches() {
-  char buf[100] = {0};
+  uint8_t buf[100] = {0};
   char mask[1] = {0x00};
 
   this->i2c_read_byte_(0x1001, buf, 1);
@@ -82,9 +87,9 @@ void ICNT86Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-void ICNT86Touchscreen::i2c_read_byte_(uint16_t reg, char const *data, uint8_t len) {
+void ICNT86Touchscreen::i2c_read_byte_(uint16_t reg, uint8_t *data, uint8_t len) {
   this->i2c_write_byte_(reg, nullptr, 0);
-  this->read((uint8_t *) data, len);
+  this->read(data, len);
 }
 
 }  // namespace esphome::icnt86

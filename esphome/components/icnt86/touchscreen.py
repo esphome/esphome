@@ -31,12 +31,14 @@ CONFIG_SCHEMA = touchscreen.touchscreen_schema("250ms").extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await i2c.register_i2c_device(var, config)
     await touchscreen.register_touchscreen(var, config)
+    await i2c.register_i2c_device(var, config)
 
-    interrupt_pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-    cg.add(var.set_interrupt_pin(interrupt_pin))
+    cg.add(
+        var.set_interrupt_pin(
+            await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
+        )
+    )
 
-    if CONF_RESET_PIN in config:
-        rts_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(rts_pin))
+    if reset_pin_config := config.get(CONF_RESET_PIN):
+        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin_config)))
