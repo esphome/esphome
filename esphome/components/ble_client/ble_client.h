@@ -85,8 +85,10 @@ class BLEClient final : public BLEClientBase {
   static constexpr uint8_t MAX_PENDING_NOTIFY_REGS = 4;
 
   // Nodes on the neutral surface; fed the translated callbacks and
-  // auto-established after the on_connected fan-out.
+  // auto-established after the on_connected fan-out. Every gatt node is
+  // also in nodes_ (registration pushes into both).
   StaticVector<BLEClientNode *, ESPHOME_BLE_CLIENT_MAX_NODES> gatt_nodes_;
+  bool has_legacy_nodes_() const { return this->nodes_.size() > this->gatt_nodes_.size(); }
   // Reconnect backoff after materializer failures.
   ConnectBackoff gatt_backoff_;
   // Bridge-initiated notify registrations awaiting REG_FOR_NOTIFY_EVT.

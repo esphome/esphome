@@ -117,7 +117,7 @@ bool BluedroidServiceTable::build(esp_gatt_if_t gattc_if, uint16_t conn_id, uint
 
   // The arrays share one block; carving stays aligned because each struct's
   // strictest member is the UUID and array sizes are multiples of it.
-  static_assert(alignof(ble_device_base::GattService) == alignof(ble_device_base::GattCharacteristic) &&
+  static_assert(alignof(ble_device_base::GattService) >= alignof(ble_device_base::GattCharacteristic) &&
                 alignof(ble_device_base::GattCharacteristic) >= alignof(ble_device_base::GattDescriptor));
   size_t svc_bytes = this->service_total_ * sizeof(ble_device_base::GattService);
   size_t char_bytes = char_total * sizeof(ble_device_base::GattCharacteristic);

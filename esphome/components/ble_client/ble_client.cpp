@@ -238,35 +238,32 @@ bool BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
   // Stack-owned; nodes copy their handles during on_connected().
   bluetooth_connection::BluedroidServiceTable table;
   if (!table.build(this->gattc_if_, this->conn_id_, service_total, this->connection_index_)) {
-    if (this->nodes_.size() > this->gatt_nodes_.size()) {
-      // Only the table build failed; legacy nodes read the base's services_
-      // and keep the link. Gatt nodes catch the next connection (promoted so
-      // the release condition still fires).
-      ESP_LOGW(TAG, "[%s] Service table build failed; gatt nodes skip this connection", this->address_str());
-      for (auto *node : this->gatt_nodes_)
-        node->node_state = espbt::ClientState::ESTABLISHED;
-      return true;
-    }
-    ESP_LOGW(TAG, "[%s] Service table build failed; treating as failed discovery", this->address_str());
-    this->gatt_backoff_.register_failure(this->address_str());
-    this->disconnect();
-    return false;
-  }
-  this->gatt_connected_ = true;
-  auto view = table.view();
-  for (auto *node : this->gatt_nodes_) {
-    node->on_connected(view);
-    if (this->state() != espbt::ClientState::ESTABLISHED) {
-      // The node tore the link down; remaining nodes get on_disconnected
-      // with no preceding on_connected, so leave a trace of why.
-      ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str());
+    if (!this->has_legacy_nodes_()) {
+      ESP_LOGW(TAG, "[%s] Service table build failed; treating as failed discovery", this->address_str());
+      this->gatt_backoff_.register_failure(this->address_str());
+      this->disconnect();
       return false;
     }
+    // Only the table build failed; legacy nodes read the base's services_
+    // and keep the link. Gatt nodes catch the next connection.
+    ESP_LOGW(TAG, "[%s] Service table build failed; gatt nodes skip this connection", this->address_str());
+  } else {
+    this->gatt_connected_ = true;
+    auto view = table.view();
+    for (auto *node : this->gatt_nodes_) {
+      node->on_connected(view);
+      if (this->state() != espbt::ClientState::ESTABLISHED) {
+        // The node tore the link down; remaining nodes get on_disconnected
+        // with no preceding on_connected, so leave a trace of why.
+        ESP_LOGW(TAG, "[%s] A node aborted the connection during setup", this->address_str());
+        return false;
+      }
+    }
+    this->gatt_backoff_.reset();
   }
   // Promote so the legacy release condition can fire.
   for (auto *node : this->gatt_nodes_)
     node->node_state = espbt::ClientState::ESTABLISHED;
-  this->gatt_backoff_.reset();
   return true;
 }
 
@@ -338,7 +335,7 @@ int BLEClient::notify_characteristic(uint16_t handle, bool enable) {
     esp_err_t err = this->register_for_notify(handle);
     if (err == ESP_OK)
       this->pending_gatt_regs_[this->pending_gatt_reg_count_++] = handle;
-    return this->check_and_log_error_("register_for_notify", err);
+    return this->check_and_log_error_("esp_ble_gattc_register_for_notify", err);
   }
   return this->check_and_log_error_("esp_ble_gattc_unregister_for_notify",
                                     esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle));
