@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 import functools
@@ -253,7 +253,7 @@ class IncludeFile:
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():
-            from esphome.config_validation import Invalid
+            from voluptuous import Invalid
 
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
@@ -266,12 +266,135 @@ class IncludeFile:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(str(self.file))
 
+    def with_file(self, file: Path | str) -> IncludeFile:
+        """Clone this include with *file* as the filename."""
+        return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
+
+
+def _is_visible_path(rel: Path) -> bool:
+    """Report whether no component of *rel* is hidden (``..`` stays valid)."""
+    return all(part == ".." or _is_file_valid(part) for part in rel.parts)
+
+
+def _glob_include_candidates(parent_dir: Path, pattern: str) -> list[Path]:
+    """
+    Expand a candidate glob under *parent_dir*, keeping hidden files out.
+
+    An un-globbable pattern (absolute, or one the filesystem rejects) is
+    skipped instead of crashing discovery.
+    """
+    try:
+        found_paths = parent_dir.glob(pattern)
+        return [
+            rel
+            for found in found_paths
+            if _is_visible_path(rel := found.relative_to(parent_dir))
+        ]
+    except (NotImplementedError, ValueError) as err:
+        _LOGGER.debug("Cannot glob include pattern %r: %s", pattern, err)
+        return []
+    except OSError as err:
+        _LOGGER.warning("I/O error globbing include pattern %r: %s", pattern, err)
+        return []
+
+
+def _candidate_include_paths(include: IncludeFile) -> list[Path]:
+    """Enumerate resolved files an expression-templated ``!include`` could select.
+
+    Wildcard patterns from ``substitutions.include_candidate_patterns`` glob
+    under the including file's directory with hidden files excluded (like
+    ``!include_dir_*``); literal branch patterns are tried verbatim. Matches
+    still carrying expression markers or pointing back at the including file
+    are skipped.
+    """
+    # Deferred import — the substitutions component imports this module.
+    from esphome.components.substitutions import include_candidate_patterns
+
+    parent_dir = include.parent_file.parent
+    parent_resolved = include.parent_file.resolve()
+    candidates: list[Path] = []
+    for pattern in include_candidate_patterns(str(include.file)):
+        if "*" in pattern:
+            matches = sorted(_glob_include_candidates(parent_dir, pattern))
+        else:
+            matches = [Path(pattern)]
+        for match in matches:
+            if has_substitution_or_expression(str(match)):
+                continue
+            candidate = parent_dir / match
+            if not candidate.is_file():
+                continue
+            resolved = candidate.resolve()
+            if resolved == parent_resolved:
+                continue
+            candidates.append(resolved)
+    return candidates
+
+
+def _load_include_candidates(
+    include: IncludeFile,
+    *,
+    warn_on_unresolved: bool,
+    seen: set[int],
+    expanded_paths: set[Path],
+    keepalive: list[Any],
+) -> None:
+    """Load every filesystem candidate for an unresolved ``IncludeFile``."""
+    from voluptuous import Invalid
+
+    log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+    candidates = _candidate_include_paths(include)
+    if not candidates:
+        log(
+            "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+            include.file,
+            include.parent_file,
+        )
+        return
+    _LOGGER.debug(
+        "Expanding !include %s (referenced from %s) to %d candidate file(s)",
+        include.file,
+        include.parent_file,
+        len(candidates),
+    )
+    for candidate in candidates:
+        if candidate in expanded_paths:
+            continue
+        expanded_paths.add(candidate)
+        try:
+            loaded = include.with_file(candidate).load()
+        except (EsphomeError, Invalid) as err:
+            # Unlike an unresolved pattern (expected during the discovery
+            # re-parse), a matched on-disk candidate that fails to load is a
+            # genuine user error; warn in every mode. The file itself is
+            # still tracked (the load listener fires before parsing), only
+            # its nested includes go undiscovered.
+            _LOGGER.warning(
+                "Failed to load candidate %s for !include %s: %s",
+                candidate,
+                include.file,
+                err,
+            )
+            continue
+        # The throwaway IncludeFile is this tree's only owner; keep the tree
+        # alive so ids recorded in ``seen`` stay unique for the traversal.
+        keepalive.append(loaded)
+        force_load_include_files(
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=seen,
+            _expanded_paths=expanded_paths,
+            _keepalive=keepalive,
+        )
+
 
 def force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
     _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
 ) -> None:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
@@ -282,29 +405,43 @@ def force_load_include_files(
     loader fires and records every reachable file.
 
     ``IncludeFile`` instances whose path contains unresolved substitution
-    variables cannot be loaded. By default a warning is logged for each one;
-    pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
-    fresh re-parse where substitutions haven't been applied yet) to demote it
-    to a debug log.
+    variables or Jinja expressions are expanded against the filesystem and
+    every existing candidate file is loaded, so bundles ship all branches the
+    expression could select. By default a warning is logged when no candidate
+    exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
+    run on a fresh re-parse where substitutions haven't been applied yet) to
+    demote it to a debug log.
     """
+    from voluptuous import Invalid
+
     if _seen is None:
         _seen = set()
+    if _expanded_paths is None:
+        _expanded_paths = set()
+    if _keepalive is None:
+        # ``_seen`` tracks ids, which is only safe while every traversed
+        # object stays alive; candidate trees are otherwise freed between
+        # loop iterations and CPython recycles their addresses, making a
+        # fresh tree look already seen. Discovery is a one-shot operation,
+        # so holding the parsed trees costs nothing.
+        _keepalive = []
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         if obj.has_unresolved_expressions():
-            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
-            log(
-                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
-                obj.file,
-                obj.parent_file,
+            _load_include_candidates(
+                obj,
+                warn_on_unresolved=warn_on_unresolved,
+                seen=_seen,
+                expanded_paths=_expanded_paths,
+                keepalive=_keepalive,
             )
             return
         try:
             loaded = obj.load()
-        except EsphomeError as err:
+        except (EsphomeError, Invalid) as err:
             _LOGGER.warning(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
@@ -313,7 +450,11 @@ def force_load_include_files(
             )
             return
         force_load_include_files(
-            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=_seen,
+            _expanded_paths=_expanded_paths,
+            _keepalive=_keepalive,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
@@ -321,7 +462,11 @@ def force_load_include_files(
         _seen.add(id(obj))
         for value in obj.values():
             force_load_include_files(
-                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                value,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
@@ -329,7 +474,11 @@ def force_load_include_files(
         _seen.add(id(obj))
         for item in obj:
             force_load_include_files(
-                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                item,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _expanded_paths=_expanded_paths,
+                _keepalive=_keepalive,
             )
 
 
@@ -402,6 +551,13 @@ def _add_data_ref(fn):
             # Let generator finish
             for _ in generator:
                 pass
+        # Fast mode keeps this per-node attribute check instead of a second
+        # constructor table: measured, fast mode already parses within ~8%
+        # of a raw CSafeLoader, so a parallel table isn't worth the
+        # duplication (and undecorated constructors return generators with
+        # different resolution ordering).
+        if not loader.track_document_range:
+            return res
         res = make_data_base(res)
         if isinstance(res, ESPHomeDataBase):
             res.from_node(node)
@@ -441,14 +597,19 @@ def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -
 
 
 class ESPHomeLoaderMixin:
-    """Loader class that keeps track of line numbers."""
+    """Loader that tracks line numbers unless track_document_range is off."""
 
     def __init__(
-        self, name: Path, yaml_loader: Callable[[Path], dict[str, Any]]
+        self,
+        name: Path,
+        yaml_loader: Callable[[Path], dict[str, Any]],
+        *,
+        track_document_range: bool,
     ) -> None:
-        """Initialize the loader."""
+        """Initialize the loader. See load_yaml for track_document_range."""
         self.name = name
         self.yaml_loader = yaml_loader
+        self.track_document_range = track_document_range
 
     @_add_data_ref
     def construct_yaml_int(self, node):
@@ -511,8 +672,10 @@ class ESPHomeLoaderMixin:
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark
                     ) from None
 
-                key = make_data_base(str(key))
-                key.from_node(key_node)
+                key = str(key)
+                if self.track_document_range:
+                    key = make_data_base(key)
+                    key.from_node(key_node)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:
@@ -647,12 +810,12 @@ class ESPHomeLoaderMixin:
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         return [self.yaml_loader(f) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node: yaml.Node) -> list[dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
             loaded_yaml = self.yaml_loader(fname)
@@ -664,7 +827,7 @@ class ESPHomeLoaderMixin:
     def construct_include_dir_named(
         self, node: yaml.Node
     ) -> OrderedDict[str, dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             filename = fname.stem
@@ -675,7 +838,7 @@ class ESPHomeLoaderMixin:
     def construct_include_dir_merge_named(
         self, node: yaml.Node
     ) -> OrderedDict[str, dict[str, Any]]:
-        files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
+        files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
             loaded_yaml = self.yaml_loader(fname)
@@ -708,29 +871,37 @@ class ESPHomeLoaderMixin:
 
 
 class ESPHomeLoader(ESPHomeLoaderMixin, FastestAvailableSafeLoader):
-    """Loader class that keeps track of line numbers."""
+    """C-accelerated loader; see ESPHomeLoaderMixin."""
 
     def __init__(
         self,
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
+        *,
+        track_document_range: bool,
     ) -> None:
         FastestAvailableSafeLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
+        ESPHomeLoaderMixin.__init__(
+            self, name, yaml_loader, track_document_range=track_document_range
+        )
 
 
 class ESPHomePurePythonLoader(ESPHomeLoaderMixin, PurePythonLoader):
-    """Loader class that keeps track of line numbers."""
+    """Pure-Python loader with readable errors; see ESPHomeLoaderMixin."""
 
     def __init__(
         self,
         stream: TextIOBase | BytesIO,
         name: Path,
         yaml_loader: Callable[[Path], dict[str, Any]],
+        *,
+        track_document_range: bool,
     ) -> None:
         PurePythonLoader.__init__(self, stream)
-        ESPHomeLoaderMixin.__init__(self, name, yaml_loader)
+        ESPHomeLoaderMixin.__init__(
+            self, name, yaml_loader, track_document_range=track_document_range
+        )
 
 
 for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
@@ -758,20 +929,31 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
     _loader.add_constructor("!remove", _loader.construct_remove)
 
 
-def load_yaml(fname: Path, clear_secrets: bool = True) -> Any:
+def load_yaml(
+    fname: Path, clear_secrets: bool = True, *, track_document_range: bool = True
+) -> Any:
+    """Load a YAML file.
+
+    track_document_range=False skips wrapping every node in an
+    ESPHomeDataBase subclass carrying its source range. That metadata
+    serves validation error messages and lambda source locations in
+    generated code; callers that neither validate nor generate code (the
+    upload/logs fast path re-reading the validated config cache) can skip
+    it, roughly halving parse time.
+    """
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
-    return _load_yaml_internal(fname)
+    return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
-def _load_yaml_internal(fname: Path) -> Any:
+def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
     for listener in _load_listeners:
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            res = parse_yaml(fname, f_handle)
+            res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
     # Top-level !include returns a deferred IncludeFile; resolve it so
@@ -781,13 +963,32 @@ def _load_yaml_internal(fname: Path) -> Any:
     return res
 
 
-def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) -> Any:
+_FAST_YAML_LOADER = functools.partial(_load_yaml_internal, track_document_range=False)
+
+
+def parse_yaml(
+    file_name: Path,
+    file_handle: TextIOWrapper,
+    yaml_loader=None,
+    *,
+    track_document_range: bool = True,
+) -> Any:
     """Parse a YAML file."""
     if yaml_loader is None:
-        yaml_loader = _load_yaml_internal
+        # Nested loads (!include, !secret, !include_dir_*) inherit the
+        # same tracking mode.
+        yaml_loader = _load_yaml_internal if track_document_range else _FAST_YAML_LOADER
+    elif not track_document_range:
+        # A caller-supplied loader would silently revert nested loads to
+        # tracked mode; reject the combination instead of half-applying it.
+        raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
         return _load_yaml_internal_with_type(
-            ESPHomeLoader, file_name, file_handle, yaml_loader
+            ESPHomeLoader,
+            file_name,
+            file_handle,
+            yaml_loader,
+            track_document_range=track_document_range,
         )
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
@@ -795,7 +996,11 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
         return _load_yaml_internal_with_type(
-            ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
+            ESPHomePurePythonLoader,
+            file_name,
+            file_handle,
+            yaml_loader,
+            track_document_range=track_document_range,
         )
 
 
@@ -804,6 +1009,8 @@ def _load_yaml_internal_with_type(
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
+    *,
+    track_document_range: bool,
 ) -> Any:
     """Load a YAML file.
 
@@ -814,7 +1021,9 @@ def _load_yaml_internal_with_type(
     configuration. Frontmatter is ignored by config validation and code
     generation.
     """
-    loader = loader_type(content, fname, yaml_loader)
+    loader = loader_type(
+        content, fname, yaml_loader, track_document_range=track_document_range
+    )
     try:
         documents: list[Any] = []
         while loader.check_data():
@@ -871,8 +1080,8 @@ def _is_file_valid(name: str) -> bool:
     return not name.startswith(".")
 
 
-def _find_files(directory: Path, pattern):
-    """Recursively load files in a directory."""
+def find_files(directory: Path, pattern: str) -> Iterator[Path]:
+    """Recursively find files in a directory matching *pattern*, skipping hidden entries."""
     for root, dirs, files in os.walk(directory):
         dirs[:] = [d for d in dirs if _is_file_valid(d)]
         for f in files:
@@ -1140,6 +1349,8 @@ class ESPHomeDumper(yaml.SafeDumper):
         return super().increase_indent(flow, False)
 
 
+# Mirrored by compiled_config._json_default: a new representer that keeps a
+# type round-trippable (like Lambda's) needs a sentinel there too.
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
 )

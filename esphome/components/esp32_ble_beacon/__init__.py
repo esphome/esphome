@@ -86,4 +86,4 @@ async def to_code(config):
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
-    request_bluetooth(ble_42=True)
+    request_bluetooth()

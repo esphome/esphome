@@ -151,7 +151,7 @@ async def final_step():
         cg.add_define("USE_OTA_STATE_LISTENER")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_backend_source_files = filter_source_files_from_platform(
     {
         "ota_backend_esp_idf.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -167,3 +167,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    files = _filter_backend_source_files()
+    # ota_signature_esp_idf.cpp implements multi-key OTA signature verification,
+    # compiled only when the esp32 component enables it (external RSA signed
+    # OTA sets USE_OTA_SIGNED_VERIFICATION_MULTI_KEY). The define is set only on
+    # ESP32/IDF, so this also excludes the file on every other platform. Filter
+    # it out otherwise so the (otherwise fully #ifdef'd-out) file isn't opened
+    # and parsed on every build.
+    if not any(
+        define.name == "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY"
+        for define in CORE.defines
+    ):
+        files.append("ota_signature_esp_idf.cpp")
+    return files
