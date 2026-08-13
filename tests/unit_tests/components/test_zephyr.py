@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.zephyr import (
+    _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
     _variant_config_schema,
@@ -26,17 +27,20 @@ from esphome.components.zephyr import (
     zephyr_variant,
     zephyr_variant_family,
 )
-from esphome.components.zephyr.const import KEY_ZEPHYR
+from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
 from esphome.components.zephyr.variants import VARIANTS, ZephyrSDK, ZephyrVariant
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FRAMEWORK,
+    CONF_PATH,
     CONF_REFRESH,
+    CONF_TYPE,
     CONF_VARIANT,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ZEPHYR,
+    TYPE_LOCAL,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -620,3 +624,81 @@ def test_resolve_snippet_source_raises_for_missing_snippet_under_board_root(
 ) -> None:
     with pytest.raises(cv.Invalid, match="Could not find snippets"):
         _resolve_snippet_source({}, ["no_such_snippet"], tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_board_source -- board.yml lookup, including "@<revision>" validation
+# ---------------------------------------------------------------------------
+
+
+def _local_board_source_config(tmp_path: Path) -> dict:
+    CORE.config_path = tmp_path / "test.yaml"
+    return {
+        CONF_BOARD_SOURCE: {CONF_TYPE: TYPE_LOCAL, CONF_PATH: "."},
+    }
+
+
+def _write_revisioned_board_yml(tmp_path: Path) -> None:
+    board_dir = tmp_path / "boards" / "acme" / "my_board"
+    board_dir.mkdir(parents=True)
+    (board_dir / "board.yml").write_text(
+        "board:\n"
+        "  name: my_board\n"
+        "  vendor: acme\n"
+        "  revision:\n"
+        "    format: major.minor.patch\n"
+        "    revisions:\n"
+        "      - name: '1.0.0'\n"
+        "      - name: '2.0.0'\n"
+    )
+
+
+def test_resolve_board_source_raises_when_board_yml_missing(tmp_path: Path) -> None:
+    config = _local_board_source_config(tmp_path)
+    with pytest.raises(cv.Invalid, match="Could not find boards"):
+        _resolve_board_source(config, "no_such_board")
+
+
+def test_resolve_board_source_accepts_board_without_revision(tmp_path: Path) -> None:
+    (tmp_path / "boards" / "acme" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "acme" / "my_board" / "board.yml").write_text(
+        "board:\n  name: my_board\n  vendor: acme\n"
+    )
+    config = _local_board_source_config(tmp_path)
+    result = _resolve_board_source(config, "my_board")
+    assert result == tmp_path
+
+
+def test_resolve_board_source_accepts_valid_revision(tmp_path: Path) -> None:
+    _write_revisioned_board_yml(tmp_path)
+    config = _local_board_source_config(tmp_path)
+    result = _resolve_board_source(config, "my_board@1.0.0")
+    assert result == tmp_path
+
+
+def test_resolve_board_source_accepts_closest_lower_revision(tmp_path: Path) -> None:
+    _write_revisioned_board_yml(tmp_path)
+    config = _local_board_source_config(tmp_path)
+    result = _resolve_board_source(config, "my_board@1.5.0")
+    assert result == tmp_path
+
+
+def test_resolve_board_source_raises_for_revision_below_lowest_declared(
+    tmp_path: Path,
+) -> None:
+    _write_revisioned_board_yml(tmp_path)
+    config = _local_board_source_config(tmp_path)
+    with pytest.raises(cv.Invalid, match="not valid for board"):
+        _resolve_board_source(config, "my_board@0.1.0")
+
+
+def test_resolve_board_source_raises_for_revision_on_board_without_revisions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "boards" / "acme" / "my_board").mkdir(parents=True)
+    (tmp_path / "boards" / "acme" / "my_board" / "board.yml").write_text(
+        "board:\n  name: my_board\n  vendor: acme\n"
+    )
+    config = _local_board_source_config(tmp_path)
+    with pytest.raises(cv.Invalid, match="does not declare any revisions"):
+        _resolve_board_source(config, "my_board@1.0.0")
