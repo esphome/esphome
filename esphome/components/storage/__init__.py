@@ -586,8 +586,8 @@ def _validate_write_content(config: ConfigType) -> ConfigType:
         raise cv.Invalid("'args' requires 'format'")
     if has_format:
         # Same arity check logger.log uses: format specifiers must match the arg
-        # count. A mismatch passes through C varargs into str_sprintf() at
-        # runtime, which is undefined behavior, not a runtime error.
+        # count. A mismatch passes through C varargs into the generated snprintf()
+        # at runtime, which is undefined behavior, not a runtime error.
         validate_printf(config)
     return config
 
@@ -766,19 +766,24 @@ async def _build_write_action(
         arg_exprs = "".join(
             f", esphome::storage::printf_arg({x})" for x in config[CONF_ARGS]
         )
-        # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf:
-        # alloc_helpers.h and the ci-custom lint both point new code at snprintf + a stack buffer,
-        # and logger.log -- the model this copies -- does the same. Content longer than the buffer
-        # is truncated with a warning (matching logger.log's fixed-buffer behavior); formatted
-        # write lines are short in practice.
+        # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf /
+        # str_snprintf (both are flagged for removal, and every migrated component -- plus
+        # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
+        # is therefore a bounded line like logger.log: content that does not fit is truncated and
+        # logged at ERROR (not ESP_LOGW, which compiles out below log level WARN and would make the
+        # loss silent). Authors who need arbitrary length use content: with a lambda, which has no
+        # cap. A negative snprintf return (an encoding error) is logged too rather than writing a
+        # silent empty file.
         lambda_body = (
             "char buf[256];\n"
             f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
-            "if (n < 0)\n"
+            "if (n < 0) {\n"
+            '  ESP_LOGE("storage.automation", "file_write: could not format content");\n'
             "  return std::string();\n"
+            "}\n"
             "if ((size_t) n >= sizeof(buf))\n"
-            '  ESP_LOGW("storage.automation", "file_write: formatted content truncated to %u bytes",'
-            " (unsigned) (sizeof(buf) - 1));\n"
+            '  ESP_LOGE("storage.automation", "file_write: formatted content truncated to %u bytes;'
+            ' use content: with a lambda for longer data", (unsigned) (sizeof(buf) - 1));\n'
             "return std::string(buf, (size_t) n < sizeof(buf) ? (size_t) n : sizeof(buf) - 1);"
         )
         lambda_ = await cg.process_lambda(
