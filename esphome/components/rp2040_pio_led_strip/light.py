@@ -13,10 +13,11 @@ from esphome.const import (
     CONF_PIN,
     CONF_RGB_ORDER,
 )
+from esphome.types import ConfigType
 from esphome.util import _LOGGER
 
 
-def get_nops(timing):
+def get_nops(timing: float) -> list[float | str]:
     """
     Calculate the number of NOP instructions required to wait for a given amount of time.
     """
@@ -37,7 +38,9 @@ def get_nops(timing):
     return nops
 
 
-def generate_assembly_code(id, rgbw, t0h, t0l, t1h, t1l):
+def generate_assembly_code(
+    id: str, rgbw: bool, t0h: int, t0l: int, t1h: int, t1l: int
+) -> str:
     """
     Generate assembly code with the given timing values.
     """
@@ -123,7 +126,7 @@ writezero:
     return assembly_template + const_csdk_code
 
 
-def time_to_cycles(time_us):
+def time_to_cycles(time_us: float) -> int:
     cycles_per_us = 57.5
     return round(float(time_us) * cycles_per_us)
 
@@ -181,7 +184,7 @@ CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
 
 
-def _validate_timing(value):
+def _validate_timing(value: str) -> float:
     # if doesn't end with us, raise error
     if not value.endswith("us"):
         raise cv.Invalid("Timing must be in microseconds (us)")
@@ -225,7 +228,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     id = config[CONF_ID].id
     await light.register_light(var, config)
