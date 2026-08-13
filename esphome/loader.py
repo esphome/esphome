@@ -328,8 +328,10 @@ def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> Non
 # ---------------------------------------------------------------------------
 #
 # A component can declare ``ALIASES = ["legacy_name"]`` (and optionally
-# ``ALIAS_REMOVAL_VERSION = "YYYY.M.0"``) in its ``__init__.py``. Two
-# integrations are then wired up automatically:
+# ``ALIAS_REMOVAL_VERSION = "YYYY.M.0"``) in its ``__init__.py``, then run
+# ``script/build_alias_registry.py`` to regenerate
+# ``esphome/component_aliases.py`` (CI and a unit test fail if the registry
+# is stale). Two integrations are then wired up automatically:
 #
 #   1. **Python imports** — a ``sys.meta_path`` finder (``_AliasFinder``)
 #      intercepts ``esphome.components.<legacy>``/``...<legacy>.<sub>``
