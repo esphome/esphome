@@ -288,6 +288,10 @@ struct TransferRequest {
   // blind the watchdog indefinitely. std::atomic<bool> is lock-free on every supported core (unlike
   // the 64-bit counters), so no conditional-atomic dance; written on the task, read on the loop.
   std::atomic<bool> blocking_erase_active{false};
+  // Set when the worker task dequeues this request. The stall watchdog skips a task-dispatched
+  // request that is still queued (RUNNING but not started yet), so a long transfer ahead of it does
+  // not get it timed out before it ever runs.
+  std::atomic<bool> task_started_{false};
   // Set by wait_for_network_ready_() when a chunk stayed RUNNING waiting for a network
   // storage to come up; the worker-task loop paces its retry on it (loop-sliced paces
   // naturally via update()). Reset at the top of each run_chunk_().
