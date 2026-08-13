@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 
 from esphome import automation
@@ -149,7 +150,9 @@ def _default_scan_window(params: ConfigType) -> ConfigType:
             "wifi" in CORE.loaded_integrations
             and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
         ):
-            params[CONF_WINDOW] = params[CONF_INTERVAL]
+            # Copy so the config dump shows a plain value instead of a YAML
+            # anchor/alias pair pointing at the interval.
+            params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
         else:
             params[CONF_WINDOW] = cv.positive_time_period(
                 ble_device_base.DEFAULT_SCAN_WINDOW
