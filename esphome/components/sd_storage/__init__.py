@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, spi
+from esphome.components.const import CONF_SLOT
 from esphome.components.esp32 import only_on_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32P4,
@@ -66,7 +67,6 @@ CONF_DATA1_PIN = "data1_pin"
 CONF_DATA2_PIN = "data2_pin"
 CONF_DATA3_PIN = "data3_pin"
 CONF_MODE_1BIT = "mode_1bit"
-CONF_SLOT = "slot"
 CONF_ON_MOUNTED = "on_mounted"
 CONF_ON_REMOVED = "on_removed"
 CONF_ON_INSERTED = "on_inserted"
