@@ -30,70 +30,18 @@ uint8_t EPaperT133A01::color_to_native(Color color) {
   return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
 }
 
-void EPaperT133A01::set_all_pins_low_() {
-  GPIOPin *pins[] = {this->cs_pin_, this->cs1_pin_, this->dc_pin_, this->busy_pin_, this->reset_pin_};
-  for (auto *pin : pins) {
-    if (pin == nullptr)
-      continue;
-    pin->pin_mode(gpio::FLAG_OUTPUT);
-    // busy_pin_ is configured inverted (active-low semantics), so a plain digital_write(false)
-    // would drive it physically HIGH here. is_inverted() as the write value always lands on
-    // physical LOW regardless of the pin's inversion.
-    pin->digital_write(((InternalGPIOPin *) pin)->is_inverted());
-  }
-  for (auto *pin : this->enable_pins_) {
-    pin->pin_mode(gpio::FLAG_OUTPUT);
-    pin->digital_write(((InternalGPIOPin *) pin)->is_inverted());
-  }
-}
-
 bool EPaperT133A01::reset() {
-  switch (this->reset_sub_) {
-    case RST_PINS_LOW:
-      this->set_all_pins_low_();
-      this->reset_duration_ = 500;
-      this->reset_sub_ = RST_PINS_LOW_WAIT;
-      return false;
-
-    case RST_PINS_LOW_WAIT:
-      // Restore pins to their normal idle levels and enable the panel supply.
-      this->cs_pin_->digital_write(true);
-      this->cs1_pin_->digital_write(true);
-      this->dc_pin_->digital_write(false);
-      if (this->busy_pin_ != nullptr) {
-        this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-      }
-      for (auto *enable_pin : this->enable_pins_) {
-        enable_pin->digital_write(true);
-      }
-      this->reset_duration_ = 100;
-      this->reset_sub_ = RST_IO_WAIT;
-      return false;
-
-    case RST_IO_WAIT:
-      if (this->reset_pin_ != nullptr) {
-        this->reset_pin_->digital_write(false);
-      }
-      this->reset_duration_ = 100;
-      this->reset_sub_ = RST_LOW_WAIT;
-      return false;
-
-    case RST_LOW_WAIT:
-      if (this->reset_pin_ != nullptr) {
-        this->reset_pin_->digital_write(true);
-      }
-      this->reset_duration_ = 100;
-      this->reset_sub_ = RST_HIGH_WAIT;
-      return false;
-
-    case RST_HIGH_WAIT:
-      this->reset_sub_ = RST_DONE;
-      return true;
-
-    case RST_DONE:
-      return true;
+  for (auto *enable_pin : this->enable_pins_) {
+    enable_pin->digital_write(true);
   }
-  return false;
+  if (this->reset_pin_ != nullptr) {
+    if (this->state_ == EPaperState::RESET) {
+      this->reset_pin_->digital_write(false);
+      return false;
+    }
+    this->reset_pin_->digital_write(true);
+  }
+  return true;
 }
 
 /**
@@ -193,7 +141,6 @@ void EPaperT133A01::refresh_screen(bool partial) {
 void EPaperT133A01::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->write_command_to_chip_(0x07, {0xA5}, CHIP_BOTH);
-  this->reset_sub_ = RST_PINS_LOW;
 }
 
 }  // namespace esphome::epaper_spi
