@@ -1,246 +1,209 @@
-from esphome import pins
+import importlib
+import pkgutil
+
+from esphome import pins as esphome_pins
 import esphome.codegen as cg
 from esphome.components import display, i2c
-from esphome.components.esp32 import CONF_CPU_FREQUENCY
 import esphome.config_validation as cv
+from esphome.config_validation import update_interval
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
-    CONF_IGNORE_STRAPPING_WARNING,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
-    CONF_NUMBER,
-    CONF_OE_PIN,
     CONF_PAGES,
-    CONF_TRANSFORM,
-    CONF_WAKEUP_PIN,
-    PLATFORM_ESP32,
+    CONF_UPDATE_INTERVAL,
 )
-import esphome.final_validate as fv
+from esphome.core import ID
 
-from .const import INKPLATE_10_CUSTOM_WAVEFORMS, WAVEFORMS
+from . import models
 
-DEPENDENCIES = ["i2c", "esp32", "psram"]
+DEPENDENCIES = ["i2c"]
 
-CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
-CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"
-CONF_DISPLAY_DATA_2_PIN = "display_data_2_pin"
-CONF_DISPLAY_DATA_3_PIN = "display_data_3_pin"
-CONF_DISPLAY_DATA_4_PIN = "display_data_4_pin"
-CONF_DISPLAY_DATA_5_PIN = "display_data_5_pin"
-CONF_DISPLAY_DATA_6_PIN = "display_data_6_pin"
-CONF_DISPLAY_DATA_7_PIN = "display_data_7_pin"
+CONF_PCA6416A_ID = "pca6416a_id"
+CONF_MCP23017_ID = "mcp23017_id"
+CONF_PIN_CKV = "pin_ckv"
+CONF_PIN_SPH = "pin_sph"
+CONF_PIN_LE = "pin_le"
+CONF_GRAYSCALE_MODE = "grayscale_mode"
 
-CONF_CL_PIN = "cl_pin"
-CONF_CKV_PIN = "ckv_pin"
-CONF_GREYSCALE = "greyscale"
-CONF_GMOD_PIN = "gmod_pin"
-CONF_GPIO0_ENABLE_PIN = "gpio0_enable_pin"
-CONF_LE_PIN = "le_pin"
-CONF_PARTIAL_UPDATING = "partial_updating"
-CONF_POWERUP_PIN = "powerup_pin"
-CONF_SPH_PIN = "sph_pin"
-CONF_SPV_PIN = "spv_pin"
-CONF_VCOM_PIN = "vcom_pin"
+# Auto-load every model file so they self-register into InkplateParallelModel.models
+for _mod in pkgutil.iter_modules(models.__path__):
+    importlib.import_module(f".models.{_mod.name}", package=__package__)
+
+MODELS = models.InkplateParallelModel.models
 
 inkplate_ns = cg.esphome_ns.namespace("inkplate")
-Inkplate = inkplate_ns.class_(
-    "Inkplate",
-    cg.PollingComponent,
-    i2c.I2CDevice,
-    display.Display,
-    display.DisplayBuffer,
-)
+pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
+mcp23017_ns = cg.esphome_ns.namespace("mcp23017")
+mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 
-InkplateModel = inkplate_ns.enum("InkplateModel")
+PCA6416AComponent = pca6416a_ns.class_("PCA6416AComponent")
+PCA6416AGPIOPin = pca6416a_ns.class_("PCA6416AGPIOPin", cg.GPIOPin)
+MCP23017Component = mcp23017_ns.class_("MCP23017")
+MCP23017GPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin<16>", cg.GPIOPin)
 
-MODELS = {
-    "inkplate_6": InkplateModel.INKPLATE_6,
-    "inkplate_10": InkplateModel.INKPLATE_10,
-    "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
-    "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
-    "inkplate_5": InkplateModel.INKPLATE_5,
-    "inkplate_5_v2": InkplateModel.INKPLATE_5_V2,
+_CPP_CLASSES = {
+    name: inkplate_ns.class_(model.cpp_class, display.Display, i2c.I2CDevice)
+    for name, model in MODELS.items()
 }
 
-CONF_CUSTOM_WAVEFORM = "custom_waveform"
+_DIRECT_PIN_CONF = {
+    "ckv": CONF_PIN_CKV,
+    "sph": CONF_PIN_SPH,
+    "le": CONF_PIN_LE,
+}
 
 
-def _validate_custom_waveform(config):
-    if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
-        raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
+def _validate_expander(config):
+    has_pca = CONF_PCA6416A_ID in config
+    has_mcp = CONF_MCP23017_ID in config
+    if not has_pca and not has_mcp:
+        raise cv.Invalid("One of 'pca6416a_id' or 'mcp23017_id' must be specified")
+    if has_pca and has_mcp:
+        raise cv.Invalid("Only one of 'pca6416a_id' or 'mcp23017_id' may be specified")
     return config
 
 
+def _set_model_id_type(config):
+    config[CONF_ID].type = _CPP_CLASSES[config[CONF_MODEL]]
+    return config
+
+
+def _inject_direct_pin_defaults(config):
+    model = MODELS[config[CONF_MODEL]]
+    for pin_name, gpio_num in model.direct_pins.items():
+        conf_key = _DIRECT_PIN_CONF.get(pin_name)
+        if conf_key and conf_key not in config:
+            config[conf_key] = esphome_pins.gpio_output_pin_schema({"number": gpio_num})
+    return config
+
+
+def _final_validate(config):
+    if (
+        CONF_LAMBDA in config or CONF_PAGES in config
+    ) and CONF_UPDATE_INTERVAL not in config:
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+
+    model = MODELS.get(config.get(CONF_MODEL))
+    if model is not None and model.min_update_interval_ms > 0:
+        interval = config.get(CONF_UPDATE_INTERVAL)
+        if (
+            interval is not None
+            and interval.total_milliseconds < model.min_update_interval_ms
+        ):
+            raise cv.Invalid(
+                f"update_interval {interval.total_milliseconds}ms below minimum "
+                f"{model.min_update_interval_ms}ms for {model.name}"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 CONFIG_SCHEMA = cv.All(
-    display.FULL_DISPLAY_SCHEMA.extend(
+    cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Inkplate),
-            cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
-            cv.Optional(CONF_CUSTOM_WAVEFORM): cv.All(
-                cv.uint8_t, cv.Range(min=1, max=len(INKPLATE_10_CUSTOM_WAVEFORMS))
-            ),
-            cv.Optional(CONF_TRANSFORM): cv.Schema(
-                {
-                    cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
-                    cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
-                }
-            ),
-            cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
-            cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
-                MODELS, lower=True, space="_"
-            ),
-            # Control pins
-            cv.Required(CONF_CKV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_GPIO0_ENABLE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_OE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_POWERUP_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPH_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(
-                CONF_CL_PIN,
-                default={CONF_NUMBER: 0, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_LE_PIN,
-                default={CONF_NUMBER: 2, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            # Data pins
-            cv.Optional(
-                CONF_DISPLAY_DATA_0_PIN, default=4
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_1_PIN,
-                default={CONF_NUMBER: 5, CONF_IGNORE_STRAPPING_WARNING: True},
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_2_PIN, default=18
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_3_PIN, default=19
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_4_PIN, default=23
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_5_PIN, default=25
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_6_PIN, default=26
-            ): pins.internal_gpio_output_pin_schema,
-            cv.Optional(
-                CONF_DISPLAY_DATA_7_PIN, default=27
-            ): pins.internal_gpio_output_pin_schema,
+            cv.GenerateID(): cv.declare_id(next(iter(_CPP_CLASSES.values()))),
+            cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
+            cv.Optional(CONF_PCA6416A_ID): cv.use_id(PCA6416AComponent),
+            cv.Optional(CONF_MCP23017_ID): cv.use_id(MCP23017Component),
+            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.positive_int,
+            cv.Optional(CONF_GRAYSCALE_MODE, default=False): cv.boolean,
+            # Direct GPIO pin overrides (defaults injected from model by _inject_direct_pin_defaults)
+            cv.Optional(CONF_PIN_CKV): esphome_pins.gpio_output_pin_schema,
+            cv.Optional(CONF_PIN_SPH): esphome_pins.gpio_output_pin_schema,
+            cv.Optional(CONF_PIN_LE): esphome_pins.gpio_output_pin_schema,
         }
     )
-    .extend(cv.polling_component_schema("5s"))
-    .extend(i2c.i2c_device_schema(0x48)),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    _validate_custom_waveform,
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(display.FULL_DISPLAY_SCHEMA)
+    .extend(i2c.i2c_device_schema(default_address=0x48)),
+    _validate_expander,
+    _set_model_id_type,
+    _inject_direct_pin_defaults,
 )
 
 
-def _validate_cpu_frequency(config):
-    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
-    if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
-        raise cv.Invalid(
-            "Inkplate requires 240MHz CPU frequency (set in esp32 component)"
-        )
-    return config
+async def _make_expander_pin(pca_var, pin_num, pin_name, parent_id):
+    pin_id = ID(
+        f"{parent_id}_pca_{pin_name}", is_declaration=True, type=PCA6416AGPIOPin
+    )
+    pin_var = cg.new_Pvariable(pin_id)
+    cg.add(pin_var.set_parent(pca_var))
+    cg.add(pin_var.set_pin(pin_num))
+    cg.add(pin_var.set_inverted(False))
+    cg.add(pin_var.set_flags(cg.RawExpression("gpio::FLAG_OUTPUT")))
+    return pin_var
 
 
-FINAL_VALIDATE_SCHEMA = _validate_cpu_frequency
+async def _make_mcp23017_pin(mcp_var, pin_num, pin_name, parent_id):
+    pin_id = ID(
+        f"{parent_id}_mcp_{pin_name}", is_declaration=True, type=MCP23017GPIOPin
+    )
+    pin_var = cg.new_Pvariable(pin_id)
+    cg.add(pin_var.set_parent(mcp_var))
+    cg.add(pin_var.set_pin(pin_num))
+    cg.add(pin_var.set_inverted(False))
+    cg.add(pin_var.set_flags(cg.RawExpression("gpio::FLAG_OUTPUT")))
+    return pin_var
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    model = MODELS[config[CONF_MODEL]]
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        model.width,
+        model.height,
+        model.dark_phases,
+        model.partial_phases,
+        model.grayscale_phases,
+    )
+
+    cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    cg.add(var.set_grayscale_mode(config[CONF_GRAYSCALE_MODE]))
+    if model.gpio0_enable_low:
+        cg.add(var.set_gpio0_enable_low(True))
+
+    # Direct GPIO pins
+    direct_setters = {
+        CONF_PIN_CKV: "set_pin_ckv",
+        CONF_PIN_SPH: "set_pin_sph",
+        CONF_PIN_LE: "set_pin_le",
+    }
+    for conf_key, setter in direct_setters.items():
+        if conf_key in config:
+            pin = await cg.gpio_pin_expression(config[conf_key])
+            cg.add(getattr(var, setter)(pin))
+
+    # Expander pins — auto-wired from pca6416a_id or mcp23017_id
+    expander_setters = {
+        "oe": "set_pin_oe",
+        "gmod": "set_pin_gmod",
+        "spv": "set_pin_spv",
+        "wakeup": "set_pin_wakeup",
+        "pwrup": "set_pin_pwrup",
+        "vcom": "set_pin_vcom",
+        "gpio0_enable": "set_pin_gpio0_enable",
+    }
+    if CONF_PCA6416A_ID in config:
+        exp_var = await cg.get_variable(config[CONF_PCA6416A_ID])
+        make_pin = _make_expander_pin
+    else:
+        exp_var = await cg.get_variable(config[CONF_MCP23017_ID])
+        make_pin = _make_mcp23017_pin
+    for pin_name, setter in expander_setters.items():
+        pin_num = model.expander_pins[pin_name]
+        pin = await make_pin(exp_var, pin_num, pin_name, config[CONF_ID].id)
+        cg.add(getattr(var, setter)(pin))
 
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA],
+            [(display.display_ns.class_("Display").operator("ref"), "it")],
+            return_type=cg.void,
         )
         cg.add(var.set_writer(lambda_))
-
-    cg.add(var.set_greyscale(config[CONF_GREYSCALE]))
-    if transform := config.get(CONF_TRANSFORM):
-        cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
-        cg.add(var.set_mirror_y(transform[CONF_MIRROR_Y]))
-    cg.add(var.set_partial_updating(config[CONF_PARTIAL_UPDATING]))
-    cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-
-    cg.add(var.set_model(config[CONF_MODEL]))
-
-    if custom_waveform := config.get(CONF_CUSTOM_WAVEFORM):
-        waveform = INKPLATE_10_CUSTOM_WAVEFORMS[custom_waveform - 1]
-        waveform = [element for tupl in waveform for element in tupl]
-        cg.add(var.set_waveform(waveform, True))
-    else:
-        waveform = WAVEFORMS[config[CONF_MODEL]]
-        waveform = [element for tupl in waveform for element in tupl]
-        cg.add(var.set_waveform(waveform, False))
-
-    ckv = await cg.gpio_pin_expression(config[CONF_CKV_PIN])
-    cg.add(var.set_ckv_pin(ckv))
-
-    gmod = await cg.gpio_pin_expression(config[CONF_GMOD_PIN])
-    cg.add(var.set_gmod_pin(gmod))
-
-    gpio0_enable = await cg.gpio_pin_expression(config[CONF_GPIO0_ENABLE_PIN])
-    cg.add(var.set_gpio0_enable_pin(gpio0_enable))
-
-    oe = await cg.gpio_pin_expression(config[CONF_OE_PIN])
-    cg.add(var.set_oe_pin(oe))
-
-    powerup = await cg.gpio_pin_expression(config[CONF_POWERUP_PIN])
-    cg.add(var.set_powerup_pin(powerup))
-
-    sph = await cg.gpio_pin_expression(config[CONF_SPH_PIN])
-    cg.add(var.set_sph_pin(sph))
-
-    spv = await cg.gpio_pin_expression(config[CONF_SPV_PIN])
-    cg.add(var.set_spv_pin(spv))
-
-    vcom = await cg.gpio_pin_expression(config[CONF_VCOM_PIN])
-    cg.add(var.set_vcom_pin(vcom))
-
-    wakeup = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
-    cg.add(var.set_wakeup_pin(wakeup))
-
-    cl = await cg.gpio_pin_expression(config[CONF_CL_PIN])
-    cg.add(var.set_cl_pin(cl))
-
-    le = await cg.gpio_pin_expression(config[CONF_LE_PIN])
-    cg.add(var.set_le_pin(le))
-
-    display_data_0 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_0_PIN])
-    cg.add(var.set_display_data_0_pin(display_data_0))
-
-    display_data_1 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_1_PIN])
-    cg.add(var.set_display_data_1_pin(display_data_1))
-
-    display_data_2 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_2_PIN])
-    cg.add(var.set_display_data_2_pin(display_data_2))
-
-    display_data_3 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_3_PIN])
-    cg.add(var.set_display_data_3_pin(display_data_3))
-
-    display_data_4 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_4_PIN])
-    cg.add(var.set_display_data_4_pin(display_data_4))
-
-    display_data_5 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_5_PIN])
-    cg.add(var.set_display_data_5_pin(display_data_5))
-
-    display_data_6 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_6_PIN])
-    cg.add(var.set_display_data_6_pin(display_data_6))
-
-    display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
-    cg.add(var.set_display_data_7_pin(display_data_7))
