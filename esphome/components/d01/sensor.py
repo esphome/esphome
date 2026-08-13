@@ -14,8 +14,7 @@ CODEOWNERS = ["@ch604"]
 DEPENDENCIES = ["uart"]
 
 d01_ns = cg.esphome_ns.namespace("d01")
-D01Component = d01_ns.class_("D01Component", uart.UARTDevice,
-                             cg.PollingComponent)
+D01Component = d01_ns.class_("D01Component", uart.UARTDevice, cg.PollingComponent)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -36,6 +35,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("10s")),
 )
 
+
 def validate_interval_uart(config):
     uart.final_validate_device_schema(
         "d01",
@@ -44,7 +44,9 @@ def validate_interval_uart(config):
         require_tx=False,
     )(config)
 
+
 FINAL_VALIDATE_SCHEMA = validate_interval_uart
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
