@@ -241,8 +241,14 @@ class EntityBase {
 
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// Holds the currently disabled migration from sanitized-object_id keys to raw-name
-  /// keys; see USE_ENTITY_PREFERENCE_KEY_MIGRATION in entity_base.cpp.
+  /// keys; see USE_COLLISION_SAFE_UNIQUE_IDS in entity_base.cpp.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
+
+#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
+  /// Preference key base for the disabled collision-safe unique ids:
+  /// FNV-1 hash of the raw name bytes XOR device id.
+  uint32_t raw_name_preference_key_base_() const;
+#endif
 
   void calc_object_id_();
 

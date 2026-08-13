@@ -38,6 +38,75 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "entity_string_pool"
 
+_OBJECT_ID_DOMAIN = "entity_object_ids"
+
+
+@dataclass
+class ObjectIdEntity:
+    """An entity tracked by the sanitized object_id its name resolves to."""
+
+    name: str
+    platform: str
+    config: ConfigType
+
+
+def _get_object_id_registry() -> dict[tuple[str, str, str], list[ObjectIdEntity]]:
+    """(device_id, platform, sanitized object_id) -> entities resolving to it."""
+    return CORE.data.setdefault(_OBJECT_ID_DOMAIN, {})
+
+
+def validate_no_object_id_conflicts(
+    reason: str,
+    conflict_filter: Callable[[list[ObjectIdEntity], ConfigType], bool] | None = None,
+) -> Callable[[ConfigType], ConfigType]:
+    """Create a final-validate step that rejects entities with colliding object_ids.
+
+    While collision-safe unique ids are disabled (USE_COLLISION_SAFE_UNIQUE_IDS, see
+    entity_base.cpp), the duplicate check in entity_duplicate_validator() already
+    rejects every collision on the sanitized object_id, so this step never fires. It
+    stays wired so that when entity keys move to raw-name hashes, which accept names
+    that only differ in characters lost during sanitizing, components that still
+    address entities by the sanitized object_id string keep rejecting those configs.
+
+    Args:
+        reason: One sentence stating what the component builds from the object_id,
+            e.g. "mqtt builds default topics from the entity object_id"
+        conflict_filter: Optional predicate receiving the colliding entities and the
+            component config; return False when the component is not affected
+
+    Returns:
+        A validator function for use as (or within) FINAL_VALIDATE_SCHEMA
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        # Skip in testing_mode, which is used for grouped component testing
+        if CORE.testing_mode:
+            return config
+        conflicts = {
+            key: entities
+            for key, entities in _get_object_id_registry().items()
+            if len(entities) > 1
+            and (conflict_filter is None or conflict_filter(entities, config))
+        }
+        if not conflicts:
+            return config
+        lines = [f"{reason}, so these entities would conflict:"]
+        lines.extend(
+            f"  - {platform} entities "
+            + ", ".join(f"'{e.name}'" for e in entities)
+            + (f" on device '{device_id}'" if device_id else "")
+            + f" share the object_id '{object_id}'"
+            for (device_id, platform, object_id), entities in conflicts.items()
+        )
+        lines.append(
+            "To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B') "
+            "to distinguish the names"
+        )
+        raise cv.Invalid("\n".join(lines))
+
+    return validator
+
+
 # Private config keys for storing registered string indices
 _KEY_DC_IDX = "_entity_dc_idx"
 _KEY_UOM_IDX = "_entity_uom_idx"
@@ -629,6 +698,19 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             "entity_id": str(config.get(CONF_ID, "unknown")),
             "component": CORE.current_component or "unknown",
         }
+
+        # Track every entity by the object_id its name resolves to, for the
+        # validate_no_object_id_conflicts() final-validate checks (mqtt, prometheus).
+        # While collision-safe unique ids are disabled the hash check above already
+        # rejects these collisions, so the registry never holds a conflict; it stays
+        # populated so those checks work the moment raw-name entity keys are enabled.
+        # Scoped per device and platform: same-named entities on different sub-devices
+        # are accepted, internal entities are skipped (above), and overlaps between
+        # platforms that share an MQTT component type (sensor and text_sensor both
+        # publish under "sensor") were already possible.
+        _get_object_id_registry().setdefault(
+            (device_id, platform, name_key), []
+        ).append(ObjectIdEntity(entity_name or name_key, platform, config))
 
         # Add to tracking dict
         CORE.unique_ids[unique_key] = entity_metadata

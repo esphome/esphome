@@ -169,12 +169,13 @@
 #if !defined(USE_ESP8266) && !defined(USE_RP2)
 #define USE_PREFERENCE_KEY_LOOKUP
 #endif
-// Entity preference key migration (sanitized-object_id keys to raw-name keys) is written
-// but disabled: no codegen emits this define until the Home Assistant esphome integration
-// can handle entity key changes without recreating registry entries, which deletes
-// helpers built on those entities. Defined here so static analysis keeps covering the
-// migration path. See: https://github.com/esphome/backlog/issues/85
-#define USE_ENTITY_PREFERENCE_KEY_MIGRATION
+// Collision-safe unique ids (entity keys hashed from the raw name, with preference key
+// migration) are written but disabled: no codegen emits this define until the Home
+// Assistant esphome integration can handle entity key changes without recreating
+// registry entries, which deletes helpers built on those entities. Defined here so
+// static analysis keeps covering the disabled code paths.
+// See: https://github.com/esphome/backlog/issues/85
+#define USE_COLLISION_SAFE_UNIQUE_IDS
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN

@@ -166,6 +166,18 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
+#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
+// Preference key base for collision-safe unique ids: FNV-1 hash of the raw name bytes
+// XOR device id, matching the keys 2026.8 beta firmware stored preferences under.
+uint32_t EntityBase::raw_name_preference_key_base_() const {
+  uint32_t key = fnv1_hash_bytes(this->name_.c_str(), this->name_.size());
+#ifdef USE_DEVICES
+  key ^= this->get_device_id();
+#endif
+  return key;
+}
+#endif
+
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
   // The key hashes the sanitized object_id, so multiple entity names can collide on one
   // key and overwrite each other's stored preferences ("Living Room" and "living_room",
@@ -173,19 +185,14 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   // Migration to keys hashed from the raw name is written below but disabled: the
   // Home Assistant esphome integration recreates every entity registry entry when a key
   // changes, which deletes helpers built on those entities. Nothing emits
-  // USE_ENTITY_PREFERENCE_KEY_MIGRATION until that is resolved.
+  // USE_COLLISION_SAFE_UNIQUE_IDS until that is resolved.
   // See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   uint32_t old_key = this->get_preference_hash() ^ version;
 #pragma GCC diagnostic pop
-#if defined(USE_ENTITY_PREFERENCE_KEY_MIGRATION) && defined(USE_PREFERENCE_KEY_LOOKUP)
-  // New key: FNV-1 hash of the raw name bytes, matching what 2026.8 beta firmware wrote.
-  uint32_t new_key = fnv1_hash_bytes(this->name_.c_str(), this->name_.size());
-#ifdef USE_DEVICES
-  new_key ^= this->get_device_id();
-#endif
-  new_key ^= version;
+#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
+  uint32_t new_key = this->raw_name_preference_key_base_() ^ version;
   auto pref = global_preferences->make_preference(size, new_key);
   // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
   SmallBufferWithHeapFallback<64> buffer(size);

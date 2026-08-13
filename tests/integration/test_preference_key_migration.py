@@ -40,7 +40,7 @@ from .types import CompileFunction, ConfigWriter
 
 pytestmark = pytest.mark.skip(
     reason="Entity preference key migration is disabled; nothing emits "
-    "USE_ENTITY_PREFERENCE_KEY_MIGRATION (see entity_base.cpp)"
+    "USE_COLLISION_SAFE_UNIQUE_IDS (see entity_base.cpp)"
 )
 
 DEVICE_NAME = "host-pref-key-migration"
