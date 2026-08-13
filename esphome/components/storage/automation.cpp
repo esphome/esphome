@@ -260,6 +260,9 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
   } else {
     out.clear();
   }
+  // The content now lives in `out`; free the full-file buffer before the extraction loop so peak heap
+  // stays ~2x the file (the copy plus a step's working string) rather than 3x. Matters on ESP8266/LibreTiny.
+  buf.reset();
   // 1-based index so a failing step is nameable to the user; not a StorageError (an extract miss
   // is a content outcome, not a medium fault), so it rides the on_error text channel instead.
   size_t step_index = 0;
