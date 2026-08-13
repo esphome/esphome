@@ -220,7 +220,7 @@ def test_entity_key_hash_stability(entity_name: str, expected_key: int) -> None:
     CRITICAL: These expected values MUST NOT CHANGE. 2026.8 beta firmware stored
     preferences under keys derived from this hash; a future key migration must
     reconstruct those keys, and changing the algorithm would strand that data.
-    Must match C++ fnv1_hash_bytes() in esphome/core/helpers.h.
+    Matched C++ fnv1_hash_bytes() (2026.8 beta), which the unrevert restores.
     """
     actual = fnv1_hash_name(entity_name)
     assert actual == expected_key, (
