@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -78,7 +80,7 @@ CONF_DEVICE_TYPES = [
 ]
 
 
-def _validate_txpower(value: float) -> int | float:
+def _validate_txpower(value: Any) -> int | float:
     if CORE.is_esp32:
         variant = get_esp32_variant()
 
@@ -205,7 +207,7 @@ def _validate_platform(config: ConfigType) -> ConfigType:
     )(config)
 
 
-def _validate_tlv_hex(value: str) -> str:
+def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")

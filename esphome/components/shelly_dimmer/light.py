@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 import re
+from typing import Any
 
 from esphome import external_files, pins
 import esphome.codegen as cg
@@ -167,7 +168,7 @@ def validate_firmware(value: ConfigType) -> ConfigType:
     return config
 
 
-def validate_sha256(value: str) -> str:
+def validate_sha256(value: Any) -> str:
     value = cv.string(value)
     if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
