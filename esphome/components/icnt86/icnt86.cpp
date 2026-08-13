@@ -1,8 +1,7 @@
 #include "icnt86.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace icnt86 {
+namespace esphome::icnt86 {
 
 static const char *const TAG = "icnt86";
 
@@ -91,5 +90,4 @@ void ICNT86Touchscreen::i2c_read_byte_(UWORD reg, char const *data, UBYTE len) {
   this->read((uint8_t *) data, len);
 }
 
-}  // namespace icnt86
-}  // namespace esphome
+}  // namespace esphome::icnt86

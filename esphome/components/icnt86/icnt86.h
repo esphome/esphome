@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace icnt86 {
+namespace esphome::icnt86 {
 
 #define UBYTE uint8_t
 #define UWORD uint16_t
@@ -32,5 +31,4 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   GPIOPin *reset_pin_{nullptr};
 };
 
-}  // namespace icnt86
-}  // namespace esphome
+}  // namespace esphome::icnt86
