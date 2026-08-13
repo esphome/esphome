@@ -237,12 +237,10 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   switch (remote_state & COMMAND_HEADER_MASK) {
     case CommandSys::HEADER_SYS:
       ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
-      switch (remote_state & COMMAND_DATA_MASK) {
-        case CommandSys::OFF:
-          this->mode = climate::CLIMATE_MODE_OFF;
-          break;
-        default:
-          return false;
+      if ((remote_state & COMMAND_DATA_MASK) == CommandSys::OFF) {
+        this->mode = climate::CLIMATE_MODE_OFF;
+      } else {
+        return false;
       }
       break;
     case CommandAdvSwing::HEADER_ADV_SWING:
