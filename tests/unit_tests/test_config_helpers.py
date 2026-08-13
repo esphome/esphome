@@ -3,7 +3,13 @@
 from collections.abc import Callable
 from unittest.mock import patch
 
-from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
+import pytest
+
+from esphome.config_helpers import (
+    filter_source_files_from_platform,
+    frameworks_for_platforms,
+    get_logger_level,
+)
 from esphome.const import (
     CONF_LEVEL,
     CONF_LOGGER,
@@ -133,3 +139,12 @@ def test_get_logger_level() -> None:
     mock_config = {CONF_LOGGER: {}}
     with patch("esphome.config_helpers.CORE.config", mock_config):
         assert get_logger_level() == "DEBUG"
+
+
+def test_frameworks_for_platforms_derives_and_rejects_unknown() -> None:
+    assert frameworks_for_platforms(["esp32"]) == {
+        PlatformFramework.ESP32_ARDUINO,
+        PlatformFramework.ESP32_IDF,
+    }
+    with pytest.raises(ValueError, match="unknown platform"):
+        frameworks_for_platforms(["esp32", "not_a_platform"])

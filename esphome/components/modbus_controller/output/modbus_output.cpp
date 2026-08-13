@@ -33,22 +33,40 @@ void ModbusFloatOutput::write_state(float value) {
   }
   // lambda didn't set payload
   if (data.empty()) {
-    data = modbus::helpers::float_to_payload(value, this->sensor_value_type);
+    modbus::helpers::float_to_payload(data, value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
            this->start_address, this->register_count, value, original_value);
 
-  // Create and send the write command
-  ModbusCommandItem write_cmd;
-  if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd =
-        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
-  } else {
-    write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
-                                                                 this->register_count, data);
+  // The command declares register_count registers, so the payload must be exactly that many words;
+  // anything else would put a byte count on the wire that disagrees with the quantity field.
+  // number_to_payload() appends nothing for RAW, so an empty payload must be caught before data[0].
+  if (data.empty()) {
+    ESP_LOGW(TAG, "No payload was created for updating output");
+    return;
   }
-  this->parent_->queue_command(write_cmd);
+
+  // register_count declares the READ range width - it may pull neighboring registers into one poll -
+  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
+  // never from register_count (padding to it would zero registers the user only declared for reading).
+  // A payload wider than the declared range means the config and the lambda disagree - drop it.
+  if (data.size() > this->register_count) {
+    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
+             this->register_count);
+    return;
+  }
+
+  // Create and send the write command
+  optional<ModbusCommandItem> write_cmd;
+  if (this->register_count == 1 && !this->use_write_multiple_) {
+    write_cmd.emplace(
+        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]));
+  } else {
+    write_cmd.emplace(ModbusCommandItem::create_write_multiple_command(
+        this->parent_, this->start_address + this->offset, data.size(), data));
+  }
+  this->parent_->queue_command(std::move(*write_cmd));
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -64,7 +82,7 @@ void ModbusFloatOutput::dump_config() {
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  ModbusCommandItem cmd;
+  optional<ModbusCommandItem> cmd;
   std::vector<uint8_t> data;
 
   // Is there are lambda configured?
@@ -87,11 +105,11 @@ void ModbusBinaryOutput::write_state(bool state) {
 #endif
     ESP_LOGV(TAG, "Modbus binary output write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd = ModbusCommandItem::create_custom_command(
+    cmd.emplace(ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
-        });
+        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+          this->parent_->on_write_register_response(register_type, this->start_address, data);
+        }));
   } else {
     ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
              (int) this->register_type, this->start_address, this->offset);
@@ -99,12 +117,14 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::vector<bool> states{state};
-      cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+      cmd.emplace(
+          ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states));
     } else {
-      cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+      cmd.emplace(
+          ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state));
     }
   }
-  this->parent_->queue_command(cmd);
+  this->parent_->queue_command(std::move(*cmd));
 }
 
 void ModbusBinaryOutput::dump_config() {

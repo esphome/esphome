@@ -390,16 +390,6 @@ def fix_mapping():
     output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
 
 
-def fix_image():
-    if "image" not in output:
-        return
-    from esphome.components.image import IMAGE_SCHEMA
-
-    config = convert_config(IMAGE_SCHEMA, "image/CONFIG_SCHEMA")
-    config["is_list"] = True
-    output["image"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
-
-
 def fix_menu():
     if "display_menu_base" not in output:
         return
@@ -763,7 +753,6 @@ def build_schema():
     fix_font()
     fix_globals()
     fix_mapping()
-    fix_image()
     add_logger_tags()
     shrink()
     fix_menu()
@@ -1145,12 +1134,28 @@ def convert_keys(converted, schema, path):
         else:
             converted["key"] = "String"
             key_string_match = re.search(
-                r"<function (\w*) at \w*>", str(k), re.IGNORECASE
+                r"<function ([^ ]+) at \w+>", str(k), re.IGNORECASE
             )
             if key_string_match:
                 converted["key_type"] = key_string_match.group(1)
             else:
                 converted["key_type"] = str(k)
+
+        # A marker-wrapped callable key (e.g. script.execute's
+        # ``cv.Optional(validate_parameter_name)``) is a wildcard matcher;
+        # ``str(marker)`` is the function repr, whose heap address would
+        # churn the dump every build. Normalize like the bare-callable
+        # branch above: record the validator name in ``key_type`` and file
+        # the config var under ``string``.
+        key_name = str(k)
+        if isinstance(k, vol.Marker) and callable(k.schema):
+            key_string_match = re.search(
+                r"<function ([^ ]+) at \w+>", key_name, re.IGNORECASE
+            )
+            result["key_type"] = (
+                key_string_match.group(1) if key_string_match else key_name
+            )
+            key_name = "string"
 
         # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
         # a property that returns ``vol.UNDEFINED`` when the gating
@@ -1231,7 +1236,7 @@ def convert_keys(converted, schema, path):
         for base_k, base_v in get_overridden_config(k, converted).items():
             if base_k in result and base_v == result[base_k]:
                 result.pop(base_k)
-        converted["schema"][S_CONFIG_VARS][str(k)] = result
+        converted["schema"][S_CONFIG_VARS][key_name] = result
         if "key" in converted and converted["key"] == "String":
             config_vars = converted["schema"]["config_vars"]
             assert len(config_vars) == 1
