@@ -665,11 +665,23 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
 
 void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size, bool all,
                              Trigger<std::string> *on_complete, bool force_sliced) {
+  RawGeometry geo;
+  device->get_raw_geometry(&geo);
   if (all) {
-    RawGeometry geo;
-    device->get_raw_geometry(&geo);
     address = 0;
     size = geo.capacity;
+  }
+  // The sync twin (perform_raw_erase) rejects these before touching the device; the worker path must
+  // too, or a zero-length or out-of-range erase (e.g. all:true when get_raw_geometry() reports
+  // capacity 0 because the probe failed) submits and fires on_complete with the empty success string.
+  if (size == 0) {
+    raw_fail(on_complete, "erase", error_to_string(StorageError::INVALID_ARGS));
+    return;
+  }
+  StorageError pf = raw_preflight(device, "erase", address, size, &geo);
+  if (pf != StorageError::OK) {
+    raw_fail(on_complete, "erase", error_to_string(pf));
+    return;
   }
 #ifdef USE_STORAGE_WORKER
   if (global_storage_worker != nullptr) {
