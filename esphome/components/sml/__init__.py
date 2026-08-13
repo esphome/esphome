@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -54,7 +55,7 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-def obis_code(value: str) -> str:
+def obis_code(value: Any) -> str:
     value = cv.string(value)
     match = re.match(r"^\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
     if match is None:
