@@ -550,6 +550,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
+#if LWIP_VERSION_MAJOR != 1
+        sta_netif_down();
+#endif
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
