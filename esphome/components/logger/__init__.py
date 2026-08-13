@@ -112,40 +112,69 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
+def _uart_selection_esp32() -> dict[str, list[str]]:
+    from esphome.components.esp32 import (
+        VARIANT_ESP32,
+        VARIANT_ESP32C2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32C61,
+        VARIANT_ESP32H2,
+        VARIANT_ESP32H4,
+        VARIANT_ESP32H21,
+        VARIANT_ESP32P4,
+        VARIANT_ESP32S2,
+        VARIANT_ESP32S3,
+        VARIANT_ESP32S31,
+    )
+
+    return {
+        VARIANT_ESP32: [UART0, UART1, UART2],
+        VARIANT_ESP32C2: [UART0, UART1],
+        VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
+        VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+        VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    }
+
+
+def _uart_selection_libretiny() -> dict[str, list[str]]:
+    from esphome.components.libretiny.const import (
+        COMPONENT_BK72XX,
+        COMPONENT_LN882X,
+        COMPONENT_RTL87XX,
+    )
+
+    return {
+        COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+        COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
+        COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+    }
+
+
+def __getattr__(name: str):
+    # These tables are introspected by external tooling (esphome/device-builder);
+    # built on access so the platform packages stay out of module import.
+    if name == "UART_SELECTION_ESP32":
+        return _uart_selection_esp32()
+    if name == "UART_SELECTION_LIBRETINY":
+        return _uart_selection_libretiny()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def uart_selection(value):
     if CORE.is_esp32:
-        from esphome.components.esp32 import (
-            VARIANT_ESP32,
-            VARIANT_ESP32C2,
-            VARIANT_ESP32C3,
-            VARIANT_ESP32C5,
-            VARIANT_ESP32C6,
-            VARIANT_ESP32C61,
-            VARIANT_ESP32H2,
-            VARIANT_ESP32H4,
-            VARIANT_ESP32H21,
-            VARIANT_ESP32P4,
-            VARIANT_ESP32S2,
-            VARIANT_ESP32S3,
-            VARIANT_ESP32S31,
-            get_esp32_variant,
-        )
+        from esphome.components.esp32 import get_esp32_variant
 
-        uart_selection_esp32 = {
-            VARIANT_ESP32: [UART0, UART1, UART2],
-            VARIANT_ESP32C2: [UART0, UART1],
-            VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
-            VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-            VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-            VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-        }
+        uart_selection_esp32 = _uart_selection_esp32()
         variant = get_esp32_variant()
         if variant in uart_selection_esp32:
             return cv.one_of(*uart_selection_esp32[variant], upper=True)(value)
@@ -158,17 +187,8 @@ def uart_selection(value):
             get_libretiny_component,
             get_libretiny_family,
         )
-        from esphome.components.libretiny.const import (
-            COMPONENT_BK72XX,
-            COMPONENT_LN882X,
-            COMPONENT_RTL87XX,
-        )
 
-        uart_selection_libretiny = {
-            COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
-            COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
-            COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
-        }
+        uart_selection_libretiny = _uart_selection_libretiny()
         family = get_libretiny_family()
         if family in uart_selection_libretiny:
             return cv.one_of(*uart_selection_libretiny[family], upper=True)(value)
