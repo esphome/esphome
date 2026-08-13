@@ -14,7 +14,7 @@ namespace esphome::binary_storage {
 // LittleFS on an internal flash partition via ESP-IDF's esp_vfs_littlefs.
 // Simpler than LittleFSMount -- IDF handles VFS registration and LittleFS internals.
 // The partition must be defined in the partition table with subtype=littlefs.
-class FlashPartition : public storage::FilesystemStorage
+class FlashPartition : public storage::FilesystemStorage, public storage::MountableStorage
 #if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
     ,
                        public ota::OTADataPartitionListener
@@ -45,7 +45,8 @@ class FlashPartition : public storage::FilesystemStorage
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  // Deliberately NOT MountableStorage (as_mountable() stays nullptr from the base): an
+  // Mountable only for EXTERNAL esp_partition regions (set_mountable(true) from codegen), so the
+  // filesystem can be unmounted before a format. Internal partitions stay non-mountable: an
   // internal flash partition can never be removed, so user-facing mount/unmount makes no
   // sense -- the device is statically registered and mounted at boot. The mount()/unmount()
   // implementations below are interface machinery only (format() remount path, quiesce-
@@ -56,6 +57,13 @@ class FlashPartition : public storage::FilesystemStorage
   uint8_t get_capabilities() const override { return storage::StorageCaps::STORAGE_CAP_IO_TASK_SAFE; }
   storage::StorageError mount() override;
   storage::StorageError unmount() override;
+
+  // Codegen marks external esp_partition regions mountable; internal partitions stay static.
+  void set_mountable(bool mountable) { this->mountable_ = mountable; }
+  storage::MountableStorage *as_mountable() override { return this->mountable_ ? this : nullptr; }
+  uint8_t get_mount_caps() const override {
+    return storage::MountableStorage::MOUNT_CAP_MOUNT | storage::MountableStorage::MOUNT_CAP_UNMOUNT;
+  }
   storage::StorageError format() override;
   storage::StorageError sync() override;
   storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
@@ -80,6 +88,8 @@ class FlashPartition : public storage::FilesystemStorage
 
   bool is_mounted() const { return this->mounted_; }
   bool remount();
+
+  bool mountable_{false};  // external esp_partition region -> mount/unmount allowed
 
 #if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
   // OTA data-partition listener (an in-band pre-fill OTA): the mount releases the

@@ -8,6 +8,15 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/hal.h"
 
+#ifdef USE_ESP_IDF
+#include <vector>
+extern "C" {
+#include "esp_flash.h"
+#include "esp_flash_spi_init.h"
+#include "esp_partition.h"
+}
+#endif
+
 namespace esphome::binary_storage {
 
 /**
@@ -31,7 +40,17 @@ class SPIFlash : public BinaryStorage,
   // Component lifecycle
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  float get_setup_priority() const override {
+#ifdef USE_ESP_IDF
+    // In esp_partition mode the regions become real partitions that later consumers (e.g. an
+    // external NVS backing preferences) resolve by label. Register them at IO -- before the
+    // DATA-priority default where most preference-reading components set up -- so the partitions
+    // exist by the time those components first touch them.
+    if (this->esp_partition_mode_)
+      return setup_priority::IO;
+#endif
+    return setup_priority::DATA;
+  }
 
   //========================================================================
   // Configuration
@@ -74,6 +93,27 @@ class SPIFlash : public BinaryStorage,
    * @param enable true to enable quad mode, false for standard SPI
    */
   void set_quad_mode(bool enable) { this->quad_mode_ = enable; }
+
+#ifdef USE_ESP_IDF
+  // esp_partition mode: drive the flash with the IDF esp_flash driver on a dedicated (exclusive)
+  // SPI bus and register its regions as real esp_partitions. Enabled by codegen only on
+  // esp32/esp-idf when the bus is exclusive; the flash is NOT an ESPHome spi_device in this mode.
+  struct PartitionRegion {
+    uint64_t offset;
+    uint64_t size;
+    const char *label;
+    uint8_t subtype;  // esp_partition_subtype_t
+  };
+  void enable_esp_partition_mode(uint8_t spi_host, int cs_pin, int freq_mhz) {
+    this->esp_partition_mode_ = true;
+    this->spi_host_ = spi_host;
+    this->cs_pin_num_ = cs_pin;
+    this->flash_freq_mhz_ = freq_mhz;
+  }
+  void add_partition_region(uint64_t offset, uint64_t size, const char *label, uint8_t subtype) {
+    this->partition_regions_.push_back(PartitionRegion{offset, size, label, subtype});
+  }
+#endif
 
   //========================================================================
   // BinaryStorage Interface
@@ -242,6 +282,16 @@ class SPIFlash : public BinaryStorage,
   uint32_t jedec_id_{0};
   bool quad_mode_{false};       // Quad SPI mode for faster reads
   bool four_byte_mode_{false};  // 4-byte addressing for chips > 16MB
+
+#ifdef USE_ESP_IDF
+  bool esp_partition_mode_{false};
+  uint8_t spi_host_{0};
+  int cs_pin_num_{-1};
+  int flash_freq_mhz_{40};
+  esp_flash_t *ext_chip_{nullptr};
+  std::vector<PartitionRegion> partition_regions_;
+  bool esp_partition_setup_();  // esp_flash init + register the region partitions; false on failure
+#endif
 
   //========================================================================
   // SPI Flash Commands (JEDEC standard)

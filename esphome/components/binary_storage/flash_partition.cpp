@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include "esp_littlefs.h"
+#include "esp_partition.h"
 #include <cstring>
 #include <cerrno>
 #include <sys/stat.h>
@@ -36,6 +37,28 @@ void FlashPartition::setup() {
   };
 
   esp_err_t ret = esp_vfs_littlefs_register(&conf);
+
+  // A freshly registered external esp_partition is not blank (never erased -> not 0xFF), so
+  // littlefs' format-on-mount-failure trips over stale bytes in the superblock blocks
+  // ("Corrupted dir pair at {0x0, 0x1}") and returns ESP_FAIL. Erase the region once to a clean
+  // 0xFF and retry: format then lands on a blank medium and succeeds on the first boot. Only runs
+  // when auto_format is on and the filesystem was already unmountable+unformattable, so it never
+  // discards a usable filesystem.
+  if (ret == ESP_FAIL && this->auto_format_) {
+    const esp_partition_t *part =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, this->partition_label_);
+    if (part != nullptr) {
+      ESP_LOGW(TAG, "First-time format of '%s' failed; erasing the partition and retrying",
+               this->partition_label_);
+      esp_err_t erase_err = esp_partition_erase_range(part, 0, part->size);
+      if (erase_err == ESP_OK) {
+        ret = esp_vfs_littlefs_register(&conf);
+      } else {
+        ESP_LOGE(TAG, "Erase of '%s' failed: %s", this->partition_label_, esp_err_to_name(erase_err));
+      }
+    }
+  }
+
   if (ret != ESP_OK) {
     if (ret == ESP_FAIL) {
       ESP_LOGE(TAG, "Failed to mount or format filesystem");

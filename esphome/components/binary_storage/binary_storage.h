@@ -78,7 +78,7 @@ class BinaryStorage : public storage::RawStorage {
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  // The raw window (mode: both contract -- see set_fs_reserved()): these final wrappers
+  // The raw window (see set_raw_window()): these final wrappers
   // translate raw addresses into physical ones and refuse anything outside the window, then
   // delegate to the drivers' *_physical_() below. Drivers cannot bypass the contract.
   storage::StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) final;
@@ -113,10 +113,18 @@ class BinaryStorage : public storage::RawStorage {
 
   void set_storage_id(const char *id) { this->storage_id_ = id; }
   void set_storage_name(const char *name) { this->storage_name_ = name; }
-  // mode: both -- the split contract: LittleFS owns [0, fs_size), raw the rest. Raw addresses
-  // are rebased (raw 0 = fs_size physically) so the two are genuinely separate memories: the
-  // raw side reports capacity - fs_size and no raw operation can reach the filesystem.
-  void set_fs_reserved(uint32_t bytes) { this->fs_reserved_ = bytes; }
+  // Regions: place the raw / LittleFS window on a byte range of the device. Raw addresses are
+  // rebased to raw_offset_ so the window is a self-contained memory (capacity == its size, and no
+  // raw operation can reach outside it). size 0 means "to the end of the device".
+  void set_raw_window(uint64_t offset, uint64_t size) {
+    this->raw_offset_ = offset;
+    this->raw_size_ = size;
+  }
+  void set_fs_window(uint64_t offset, uint64_t size) {
+    this->fs_offset_ = offset;
+    this->fs_size_ = size;
+  }
+  uint64_t get_fs_offset() const { return this->fs_offset_; }
   // mode: littlefs -- the device is a filesystem backing only: it never registers as a raw
   // storage, so it has no raw API presence, no device node, no automations target.
   void set_raw_enabled(bool enabled) { this->raw_enabled_ = enabled; }
@@ -130,7 +138,10 @@ class BinaryStorage : public storage::RawStorage {
     if (!this->raw_enabled_)
       return 0;
     const uint64_t cap = this->get_capacity();
-    return this->fs_reserved_ < cap ? cap - this->fs_reserved_ : 0;
+    if (this->raw_offset_ >= cap)
+      return 0;
+    const uint64_t avail = cap - this->raw_offset_;
+    return (this->raw_size_ != 0 && this->raw_size_ < avail) ? this->raw_size_ : avail;
   }
 #ifdef USE_STORAGE_DEVICE_NODES
   void set_device_node_name(const char *name) { this->device_node_name_ = name; }
@@ -141,7 +152,7 @@ class BinaryStorage : public storage::RawStorage {
  protected:
   // The physical device operations -- implemented by each driver, addresses are device
   // addresses over the full capacity. Only the window wrappers above and the LittleFS block
-  // callbacks (which must reach [0, fs_reserved_)) call these.
+  // callbacks (which reach the LittleFS window) call these.
   virtual storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual storage::StorageError write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                size_t *bytes_transferred) = 0;
@@ -155,7 +166,10 @@ class BinaryStorage : public storage::RawStorage {
 
   const char *storage_id_{nullptr};
   const char *storage_name_{nullptr};
-  uint32_t fs_reserved_{0};           // bytes at the bottom owned by LittleFS (mode: both), 0 = none
+  uint64_t raw_offset_{0};            // physical base of the raw window
+  uint64_t raw_size_{0};              // raw window size in bytes; 0 = to the end of the device
+  uint64_t fs_offset_{0};             // physical base of the LittleFS window
+  uint64_t fs_size_{0};               // LittleFS window size in bytes; 0 = whole device
   bool raw_enabled_{true};            // false for mode: littlefs -- no raw registration or window
   bool assume_exclusive_bus_{false};  // opt-in: device is alone on its bus -> task-safe I/O
 #ifdef USE_STORAGE_DEVICE_NODES

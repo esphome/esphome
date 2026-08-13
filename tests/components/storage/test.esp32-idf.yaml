@@ -40,6 +40,10 @@ script:
               index: 1
             - trim: true
           to_global: g_setpoint
+          on_error:
+            - logger.log:
+                format: "read failed: %s"
+                args: ["x.c_str()"]
       - storage.file_read:
           path: /sdcard/config/device.conf
           extract:
@@ -53,9 +57,15 @@ script:
       - storage.file_copy:
           from: /sdcard/a.txt
           to: /usb/a.txt
+          on_complete:
+            - logger.log: "copy done"
       - storage.file_move:
           from: !lambda 'return "/sdcard/old.log";'
           to: /sdcard/archive/old.log
+          on_complete:
+            - logger.log:
+                format: "move done: %s"
+                args: ["x.c_str()"]
       - if:
           condition:
             storage.file_exists: /sdcard/config.txt

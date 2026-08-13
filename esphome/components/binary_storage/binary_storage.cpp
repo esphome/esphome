@@ -21,24 +21,23 @@ void BinaryStorage::setup() {
     ESP_LOGCONFIG(TAG, "  Erase Block Size: %" PRIu32 " bytes", erase_size);
   }
 
-  // mode: both contract -- LittleFS owns [0, fs_reserved_), raw the rest. Capacity may only
-  // be known here (model autodetect), so the split is validated at runtime, loudly.
-  if (this->fs_reserved_ > 0) {
-    if (this->fs_reserved_ >= this->get_capacity()) {
-      ESP_LOGE(TAG, "fs_size (%" PRIu32 ") swallows the whole device (%" PRIu32 " bytes) -- nothing left for raw",
-               this->fs_reserved_, this->get_capacity());
+  // A LittleFS region occupies a window of the device; capacity may only be known here (model
+  // autodetect), so the window is validated at runtime, loudly.
+  if (this->fs_size_ > 0) {
+    if (this->fs_offset_ + this->fs_size_ > this->get_capacity()) {
+      ESP_LOGE(TAG, "LittleFS region [%" PRIu64 ", %" PRIu64 ") does not fit the device (%" PRIu32 " bytes)",
+               this->fs_offset_, this->fs_offset_ + this->fs_size_, this->get_capacity());
       this->mark_failed();
       return;
     }
     uint32_t erase_size = this->get_erase_size();
-    if (erase_size > 0 && this->fs_reserved_ % erase_size != 0) {
-      ESP_LOGE(TAG, "fs_size (%" PRIu32 ") is not a multiple of the erase sector (%" PRIu32 ")", this->fs_reserved_,
-               erase_size);
+    if (erase_size > 0 && (this->fs_offset_ % erase_size != 0 || this->fs_size_ % erase_size != 0)) {
+      ESP_LOGE(TAG, "LittleFS region must be aligned to the erase sector (%" PRIu32 ")", erase_size);
       this->mark_failed();
       return;
     }
-    ESP_LOGCONFIG(TAG, "  Split: LittleFS [0, %" PRIu32 "), raw %" PRIu64 " bytes above it", this->fs_reserved_,
-                  this->get_raw_capacity());
+    ESP_LOGCONFIG(TAG, "  LittleFS region: [%" PRIu64 ", %" PRIu64 ")", this->fs_offset_,
+                  this->fs_offset_ + this->fs_size_);
   }
 
   // mode: littlefs -- a filesystem backing only. Not registering is what keeps the device out
@@ -80,7 +79,7 @@ storage::StorageError BinaryStorage::format() {
 }
 
 // ===========================================================================================
-// The raw window (mode: both contract). Raw address 0 is physical fs_reserved_: the raw side
+// The raw window. Raw address 0 is physical raw_offset_: the raw side
 // is a genuinely separate memory whose capacity is what the filesystem left over. Anything
 // outside is INVALID_ARGS here, before a driver ever sees it -- the split cannot be crossed.
 // With no reservation these are transparent (offset + 0, full capacity).
@@ -89,23 +88,23 @@ storage::StorageError BinaryStorage::read(uint64_t offset, uint8_t *buf, size_t 
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
     return storage::StorageError::INVALID_ARGS;
-  return this->read_physical(offset + this->fs_reserved_, buf, len, bytes_transferred);
+  return this->read_physical(offset + this->raw_offset_, buf, len, bytes_transferred);
 }
 
 storage::StorageError BinaryStorage::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
     return storage::StorageError::INVALID_ARGS;
-  return this->write_physical(offset + this->fs_reserved_, buf, len, bytes_transferred);
+  return this->write_physical(offset + this->raw_offset_, buf, len, bytes_transferred);
 }
 
 storage::StorageError BinaryStorage::erase(uint64_t offset, size_t len) {
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
     return storage::StorageError::INVALID_ARGS;
-  // fs_reserved_ is validated (setup()) as a multiple of the erase sector, so rebasing keeps
+  // the raw window is validated (setup()), so rebasing keeps
   // the caller's alignment intact -- the driver's own alignment checks still apply physically.
-  return this->erase_physical(offset + this->fs_reserved_, len);
+  return this->erase_physical(offset + this->raw_offset_, len);
 }
 
 void BinaryStorage::get_raw_geometry(storage::RawGeometry *out) const {
@@ -155,8 +154,8 @@ BlockDeviceConfig BinaryStorage::get_block_config() const {
     }
   }
 
-  // mode: both -- the filesystem owns exactly [0, fs_reserved_); everything above is raw's.
-  uint32_t fs_extent = this->fs_reserved_ > 0 ? this->fs_reserved_ : capacity;
+  // The filesystem owns exactly its window; everything else belongs to other regions.
+  uint32_t fs_extent = this->fs_size_ != 0 ? static_cast<uint32_t>(this->fs_size_) : capacity;
   config.block_count = fs_extent / config.block_size;
   config.read_size = 1;
   config.prog_size = page_size > 0 ? page_size : 1;
@@ -172,7 +171,7 @@ BlockDeviceConfig BinaryStorage::get_block_config() const {
 
 int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uint32_t size) {
   BlockDeviceConfig cfg = this->get_block_config();
-  uint32_t address = block * cfg.block_size + offset;
+  uint64_t address = this->fs_offset_ + block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
     ESP_LOGE(TAG, "Block read out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset,
@@ -188,7 +187,7 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
 
 int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffer, uint32_t size) {
   BlockDeviceConfig cfg = this->get_block_config();
-  uint32_t address = block * cfg.block_size + offset;
+  uint64_t address = this->fs_offset_ + block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
     ESP_LOGE(TAG, "Block program out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset,
@@ -204,7 +203,7 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
 
 int BinaryStorage::block_erase(uint32_t block) {
   BlockDeviceConfig cfg = this->get_block_config();
-  uint32_t address = block * cfg.block_size;
+  uint64_t address = this->fs_offset_ + block * cfg.block_size;
 
   // littlefs calls this before programming a block. On media that overwrite in place there is
   // nothing to do, and "nothing to do" is success for a block device -- a different question

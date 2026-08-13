@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
     require_vfs_dir,
 )
 from esphome.components.storage import (
+    FilesystemStorage,
     register_mount_path,
     request_path_length,
     request_storage_device,
@@ -26,16 +27,19 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
     CONF_LENGTH,
-    CONF_MODE,
     CONF_MODEL,
     CONF_PIN,
     CONF_SOURCE,
+    CONF_CS_PIN,
+    CONF_DATA_RATE,
+    CONF_NUMBER,
     CONF_SPI_ID,
     CONF_TARGET,
     CONF_TYPE,
     CONF_VALUE,
 )
 from esphome.core import CORE
+import logging
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -50,7 +54,7 @@ storage_ns = cg.esphome_ns.namespace("storage")
 
 # Base classes (from storage component)
 RawStorage = storage_ns.class_("RawStorage", cg.Component)
-FilesystemStorage = storage_ns.class_("FilesystemStorage", cg.Component)
+KeyValueStorage = storage_ns.class_("KeyValueStorage", cg.Component)
 
 # binary_storage device classes -- extend RawStorage
 BinaryStorage = binary_storage_ns.class_("BinaryStorage", RawStorage)
@@ -78,6 +82,10 @@ OneWireEEPROM = binary_storage_ns.class_("OneWireEEPROM", BinaryStorage)
 
 # Filesystem storage classes -- extend FilesystemStorage
 FlashPartition = binary_storage_ns.class_("FlashPartition", FilesystemStorage)
+
+# Key-value storage classes -- extend KeyValueStorage
+NVSStore = binary_storage_ns.class_("NVSStore", KeyValueStorage)
+InplaceKVStore = binary_storage_ns.class_("InplaceKVStore", KeyValueStorage)
 LittleFSMount = binary_storage_ns.class_("LittleFSMount", FilesystemStorage)
 
 # Automation classes
@@ -103,16 +111,29 @@ CONF_ERASE_SIZE = "erase_size"
 CONF_JEDEC_ID = "jedec_id"
 CONF_QUAD_MODE = "quad_mode"
 CONF_MOUNT_ID = "mount_id"
+CONF_PARTITION_ID = "partition_id"
 CONF_STORAGE_NAME = "storage_name"
+CONF_NAMESPACE = "namespace"
 CONF_ASSUME_EXCLUSIVE_BUS = "assume_exclusive_bus"
 CONF_DEVICE_NODE = "device_node"
 CONF_DEVICE_NODE_NAME = "device_node_name"
 
 # Storage modes (for external devices)
-MODE_RAW = "raw"
-MODE_LITTLEFS = "littlefs"
-MODE_BOTH = "both"
-CONF_FS_SIZE = "fs_size"
+_LOGGER = logging.getLogger(__name__)
+
+CONF_REGIONS = "regions"
+CONF_FORMAT = "format"
+CONF_SIZE = "size"
+FORMAT_RAW = "raw"
+FORMAT_LITTLEFS = "littlefs"
+FORMAT_KV = "kv"
+FORMAT_NVS = "nvs"
+CONF_LABEL = "label"
+SUBTYPE_DATA_NVS = 0x02
+SUBTYPE_DATA_LITTLEFS = 0x83
+SUBTYPE_DATA_UNDEFINED = 0x06
+MAX_PARTITION_LABEL = 16
+REGION_REMAINING = "remaining"
 CONF_PRE_FILL = "pre_fill"
 
 # LittleFS geometry the compile-time image is built with (see the esp_littlefs fork's
@@ -209,6 +230,67 @@ _ASSUME_EXCLUSIVE_BUS_SCHEMA = cv.Schema(
 )
 
 
+
+def region_size(value):
+    """A region size in bytes, or the literal "remaining" (at most one per device)."""
+    if isinstance(value, str) and value.strip().lower() == REGION_REMAINING:
+        return REGION_REMAINING
+    return validate_bytes(value)
+
+
+# A region places one format on a byte window of the device. Regions are laid out sequentially in
+# list order; at most one may use size: remaining (= capacity minus the explicit sizes).
+_RAW_REGION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(RawStorage),
+        cv.Optional(CONF_SIZE, default=REGION_REMAINING): region_size,
+        cv.Optional(CONF_LABEL): cv.string,
+        cv.Optional(CONF_STORAGE_NAME): cv.string,
+    }
+)
+_LITTLEFS_REGION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+        # esp_partition mode mounts the region via esp_vfs_littlefs (FlashPartition) instead of the
+        # block-callback LittleFSMount; give it its own declared id.
+        cv.GenerateID(CONF_PARTITION_ID): cv.declare_id(FlashPartition),
+        cv.Optional(CONF_SIZE, default=REGION_REMAINING): region_size,
+        cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
+        cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
+        cv.Optional(CONF_LABEL): cv.string,
+        cv.Optional(CONF_STORAGE_NAME): cv.string,
+    }
+)
+# NVS region: only valid on esp32/esp-idf SPI flash with an exclusive bus (esp_partition mode),
+# where it becomes a real NVS partition with wear leveling.
+_NVS_REGION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(NVSStore),
+        cv.Optional(CONF_SIZE, default=REGION_REMAINING): region_size,
+        cv.Optional(CONF_LABEL): cv.string,
+        cv.Optional(CONF_NAMESPACE, default="binary_storage"): cv.string,
+        cv.Optional(CONF_STORAGE_NAME): cv.string,
+    }
+)
+_KV_REGION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(InplaceKVStore),
+        cv.Optional(CONF_SIZE, default=REGION_REMAINING): region_size,
+        cv.Optional(CONF_STORAGE_NAME): cv.string,
+    }
+)
+REGION_SCHEMA = cv.typed_schema(
+    {
+        FORMAT_RAW: _RAW_REGION_SCHEMA,
+        FORMAT_LITTLEFS: _LITTLEFS_REGION_SCHEMA,
+        FORMAT_KV: _KV_REGION_SCHEMA,
+        FORMAT_NVS: _NVS_REGION_SCHEMA,
+    },
+    key=CONF_FORMAT,
+    lower=True,
+)
+
+
 # EEPROM Configuration Schema
 EEPROM_SCHEMA = (
     cv.Schema(
@@ -218,16 +300,7 @@ EEPROM_SCHEMA = (
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=8, max=128),
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(8, 9, 10, 11, 16, int=True),
-            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-            ),
-            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
-            # (rebased, so raw address 0 sits right above the filesystem). Required there,
-            # meaningless elsewhere: littlefs and raw each use the whole device.
-            cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-            cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+            cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
             # Whether this device gets its own node in the file browser. Defaults to on when a
             # browser is configured at all.
@@ -252,16 +325,7 @@ FRAM_SCHEMA = (
             cv.Optional(CONF_MODEL, default="MB85RC256"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(9, 11, 16, 32, int=True),
-            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-            ),
-            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
-            # (rebased, so raw address 0 sits right above the filesystem). Required there,
-            # meaningless elsewhere: littlefs and raw each use the whole device.
-            cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-            cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+            cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
             # Whether this device gets its own node in the file browser. Defaults to on when a
             # browser is configured at all.
@@ -289,16 +353,7 @@ SPI_FLASH_SCHEMA = (
             cv.Optional(CONF_ERASE_SIZE): cv.one_of(4096, 32768, 65536, int=True),
             cv.Optional(CONF_JEDEC_ID): cv.hex_uint32_t,
             cv.Optional(CONF_QUAD_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-            ),
-            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
-            # (rebased, so raw address 0 sits right above the filesystem). Required there,
-            # meaningless elsewhere: littlefs and raw each use the whole device.
-            cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-            cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+            cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
             # Whether this device gets its own node in the file browser. Defaults to on when a
             # browser is configured at all.
@@ -323,16 +378,7 @@ SPI_FRAM_SCHEMA = (
             cv.Optional(CONF_MODEL, default="FM25V10"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(16, 24, int=True),
-            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-            ),
-            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
-            # (rebased, so raw address 0 sits right above the filesystem). Required there,
-            # meaningless elsewhere: littlefs and raw each use the whole device.
-            cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-            cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+            cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
             # Whether this device gets its own node in the file browser. Defaults to on when a
             # browser is configured at all.
@@ -357,16 +403,7 @@ SPI_MRAM_SCHEMA = (
             cv.Optional(CONF_MODEL, default="MR25H256"): cv.string,
             cv.Optional(CONF_CAPACITY): validate_bytes,
             cv.Optional(CONF_ADDRESSING_BITS): cv.one_of(16, 24, int=True),
-            cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-                MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-            ),
-            # mode: both only -- the split contract: LittleFS owns [0, fs_size), raw the rest
-            # (rebased, so raw address 0 sits right above the filesystem). Required there,
-            # meaningless elsewhere: littlefs and raw each use the whole device.
-            cv.Optional(CONF_FS_SIZE): validate_bytes,
-            cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-            cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-            cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+            cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
             cv.Optional(CONF_STORAGE_NAME): cv.string,
             # Whether this device gets its own node in the file browser. Defaults to on when a
             # browser is configured at all.
@@ -392,14 +429,7 @@ ONEWIRE_EEPROM_SCHEMA = cv.Schema(
         cv.Optional(CONF_CAPACITY): validate_bytes,
         cv.Optional(CONF_PAGE_SIZE): cv.int_range(min=8, max=32),
         cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
-        cv.Optional(CONF_MODE, default=MODE_RAW): cv.one_of(
-            MODE_RAW, MODE_LITTLEFS, MODE_BOTH, lower=True
-        ),
-        # mode: both only -- see the sibling schemas above.
-        cv.Optional(CONF_FS_SIZE): validate_bytes,
-        cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-        cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-        cv.Optional(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
+        cv.Optional(CONF_REGIONS): cv.ensure_list(REGION_SCHEMA),
         cv.Optional(CONF_STORAGE_NAME): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -436,6 +466,30 @@ FLASH_PARTITION_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+# A dedicated NVS partition exposed as a KeyValueStorage. esp32 only (NVS is an ESP-IDF facility).
+# It uses its OWN partition label, never the system "nvs" partition, so it cannot collide with the
+# preferences store.
+NVS_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(NVSStore),
+            cv.Required(CONF_PARTITION_LABEL): cv.string,
+            # NVS needs at least three 4KB sectors. 4KB aligned; casing per validate_bytes.
+            cv.Optional(CONF_PARTITION_SIZE, default="64kB"): cv.All(
+                cv.validate_bytes, cv.Range(min=0x3000)
+            ),
+            # NVS namespace (max 15 chars). Defaults to a component-specific namespace so it is
+            # isolated from anything else on the same partition.
+            cv.Optional(CONF_NAMESPACE, default="binary_storage"): cv.All(
+                cv.string, cv.Length(max=15)
+            ),
+            cv.Optional(CONF_STORAGE_NAME): cv.string,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
+)
+
+
 # Typed schema for device selection
 def _fill_derived_mount_path(config):
     """Write the id-derived mount point into the config when the user left it out.
@@ -446,11 +500,9 @@ def _fill_derived_mount_path(config):
     check. Filling it here keeps the config the single description of what was configured,
     which is what codegen then reads -- no state travels between the two phases.
     """
-    if (
-        config.get(CONF_MODE) in (MODE_LITTLEFS, MODE_BOTH)
-        and CONF_MOUNT_PATH not in config
-    ):
-        config[CONF_MOUNT_PATH] = f"/{config[CONF_ID]}"
+    for region in config.get(CONF_REGIONS) or []:
+        if region[CONF_FORMAT] == FORMAT_LITTLEFS and CONF_MOUNT_PATH not in region:
+            region[CONF_MOUNT_PATH] = f"/{config[CONF_ID]}"
     return config
 
 
@@ -469,6 +521,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         "ONEWIRE": ONEWIRE_EEPROM_SCHEMA,
         "FLASH_PARTITION": FLASH_PARTITION_SCHEMA,
         "PARTITION": FLASH_PARTITION_SCHEMA,
+        "NVS": NVS_SCHEMA,
     },
     key=CONF_TYPE,
     upper=True,
@@ -484,6 +537,8 @@ DEVICE_SOURCE_FILES = {
     "spi_mram": ["spi_mram.cpp"],
     "onewire_eeprom": ["onewire_eeprom.cpp"],
     "flash_partition": ["flash_partition.cpp"],
+    "nvs": ["nvs_store.cpp"],
+    "inplace_kv": ["inplace_kv.cpp"],
 }
 
 # Raw media only: flash_partition is a filesystem and shows up as a mount point, not a node.
@@ -510,6 +565,7 @@ TYPE_TO_DEVICE = {
     "ONEWIRE": "onewire_eeprom",
     "FLASH_PARTITION": "flash_partition",
     "PARTITION": "flash_partition",
+    "NVS": "nvs",
 }
 
 
@@ -526,41 +582,108 @@ def _node_name_of(device: dict) -> str | None:
     internal = TYPE_TO_DEVICE.get(device[CONF_TYPE].upper())
     if internal not in RAW_DEVICE_TYPES:
         return None
-    if device.get(CONF_MODE) == MODE_LITTLEFS:
+    regions = device.get(CONF_REGIONS) or [{CONF_FORMAT: FORMAT_RAW}]
+    if not any(r[CONF_FORMAT] == FORMAT_RAW for r in regions):
         return None  # no raw side -- nothing a node could address
     if not device.get(CONF_DEVICE_NODE, _browser_configured()):
         return None
     return device.get(CONF_DEVICE_NODE_NAME) or internal
 
 
-def _validate_fs_split(config):
-    """mode: both splits the device by contract -- fs first, rest raw -- and fs_size says
-    where. Config-time checks cover what the config knows; capacity from model autodetect
-    and default erase sizes are re-checked at runtime in BinaryStorage::setup()."""
-    mode = config.get(CONF_MODE, MODE_RAW)
-    fs_size = config.get(CONF_FS_SIZE)
-    if mode == MODE_BOTH and fs_size is None:
-        raise cv.Invalid(
-            f"mode: both splits the device (LittleFS first, rest raw) -- '{CONF_FS_SIZE}' "
-            f"is required to say where"
-        )
-    if fs_size is not None and mode != MODE_BOTH:
-        raise cv.Invalid(
-            f"'{CONF_FS_SIZE}' only applies to mode: both -- '{mode}' uses the whole device"
-        )
-    if fs_size is None:
-        return config
-    if (capacity := config.get(CONF_CAPACITY)) is not None and fs_size >= capacity:
-        raise cv.Invalid(
-            f"'{CONF_FS_SIZE}' ({fs_size}) must leave room for raw below the capacity "
-            f"({capacity})"
-        )
-    if (erase := config.get(CONF_ERASE_SIZE)) is not None and fs_size % erase != 0:
-        raise cv.Invalid(
-            f"'{CONF_FS_SIZE}' ({fs_size}) must be a multiple of the erase sector ({erase})"
-        )
-    return config
+def _esp_partition_active(config):
+    """True when a SPI flash uses the esp32/ESP-IDF esp_partition path: regions become real
+    esp_partitions driven by esp_flash on an exclusive bus. Purely internal -- derived from the
+    exclusive-bus opt-in, no separate config field."""
+    return (
+        CORE.is_esp32
+        and not CORE.using_arduino
+        and config[CONF_TYPE].upper() in ("SPI_FLASH", "FLASH")
+        and bool(config.get(CONF_ASSUME_EXCLUSIVE_BUS))
+    )
 
+
+def _region_id(region):
+    return region.get(CONF_ID) or region.get(CONF_MOUNT_ID)
+
+
+def _derive_partition_label(region):
+    rid = _region_id(region)
+    return str(rid) if rid is not None else None
+
+
+def _validate_regions(config):
+    """Lay out and validate the regions on a byte device. Regions are placed sequentially in list
+    order; at most one may use size: remaining (= capacity minus the explicit sizes). The resolved
+    offset and size are stored back on each region for to_code()."""
+    regions = config.get(CONF_REGIONS)
+    if not regions:
+        return config  # a bare device is whole-device raw (see to_code)
+    internal_type = TYPE_TO_DEVICE.get(config[CONF_TYPE].upper())
+    capacity = config.get(CONF_CAPACITY)
+    if capacity is None:
+        raise cv.Invalid(f"'{CONF_REGIONS}' requires an explicit '{CONF_CAPACITY}'")
+    remaining = [r for r in regions if r[CONF_SIZE] == REGION_REMAINING]
+    if len(remaining) > 1:
+        raise cv.Invalid(f"at most one region may use '{CONF_SIZE}: {REGION_REMAINING}'")
+    explicit = sum(r[CONF_SIZE] for r in regions if r[CONF_SIZE] != REGION_REMAINING)
+    if explicit > capacity:
+        raise cv.Invalid(f"region sizes ({explicit}) exceed the device capacity ({capacity})")
+    rem_size = capacity - explicit
+    if remaining and rem_size <= 0:
+        raise cv.Invalid(
+            f"'{CONF_SIZE}: {REGION_REMAINING}' leaves no room after the explicit sizes"
+        )
+    erase = config.get(CONF_ERASE_SIZE)
+    esp_part = _esp_partition_active(config)
+    sector = erase or 4096
+    seen_labels = set()
+    offset = 0
+    for region in regions:
+        fmt = region[CONF_FORMAT]
+        size = rem_size if region[CONF_SIZE] == REGION_REMAINING else region[CONF_SIZE]
+        if fmt == FORMAT_NVS and not esp_part:
+            raise cv.Invalid(
+                "format: nvs needs esp32 with ESP-IDF, a SPI flash device, and an exclusive bus "
+                "(assume_exclusive_bus: true)."
+            )
+        if esp_part:
+            if offset % sector != 0 or size % sector != 0:
+                raise cv.Invalid(
+                    f"in esp_partition mode every region must be aligned to the erase sector "
+                    f"({sector} bytes); the region at offset {offset} of size {size} is not"
+                )
+            label = region.get(CONF_LABEL) or _derive_partition_label(region)
+            if label is None:
+                raise cv.Invalid("this region needs an explicit 'label' (none could be derived)")
+            if len(label) > MAX_PARTITION_LABEL:
+                raise cv.Invalid(
+                    f"partition label '{label}' exceeds {MAX_PARTITION_LABEL} characters; set a "
+                    f"shorter explicit 'label'"
+                )
+            if label in seen_labels:
+                raise cv.Invalid(f"duplicate partition label '{label}'; set an explicit 'label'")
+            seen_labels.add(label)
+            region["_label"] = label
+        if fmt == FORMAT_KV:
+            if internal_type not in ("i2c_fram", "spi_fram", "spi_mram"):
+                raise cv.Invalid(
+                    "format: kv (in-place key-value store) is only supported on erase-free byte "
+                    "devices (FRAM/MRAM)."
+                )
+            if size < 256:
+                raise cv.Invalid(f"format: kv region must be at least 256 bytes (got {size})")
+        elif fmt == FORMAT_LITTLEFS:
+            if CORE.using_arduino or not CORE.is_esp32:
+                raise cv.Invalid("format: littlefs requires ESP32 with the ESP-IDF framework.")
+            if erase is not None and size % erase != 0:
+                raise cv.Invalid(
+                    f"format: littlefs region size ({size}) must be a multiple of the erase "
+                    f"sector ({erase})"
+                )
+        region[CONF_SIZE] = size  # resolve remaining -> concrete size
+        region["_offset"] = offset
+        offset += size
+    return config
 
 def _validate_device_node(config):
     """The node name defaults to the device type -- fine for one FRAM, ambiguous for two.
@@ -577,10 +700,13 @@ def _validate_device_node(config):
             f"'{CONF_DEVICE_NODE}' needs a web_server with 'file_browser:' -- there is nowhere "
             f"to show the node otherwise"
         )
-    if config.get(CONF_DEVICE_NODE) and config.get(CONF_MODE) == MODE_LITTLEFS:
+    regions = config.get(CONF_REGIONS) or [{CONF_FORMAT: FORMAT_RAW}]
+    if config.get(CONF_DEVICE_NODE) and not any(
+        r[CONF_FORMAT] == FORMAT_RAW for r in regions
+    ):
         raise cv.Invalid(
-            f"'{CONF_DEVICE_NODE}' contradicts mode: littlefs -- that device is a filesystem "
-            f"backing only and has no raw side to hang a node on (use mode: both)"
+            f"'{CONF_DEVICE_NODE}' needs a raw region -- a device with no raw format has no raw "
+            f"side to hang a node on"
         )
 
     seen: dict[str, int] = {}
@@ -676,7 +802,7 @@ def _validate_assume_exclusive_bus(config, fconf):
 
 
 def _final_validate(config):
-    _validate_fs_split(config)
+    _validate_regions(config)
     _validate_device_node(config)
     _validate_prefill_fits(config)
     _validate_assume_exclusive_bus(config, fv.full_config.get())
@@ -686,8 +812,24 @@ def _final_validate(config):
     device_type = config[CONF_TYPE].upper()
     if (internal_type := TYPE_TO_DEVICE.get(device_type)) is not None:
         CORE.data.setdefault("binary_storage_device_types", set()).add(internal_type)
-    mode = config.get(CONF_MODE, MODE_RAW)
-    needs_littlefs = mode in [MODE_LITTLEFS, MODE_BOTH] or device_type in [
+    regions = config.get(CONF_REGIONS) or []
+    if any(r[CONF_FORMAT] == FORMAT_KV for r in regions):
+        CORE.data.setdefault("binary_storage_device_types", set()).add("inplace_kv")
+    if _esp_partition_active(config):
+        # Resolve which hardware SPI host the (exclusive) bus is, for esp_flash. The bus was already
+        # validated as hardware SPI on esp32 by _validate_assume_exclusive_bus.
+        bus_id = config.get(CONF_SPI_ID)
+        fconf = fv.full_config.get()
+        bus_conf = fconf.get_config_for_path(fconf.get_path_for_id(bus_id)[:-1])
+        config["_esp_flash_host_index"] = bus_conf.get("interface_index", 0)
+        # nvs and littlefs regions still pull in their partition consumers.
+        if any(r[CONF_FORMAT] == FORMAT_NVS for r in regions):
+            CORE.data.setdefault("binary_storage_device_types", set()).add("nvs")
+        if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
+            CORE.data.setdefault("binary_storage_device_types", set()).add("flash_partition")
+    needs_littlefs = any(
+        r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions
+    ) or device_type in [
         "FLASH_PARTITION",
         "PARTITION",
     ]
@@ -809,11 +951,41 @@ async def to_code(config):
         request_storage_worker(task_safe=True)
         return
 
+    if device_type == "NVS":
+        cg.add_define("USE_BINARY_STORAGE_NVS")
+        var = cg.new_Pvariable(config[CONF_ID])
+        await cg.register_component(var, config)
+
+        # Append a dedicated NVS data partition so the label exists at runtime. This is the store's
+        # own space -- never the system "nvs" partition the preferences use.
+        from esphome.components.esp32 import add_partition
+
+        size = config[CONF_PARTITION_SIZE]
+        if size % 0x1000 != 0:
+            size = (size + 0xFFF) & ~0xFFF
+        try:
+            add_partition(config[CONF_PARTITION_LABEL], "data", "nvs", size)
+        except ValueError as err:
+            raise cv.Invalid(str(err)) from err
+
+        cg.add(var.set_partition_label(config[CONF_PARTITION_LABEL]))
+        cg.add(var.set_namespace(config[CONF_NAMESPACE]))
+
+        storage_id = str(config[CONF_ID])
+        storage_name = config.get(CONF_STORAGE_NAME, config[CONF_PARTITION_LABEL])
+        cg.add(var.set_storage_id(storage_id))
+        cg.add(var.set_storage_name(storage_name))
+
+        # Key-value device -> registers with the runtime registry. No mount path (not path-based)
+        # and no worker (NVS access is fast and synchronous).
+        request_storage_device()
+        return
+
     # External memory devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire)
-    mode = config.get(CONF_MODE, MODE_RAW)
+    regions = config.get(CONF_REGIONS) or [{CONF_FORMAT: FORMAT_RAW, "_offset": 0, CONF_SIZE: 0}]
 
     # Custom block device support required for external memory LittleFS
-    if mode in [MODE_LITTLEFS, MODE_BOTH]:
+    if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
         add_idf_sdkconfig_option("CONFIG_LITTLEFS_CUSTOM_BLOCK_DEVICE", True)
         require_vfs_dir()
         cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
@@ -826,7 +998,20 @@ async def to_code(config):
 
     if is_spi:
         cg.add_define("USE_BINARY_STORAGE_SPI")
-        await spi.register_spi_device(var, config)
+        if _esp_partition_active(config):
+            # esp_partition mode: esp_flash owns the exclusive bus, so the flash is NOT registered
+            # as an ESPHome spi_device (esp_flash and spi_device cannot share a bus).
+            _LOGGER.warning(
+                "binary_storage '%s': esp_partition mode is experimental (testing stage). A wiring "
+                "or hardware fault on the flash can crash or bootloop the device at runtime.",
+                config[CONF_ID],
+            )
+            host = spi.get_spi_interface(config["_esp_flash_host_index"])
+            cs_num = config[CONF_CS_PIN][CONF_NUMBER]
+            freq_mhz = int(config.get(CONF_DATA_RATE, 40_000_000) // 1_000_000) or 40
+            cg.add(var.enable_esp_partition_mode(cg.RawExpression(host), cs_num, freq_mhz))
+        else:
+            await spi.register_spi_device(var, config)
         if device_type in ["SPI_FLASH", "FLASH"]:
             cg.add_define("USE_BINARY_STORAGE_SPI_FLASH")
         elif device_type == "SPI_FRAM":
@@ -873,9 +1058,6 @@ async def to_code(config):
         cg.add_define("USE_STORAGE_DEVICE_NODES")
         cg.add(var.set_device_node_name(node_name))
 
-    # Raw device always registers itself
-    request_storage_device()
-    # LittleFS name limit: 255 characters plus the terminator.
     request_path_length(256)
 
     # assume_exclusive_bus: FINAL_VALIDATE already enforced the promise (alone on a hardware
@@ -885,47 +1067,85 @@ async def to_code(config):
         cg.add(var.set_assume_exclusive_bus(True))
         request_storage_worker(task_safe=True)
 
-    if mode == MODE_BOTH:
-        # The split contract: filesystem first, raw rebased above it.
-        cg.add(var.set_fs_reserved(config[CONF_FS_SIZE]))
-    elif mode == MODE_LITTLEFS:
-        # Filesystem backing only: never registers as raw storage -- no raw API presence,
-        # no device node, and raw automations against it answer INVALID_ARGS.
+    # Lay out the regions on the device. Offsets/sizes were resolved in FINAL_VALIDATE
+    # (_validate_regions); size 0 here means "to the end of the device" (bare whole-device raw).
+    has_raw = any(r[CONF_FORMAT] == FORMAT_RAW for r in regions)
+    if not has_raw:
+        # No raw region: the device is a backing only, it does not register as raw storage.
         cg.add(var.set_raw_enabled(False))
 
-    # Create LittleFSMount if mode requires filesystem access
-    if mode in [MODE_LITTLEFS, MODE_BOTH]:
-        # Always present: _fill_derived_mount_path() put it there during validation.
-        mount_path = config[CONF_MOUNT_PATH]
-        from esphome.core import ID
+    esp_part = _esp_partition_active(config)
 
-        if (mount_id := config.get(CONF_MOUNT_ID)) is not None:
-            pass  # user provided a declared id
-        else:
-            mount_id = ID(
-                f"{config[CONF_ID]}_mount", is_declaration=True, type=LittleFSMount
-            )
-            CORE.component_ids.add(str(mount_id))
+    for region in regions:
+        fmt = region[CONF_FORMAT]
+        offset = region.get("_offset", 0)
+        size = region.get(CONF_SIZE, 0)
+        size = 0 if size == REGION_REMAINING else size
 
-        mount_var = cg.new_Pvariable(mount_id)
-        await cg.register_component(mount_var, {})
+        if esp_part:
+            # Register the region as a real esp_partition; consumers use it by label.
+            label = region["_label"]
+            if fmt == FORMAT_RAW:
+                cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_UNDEFINED))
+                cg.add(var.set_raw_window(offset, size))
+                if (rname := region.get(CONF_STORAGE_NAME)) is not None:
+                    cg.add(var.set_storage_name(rname))
+                request_storage_device()
+            elif fmt == FORMAT_LITTLEFS:
+                cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_LITTLEFS))
+                fp = cg.new_Pvariable(region[CONF_PARTITION_ID])
+                await cg.register_component(fp, {})
+                # External esp_partition regions may be unmounted (e.g. to format); internal
+                # FLASH_PARTITION devices stay statically mounted.
+                cg.add(fp.set_mountable(True))
+                cg.add(fp.set_partition_label(label))
+                mount_path = region.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
+                cg.add(fp.set_mount_path(mount_path))
+                register_mount_path(mount_path)
+                if (af := region.get(CONF_AUTO_FORMAT)) is not None:
+                    cg.add(fp.set_auto_format(af))
+                request_storage_device()
+                request_path_length(256)
+            elif fmt == FORMAT_NVS:
+                cg.add_define("USE_BINARY_STORAGE_NVS")
+                cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_NVS))
+                nvs_var = cg.new_Pvariable(region[CONF_ID])
+                await cg.register_component(nvs_var, {})
+                cg.add(nvs_var.set_partition_label(label))
+                cg.add(nvs_var.set_namespace(region[CONF_NAMESPACE]))
+                request_storage_device()
+            continue
 
-        cg.add(mount_var.set_storage_device(var))
-        cg.add(mount_var.set_mount_path(mount_path))
-        # Registered with the effective path, which may have been derived from the id above
-        # rather than written in the YAML.
-        register_mount_path(mount_path)
-        if (auto_format := config.get(CONF_AUTO_FORMAT)) is not None:
-            cg.add(mount_var.set_auto_format(auto_format))
+        if fmt == FORMAT_RAW:
+            # The device itself is the raw storage for this window (addressed by the device id).
+            cg.add(var.set_raw_window(offset, size))
+            if (rname := region.get(CONF_STORAGE_NAME)) is not None:
+                cg.add(var.set_storage_name(rname))
+            request_storage_device()
 
-        # LittleFSMount registers as a separate filesystem storage device
-        request_storage_device()
-        # LittleFS name limit: 255 characters plus the terminator.
-        request_path_length(256)
-        # Path-based driver -> async worker; never task-safe (bus-attached backing device,
-        # see LittleFSMount::get_capabilities()).
-        request_storage_worker()
+        elif fmt == FORMAT_LITTLEFS:
+            cg.add(var.set_fs_window(offset, size))
+            mount_var = cg.new_Pvariable(region[CONF_MOUNT_ID])
+            await cg.register_component(mount_var, {})
+            cg.add(mount_var.set_storage_device(var))
+            mount_path = region.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
+            cg.add(mount_var.set_mount_path(mount_path))
+            register_mount_path(mount_path)
+            if (af := region.get(CONF_AUTO_FORMAT)) is not None:
+                cg.add(mount_var.set_auto_format(af))
+            request_storage_device()
+            request_path_length(256)
+            request_storage_worker()
 
+        elif fmt == FORMAT_KV:
+            cg.add_define("USE_BINARY_STORAGE_INPLACE_KV")
+            kv_var = cg.new_Pvariable(region[CONF_ID])
+            await cg.register_component(kv_var, {})
+            cg.add(kv_var.set_device(var))
+            cg.add(kv_var.set_window(offset, size))
+            cg.add(kv_var.set_storage_id(str(region[CONF_ID])))
+            cg.add(kv_var.set_storage_name(region.get(CONF_STORAGE_NAME) or str(region[CONF_ID])))
+            request_storage_device()
 
 # ============================================================================
 # Automation Actions and Conditions

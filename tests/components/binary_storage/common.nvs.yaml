@@ -1,0 +1,10 @@
+# NVS key-value coverage (uses the ESP-IDF nvs_* API, esp32 only).
+# A dedicated NVS partition exposed as a KeyValueStorage. The partition label does not need to
+# exist for the CI compile; nvs_flash_init_partition is runtime-only.
+binary_storage:
+  - type: NVS
+    id: nvs_kv
+    partition_label: nvs_kv
+    partition_size: 64kB
+    namespace: kvtest
+    storage_name: "NVS KV store"

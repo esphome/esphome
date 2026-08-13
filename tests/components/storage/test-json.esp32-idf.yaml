@@ -4,26 +4,26 @@ packages:
 # The storage option that costs real flash, kept out of the base test so the memory-impact
 # job measures what the component costs rather than what its most expensive corner costs.
 #
-#   regex:        pulls in <regex>, which is ~50-100 kB of libstdc++ on this target (see the
-#                 comment above the include in automation.cpp)
+#   json:         pulls in ArduinoJson (bblanchon/ArduinoJson), added to the build only when a
+#                 config uses a json: step (the schema requires an explicit json: block)
 #
-# It is opt-in: codegen only sets USE_STORAGE_REGEX_EXTRACT when a config actually asks for it,
+# It is opt-in: codegen only sets USE_STORAGE_JSON_EXTRACT when a config actually asks for it,
 # so a node that copies files and reads a key=value file pays nothing. This variant exists so it
 # still gets compiled on every run -- ``test-*`` files are part of the normal test set and only
 # skipped by ``--base-only`` builds, which the memory job uses.
 
+json:
+
 globals:
-  - id: g_label
+  - id: g_json_value
     type: std::string
     restore_value: false
 
 script:
-  - id: exercise_expensive_extracts
+  - id: exercise_json_extract
     then:
       - storage.file_read:
-          path: /sdcard/config/device.conf
+          path: /storage/state.json
           extract:
-            - key: name
-              separator: "="
-            - regex: "([A-Za-z0-9_]+)"
-          to_global: g_label
+            - json: sensor/value
+          to_global: g_json_value

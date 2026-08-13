@@ -80,6 +80,8 @@ class OneWireEEPROM : public BinaryStorage {
   const char *get_device_name() const override { return this->model_.c_str(); }
   const char *get_device_type() const override { return "onewire_eeprom"; }
   uint32_t get_page_size() const override { return this->page_size_; }
+  // EEPROM needs erase before write.
+  uint8_t get_erase_caps() const override { return storage::RAW_WRITE_NEEDS_ERASE; }
 
   // RawStorage interface
   storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;

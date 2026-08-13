@@ -14,6 +14,20 @@ static const char *const TAG = "spi_flash";
 void SPIFlash::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI Flash...");
 
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    if (!this->esp_partition_setup_()) {
+      this->mark_failed();
+      return;
+    }
+    // Regions are registered as esp_partitions; littlefs/nvs consumers mount by label. The raw
+    // side, if any, registers here as usual (BinaryStorage::setup()).
+    BinaryStorage::setup();
+    ESP_LOGCONFIG(TAG, "  Model: %s (esp_partition mode)", this->model_.c_str());
+    return;
+  }
+#endif
+
   this->spi_setup();
 
   // Read JEDEC ID for device identification
@@ -376,9 +390,59 @@ bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
+#ifdef USE_ESP_IDF
+bool SPIFlash::esp_partition_setup_() {
+  esp_flash_spi_device_config_t cfg = {};
+  cfg.host_id = static_cast<spi_host_device_t>(this->spi_host_);
+  cfg.cs_io_num = this->cs_pin_num_;
+  cfg.io_mode = SPI_FLASH_FASTRD;
+  cfg.freq_mhz = this->flash_freq_mhz_;
+
+  esp_err_t err = spi_bus_add_flash_device(&this->ext_chip_, &cfg);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "spi_bus_add_flash_device failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  err = esp_flash_init(this->ext_chip_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_flash_init failed: %s -- flash not reachable on the exclusive bus?",
+             esp_err_to_name(err));
+    return false;
+  }
+  uint32_t chip_size = 0;
+  if (esp_flash_get_size(this->ext_chip_, &chip_size) == ESP_OK) {
+    if (this->capacity_ == 0)
+      this->capacity_ = chip_size;
+    ESP_LOGCONFIG(TAG, "  esp_flash chip size: %" PRIu32 " bytes", chip_size);
+  }
+  for (auto &region : this->partition_regions_) {
+    const esp_partition_t *part = nullptr;
+    err = esp_partition_register_external(this->ext_chip_, static_cast<size_t>(region.offset),
+                                          static_cast<size_t>(region.size), region.label,
+                                          ESP_PARTITION_TYPE_DATA,
+                                          static_cast<esp_partition_subtype_t>(region.subtype), &part);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_partition_register_external('%s') failed: %s", region.label, esp_err_to_name(err));
+      return false;
+    }
+    ESP_LOGCONFIG(TAG, "  Registered partition '%s' at 0x%08" PRIx32 " (%" PRIu32 " bytes)", region.label,
+                  static_cast<uint32_t>(region.offset), static_cast<uint32_t>(region.size));
+  }
+  return true;
+}
+#endif  // USE_ESP_IDF
+
 storage::StorageError SPIFlash::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_read(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
+    if (bytes_transferred != nullptr)
+      *bytes_transferred = (err == ESP_OK) ? len : 0;
+    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+  }
+#endif
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
@@ -389,6 +453,14 @@ storage::StorageError SPIFlash::write_physical(uint64_t offset, const uint8_t *b
                                                size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
     return storage::StorageError::INVALID_ARGS;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_write(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
+    if (bytes_transferred != nullptr)
+      *bytes_transferred = (err == ESP_OK) ? len : 0;
+    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  }
+#endif
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
@@ -398,6 +470,13 @@ storage::StorageError SPIFlash::write_physical(uint64_t offset, const uint8_t *b
 storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
   if (len == 0)
     return storage::StorageError::OK;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_erase_region(this->ext_chip_, static_cast<uint32_t>(offset),
+                                           static_cast<uint32_t>(len));
+    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  }
+#endif
 
   const uint32_t sector = this->sector_size_;
   const uint64_t capacity = this->get_capacity();

@@ -1,9 +1,13 @@
 #pragma once
 
-// defines.h MUST be seen before the guard below is evaluated: the preferences
-// action classes are define-gated, and main.cpp placement-news them into
-// sizeof()-sized static buffers -- any TU seeing this header with a different
-// define state gets a different class size (ODR violation, boot crash).
+// WARNING: This component is EXPERIMENTAL. The API may change at any time
+// without following the normal breaking changes policy. Use at your own risk.
+
+// defines.h MUST be the first include: this header has define-gated action classes, and main.cpp
+// placement-news them into sizeof()-sized static buffers -- a TU parsing these declarations with a
+// different define state gets a different class size (ODR violation, boot crash). Including
+// defines.h first resolves the gates from the generated defines, not from whatever an earlier
+// include happened to set.
 #include "esphome/core/defines.h"
 
 #include "storage.h"
@@ -15,7 +19,11 @@
 #include "esphome/core/helpers.h"
 
 #include <string>
+#include <type_traits>
 #include <vector>
+#ifdef USE_STORAGE_REGEX_EXTRACT
+#include <regex>  // ExtractStep::compiled_re -- REGEX patterns are compiled once, at construction
+#endif
 
 namespace esphome::storage {
 
@@ -24,14 +32,16 @@ namespace esphome::storage {
 // analogous to how web_server sorting groups work for all components. Paths are full VFS
 // paths; routing to the right device happens via StorageRegistry::resolve_path().
 
-// Logging helpers implemented in automation.cpp (log macros must stay out of headers).
-// printf-style args from YAML flow verbatim through C varargs in the generated
-// str_sprintf call; a std::string there is undefined behavior (non-POD through
-// "..." renders garbage or corrupts memory, and only warns via -Wformat).
-// Normalizing every arg through this overload set means no config ever needs a
-// manual .c_str() -- and args that already have one pass through unchanged.
+// Logging helpers implemented in automation.cpp (log macros stay out of headers). printf-style args
+// from YAML flow verbatim through C varargs into the generated snprintf; a std::string there is UB
+// (a non-POD through "..." renders garbage or corrupts memory, only warned by -Wformat). Normalizing
+// every arg through this overload set means no config needs a manual .c_str(), and args that have
+// one pass through unchanged.
 inline const char *printf_arg(const std::string &s) { return s.c_str(); }
-template<typename T> inline T printf_arg(T v) { return v; }
+template<typename T> inline T printf_arg(T v) {
+  static_assert(std::is_scalar_v<T>, "storage printf args must be scalars or strings; add .c_str() or convert first");
+  return v;
+}
 
 void warn_invalid_bool(const std::string &s);
 void warn_invalid_number(const std::string &s);
@@ -39,27 +49,37 @@ void warn_invalid_number(const std::string &s);
 // Assign an extracted string to a global variable of any supported type. The value type is
 // deduced from the global's value() so one helper covers GlobalsComponent<T>,
 // RestoringGlobalsComponent<T> and the string variants alike.
-template<typename GlobT> void assign_from_string(GlobT *g, const std::string &s) {
+// Returns true if the value was assigned, false if the text did not parse for the global's type
+// (the global is then left untouched -- FileReadAction uses this to skip firing on_value).
+template<typename GlobT> bool assign_from_string(GlobT *g, const std::string &s) {
   using T = std::decay_t<decltype(g->value())>;
   if constexpr (std::is_same_v<T, std::string>) {
     g->value() = s;
+    return true;
   } else if constexpr (std::is_same_v<T, bool>) {
     if (str_equals_case_insensitive(s, "true") || str_equals_case_insensitive(s, "on") || s == "1") {
       g->value() = true;
+      return true;
     } else if (str_equals_case_insensitive(s, "false") || str_equals_case_insensitive(s, "off") || s == "0") {
       g->value() = false;
-    } else {
-      warn_invalid_bool(s);
+      return true;
     }
+    warn_invalid_bool(s);
+    return false;
   } else if constexpr (std::is_arithmetic_v<T>) {
+    static_assert(std::is_integral_v<T> || std::is_same_v<T, float>,
+                  "storage.file_read to_global supports integer and float globals; double is not "
+                  "supported (parse_number has no double overload)");
     auto v = parse_number<T>(s);
     if (v.has_value()) {
       g->value() = *v;
-    } else {
-      warn_invalid_number(s);
+      return true;
     }
+    warn_invalid_number(s);
+    return false;
   } else {
     static_assert(std::is_same_v<T, std::string>, "Unsupported global type for storage.file_read to_global");
+    return false;
   }
 }
 
@@ -77,10 +97,22 @@ enum class ExtractStepType : uint8_t {
 };
 
 struct ExtractStep {
+  ExtractStep(ExtractStepType type, std::string arg, std::string sep, int index)
+      : type(type), arg(std::move(arg)), sep(std::move(sep)), index(index) {
+#ifdef USE_STORAGE_REGEX_EXTRACT
+    // Config-time validation already guaranteed a std::regex-parseable ECMAScript pattern, so
+    // compile it once here -- apply_extract_step() then never recompiles per play().
+    if (this->type == ExtractStepType::REGEX)
+      this->compiled_re = std::regex(this->arg);
+#endif
+  }
   ExtractStepType type;
   std::string arg;  // SPLIT: separator, KEY: key, REGEX: pattern
   std::string sep;  // KEY: separator
   int index{0};     // LINE: line number, SPLIT: element index, REGEX: capture group
+#ifdef USE_STORAGE_REGEX_EXTRACT
+  std::regex compiled_re;  // REGEX: pattern compiled once at construction (see the constructor)
+#endif
 };
 
 // Whitespace trim (no equivalent in core helpers).
@@ -91,44 +123,59 @@ std::string extract_trim(const std::string &s);
 bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // ===========================================================================
-// Blocking contract for the storage actions (READ THIS before "fixing" an action to be async).
+// Blocking contract for the storage actions (read before "fixing" an action to be async).
 //
-// Storage actions come in two deliberate kinds, split by WHERE the data lives -- not by
-// whim. The rule is: content that is already a RAM value stays synchronous; content that is
-// (or becomes) a file streams through the async worker.
+// Two deliberate kinds, split by WHERE the data lives: content already a RAM value stays
+// synchronous; content that is (or becomes) a file streams through the async worker.
 //
-//   ASYNC (fire-and-forget + on_complete trigger; runs on the worker, never blocks the loop):
+//   ASYNC (fire-and-forget + on_complete trigger; on the worker, never blocks the loop):
 //     - file_copy / file_move          (file/tree <-> file/tree, streamed)
 //     - raw_read  with to_file         (device -> file, streamed)
 //     - raw_write with from_file       (file -> device, streamed)
 //     - raw_erase                      (sliced one geometry step per pass)
-//   These move potentially large amounts of data and MUST NOT hold the main loop; the worker
-//   streams them through one fixed chunk buffer (never a whole-file/whole-image RAM buffer).
+//   Potentially large data; the worker streams them through one fixed chunk buffer (never a
+//   whole-file/whole-image RAM buffer).
 //
-//   SYNCHRONOUS (small content that is ALREADY a RAM value; blocks only for that small write):
+//   SYNCHRONOUS (small content already a RAM value; blocks only for that small write):
 //     - file_write / file_append       (writes a std::string from the automation)
-//     - raw_read  into on_value        (returns a std::vector -- the bytes land in RAM)
+//     - raw_read  into on_value        (returns a std::vector -- bytes land in RAM)
 //     - raw_write from inline data     (a flash/lambda byte array)
 //     - file_delete / recursive delete (removes directory entries -- moves no bulk data)
-//   These are intentionally NOT routed through the worker. The payload is a small in-RAM
-//   value, so there is nothing to stream and no large buffer to avoid; a worker job would add
-//   round-trips and a pool slot for no benefit. The blocking is bounded by the payload size,
-//   which the automation author already chose by constructing the value. The large-content
-//   counterpart already exists as a separate action: to write a big file use file_copy or
-//   raw_write with from_file; the interface deliberately offers BOTH shapes side by side.
-//   Note: on a slow NETWORK storage even a small write can take a while (the round-trip, not
-//   the size). That is a property of the medium, not a reason to convert these to async -- the
-//   author picks the storage. If a use case genuinely needs a non-blocking small write, the
-//   right move is a dedicated RAM->file worker job, not the heavyweight stream API -- but that
-//   job does not exist yet and is out of scope until a real need appears.
-//   file_delete is synchronous for a second reason beyond size: it moves no bulk data (each
-//   step is a directory-entry unlink/rmdir, short even over NFS), AND synchronous is the safer
-//   semantics for a destructive op -- the path is provably gone before the next action runs, so
-//   a "delete then recreate at the same path" sequence can't race its own delete.
+//   Not routed through the worker: the payload is a small in-RAM value, nothing to stream, and a
+//   worker job would add round-trips and a pool slot for no benefit. Blocking is bounded by the
+//   payload size, which the author chose by constructing the value. The large-content counterpart
+//   exists as a separate action (file_copy, or raw_write with from_file). On a slow NETWORK storage
+//   even a small write can take a while (the round-trip, not the size) -- a property of the medium
+//   the author picked, not a reason to go async. A genuinely non-blocking small write would want a
+//   dedicated RAM->file worker job, not the stream API -- out of scope until a real need appears.
+//   file_delete is synchronous for a second reason: it moves no bulk data (each step is a
+//   directory-entry unlink/rmdir, short even over NFS) and synchronous is safer for a destructive
+//   op. It fires on_complete (error text, empty = success): the delete is refused while the worker
+//   task streams on the same volume, and a recursive delete is NOT rolled back on a mid-walk failure
+//   -- so "gone before the next action" holds only when on_complete reports success. Sequence a
+//   "recreate at the same path" from on_complete, not by ordering.
+//   file_exists is a condition, not an action: while the worker task streams on the same volume it
+//   returns false (a concurrent stat() would break per-instance serialization), so an existing file
+//   reads as absent for that window, logged at WARN.
+//
+//   CONTROL-PLANE (moves no bulk data, but one driver call whose duration the medium bounds, not
+//   the author):
+//     - format          ASYNC. format() (f_mkfs etc.) is one blocking call that can run for seconds
+//                       on a large card. Worker-routed because its bound is the medium's: a task-safe
+//                       medium formats on the worker task (main loop free, watchdog-safe), otherwise
+//                       a loop() step waits it out. Fires on_complete like the streaming actions.
+//     - mount           ASYNC. One connect()/probe, bounded by the driver -- an NFS connect() to a
+//                       dead server blocks for the socket timeout -- so worker-routed like format.
+//                       play() returns before the mount completes and fires on_complete when the
+//                       connect finishes. Sequence a dependent action from on_complete, not after.
+//     - unmount         SYNCHRONOUS. One disconnect(). Stays synchronous: drivers quiesce the worker
+//                       inside unmount() and that drain is owned by the main loop, so routing it to
+//                       the worker task would deadlock the drain.
 // ===========================================================================
 
 // Non-template workers for the actions below -- all error logging lives in the .cpp.
-void perform_mount(MountableStorage *target, bool mount);
+void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete);
+void perform_format_async(FilesystemStorage *target, Trigger<std::string> *on_complete);
 // Returns the error so the no-worker fallback in perform_file_copy_async() can report it --
 // on_complete's contract is "error text, empty = success", which a void return cannot honour.
 // The raw helpers below already work this way.
@@ -138,10 +185,11 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
 // the error text (empty = success) and may be nullptr.
 void perform_file_copy_async(const std::string &from, const std::string &to, bool is_move,
                              Trigger<std::string> *on_complete);
-void perform_file_delete(const std::string &path, bool recursive);
+StorageError perform_file_delete(const std::string &path, bool recursive);
 bool check_file_exists(const std::string &path);
-void perform_file_write(const std::string &path, std::string content, bool append, bool newline);
-bool perform_file_read(const std::string &path, const std::vector<ExtractStep> &steps, std::string &out);
+StorageError perform_file_write(const std::string &path, std::string content, bool append, bool newline);
+bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out,
+                       std::string &error);
 
 // ---------------------------------------------------------------------------
 // storage.file_write / storage.file_append
@@ -158,13 +206,18 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, content)
   void set_newline(bool newline) { this->newline_ = newline; }
 
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
+
   void play(const Ts &...x) override {
-    perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    StorageError err =
+        perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
   bool append_;
   bool newline_{false};
+  Trigger<std::string> complete_trigger_;
 };
 
 // ---------------------------------------------------------------------------
@@ -175,37 +228,50 @@ template<typename... Ts> class FileReadAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, path)
 
+  // Capacity is known at codegen (the number of extract steps); steps_ is a FixedVector, so
+  // this init() must run before the add_step() calls.
+  void reserve_steps(size_t n) { this->steps_.init(n); }
   void add_step(ExtractStepType type, const std::string &arg, const std::string &sep, int index) {
     this->steps_.push_back(ExtractStep{type, arg, sep, index});
   }
-  void set_global_setter(std::function<void(const std::string &)> setter) { this->setter_ = std::move(setter); }
+  void set_global_setter(bool (*setter)(const std::string &)) { this->setter_ = setter; }
   Trigger<std::string> *get_value_trigger() { return &this->value_trigger_; }
+  Trigger<std::string> *get_error_trigger() { return &this->error_trigger_; }
 
   void play(const Ts &...x) override {
-    std::string value;
-    if (!perform_file_read(this->path_.value(x...), this->steps_, value))
-      return;  // already logged; global untouched, no trigger
-    if (this->setter_)
-      this->setter_(value);
+    std::string value, error;
+    if (!perform_file_read(this->path_.value(x...), this->steps_, value, error)) {
+      // Read or an extract step failed: global untouched, on_value not fired -- surface the cause.
+      this->error_trigger_.trigger(error);
+      return;
+    }
+    // A parse failure inside the setter leaves the global untouched; skip on_value (no fresh value
+    // arrived) and report why via on_error instead. The echoed value is bounded so a large read
+    // cannot bloat the error string.
+    if (this->setter_ && !this->setter_(value)) {
+      std::string shown = value.size() > 32 ? value.substr(0, 32) + "..." : value;
+      this->error_trigger_.trigger("read '" + shown + "' but it did not parse for the target global");
+      return;
+    }
     this->value_trigger_.trigger(value);
   }
 
  protected:
-  std::vector<ExtractStep> steps_;
-  std::function<void(const std::string &)> setter_;
+  FixedVector<ExtractStep> steps_;
+  bool (*setter_)(const std::string &){nullptr};
   Trigger<std::string> value_trigger_;
+  Trigger<std::string> error_trigger_;
 };
 
 // ---------------------------------------------------------------------------
 // storage.file_copy / storage.file_move (move doubles as rename -- see .cpp)
 // ---------------------------------------------------------------------------
 
-// Fire-and-forget: play() submits the copy/move to the async worker and returns immediately,
-// so the action sequence continues without blocking the loop for the transfer's duration. The
-// on_complete trigger fires later from the worker's completion callback (main loop) with the
-// error text -- empty string on success. A same-storage move still takes the rename() fast path
-// inside the worker's pre-phase. Falls back to the synchronous helper only when the worker was
-// not compiled in (no path driver requested it); that path blocks, as before.
+// Fire-and-forget: play() submits the copy/move to the async worker and returns immediately, so the
+// sequence continues without blocking the loop. on_complete fires later from the worker's completion
+// callback (main loop) with the error text -- empty on success. A same-storage move still takes the
+// rename() fast path in the worker's pre-phase. Falls back to the synchronous helper only when the
+// worker was not compiled in (no path driver); that path blocks.
 template<typename... Ts> class FileCopyAction : public Action<Ts...> {
  public:
   explicit FileCopyAction(bool is_move) : is_move_(is_move) {}
@@ -228,27 +294,30 @@ template<typename... Ts> class FileCopyAction : public Action<Ts...> {
 // ---------------------------------------------------------------------------
 // storage.raw_read / storage.raw_write / storage.raw_erase
 // ---------------------------------------------------------------------------
-// Address-based access to a RawStorage device (NOR flash, FRAM, EEPROM). What a medium
-// accepts is its own business -- these helpers ask get_raw_geometry() instead of assuming
-// flash semantics, and pass erase()'s verdict (NOT_SUPPORTED on erase-less media, INVALID_ARGS
-// on an unaligned range) straight through to the log rather than papering over it.
+// Address-based access to a RawStorage device (NOR flash, FRAM, EEPROM). What a medium accepts is
+// its own business -- these helpers ask get_raw_geometry() instead of assuming flash semantics, and
+// pass erase()'s verdict (NOT_SUPPORTED on erase-less media, INVALID_ARGS on an unaligned range)
+// straight to the log.
 //
 // Blocking: see the contract block above. The file-based paths (raw_read to_file, raw_write
-// from_file, raw_erase) run ASYNC on the worker; raw_read into on_value and raw_write from
-// inline data are SYNCHRONOUS small-content paths. The sync perform_raw_* helpers below back
-// the small-content paths and the no-worker fallback; the perform_*_async ones back the rest.
+// from_file, raw_erase) run ASYNC on the worker; raw_read into on_value and raw_write from inline
+// data are SYNCHRONOUS. The sync perform_raw_* helpers below back the small-content paths and the
+// no-worker fallback; the perform_*_async ones back the rest.
 
-// Reads [address, address+size) into `out`. Returns false (already logged) on any failure;
-// `out` is left empty then, so a trigger never fires with half a result.
-bool perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
-// Same, but streams into a file on a mounted storage. size == 0 means "to the end of the device".
-bool perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
+// Reads [address, address+size) into `out`. Returns a non-OK StorageError (already logged) on any
+// failure; `out` is left empty then, so a trigger never fires with half a result.
+StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out);
+// Same read, but written to a file on a mounted storage; the range is buffered in RAM as one block,
+// not streamed. size == 0 means "to the end of the device".
+StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path);
 // Writes `data` at `address`. erase_first erases the covering sectors beforehand -- required on
 // media reporting RAW_WRITE_NEEDS_ERASE, and destructive to anything else sharing those sectors.
-bool perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
-bool perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path, bool erase_first);
-// Erases [address, address+size), or the whole device when `all` is set.
-void perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
+StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len, bool erase_first);
+StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path,
+                                         bool erase_first);
+// Erases [address, address+size), or the whole device when `all` is set. Returns the result so
+// the async wrapper's no-worker fallback can propagate a failure to on_complete.
+StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t size, bool all);
 
 // Async variants used by the actions: submit to the worker (streaming, no whole-image RAM
 // buffer) and fire `on_complete` (error text, empty = success) from the completion callback.
@@ -286,9 +355,15 @@ template<typename... Ts> class RawReadAction : public Action<Ts...> {
     // Read-into-variable: this returns the bytes in a std::vector (RAM), so it stays
     // synchronous and is meant for small reads. Large content should use to_file instead.
     std::vector<uint8_t> data;
-    if (!perform_raw_read(this->device_, address, size, data))
-      return;  // already logged; no trigger on a failed read
+    StorageError err = perform_raw_read(this->device_, address, size, data);
+    if (err != StorageError::OK) {
+      // Failure was invisible before -- on_value simply never fired. Report it on on_complete
+      // (now allowed on the sync path too), matching the file actions.
+      this->complete_trigger_.trigger(std::string(error_to_string(err)));
+      return;
+    }
     this->value_trigger_.trigger(data);
+    this->complete_trigger_.trigger(std::string());  // success, empty error text
   }
 
  protected:
@@ -330,11 +405,14 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
       return;
     }
     if (this->len_ >= 0) {
-      perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_), this->erase_first_);
+      StorageError err = perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
+                                           this->erase_first_);
+      this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
       return;
     }
     std::vector<uint8_t> data = (*this->code_.func)(x...);
-    perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
+    StorageError err = perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
@@ -386,10 +464,16 @@ template<typename... Ts> class FileDeleteAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, path)
   void set_recursive(bool recursive) { this->recursive_ = recursive; }
 
-  void play(const Ts &...x) override { perform_file_delete(this->path_.value(x...), this->recursive_); }
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
+
+  void play(const Ts &...x) override {
+    StorageError err = perform_file_delete(this->path_.value(x...), this->recursive_);
+    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+  }
 
  protected:
   bool recursive_{false};
+  Trigger<std::string> complete_trigger_;
 };
 
 // ---------------------------------------------------------------------------
@@ -410,13 +494,35 @@ template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
 
 template<typename... Ts> class MountAction : public Action<Ts...> {
  public:
-  explicit MountAction(MountableStorage *target, bool mount) : target_(target), mount_(mount) {}
+  // Takes the PathStorage side (codegen passes the concrete driver, which is both): the worker
+  // routing needs it, and perform_mount() derives MountableStorage via as_mountable() -- the
+  // same target the worker's async_mount() expects.
+  explicit MountAction(PathStorage *target, bool mount) : target_(target), mount_(mount) {}
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
-  void play(const Ts &...x) override { perform_mount(this->target_, this->mount_); }
+  // mount is fire-and-forget like format: play() submits and returns; on_complete fires (error
+  // text, empty = success) when the connect/probe finishes. unmount runs synchronously and still
+  // fires on_complete on return.
+  void play(const Ts &...x) override { perform_mount(this->target_, this->mount_, &this->complete_trigger_); }
 
  protected:
-  MountableStorage *target_;
+  PathStorage *target_;
   bool mount_;
+  Trigger<std::string> complete_trigger_;
+};
+
+template<typename... Ts> class FormatAction : public Action<Ts...> {
+ public:
+  explicit FormatAction(FilesystemStorage *target) : target_(target) {}
+  Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
+
+  // Fire-and-forget like the streaming actions: play() submits the worker job and returns;
+  // the on_complete trigger fires (error text, empty = success) when the format finishes.
+  void play(const Ts &...x) override { perform_format_async(this->target_, &this->complete_trigger_); }
+
+ protected:
+  FilesystemStorage *target_;
+  Trigger<std::string> complete_trigger_;
 };
 
 }  // namespace esphome::storage
