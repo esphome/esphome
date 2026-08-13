@@ -3,6 +3,7 @@ from esphome.components import sensor
 from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE, ICON_GAUGE, STATE_CLASS_MEASUREMENT, UNIT_PERCENT
+from esphome.types import ConfigType
 
 from ..climate import PIDClimate, pid_ns
 
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_CLIMATE_ID])
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
