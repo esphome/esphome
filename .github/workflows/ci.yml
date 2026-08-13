@@ -179,6 +179,7 @@ jobs:
           . venv/bin/activate
           script/ci-custom.py
           script/build_codeowners.py --check
+          script/build_alias_registry.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
           script/generate-rp2-boards.py --check
