@@ -578,7 +578,6 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
-@pytest.mark.usefixtures("mock_time")
 def _no_auth_handshake(version: int) -> list[bytes]:
     """Recv responses for a handshake without auth, up to the MD5 check."""
     return [
@@ -591,6 +590,7 @@ def _no_auth_handshake(version: int) -> list[bytes]:
     ]
 
 
+@pytest.mark.usefixtures("mock_time")
 def test_perform_ota_chunk_send_error(mock_socket: Mock, mock_file: io.BytesIO) -> None:
     """Test OTA raises the retryable OTANetworkError when sending a chunk fails."""
     mock_socket.recv.side_effect = _no_auth_handshake(espota2.OTA_VERSION_2_0)
@@ -762,7 +762,8 @@ def test_run_ota_impl_multiple_addresses_cycle(
 
     assert result_code == 1
     assert result_host is None
-    # Every address gets a first visit plus MAX_UPLOAD_ATTEMPTS - 1 retries
+    # Each address is visited once, then the two spare attempts cycle back
+    # through them; the budget is shared, not per address
     assert mock_socket.connect.call_args_list == [
         call(DUAL_STACK_SA6),
         call(DUAL_STACK_SA4),
@@ -834,6 +835,21 @@ def test_run_ota_impl_device_error_not_retried(
     assert result_code == 1
     assert result_host is None
     mock_perform_ota.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_run_ota_impl_no_addresses(
+    firmware_file: Path, mock_resolve_ip: Mock, mock_sleep: Mock
+) -> None:
+    """Test run_ota_impl_ fails cleanly when resolution yields no addresses."""
+    mock_resolve_ip.return_value = []
+
+    result_code, result_host = espota2.run_ota_impl_(
+        "test.local", 3232, "password", str(firmware_file)
+    )
+
+    assert result_code == 1
+    assert result_host is None
     mock_sleep.assert_not_called()
 
 

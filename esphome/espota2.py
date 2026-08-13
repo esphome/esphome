@@ -511,8 +511,9 @@ def perform_ota(
         # The device treats a missing end acknowledgement as non-fatal and is
         # already rebooting into the new firmware, so the update succeeded
         _LOGGER.warning("Failed sending end acknowledgement: %s", err)
-
-    _LOGGER.info("OTA successful")
+        _LOGGER.info("OTA successful (end acknowledgement not delivered)")
+    else:
+        _LOGGER.info("OTA successful")
 
     # Do not connect logs until it is fully on
     time.sleep(1)
@@ -545,6 +546,10 @@ def run_ota_impl_(
             "https://esphome.io/components/wifi/#manual-ips)"
         )
         raise OTAError(err) from err
+
+    if not res:
+        _LOGGER.error("No addresses to connect to for %s", remote_host)
+        return 1, None
 
     # Every address is tried at least once and the budget grants
     # MAX_UPLOAD_ATTEMPTS - 1 extra retries, cycling through the addresses.
@@ -585,7 +590,7 @@ def run_ota_impl_(
             except OTANetworkError as err:
                 # Transient network failure; retry
                 last_error = str(err)
-                _LOGGER.warning(last_error)
+                _LOGGER.warning("%s", last_error)
                 continue
             except OTAError as err:
                 # Device-reported error (wrong password, wrong flash size, ...);
