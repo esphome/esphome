@@ -674,21 +674,21 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 }
 #endif
 
-void ESP32BLE::get_mac_msb_first(uint8_t out[6]) const {
+void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
   // The running stack owns the address (on hosted controllers it lives in
   // the remote chip's efuse); null before init becomes all-zero.
   const uint8_t *mac = esp_bt_dev_get_address();
   if (mac != nullptr) {
-    memcpy(out, mac, 6);
+    memcpy(out, mac, MAC_ADDRESS_SIZE);
   } else {
-    memset(out, 0, 6);
+    memset(out, 0, MAC_ADDRESS_SIZE);
   }
 }
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() {
-  uint8_t mac_address[6];
+  uint8_t mac_address[MAC_ADDRESS_SIZE];
   this->get_mac_msb_first(mac_address);
   if (mac_address_is_valid(mac_address)) {
     const char *io_capability_s;
@@ -713,7 +713,7 @@ void ESP32BLE::dump_config() {
         break;
     }
 
-    char mac_s[18];
+    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"

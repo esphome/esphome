@@ -163,8 +163,9 @@ _request_gatt_connection_slot = cg.slot_counter(GATT_CLIENT_COUNT_DEFINE)
 
 def request_gatt_client() -> None:
     """Compile in the neutral GATT client contract (ble_gatt_client.h) and
-    claim one connection slot. Called by bluetooth_proxy once per connection
-    it instantiates on a hub platform."""
+    claim one compiled-in client slot (sizes ESPHOME_BLE_GATT_CLIENT_COUNT;
+    distinct from the proxy's validated connection budget). Called by
+    bluetooth_connection.new_gatt_backend() once per backend instance."""
     cg.add_define("USE_BLE_GATT_CLIENT")
     _request_gatt_connection_slot()
 
@@ -246,24 +247,23 @@ def scan_parameters_schema(
     interval_default: str,
     *,
     window_default: str = "30ms",
-    supports_active: bool = False,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
     interval_default and window_default are per chip (e.g. esp32 320/30 ms,
     bk72xx/rp2 100/30 ms — the reference scan rates of the respective stacks;
-    LN882H's SDK recommends 100/50 ms). Pass supports_active=True only when
-    the tracker supports active scanning; it exposes the `active` option
-    (whose own default is on, esp32_ble_tracker behavior).
+    LN882H's SDK recommends 100/50 ms). The `active` option (default on) is
+    unconditional: active scanning is part of the tracker contract — every
+    current proxy client assumes it, so a passive-only tracker must not share
+    this schema.
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
         cv.Optional(CONF_INTERVAL, default=interval_default): cv.positive_time_period,
         cv.Optional(CONF_WINDOW, default=window_default): cv.positive_time_period,
         cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
+        cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }
-    if supports_active:
-        schema[cv.Optional(CONF_ACTIVE, default=True)] = cv.boolean
     return cv.All(cv.Schema(schema), validate_scan_parameters)
 
 

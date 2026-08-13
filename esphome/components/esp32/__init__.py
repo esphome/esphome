@@ -3416,27 +3416,45 @@ def copy_files():
         __version__,
     )
 
+    # Remote extra build files are fetched into the shared download cache in
+    # one parallel batch (conditional requests skip unchanged files), then
+    # copied into the build tree like their local counterparts.
+    sources: dict[str, Path] = {}
+    remote: list[tuple[str, str]] = []
     for file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].values():
         name: str = file[KEY_NAME]
         path: Path = file[KEY_PATH]
         if str(path).startswith("http"):
-            import requests
-
-            from esphome.happy_eyeballs import ensure_happy_eyeballs
-
-            ensure_happy_eyeballs()
-
-            try:
-                req = requests.get(path, timeout=30)
-                req.raise_for_status()
-            except requests.exceptions.RequestException as e:
-                raise EsphomeError(
-                    f"Could not download extra build file {path}: {e}"
-                ) from e
-            CORE.relative_build_path(name).parent.mkdir(parents=True, exist_ok=True)
-            CORE.relative_build_path(name).write_bytes(req.content)
+            remote.append((name, str(path)))
         else:
-            copy_file_if_changed(path, CORE.relative_build_path(name))
+            sources[name] = path
+    if remote:
+        # Imported lazily: requests (via external_files) is a heavy import
+        # and remote extra build files are rare.
+        from esphome import external_files
+
+        downloads: list[external_files.RemoteFile] = []
+        for name, url in remote:
+            cache_path = external_files.compute_local_file_path(KEY_ESP32, url)
+            # Unverifiable bytes: an unrevalidated copy is an error, matching
+            # the old always-download behavior on network failure.
+            downloads.append(
+                external_files.RemoteFile(url, cache_path, allow_stale=False)
+            )
+            sources[name] = cache_path
+        try:
+            external_files.download_content_many(
+                downloads, description="extra build file(s)"
+            )
+        except cv.MultipleInvalid as e:
+            details = "; ".join(str(err) for err in e.errors)
+            raise EsphomeError(
+                f"Could not download extra build file(s): {details}"
+            ) from e
+        except cv.Invalid as e:
+            raise EsphomeError(f"Could not download extra build file(s): {e}") from e
+    for name, source in sources.items():
+        copy_file_if_changed(source, CORE.relative_build_path(name))
 
 
 def _decode_pc(config, addr):

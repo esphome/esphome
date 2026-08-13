@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 import zipfile
 
 import pytest
@@ -23,6 +23,7 @@ from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     _7z_extract_all,
     _detect_archive_root,
+    _is_transient_download_error,
     _rename_with_retry,
     _tar_extract_all,
     _zip_extract_all,
@@ -515,16 +516,23 @@ class TestArchiveExtractAll:
 # ---------------------------------------------------------------------------
 
 
-def _mock_response(content: bytes, ok: bool = True) -> MagicMock:
+def _mock_response(
+    content: bytes, ok: bool = True, status: int | None = None
+) -> MagicMock:
+    """A fake requests response. The HTTPError carries the response (as
+    ``raise_for_status`` on a real response) so the transient classifier
+    can see its ``status``; failures default to a permanent 404."""
+    if status is None:
+        status = 200 if ok else 404
     r = MagicMock()
     r.__enter__.return_value = r
     r.__exit__.return_value = False
-    r.status_code = 200
+    r.status_code = status
     r.ok = ok
     if ok:
         r.raise_for_status.return_value = None
     else:
-        r.raise_for_status.side_effect = req.HTTPError("503")
+        r.raise_for_status.side_effect = req.HTTPError(str(status), response=r)
     r.headers = {"content-length": "0"}  # suppress ProgressBar
     r.iter_content.return_value = [content] if content else []
     return r
@@ -1418,6 +1426,191 @@ class TestDownloadFromMirrors:
             download_from_mirrors(["https://example.com/f"], {}, target)
         assert target.exists()
         assert target.read_bytes() == b""
+
+    @pytest.mark.parametrize("target_kind", ["path", "file-like"])
+    def test_transient_failure_retries_mirror_sweep(
+        self, tmp_path: Path, target_kind: str
+    ) -> None:
+        """A transient connect error on the only applicable mirror retries the
+        whole mirror list with backoff instead of failing the build."""
+        target = tmp_path / "idf.tar.xz" if target_kind == "path" else io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("Remote end closed connection"),
+                    _mock_response(b"data"),
+                ],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, target)
+        assert url == "https://mirror1.com/f"
+        data = target.read_bytes() if target_kind == "path" else target.getvalue()
+        assert data == b"data"
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once_with(2)
+
+    def test_permanent_failure_does_not_retry_sweep(self, tmp_path: Path) -> None:
+        """An HTTP 404 will not heal on its own; fail after a single pass."""
+        with (
+            patch(
+                "requests.get", return_value=_mock_response(b"", ok=False, status=404)
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert mock_get.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_transient_failure_exhausts_sweeps(self, tmp_path: Path) -> None:
+        """A persistent transient error gives up after the configured number
+        of passes, with 2s/4s backoff, and still lists the attempted URL."""
+        with (
+            patch("requests.get", side_effect=req.ConnectionError("down")) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert mock_get.call_count == 3
+        assert mock_sleep.call_args_list == [call(2), call(4)]
+        assert "https://mirror1.com/f" in str(ei.value)
+
+    def test_mixed_permanent_and_transient_retries_sweep(self, tmp_path: Path) -> None:
+        """One mirror 404s permanently while another hits a transient error;
+        the transient failure makes the whole list worth another pass."""
+        dest = tmp_path / "out.bin"
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _mock_response(b"", ok=False, status=404),
+                    req.ConnectionError("down"),
+                    _mock_response(b"", ok=False, status=404),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(
+                ["https://mirror1.com/f", "https://mirror2.com/f"], {}, dest
+            )
+        assert url == "https://mirror2.com/f"
+        assert dest.read_bytes() == b"data"
+        mock_sleep.assert_called_once_with(2)
+
+    def test_http_5xx_retries_sweep(self, tmp_path: Path) -> None:
+        """A real 5xx (response attached to the HTTPError) is transient."""
+        dest = tmp_path / "out.bin"
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _mock_response(b"", ok=False, status=503),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, dest)
+        assert url == "https://mirror1.com/f"
+        assert dest.read_bytes() == b"data"
+        mock_sleep.assert_called_once_with(2)
+
+    def test_error_reports_failure_modes_from_all_sweeps(self, tmp_path: Path) -> None:
+        """A failure mode that changes between sweeps stays in the final
+        error; the first failure (the one that started the retries) is
+        chained as the cause."""
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("dropped by middlebox"),
+                    _mock_response(b"", ok=False, status=404),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert "dropped by middlebox" in str(ei.value)
+        assert "404" in str(ei.value)
+        assert isinstance(ei.value.__cause__, req.ConnectionError)
+        mock_sleep.assert_called_once_with(2)
+
+    def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
+        """A file-like mirror that spent all its mid-stream attempts is not
+        retried again at the sweep level (unlike a path target, it has no
+        part file to resume from on a later sweep)."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[_interrupted_response(b"1234") for _ in range(3)],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 3 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 3
+        mock_sleep.assert_not_called()
+
+    def test_mid_stream_drop_then_connect_error_not_swept(self) -> None:
+        """A connect error on a later attempt (after a mid-stream drop spent
+        one) also counts as spent budget and does not re-arm the sweep."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _interrupted_response(b"1234"),
+                    req.ConnectionError("down"),
+                ],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 2 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 2
+        mock_sleep.assert_not_called()
+
+
+def _http_error(status: int) -> req.HTTPError:
+    """An HTTPError carrying a response with the given status, as raised by
+    ``raise_for_status`` on a real response."""
+    resp = MagicMock()
+    resp.status_code = status
+    return req.HTTPError(str(status), response=resp)
+
+
+class TestIsTransientDownloadError:
+    def test_connection_errors_are_transient(self) -> None:
+        assert _is_transient_download_error(req.ConnectionError("reset"))
+        assert _is_transient_download_error(req.Timeout("timed out"))
+        assert _is_transient_download_error(
+            req.exceptions.ChunkedEncodingError("dropped")
+        )
+
+    def test_http_statuses(self) -> None:
+        assert not _is_transient_download_error(_http_error(404))
+        assert not _is_transient_download_error(_http_error(403))
+        assert _is_transient_download_error(_http_error(429))
+        assert _is_transient_download_error(_http_error(503))
+
+    def test_http_error_without_response_is_permanent(self) -> None:
+        assert not _is_transient_download_error(req.HTTPError("boom"))
+
+    def test_exhausted_resume_attempts_are_permanent(self) -> None:
+        """download_with_resume already spent its own resume attempts; its
+        EsphomeError wrapper is not retried again at the sweep level."""
+        wrapped = EsphomeError("Failed to download after 3 attempts")
+        wrapped.__cause__ = req.ConnectionError("down")
+        assert not _is_transient_download_error(wrapped)
+
+    def test_unrelated_errors_are_permanent(self) -> None:
+        assert not _is_transient_download_error(OSError("disk full"))
+        assert not _is_transient_download_error(EsphomeError("size mismatch"))
 
 
 def test_importing_framework_helpers_does_not_import_requests() -> None:
