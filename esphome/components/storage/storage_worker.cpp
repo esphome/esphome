@@ -900,6 +900,8 @@ void StorageWorker::deliver_completions_() {
         // target's mount root, plus the "" roots level the header documents for a mount coming/going.
         if (StorageRegistry::build_path(req.dst_storage, "", feed_path, sizeof(feed_path))) {
           global_storage_registry->note_dir_changed(feed_path);
+        } else {
+          ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX (mount root)");
         }
         global_storage_registry->note_dir_changed("");
       }
