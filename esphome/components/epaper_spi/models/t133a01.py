@@ -28,6 +28,11 @@ class T133A01Model(EpaperModel):
     def __init__(self, name, class_name="EPaperT133A01", **defaults):
         super().__init__(name, class_name, **defaults)
 
+    def get_constructor_args(self, config) -> tuple:
+        # toggle_dc: this panel uses 4-wire SPI, so write_command_to_chip_() must toggle the
+        # DC pin around the command byte.
+        return (True,)
+
     def get_config_options(self) -> dict:
         # CS1 is the second chip-select required by the dual-CS architecture.
         # fallback=None makes it required unless the model provides a default.

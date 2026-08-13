@@ -29,6 +29,12 @@ class Inkplate13SpectraModel(EpaperModel):
     def __init__(self, name, class_name="EPaperInkplate13Spectra", **defaults):
         super().__init__(name, class_name, **defaults)
 
+    def get_constructor_args(self, config) -> tuple:
+        # toggle_dc: this panel uses 3-wire SPI (BS0/BS1 select the mode), so
+        # write_command_to_chip_() must not toggle the DC pin -- cmd/data is inferred by
+        # byte position instead.
+        return (False,)
+
     def get_config_options(self) -> dict:
         return {
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
