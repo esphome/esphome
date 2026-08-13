@@ -58,10 +58,8 @@ from esphome.const import (
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
-    WEBSERVER_SORTING_SCHEMA,
-    ZIGBEE_BINARY_SENSOR_SCHEMA,
     entity_duplicate_validator,
     lazy_load_validator,
     mqtt_component_class,
@@ -436,9 +434,9 @@ def validate_publish_initial_state(value):
 
 
 _BINARY_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(ZIGBEE_BINARY_SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BinarySensor),

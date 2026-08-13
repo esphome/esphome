@@ -1,7 +1,14 @@
 from enum import IntEnum
 
 import esphome.codegen as cg
-from esphome.const import (
+
+# The entity schema keys and report enum live outside this package so
+# entity base schemas can use them without importing it; re-imported here
+# so zigbee code keeps its existing import paths.
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    CONF_ENDPOINT,
+    CONF_REPORT,
+    CONF_USE_DEVICE_TYPE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
@@ -48,14 +55,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
-
-# The entity schema keys and report enum live in esphome.core.entity_helpers
-# so entity base schemas can use them without importing this package;
-# re-imported here so zigbee code keeps its existing import paths.
 from esphome.core.entity_helpers import (  # noqa: F401  # pylint: disable=unused-import
-    CONF_ENDPOINT,
-    CONF_REPORT,
-    CONF_USE_DEVICE_TYPE,
     ZIGBEE_MAX_EP_NUMBER as CONF_MAX_EP_NUMBER,
     ZIGBEE_REPORT as REPORT,
 )

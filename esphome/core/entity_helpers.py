@@ -1,7 +1,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import functools
-import importlib
+from importlib import import_module
+from importlib.util import find_spec
 import logging
 
 import esphome.codegen as cg
@@ -10,14 +11,21 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENDPOINT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_REPORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_DEVICE_TYPE,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -655,9 +663,6 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
 # owning integrations re-export the shared schema names and key strings so
 # each stays defined once.
 
-CONF_SORTING_GROUP_ID = "sorting_group_id"
-CONF_SORTING_WEIGHT = "sorting_weight"
-
 _WebServer = cg.esphome_ns.namespace("web_server").class_(
     "WebServer", cg.Component, cg.Controller
 )
@@ -691,11 +696,6 @@ def mqtt_component_class(name: str) -> MockObjClass:
     return _mqtt_ns.class_(name, _MQTTComponent)
 
 
-CONF_ENDPOINT = "endpoint"
-CONF_REPORT = "report"
-CONF_USE_DEVICE_TYPE = "use_device_type"
-CONF_ZIGBEE_ID = "zigbee_id"
-CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
@@ -753,11 +753,15 @@ def lazy_load_validator(
     component: str, name: str
 ) -> Callable[[ConfigType], ConfigType]:
     """Schema extra delegating to ``components.<component>.<name>`` when loaded."""
+    if find_spec(f"esphome.components.{component}") is None:
+        raise ValueError(f"No such component {component!r}")
 
     def validator(config: ConfigType) -> ConfigType:
         if component not in CORE.loaded_integrations:
             return config
-        module = importlib.import_module(f"esphome.components.{component}")
-        return getattr(module, name)(config)
+        module = import_module(f"esphome.components.{component}")
+        if (delegate := getattr(module, name, None)) is None:
+            raise ValueError(f"{component} has no validator {name!r}")
+        return delegate(config)
 
     return validator

@@ -14,11 +14,7 @@ from esphome.components.esp32.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, CONF_ON_START
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import (
-    ZIGBEE_BASE_ENTITY_SCHEMA,
-    ZIGBEE_BINARY_SENSOR_SCHEMA,
-)
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.types import ConfigType
 
 # CONF_ENDPOINT, CONF_MAX_EP_NUMBER, CONF_REPORT, CONF_USE_DEVICE_TYPE and
@@ -62,8 +58,8 @@ CONFLICTS_WITH = ["openthread"]
 
 # Defined in esphome.core.entity_helpers so entity base schemas can reference
 # them without importing this package; re-exported here for existing consumers.
-BASE_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
-BINARY_SENSOR_SCHEMA = ZIGBEE_BINARY_SENSOR_SCHEMA
+BASE_SCHEMA = entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA
+BINARY_SENSOR_SCHEMA = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
 SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)

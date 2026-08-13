@@ -30,6 +30,7 @@ from esphome.core.entity_helpers import (
     finalize_entity_strings,
     get_base_entity_object_id,
     lazy_load_validator,
+    mqtt_component_class,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
@@ -1268,9 +1269,7 @@ def test_lazy_load_validator_defers_import() -> None:
     original = CORE.loaded_integrations
     CORE.loaded_integrations = set()
     try:
-        with patch(
-            "esphome.core.entity_helpers.importlib.import_module"
-        ) as import_mock:
+        with patch("esphome.core.entity_helpers.import_module") as import_mock:
             assert validator(config) is config
             import_mock.assert_not_called()
 
@@ -1282,3 +1281,47 @@ def test_lazy_load_validator_defers_import() -> None:
             delegate.assert_called_once_with(config)
     finally:
         CORE.loaded_integrations = original
+
+
+def test_lazy_load_validator_rejects_unknown_component() -> None:
+    """A typo in the component name fails at schema construction."""
+    with pytest.raises(ValueError, match="no_such_component"):
+        lazy_load_validator("no_such_component", "validate_binary_sensor")
+
+
+def test_lazy_load_validator_names_missing_hook() -> None:
+    """A missing hook raises a clear error naming the component and hook."""
+    validator = lazy_load_validator("zigbee", "no_such_hook")
+
+    original = CORE.loaded_integrations
+    CORE.loaded_integrations = {"zigbee"}
+    try:
+        with (
+            patch("esphome.core.entity_helpers.import_module") as import_mock,
+            pytest.raises(ValueError, match="no_such_hook"),
+        ):
+            del import_mock.return_value.no_such_hook
+            validator({})
+    finally:
+        CORE.loaded_integrations = original
+
+
+def test_integration_class_handles_match_owning_definitions() -> None:
+    """The cheap class handles must stay string-equal to the integrations'
+    own declarations, or use_id/declare_id resolution silently drifts."""
+    from esphome.components import mqtt, web_server
+    from esphome.components.zigbee.const import ZigbeeComponent
+    from esphome.components.zigbee.zigbee_zephyr import ZigbeeBinarySensor
+    from esphome.core import entity_helpers
+
+    mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
+    assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
+    assert mqtt_handle.inherits_from(mqtt.MQTTComponent)
+    assert mqtt.MQTTBinarySensorComponent.inherits_from(entity_helpers._MQTTComponent)
+
+    assert str(entity_helpers._WebServer) == str(web_server.WebServer)
+    assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
+    assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
+
+    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
+    assert str(entity_helpers._ZigbeeBinarySensor) == str(ZigbeeBinarySensor)

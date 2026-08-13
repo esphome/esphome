@@ -10,7 +10,11 @@ from esphome.components import web_server_base
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import (
+
+# Re-exported so entity components and external components keep importing
+# these from web_server; defined outside this package so entity base
+# schemas do not need to import it.
+from esphome.const import (  # noqa: F401
     CONF_AUTH,
     CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
@@ -26,6 +30,8 @@ from esphome.const import (
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
@@ -39,15 +45,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-
-# Re-exported so entity components and external components keep importing
-# these from web_server; defined in entity_helpers so entity base schemas
-# do not need to import this package.
-from esphome.core.entity_helpers import (  # noqa: F401
-    CONF_SORTING_GROUP_ID,
-    CONF_SORTING_WEIGHT,
-    WEBSERVER_SORTING_SCHEMA,
-)
+from esphome.core.entity_helpers import WEBSERVER_SORTING_SCHEMA  # noqa: F401
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
