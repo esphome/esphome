@@ -14,6 +14,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MILLISIEMENS_PER_CENTIMETER,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -63,7 +66,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
@@ -99,7 +102,12 @@ UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
     synchronous=True,
 )
-async def ufire_ec_calibrate_probe_to_code(config, action_id, template_arg, args):
+async def ufire_ec_calibrate_probe_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     solution_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
@@ -122,6 +130,11 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
     UFIRE_EC_RESET_SCHEMA,
     synchronous=True,
 )
-async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
+async def ufire_ec_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

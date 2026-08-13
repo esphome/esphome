@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_VARIANT,
 )
 from esphome.cpp_generator import add_define
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@swoboda1337"]
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
@@ -63,7 +64,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_sdio(config):
+def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
         for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
@@ -97,7 +98,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_spi(config):
+def _validate_spi(config: ConfigType) -> ConfigType:
     variant = config[CONF_VARIANT]
     defaults = _SPI_VARIANT_DEFAULTS.get(variant, _SPI_DEFAULT)
 
@@ -125,7 +126,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _configure_sdio(config):
+def _configure_sdio(config: ConfigType) -> None:
     slot = config[CONF_SLOT]
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_SDIO_SLOT_{slot}",
@@ -167,7 +168,7 @@ def _configure_sdio(config):
     )
 
 
-def _configure_spi(config):
+def _configure_spi(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_HOST_INTERFACE", True)
     # SPI mode is set via per-variant choice options
     variant = config[CONF_VARIANT]
@@ -215,7 +216,7 @@ def _configure_spi(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_LOW", True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
     transport = config[CONF_TYPE]
     transport_prefix = "SDIO" if transport == "sdio" else "SPI"
