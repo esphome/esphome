@@ -78,7 +78,9 @@ void ICNT86Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-void ICNT86Touchscreen::icnt_read_(uint16_t reg, char const *data, uint8_t len) { this->i2c_read_byte_(reg, data, len); }
+void ICNT86Touchscreen::icnt_read_(uint16_t reg, char const *data, uint8_t len) {
+  this->i2c_read_byte_(reg, data, len);
+}
 
 void ICNT86Touchscreen::icnt_write_(uint16_t reg, char const *data, uint8_t len) {
   this->i2c_write_byte_(reg, data, len);
