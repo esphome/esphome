@@ -138,7 +138,7 @@ void LgIrClimate::transmit_state() {
       this->transmit_(remote_state);
       this->publish_state();
       return;
-    } else {  // not alternative_mode, so just toggle swing
+    } else {  // just toggle swing when advanced_commands_support is not set
       remote_state |= HEADER_BASIC;
       remote_state |= BASIC_SWING_TOGGLE;
     }
