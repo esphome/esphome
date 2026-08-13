@@ -9,6 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
+#include <cstring>
 
 #ifdef USE_STORAGE_REGEX_EXTRACT
 // <regex> costs significant flash (~50-100 kB) and stack; it is only compiled in when a
@@ -373,8 +374,10 @@ static StorageError raw_read_into(RawStorage *device, uint64_t address, uint8_t 
 }
 
 StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
-  if (size == 0)
+  if (size == 0) {
+    ESP_LOGE(TAG, "raw_read: refusing a zero-length request");
     return StorageError::INVALID_ARGS;  // a raw read of 0 bytes is meaningless (unlike an empty file)
+  }
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "read", address, size, &geo);
   if (pf != StorageError::OK)
@@ -474,8 +477,10 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
 
 StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len,
                                bool erase_first) {
-  if (len == 0)
+  if (len == 0) {
+    ESP_LOGE(TAG, "raw_write: refusing a zero-length request");
     return StorageError::INVALID_ARGS;  // a raw write of 0 bytes is meaningless (unlike an empty file)
+  }
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "write", address, len, &geo);
   if (pf != StorageError::OK)
@@ -554,8 +559,10 @@ StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t si
     address = 0;
     size = geo.capacity;
   }
-  if (size == 0)
+  if (size == 0) {
+    ESP_LOGE(TAG, "raw_erase: refusing a zero-length request");
     return StorageError::INVALID_ARGS;  // a raw erase of 0 bytes is meaningless (unlike an empty file)
+  }
   StorageError pf = raw_preflight(device, "erase", address, size, &geo);
   if (pf != StorageError::OK)
     return pf;
@@ -649,6 +656,26 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
     if (ps == nullptr) {
       raw_fail(on_complete, "write", std::string("no storage mounted for '") + path + "'");
       return;
+    }
+    // The sync twin (perform_raw_write_from_file -> perform_raw_write) rejects a zero-length write
+    // and preflights the address against the device geometry before touching it; the worker path did
+    // neither. from_file needs a path driver and every path driver requests the worker, so the sync
+    // twin is unreachable in practice and this is the only path a real build takes -- do both checks
+    // here. The stat gives the length to preflight with; if the stat itself fails, fall through and
+    // let the worker report the real error (a missing source, etc.).
+    FileStat st{};
+    const bool have_stat = ps->stat(rel, &st) == StorageError::OK && !st.is_dir;
+    if (have_stat && st.size == 0) {
+      raw_fail(on_complete, "write", error_to_string(StorageError::INVALID_ARGS));
+      return;
+    }
+    if (have_stat) {
+      RawGeometry geo;
+      StorageError pf = raw_preflight(device, "write", address, st.size, &geo);
+      if (pf != StorageError::OK) {
+        raw_fail(on_complete, "write", error_to_string(pf));
+        return;
+      }
     }
     ESP_LOGI(TAG, "Transfer started: write '%s' -> 0x%08" PRIX32, path.c_str(), (uint32_t) address);
     StorageError err = global_storage_worker->async_raw_write(
@@ -757,6 +784,20 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   if (src == nullptr || dst == nullptr) {
     fail(std::string("no storage mounted for '") + (src == nullptr ? from : to) + "'");
     return;
+  }
+
+  // Same-storage guards the blocking twin (storage::copy) enforces before it truncates the
+  // destination. The worker COPY/MOVE pre-phase does not, so from == to would open the destination
+  // for write, read EOF, and fire on_complete with the empty success string while the source is
+  // destroyed. Rejecting here, where src_rel/dst_rel are already resolved, needs no main-loop
+  // stat(): dst strictly under src is never a valid same-storage transfer whether src is a file or
+  // a directory, so the prefix test stands in for copy()'s is_dir-gated subtree check.
+  if (src == dst) {
+    size_t src_len = strlen(src_rel);
+    if (strcmp(src_rel, dst_rel) == 0 || (strncmp(src_rel, dst_rel, src_len) == 0 && dst_rel[src_len] == '/')) {
+      fail(std::string(op) + ": destination is the source or lies within it");
+      return;
+    }
   }
 
 #ifdef USE_STORAGE_WORKER

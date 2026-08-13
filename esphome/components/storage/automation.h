@@ -33,7 +33,7 @@ namespace esphome::storage {
 // paths; routing to the right device happens via StorageRegistry::resolve_path().
 
 // Logging helpers implemented in automation.cpp (log macros stay out of headers). printf-style args
-// from YAML flow verbatim through C varargs in the generated str_sprintf; a std::string there is UB
+// from YAML flow verbatim through C varargs into the generated snprintf; a std::string there is UB
 // (a non-POD through "..." renders garbage or corrupts memory, only warned by -Wformat). Normalizing
 // every arg through this overload set means no config needs a manual .c_str(), and args that have
 // one pass through unchanged.

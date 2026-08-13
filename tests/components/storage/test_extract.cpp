@@ -333,4 +333,25 @@ TEST(AssignFromString, InvalidBoolLeavesGlobalUntouched) {
   EXPECT_TRUE(g.v);
 }
 
+// The action play() bodies are only type-checked when the class template is instantiated, and no
+// YAML test config exercises a raw_*/mount/format action (they need a device the storage-only test
+// harness has no driver for). Instantiating one of each here forces its vtable, which compiles the
+// play() body -- so a bad edit to those bodies is caught at CI compile time. The objects are never
+// run, so a null device pointer is fine; this is compile coverage, not behaviour.
+TEST(StorageActions, PlayBodiesCompile) {
+#ifdef USE_STORAGE_RAW_ACTIONS
+  RawReadAction<> raw_read(nullptr);
+  RawWriteAction<> raw_write(nullptr);
+  RawEraseAction<> raw_erase(nullptr);
+  (void) raw_read;
+  (void) raw_write;
+  (void) raw_erase;
+#endif
+  MountAction<> mount(nullptr, true);
+  FormatAction<> format(nullptr);
+  (void) mount;
+  (void) format;
+  SUCCEED();
+}
+
 }  // namespace esphome::storage::testing

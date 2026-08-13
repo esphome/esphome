@@ -241,6 +241,13 @@ struct TransferRequest {
   // Submission timestamp: bounds how long NOT_READY from a network storage is treated as
   // "still connecting" (see run_chunk_) before it becomes the honest final answer.
   uint32_t submitted_ms{0};
+  // Absolute time this request entered the queue. Unlike submitted_ms, which check_stalled_
+  // refreshes every second while the request is deferred behind an active neighbour (so the
+  // eligible-time cap and the network-ready window count only eligible time), this is set once at
+  // submission and never moved -- it is the backstop that still times a request out if the slot it
+  // waits behind never clears (e.g. a driver wedged inside a blocking call keeps its own clock
+  // fresh, so the per-neighbour defer would otherwise reset the cap forever).
+  uint32_t queued_ms{0};
   bool waiting_logged{false};
   // Architecture contract: the file API is a pure HTTP -> storage-interface translator. All
   // driver I/O that used to run in the HTTP handler's pre-phase (source/destination stat,
