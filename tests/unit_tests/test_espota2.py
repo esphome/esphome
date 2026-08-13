@@ -274,6 +274,12 @@ def test_check_error_unexpected_response() -> None:
         espota2.check_error([0x7F], [espota2.RESPONSE_OK, espota2.RESPONSE_AUTH_OK])
 
 
+def test_check_error_md5_mismatch_is_retryable() -> None:
+    """Test check_error raises the retryable OTANetworkError for an MD5 mismatch."""
+    with pytest.raises(espota2.OTANetworkError, match="MD5 code mismatch"):
+        espota2.check_error([espota2.RESPONSE_ERROR_MD5_MISMATCH], None)
+
+
 def test_check_error_empty_data() -> None:
     """Test check_error raises the retryable OTANetworkError when the device closes the connection."""
     with pytest.raises(

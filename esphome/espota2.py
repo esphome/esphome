@@ -174,13 +174,18 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
 
+# Device-reported errors that do not persist across attempts: an MD5 mismatch
+# means the transfer arrived corrupted and the device aborted without
+# committing, so a fresh upload may succeed.
+_RETRYABLE_ERROR_CODES: frozenset[int] = frozenset({RESPONSE_ERROR_MD5_MISMATCH})
+
 
 class OTAError(EsphomeError):
     pass
 
 
 class OTANetworkError(OTAError):
-    """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
+    """Transient OTA failure (timeout, reset, closed connection, corrupted transfer); retrying may succeed."""
 
 
 def _committed_error(err: OTANetworkError) -> OTAError:
@@ -273,6 +278,8 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     dat = data[0]
     error_msg = _ERROR_MESSAGES.get(dat)
     if error_msg is not None:
+        if dat in _RETRYABLE_ERROR_CODES:
+            raise OTANetworkError(error_msg)
         raise OTAError(error_msg)
     if expect is None:
         return
@@ -492,9 +499,13 @@ def perform_ota(
                 # A send failure can hide an error byte the device reported
                 # just before dropping the connection; surface that as the
                 # real, non-retryable cause when it is available
-                with contextlib.suppress(OSError, OTANetworkError):
+                try:
                     sock.settimeout(1.0)
                     check_error(recv_decode(sock, 1), None)
+                except (OSError, OTANetworkError) as probe_err:
+                    _LOGGER.debug(
+                        "No device error behind the send failure: %s", probe_err
+                    )
                 raise OTANetworkError(f"sending data: {err}") from err
 
             if version >= OTA_VERSION_2_0:
@@ -581,7 +592,10 @@ def run_ota_impl_(
     # attempt when the previous one actually reached the device, or when
     # revisiting an address, so a flaky link can recover and the device can
     # clean up a half-open connection (its handshake watchdog runs at 20s);
-    # moving on to the next address family stays immediate.
+    # moving on to the next address family stays immediate. Known limitation:
+    # a silent mid-transfer drop with no reset can wedge the device until its
+    # 90s data timeout, which outlasts this budget; the retries target the
+    # common failures where the device resets or closes the link promptly.
     total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
     reached_device = False
