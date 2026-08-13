@@ -5,10 +5,6 @@ namespace esphome::icnt86 {
 
 static const char *const TAG = "icnt86";
 
-#define UBYTE uint8_t
-#define UWORD uint16_t
-#define UDOUBLE uint32_t
-
 void ICNT86Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up icnt86 Touchscreen...");
 
@@ -45,11 +41,11 @@ void ICNT86Touchscreen::update_touches() {
     this->icnt_write_(0x1001, mask, 1);
     ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
-    for (UBYTE i = 0; i < touch_count; i++) {
-      UWORD x = ((UWORD) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
-      UWORD y = ((UWORD) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
-      UWORD p = buf[5 + 7 * i];
-      UWORD touch_evenid = buf[6 + 7 * i];
+    for (uint8_t i = 0; i < touch_count; i++) {
+      uint16_t x = ((uint16_t) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
+      uint16_t y = ((uint16_t) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
+      uint16_t p = buf[5 + 7 * i];
+      uint16_t touch_evenid = buf[6 + 7 * i];
       if (!this->touches_.contains(touch_evenid) ||
           (x != this->touches_[touch_evenid].x_prev && y != this->touches_[touch_evenid].y_prev)) {
         this->add_raw_touch_position_(touch_evenid, x, y, p);
@@ -67,9 +63,9 @@ void ICNT86Touchscreen::reset_() {
   }
 }
 
-void ICNT86Touchscreen::i2c_write_byte_(UWORD reg, char const *data, UBYTE len) {
+void ICNT86Touchscreen::i2c_write_byte_(uint16_t reg, char const *data, uint8_t len) {
   char wbuf[50] = {static_cast<char>(reg >> 8 & 0xff), static_cast<char>(reg & 0xff)};
-  for (UBYTE i = 0; i < len; i++) {
+  for (uint8_t i = 0; i < len; i++) {
     wbuf[i + 2] = data[i];
   }
   this->write((const uint8_t *) wbuf, len + 2);
@@ -82,10 +78,12 @@ void ICNT86Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-void ICNT86Touchscreen::icnt_read_(UWORD reg, char const *data, UBYTE len) { this->i2c_read_byte_(reg, data, len); }
+void ICNT86Touchscreen::icnt_read_(uint16_t reg, char const *data, uint8_t len) { this->i2c_read_byte_(reg, data, len); }
 
-void ICNT86Touchscreen::icnt_write_(UWORD reg, char const *data, UBYTE len) { this->i2c_write_byte_(reg, data, len); }
-void ICNT86Touchscreen::i2c_read_byte_(UWORD reg, char const *data, UBYTE len) {
+void ICNT86Touchscreen::icnt_write_(uint16_t reg, char const *data, uint8_t len) {
+  this->i2c_write_byte_(reg, data, len);
+}
+void ICNT86Touchscreen::i2c_read_byte_(uint16_t reg, char const *data, uint8_t len) {
   this->i2c_write_byte_(reg, nullptr, 0);
   this->read((uint8_t *) data, len);
 }
