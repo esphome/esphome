@@ -9,6 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
+#include <cstring>
 
 #ifdef USE_STORAGE_REGEX_EXTRACT
 // <regex> costs significant flash (~50-100 kB) and stack; it is only compiled in when a
@@ -650,6 +651,16 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
       raw_fail(on_complete, "write", std::string("no storage mounted for '") + path + "'");
       return;
     }
+    // The sync twin (perform_raw_write_from_file -> perform_raw_write) rejects a zero-length write
+    // with INVALID_ARGS; the worker path did not, so an empty source file submitted, wrote nothing,
+    // and fired on_complete with the empty success string. Stat the source and reject the same way
+    // before submitting. One stat of a file the worker is about to read whole is negligible; if the
+    // stat itself fails, fall through and let the worker report the real error.
+    FileStat st{};
+    if (ps->stat(rel, &st) == StorageError::OK && !st.is_dir && st.size == 0) {
+      raw_fail(on_complete, "write", error_to_string(StorageError::INVALID_ARGS));
+      return;
+    }
     ESP_LOGI(TAG, "Transfer started: write '%s' -> 0x%08" PRIX32, path.c_str(), (uint32_t) address);
     StorageError err = global_storage_worker->async_raw_write(
         ps, rel, device, address, erase_first, [on_complete](StorageError r) { raw_fire(on_complete, "write", r); });
@@ -757,6 +768,20 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   if (src == nullptr || dst == nullptr) {
     fail(std::string("no storage mounted for '") + (src == nullptr ? from : to) + "'");
     return;
+  }
+
+  // Same-storage guards the blocking twin (storage::copy) enforces before it truncates the
+  // destination. The worker COPY/MOVE pre-phase does not, so from == to would open the destination
+  // for write, read EOF, and fire on_complete with the empty success string while the source is
+  // destroyed. Rejecting here, where src_rel/dst_rel are already resolved, needs no main-loop
+  // stat(): dst strictly under src is never a valid same-storage transfer whether src is a file or
+  // a directory, so the prefix test stands in for copy()'s is_dir-gated subtree check.
+  if (src == dst) {
+    size_t src_len = strlen(src_rel);
+    if (strcmp(src_rel, dst_rel) == 0 || (strncmp(src_rel, dst_rel, src_len) == 0 && dst_rel[src_len] == '/')) {
+      fail(std::string(op) + ": destination is the source or lies within it");
+      return;
+    }
   }
 
 #ifdef USE_STORAGE_WORKER
