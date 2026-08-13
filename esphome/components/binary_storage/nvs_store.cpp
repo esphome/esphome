@@ -70,8 +70,7 @@ bool NVSStore::open_() {
                       ? nvs_open_from_partition(this->partition_label_, this->namespace_, NVS_READWRITE, &this->handle_)
                       : nvs_open(this->namespace_, NVS_READWRITE, &this->handle_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_open('%s','%s'): %s", label_str(this->partition_label_), this->namespace_,
-             esp_err_to_name(err));
+    ESP_LOGE(TAG, "nvs_open('%s','%s'): %s", label_str(this->partition_label_), this->namespace_, esp_err_to_name(err));
     return false;
   }
   this->opened_ = true;

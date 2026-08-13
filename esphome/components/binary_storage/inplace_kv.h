@@ -58,8 +58,7 @@ class InplaceKVStore : public storage::KeyValueStorage {
 
   // Within the half at `half_off`, find the last committed+live entry for key. Fills entries_end
   // (first free offset within the half) whenever provided.
-  bool find_in_(uint64_t half_off, uint32_t key, uint64_t *entry_offset, uint16_t *value_len,
-                uint64_t *entries_end);
+  bool find_in_(uint64_t half_off, uint32_t key, uint64_t *entry_offset, uint16_t *value_len, uint64_t *entries_end);
   void clear_live_before_(uint64_t half_off, uint32_t key, uint64_t keep_offset);
   storage::StorageError append_(uint32_t key, const uint8_t *data, size_t len);
   storage::StorageError compact_();  // rebuild live entries into the inactive half, then activate it

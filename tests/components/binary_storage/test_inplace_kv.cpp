@@ -210,7 +210,7 @@ TEST(InplaceKV, TornWriteBeforeCommitKeepsOldValue) {
   FakeByteMedium m(4096);
   {
     InplaceKVStore kv;
-  setup_store(kv, &m, 4096);
+    setup_store(kv, &m, 4096);
     const uint8_t a[] = {7, 7, 7, 7};
     ASSERT_EQ(kv.set(5u, a, 4), StorageError::OK);
     m.fail_after = m.writes + 2;  // header + value written, fault before the commit marker
@@ -230,7 +230,7 @@ TEST(InplaceKV, TornWriteAfterCommitTakesNewValue) {
   FakeByteMedium m(4096);
   {
     InplaceKVStore kv;
-  setup_store(kv, &m, 4096);
+    setup_store(kv, &m, 4096);
     const uint8_t a[] = {7, 7, 7, 7};
     ASSERT_EQ(kv.set(5u, a, 4), StorageError::OK);
     m.fail_after = m.writes + 3;  // header + value + commit succeed, fault before clearing the old
@@ -251,7 +251,7 @@ TEST(InplaceKV, TornCompactionRecovers) {
   const uint8_t untouched[] = {1, 2, 3, 4};
   {
     InplaceKVStore kv;
-  setup_store(kv, &m, 256);
+    setup_store(kv, &m, 256);
     ASSERT_EQ(kv.set(6u, untouched, 4), StorageError::OK);  // a key we never touch again
     // Hammer key 5 to force a compaction, faulting partway through the rebuild.
     m.fail_after = m.writes + 2;
