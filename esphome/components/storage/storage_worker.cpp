@@ -405,6 +405,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   // request still completes correctly, just via the other engine.
   if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
     QueueEntry entry{QueueEntryKind::TRANSFER, static_cast<size_t>(slot - this->pool_.begin())};
+    slot->task_started_.store(false);  // not dequeued by the worker task yet -- exempt from the stall watchdog
     slot->state = RequestState::RUNNING;
     if (xQueueSend(this->task_queue_, &entry, 0) == pdTRUE) {
       return StorageError::OK;
@@ -523,6 +524,7 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   // which runs it from a loop() step (still one blocking call, but owned).
   if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
     QueueEntry entry{QueueEntryKind::TRANSFER, static_cast<size_t>(slot - this->pool_.begin())};
+    slot->task_started_.store(false);  // not dequeued by the worker task yet -- exempt from the stall watchdog
     slot->state = RequestState::RUNNING;
     if (xQueueSend(this->task_queue_, &entry, 0) == pdTRUE)
       return StorageError::OK;
@@ -628,6 +630,7 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   // loop-sliced engine below.
   if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
     QueueEntry entry{QueueEntryKind::TRANSFER, static_cast<size_t>(slot - this->pool_.begin())};
+    slot->task_started_.store(false);  // not dequeued by the worker task yet -- exempt from the stall watchdog
     slot->state = RequestState::RUNNING;
     if (xQueueSend(this->task_queue_, &entry, 0) == pdTRUE) {
       return StorageError::OK;
@@ -1044,6 +1047,10 @@ void StorageWorker::task_loop_() {
 
     if (entry.kind == QueueEntryKind::TRANSFER) {
       TransferRequest &req = this->pool_[entry.index];
+      // The task now owns this request; start its stall clock here, not at submit, so one that
+      // waited in the queue behind a long transfer is not timed out before it ever ran.
+      req.task_started_.store(true);
+      req.last_progress_ms = millis();
       // Loop until DONE, not just while RUNNING: if the hotplug handler flips the state to
       // CANCELLED between iterations, run_chunk_()'s entry check is what actually closes
       // handles, frees the chunk buffer, and transitions to DONE. Stopping on state != RUNNING
@@ -1722,6 +1729,13 @@ void StorageWorker::check_stalled_() {
   for (auto &req : this->pool_) {
     RequestState st = req.state.load(std::memory_order_acquire);
     if (st == RequestState::RUNNING) {
+      // A task-dispatched request is set RUNNING the instant it is queued (so overlaps_active_ sees it
+      // own its storage), but the single worker task may not dequeue it for a while when it is behind
+      // a long transfer. Until the task starts it, it makes no progress yet is not stalled -- skip it;
+      // the loop engine's slot runs the same tick it is claimed, so it needs no such guard.
+      bool loop_active = this->loop_active_index_ != SIZE_MAX && &req == &this->pool_[this->loop_active_index_];
+      if (!loop_active && !req.task_started_.load())
+        continue;
       // A whole-chip erase on the worker task blocks for its full duration without advancing
       // bytes_done, so the progress fingerprint below would flag it as stalled. Leave it alone
       // while it runs -- the erase is bounded by the driver's own wait_ready timeout, after
