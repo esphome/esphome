@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if restart_config := config.get(CONF_RESTART):
         b = await button.new_button(restart_config)

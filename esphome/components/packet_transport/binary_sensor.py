@@ -11,6 +11,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import (
     CONF_ENCRYPTION,
@@ -44,7 +45,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
         return config
@@ -65,7 +66,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     comp = await cg.get_variable(config[CONF_TRANSPORT_ID])
     if config[CONF_TYPE] == CONF_STATUS:
