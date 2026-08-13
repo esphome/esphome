@@ -14,6 +14,6 @@ climate:
     transmitter_id: xmitr
     header_high: 3300us
     header_low: 9840us
-    alternative_mode: true
+    advanced_commands_support: true
     sensor: climate_ir_lg_temp_sensor
     humidity_sensor: humidity_sensor
