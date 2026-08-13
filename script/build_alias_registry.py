@@ -9,8 +9,13 @@ import argparse
 from pathlib import Path
 import sys
 
-from esphome.helpers import write_file_if_changed
-from esphome.loader import _build_alias_map
+# The root directory of the repo
+root = Path(__file__).parent.parent
+# Make the repo's esphome package win over any installed copy
+sys.path.insert(0, str(root))
+
+from esphome.helpers import write_file_if_changed  # noqa: E402
+from esphome.loader import _build_alias_map  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -20,8 +25,6 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# The root directory of the repo
-root = Path(__file__).parent.parent
 registry_file = root / "esphome" / "component_aliases.py"
 
 HEADER = '''"""Component alias registry.
@@ -46,7 +49,7 @@ lines.append("}\n")
 content = "".join(lines)
 
 if args.check:
-    if registry_file.read_text() != content:
+    if registry_file.read_text(encoding="utf-8") != content:
         print("Component alias registry is not up to date.")
         print("Please run `script/build_alias_registry.py`")
         sys.exit(1)
