@@ -3,7 +3,7 @@ from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
-from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -33,7 +33,6 @@ CONF_DATA_READY_PIN = "data_ready_pin"
 CONF_HANDSHAKE_ACTIVE_HIGH = "handshake_active_high"
 CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
-CONF_SLOT = "slot"
 CONF_SPI_MODE = "spi_mode"
 
 # Shared fields for both transport modes
