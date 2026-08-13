@@ -689,7 +689,9 @@ def _node_key(
 
 
 def convert_libraries(
-    libraries: list[Library], backend: LibraryBackend
+    libraries: list[Library],
+    backend: LibraryBackend,
+    provided: set[str] | None = None,
 ) -> list[ConvertedLibrary]:
     """Resolve and convert a batch of PlatformIO libraries for ``backend``.
 
@@ -710,28 +712,36 @@ def convert_libraries(
     ``lib_ignore`` from ``esphome->platformio_options`` excludes libraries by
     short name (part after the ``/``), matched against both the top-level
     libraries and every dependency discovered during the graph walk.
+
+    ``provided`` names libraries the toolchain already supplies by other means
+    (for ESP-IDF: registry-managed components declared via
+    ``add_idf_component``). They are excluded exactly like ``lib_ignore``, so a
+    library is never both converted and managed -- ESP-IDF refuses to build when
+    two components claim the same requirement.
     """
     nodes: dict[str, _LibNode] = {}
 
-    lib_ignore = {
+    excluded = {
         name.split("/")[-1].lower()
-        for name in CORE.platformio_options.get("lib_ignore", [])
+        for name in itertools.chain(
+            CORE.platformio_options.get("lib_ignore", []), provided or ()
+        )
     }
 
     # The generated build files inside the shared cache bake in the dependency
-    # wiring, which lib_ignore changes; salt the cache path so configs with
-    # different lib_ignore values don't fight over (and constantly rewrite) the
+    # wiring, which the exclusion set changes; salt the cache path so configs
+    # with different exclusions don't fight over (and constantly rewrite) the
     # same converted component files.
     salt = (
-        hashlib.sha256(",".join(sorted(lib_ignore)).encode()).hexdigest()[:8]
-        if lib_ignore
+        hashlib.sha256(",".join(sorted(excluded)).encode()).hexdigest()[:8]
+        if excluded
         else ""
     )
 
     def is_ignored(name: str | None) -> bool:
-        if not lib_ignore or name is None:
+        if not excluded or name is None:
             return False
-        return name.split("/")[-1].lower() in lib_ignore
+        return name.split("/")[-1].lower() in excluded
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)

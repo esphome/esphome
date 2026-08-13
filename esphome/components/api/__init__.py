@@ -43,6 +43,11 @@ DOMAIN = "api"
 DEPENDENCIES = ["network"]
 CODEOWNERS = ["@esphome/core"]
 
+# Keep in sync with platformio.ini and esphome/idf_component.yml.
+# LIBSODIUM_VERSION must match the version noise-c pins in its idf_component.yml.
+NOISE_C_VERSION = "0.1.15"
+LIBSODIUM_VERSION = "1.10021.2"
+
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:
     """Conditionally auto-load json only when capture_response is used."""
@@ -497,7 +502,23 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.11")
+        # Both libraries build themselves as ESP-IDF components, so on ESP-IDF
+        # they are pulled straight from the component registry instead of going
+        # through ESPHome's PlatformIO-library converter. Not on the Arduino
+        # framework: arduino-esp32 brings its own espressif/libsodium (on IDF
+        # < 6.0), and IDF refuses to build with two managed components whose
+        # names differ only by namespace.
+        if CORE.is_esp32 and not CORE.using_arduino:
+            from esphome.components.esp32 import add_idf_component
+
+            add_idf_component(name="esphome/noise-c", ref=NOISE_C_VERSION)
+            # noise-c pulls libsodium in itself, but declaring it here too keeps
+            # other components that depend on it (wireguard, via esp_wireguard)
+            # from converting a second copy of the PlatformIO library alongside
+            # this managed one, which IDF rejects as a duplicate requirement.
+            add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
+        else:
+            cg.add_library("esphome/noise-c", NOISE_C_VERSION)
         # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
         cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
         cg.add_build_flag("-DHAVE_INLINE_ASM=1")
