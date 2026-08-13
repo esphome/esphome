@@ -1378,6 +1378,13 @@ void StorageWorker::run_raw_chunk_(TransferRequest &req, bool on_task) {
         finish_request(req, StorageError::INVALID_ARGS);
         return;
       }
+      // A raw write of 0 bytes is meaningless, same as the synchronous perform_raw_write(); reject an
+      // empty source here so the two paths agree instead of the worker reporting a no-op as success.
+      // Only the raw write: an empty file is a valid verify target and a valid path-to-path source.
+      if (req.op == RequestOp::RAW_WRITE_FROM_FILE && src_st.size == 0) {
+        finish_request(req, StorageError::INVALID_ARGS);
+        return;
+      }
       req.bytes_total.store(src_st.size);
       req.file_total.store(src_st.size);
       RawGeometry geo{};
