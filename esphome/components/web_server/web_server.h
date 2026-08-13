@@ -242,6 +242,22 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the origins that browsers are allowed to make cross-origin requests from.
+   *
+   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
+   * are always allowed. Requests whose `Origin` matches the address the device is served on
+   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
+   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
+   * the requesting page's `Origin` header (e.g. "https://example.com").
+   *
+   * This list is also used to authorize Private Network Access requests when that feature is enabled.
+   *
+   * @param origins The list of allowed origins.
+   */
+  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+#endif
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -593,6 +609,16 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
+  FixedVector<const char *> allowed_origins_;
+#endif
+
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR

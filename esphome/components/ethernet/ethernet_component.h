@@ -88,6 +88,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_W6300,
   ETHERNET_TYPE_GENERIC,
   ETHERNET_TYPE_YT8531,
+  ETHERNET_TYPE_CH390,
 };
 
 struct ManualIP {
@@ -112,8 +113,10 @@ enum class EthernetComponentState : uint8_t {
 
 // Platform-neutral duplex/speed types
 #ifndef USE_ESP32
+// NOLINTBEGIN(readability-identifier-naming)
 enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
 enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
+// NOLINTEND(readability-identifier-naming)
 #endif
 
 class EthernetComponent final : public Component {
@@ -137,14 +140,22 @@ class EthernetComponent final : public Component {
   bool is_disabled() { return this->disabled_; }
   bool is_enabled() { return !this->disabled_; }
 
+#ifdef USE_ESP32
+  /// esp_netif handle, used by network for default-route arbitration.
+  /// nullptr until the driver/netif installation has run.
+  esp_netif_t *get_esp_netif() { return this->eth_netif_; }
+#endif
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
 #endif
-  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
+  void set_fixed_mac(const std::array<uint8_t, MAC_ADDRESS_SIZE> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
@@ -331,7 +342,7 @@ class EthernetComponent final : public Component {
   bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
 
-  optional<std::array<uint8_t, 6>> fixed_mac_;
+  optional<std::array<uint8_t, MAC_ADDRESS_SIZE>> fixed_mac_;
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
@@ -346,7 +357,7 @@ class EthernetComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

@@ -1,4 +1,3 @@
-import hashlib
 from pathlib import Path
 
 from esphome import core, external_files
@@ -12,6 +11,8 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@neffs", "@kbx81"]
 CONFLICTS_WITH = ["bme680_bsec"]
@@ -74,11 +75,7 @@ VOLTAGE_FILE_NAME = {
 
 
 def _compute_local_file_path(url: str) -> Path:
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def _compute_url(config: dict) -> str:
@@ -105,6 +102,42 @@ def download_bme68x_blob(config):
     return config
 
 
+# Shared by the schema and the prefetch hook so they cannot drift.
+_MODEL_VALIDATOR = cv.one_of(*MODEL_OPTIONS, lower=True)
+_ALGORITHM_OUTPUT_VALIDATOR = cv.enum(ALGORITHM_OUTPUT_OPTIONS, lower=True)
+# Key -> (validator, default) for the defaulted options that select the blob.
+_BLOB_OPTIONS = {
+    CONF_OPERATING_AGE: (cv.enum(OPERATING_AGE_OPTIONS, lower=True), "28d"),
+    CONF_SAMPLE_RATE: (cv.enum(SAMPLE_RATE_OPTIONS, upper=True), "LP"),
+    CONF_SUPPLY_VOLTAGE: (cv.enum(VOLTAGE_OPTIONS, upper=True), "3.3V"),
+}
+
+
+def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
+    """Raw entry to its BSEC2 blob; None when a value is unrecognized.
+
+    Applies the schema defaults and validators read-only; skipped entries
+    are left to the schema validator.
+    """
+    try:
+        spec = {
+            key: validator(str(entry.get(key, default)))  # pylint: disable=not-callable
+            for key, (validator, default) in _BLOB_OPTIONS.items()
+        }
+        spec[CONF_MODEL] = _MODEL_VALIDATOR(str(entry.get(CONF_MODEL, "")))
+        if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
+            spec[CONF_ALGORITHM_OUTPUT] = _ALGORITHM_OUTPUT_VALIDATOR(
+                str(algorithm_output)
+            )
+    except cv.Invalid:
+        return None
+    url = _compute_url(spec)
+    return RemoteFile(url, _compute_local_file_path(url))
+
+
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_blob_ref)
+
+
 def validate_bme68x(config):
     if CONF_ALGORITHM_OUTPUT not in config:
         return config
@@ -128,19 +161,12 @@ CONFIG_SCHEMA_BASE = (
         {
             cv.GenerateID(): cv.declare_id(BME68xBSEC2Component),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-            cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
-            cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
-                ALGORITHM_OUTPUT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_OPERATING_AGE, default="28d"): cv.enum(
-                OPERATING_AGE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
-                SAMPLE_RATE_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
-                VOLTAGE_OPTIONS, upper=True
-            ),
+            cv.Required(CONF_MODEL): _MODEL_VALIDATOR,
+            cv.Optional(CONF_ALGORITHM_OUTPUT): _ALGORITHM_OUTPUT_VALIDATOR,
+            **{
+                cv.Optional(key, default=default): validator
+                for key, (validator, default) in _BLOB_OPTIONS.items()
+            },
             cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
