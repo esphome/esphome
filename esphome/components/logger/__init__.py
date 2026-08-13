@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
@@ -165,7 +166,7 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
-def uart_selection(value: str) -> str:
+def uart_selection(value: Any) -> str:
     if CORE.is_esp32:
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:

@@ -196,7 +196,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
     if additional_values is None:
         additional_values = []
 
-    def validator(value: str) -> str:
+    def validator(value: Any) -> str:
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
             lower=True,

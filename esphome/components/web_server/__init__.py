@@ -4,6 +4,7 @@ import base64
 import gzip
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -129,7 +130,7 @@ def validate_ota(config: ConfigType) -> ConfigType:
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
 
 
-def validate_origin(value: str) -> str:
+def validate_origin(value: Any) -> str:
     # "*" is the wildcard that allows any origin.
     if value == "*":
         return value
