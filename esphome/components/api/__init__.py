@@ -218,7 +218,7 @@ def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_supports_response(value: str) -> str:
+def _validate_supports_response(value: Any) -> str:
     """Validate supports_response after auto-detection has set the value."""
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 

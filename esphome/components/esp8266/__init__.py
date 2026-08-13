@@ -3,6 +3,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -198,7 +199,7 @@ def _arduino_check_versions(value: ConfigType) -> ConfigType:
     return value
 
 
-def _parse_platform_version(value: str) -> str:
+def _parse_platform_version(value: Any) -> str:
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
