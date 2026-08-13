@@ -1113,7 +1113,7 @@ _RAW_READ_SCHEMA = cv.All(
             cv.Required(CONF_ID): cv.use_id(RawStorage),
             cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
             # Omitted with to_file: read to the end of the device (0 = rest, see the action).
-            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_SIZE): cv.templatable(cv.int_range(min=0, max=0xFFFFFFFF)),
             cv.Optional(CONF_TO_FILE): cv.templatable(cv.string),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
             # Fires (error text, empty = success) when a to_file read lands on the worker.
@@ -1145,7 +1145,7 @@ _RAW_ERASE_SCHEMA = cv.All(
         {
             cv.Required(CONF_ID): cv.use_id(RawStorage),
             cv.Optional(CONF_ADDRESS): cv.templatable(cv.hex_uint32_t),
-            cv.Optional(CONF_SIZE): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_SIZE): cv.templatable(cv.int_range(min=0, max=0xFFFFFFFF)),
             cv.Optional(CONF_ALL, default=False): cv.boolean,
             # Opt out of the whole-chip fast path: force the block-by-block erase even where a
             # single chip erase would be used (task-safe device, full span). Default keeps the
