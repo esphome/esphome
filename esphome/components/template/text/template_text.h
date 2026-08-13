@@ -14,11 +14,7 @@ class TemplateTextSaverBase {
  public:
   virtual bool save(const std::string &value) { return true; }
 
-  /// old_id is the sanitized-object_id preference key; while collision-safe unique ids
-  /// are disabled it is also the storage key and id is unused. When
-  /// USE_COLLISION_SAFE_UNIQUE_IDS is enabled, data stored under old_id moves to id once.
-  /// See: https://github.com/esphome/backlog/issues/85
-  virtual void setup(uint32_t id, uint32_t old_id, std::string &value) {}
+  virtual void setup(uint32_t id, std::string &value) {}
 
  protected:
   ESPPreferenceObject pref_;
@@ -49,16 +45,11 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
   // Make the preference object.  Fill the provided location with the saved data
   // If it is available, else leave it alone
-  void setup(uint32_t id, uint32_t old_id, std::string &value) override {
-    char temp[SZ + 1];
-#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
+  void setup(uint32_t id, std::string &value) override {
     this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
-    bool hasdata = migrate_preference(this->pref_, reinterpret_cast<uint8_t *>(temp), SZ + 1, old_id, id);
-#else
-    // Collision-safe unique ids disabled (or a slot-based backend): keep the old key
-    this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(old_id);
+
+    char temp[SZ + 1];
     bool hasdata = this->pref_.load(&temp);
-#endif
 
     if (hasdata) {
       size_t len = static_cast<uint8_t>(temp[0]);

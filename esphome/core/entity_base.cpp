@@ -166,43 +166,17 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
-// Preference key base for collision-safe unique ids: FNV-1 hash of the raw name bytes
-// XOR device id, matching the keys 2026.8 beta firmware stored preferences under.
-uint32_t EntityBase::raw_name_preference_key_base_() const {
-  uint32_t key = fnv1_hash_bytes(this->name_.c_str(), this->name_.size());
-#ifdef USE_DEVICES
-  key ^= this->get_device_id();
-#endif
-  return key;
-}
-#endif
-
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
   // The key hashes the sanitized object_id, so multiple entity names can collide on one
   // key and overwrite each other's stored preferences ("Living Room" and "living_room",
-  // or two UTF-8 names that both sanitize to underscores).
-  // Migration to keys hashed from the raw name is written below but disabled: the
-  // Home Assistant esphome integration recreates every entity registry entry when a key
-  // changes, which deletes helpers built on those entities. Nothing emits
-  // USE_COLLISION_SAFE_UNIQUE_IDS until that is resolved.
-  // See: https://github.com/esphome/backlog/issues/85
+  // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
+  // fix this, but they change the entity key API clients track, which the Home Assistant
+  // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t old_key = this->get_preference_hash() ^ version;
+  uint32_t key = this->get_preference_hash() ^ version;
 #pragma GCC diagnostic pop
-#if defined(USE_COLLISION_SAFE_UNIQUE_IDS) && defined(USE_PREFERENCE_KEY_LOOKUP)
-  uint32_t new_key = this->raw_name_preference_key_base_() ^ version;
-  auto pref = global_preferences->make_preference(size, new_key);
-  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
-  SmallBufferWithHeapFallback<64> buffer(size);
-  migrate_preference(pref, buffer.get(), size, old_key, new_key);
-  return pref;
-#else
-  // Slot-based backends would keep the old key even with migration enabled: it is only a
-  // validity tag on a positional slot, so collisions cannot corrupt data there.
-  return global_preferences->make_preference(size, old_key);
-#endif
+  return global_preferences->make_preference(size, key);
 }
 
 #ifdef USE_ENTITY_ICON
