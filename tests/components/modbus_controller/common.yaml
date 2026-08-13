@@ -18,7 +18,7 @@ binary_sensor:
     modbus_controller_id: modbus_controller1
     id: modbus_binary_sensor2
     name: Test Binary Sensor with Lambda
-    register_type: read
+    register_type: input
     address: 0x3201
     lambda: |-
       return x;
@@ -41,6 +41,13 @@ number:
       return x * 2.0;
     write_lambda: |-
       return x / 2.0;
+  # Covers Python value-type maps + read/write path for byte-swapped words
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number3
+    name: Test Number Swapped Word
+    address: 0x9003
+    value_type: U_WORD_S
 
 output:
   - platform: modbus_controller
@@ -118,6 +125,61 @@ sensor:
     value_type: U_WORD
     lambda: |-
       return x / 10.0;
+  # Non-mergeable sensor sharing the start address of modbus_sensor1 (different register_count):
+  # must join the same range, never open a second range keyed on the same (address, type).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_addr
+    name: Test Sensor Shared Address
+    register_type: holding
+    address: 0x9001
+    value_type: U_DWORD
+  # Sensors sharing one start address with distinct byte offsets (mixed register counts, so they take
+  # the shared-start path: each resolves to exactly its configured offset, no accumulation).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs0
+    name: Test Sensor Shared Offset Base
+    register_type: holding
+    address: 0x9020
+    value_type: U_DWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs1
+    name: Test Sensor Shared Offset Low Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs2
+    name: Test Sensor Shared Offset High Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+    offset: 2
+  # Raw-decode lambda kept on the deprecated get_data() helper on purpose: `data` is a span now, so this
+  # pins that the compatibility overload still accepts one. The deprecation warning it raises is the
+  # point - it is what a user on the old helper sees. `item->offset` locates this sensor's data.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_raw_lambda
+    name: Test Sensor Raw Lambda
+    register_type: holding
+    address: 0x9050
+    value_type: U_WORD
+    lambda: |-
+      return modbus_controller::get_data<uint16_t>(data, item->offset) * 0.1f;
+  # force_new_range sensors sort before plain ones, so this high-address forced sensor is grouped
+  # first and the lower-address plain sensors above must still get their own ranges.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_forced_high
+    name: Test Sensor Forced High Address
+    register_type: holding
+    address: 0x9040
+    value_type: U_WORD
+    force_new_range: true
 
 switch:
   - platform: modbus_controller
@@ -158,3 +220,22 @@ text_sensor:
     response_size: 4
     lambda: |-
       return "Modified: " + x;
+  # A register reporting FEWER bytes than 2*register_count (response_size: 3 for 2 registers), followed
+  # by a contiguous sensor: the follower's byte position must track the actual 3 bytes, not underflow.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_narrow
+    name: Test Text Sensor Narrow Response
+    register_type: holding
+    address: 0x9030
+    register_count: 2
+    response_size: 3
+    raw_encode: HEXBYTES
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_after_narrow
+    name: Test Text Sensor After Narrow
+    register_type: holding
+    address: 0x9032
+    register_count: 1
+    raw_encode: HEXBYTES

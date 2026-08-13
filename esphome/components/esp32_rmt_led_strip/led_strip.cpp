@@ -255,11 +255,11 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
       break;
   }
   uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
-  uint8_t white = this->is_wrgb_ ? 0 : 3;
+  uint8_t white = this->is_wrgb_ ? 0 : this->white_index_;
 
-  return {this->buf_ + (index * multiplier) + r + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + g + this->is_wrgb_,
-          this->buf_ + (index * multiplier) + b + this->is_wrgb_,
+  return {this->buf_ + (index * multiplier) + r + (white <= r),
+          this->buf_ + (index * multiplier) + g + (white <= g),
+          this->buf_ + (index * multiplier) + b + (white <= b),
           this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
           &this->effect_data_[index],
           &this->correction_};
@@ -295,11 +295,22 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
       rgb_order = "UNKNOWN";
       break;
   }
+  if (this->is_rgbw_ || this->is_wrgb_) {
+    char rgbw_order[5];
+    uint8_t white = this->is_wrgb_ ? 0 : this->white_index_;
+    uint8_t rgb_index = 0;
+    for (uint8_t i = 0; i < 4; i++) {
+      rgbw_order[i] = i == white ? 'W' : rgb_order[rgb_index++];
+    }
+    rgbw_order[4] = '\0';
+    ESP_LOGCONFIG(TAG, "  RGBW Order: %s", rgbw_order);
+  } else {
+    ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
+  }
   ESP_LOGCONFIG(TAG,
-                "  RGB Order: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                rgb_order, this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->max_refresh_rate_.value_or(0), this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
