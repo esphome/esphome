@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -37,9 +38,11 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
+
+DOMAIN = "esp32_ble_tracker"
 
 AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -138,34 +141,59 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
 
 
-def _default_scan_window(params: ConfigType) -> ConfigType:
-    """Fill in the scan window default for a user who did not set one.
+@dataclass
+class TrackerData:
+    """Per-run validation state, namespaced under DOMAIN in CORE.data."""
 
-    With wifi sharing the radio on an IDF that honors the window strictly
-    (>= 5.5.5), the window defaults to the interval, as Espressif recommends;
-    otherwise the historical 30 ms default is kept.
+    scan_window_defaulted: bool = False
+
+
+def _get_data() -> TrackerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TrackerData()
+    return CORE.data[DOMAIN]
+
+
+def _scan_window_default() -> TimePeriod:
+    """Schema default for the scan window.
+
+    Records that the user did not set a window, so _raise_defaulted_scan_window
+    can tell a defaulted 30 ms from an explicit one; the raise itself must wait
+    for the outer schema because it depends on software_coexistence, a sibling
+    key not yet resolved here.
     """
-    if CONF_WINDOW not in params:
-        if (
-            "wifi" in CORE.loaded_integrations
-            and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
-        ):
-            # Copy so the config dump shows a plain value instead of a YAML
-            # anchor/alias pair pointing at the interval.
-            params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
-        else:
-            params[CONF_WINDOW] = cv.positive_time_period(
-                ble_device_base.DEFAULT_SCAN_WINDOW
-            )
-    return params
+    _get_data().scan_window_defaulted = True
+    return cv.positive_time_period(ble_device_base.DEFAULT_SCAN_WINDOW)
+
+
+def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
+    """Raise a defaulted scan window to the interval where that is safe.
+
+    Only when the coexistence arbiter is compiled in (software_coexistence,
+    present iff wifi is configured and not disabled by the user) and the IDF
+    honors the window strictly (>= 5.5.5); without the arbiter a full-duty
+    scan would starve wifi outright, and a user-set window is never touched.
+    Raising to the interval cannot invalidate the already-validated
+    parameters, so no re-validation is needed.
+    """
+    if (
+        _get_data().scan_window_defaulted
+        and config.get(CONF_SOFTWARE_COEXISTENCE)
+        and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
+    ):
+        params = config[CONF_SCAN_PARAMETERS]
+        # Copy so the config dump shows a plain value instead of a YAML
+        # anchor/alias pair pointing at the interval.
+        params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
+    return config
 
 
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
-# The window default is conditional (see _default_scan_window above).
+# The window default is conditional (see _scan_window_default above).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", window_defaulter=_default_scan_window
+    "320ms", window_default=_scan_window_default
 )
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
@@ -221,6 +249,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_max_connections_deprecated,
+    _raise_defaulted_scan_window,
 )
 
 
