@@ -24,6 +24,16 @@ namespace esphome::epaper_spi {
  * the Inkplate 13 Spectra so far. A subclass exposes it publicly only once verified on its
  * own hardware -- see EPaperInkplate13Spectra::display_partial(); EPaperT133A01 does not
  * expose it, though nothing stops it from working there once tested.
+ *
+ * Not a generic dual-CS base -- it bakes in this controller family's specifics:
+ *   - 4bpp only (via EPaper4bpp)
+ *   - an exact 50/50 column split between the two chips (compute_ptlw_params_() hardcodes
+ *     panel_w/2)
+ *   - this family's fixed register addresses (REG_DTM/DRF/PON/POF/PTLW/CMD66/CCSET) and
+ *     PTLW's column/row alignment rules
+ *   - one toggle_dc_ flag per board (always-on or always-off, not variable per command)
+ * A dual-CS panel that breaks any of these needs real changes here, not just a new
+ * subclass.
  */
 class EPaperDualCS : public EPaper4bpp {
  public:

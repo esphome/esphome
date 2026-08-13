@@ -73,12 +73,10 @@ class Inkplate13SpectraModel(EpaperModel):
 
 
 # Confirmed on real hardware: rotation=0 needs mirror_x + mirror_y but not swap_xy.
+# initialise() sends its own hardcoded, per-command-routed register sequence instead of
+# using the generic init sequence mechanism, so no initsequence is set here.
 inkplate13spectra = Inkplate13SpectraModel(
     "inkplate13spectra",
-    # initialise() sends a hardcoded, per-command-routed register sequence instead of
-    # using the generic init sequence mechanism; set explicitly so codegen's "no init
-    # sequence configured" path doesn't choke on a None default.
-    initsequence=(),
     width=1200,
     height=1600,
     swap_xy=False,
