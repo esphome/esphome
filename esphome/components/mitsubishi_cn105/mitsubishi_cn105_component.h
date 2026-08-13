@@ -3,6 +3,7 @@
 #include "mitsubishi_cn105.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include <algorithm>
@@ -24,6 +25,9 @@ struct TemperatureMapping {
   float from_mitsubishi(float value) const {
     if (!this->use_fahrenheit_) {
       return value;
+    }
+    if (value < 16.0f || value > 30.5f) {
+      return celsius_to_fahrenheit(value);
     }
     const int mitsubishi_half_degrees = static_cast<int>(std::round(value * 2.0f));
     return mitsubishi_half_degrees + 29 - (mitsubishi_half_degrees >= 40) - (mitsubishi_half_degrees > 40);

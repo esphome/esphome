@@ -48,6 +48,20 @@ TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpe
   EXPECT_FLOAT_EQ(traits.get_visual_current_temperature_step(), 1.0f);
 }
 
+TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingUsesLinearConversionOutsideSetpointRange) {
+  auto mapping = TemperatureMapping();
+  mapping.set_use_fahrenheit(true);
+
+  const std::array cases{
+      std::pair{0.0f, 32.0f},  std::pair{10.0f, 50.0f}, std::pair{15.5f, 59.9f},
+      std::pair{31.0f, 87.8f}, std::pair{35.0f, 95.0f}, std::pair{40.0f, 104.0f},
+  };
+
+  for (const auto &[celsius, fahrenheit] : cases) {
+    EXPECT_FLOAT_EQ(mapping.from_mitsubishi(celsius), fahrenheit);
+  }
+}
+
 TEST(MitsubishiCN105ClimateTests, SupportedSwingModeOffLeavesTraitsEmpty) {
   TestableMitsubishiCN105Climate sut;
 
