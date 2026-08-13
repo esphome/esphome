@@ -1787,6 +1787,10 @@ void StorageWorker::check_stalled_() {
     if (sstate == StreamState::FREE || sreq.last_activity_ms == 0 ||
         now - sreq.last_activity_ms <= STREAM_IDLE_TIMEOUT_MS)
       continue;
+    // A step dispatched to the worker task sits in the queue until the task dequeues it; the client
+    // already drove it, so it is not idle. Do not abandon it before either engine has run it.
+    if (stream_step_active(sstate) && !sreq.step_started_.load())
+      continue;
     ESP_LOGW(TAG, "Stream on '%s' idle for %us - abandoning it", sreq.path,
              static_cast<unsigned>(STREAM_IDLE_TIMEOUT_MS / 1000));
     if (sstate == StreamState::DONE) {
@@ -2314,6 +2318,7 @@ static void run_stream_step(StreamRequest &req) {
 }
 
 void StorageWorker::run_stream_step_(StreamRequest &req) {
+  req.step_started_.store(true);
   req.last_activity_ms = millis();  // the client is demonstrably still driving this stream
   run_stream_step(req);
 }
@@ -2340,6 +2345,7 @@ void StorageWorker::dispatch_stream_step_(StreamRequest &req, size_t index) {
   // Arm the engine unconditionally: stream completions are delivered from update() even on the task
   // path, so the poller must run whether this step goes to the worker task or the loop-sliced engine.
   this->start_poller();
+  req.step_started_.store(false);  // not run by either engine yet -- exempt from the idle sweep until it is
 #if defined(USE_ESP32) && defined(USE_STORAGE_WORKER_TASK)
   if (this->is_task_safe_(req) && !this->stream_overlaps_active_(req, /*from_loop=*/false)) {
     QueueEntry entry{QueueEntryKind::STREAM, index};
