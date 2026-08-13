@@ -356,6 +356,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->dst_handle = nullptr;
   slot->handles_open = false;
   slot->submitted_ms = millis();
+  slot->queued_ms = slot->submitted_ms;
   slot->waiting_logged = false;
   slot->last_progress_ms = millis();
   slot->progress_mark = 0;
@@ -505,6 +506,7 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   slot->file_done = 0;
   slot->file_total = 0;
   slot->submitted_ms = millis();
+  slot->queued_ms = slot->submitted_ms;
   slot->waiting_logged = false;
   slot->last_progress_ms = millis();
   slot->progress_mark = 0;
@@ -606,6 +608,7 @@ StorageError StorageWorker::submit_raw_(RequestOp op, RawStorage *device, uint64
   slot->file_done = 0;
   slot->file_total = size;
   slot->submitted_ms = millis();
+  slot->queued_ms = slot->submitted_ms;
   slot->waiting_logged = false;
   slot->last_progress_ms = millis();
   slot->progress_mark = 0;
@@ -775,13 +778,22 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
             // Deliver the completion once, here, while the storage is still valid: a caller that
             // chained on it (the file-browser walker) would otherwise stall forever. Then clear it,
             // so if the task reaches DONE later loop() only frees the slot, never fires a second time
-            // into a context whose storage may be gone post-unmount. If the task never finishes the
-            // slot stays stuck (RUNNING/CANCELLED, never recycled) -- fine, the medium is dead.
+            // into a context whose storage may be gone post-unmount.
             if (req.callback) {
               CompletionCallback cb = std::move(req.callback);
               req.callback = nullptr;
               cb(StorageError::NOT_READY);
             }
+            // The slot stays CANCELLED (never recycled -- the wedged task may still, undefined-
+            // behaviorally as noted above, hold handles into it, so it must not be handed to a new
+            // request). But release its storage claims: a copy/move names two storages and only the
+            // one being torn down is gone, so leaving both set would have overlaps_active_() -- which
+            // counts CANCELLED as active -- block every later transfer touching the SURVIVING side
+            // forever. close_handles() null-guards on these pointers, so clearing them only makes the
+            // eventual close a no-op (the medium is gone; the handle is dead anyway).
+            req.src_storage = nullptr;
+            req.dst_storage = nullptr;
+            req.raw_device = nullptr;
             break;
           }
           // pdMS_TO_TICKS(1) rounds down to 0 ticks at the default 100 Hz tick rate (10 ms per
@@ -835,6 +847,12 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
             req.callback = nullptr;
             cb(StorageError::NOT_READY);
           }
+          // Release the storage claim so a stuck CANCELLED stream stops blocking every later
+          // transfer/stream on this storage via overlaps_active_() (which counts CANCELLED as
+          // active). run_stream_step()'s cancelled-close now null-guards req.storage, so a wedged
+          // task waking later closes nothing rather than dereferencing null; the medium is gone, so
+          // the handle is dead regardless. The slot stays CANCELLED and is never recycled.
+          req.storage = nullptr;
           break;
         }
         vTaskDelay(1);
@@ -1740,6 +1758,13 @@ bool StorageWorker::tree_step_(TransferRequest &req) {
 // so a vanished HTTP client is caught by the same sweep. Defined after finish_request() -- it calls it.
 static constexpr uint32_t REQUEST_STALL_TIMEOUT_MS = 30000;
 static constexpr uint32_t REQUEST_PENDING_CAP_MS = 120000;
+// Absolute backstop on time spent PENDING, measured from queued_ms and never refreshed. The
+// REQUEST_PENDING_CAP_MS clock above is reset each second a request is deferred behind an active
+// neighbour, so a request stuck behind a slot that never clears (a driver wedged inside a blocking
+// call keeps its own progress clock fresh, so the stall watchdog never times it out) would wait
+// forever. This is set well above the eligible cap so it only fires in that pathological case, not
+// for a request legitimately queued behind healthy long transfers.
+static constexpr uint32_t REQUEST_PENDING_ABSOLUTE_CAP_MS = 600000;
 static constexpr uint32_t STREAM_IDLE_TIMEOUT_MS = 30000;
 
 void StorageWorker::check_stalled_() {
@@ -1787,7 +1812,13 @@ void StorageWorker::check_stalled_() {
         req.state = RequestState::CANCELLED;
       }
     } else if (st == RequestState::PENDING) {
-      if (this->overlaps_active_(req)) {
+      if (now - req.queued_ms > REQUEST_PENDING_ABSOLUTE_CAP_MS) {
+        // Absolute backstop: this fires whether or not the request is currently deferred, so a slot
+        // that never clears cannot keep it PENDING forever via the eligible-time refresh below.
+        ESP_LOGW(TAG, "Transfer '%s' -> '%s' pending for %us (absolute cap) - timing it out", req.src_path,
+                 req.dst_path, static_cast<unsigned>(REQUEST_PENDING_ABSOLUTE_CAP_MS / 1000));
+        finish_request(req, StorageError::TIMEOUT);
+      } else if (this->overlaps_active_(req)) {
         // Held PENDING on purpose behind a neighbour on the same storage (update() defers it via
         // overlaps_active_) -- that is queue time, not "never picked up". Keep the cap clock fresh
         // so REQUEST_PENDING_CAP_MS counts only time it was actually eligible, and so a queued
@@ -2202,7 +2233,7 @@ static void run_stream_step(StreamRequest &req) {
     // cancelled write stream is the real outcome, and the handle must not be left dangling. A clean
     // close keeps NOT_READY (the cancel answer); only a failing close overrides it.
     StorageError close_err = StorageError::OK;
-    if (req.is_fs && req.handle != nullptr)
+    if (req.is_fs && req.handle != nullptr && req.storage != nullptr)
       close_err = static_cast<FilesystemStorage *>(req.storage)->close(req.handle);
     req.handle = nullptr;
     req.result = close_err != StorageError::OK ? close_err : StorageError::NOT_READY;
