@@ -2115,8 +2115,21 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
                               bytes_read - total_written, &bytes_written);
     }
     if (err != StorageError::OK) {
-      if (this->wait_for_network_ready_(req, err, req.dst_storage))
+      if (this->wait_for_network_ready_(req, err, req.dst_storage)) {
+        // The FS source handle has already advanced past the chunk we read but have not finished
+        // writing; rewind it to req.offset so the retry re-reads and re-writes the same bytes,
+        // instead of silently dropping this chunk. A network source is read by absolute offset
+        // (read_chunk at req.offset), so it needs no rewind.
+        if (req.src_is_fs && req.src_handle != nullptr) {
+          StorageError serr =
+              static_cast<FilesystemStorage *>(req.src_storage)->seek(req.src_handle, static_cast<int64_t>(req.offset));
+          if (serr != StorageError::OK) {
+            finish_request(req, serr);
+            return;
+          }
+        }
         return;
+      }
       finish_request(req, err);
       return;
     }
