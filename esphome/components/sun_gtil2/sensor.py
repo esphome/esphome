@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_SUN_GTIL2_ID, SunGTIL2Component
 
@@ -73,7 +74,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SUN_GTIL2_ID])
     if ac_voltage_config := config.get(CONF_AC_VOLTAGE):
         sens = await sensor.new_sensor(ac_voltage_config)
