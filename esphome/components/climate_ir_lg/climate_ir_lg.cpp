@@ -275,22 +275,23 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
             this->target_temperature =
                 this->mode == climate::CLIMATE_MODE_HEAT ? this->maximum_temperature_ : this->minimum_temperature_;
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
-            // When enabling PO mode swing is set to VERT_3, but after 30 mins it will switch back to what it was before
+            // When enabling PO(WER) also known as JET mode, swing is set to VERT_3, but after 30 mins it will switch back to what it was before
             // So let's just not change it here it at all
-            this->publish_state();
-            return true;
+            break;
           default:
             ESP_LOGD(TAG, "Got jet command, but current mode does not support it! Ignoring.");
             return false;
         }
       }
 
-      // Keep previous behavior
+      // Keep previous behavior in case of other BASIC command
       if (this->swing_mode == climate::CLIMATE_SWING_OFF) {  // Just flip between vertical and off
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
       } else {
         this->swing_mode = climate::CLIMATE_SWING_OFF;
       }
+      this->publish_state();
+      return true;
       break;
 
     // Following commands also contain fan speed and temperature, so no 'return' in these cases
