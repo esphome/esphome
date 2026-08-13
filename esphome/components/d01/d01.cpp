@@ -26,7 +26,7 @@ void D01Component::dump_config() {
   this->check_uart_settings(9600);
 }
 
-void D01Component::update() {
+void D01Component::loop() {
   uint8_t buf[4];
   while (this->available() >= 4) {
     if (this->peek() != D01_FRAME_HEADER) {
@@ -39,11 +39,16 @@ void D01Component::update() {
       ESP_LOGW(TAG, "D01 checksum mismatch");
       continue;
     }
-    int concentration = (buf[1] & 0x7F) * 128 + (buf[2] & 0x7F);
-    ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", (int) concentration);
-    if (this->pm25_sensor_ != nullptr)
-      this->pm25_sensor_->publish_state(concentration);
+    this->latest_concentration_ = (buf[1] & 0x7F) * 128 + (buf[2] & 0x7F);
   }
+}
+
+void D01Component::update() {
+  if (!this->latest_concentration_.has_value())
+    return;
+  ESP_LOGD(TAG, "Unadjusted PM2.5 Concentration: %d µg/m³", *this->latest_concentration_);
+  if (this->pm25_sensor_ != nullptr)
+    this->pm25_sensor_->publish_state(*this->latest_concentration_);
 }
 
 }  // namespace esphome::d01
