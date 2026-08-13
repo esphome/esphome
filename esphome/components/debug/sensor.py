@@ -21,6 +21,7 @@ from esphome.const import (
     UNIT_MILLISECOND,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import (  # noqa: F401  pylint: disable=unused-import
     CONF_DEBUG_ID,
@@ -111,7 +112,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
     if free_conf := config.get(CONF_FREE):
