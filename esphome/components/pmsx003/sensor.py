@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
@@ -32,6 +34,8 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
+from esphome.core import TimePeriodMilliseconds
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
@@ -167,14 +171,14 @@ SENSORS_TO_TYPE = {
 }
 
 
-def validate_pmsx003_sensors(value):
+def validate_pmsx003_sensors(value: ConfigType) -> ConfigType:
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
             raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
     return value
 
 
-def validate_update_interval(value):
+def validate_update_interval(value: Any) -> TimePeriodMilliseconds:
     value = cv.positive_time_period_milliseconds(value)
     if value == cv.time_period("0s"):
         return value
@@ -295,7 +299,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType) -> None:
     require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
     schema = uart.final_validate_device_schema(
         "pmsx003", baud_rate=9600, require_rx=True, require_tx=require_tx
@@ -306,7 +310,7 @@ def final_validate(config):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
