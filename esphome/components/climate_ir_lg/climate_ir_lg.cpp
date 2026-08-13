@@ -336,6 +336,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
       break;
     default:
+      ESP_LOGD(TAG, "Got unknown fan speed! Ignoring!");
       return false;
   }
 
