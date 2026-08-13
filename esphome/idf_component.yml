@@ -8,7 +8,7 @@ dependencies:
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
-    version: 0.2.0
+    version: 0.4.0
   esphome/micro-flac:
     version: 0.2.0
   esphome/micro-mp3:
@@ -98,7 +98,7 @@ dependencies:
   esp32async/asynctcp:
     version: 3.4.91
   sendspin/sendspin-cpp:
-    version: 0.7.1
+    version: 0.7.2
   lvgl/lvgl:
     version: 9.5.0
   fastled/FastLED:

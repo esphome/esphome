@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
@@ -107,8 +109,22 @@ void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent
 // trigger reflects when the frame actually went out, not when it was queued.
 void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
-    this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  if (this->controller_ == nullptr)
+    return;
+  this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  // A broadcast (address 0) is never answered (Modbus 4.1), so the hub delivers no terminal callback.
+  // on_sent is this command's only callback, so drop the one-shot from the queue here, or it would leak.
+  // Test the address the frame went to, not address_: a custom command's frame carries its own address
+  // (frame[0]), which may differ from this controller's. (unqueue_command() is a no-op for a poll.)
+  uint8_t wire_address = this->address_;
+  if (this->function_code_ == FunctionCode::CUSTOM) {
+    std::span<const uint8_t> frame =
+        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
+    if (!frame.empty())
+      wire_address = frame[0];
+  }
+  if (wire_address == modbus::BROADCAST_ADDRESS)
+    this->controller_->unqueue_command(this);
 }
 
 bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {
@@ -427,14 +443,15 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  uint8_t *p = cmd.payload.init((values.size() + 7) / 8);
-  memset(p, 0, (values.size() + 7) / 8);
-  size_t bit = 0;
-  for (auto coil : values) {
-    if (coil) {
-      p[bit / 8] |= (1 << (bit % 8));
-    }
-    bit++;
+  // Pack through the shared bit view (MutablePackedBits) so the coil wire layout lives in one place
+  // instead of an open-coded loop.
+  const size_t byte_count = modbus::packed_bit_bytes(values.size());
+  uint8_t *p = cmd.payload.init(byte_count);
+  memset(p, 0, byte_count);
+  modbus::MutablePackedBits bits(std::span<uint8_t>(p, byte_count), static_cast<uint16_t>(values.size()));
+  for (size_t i = 0; i != values.size(); i++) {
+    if (values[i])
+      bits.set(i, true);
   }
   return cmd;
 }

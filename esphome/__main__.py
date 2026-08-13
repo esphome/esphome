@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
@@ -21,7 +21,6 @@ from esphome.const import (
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
     CONF_API,
-    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -29,6 +28,7 @@ from esphome.const import (
     CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
+    CONF_LOG,
     CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
@@ -42,7 +42,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
-    CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
@@ -70,6 +70,9 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+if TYPE_CHECKING:
+    import threading
 
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
@@ -273,8 +276,8 @@ def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
         if purpose == Purpose.LOGGING and not has_api():
             return (
                 "Cannot view logs over the network: no 'api:' component is "
-                "configured. Network log streaming requires the native API; add "
-                "an 'api:' component, enable MQTT logging, or view logs over USB."
+                "configured. Add an 'api:' component, enable MQTT logging, add a "
+                "'web_server:' component, or view logs over USB."
             )
         if purpose == Purpose.UPLOADING and not has_ota():
             return (
@@ -314,9 +317,12 @@ def choose_upload_log_host(
                 ]
                 resolved.append(choose_prompt(options, purpose=purpose))
             elif device == "OTA":
+                # Logs can stream over a network transport via the native API
+                # or the web_server HTTP SSE feed.
+                network_logging = has_api() or has_web_server_logging()
                 # ensure IP adresses are used first
                 if is_ip_address(CORE.address) and (
-                    (purpose == Purpose.LOGGING and has_api())
+                    (purpose == Purpose.LOGGING and network_logging)
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
                     resolved.extend(_resolve_with_cache(CORE.address, purpose))
@@ -328,7 +334,11 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address() and has_resolvable_address():
+                    if (
+                        network_logging
+                        and has_non_ip_address()
+                        and has_resolvable_address()
+                    ):
                         resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
@@ -390,7 +400,7 @@ def choose_upload_log_host(
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
-        if has_api():
+        if has_api() or has_web_server_logging():
             add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
@@ -483,6 +493,21 @@ def has_web_server_ota() -> bool:
     )
 
 
+def has_web_server_logging() -> bool:
+    """Check if logs can be streamed over the web_server HTTP SSE endpoint.
+
+    The ``web_server`` component exposes a ``/events`` Server-Sent Events
+    stream that carries ``event: log`` frames. This requires version 2+ (the
+    v1 UI has no ``/events`` endpoint) and the ``log`` option enabled (default).
+    """
+    web_conf = CORE.config.get(CONF_WEB_SERVER)
+    if web_conf is None:
+        return False
+    if web_conf.get(CONF_VERSION, 2) == 1:
+        return False
+    return web_conf.get(CONF_LOG, True)
+
+
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
     if CONF_MQTT not in CORE.config:
@@ -545,11 +570,48 @@ def has_name_add_mac_suffix() -> bool:
 
 
 def mqtt_get_ip(
-    config: ConfigType, username: str, password: str, client_id: str
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     from esphome import mqtt
 
-    return mqtt.get_esphome_device_ip(config, username, password, client_id)
+    return mqtt.get_esphome_device_ip(
+        config, username, password, client_id, stop_event=stop_event
+    )
+
+
+def _add_network_device(device: str, network_devices: list[str]) -> None:
+    """Append a device to the list, expanding it through ``CORE.address_cache``.
+
+    If the hostname is already in the address cache (e.g. populated by mDNS
+    discovery), substitute the cached IPs so aioesphomeapi doesn't open its
+    own Zeroconf to re-resolve it. Duplicates are dropped.
+    """
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+        network_devices.extend(addr for addr in cached if addr not in network_devices)
+    elif device not in network_devices:
+        network_devices.append(device)
+
+
+def _split_network_devices(devices: list[str]) -> tuple[list[str], bool]:
+    """Split the device list into direct addresses and an MQTT-lookup flag.
+
+    Direct addresses are expanded through ``CORE.address_cache`` and deduped
+    the same way ``_resolve_network_devices`` does; MQTT/MQTTIP magic strings
+    are not resolved, only reported via the returned bool so the caller can
+    defer the broker lookup.
+    """
+    network_devices: list[str] = []
+    has_mqtt_lookup = False
+    for device in devices:
+        if get_port_type(device) in _MQTT_PORT_TYPES:
+            has_mqtt_lookup = True
+        else:
+            _add_network_device(device, network_devices)
+    return network_devices, has_mqtt_lookup
 
 
 def _resolve_network_devices(
@@ -582,38 +644,42 @@ def _resolve_network_devices(
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
-                try:
-                    mqtt_ips = mqtt_get_ip(
-                        config, args.username, args.password, args.client_id
-                    )
-                    # pylint can't infer mqtt_get_ip's return through its
-                    # lazy ``from esphome import mqtt`` import, so it flags
-                    # the genexpr below.
-                    network_devices.extend(
-                        addr
-                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
-                        if addr not in network_devices
-                    )
-                except EsphomeError as err:
-                    _LOGGER.warning(
-                        "MQTT IP discovery failed (%s), will try other devices if available",
-                        err,
-                    )
+                mqtt_ips = _mqtt_get_ip_or_warn(
+                    config, args.username, args.password, args.client_id
+                )
+                network_devices.extend(
+                    addr for addr in mqtt_ips if addr not in network_devices
+                )
                 mqtt_resolved = True
             continue
 
-        # If the hostname is already in the address cache (e.g. populated by
-        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
-        # open its own Zeroconf to re-resolve it.
-        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
-            network_devices.extend(
-                addr for addr in cached if addr not in network_devices
-            )
-        elif device not in network_devices:
-            # Regular network address or IP - add if not already present
-            network_devices.append(device)
+        _add_network_device(device, network_devices)
 
     return network_devices
+
+
+def _mqtt_get_ip_or_warn(
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
+) -> list[str]:
+    """Look up the device IP via MQTT, returning [] with a warning on failure.
+
+    This owns the failure policy for MQTT IP discovery on paths that have
+    other addresses to fall back on: a broker problem must not abort the
+    operation. Also used as the deferred resolver handed to ``run_logs``,
+    where it runs in a worker thread.
+    """
+    try:
+        return mqtt_get_ip(config, username, password, client_id, stop_event=stop_event)
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "MQTT IP discovery failed (%s), will try other devices if available",
+            err,
+        )
+        return []
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
@@ -1291,23 +1357,21 @@ def _upload_via_native_api(
 def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
-    web_conf = config.get(CONF_WEB_SERVER)
-    if not web_conf:
-        raise EsphomeError(
-            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
-            f"is not configured."
-        )
-
-    remote_port = int(web_conf[CONF_PORT])
-    auth = web_conf.get(CONF_AUTH) or {}
-    username = auth.get(CONF_USERNAME)
-    password = auth.get(CONF_PASSWORD)
-
     from esphome import web_server_ota
+    from esphome.web_server_helpers import get_web_server_connection
 
+    remote_port, username, password = get_web_server_connection(config)
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary
     )
+
+
+def _show_logs_via_web_server(config: ConfigType, network_devices: list[str]) -> int:
+    from esphome import web_server_logs
+    from esphome.web_server_helpers import get_web_server_connection
+
+    port, username, password = get_web_server_connection(config)
+    return web_server_logs.run_logs(network_devices, port, username, password)
 
 
 # Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
@@ -1418,17 +1482,37 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_miniterm(config, port, args)
 
     # Check if we should use API for logging
-    # Resolve MQTT magic strings to actual IP addresses
-    if has_api() and (
-        network_devices := _resolve_network_devices(devices, config, args)
-    ):
-        from esphome.api_client import run_logs
+    if has_api():
+        network_devices, has_mqtt_lookup = _split_network_devices(devices)
+        mqtt_resolver = None
+        if has_mqtt_lookup:
+            if network_devices:
+                # Addresses are already known, so don't block startup on the
+                # MQTT broker lookup; hand it to run_logs as a deferred
+                # resolver that runs in the background and feeds discovered
+                # addresses into the running log client, keeping MQTT as a
+                # fallback for when the known addresses are stale (e.g. DHCP
+                # reassigned the IP).
+                mqtt_resolver = functools.partial(
+                    _mqtt_get_ip_or_warn,
+                    config,
+                    args.username,
+                    args.password,
+                    args.client_id,
+                )
+            else:
+                # The MQTT lookup is the only way to find the device; resolve
+                # it up front since the client needs an address to start with.
+                network_devices = _resolve_network_devices(devices, config, args)
+        if network_devices:
+            from esphome.api_client import run_logs
 
-        return run_logs(
-            config,
-            network_devices,
-            subscribe_states=_should_subscribe_states(args),
-        )
+            return run_logs(
+                config,
+                network_devices,
+                subscribe_states=_should_subscribe_states(args),
+                mqtt_resolver=mqtt_resolver,
+            )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -1436,6 +1520,13 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return mqtt.show_logs(
             config, args.topic, args.username, args.password, args.client_id
         )
+
+    # Fall back to the web_server HTTP SSE log stream for devices that have
+    # web_server: but no api: (the logging counterpart to web_server OTA).
+    if has_web_server_logging() and (
+        network_devices := _resolve_network_devices(devices, config, args)
+    ):
+        return _show_logs_via_web_server(config, network_devices)
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
@@ -2509,6 +2600,49 @@ def parse_args(argv):
     return parser.parse_args(arguments)
 
 
+def _warn_if_source_tree_mismatch() -> None:
+    """Warn when the checkout the user is standing in is not the one being run.
+
+    An editable install records one absolute path, so a venv shared between git
+    worktrees (or reused after a checkout is copied or renamed) keeps importing
+    the tree it was installed from. Every command then silently runs, and
+    compiles, sources the user is not looking at. Only fires inside a checkout,
+    so ordinary installs never see it.
+    """
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return  # working directory is gone; a diagnostic must not break startup
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / "esphome" / "__main__.py").is_file():
+            standing_in = candidate.resolve()
+            break
+    else:
+        return  # not inside a checkout; nothing to compare against
+
+    running = Path(__file__).resolve().parent.parent
+    # Both sides are resolved, so on a case-sensitive filesystem this matches
+    # plain equality. samefile() compares device and inode, which additionally
+    # covers a case-insensitive filesystem (macOS) reaching one directory by
+    # differently cased paths. Falls back to equality if either path is gone.
+    try:
+        same = standing_in.samefile(running)
+    except OSError:
+        same = standing_in == running
+    if same:
+        return
+
+    _LOGGER.warning(
+        "Running ESPHome from a different checkout than the one you are in:\n"
+        "  running from: %s\n"
+        "  you are in:   %s\n"
+        "The installed esphome resolves to the first, so its sources are used.\n"
+        "Run 'python -m esphome' from the second to use that one instead.",
+        running,
+        standing_in,
+    )
+
+
 def run_esphome(argv):
     from esphome.address_cache import AddressCache
 
@@ -2527,6 +2661,7 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
