@@ -55,3 +55,12 @@ ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
 
 ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
+
+# Python-only marker interface (no C++ side, see MockObjClass.class_/inherits_from) shared by
+# UARTComponent and ZephyrUartEmulator so `uart.write`'s `id:` can validate against either --
+# defined here rather than in uart/const.py to avoid a zephyr <-> uart import cycle, since
+# uart's __init__.py already imports this module.
+ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
+ZephyrUartEmulator = zephyr_ns.class_(
+    "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
+)

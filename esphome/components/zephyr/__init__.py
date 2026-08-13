@@ -533,13 +533,18 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 
 def _filter_source_files() -> list[str]:
-    # i2c_emulator.cpp/.h are auto-discovered for every Zephyr build, but only make sense
-    # when i2c: emulation: is configured (CONFIG_I2C_EMUL). Without this filter, sysbuild's
-    # --whole-archive link force-pulls i2c_emul_register() even when unused, breaking the
-    # link for real-hardware i2c: builds.
-    if "i2c_emulator.cpp" not in zephyr_data()[KEY_EXTRA_BUILD_FILES]:
-        return ["i2c_emulator.cpp", "i2c_emulator.h"]
-    return []
+    # i2c_emulator.cpp/.h and uart_emulator.cpp/.h are auto-discovered for every Zephyr
+    # build, but only make sense when the corresponding `emulation:` config is present
+    # (CONFIG_I2C_EMUL / CONFIG_UART_EMUL). Without this filter, sysbuild's
+    # --whole-archive link force-pulls their registration/callback functions even when
+    # unused, breaking the link for real-hardware builds.
+    excluded = []
+    extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
+    if "i2c_emulator.cpp" not in extra_build_files:
+        excluded += ["i2c_emulator.cpp", "i2c_emulator.h"]
+    if "uart_emulator.cpp" not in extra_build_files:
+        excluded += ["uart_emulator.cpp", "uart_emulator.h"]
+    return excluded
 
 
 FILTER_SOURCE_FILES = _filter_source_files
