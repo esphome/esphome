@@ -1903,6 +1903,20 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
       return;
     }
     const bool src_is_dir = src_st.is_dir;
+    // Copying a path onto itself truncates it (the destination is opened WRITE before the first read
+    // of the source), and a directory into its own subtree walks what the walk creates. storage::copy()
+    // rejects both; the worker must too, or it reports a destroyed file as OK.
+    if (req.src_storage == req.dst_storage) {
+      size_t self_src_len = strlen(req.src_path);
+      if (strcmp(req.src_path, req.dst_path) == 0) {
+        finish_request(req, StorageError::INVALID_ARGS);
+        return;
+      }
+      if (src_is_dir && strncmp(req.src_path, req.dst_path, self_src_len) == 0 && req.dst_path[self_src_len] == '/') {
+        finish_request(req, StorageError::INVALID_ARGS);
+        return;
+      }
+    }
     const bool is_move_op = req.op == RequestOp::MOVE || req.op == RequestOp::MOVE_TREE;
     const bool same_storage_move = is_move_op && req.src_storage == req.dst_storage;
     // Explicit tree submissions (async_copy_tree()/async_move_tree(), e.g. automations) keep
