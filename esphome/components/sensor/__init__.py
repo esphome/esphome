@@ -43,7 +43,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -982,24 +981,15 @@ async def setup_sensor_core_(var, config):
 
     CORE.add_job(_build_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        from esphome.components import mqtt
-
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-        if (
-            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
-        ) is not cv.UNDEFINED:
-            if expire_after is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(expire_after))
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        from esphome.components import web_server
-
-        await web_server.add_entity_config(var, web_server_config)
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None and (
+        (expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED))
+        is not cv.UNDEFINED
+    ):
+        if expire_after is None:
+            cg.add(mqtt_.disable_expire_after())
+        else:
+            cg.add(mqtt_.set_expire_after(expire_after))
 
     if "zigbee" in CORE.loaded_integrations:
         from esphome.components import zigbee
