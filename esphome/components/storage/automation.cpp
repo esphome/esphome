@@ -708,6 +708,12 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
     ESP_LOGE(TAG, "file_%s: storage is busy with a background transfer -- refusing blocking I/O", op);
     return StorageError::NOT_READY;
   }
+  // Same guard as every other blocking helper here: refuse if the worker task is streaming either
+  // volume, so an external main-loop caller cannot put two threads into one storage at once.
+  if (worker_task_busy(src) || worker_task_busy(dst)) {
+    ESP_LOGE(TAG, "file_%s: storage is busy with a background transfer -- refusing blocking I/O", op);
+    return StorageError::NOT_READY;
+  }
   // move() internally takes the same-storage rename() fast path and only falls back to
   // copy+delete across devices -- so this action doubles as a rename action. Both helpers are
   // PathStorage-level (filesystem and network alike), take a directory as readily as a file
