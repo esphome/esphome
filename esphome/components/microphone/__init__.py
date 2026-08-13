@@ -101,7 +101,7 @@ def microphone_source_schema(
       max_channels (int, optional): Maximum number of channels the requesting component supports. Defaults to 1.
     """
 
-    def _validate_unique_channels(config: ConfigType) -> ConfigType:
+    def _validate_unique_channels(config: list[int]) -> list[int]:
         if len(config) != len(set(config)):
             raise cv.Invalid("Channels must be unique")
         return config

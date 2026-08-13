@@ -81,7 +81,7 @@ CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 
-def _validate_max_payload_size(value: int) -> int:
+def _validate_max_payload_size(value: Any) -> int:
     if value > ESPNOW_PAYLOAD_V1:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 0),
