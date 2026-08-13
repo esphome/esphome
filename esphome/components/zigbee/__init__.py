@@ -15,9 +15,15 @@ from esphome.components.esp32.const import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, CONF_ON_START
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    ZIGBEE_BASE_ENTITY_SCHEMA,
+    ZIGBEE_BINARY_SENSOR_SCHEMA,
+)
 from esphome.types import ConfigType
 
-from .const import (
+# CONF_ENDPOINT, CONF_MAX_EP_NUMBER, CONF_REPORT, CONF_USE_DEVICE_TYPE and
+# REPORT are re-exported for existing consumers of this package's namespace.
+from .const import (  # noqa: F401
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
@@ -45,12 +51,7 @@ from .zigbee_esp32 import (
     validate_sensor_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import (
-    zephyr_binary_sensor,
-    zephyr_number,
-    zephyr_sensor,
-    zephyr_switch,
-)
+from .zigbee_zephyr import zephyr_number, zephyr_sensor, zephyr_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,35 +60,10 @@ CODEOWNERS = ["@luar123", "@tomaszduda23"]
 CONFLICTS_WITH = ["openthread"]
 
 
-def _check_report_deprecation(value: str) -> str:
-    if str(value).lower() in ("coordinator", "enable"):
-        _LOGGER.warning(
-            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
-        )
-    return value
-
-
-BASE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_REPORT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            _check_report_deprecation,
-            cv.enum(REPORT, lower=True),
-        ),
-        cv.Optional(CONF_ENDPOINT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.int_range(1, CONF_MAX_EP_NUMBER),
-        ),
-        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.boolean,
-        ),
-    }
-)
-BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
+# Defined in esphome.core.entity_helpers so entity base schemas can reference
+# them without importing this package; re-exported here for existing consumers.
+BASE_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
+BINARY_SENSOR_SCHEMA = ZIGBEE_BINARY_SENSOR_SCHEMA
 SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)

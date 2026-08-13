@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import functools
+import importlib
 import logging
 
 import esphome.codegen as cg
@@ -15,6 +16,8 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
+    CONF_WEB_SERVER_ID,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -22,7 +25,7 @@ from esphome.core.config import (
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
-from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
+from esphome.cpp_generator import MockObj, MockObjClass, RawStatement, add, get_variable
 from esphome.cpp_types import App
 import esphome.final_validate as fv
 from esphome.helpers import (
@@ -633,5 +636,128 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # Add to tracking dict
         CORE.unique_ids[unique_key] = entity_metadata
         return config
+
+    return validator
+
+
+# ---------------------------------------------------------------------------
+# Cross-integration entity schema fragments
+# ---------------------------------------------------------------------------
+#
+# Entity base schemas offer mqtt/web_server/zigbee options, but importing
+# those packages pulls their full dependency chains (mqtt and zigbee both
+# import the esp32 package) into every entity component import. The
+# fragments below are built from cheap primitives instead: MockObjClass
+# identity is string-based, so the class handles here are interchangeable
+# with the ones the integrations declare, and every key is guarded by
+# ``cv.requires_component``/``cv.OnlyWith``, which consult
+# ``CORE.loaded_integrations`` at validation time without importing. The
+# owning integrations re-export the shared schema names and key strings so
+# each stays defined once.
+
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_WEIGHT = "sorting_weight"
+
+_WebServer = cg.esphome_ns.namespace("web_server").class_(
+    "WebServer", cg.Component, cg.Controller
+)
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        # The per-entity web_server block is cosmetic dashboard ordering —
+        # mark the whole block advanced; the children inherit via the cascade.
+        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(_WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
+    }
+)
+
+_mqtt_ns = cg.esphome_ns.namespace("mqtt")
+_MQTTComponent = _mqtt_ns.class_("MQTTComponent", cg.Component)
+
+
+def mqtt_component_class(name: str) -> MockObjClass:
+    """Handle for a per-entity mqtt::<name> companion class."""
+    return _mqtt_ns.class_(name, _MQTTComponent)
+
+
+CONF_ENDPOINT = "endpoint"
+CONF_REPORT = "report"
+CONF_USE_DEVICE_TYPE = "use_device_type"
+CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
+ZIGBEE_MAX_EP_NUMBER = 239
+
+_zigbee_ns = cg.esphome_ns.namespace("zigbee")
+_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
+_ZigbeeBinarySensor = _zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
+_zigbee_report = _zigbee_ns.enum("ZigbeeReportT")
+ZIGBEE_REPORT = {
+    "coordinator": _zigbee_report.ZIGBEE_REPORT_COORDINATOR,
+    "enable": _zigbee_report.ZIGBEE_REPORT_ENABLE,
+    "force": _zigbee_report.ZIGBEE_REPORT_FORCE,
+    "default": _zigbee_report.ZIGBEE_REPORT_DEFAULT,
+}
+
+
+def _check_report_deprecation(value: str) -> str:
+    if str(value).lower() in ("coordinator", "enable"):
+        _LOGGER.warning(
+            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+        )
+    return value
+
+
+ZIGBEE_BASE_ENTITY_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_REPORT): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            _check_report_deprecation,
+            cv.enum(ZIGBEE_REPORT, lower=True),
+        ),
+        cv.Optional(CONF_ENDPOINT): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
+        ),
+        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.boolean,
+        ),
+    }
+)
+
+ZIGBEE_BINARY_SENSOR_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA.extend(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(_ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
+            _ZigbeeBinarySensor
+        ),
+    }
+)
+
+
+def lazy_load_validator(
+    component: str, name: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Schema extra delegating to ``components.<component>.<name>`` when loaded."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        if component not in CORE.loaded_integrations:
+            return config
+        module = importlib.import_module(f"esphome.components.{component}")
+        return getattr(module, name)(config)
 
     return validator

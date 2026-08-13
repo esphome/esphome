@@ -3,7 +3,6 @@ from logging import getLogger
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -61,7 +60,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    WEBSERVER_SORTING_SCHEMA,
+    ZIGBEE_BINARY_SENSOR_SCHEMA,
     entity_duplicate_validator,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -433,14 +436,14 @@ def validate_publish_initial_state(value):
 
 
 _BINARY_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.BINARY_SENSOR_SCHEMA)
+    .extend(ZIGBEE_BINARY_SENSOR_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BinarySensor),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTBinarySensorComponent
+                mqtt_component_class("MQTTBinarySensorComponent")
             ),
             cv.Exclusive(
                 CONF_PUBLISH_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
@@ -505,7 +508,7 @@ _BINARY_SENSOR_SCHEMA = (
 
 
 _BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
-_BINARY_SENSOR_SCHEMA.add_extra(zigbee.validate_binary_sensor)
+_BINARY_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_binary_sensor"))
 
 
 def binary_sensor_schema(
@@ -608,13 +611,20 @@ async def setup_binary_sensor_core_(var, config):
     CORE.add_job(_build_binary_sensor_automations, var, config)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
+        from esphome.components import mqtt
+
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if web_server_config := config.get(CONF_WEB_SERVER):
+        from esphome.components import web_server
+
         await web_server.add_entity_config(var, web_server_config)
 
-    await zigbee.setup_binary_sensor(var, config)
+    if "zigbee" in CORE.loaded_integrations:
+        from esphome.components import zigbee
+
+        await zigbee.setup_binary_sensor(var, config)
 
 
 async def register_binary_sensor(var, config):
