@@ -274,12 +274,6 @@ def test_check_error_unexpected_response() -> None:
         espota2.check_error([0x7F], [espota2.RESPONSE_OK, espota2.RESPONSE_AUTH_OK])
 
 
-def test_check_error_md5_mismatch_is_retryable() -> None:
-    """Test check_error raises the retryable OTANetworkError for an MD5 mismatch."""
-    with pytest.raises(espota2.OTANetworkError, match="MD5 code mismatch"):
-        espota2.check_error([espota2.RESPONSE_ERROR_MD5_MISMATCH], None)
-
-
 def test_check_error_empty_data() -> None:
     """Test check_error raises the retryable OTANetworkError when the device closes the connection."""
     with pytest.raises(
@@ -680,6 +674,26 @@ def test_perform_ota_post_commit_failure_not_retryable(
 
     # Must not be the retryable kind; the device is already rebooting
     assert not isinstance(exc.value, espota2.OTANetworkError)
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_md5_mismatch_not_marked_committed(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Test an MD5 mismatch keeps its own message and stays non-retryable."""
+    mock_socket.recv.side_effect = [
+        *_no_auth_handshake(espota2.OTA_VERSION_1_0),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Device received everything
+        bytes([espota2.RESPONSE_ERROR_MD5_MISMATCH]),  # Device aborted the update
+    ]
+
+    with pytest.raises(espota2.OTAError, match="MD5 code mismatch") as exc:
+        espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+
+    # The device aborted without committing, so the message must not claim
+    # the update may have been installed, and the error must not be retried
+    assert not isinstance(exc.value, espota2.OTANetworkError)
+    assert "committed" not in str(exc.value)
 
 
 @pytest.mark.usefixtures("mock_time")

@@ -174,18 +174,13 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
 
-# Device-reported errors that do not persist across attempts: an MD5 mismatch
-# means the transfer arrived corrupted and the device aborted without
-# committing, so a fresh upload may succeed.
-_RETRYABLE_ERROR_CODES: frozenset[int] = frozenset({RESPONSE_ERROR_MD5_MISMATCH})
-
 
 class OTAError(EsphomeError):
     pass
 
 
 class OTANetworkError(OTAError):
-    """Transient OTA failure (timeout, reset, closed connection, corrupted transfer); retrying may succeed."""
+    """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
 
 
 def _committed_error(err: OTANetworkError) -> OTAError:
@@ -278,8 +273,6 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     dat = data[0]
     error_msg = _ERROR_MESSAGES.get(dat)
     if error_msg is not None:
-        if dat in _RETRYABLE_ERROR_CODES:
-            raise OTANetworkError(error_msg)
         raise OTAError(error_msg)
     if expect is None:
         return
