@@ -25,8 +25,12 @@ _LOGGER = logging.getLogger(__name__)
 
 # Attempts per mirror URL before falling through to the next mirror; only
 # mid-stream drops retry (resuming when the server gave a validator),
-# connect errors move on immediately.
+# connect errors move on to the next mirror immediately.
 _MIRROR_ATTEMPTS = 3
+
+# Passes over the whole mirror list when a transient network error is in
+# the mix; matches git.py's _NETWORK_MAX_ATTEMPTS (3 tries, 2s/4s backoff).
+_MIRROR_SWEEP_ATTEMPTS = 3
 
 
 def get_project_link_flags() -> list[str]:
@@ -887,37 +891,51 @@ def _failure_reason(e: Exception) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
-def download_from_mirrors(
-    mirrors: list[str],
-    substitutions: dict[str, str],
-    target: io.RawIOBase | IO[bytes] | PathType,
-    timeout: int = 30,
-) -> str:
+def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
+    """Wrap a failure whose mirror already consumed download attempts, so
+    the sweep classifies it as permanent."""
+    from esphome.core import EsphomeError
+
+    err = EsphomeError(f"failed after {attempts} attempts: {_failure_reason(e)}")
+    err.__cause__ = e
+    return err
+
+
+def _is_transient_download_error(e: Exception) -> bool:
+    """Return True when a download failure is worth retrying.
+
+    Connection-level failures and HTTP 429/5xx are transient. Other HTTP
+    errors, local errors, and exhausted-attempts EsphomeError wrappers
+    (their per-mirror retries are already spent) are permanent.
     """
-    Download file from multiple mirrors with substitution support.
+    # Imported lazily: requests is a heavy import (~85ms) and is only
+    # needed when actually downloading, never during config validation.
+    import requests
 
-    Args:
-        mirrors: list of mirror URLs
-        substitutions: Dictionary of substitutions to apply to URLs
-        target: Target file path or file-like object
-        timeout: Download timeout in seconds
+    if isinstance(e, requests.exceptions.HTTPError):
+        resp = e.response
+        return resp is not None and (resp.status_code == 429 or resp.status_code >= 500)
+    return isinstance(
+        e,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        ),
+    )
 
-    Returns:
-        The source URL.
 
-    Mirror URL templates that reference a substitution not present in
-    ``substitutions`` are skipped, so callers can offer templates that only
-    apply to some downloads.
+def _try_mirrors_once(
+    urls: list[str],
+    path_target: Path | None,
+    f: IO[bytes] | None,
+    timeout: int,
+    failures: list[tuple[str, Exception]],
+) -> str | None:
+    """Single pass over the resolved mirror ``urls``, one try per URL.
 
-    A path target downloads through ``download_with_resume``, so an
-    interrupted download resumes on the next esphome run; a file-like target
-    only resumes mid-stream drops within this call.
-
-    Raises:
-        ValueError: If mirrors list is empty.
-        EsphomeError: If all download attempts fail; the message lists every
-            attempted URL with its individual failure reason. Also raised if
-            no template matched the provided substitutions.
+    Returns the source URL on success, or None with each URL's exception
+    appended to ``failures``.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only
     # needed when actually downloading, never during config validation.
@@ -925,43 +943,7 @@ def download_from_mirrors(
 
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
-
-    # 1. Classify the target: filesystem path or open file object
-    path_target: Path | None = None
-    f: IO[bytes] | None = None
-    if isinstance(target, (str, os.PathLike)):
-        path_target = Path(target)
-    elif isinstance(target, (io.RawIOBase, io.IOBase)):
-        f = target
-    else:
-        raise TypeError(
-            f"target must be str, Path, or file-like object: {type(target)}"
-        )
-
-    # 2. Try each mirror in order
-    failures: list[tuple[str, Exception]] = []
-    skipped: list[tuple[str, str]] = []
-
-    for mirror in mirrors:
-        # 3. Apply substitutions to URL
-        try:
-            url = mirror.format(**substitutions)
-        except KeyError as e:
-            # The template references a substitution not provided for
-            # this download (e.g. SHORT_VERSION only exists for x.y.0
-            # versions) - expected, the template just doesn't apply.
-            _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
-            skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
-            continue
-        except (IndexError, ValueError) as e:
-            # A malformed template (unbalanced braces, bad format spec)
-            # is an authoring error, not an expected fallthrough - warn
-            # even if a later mirror succeeds.
-            _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
-            skipped.append((mirror, f"skipped ({e!r})"))
-            continue
-
+    for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
 
         # Path targets delegate to download_with_resume so a partial
@@ -986,14 +968,14 @@ def download_from_mirrors(
                 failures.append((url, e))
                 continue
 
-        # 4. Download; mid-stream failures retry the same mirror with
-        # resume (see download_with_resume) instead of starting over.
-        # There is no checksum to verify a resumed file against, so a
-        # stitch is only trusted when the server proves consistency: the
-        # If-Range validator guarantees 206 only for unchanged content,
-        # and the expected total length (when the first response carried
-        # one) guards against short or shifted bodies. Without a
-        # validator the retry restarts from zero.
+        # File-like targets download here; mid-stream failures retry the
+        # same mirror with resume (see download_with_resume) instead of
+        # starting over. There is no checksum to verify a resumed file
+        # against, so a stitch is only trusted when the server proves
+        # consistency: the If-Range validator guarantees 206 only for
+        # unchanged content, and the expected total length (when the first
+        # response carried one) guards against short or shifted bodies.
+        # Without a validator the retry restarts from zero.
         offset = 0
         expected_total = 0
         validator = None
@@ -1001,9 +983,12 @@ def download_from_mirrors(
             try:
                 resp, offset = _open_ranged(url, offset, timeout, validator)
             except (requests.RequestException, OSError) as e:
-                # Connect/HTTP error, no bytes flowed — next mirror.
+                # Connect/HTTP error, no bytes flowed — next mirror. Wrap
+                # when earlier attempts were already spent on this mirror.
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
+                failures.append(
+                    (url, _spent_attempts_error(e, attempt + 1) if attempt else e)
+                )
                 break
 
             try:
@@ -1031,7 +1016,7 @@ def download_from_mirrors(
 
                 _LOGGER.debug("Downloaded successfully from: %s", url)
 
-                # 5. Reset file pointer and return
+                # Reset file pointer and return
                 f.seek(0)
                 return url
 
@@ -1054,16 +1039,124 @@ def download_from_mirrors(
                     )
                     offset = 0
                 if attempt == _MIRROR_ATTEMPTS - 1:
-                    failures.append((url, e))
+                    failures.append((url, _spent_attempts_error(e, _MIRROR_ATTEMPTS)))
 
-    # 6. Report every attempted URL if all mirrors failed. Falling back
-    # past an early mirror is normal (e.g. only one of the framework URL
-    # templates matches a given version's tag), so raising only the last
-    # error would hide the failure that actually matters.
-    if failures:
-        attempts = "".join(
-            f"\n  {url}\n    {_failure_reason(e)}" for url, e in failures
+    return None
+
+
+def download_from_mirrors(
+    mirrors: list[str],
+    substitutions: dict[str, str],
+    target: io.RawIOBase | IO[bytes] | PathType,
+    timeout: int = 30,
+) -> str:
+    """
+    Download file from multiple mirrors with substitution support.
+
+    Args:
+        mirrors: list of mirror URLs
+        substitutions: Dictionary of substitutions to apply to URLs
+        target: Target file path or file-like object
+        timeout: Download timeout in seconds
+
+    Returns:
+        The source URL.
+
+    Mirror URL templates that reference a substitution not present in
+    ``substitutions`` are skipped, so callers can offer templates that only
+    apply to some downloads.
+
+    A path target downloads through ``download_with_resume``, so an
+    interrupted download resumes on the next esphome run; a file-like target
+    only resumes mid-stream drops within this call.
+
+    When every mirror fails and at least one failure is transient (dropped
+    connection, timeout, HTTP 429/5xx), the whole list is retried with a
+    short backoff; permanent failures (e.g. 404) raise immediately.
+
+    Raises:
+        ValueError: If mirrors list is empty.
+        EsphomeError: If all download attempts fail; the message lists every
+            attempted URL with its individual failure reason. Also raised if
+            no template matched the provided substitutions.
+    """
+    from esphome.core import EsphomeError
+
+    ensure_happy_eyeballs()
+
+    # 1. Classify the target: filesystem path or open file object
+    path_target: Path | None = None
+    f: IO[bytes] | None = None
+    if isinstance(target, (str, os.PathLike)):
+        path_target = Path(target)
+    elif isinstance(target, (io.RawIOBase, io.IOBase)):
+        f = target
+    else:
+        raise TypeError(
+            f"target must be str, Path, or file-like object: {type(target)}"
         )
+
+    # 2. Resolve the mirror templates (invariant across retry sweeps)
+    urls: list[str] = []
+    skipped: list[tuple[str, str]] = []
+    for mirror in mirrors:
+        try:
+            urls.append(mirror.format(**substitutions))
+        except KeyError as e:
+            # The template references a substitution not provided for
+            # this download (e.g. SHORT_VERSION only exists for x.y.0
+            # versions) - expected, the template just doesn't apply.
+            _LOGGER.debug("Skipping mirror %s: %s not available", mirror, e)
+            skipped.append((mirror, f"not applicable ({e.args[0]} not available)"))
+        except (IndexError, ValueError) as e:
+            # A malformed template (unbalanced braces, bad format spec)
+            # is an authoring error, not an expected fallthrough - warn
+            # even if a later mirror succeeds.
+            _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
+            skipped.append((mirror, f"skipped ({e!r})"))
+
+    # 3. Sweep the mirror list, retrying transient failures with backoff:
+    # a single pass keeps mirror failover fast, re-sweeping keeps one
+    # network blip from failing the build when only one mirror applies.
+    failures: list[tuple[str, Exception]] = []
+    for sweep in range(1, _MIRROR_SWEEP_ATTEMPTS + 1):
+        sweep_failures: list[tuple[str, Exception]] = []
+        if (
+            url := _try_mirrors_once(urls, path_target, f, timeout, sweep_failures)
+        ) is not None:
+            return url
+        failures.extend(sweep_failures)
+        # Permanent failures (404, verification mismatch) won't heal;
+        # only retry when a transient error is in the mix (as git.py does).
+        transient = next(
+            ((u, e) for u, e in sweep_failures if _is_transient_download_error(e)),
+            None,
+        )
+        if transient is None:
+            break
+        if sweep < _MIRROR_SWEEP_ATTEMPTS:
+            delay = 2**sweep
+            _LOGGER.warning(
+                "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
+                transient[0],
+                _failure_reason(transient[1]),
+                delay,
+                sweep + 1,
+                _MIRROR_SWEEP_ATTEMPTS,
+            )
+            time.sleep(delay)
+
+    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # all sweeps (deduplicated by URL and reason), so neither an early
+    # mirror's failure nor an earlier sweep's failure mode is hidden.
+    if failures:
+        seen: set[tuple[str, str]] = set()
+        attempts = ""
+        for url, e in failures:
+            reason = _failure_reason(e)
+            if (url, reason) not in seen:
+                seen.add((url, reason))
+                attempts += f"\n  {url}\n    {reason}"
         attempts += "".join(f"\n  {mirror}\n    {reason}" for mirror, reason in skipped)
         raise EsphomeError(
             f"Failed to download from all mirrors:{attempts}"

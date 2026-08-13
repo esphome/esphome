@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
@@ -70,6 +70,9 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+if TYPE_CHECKING:
+    import threading
 
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
@@ -567,11 +570,48 @@ def has_name_add_mac_suffix() -> bool:
 
 
 def mqtt_get_ip(
-    config: ConfigType, username: str, password: str, client_id: str
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     from esphome import mqtt
 
-    return mqtt.get_esphome_device_ip(config, username, password, client_id)
+    return mqtt.get_esphome_device_ip(
+        config, username, password, client_id, stop_event=stop_event
+    )
+
+
+def _add_network_device(device: str, network_devices: list[str]) -> None:
+    """Append a device to the list, expanding it through ``CORE.address_cache``.
+
+    If the hostname is already in the address cache (e.g. populated by mDNS
+    discovery), substitute the cached IPs so aioesphomeapi doesn't open its
+    own Zeroconf to re-resolve it. Duplicates are dropped.
+    """
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+        network_devices.extend(addr for addr in cached if addr not in network_devices)
+    elif device not in network_devices:
+        network_devices.append(device)
+
+
+def _split_network_devices(devices: list[str]) -> tuple[list[str], bool]:
+    """Split the device list into direct addresses and an MQTT-lookup flag.
+
+    Direct addresses are expanded through ``CORE.address_cache`` and deduped
+    the same way ``_resolve_network_devices`` does; MQTT/MQTTIP magic strings
+    are not resolved, only reported via the returned bool so the caller can
+    defer the broker lookup.
+    """
+    network_devices: list[str] = []
+    has_mqtt_lookup = False
+    for device in devices:
+        if get_port_type(device) in _MQTT_PORT_TYPES:
+            has_mqtt_lookup = True
+        else:
+            _add_network_device(device, network_devices)
+    return network_devices, has_mqtt_lookup
 
 
 def _resolve_network_devices(
@@ -604,38 +644,42 @@ def _resolve_network_devices(
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
-                try:
-                    mqtt_ips = mqtt_get_ip(
-                        config, args.username, args.password, args.client_id
-                    )
-                    # pylint can't infer mqtt_get_ip's return through its
-                    # lazy ``from esphome import mqtt`` import, so it flags
-                    # the genexpr below.
-                    network_devices.extend(
-                        addr
-                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
-                        if addr not in network_devices
-                    )
-                except EsphomeError as err:
-                    _LOGGER.warning(
-                        "MQTT IP discovery failed (%s), will try other devices if available",
-                        err,
-                    )
+                mqtt_ips = _mqtt_get_ip_or_warn(
+                    config, args.username, args.password, args.client_id
+                )
+                network_devices.extend(
+                    addr for addr in mqtt_ips if addr not in network_devices
+                )
                 mqtt_resolved = True
             continue
 
-        # If the hostname is already in the address cache (e.g. populated by
-        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
-        # open its own Zeroconf to re-resolve it.
-        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
-            network_devices.extend(
-                addr for addr in cached if addr not in network_devices
-            )
-        elif device not in network_devices:
-            # Regular network address or IP - add if not already present
-            network_devices.append(device)
+        _add_network_device(device, network_devices)
 
     return network_devices
+
+
+def _mqtt_get_ip_or_warn(
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
+) -> list[str]:
+    """Look up the device IP via MQTT, returning [] with a warning on failure.
+
+    This owns the failure policy for MQTT IP discovery on paths that have
+    other addresses to fall back on: a broker problem must not abort the
+    operation. Also used as the deferred resolver handed to ``run_logs``,
+    where it runs in a worker thread.
+    """
+    try:
+        return mqtt_get_ip(config, username, password, client_id, stop_event=stop_event)
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "MQTT IP discovery failed (%s), will try other devices if available",
+            err,
+        )
+        return []
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
@@ -1438,17 +1482,37 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_miniterm(config, port, args)
 
     # Check if we should use API for logging
-    # Resolve MQTT magic strings to actual IP addresses
-    if has_api() and (
-        network_devices := _resolve_network_devices(devices, config, args)
-    ):
-        from esphome.api_client import run_logs
+    if has_api():
+        network_devices, has_mqtt_lookup = _split_network_devices(devices)
+        mqtt_resolver = None
+        if has_mqtt_lookup:
+            if network_devices:
+                # Addresses are already known, so don't block startup on the
+                # MQTT broker lookup; hand it to run_logs as a deferred
+                # resolver that runs in the background and feeds discovered
+                # addresses into the running log client, keeping MQTT as a
+                # fallback for when the known addresses are stale (e.g. DHCP
+                # reassigned the IP).
+                mqtt_resolver = functools.partial(
+                    _mqtt_get_ip_or_warn,
+                    config,
+                    args.username,
+                    args.password,
+                    args.client_id,
+                )
+            else:
+                # The MQTT lookup is the only way to find the device; resolve
+                # it up front since the client needs an address to start with.
+                network_devices = _resolve_network_devices(devices, config, args)
+        if network_devices:
+            from esphome.api_client import run_logs
 
-        return run_logs(
-            config,
-            network_devices,
-            subscribe_states=_should_subscribe_states(args),
-        )
+            return run_logs(
+                config,
+                network_devices,
+                subscribe_states=_should_subscribe_states(args),
+                mqtt_resolver=mqtt_resolver,
+            )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
