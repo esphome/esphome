@@ -120,7 +120,7 @@ void LgIrClimate::transmit_state() {
   // Set command
   if (this->send_swing_cmd_) {
     this->send_swing_cmd_ = false;
-    if (this->alternative_mode_) {
+    if (this->advanced_commands_support_) {
       switch (this->swing_mode) {
         case climate::CLIMATE_SWING_VERTICAL:
           ESP_LOGD(TAG, "setting swing vertical");
@@ -194,7 +194,7 @@ void LgIrClimate::transmit_state() {
   uint8_t temp;
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT_COOL:
-      if (!this->alternative_mode_) {  // Keep previous behavior
+      if (!this->advanced_commands_support_) {  // Keep previous behavior
         break;
       }
     case climate::CLIMATE_MODE_COOL:
@@ -341,7 +341,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Keep previous behavior
-  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->alternative_mode_)) {
+  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL && !(this->advanced_commands_support_)) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
   }
 
