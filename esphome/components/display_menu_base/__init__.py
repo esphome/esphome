@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_ID,
     CONF_ITEMS,
+    CONF_LABEL,
     CONF_MODE,
     CONF_NUMBER,
     CONF_ON_VALUE,
@@ -30,7 +31,6 @@ display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 
 CONF_ROTARY = "rotary"
 CONF_JOYSTICK = "joystick"
-CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
 CONF_SELECT = "select"
