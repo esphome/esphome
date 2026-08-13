@@ -1266,21 +1266,19 @@ def test_lazy_load_validator_defers_import() -> None:
     validator = lazy_load_validator("zigbee", "validate_binary_sensor")
     config = {CONF_NAME: "test"}
 
-    original = CORE.loaded_integrations
-    CORE.loaded_integrations = set()
-    try:
-        with patch("esphome.core.entity_helpers.import_module") as import_mock:
-            assert validator(config) is config
-            import_mock.assert_not_called()
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        assert validator(config) is config
+        import_mock.assert_not_called()
 
-            CORE.loaded_integrations.add("zigbee")
-            delegate = import_mock.return_value.validate_binary_sensor
-            delegate.return_value = {CONF_NAME: "validated"}
-            assert validator(config) == {CONF_NAME: "validated"}
-            import_mock.assert_called_once_with("esphome.components.zigbee")
-            delegate.assert_called_once_with(config)
-    finally:
-        CORE.loaded_integrations = original
+        CORE.loaded_integrations.add("zigbee")
+        delegate = import_mock.return_value.validate_binary_sensor
+        delegate.return_value = {CONF_NAME: "validated"}
+        assert validator(config) == {CONF_NAME: "validated"}
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        delegate.assert_called_once_with(config)
 
 
 def test_lazy_load_validator_rejects_unknown_component() -> None:
@@ -1293,26 +1291,21 @@ def test_lazy_load_validator_names_missing_hook() -> None:
     """A missing hook raises a clear error naming the component and hook."""
     validator = lazy_load_validator("zigbee", "no_such_hook")
 
-    original = CORE.loaded_integrations
-    CORE.loaded_integrations = {"zigbee"}
-    try:
-        with (
-            patch("esphome.core.entity_helpers.import_module") as import_mock,
-            pytest.raises(ValueError, match="no_such_hook"),
-        ):
-            del import_mock.return_value.no_such_hook
-            validator({})
-    finally:
-        CORE.loaded_integrations = original
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        del import_mock.return_value.no_such_hook
+        validator({})
 
 
 def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
+    from esphome.components.zigbee import zigbee_zephyr
     from esphome.components.zigbee.const import ZigbeeComponent
-    from esphome.components.zigbee.zigbee_zephyr import ZigbeeBinarySensor
-    from esphome.core import entity_helpers
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1324,4 +1317,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
 
     assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    assert str(entity_helpers._ZigbeeBinarySensor) == str(ZigbeeBinarySensor)
+    for _conf_key, class_name in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
+        owning = getattr(zigbee_zephyr, class_name)
+        assert str(owning) == f"zigbee::{class_name}"

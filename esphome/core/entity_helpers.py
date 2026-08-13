@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_REPORT,
     CONF_SORTING_GROUP_ID,
@@ -700,7 +701,6 @@ ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
 _ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
-_ZigbeeBinarySensor = _zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 _zigbee_report = _zigbee_ns.enum("ZigbeeReportT")
 ZIGBEE_REPORT = {
     "coordinator": _zigbee_report.ZIGBEE_REPORT_COORDINATOR,
@@ -739,14 +739,28 @@ ZIGBEE_BASE_ENTITY_SCHEMA = cv.Schema(
     }
 )
 
-ZIGBEE_BINARY_SENSOR_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA.extend(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(_ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            _ZigbeeBinarySensor
-        ),
-    }
-)
+# Entity platform -> (config key, zigbee C++ class). A unit test checks each
+# class against the owning declaration in zigbee_zephyr.
+_ZIGBEE_ENTITY_CLASSES = {
+    "binary_sensor": (CONF_ZIGBEE_BINARY_SENSOR, "ZigbeeBinarySensor"),
+}
+
+
+def _zigbee_entity_schema(platform: str) -> cv.Schema:
+    conf_key, class_name = _ZIGBEE_ENTITY_CLASSES[platform]
+    return ZIGBEE_BASE_ENTITY_SCHEMA.extend(
+        {
+            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
+                _ZigbeeComponent
+            ),
+            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
+                _zigbee_ns.class_(class_name, cg.Component)
+            ),
+        }
+    )
+
+
+ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
 
 
 def lazy_load_validator(
@@ -765,3 +779,24 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:
+    """Register the mqtt companion and web_server entry for an entity.
+
+    Imports the integrations lazily; returns the mqtt companion (or None)
+    so callers can apply integration specific options to it.
+    """
+    mqtt_ = None
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        from esphome.components import mqtt
+
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
+        await mqtt.register_mqtt_component(mqtt_, config)
+
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        from esphome.components import web_server
+
+        await web_server.add_entity_config(var, web_server_config)
+
+    return mqtt_

@@ -27,7 +27,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_CARBON_MONOXIDE,
@@ -608,16 +607,7 @@ async def setup_binary_sensor_core_(var, config):
 
     CORE.add_job(_build_binary_sensor_automations, var, config)
 
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        from esphome.components import mqtt
-
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        from esphome.components import web_server
-
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
     if "zigbee" in CORE.loaded_integrations:
         from esphome.components import zigbee
