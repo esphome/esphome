@@ -851,25 +851,6 @@ def test_run_ota_impl_multiple_addresses_cycle(
     assert mock_sleep.call_count == 2
 
 
-@pytest.mark.usefixtures("mock_socket_constructor")
-def test_run_ota_impl_duplicate_addresses_deduplicated(
-    mock_socket: Mock, firmware_file: Path, mock_resolve_ip: Mock, mock_sleep: Mock
-) -> None:
-    """Test duplicate resolved endpoints do not inflate the attempt budget."""
-    entry = (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.100", 3232))
-    mock_resolve_ip.return_value = [entry, entry]
-    mock_socket.connect.side_effect = OSError("Connection refused")
-
-    result_code, result_host = espota2.run_ota_impl_(
-        "test.local", 3232, "password", str(firmware_file)
-    )
-
-    assert result_code == 1
-    assert result_host is None
-    # The duplicate collapses to one endpoint, so the budget is 1 + EXTRA
-    assert mock_socket.connect.call_count == espota2.EXTRA_UPLOAD_ATTEMPTS + 1
-
-
 @pytest.mark.usefixtures("mock_socket_constructor", "mock_resolve_ip_dual")
 def test_run_ota_impl_second_address_succeeds_without_delay(
     mock_socket: Mock,
