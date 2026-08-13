@@ -26,9 +26,12 @@ from esphome.const import (
     CONF_DATA,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_FORMAT,
+    CONF_LABEL,
     CONF_LENGTH,
     CONF_MODEL,
     CONF_PIN,
+    CONF_SIZE,
     CONF_SOURCE,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -122,8 +125,6 @@ CONF_DEVICE_NODE_NAME = "device_node_name"
 _LOGGER = logging.getLogger(__name__)
 
 CONF_REGIONS = "regions"
-CONF_FORMAT = "format"
-CONF_SIZE = "size"
 FORMAT_RAW = "raw"
 FORMAT_LITTLEFS = "littlefs"
 FORMAT_KV = "kv"
