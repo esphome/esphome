@@ -456,6 +456,10 @@ async def to_code(config):
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
+            # setup() unconditionally uses uart_irq_callback_user_data_set()/
+            # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
+            # silently never arrives.
+            zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
             cg.add(var.set_port(ZEPHYR_UART_PORTS[config[CONF_PORT]]))
             port_label = config[CONF_PORT]
             if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -508,6 +512,10 @@ async def to_code(config):
         zephyr_add_prj_conf("RING_BUFFER", True)
         zephyr_add_prj_conf("EMUL", True)
         zephyr_add_prj_conf("UART_EMUL", True)
+        # setup() unconditionally uses uart_irq_callback_user_data_set()/
+        # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
+        # silently never arrives.
+        zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
         cg.add_define("USE_ZEPHYR_UART_EMULATION")
 
         # Node label must be unique per `uart: emulation:` block -- ESPHome IDs are

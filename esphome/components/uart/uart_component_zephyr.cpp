@@ -14,9 +14,10 @@ void ZephyrUartComponent::uart_irq_handler_s(const struct device *dev, void *use
 }
 
 void ZephyrUartComponent::uart_irq_handler_() {
-  if (!uart_irq_update(this->uart_dev_)) {
-    return;
-  }
+  // Return value intentionally ignored: every driver's irq_update() returns 1 on success
+  // (0 is never documented or observed), and some in-flight Zephyr forks have changed the
+  // signature to return void entirely -- discarding it compiles under both.
+  uart_irq_update(this->uart_dev_);
   while (uart_irq_rx_ready(this->uart_dev_)) {
     uint8_t buf[64];
     int len = uart_fifo_read(this->uart_dev_, buf, sizeof(buf));
