@@ -416,11 +416,15 @@ def _resolve_path_max(config: ConfigType) -> int:
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() in ("y", "true", "1"):
             # 8.3 names only: STORAGE_PATH_MAX bounds the whole relative path (append_path_segment
-            # builds "/<name>" per level into one shared buffer), not a single filename. Size it for
-            # the deepest tree the walks descend -- _MAX_RECURSION_DEPTH segments of "/<short name>"
-            # plus the terminator -- so ordinary nested paths are not rejected with INVALID_ARGS on
-            # the device.
-            bounds.append(_FATFS_SHORT_NAME_MAX * _MAX_RECURSION_DEPTH + 1)
+            # builds "/<name>" per level into one shared buffer), not a single filename. The walks
+            # descend to STORAGE_MAX_RECURSION_DEPTH and the callback appends a level's segment
+            # before the depth guard rejects the next one, so the deepest path a walk builds relative
+            # to its starting dir is _MAX_RECURSION_DEPTH + 1 segments of "/<short name>" plus the
+            # terminator. The starting dir is not added on top: it is already bounded by
+            # STORAGE_PATH_MAX, and append_path_segment returns 0 -- a clean INVALID_ARGS, not an
+            # overrun -- if base + walk ever exceeds the buffer, so this sizes for the common walk
+            # from a shallow base rather than reserving room for an arbitrarily deep one.
+            bounds.append(_FATFS_SHORT_NAME_MAX * (_MAX_RECURSION_DEPTH + 1) + 1)
             return max(bounds)
         lfn = opts.get("CONFIG_FATFS_MAX_LFN", _FATFS_MAX_LFN_DEFAULT)
         # A YAML sdkconfig_options entry arrives wrapped so it is written out verbatim; the
@@ -762,8 +766,23 @@ async def _build_write_action(
         arg_exprs = "".join(
             f", esphome::storage::printf_arg({x})" for x in config[CONF_ARGS]
         )
+        # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf:
+        # alloc_helpers.h and the ci-custom lint both point new code at snprintf + a stack buffer,
+        # and logger.log -- the model this copies -- does the same. Content longer than the buffer
+        # is truncated with a warning (matching logger.log's fixed-buffer behavior); formatted
+        # write lines are short in practice.
+        lambda_body = (
+            "char buf[256];\n"
+            f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
+            "if (n < 0)\n"
+            "  return std::string();\n"
+            "if ((size_t) n >= sizeof(buf))\n"
+            '  ESP_LOGW("storage.automation", "file_write: formatted content truncated to %u bytes",'
+            " (unsigned) (sizeof(buf) - 1));\n"
+            "return std::string(buf, (size_t) n < sizeof(buf) ? (size_t) n : sizeof(buf) - 1);"
+        )
         lambda_ = await cg.process_lambda(
-            core.Lambda(f"return str_sprintf({format_literal}{arg_exprs});"),
+            core.Lambda(lambda_body),
             args,
             return_type=cg.std_string,
         )
