@@ -5,6 +5,7 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 10"
     report: "default"
+    use_device_type: false
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
@@ -26,3 +27,6 @@ zigbee:
   on_join:
     then:
       - logger.log: "Joined network"
+  on_start:
+    then:
+      - logger.log: "Started zigbee stack"
