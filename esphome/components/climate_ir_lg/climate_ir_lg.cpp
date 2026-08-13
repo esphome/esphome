@@ -276,8 +276,9 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
                 this->mode == climate::CLIMATE_MODE_HEAT ? this->maximum_temperature_ : this->minimum_temperature_;
             this->fan_mode = climate::CLIMATE_FAN_HIGH;
             // When enabling PO(WER) also known as JET mode, swing is set to VERT_3, but after 30 mins it will switch
-            // back to what it was before So let's just not change it here it at all
-            break;
+            // back to what it was before, so let's just not change it here it at all
+            this->publish_state();
+            return true;
           default:
             ESP_LOGD(TAG, "Got jet command, but current mode does not support it! Ignoring.");
             return false;
@@ -292,8 +293,6 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
       this->publish_state();
       return true;
-      break;
-
     // Following commands also contain fan speed and temperature, so no 'return' in these cases
     case COMMAND_DRY:
     case COMMAND_ON_DRY:
