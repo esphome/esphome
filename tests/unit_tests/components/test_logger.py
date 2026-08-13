@@ -13,6 +13,9 @@ def test_uart_selection_tables_exposed_for_external_tooling() -> None:
 
     assert "UART_SELECTION_ESP32" in dir(logger)
     assert "UART_SELECTION_LIBRETINY" in dir(logger)
+    # dir() must not import the platform packages; only table access may
+    assert "esphome.components.esp32" not in sys.modules
+    assert "esphome.components.libretiny" not in sys.modules
     assert logger.UART_SELECTION_ESP32["ESP32C3"] == [
         "UART0",
         "UART1",
