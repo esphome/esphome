@@ -3,36 +3,6 @@ import re
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
-from esphome.components.esp32 import (
-    VARIANT_ESP32,
-    VARIANT_ESP32C2,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32C5,
-    VARIANT_ESP32C6,
-    VARIANT_ESP32C61,
-    VARIANT_ESP32H2,
-    VARIANT_ESP32H4,
-    VARIANT_ESP32H21,
-    VARIANT_ESP32P4,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-    VARIANT_ESP32S31,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-    require_usb_serial_jtag_secondary,
-    require_vfs_termios,
-)
-from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
-from esphome.components.libretiny.const import (
-    COMPONENT_BK72XX,
-    COMPONENT_LN882X,
-    COMPONENT_RTL87XX,
-)
-from esphome.components.zephyr import (
-    zephyr_add_cdc_acm,
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -108,29 +78,7 @@ CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 CONF_WAIT_FOR_CDC = "wait_for_cdc"
 CONF_EARLY_MESSAGE = "early_message"
 
-UART_SELECTION_ESP32 = {
-    VARIANT_ESP32: [UART0, UART1, UART2],
-    VARIANT_ESP32C2: [UART0, UART1],
-    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
-    VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-}
-
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
-
-UART_SELECTION_LIBRETINY = {
-    COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
-    COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
-    COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
-}
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -166,20 +114,67 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
+        from esphome.components.esp32 import (
+            VARIANT_ESP32,
+            VARIANT_ESP32C2,
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32H21,
+            VARIANT_ESP32P4,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32S31,
+            get_esp32_variant,
+        )
+
+        uart_selection_esp32 = {
+            VARIANT_ESP32: [UART0, UART1, UART2],
+            VARIANT_ESP32C2: [UART0, UART1],
+            VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
+            VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+            VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+            VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+        }
         variant = get_esp32_variant()
-        if variant in UART_SELECTION_ESP32:
-            return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
+        if variant in uart_selection_esp32:
+            return cv.one_of(*uart_selection_esp32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     if CORE.is_rp2:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
+        from esphome.components.libretiny import (
+            get_libretiny_component,
+            get_libretiny_family,
+        )
+        from esphome.components.libretiny.const import (
+            COMPONENT_BK72XX,
+            COMPONENT_LN882X,
+            COMPONENT_RTL87XX,
+        )
+
+        uart_selection_libretiny = {
+            COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+            COMPONENT_LN882X: [DEFAULT, UART0, UART1, UART2],
+            COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+        }
         family = get_libretiny_family()
-        if family in UART_SELECTION_LIBRETINY:
-            return cv.one_of(*UART_SELECTION_LIBRETINY[family], upper=True)(value)
+        if family in uart_selection_libretiny:
+            return cv.one_of(*uart_selection_libretiny[family], upper=True)(value)
         component = get_libretiny_component()
-        if component in UART_SELECTION_LIBRETINY:
-            return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
+        if component in uart_selection_libretiny:
+            return cv.one_of(*uart_selection_libretiny[component], upper=True)(value)
     if CORE.is_host:
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
@@ -384,6 +379,8 @@ async def _late_logger_init(config: ConfigType) -> None:
     level = config[CONF_LEVEL]
     baud_rate: int = config[CONF_BAUD_RATE]
     if CORE.using_zephyr:
+        from esphome.components.zephyr import zephyr_add_prj_conf
+
         task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
         if task_log_buffer_size > 0:
             zephyr_add_prj_conf("MPSC_PBUF", True)
@@ -451,6 +448,8 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
     if CORE.is_esp32:
+        from esphome.components.esp32 import add_idf_sdkconfig_option
+
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
@@ -468,6 +467,11 @@ async def _late_logger_init(config: ConfigType) -> None:
             and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG
             and has_serial_logging
         ):
+            from esphome.components.esp32 import (
+                require_usb_serial_jtag_secondary,
+                require_vfs_termios,
+            )
+
             require_usb_serial_jtag_secondary()
             require_vfs_termios()
     except cv.Invalid:
@@ -484,6 +488,12 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.is_nrf52:
+        from esphome.components.zephyr import (
+            zephyr_add_cdc_acm,
+            zephyr_add_overlay,
+            zephyr_add_prj_conf,
+        )
+
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
