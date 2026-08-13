@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     if CORE.is_esp8266 and CONF_RESETS_REQUIRED in config:
         fconfig = full_config.get()
         if not fconfig.get_config_for_path([KEY_ESP8266, CONF_RESTORE_FROM_FLASH]):

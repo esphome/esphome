@@ -73,7 +73,7 @@ def validate_enum(
         _units = [str(x) for x in _units]
     enum_bound = cv.enum(enum_values, int=int)
 
-    def validate_enum_bound(value: str) -> Any:
+    def validate_enum_bound(value: Any) -> Any:
         value = cv.string(value)
         for unit in _units:
             if value.endswith(unit):
