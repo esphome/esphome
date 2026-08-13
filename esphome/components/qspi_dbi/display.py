@@ -51,7 +51,7 @@ DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 DELAY_FLAG = 0xFF
 
 
-def validate_dimension(value: int) -> int:
+def validate_dimension(value: Any) -> int:
     value = cv.positive_int(value)
     if value % 2 != 0:
         raise cv.Invalid("Width/height/offset must be divisible by 2")
@@ -83,7 +83,7 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
-def power_of_two(value: int) -> int:
+def power_of_two(value: Any) -> int:
     value = cv.int_range(1, 128)(value)
     if value & (value - 1) != 0:
         raise cv.Invalid("value must be a power of two")

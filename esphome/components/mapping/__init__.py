@@ -34,7 +34,10 @@ class IndexType:
     """
 
     def __init__(
-        self, validator: Callable, data_type: MockObj, conversion: Callable = None
+        self,
+        validator: Callable,
+        data_type: MockObj,
+        conversion: Callable | None = None,
     ) -> None:
         self.validator = validator
         self.data_type = data_type
@@ -62,7 +65,7 @@ class MappingMetaData:
         self.to_ = to_
 
 
-def to_schema(value: str) -> str:
+def to_schema(value: Any) -> str:
     """
     Generate a schema for the 'to' field of a map. This can be either one of the index types or a class name.
     :param value:

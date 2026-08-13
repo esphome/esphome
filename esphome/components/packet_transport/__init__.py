@@ -58,7 +58,7 @@ def sensor_validation(cls: MockObjClass) -> Callable[[Any], Any]:
     )
 
 
-def provider_name_validate(value: str) -> str:
+def provider_name_validate(value: Any) -> str:
     value = cv.valid_name(value)
     if "_" in value:
         _LOGGER.warning(
