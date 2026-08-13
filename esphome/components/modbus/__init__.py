@@ -8,8 +8,10 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +86,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(modbus_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -112,7 +114,9 @@ def _validate_server_address(value: Any) -> int:
     return address
 
 
-def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
+def modbus_device_schema(
+    default_address: int | None, role: Literal["client", "server"] = "client"
+) -> cv.Schema:
     hub_type = ModbusClient if role == "client" else ModbusServer
     address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
@@ -127,14 +131,14 @@ def modbus_device_schema(default_address, role: Literal["client", "server"] = "c
 
 def final_validate_modbus_device(
     name: str, *, role: Literal["server", "client"] | None = None
-):
-    def validate_role(value):
+) -> cv.Schema:
+    def validate_role(value: str) -> str:
         assert role in MODBUS_ROLES
         if value != role:
             raise cv.Invalid(f"Component {name} requires role to be {role}")
         return value
 
-    def validate_hub(hub_config):
+    def validate_hub(hub_config: ConfigType) -> ConfigType:
         hub_schema = {}
         if role is not None:
             hub_schema[cv.Required(CONF_ROLE)] = validate_role
@@ -147,19 +151,19 @@ def final_validate_modbus_device(
     )
 
 
-async def register_modbus_client_device(var, config):
+async def register_modbus_client_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
 
 
-async def register_modbus_server_device(var, config):
+async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
 
 
-async def register_modbus_device(var, config):
+async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
     # Remove before 2026.12.0
     _LOGGER.warning(
         "'register_modbus_device' is deprecated, use 'register_modbus_client_device' "

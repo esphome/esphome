@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_TARGET, DEVICE_CLASS_OCCUPANCY
+from esphome.types import ConfigType
 
 from . import LD6002BComponent
 from .const import AREA_COUNT, CONF_LD6002B_ID, MAX_TARGETS
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     if target_config := config.get(CONF_TARGET):

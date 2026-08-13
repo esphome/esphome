@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -16,6 +18,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -62,7 +67,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -86,7 +91,7 @@ HDC302X_HEATER_POWER_MAP = {
 }
 
 
-def heater_power_value(value):
+def heater_power_value(value: Any) -> cv.Lambda | int:
     """Accept enum names or raw uint16 values"""
     if isinstance(value, cv.Lambda):
         return value
@@ -119,7 +124,12 @@ HDC302X_HEATER_ON_ACTION_SCHEMA = maybe_simple_id(
     HDC302X_HEATER_ON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def hdc302x_heater_on_to_code(config, action_id, template_arg, args):
+async def hdc302x_heater_on_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_POWER], args, cg.uint16)
@@ -135,7 +145,12 @@ async def hdc302x_heater_on_to_code(config, action_id, template_arg, args):
     HDC302X_ACTION_SCHEMA,
     synchronous=True,
 )
-async def hdc302x_heater_off_to_code(config, action_id, template_arg, args):
+async def hdc302x_heater_off_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

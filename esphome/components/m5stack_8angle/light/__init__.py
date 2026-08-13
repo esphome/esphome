@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light
 import esphome.config_validation as cv
 from esphome.const import CONF_OUTPUT_ID
+from esphome.types import ConfigType
 
 from .. import CONF_M5STACK_8ANGLE_ID, M5Stack8AngleComponent, m5stack_8angle_ns
 
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_M5STACK_8ANGLE_ID])
     lights = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(lights, config)

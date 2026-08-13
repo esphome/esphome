@@ -1,10 +1,13 @@
 import re
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID
 from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 IS_PLATFORM_COMPONENT = True
@@ -18,7 +21,7 @@ CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 
 
-def validate_id(config):
+def validate_id(config: ConfigType) -> ConfigType:
     if CONF_CAN_ID in config:
         can_id = config[CONF_CAN_ID]
         id_ext = config[CONF_USE_EXTENDED_ID]
@@ -27,7 +30,7 @@ def validate_id(config):
     return config
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -71,7 +74,7 @@ CAN_SPEEDS = {
 }
 
 
-def get_rate(value):
+def get_rate(value: str) -> int:
     match = re.match(r"(\d+)(?:K(\d+)?)?BPS", value, re.IGNORECASE)
     if not match:
         raise ValueError(f"Invalid rate format: {value}")
@@ -103,7 +106,7 @@ CANBUS_SCHEMA = cv.Schema(
 CANBUS_SCHEMA.add_extra(validate_id)
 
 
-async def setup_canbus_core_(var, config):
+async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
@@ -134,7 +137,7 @@ async def setup_canbus_core_(var, config):
         )
 
 
-async def register_canbus(var, config):
+async def register_canbus(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
     await setup_canbus_core_(var, config)
@@ -157,7 +160,12 @@ async def register_canbus(var, config):
     ),
     synchronous=True,
 )
-async def canbus_action_to_code(config, action_id, template_arg, args):
+async def canbus_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_CANBUS_ID])
 
