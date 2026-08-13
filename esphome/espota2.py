@@ -580,6 +580,18 @@ def run_ota_impl_(
         _LOGGER.error("No addresses to connect to for %s", remote_host)
         return 1, None
 
+    # The same device often resolves through several names (mDNS name,
+    # use_address, MQTT discovery), so drop duplicate endpoints; they add no
+    # new path to the device but would inflate the attempt budget below.
+    seen_endpoints: set[tuple[int, tuple]] = set()
+    unique_res = []
+    for r in res:
+        endpoint = (r[0], r[4])
+        if endpoint not in seen_endpoints:
+            seen_endpoints.add(endpoint)
+            unique_res.append(r)
+    res = unique_res
+
     # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
     # are shared across the addresses, cycling through them. Wait before an
     # attempt when the previous one actually reached the device, or when
