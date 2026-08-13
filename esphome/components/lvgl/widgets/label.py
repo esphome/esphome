@@ -1,5 +1,5 @@
-import esphome.config_validation as cv
 from esphome.components.const import CONF_LABEL
+import esphome.config_validation as cv
 from esphome.const import CONF_TEXT
 
 from ..defines import (
