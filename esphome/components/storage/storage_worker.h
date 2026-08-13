@@ -409,6 +409,10 @@ struct StreamRequest {
   // read_chunk/end_* call. Not used on the task path, which runs the step directly off the
   // shared queue.
   bool pending_step_{false};
+  // Set when either engine actually starts running this stream's queued step. The idle sweep skips a
+  // step still sitting in the worker-task queue so a long transfer ahead of it is not mistaken for a
+  // vanished client.
+  std::atomic<bool> step_started_{false};
 };
 
 // Tags a background-task queue entry so the single shared task can dispatch to either engine's
