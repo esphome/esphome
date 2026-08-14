@@ -33,7 +33,15 @@ from esphome.const import (
     KEY_VARIANT,
     Toolchain,
 )
-from esphome.core import CORE, ID, HexInt, Lambda, MACAddress, TimePeriodMilliseconds
+from esphome.core import (
+    CORE,
+    ID,
+    EsphomeError,
+    HexInt,
+    Lambda,
+    MACAddress,
+    TimePeriodMilliseconds,
+)
 from esphome.storage_json import StorageJSON
 from esphome.util import OrderedDict
 
@@ -480,6 +488,27 @@ def test_run_esphome_fallback_skips_cache_when_sidecar_write_fails(
 
     mock_save.assert_not_called()
     assert not (tmp_path / ".esphome" / "storage" / "lite_test.yaml.json").exists()
+
+
+def test_run_esphome_fallback_write_failure_takes_io_branch(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """StorageJSON.save raises EsphomeError (write_file wraps OSError into
+    it), which must land in the plain I/O warning, not the traceback
+    branch for structural bugs."""
+    yaml_path = _bare_yaml(tmp_path)
+
+    with (
+        _fallback_run(return_value=_storage_fixture(tmp_path)),
+        patch.object(StorageJSON, "save", side_effect=EsphomeError("boom")),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        caplog.at_level("WARNING", logger="esphome.compiled_config"),
+    ):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_save.assert_not_called()
+    assert "Could not refresh the storage sidecar" in caplog.text
+    assert "Unexpected error" not in caplog.text
 
 
 def test_run_esphome_fallback_leaves_unreadable_sidecar_alone(tmp_path: Path) -> None:

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from esphome.const import __version__ as ESPHOME_VERSION
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.helpers import write_file
 from esphome.storage_json import StorageJSON, ext_storage_path, storage_path
 from esphome.types import ConfigType
@@ -95,7 +95,11 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
                 # An unvalidated build tree: its absent or mismatched
                 # sidecar is what makes the next compile wipe it, so
                 # don't vouch for a build this run never saw.
-                _LOGGER.debug("Not caching: existing build tree has no valid sidecar")
+                _LOGGER.warning(
+                    "Not caching: build tree %s has no matching sidecar; "
+                    "'esphome compile' will settle it",
+                    CORE.build_path,
+                )
                 return
             new = StorageJSON.from_esphome_core(CORE, old)
             # Nothing was built here; don't claim this release's firmware.
@@ -107,9 +111,10 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
                 )
                 return
             new.save(path)
-    except OSError as err:
-        # Persistent (unwritable storage dir), so surface that every
-        # upload/logs pays the slow path.
+    except (OSError, EsphomeError) as err:
+        # write_file wraps OSError into EsphomeError. Persistent
+        # (unwritable storage dir), so surface that every upload/logs
+        # pays the slow path.
         _LOGGER.warning("Could not refresh the storage sidecar: %s", err)
         return
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
