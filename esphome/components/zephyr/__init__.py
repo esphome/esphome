@@ -1116,7 +1116,7 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
 
         config = _efr32mg24_config_schema(config)
     elif variant == ZEPHYR_VARIANT_STM32L4:
-        from .variants.stm32 import config_schema as _stm32_config_schema
+        from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
     else:
