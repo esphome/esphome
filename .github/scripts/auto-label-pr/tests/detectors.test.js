@@ -144,12 +144,13 @@ describe('detectMergeBranch', () => {
     assert.deepEqual(Array.from(labels).sort(), []);
   });
 
-  it('base ref other when the default branch is dev adds chained-pr', async () => {
+  it('base ref dev when the default branch is main adds chained-pr', async () => {
     const { github } = makeStackGithub({ stack: null });
-    const context = makeMergeContext('other', { defaultBranch: 'dev' });
+    const context = makeMergeContext('dev', { defaultBranch: 'main' });
     const labels = await detectMergeBranch(github, context);
     assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
   });
+
 });
 
 // ---------------------------------------------------------------------------
