@@ -2641,6 +2641,17 @@ def require_esphome_version(
     return validator
 
 
+# Remove before 2027.2.0
+def parse_esphome_version() -> tuple[int, int, int]:
+    """Deprecated: use require_esphome_version instead."""
+    _LOGGER.warning(
+        "cv.parse_esphome_version() is deprecated, use "
+        "cv.require_esphome_version instead. Removed in 2027.2.0"
+    )
+    version = Version.parse(ESPHOME_VERSION)
+    return version.major, version.minor, version.patch
+
+
 @contextmanager
 def suppress_invalid():
     with suppress(vol.Invalid):
