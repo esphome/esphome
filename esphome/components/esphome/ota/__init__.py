@@ -164,6 +164,7 @@ CONFIG_SCHEMA = cv.All(
                 # image-1/storage only) -- the generic zephyr="scratch" default above
                 # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
                 zephyr_efr32mg24="move",
+                zephyr_stm32l4="offset",
             ): cv.one_of("scratch", "move", "offset", lower=True),
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
