@@ -396,8 +396,10 @@ def parse_esphome_version() -> tuple[int, int, int]:
     from esphome.core import Version
 
     _LOGGER.warning(
-        "parse_esphome_version() is deprecated, use "
-        "cv.require_esphome_version instead. Removed in 2027.2.0"
+        "parse_esphome_version() is deprecated. Use "
+        "cv.require_esphome_version to gate on a minimum version, or "
+        "Version.parse(const.__version__) from esphome.core to inspect "
+        "the current version. Removed in 2027.2.0"
     )
     version = Version.parse(const.__version__)
     return version.major, version.minor, version.patch
