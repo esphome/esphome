@@ -475,13 +475,12 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
         )
 
     files = entry[CONF_FILES]
-    # Checked in this order so an empty list gets the more specific "must not
-    # be empty" message rather than the generic "must be a list" one -- an
-    # empty list *is* a list, just not a useful one here.
-    if not files:
+    if files is None:
         raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
     if not isinstance(files, list):
         raise cv.Invalid(f"'{CONF_FILES}' must be a list", path=[index])
+    if not files:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
 
     defaults = entry.get(CONF_DEFAULTS, {})
     if defaults is None:
