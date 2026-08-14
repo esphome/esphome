@@ -619,7 +619,16 @@ class LoadValidationStep(ConfigValidationStep):
             # Permanent (non-deprecated) expansion hook: lets a platform-tagged
             # entry expand into several entries (e.g. `image`'s `defaults:`/
             # `files:` shape) before per-entry CONFIG_SCHEMA/ID registration runs.
-            if (expand := component.expand_platform_config) is not None:
+            # Only invoked when every entry already matches the documented
+            # contract (a `platform:`-tagged dict) -- malformed user entries
+            # (e.g. a bare string) or an untouched `AutoLoad` are left alone so
+            # the normal per-entry error handling below reports them instead
+            # of reaching a component's EXPAND_PLATFORM_CONFIG with something
+            # it wasn't written to expect.
+            if (expand := component.expand_platform_config) is not None and all(
+                isinstance(entry, dict) and CONF_PLATFORM in entry
+                for entry in self.conf
+            ):
                 with result.catch_error(path):
                     expanded = expand(self.conf)
                     if not isinstance(expanded, list):

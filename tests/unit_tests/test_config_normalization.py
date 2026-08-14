@@ -237,6 +237,54 @@ def test_expand_hook_runs_after_legacy_migrate() -> None:
     expand.assert_called_once_with(migrated)
 
 
+def test_expand_hook_skipped_for_non_dict_entry() -> None:
+    """A malformed entry (e.g. a bare string) is left alone -- the hook is not
+    invoked, so a component can assume every entry it receives is a
+    `platform:` tagged dict without checking for it itself."""
+    expand = Mock(side_effect=lambda conf: conf)
+
+    result = _run_load_step("image", ["not-a-dict"], None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == ["not-a-dict"]
+
+
+def test_expand_hook_skipped_for_entry_missing_platform_key() -> None:
+    """A dict entry missing the `platform:` key is left alone -- the normal
+    per-entry error reporting further down catches this case instead."""
+    expand = Mock(side_effect=lambda conf: conf)
+
+    result = _run_load_step("image", [{"id": "a"}], None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == [{"id": "a"}]
+
+
+def test_expand_hook_skipped_for_autoload() -> None:
+    """A non-empty AutoLoad reaching the hook stage (e.g. because
+    legacy_config_migrate declined to touch it) is left alone rather than
+    handed to a component's EXPAND_PLATFORM_CONFIG."""
+    expand = Mock(side_effect=lambda conf: conf)
+    auto = AutoLoad()
+    auto["id"] = "a"
+
+    result = _run_load_step("image", auto, None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == [auto]
+
+
+def test_expand_hook_runs_when_all_entries_are_platform_tagged_dicts() -> None:
+    """The guard does not block the normal, well-formed case."""
+    expand = Mock(side_effect=lambda conf: conf)
+    conf = [{"platform": "file", "id": "a"}, {"platform": "animation", "id": "b"}]
+
+    result = _run_load_step("image", conf, None, expand)
+
+    expand.assert_called_once_with(conf)
+    assert result["image"] == conf
+
+
 def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
     """A `cv.Invalid` raised by the hook is reported once, via the except clauses
     in LoadValidationStep.run (not swallowed, not duplicated), with the domain

@@ -162,6 +162,12 @@ class ComponentManifest:
         `platform:` tagged dicts -- possibly with more or fewer entries than it was
         given (e.g. `image`'s `defaults:`/`files:` expands one entry into several).
 
+        The caller only invokes this hook when every entry in the list is already a
+        `dict` containing a `platform` key -- a malformed entry (e.g. a bare string,
+        or a dict missing `platform:`) skips the hook entirely and falls through to
+        the normal per-entry error reporting instead. Implementations can therefore
+        assume every entry they receive matches this shape without checking for it.
+
         Contract:
         - Do only structural dict manipulation here; leave semantic validation (e.g.
           "is this key valid for this platform") to the platform's own CONFIG_SCHEMA,
