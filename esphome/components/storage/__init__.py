@@ -103,13 +103,12 @@ def _collect_mount_paths(
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH:
-                # A validated mount_path is always a str; a non-str here means a driver schema let
-                # one through, which would silently skip the duplicate-mount-point check.
-                if not isinstance(value, str):
-                    raise cv.Invalid(
-                        f"mount_path must be a string, not {type(value).__name__}"
-                    )
+            if key == CONF_MOUNT_PATH and isinstance(value, str):
+                # Only a string is a storage mount point. validate_mount_path() (cv.string_strict)
+                # guarantees a real driver's mount_path is a str, so a non-str mount_path key belongs
+                # to some other component's schema -- not ours to reject or reserve. Fall through to
+                # the recursion for it rather than raising; this sweep runs over every domain in the
+                # full config and must not police a foreign 'mount_path'.
                 out.append((value, where))
             else:
                 _collect_mount_paths(value, where, out)
@@ -322,11 +321,15 @@ def _resolve_path_max(config: ConfigType) -> int:
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() in ("y", "true", "1"):
             # 8.3 names only: STORAGE_PATH_MAX bounds the whole relative path (append_path_segment
-            # builds "/<name>" per level into one shared buffer), not a single filename. Size it for
-            # the deepest tree the walks descend -- _MAX_RECURSION_DEPTH segments of "/<short name>"
-            # plus the terminator -- so ordinary nested paths are not rejected with INVALID_ARGS on
-            # the device.
-            bounds.append(_FATFS_SHORT_NAME_MAX * _MAX_RECURSION_DEPTH + 1)
+            # builds "/<name>" per level into one shared buffer), not a single filename. The walks
+            # descend to STORAGE_MAX_RECURSION_DEPTH and the callback appends a level's segment
+            # before the depth guard rejects the next one, so the deepest path a walk builds relative
+            # to its starting dir is _MAX_RECURSION_DEPTH + 1 segments of "/<short name>" plus the
+            # terminator. The starting dir is not added on top: it is already bounded by
+            # STORAGE_PATH_MAX, and append_path_segment returns 0 -- a clean INVALID_ARGS, not an
+            # overrun -- if base + walk ever exceeds the buffer, so this sizes for the common walk
+            # from a shallow base rather than reserving room for an arbitrarily deep one.
+            bounds.append(_FATFS_SHORT_NAME_MAX * (_MAX_RECURSION_DEPTH + 1) + 1)
             return max(bounds)
         lfn = opts.get("CONFIG_FATFS_MAX_LFN", _FATFS_MAX_LFN_DEFAULT)
         # A YAML sdkconfig_options entry arrives wrapped so it is written out verbatim; the
