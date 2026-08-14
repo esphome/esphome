@@ -20,7 +20,7 @@ from typing import Any
 from esphome.const import __version__ as ESPHOME_VERSION
 from esphome.core import CORE, Lambda
 from esphome.helpers import write_file
-from esphome.storage_json import StorageJSON, ext_storage_path
+from esphome.storage_json import StorageJSON, ext_storage_path, storage_path
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,6 +68,24 @@ def save_compiled_config(config: ConfigType) -> None:
         _LOGGER.debug("Skipping compiled config cache write: %s", err)
 
 
+def save_compiled_config_and_sidecar(config: ConfigType) -> None:
+    """Refresh the cache from the upload/logs fallback (CORE.config must be set).
+
+    Writes the StorageJSON sidecar first when missing or wizard-only; a
+    failed sidecar write is non-fatal and skips the cache save, since the
+    cache could never be loaded back and only holds resolved secrets.
+    """
+    try:
+        path = storage_path()
+        old = StorageJSON.load(path)
+        if old is None or not _sidecar_is_complete(old):
+            StorageJSON.from_esphome_core(CORE, old).save(path)
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        _LOGGER.debug("Skipping storage sidecar write: %s", err)
+        return
+    save_compiled_config(config)
+
+
 def load_compiled_config(conf_path: Path) -> ConfigType | None:
     """Load the cached validated config and apply storage metadata to CORE.
 
@@ -98,14 +116,19 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
         return None
 
     storage = StorageJSON.load(ext_storage_path(conf_path.name))
-    if storage is None:
-        return None
-    # apply_to_core assumes a real compile wrote the sidecar; wizard-only
-    # sidecars leave both of these unset and can't drive upload/logs.
-    if not storage.core_platform and not storage.target_platform:
+    if storage is None or not _sidecar_is_complete(storage):
         return None
     storage.apply_to_core()
     return config
+
+
+def _sidecar_is_complete(storage: StorageJSON) -> bool:
+    """True when a platform field is set, as apply_to_core assumes.
+
+    Sidecars written by old wizard versions leave both unset and
+    can't drive upload/logs.
+    """
+    return bool(storage.core_platform or storage.target_platform)
 
 
 # Remove before 2027.8: by then every maintained install has saved the

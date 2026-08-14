@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from ipaddress import IPv4Address, IPv4Network
 import json
 import os
@@ -32,6 +33,7 @@ from esphome.const import (
     Toolchain,
 )
 from esphome.core import CORE, ID, HexInt, Lambda, MACAddress, TimePeriodMilliseconds
+from esphome.storage_json import StorageJSON
 from esphome.util import OrderedDict
 
 _VALIDATED_CONFIG = {
@@ -54,7 +56,7 @@ def _cache_body(config: dict | None = None) -> str:
 def _write_storage(
     storage_path: Path,
     *,
-    esp_platform: str = "ESP32",
+    esp_platform: str | None = "ESP32",
     core_platform: str | None = "esp32",
 ) -> None:
     """Write a vanilla StorageJSON sidecar for the cache tests."""
@@ -359,31 +361,100 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     mock_read.assert_called_once()
 
 
-def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
-    tmp_path: Path,
-) -> None:
-    """Without a StorageJSON sidecar (no compile has run), the fallback
-    skips the cache write -- load_compiled_config requires the sidecar,
-    so writing the rendered (secret-resolved) config would be inert and
-    leak secrets to disk for nothing."""
+def _storage_fixture(tmp_path: Path) -> StorageJSON:
+    """A loaded StorageJSON instance matching _write_storage's contents."""
+    fixture = tmp_path / "fixture_storage.json"
+    _write_storage(fixture)
+    return StorageJSON.load(fixture)
+
+
+def _bare_yaml(tmp_path: Path) -> Path:
+    """A minimal YAML with CORE.config_path pointed at it."""
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
+    return yaml_path
 
+
+@contextmanager
+def _fallback_run(command: str = "upload", **from_core_kwargs) -> Any:
+    """Patch the fallback path's collaborators for a run_esphome call."""
     with (
         patch(
             "esphome.config.read_config",
             return_value={"esphome": {"name": "lite_test"}},
-        ),
-        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        ) as mock_read,
+        patch.object(
+            StorageJSON, "from_esphome_core", **from_core_kwargs
+        ) as mock_from_core,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
-            {"upload": lambda args, config: 0},
+            {command: lambda args, config: 0},
         ),
     ):
-        run_esphome(["esphome", "upload", str(yaml_path)])
+        yield mock_read, mock_from_core
+
+
+@pytest.mark.parametrize("command", ["upload", "logs"])
+def test_run_esphome_fallback_writes_sidecar_and_cache_without_sidecar(
+    tmp_path: Path, command: str
+) -> None:
+    """A never-compiled config caches on its first upload/logs run: the
+    fallback writes the StorageJSON sidecar itself (load_compiled_config
+    needs it), so the second run hits the fast path."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+
+    with _fallback_run(command, return_value=_storage_fixture(tmp_path)) as (
+        mock_read,
+        mock_from_core,
+    ):
+        assert run_esphome(["esphome", command, str(yaml_path)]) == 0
+        mock_from_core.assert_called_once()
+        assert (storage_dir / "lite_test.yaml.json").exists()
+        assert (storage_dir / "lite_test.yaml.validated.json").exists()
+
+        # The second run loads the cache instead of re-validating.
+        assert run_esphome(["esphome", command, str(yaml_path)]) == 0
+        mock_read.assert_called_once()
+
+
+def test_run_esphome_fallback_completes_wizard_sidecar(tmp_path: Path) -> None:
+    """A wizard-only sidecar can't drive the fast path; the fallback
+    rewrites it from CORE so the cache loads on the next run."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(
+        storage_dir / "lite_test.yaml.json", esp_platform=None, core_platform=None
+    )
+
+    with _fallback_run(return_value=_storage_fixture(tmp_path)) as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_called_once()
+    # The wizard sidecar was passed along as `old` and got replaced.
+    assert mock_from_core.call_args.args[1] is not None
+    storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
+    assert storage is not None and storage.core_platform == "esp32"
+    assert load_compiled_config(yaml_path) is not None
+
+
+def test_run_esphome_fallback_skips_cache_when_sidecar_write_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed sidecar write is non-fatal and skips the cache save too:
+    without the sidecar the cache could never be loaded back, so writing
+    it would only leave resolved secrets on disk."""
+    yaml_path = _bare_yaml(tmp_path)
+
+    with (
+        _fallback_run(side_effect=RuntimeError("boom")),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+    ):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
 
     mock_save.assert_not_called()
+    assert not (tmp_path / ".esphome" / "storage" / "lite_test.yaml.json").exists()
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
@@ -409,6 +480,7 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
         patch(
             "esphome.compiled_config.save_compiled_config", wraps=save_compiled_config
         ) as mock_save,
+        patch.object(StorageJSON, "from_esphome_core") as mock_from_core,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {command: lambda args, config: 0},
@@ -417,6 +489,8 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
         assert run_esphome(["esphome", command, str(yaml_path)]) == 0
 
     mock_save.assert_called_once_with(fresh_config)
+    # The compile-written sidecar is complete; the fallback leaves it alone.
+    mock_from_core.assert_not_called()
     # mtime is now newer than the source YAML, so a follow-up call hits
     # the fast path instead of repeating read_config.
     assert cache.stat().st_mtime >= yaml_path.stat().st_mtime

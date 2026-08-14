@@ -2732,7 +2732,8 @@ def run_esphome(argv):
                 conf_path.name,
             )
 
-    if config is None:
+    cache_missed = config is None
+    if cache_missed:
         from esphome.config import read_config
 
         config = read_config(
@@ -2741,19 +2742,15 @@ def run_esphome(argv):
             # Snapshot only needed by `esphome config --no-defaults`.
             snapshot_user_config=getattr(args, "no_defaults", False),
         )
-        # Refresh the cache so the next upload/logs hits the fast path
-        # instead of re-running read_config. Skip when the storage
-        # sidecar is absent (no compile has run): the cache would
-        # never be loaded back, so writing secrets to disk is wasted.
-        if cache_eligible and config is not None:
-            from esphome.compiled_config import save_compiled_config
-            from esphome.storage_json import ext_storage_path
-
-            if ext_storage_path(conf_path.name).exists():
-                save_compiled_config(config)
-    if config is None:
-        return 2
+        if config is None:
+            return 2
     CORE.config = config
+    # Refresh the cache so the next upload/logs hits the fast path
+    # instead of re-running read_config.
+    if cache_eligible and cache_missed:
+        from esphome.compiled_config import save_compiled_config_and_sidecar
+
+        save_compiled_config_and_sidecar(config)
 
     # Fallback for platforms whose validators didn't set the toolchain
     # (only the esp32 component reads esp32.framework.toolchain). All
