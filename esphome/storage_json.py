@@ -326,6 +326,13 @@ class StorageJSON:
         except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
+    @staticmethod
+    def load_strict(path: Path) -> StorageJSON | None:
+        """Like load, but None only means missing; an unreadable file raises."""
+        if not path.is_file():
+            return None
+        return StorageJSON._load_impl(path)
+
     def can_apply_to_core(self) -> bool:
         """True when the sidecar carries everything apply_to_core hands CORE.
 

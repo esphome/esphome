@@ -917,6 +917,65 @@ def test_storage_json_load_area(tmp_path: Path) -> None:
     assert legacy.area is None
 
 
+def test_from_esphome_core_without_claiming_a_build(setup_core: Path) -> None:
+    """claim_build=False carries the build artifact fields from the old
+    sidecar while validation-derived fields still stamp from CORE."""
+    mock_core = MagicMock()
+    mock_core.name = "my_device"
+    mock_core.friendly_name = "My Device"
+    mock_core.comment = None
+    mock_core.address = "my_device.local"
+    mock_core.web_port = None
+    mock_core.target_platform = "esp8266"
+    mock_core.is_esp32 = False
+    mock_core.is_nrf52 = False
+    mock_core.build_path = "/build/my_device"
+    mock_core.loaded_integrations = set()
+    mock_core.loaded_platforms = set()
+    mock_core.config = {}
+    mock_core.target_framework = "arduino"
+    mock_core.toolchain = Toolchain.PLATFORMIO
+    mock_core.area = None
+
+    old = storage_json.StorageJSON.from_wizard(
+        name="my_device",
+        friendly_name="My Device",
+        address="my_device.local",
+        platform="ESP8266",
+    )
+    old.esphome_version = "2025.1.0"
+    old.firmware_bin_path = Path("/old/firmware.bin")
+
+    result = storage_json.StorageJSON.from_esphome_core(
+        mock_core, old, claim_build=False
+    )
+
+    # Build artifact fields carry from the old sidecar, not this run.
+    assert result.esphome_version == "2025.1.0"
+    assert result.firmware_bin_path == Path("/old/firmware.bin")
+    # Validation-derived fields stamp from CORE.
+    assert result.build_path == "/build/my_device"
+    assert result.toolchain == "platformio"
+    assert result.core_platform == "esp8266"
+
+    # With no old sidecar, no build is claimed at all.
+    bare = storage_json.StorageJSON.from_esphome_core(
+        mock_core, None, claim_build=False
+    )
+    assert bare.esphome_version is None
+    assert bare.firmware_bin_path is None
+
+
+def test_load_strict_distinguishes_missing_from_unreadable(tmp_path: Path) -> None:
+    """load_strict returns None only for a missing file; corrupt raises."""
+    assert storage_json.StorageJSON.load_strict(tmp_path / "missing.json") is None
+
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("{truncated")
+    with pytest.raises(ValueError):
+        storage_json.StorageJSON.load_strict(corrupt)
+
+
 def test_as_dict_serializes_unset_paths_as_null(setup_core: Path) -> None:
     """Unset build/firmware paths serialize as JSON null, not str(None)."""
     storage = storage_json.StorageJSON.from_wizard(

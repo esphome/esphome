@@ -89,15 +89,14 @@ def _refresh_sidecar() -> bool:
     """
     try:
         path = storage_path()
-        old = StorageJSON.load(path)
-        if old is None and path.exists():
+        try:
+            old = StorageJSON.load_strict(path)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             # Present but unreadable: it may hold a real build's metadata,
             # and a fresh rewrite would also stop the next compile from
             # cleaning a possibly incoherent build tree.
             _LOGGER.warning(
-                "Not caching: storage sidecar %s is unreadable; "
-                "'esphome compile' will rewrite it",
-                path,
+                "Not caching: storage sidecar %s is unreadable (%s)", path, err
             )
             return False
         if old is not None and old.can_apply_to_core():
@@ -164,6 +163,7 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
 
     storage = StorageJSON.load(ext_storage_path(conf_path.name))
     if storage is None or not storage.can_apply_to_core():
+        _LOGGER.debug("Ignoring compiled config cache: sidecar missing or incomplete")
         return None
     storage.apply_to_core()
     return config
