@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_LOG_LEVEL,
     CONF_MAC_ADDRESS,
+    CONF_NAME,
     CONF_PASSWORD,
     CONF_PATH,
     CONF_REF,
@@ -46,6 +47,7 @@ from .const import (
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
+    CONF_MODULES,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
     CONF_SHIELD_SOURCE,
@@ -60,6 +62,8 @@ from .const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_FRAMEWORK_TYPE,
     KEY_KCONFIG,
+    KEY_MODULE_OVERRIDES,
+    KEY_MODULE_REQUESTS,
     KEY_OVERLAY,
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
@@ -87,7 +91,7 @@ from .const import (
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
-from .variants import VARIANTS, resolve_sdk
+from .variants import VARIANTS, ZephyrModule, ZephyrModuleTemplate, resolve_sdk
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -206,6 +210,14 @@ class ZephyrData(TypedDict):
     snippet_root: (
         Path | None
     )  # resolved zephyr: snippet_source: dir, or board_root, or None
+    # capability -> template, requested via request_zephyr_module(). Not yet resolved
+    # to a version -- a zephyr: modules: override (module_overrides) may still apply
+    # before final resolution in run_compile(), so resolving eagerly here could raise
+    # for a version gap the user's own override was going to fill.
+    module_requests: dict[str, ZephyrModuleTemplate]
+    # module name -> a full user-authored ZephyrModule (zephyr: modules: with source:),
+    # or a plain version string overriding a component-requested module's default.
+    module_overrides: dict[str, ZephyrModule | str]
 
 
 # platform: nrf52 use only
@@ -244,6 +256,8 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         shields=[],
         shield_root=None,
         snippet_root=None,
+        module_requests={},
+        module_overrides={},
     )
 
 
@@ -460,6 +474,76 @@ def zephyr_set_prj_conf_override(
     zephyr_data()[KEY_PRJ_CONF][image][name] = (value, True)
 
 
+def request_zephyr_module(capability: str) -> None:
+    """Component-facing: record that `capability` (e.g. "zigbee") is needed as an
+    additive west module. Not resolved to a concrete version here -- a user's
+    `zephyr: modules:` override may still apply, so failing on a missing default
+    version has to wait until resolve_zephyr_modules() (see there for why)."""
+    _, sdk = resolve_sdk(VARIANTS[zephyr_variant()], zephyr_framework_type())
+    template = sdk.modules.get(capability)
+    if template is None:
+        raise EsphomeError(
+            f"The '{capability}' module isn't available for "
+            f"framework: type: {zephyr_framework_type()}."
+        )
+    requests = zephyr_data()[KEY_MODULE_REQUESTS]
+    if (existing := requests.get(capability)) is not None and existing != template:
+        raise EsphomeError(
+            f"The '{capability}' module was already requested with a different source"
+        )
+    requests[capability] = template
+
+
+def zephyr_set_module_override(name: str, override: ZephyrModule | str) -> None:
+    """Unconditionally record a `zephyr: modules:` override, replacing anything a
+    component requested. `override` is a full ZephyrModule (source: given -- a
+    brand-new or replaced module) or a plain version string (version-only tweak of a
+    component-requested module). Always wins -- same precedent as
+    zephyr_set_prj_conf_override for kconfig_options:.
+    """
+    zephyr_data()[KEY_MODULE_OVERRIDES][name] = override
+
+
+def resolve_zephyr_modules() -> list[ZephyrModule]:
+    """Combine module_requests with any module_overrides into the final set of
+    modules to fetch. Called once, from run_compile() -- by then every component's
+    to_code() and the zephyr: modules: override job have both already run, so an
+    override is guaranteed visible before a request's version gets resolved."""
+    root_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    overrides = dict(zephyr_data()[KEY_MODULE_OVERRIDES])
+    resolved: dict[str, ZephyrModule] = {}
+    seen_templates: dict[str, ZephyrModuleTemplate] = {}
+    for capability, template in zephyr_data()[KEY_MODULE_REQUESTS].items():
+        if (
+            existing := seen_templates.get(template.name)
+        ) is not None and existing != template:
+            raise EsphomeError(
+                f"Two different module requests both resolve to '{template.name}' "
+                f"(most recently '{capability}') -- capabilities must map to "
+                "distinct modules"
+            )
+        seen_templates[template.name] = template
+        override = overrides.pop(template.name, None)
+        if isinstance(override, ZephyrModule):
+            resolved[template.name] = override
+        else:
+            resolved[template.name] = template.resolve(root_version, override)
+    for name, override in overrides.items():
+        if not isinstance(override, ZephyrModule):
+            hint = ""
+            if requested_names := sorted(t.name for t in seen_templates.values()):
+                hint = (
+                    " -- note this must be the module's own name, not a component's "
+                    f"capability name (currently requested: {', '.join(requested_names)})"
+                )
+            raise EsphomeError(
+                f"zephyr: modules: '{name}' has no source and wasn't requested by "
+                f"any component{hint}"
+            )
+        resolved[name] = override
+    return list(resolved.values())
+
+
 def zephyr_configure_net_contexts() -> None:
     """Size NET_MAX_CONTEXTS from real socket demand. Mirrors esp32's
     _configure_lwip_max_sockets()/LWIP_MAX_SOCKETS."""
@@ -556,15 +640,16 @@ def zephyr_to_code(config: ConfigType) -> None:
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
-    if zephyr_variant() is not None:
-        # platform: nrf52 has no user-facing `framework: type:` -- its internal
-        # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned
-        # into a C++ define here; all C++ code keys off USE_NRF52 instead.
-        # USE_ZEPHYR_FRAMEWORK_ZEPHYR not defined, no need in code so far.
-        if zephyr_framework_type() == "ncs":
-            cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
-        elif zephyr_framework_type() == "zigbee":
-            cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
+    # platform: nrf52 has no user-facing `framework: type:` -- its internal
+    # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned into
+    # a C++ define here; all C++ code keys off USE_NRF52 instead.
+    # USE_ZEPHYR_FRAMEWORK_ZEPHYR not defined, no need in code so far.
+    # USE_ZEPHYR_FRAMEWORK_ZIGBEE is set by zigbee_zephyr.py itself, alongside its
+    # request_zephyr_module("zigbee") call -- zephyr_to_code() here runs before
+    # zigbee:'s own to_code() in the normal dependency order, so the module request
+    # wouldn't be visible yet if it were decided here instead.
+    if zephyr_variant() is not None and zephyr_framework_type() == "ncs":
+        cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
     if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
         # native_sim: use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
         zephyr_add_prj_conf("EXTERNAL_LIBC", True)
@@ -716,8 +801,37 @@ def zephyr_to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
     CORE.add_job(_kconfig_options_to_code, config)
+    CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _modules_to_code(config: ConfigType) -> None:
+    # .get(): nrf52's config dict has no modules key.
+    #
+    # Runs at the lowest priority so every component has already requested its own
+    # modules -- a user-supplied zephyr: modules: entry must always win, and a
+    # version-only override needs every request already recorded to have something to
+    # attach to (final resolution happens later still, in resolve_zephyr_modules()).
+    for module_conf in config.get(CONF_MODULES, []):
+        name = module_conf[CONF_NAME]
+        source = module_conf.get(CONF_SOURCE)
+        if source is None:
+            zephyr_set_module_override(name, module_conf[CONF_VERSION])
+        elif source[CONF_TYPE] == TYPE_LOCAL:
+            # cv.LOCAL_SCHEMA's path: already went through cv.directory -- an
+            # already-resolved absolute Path, not a raw string to resolve again.
+            zephyr_set_module_override(
+                name, ZephyrModule(name=name, local_path=source[CONF_PATH])
+            )
+        else:
+            zephyr_set_module_override(
+                name,
+                ZephyrModule(
+                    name=name, manifest_url=source[CONF_URL], revision=source[CONF_REF]
+                ),
+            )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1056,6 +1170,35 @@ _SNIPPET_SOURCE_SCHEMA = cv.Any(
     ),
 )
 
+# A user-authored additive west module -- no username:/password:/refresh: (unlike
+# board_source:/shield_source:/snippet_source:, these are fetched via `west update`
+# as part of the generated manifest, not ESPHome's own git.clone_or_update cache).
+_MODULE_GIT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_URL): cv.url,
+        cv.Optional(CONF_REF, default="main"): cv.git_ref,
+    }
+)
+_MODULE_SOURCE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_GIT: _MODULE_GIT_SCHEMA,
+        TYPE_LOCAL: cv.LOCAL_SCHEMA,
+    }
+)
+# source: defines a brand-new (or replaced) module; version: alone is a version-only
+# tweak of a module a component already requested -- see resolve_zephyr_modules(). At
+# least one of the two is required, or the entry does nothing.
+_MODULE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_NAME): cv.string_strict,
+            cv.Optional(CONF_SOURCE): _MODULE_SOURCE_SCHEMA,
+            cv.Optional(CONF_VERSION): cv.string_strict,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_SOURCE, CONF_VERSION),
+)
+
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
 _ZEPHYR_SCHEMA = cv.Schema(
@@ -1119,6 +1262,10 @@ _ZEPHYR_SCHEMA = cv.Schema(
                 cv.Optional("mcuboot"): cv.string,
             }
         ),
+        # Additive west modules -- either a user's own out-of-tree module (source:),
+        # or a version-only override of a module a component already requested (e.g.
+        # zigbee:'s ncs-zigbee) -- see resolve_zephyr_modules().
+        cv.Optional(CONF_MODULES, default=[]): cv.ensure_list(_MODULE_SCHEMA),
     }
 )
 
@@ -1750,6 +1897,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+            modules=resolve_zephyr_modules(),
         )
         build_dir = CORE.relative_build_path(".west_build")
         if not run_west_flash_pyocd(python_bin, framework_path, west_env, build_dir):
@@ -1798,6 +1946,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+            modules=resolve_zephyr_modules(),
         )
 
         build_dir = CORE.relative_build_path(".west_build")
@@ -1830,6 +1979,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        modules=resolve_zephyr_modules(),
     )
     build_dir = CORE.relative_build_path(".west_build")
     # Disambiguate which attached probe to flash when the board's default
@@ -1861,6 +2011,12 @@ def run_compile(args, config: ConfigType) -> bool:
     variant_data = VARIANTS[variant]
     sdk_name, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    modules = resolve_zephyr_modules()
+    # A local_path module isn't a west project (west_install() only handles the
+    # git-sourced ones) -- it's an already-on-disk directory, wired in the same way a
+    # converted PlatformIO library is: EXTRA_ZEPHYR_MODULES, no west/manifest
+    # involvement at all.
+    extra_modules.extend(m.local_path for m in modules if m.local_path is not None)
     python_bin, framework_path, west_env = west_install(
         sdk,
         version,
@@ -1868,6 +2024,7 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        modules=modules,
     )
     if sdk_name == "silabs":
         from .commander_setup import check_and_install as commander_install
@@ -1885,6 +2042,18 @@ def run_compile(args, config: ConfigType) -> bool:
         module, allow_regex, sentinel_name = blob_spec
         run_west_blobs_fetch(
             python_bin, framework_path, west_env, module, allow_regex, sentinel_name
+        )
+    for zmodule in modules:
+        if zmodule.blobs is None:
+            continue
+        blob_module, allow_regex, sentinel_name = zmodule.blobs
+        run_west_blobs_fetch(
+            python_bin,
+            framework_path,
+            west_env,
+            blob_module,
+            allow_regex,
+            sentinel_name,
         )
     cmake_lists_changed = generate_cmake_lists(mode=variant)
     board = zephyr_data()[KEY_BOARD]

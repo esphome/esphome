@@ -6,6 +6,8 @@ import pytest
 
 from esphome.components.zephyr.const import VERSION_RECOMMENDED
 from esphome.components.zephyr.variants import (
+    ZephyrModule,
+    ZephyrModuleTemplate,
     ZephyrSDK,
     ZephyrVariant,
     resolve_framework_version,
@@ -19,6 +21,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VERSION,
 )
+from esphome.core import EsphomeError
 
 _DEFAULT_SDK = ZephyrSDK(
     manifest_url="http://dummy-default",
@@ -162,3 +165,79 @@ def test_resolve_framework_version_accepts_explicit_non_default_version(
     assert version_str == "1.2.0"
     assert parsed == cv.Version(1, 2, 0)
     assert "not the recommended one" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# ZephyrModuleTemplate.resolve
+# ---------------------------------------------------------------------------
+
+_MODULE_TEMPLATE = ZephyrModuleTemplate(
+    name="dummy-module",
+    manifest_url="http://dummy-module",
+    default_versions={(3, 4): "1.4.0"},
+)
+
+
+def test_module_template_resolve_uses_matching_default_version() -> None:
+    module = _MODULE_TEMPLATE.resolve(cv.Version(3, 4, 2))
+
+    assert module == ZephyrModule(
+        name="dummy-module", manifest_url="http://dummy-module", revision="v1.4.0"
+    )
+
+
+def test_module_template_resolve_ignores_root_patch_version() -> None:
+    # (major, minor) match only -- root_version's own patch (here .99) doesn't need a
+    # corresponding entry.
+    module = _MODULE_TEMPLATE.resolve(cv.Version(3, 4, 99))
+
+    assert module.revision == "v1.4.0"
+
+
+def test_module_template_resolve_explicit_version_wins_over_table() -> None:
+    module = _MODULE_TEMPLATE.resolve(cv.Version(3, 4, 0), explicit_version="9.9.9")
+
+    assert module.revision == "v9.9.9"
+
+
+def test_module_template_resolve_explicit_version_fills_table_gap() -> None:
+    # No (3, 9) entry -- would otherwise raise; an explicit version bypasses the
+    # table lookup entirely.
+    module = _MODULE_TEMPLATE.resolve(cv.Version(3, 9, 0), explicit_version="1.9.9")
+
+    assert module.revision == "v1.9.9"
+
+
+def test_module_template_resolve_raises_without_table_match_or_override() -> None:
+    with pytest.raises(EsphomeError, match="no known compatible version"):
+        _MODULE_TEMPLATE.resolve(cv.Version(3, 9, 0))
+
+
+_VERSIONED_MODULE_TEMPLATE = ZephyrModuleTemplate(
+    name="dummy-module",
+    manifest_url="http://dummy-module",
+    default_versions={(3, 4): "1.4.0"},
+    min_version=cv.Version(1, 4, 0),
+)
+
+
+def test_module_template_resolve_rejects_override_below_min_version() -> None:
+    with pytest.raises(EsphomeError, match="requires version >= 1.4.0"):
+        _VERSIONED_MODULE_TEMPLATE.resolve(
+            cv.Version(3, 4, 0), explicit_version="1.0.0"
+        )
+
+
+def test_module_template_resolve_accepts_override_at_min_version() -> None:
+    module = _VERSIONED_MODULE_TEMPLATE.resolve(
+        cv.Version(3, 4, 0), explicit_version="1.4.0"
+    )
+    assert module.revision == "v1.4.0"
+
+
+def test_module_template_resolve_ignores_min_version_for_non_semver_ref() -> None:
+    # A git branch/ref (e.g. "main") isn't a version at all -- nothing to compare.
+    module = _VERSIONED_MODULE_TEMPLATE.resolve(
+        cv.Version(3, 4, 0), explicit_version="main"
+    )
+    assert module.revision == "main"

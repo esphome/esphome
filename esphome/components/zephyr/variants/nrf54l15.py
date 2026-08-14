@@ -3,18 +3,15 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
-    CONF_TYPE,
     ThreadModel,
     Toolchain,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_NRF54L15
 from . import (
     MAINLINE,
     NCS,
-    NCS_ZIGBEE,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -36,7 +33,7 @@ VARIANT = ZephyrVariant(
     # this board's definition too) stays available as an alternate.
     sdk=NCS,
     sdk_name="ncs",
-    alt_sdks={"zephyr": MAINLINE, "zigbee": NCS_ZIGBEE},
+    alt_sdks={"zephyr": MAINLINE},
     family="nordic",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
@@ -62,9 +59,6 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    framework = config[CONF_FRAMEWORK]
-    if CONF_TYPE not in framework and "zigbee" in CORE.loaded_integrations:
-        framework[CONF_TYPE] = "zigbee"
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf54l15", config, "nRF54L15 support"
     )

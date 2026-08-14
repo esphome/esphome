@@ -17,6 +17,8 @@ KEY_BOARD: Final = "board"
 KEY_BOARD_ROOT: Final = "board_root"
 KEY_USER: Final = "user"
 KEY_FRAMEWORK_TYPE: Final = "framework_type"
+KEY_MODULE_REQUESTS: Final = "module_requests"
+KEY_MODULE_OVERRIDES: Final = "module_overrides"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
@@ -36,6 +38,7 @@ KEY_SHIELDS: Final = "shields"
 KEY_SHIELD_ROOT: Final = "shield_root"
 CONF_SNIPPET_SOURCE = "snippet_source"
 KEY_SNIPPET_ROOT: Final = "snippet_root"
+CONF_MODULES = "modules"
 
 # zephyr: version: "recommended" -- explicit alias for the variant's default_version,
 # same as omitting `version:` entirely.

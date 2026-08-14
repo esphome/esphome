@@ -6,6 +6,8 @@ import re
 import subprocess
 import time
 
+import yaml
+
 from esphome.const import CONF_PATH, CONF_REF, CONF_TYPE, CONF_URL, TYPE_LOCAL
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.framework_helpers import (
@@ -16,7 +18,7 @@ from esphome.framework_helpers import (
 )
 from esphome.types import ConfigType
 
-from .variants import ZephyrSDK
+from .variants import ZephyrModule, ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,19 +40,35 @@ def _framework_path(cache_key: str) -> Path:
     return _tools_path() / "frameworks" / cache_key
 
 
-def _source_cache_key(ver_tag: str, source: ConfigType | None) -> str:
+def _source_cache_key(
+    ver_tag: str,
+    source: ConfigType | None,
+    git_modules: list[ZephyrModule] | None = None,
+) -> str:
     """Distinguish a custom zephyr: sdk_source: from the official ver_tag-keyed cache dir,
-    and from other sdk_source configs sharing the same version: value."""
+    and from other sdk_source configs sharing the same version: value. A non-empty
+    git_modules set also gets its own cache dir -- a different active module *set*
+    changes what the generated manifest fetches, so it can't share a workspace with a
+    no-module build or a different combination."""
     if source is None:
-        return ver_tag
-    if source[CONF_TYPE] == TYPE_LOCAL:
+        key = ver_tag
+    elif source[CONF_TYPE] == TYPE_LOCAL:
         path_hash = hashlib.sha1(str(source[CONF_PATH]).encode()).hexdigest()[:8]
-        return f"{ver_tag}-local-{path_hash}"
-    # TYPE_GIT
-    ref = source.get(CONF_REF) or "HEAD"
-    safe_ref = re.sub(r"[^A-Za-z0-9_.-]", "_", ref)
-    url_hash = hashlib.sha1(source[CONF_URL].encode()).hexdigest()[:8]
-    return f"{ver_tag}-{safe_ref}-{url_hash}"
+        key = f"{ver_tag}-local-{path_hash}"
+    else:
+        # TYPE_GIT
+        ref = source.get(CONF_REF) or "HEAD"
+        safe_ref = re.sub(r"[^A-Za-z0-9_.-]", "_", ref)
+        url_hash = hashlib.sha1(source[CONF_URL].encode()).hexdigest()[:8]
+        key = f"{ver_tag}-{safe_ref}-{url_hash}"
+    if not git_modules:
+        return key
+    modules_id = "|".join(
+        f"{m.name}@{m.manifest_url}@{m.revision}"
+        for m in sorted(git_modules, key=lambda m: m.name)
+    )
+    modules_hash = hashlib.sha1(modules_id.encode()).hexdigest()[:8]
+    return f"{key}-mod-{modules_hash}"
 
 
 def _requirements_path() -> Path:
@@ -97,6 +115,83 @@ def _refresh_manifest_repo(zephyr_dir: Path, ref: str | None, label: str) -> Non
         raise EsphomeError(f"Can't update Zephyr manifest repository ({label})")
 
 
+def _generate_synthetic_manifest(
+    framework: Path,
+    manifest_url: str,
+    manifest_rev: str | None,
+    git_modules: list[ZephyrModule],
+    west_project_name: str | None = None,
+) -> Path:
+    """Compose a local west manifest that imports the root SDK and every active
+    git-sourced module as sibling projects, instead of rooting the workspace at the
+    SDK's own repo directly. Needed once more than one thing has to be fetched
+    together -- `west init -m` only supports a single top-level manifest repo.
+    Verified against real sdk-nrf/ncs-zigbee manifests: both resolve the shared
+    `zephyr` project to a single revision with no conflict, since it's only imported
+    once (via whichever project lists it first).
+
+    west_project_name overrides the root project's west name (see
+    ZephyrSDK.west_project_name) -- required for NCS, whose own sysbuild/Kconfig
+    scripts hardcode "nrf" as the project name and break if it's named anything else
+    (e.g. the URL-basename default, "sdk-nrf").
+    """
+    manifest_dir = framework / "esphome-manifest"
+    root_name = west_project_name or manifest_url.rstrip("/").rsplit("/", 1)[-1]
+    root_project = {"name": root_name, "url": manifest_url, "import": True}
+    # A ref-less `sdk_source: {type: git}` means "track the source's default branch"
+    # -- omitting revision: here matches that, same as the plain `west init -m`
+    # path's `if manifest_rev: cmd += ["--mr", manifest_rev]`. Writing `revision:
+    # null` instead would hand west an explicit null the manifest schema doesn't
+    # expect.
+    if manifest_rev:
+        root_project["revision"] = manifest_rev
+    projects = [root_project]
+    projects.extend(
+        {
+            "name": module.name,
+            "url": module.manifest_url,
+            "revision": module.revision,
+            "import": True,
+        }
+        for module in git_modules
+    )
+    manifest_yaml = yaml.safe_dump(
+        {"manifest": {"projects": projects, "self": {"path": "esphome-manifest"}}},
+        sort_keys=False,
+    )
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / "west.yml").write_text(manifest_yaml)
+
+    # `west init -l` treats the given directory as a manifest repository -- its own
+    # git working tree, not just a plain directory of files.
+    if not (manifest_dir / ".git").is_dir() and not run_command_ok(
+        ["git", "init", "-q"], cwd=str(manifest_dir)
+    ):
+        raise EsphomeError("Can't initialize the generated Zephyr manifest repository")
+    if not run_command_ok(["git", "add", "west.yml"], cwd=str(manifest_dir)):
+        raise EsphomeError("Can't stage the generated Zephyr manifest")
+    # -c user.*: this commit is purely internal (never pushed, never read by a human),
+    # so it shouldn't depend on -- or touch -- the user's own global git identity.
+    # --allow-empty: a re-generation with unchanged content is a no-op commit, not an
+    # error.
+    run_command_ok(
+        [
+            "git",
+            "-c",
+            "user.name=ESPHome",
+            "-c",
+            "user.email=esphome@esphome.io",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "esphome-generated Zephyr manifest",
+        ],
+        cwd=str(manifest_dir),
+    )
+    return manifest_dir
+
+
 def check_and_install(
     sdk: ZephyrSDK,
     version: str,
@@ -104,8 +199,16 @@ def check_and_install(
     ninja_version: str | None = None,
     source: ConfigType | None = None,
     refresh: TimePeriodSeconds | None = None,
+    modules: list[ZephyrModule] | None = None,
 ) -> tuple[Path, Path, dict[str, str]]:
     """Install west and Zephyr SDK.
+
+    modules (resolve_zephyr_modules()'s result): additive west modules to fetch
+    alongside the SDK, each as its own sibling project in a generated manifest --
+    see _generate_synthetic_manifest(). A module with local_path set (zephyr:
+    modules: type: local) isn't a west project at all -- the caller wires it into the
+    build directly via EXTRA_ZEPHYR_MODULES instead, same as a converted PlatformIO
+    library.
 
     west_version/ninja_version override requirements_west.txt's pinned versions
     (CONF_WEST_VERSION/CONF_NINJA_VERSION). source, if given (zephyr: sdk_source:), overrides
@@ -135,8 +238,16 @@ def check_and_install(
     python_env = _python_env_path(ver_tag)
     python_bin = get_python_env_executable_path(python_env, "python")
 
+    git_modules = [m for m in (modules or []) if m.manifest_url is not None]
+
     is_local = source is not None and source[CONF_TYPE] == TYPE_LOCAL
     if is_local:
+        if git_modules:
+            raise EsphomeError(
+                "zephyr: modules: can't be combined with sdk_source: local: -- "
+                "local: points at your own checkout, which ESPHome can't safely "
+                "graft additional projects onto."
+            )
         local_path = source[
             CONF_PATH
         ]  # already a resolved Path -- cv.directory's return type
@@ -149,7 +260,7 @@ def check_and_install(
         framework = local_path.parent
         zephyr_dir = local_path
     else:
-        framework = _framework_path(_source_cache_key(ver_tag, source))
+        framework = _framework_path(_source_cache_key(ver_tag, source, git_modules))
         zephyr_dir = framework / "zephyr"
 
     west_env = {
@@ -229,6 +340,28 @@ def check_and_install(
                     raise EsphomeError(
                         f"Can't initialize Zephyr SDK workspace ({label})"
                     )
+        elif git_modules:
+            module_names = ", ".join(m.name for m in git_modules)
+            _LOGGER.info(
+                "Initializing Zephyr SDK %s with modules (%s, %s) ...",
+                ver_tag,
+                label,
+                module_names,
+            )
+            rmdir(framework, msg=f"Clean up {ver_tag} framework")
+            manifest_dir = _generate_synthetic_manifest(
+                framework,
+                manifest_url,
+                manifest_rev,
+                git_modules,
+                west_project_name=sdk.west_project_name,
+            )
+            cmd = [str(python_bin), "-m", "west", "init", "-l", manifest_dir.name]
+            if not run_command_ok(cmd, cwd=str(framework)):
+                raise EsphomeError(
+                    f"Can't initialize Zephyr SDK {ver_tag} with modules "
+                    f"({module_names}) ({label})"
+                )
         else:
             _LOGGER.info("Initializing Zephyr SDK %s (%s) ...", ver_tag, label)
             rmdir(framework, msg=f"Clean up {ver_tag} framework")
