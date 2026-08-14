@@ -183,6 +183,46 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_13_3_IN_K,
 };
 
+// NOTE: this panel's BUSY line idles HIGH and is LOW while busy -- the opposite of the newer
+// SSD1681-based "V2" panels that WaveshareEPaperBase::wait_until_idle_() was written against.
+// Configure busy_pin with `inverted: true` in YAML, or every wait_until_idle_() call will return
+// immediately (mistaking "busy" for "idle") and desync the init/display command sequence.
+class WaveshareEPaper1P54InB : public WaveshareEPaperBWR {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND VCOM_AND_DATA_INTERVAL_SETTING
+    this->command(0x50);
+    this->data(0x17);
+    // COMMAND VCM_DC_SETTING_REGISTER
+    this->command(0x82);
+    this->data(0x00);
+    // COMMAND POWER SETTING
+    this->command(0x01);
+    this->data(0x02);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->wait_until_idle_();
+    // COMMAND POWER OFF
+    this->command(0x02);
+  }
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  // WaveshareEPaperBWR::draw_absolute_pixel_internal() flags a pixel "black ink" whenever
+  // color.is_on() is true, which includes pure red -- so red pixels also mark the black plane.
+  // On this panel, a pixel with both planes set to "ink" renders black instead of red, so black
+  // and red must be kept mutually exclusive here.
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+};
+
 class WaveshareEPaper1P54InBV2 : public WaveshareEPaperBWR {
  public:
   void initialize() override;

@@ -39,6 +39,25 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
   - platform: waveshare_epaper
+    id: epd_1_54b
+    model: 1.54in-b
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    busy_pin:
+      allow_other_uses: true
+      number: ${busy_pin}
+      inverted: true
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+
+  - platform: waveshare_epaper
     id: epd_1_54v2b
     model: 1.54inv2-b
     cs_pin:

@@ -975,6 +975,182 @@ void WaveshareEPaper2P7InV2::dump_config() {
 }
 
 // ========================================================
+//                          1.54inch_e-paper_b
+// ========================================================
+// Datasheet:
+//  - https://www.waveshare.com/wiki/1.54inch_e-Paper_Module_(B)_Manual
+//  - https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_1in54b.c
+
+static const uint8_t LUT_VCOM0_1_54B[] = {0x0E, 0x14, 0x01, 0x0A, 0x06, 0x04, 0x0A, 0x0A,
+                                           0x0F, 0x03, 0x03, 0x0C, 0x06, 0x0A, 0x00};
+static const uint8_t LUT_W_1_54B[] = {0x0E, 0x14, 0x01, 0x0A, 0x46, 0x04, 0x8A, 0x4A,
+                                       0x0F, 0x83, 0x43, 0x0C, 0x86, 0x0A, 0x04};
+static const uint8_t LUT_B_1_54B[] = {0x0E, 0x14, 0x01, 0x8A, 0x06, 0x04, 0x8A, 0x4A,
+                                       0x0F, 0x83, 0x43, 0x0C, 0x06, 0x4A, 0x04};
+static const uint8_t LUT_G1_1_54B[] = {0x8E, 0x94, 0x01, 0x8A, 0x06, 0x04, 0x8A, 0x4A,
+                                        0x0F, 0x83, 0x43, 0x0C, 0x06, 0x0A, 0x04};
+static const uint8_t LUT_G2_1_54B[] = {0x8E, 0x94, 0x01, 0x8A, 0x06, 0x04, 0x8A, 0x4A,
+                                        0x0F, 0x83, 0x43, 0x0C, 0x06, 0x0A, 0x04};
+static const uint8_t LUT_VCOM1_1_54B[] = {0x03, 0x1D, 0x01, 0x01, 0x08, 0x23, 0x37, 0x37,
+                                           0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t LUT_RED0_1_54B[] = {0x83, 0x5D, 0x01, 0x81, 0x48, 0x23, 0x77, 0x77,
+                                          0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t LUT_RED1_1_54B[] = {0x03, 0x1D, 0x01, 0x01, 0x08, 0x23, 0x37, 0x37,
+                                          0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+void WaveshareEPaper1P54InB::initialize() {
+  this->reset_();
+
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x00);
+  this->data(0x08);
+  this->data(0x00);
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x07);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0xCF);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x37);
+
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x39);
+
+  // COMMAND TCON RESOLUTION
+  this->command(0x61);
+  this->data(0xC8);  // width: 200
+  this->data(0x00);  // height (high byte)
+  this->data(0xC8);  // height: 200
+
+  // COMMAND VCM DC SETTING
+  this->command(0x82);
+  this->data(0x0E);
+
+  // COMMAND LUT FOR VCOM
+  this->command(0x20);
+  for (uint8_t i : LUT_VCOM0_1_54B)
+    this->data(i);
+  // COMMAND LUT WHITE TO WHITE
+  this->command(0x21);
+  for (uint8_t i : LUT_W_1_54B)
+    this->data(i);
+  // COMMAND LUT BLACK TO WHITE
+  this->command(0x22);
+  for (uint8_t i : LUT_B_1_54B)
+    this->data(i);
+  // COMMAND LUT WHITE TO BLACK
+  this->command(0x23);
+  for (uint8_t i : LUT_G1_1_54B)
+    this->data(i);
+  // COMMAND LUT BLACK TO BLACK
+  this->command(0x24);
+  for (uint8_t i : LUT_G2_1_54B)
+    this->data(i);
+
+  // COMMAND LUT FOR RED VCOM
+  this->command(0x25);
+  for (uint8_t i : LUT_VCOM1_1_54B)
+    this->data(i);
+  // COMMAND LUT RED0
+  this->command(0x26);
+  for (uint8_t i : LUT_RED0_1_54B)
+    this->data(i);
+  // COMMAND LUT RED1
+  this->command(0x27);
+  for (uint8_t i : LUT_RED1_1_54B)
+    this->data(i);
+}
+
+void HOT WaveshareEPaper1P54InB::display() {
+  uint32_t buf_len_half = this->get_buffer_length_() >> 1;
+  this->initialize();
+
+  // COMMAND DATA START TRANSMISSION 1 (BLACK)
+  // This controller only supports a 2-bit-per-pixel black/white plane, so every source bit
+  // (inverted, since a register bit of 1 means "no ink" on this panel, opposite of ESPHome's
+  // on/off polarity) is expanded to a 2-bit "00"/"11" pair understood by the LUTs above.
+  this->command(0x10);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len_half; i++) {
+    uint8_t black_byte = ~this->buffer_[i];
+    uint8_t temp = 0x00;
+    for (uint8_t bit = 0; bit < 4; bit++) {
+      if ((black_byte & (0x80 >> bit)) != 0) {
+        temp |= 0xC0 >> (bit * 2);
+      }
+    }
+    this->data(temp);
+    temp = 0x00;
+    for (uint8_t bit = 4; bit < 8; bit++) {
+      if ((black_byte & (0x80 >> bit)) != 0) {
+        temp |= 0xC0 >> ((bit - 4) * 2);
+      }
+    }
+    this->data(temp);
+  }
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED)
+  // Same polarity as the black plane: a register bit of 1 means "no red ink" here, so the
+  // buffer (where a set bit means "draw red") has to be inverted too.
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = buf_len_half; i < buf_len_half * 2u; i++) {
+    this->data(~this->buffer_[i]);
+  }
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+}
+int WaveshareEPaper1P54InB::get_height_internal() { return 200; }
+int WaveshareEPaper1P54InB::get_width_internal() { return 200; }
+void HOT WaveshareEPaper1P54InB::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+  const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+  const uint8_t subpos = x & 0x07;
+  const bool is_red = color.red > 0 && color.green == 0 && color.blue == 0;
+
+  if (color.is_on() && !is_red) {
+    this->buffer_[pos] |= 0x80 >> subpos;
+  } else {
+    this->buffer_[pos] &= ~(0x80 >> subpos);
+  }
+
+  if (is_red) {
+    this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
+  } else {
+    this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+  }
+}
+void WaveshareEPaper1P54InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 1.54in B");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
 //                          1.54inch_v2_e-paper_b
 // ========================================================
 // Datasheet:
