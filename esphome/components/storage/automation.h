@@ -226,8 +226,7 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
       this->complete_trigger_.trigger(std::string(file_write_content_error));
       return;
     }
-    StorageError err =
-        perform_file_write(this->path_.value(x...), std::move(content), this->append_, this->newline_);
+    StorageError err = perform_file_write(this->path_.value(x...), std::move(content), this->append_, this->newline_);
     this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 

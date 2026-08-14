@@ -160,8 +160,9 @@ def test_resolve_path_max_fatfs_short_names() -> None:
 
     sdkconfig = {KEY_ESP32: {KEY_SDKCONFIG_OPTIONS: {"CONFIG_FATFS_LFN_NONE": "y"}}}
     expected = storage._FATFS_SHORT_NAME_MAX * (storage._MAX_RECURSION_DEPTH + 1) + 1
-    with patch.object(storage, "_get_data", return_value=_data(fatfs=True)), patch.object(
-        storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)
+    with (
+        patch.object(storage, "_get_data", return_value=_data(fatfs=True)),
+        patch.object(storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)),
     ):
         assert storage._resolve_path_max({}) == expected
 
@@ -170,8 +171,9 @@ def test_resolve_path_max_fatfs_long_filename() -> None:
     from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 
     sdkconfig = {KEY_ESP32: {KEY_SDKCONFIG_OPTIONS: {"CONFIG_FATFS_MAX_LFN": 255}}}
-    with patch.object(storage, "_get_data", return_value=_data(fatfs=True)), patch.object(
-        storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)
+    with (
+        patch.object(storage, "_get_data", return_value=_data(fatfs=True)),
+        patch.object(storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)),
     ):
         assert storage._resolve_path_max({}) == 256
 
@@ -181,8 +183,9 @@ def test_resolve_path_max_fatfs_non_numeric_lfn_raises() -> None:
     from esphome.core import EsphomeError
 
     sdkconfig = {KEY_ESP32: {KEY_SDKCONFIG_OPTIONS: {"CONFIG_FATFS_MAX_LFN": "abc"}}}
-    with patch.object(storage, "_get_data", return_value=_data(fatfs=True)), patch.object(
-        storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)
+    with (
+        patch.object(storage, "_get_data", return_value=_data(fatfs=True)),
+        patch.object(storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)),
     ):
         with pytest.raises(EsphomeError):
             storage._resolve_path_max({})
