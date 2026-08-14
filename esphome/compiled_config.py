@@ -82,9 +82,19 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
             # Present but unreadable: it may hold a real build's metadata,
             # and a fresh rewrite would also stop the next compile from
             # cleaning a possibly incoherent build tree.
-            _LOGGER.warning("Not caching: storage sidecar %s is unreadable", path)
+            _LOGGER.warning(
+                "Not caching: storage sidecar %s is unreadable; "
+                "'esphome compile' will rewrite it",
+                path,
+            )
             return
         if old is None or not _sidecar_is_complete(old):
+            if old is None and CORE.build_path is not None and CORE.build_path.exists():
+                # A build tree without a sidecar: the missing sidecar is
+                # exactly what makes the next compile wipe that tree, so
+                # keep it missing rather than vouch for an unknown build.
+                _LOGGER.debug("Not caching: build tree exists without a sidecar")
+                return
             new = StorageJSON.from_esphome_core(CORE, old)
             if not _sidecar_is_complete(new):
                 _LOGGER.warning(
@@ -95,7 +105,7 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         # Persistent either way (unwritable storage dir or a structural
         # bug), so surface that every upload/logs pays the slow path.
-        _LOGGER.warning("Could not write the storage sidecar: %s", err)
+        _LOGGER.warning("Could not refresh the storage sidecar: %s", err)
         return
     save_compiled_config(config)
 

@@ -71,8 +71,11 @@ def archive_storage_path() -> Path:
 
 
 def _to_path_if_not_none(value: str | None) -> Path | None:
-    """Convert a string to Path if it's not None."""
-    return Path(value) if value is not None else None
+    """Convert a string to Path; None and the legacy "None" both map to None.
+
+    Sidecars written before as_dict skipped unset paths hold str(None).
+    """
+    return Path(value) if value is not None and value != "None" else None
 
 
 def _parse_framework_version(framework_version: str) -> Version:
@@ -170,8 +173,10 @@ class StorageJSON:
             "address": self.address,
             "web_port": self.web_port,
             "esp_platform": self.target_platform,
-            "build_path": str(self.build_path),
-            "firmware_bin_path": str(self.firmware_bin_path),
+            "build_path": str(self.build_path) if self.build_path else None,
+            "firmware_bin_path": (
+                str(self.firmware_bin_path) if self.firmware_bin_path else None
+            ),
             "loaded_integrations": sorted(self.loaded_integrations),
             "loaded_platforms": sorted(self.loaded_platforms),
             "no_mdns": self.no_mdns,

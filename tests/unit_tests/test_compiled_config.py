@@ -380,21 +380,27 @@ def _bare_yaml(tmp_path: Path) -> Path:
 
 @contextmanager
 def _fallback_run(command: str = "upload", **from_core_kwargs) -> Any:
-    """Patch the fallback path's collaborators for a run_esphome call."""
+    """Patch the fallback path's collaborators for a run_esphome call.
+
+    Without kwargs, from_esphome_core stays real (yielded mock is None).
+    """
     with (
         patch(
             "esphome.config.read_config",
             return_value={"esphome": {"name": "lite_test"}},
         ) as mock_read,
-        patch.object(
-            StorageJSON, "from_esphome_core", **from_core_kwargs
-        ) as mock_from_core,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {command: lambda args, config: 0},
         ),
     ):
-        yield mock_read, mock_from_core
+        if not from_core_kwargs:
+            yield mock_read, None
+            return
+        with patch.object(
+            StorageJSON, "from_esphome_core", **from_core_kwargs
+        ) as mock_from_core:
+            yield mock_read, mock_from_core
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
@@ -426,8 +432,11 @@ def test_run_esphome_fallback_writes_sidecar_and_cache_without_sidecar(
     [
         {"esp_platform": None, "core_platform": None, "build_path": None},
         {"build_path": None},
+        # as_dict serialized unset paths as str(None) until 2026.9; files
+        # written by those wizards are still on disk.
+        {"build_path": "None"},
     ],
-    ids=["legacy_wizard", "modern_wizard"],
+    ids=["legacy_wizard", "modern_wizard", "none_string_wizard"],
 )
 def test_run_esphome_fallback_completes_wizard_sidecar(
     tmp_path: Path, wizard_kwargs: dict[str, Any]
@@ -476,7 +485,7 @@ def test_run_esphome_fallback_leaves_unreadable_sidecar_alone(tmp_path: Path) ->
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text("{truncated", encoding="utf-8")
 
-    with _fallback_run() as (_, mock_from_core):
+    with _fallback_run(return_value=None) as (_, mock_from_core):
         assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
 
     mock_from_core.assert_not_called()
@@ -499,6 +508,51 @@ def test_run_esphome_fallback_skips_cache_when_rebuilt_sidecar_incomplete(
     with _fallback_run(return_value=StorageJSON.load(incomplete)):
         assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
 
+    assert not (storage_dir / "lite_test.yaml.json").exists()
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+
+
+def test_run_esphome_fallback_sidecar_records_platformio_toolchain(
+    tmp_path: Path,
+) -> None:
+    """The toolchain fallback runs before the sidecar write, so platforms
+    whose validators leave CORE.toolchain unset record the same
+    "platformio" a compile writes, not null."""
+    yaml_path = _bare_yaml(tmp_path)
+    CORE.name = "lite_test"
+    CORE.build_path = tmp_path / "build" / "lite_test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    assert CORE.toolchain is None
+
+    with _fallback_run():
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    storage = StorageJSON.load(
+        tmp_path / ".esphome" / "storage" / "lite_test.yaml.json"
+    )
+    assert storage is not None
+    assert storage.toolchain == "platformio"
+
+
+def test_run_esphome_fallback_skips_sidecar_when_build_tree_exists(
+    tmp_path: Path,
+) -> None:
+    """A build tree without a sidecar keeps its missing sidecar: that is
+    what makes the next compile wipe the unknown tree, so the fallback
+    writes nothing and skips the cache."""
+    yaml_path = _bare_yaml(tmp_path)
+    CORE.name = "lite_test"
+    CORE.build_path = tmp_path / "build" / "lite_test"
+    CORE.build_path.mkdir(parents=True)
+    storage_dir = tmp_path / ".esphome" / "storage"
+
+    with _fallback_run(return_value=_storage_fixture(tmp_path)) as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_not_called()
     assert not (storage_dir / "lite_test.yaml.json").exists()
     assert not (storage_dir / "lite_test.yaml.validated.json").exists()
 
@@ -796,8 +850,11 @@ def test_int_keys_coerce_to_strings(primed_storage: Path) -> None:
     [
         {"esp_platform": None, "core_platform": None, "build_path": None},
         {"build_path": None},
+        # as_dict serialized unset paths as str(None) until 2026.9; files
+        # written by those wizards are still on disk.
+        {"build_path": "None"},
     ],
-    ids=["legacy_wizard", "modern_wizard"],
+    ids=["legacy_wizard", "modern_wizard", "none_string_wizard"],
 )
 def test_load_compiled_config_rejects_wizard_only_sidecar(
     tmp_path: Path, wizard_kwargs: dict[str, Any]
