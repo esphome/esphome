@@ -139,7 +139,7 @@ describe('detectMergeBranch', () => {
 
   it('base ref matches default branch adds no labels', async () => {
     const { github } = makeStackGithub({ stack: null });
-    const context = makeMergeContext('dev', { defaultBranch: 'dev' });
+    const context = makeMergeContext('other', { defaultBranch: 'other' });
     const labels = await detectMergeBranch(github, context);
     assert.deepEqual(Array.from(labels).sort(), []);
   });
