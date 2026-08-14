@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_STM32
+from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_STM32L4
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 _DEFAULT_BOARD = "nucleo_l476rg/stm32l476xx"
 
 # Registry entries — collected by variants/__init__.py
-VARIANT_NAME = ZEPHYR_VARIANT_STM32
+VARIANT_NAME = ZEPHYR_VARIANT_STM32L4
 VARIANT = ZephyrVariant(
     sdk=MAINLINE,
     sdk_name="zephyr",
@@ -60,9 +60,9 @@ async def to_code(config: ConfigType) -> None:
     from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
 
     zephyr_to_code(config)
-    cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_STM32")
+    cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_STM32L4")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "STM32")
+    cg.add_define("ESPHOME_VARIANT", "STM32L4")
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
