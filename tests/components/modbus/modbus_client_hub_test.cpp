@@ -685,6 +685,155 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
 }
 
 namespace {
+// Records on_sent / on_response / on_no_response so a broadcast's fire-and-forget completion
+// (on_sent, and no terminal) can be asserted.
+class BroadcastProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->response_count_++;
+    this->last_response_size_ = response_pdu.size();
+  }
+  bool on_no_response(std::span<const uint8_t> request_pdu) override {
+    this->no_response_count_++;
+    return false;
+  }
+  int sent_count_{0};
+  int response_count_{0};
+  int no_response_count_{0};
+  size_t last_response_size_{0};
+};
+}  // namespace
+
+// A broadcast (address 0) is never answered (Modbus 4.1), so the client treats it as fire-and-forget:
+// on_sent fires as the frame goes out, NO terminal (on_response/on_error/on_no_response) is delivered,
+// the hub is left NOT waiting - no timeout is burned - and the sweep erases the entry.
+TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.queue_pdu(write));
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());              // no waiting slot occupied
+  EXPECT_EQ(hub.queued_frames(), 0u);       // and the entry is gone
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+namespace {
+// Keeps the DEFAULT on_response() (so the base typed dispatcher runs) and records the typed write
+// callback and the catch-all, to prove a broadcast reaches neither - only on_sent.
+class BroadcastTypedProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastTypedProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) override {
+    this->write_single_count_++;
+  }
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          ResponseStatus status) override {
+    this->custom_count_++;
+  }
+  int sent_count_{0};
+  int write_single_count_{0};
+  int custom_count_{0};
+};
+}  // namespace
+
+// Completing a broadcast with an empty response({}) used to fall, for a device on the default
+// on_response(), through the typed dispatcher to on_custom_response() - firing the wrong callback and
+// logging a spurious "non-standard" warning. Fire-and-forget delivers no terminal at all, so a broadcast
+// write reaches neither the typed write callback nor the catch-all: only on_sent.
+TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastTypedProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.queue_pdu(write));
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);          // on_sent still reports the transmission
+  EXPECT_EQ(device.write_single_count_, 0);  // no terminal: the typed write callback never fires
+  EXPECT_EQ(device.custom_count_, 0);        // and it is NOT diverted to the catch-all (no false warning)
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// A broadcast is only meaningful for a command that changes state; a broadcast READ could never be
+// answered, so the hub refuses it at the door (false return, no entry queued) rather than silently
+// retiring it. Writes, 0x17, and custom codes still go through (covered above).
+TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x02};  // read holding registers 0x0010, count 2
+  EXPECT_FALSE(device.queue_pdu(read));                   // refused: a broadcast read is never answered
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
+}
+
+// The counterpart to RefusesReadBroadcast: a custom (user-defined) function code carries no reply the
+// hub knows how to expect, so a broadcast of one is accepted and completes fire-and-forget like a write.
+TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t custom[] = {0x41, 0x01, 0x02};  // FC 0x41: first user-defined function code space
+  ASSERT_TRUE(device.queue_pdu(custom));        // accepted: a custom code is not a read
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);  // the entry is gone
+}
+
+// An exception-flagged custom code (0x80 bit set) is not a real request: is_function_code_custom() masks
+// the bit away and would accept it, but the broadcast guard excludes it, matching classify()'s handling
+// of an exception-flagged write.
+TEST(ModbusClientHubBroadcast, RefusesExceptionFlaggedCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t exception_custom[] = {0xC1, 0x01, 0x02};  // 0x41 | 0x80: custom code with the exception bit
+  EXPECT_FALSE(device.queue_pdu(exception_custom));       // refused: exception-flagged, never a real broadcast
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
+}
+
+namespace {
 // tx_blocked() clear for send_next_frame_'s gate, then blocked for send_frame_'s post-delay re-check.
 class RejectPostDelayHub : public NoResponseProbeHub {
  public:
