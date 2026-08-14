@@ -18,6 +18,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -203,14 +204,21 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
   explicit FileWriteAction(bool append) : append_(append) {}
 
   TEMPLATABLE_VALUE(std::string, path)
-  TEMPLATABLE_VALUE(std::string, content)
+  TEMPLATABLE_VALUE(std::optional<std::string>, content)
   void set_newline(bool newline) { this->newline_ = newline; }
 
   Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
   void play(const Ts &...x) override {
-    StorageError err =
-        perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    std::optional<std::string> content = this->content_.value(x...);
+    if (!content.has_value()) {
+      // The format:/args: lambda could not render the line (encoding failure or over-long). Abort
+      // before any open -- write_file() opens with OpenMode::WRITE and would truncate the target to
+      // empty here -- and report the error instead of the empty "success" string.
+      this->complete_trigger_.trigger(std::string("format failed"));
+      return;
+    }
+    StorageError err = perform_file_write(this->path_.value(x...), std::move(*content), this->append_, this->newline_);
     this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 

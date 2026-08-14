@@ -753,8 +753,17 @@ async def _build_write_action(
     var = cg.new_Pvariable(action_id, template_arg, append)
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
+    opt_string = cg.optional.template(cg.std_string)
     if (content := config.get(CONF_CONTENT)) is not None:
-        template_ = await cg.templatable(content, args, cg.std_string)
+        # content_ is optional<std::string> so a format failure can abort the write (see play()).
+        # A static string is wrapped as std::string(...) so the stateless lambda cg.templatable
+        # emits returns it with a single conversion to optional (a bare literal would need two).
+        template_ = await cg.templatable(
+            content,
+            args,
+            opt_string,
+            to_exp=lambda v: cg.RawExpression(f"std::string({cg.safe_exp(v)})"),
+        )
         cg.add(var.set_content(template_))
     else:
         # Render printf-style format + args into the content string, logger.log-style:
@@ -768,28 +777,28 @@ async def _build_write_action(
         # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf /
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
-        # is therefore a bounded line: content that does not fit the buffer, or that snprintf cannot
-        # encode, is rejected
-        # formatting failure never truncates the target file to empty/partial content and never
-        # looks like success. Authors who need arbitrary length use content: with a lambda (no cap).
+        # is a bounded line: content that does not fit the buffer, or that snprintf cannot encode,
+        # returns std::nullopt so play() aborts before opening the target (OpenMode::WRITE would
+        # truncate it to empty) and reports the failure instead of a silent zero-byte success.
+        # Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
             "char buf[256];\n"
             f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
             "if (n < 0) {\n"
             '  ESP_LOGE("storage.automation", "file_write: could not format content");\n'
-            "  return std::string();\n"
+            "  return std::nullopt;\n"
             "}\n"
             "if ((size_t) n >= sizeof(buf)) {\n"
             '  ESP_LOGE("storage.automation", "file_write: formatted content exceeds %u bytes;'
             ' use content: with a lambda for longer data", (unsigned) (sizeof(buf) - 1));\n'
-            "  return std::string();\n"
+            "  return std::nullopt;\n"
             "}\n"
             "return std::string(buf, (size_t) n);"
         )
         lambda_ = await cg.process_lambda(
             core.Lambda(lambda_body),
             args,
-            return_type=cg.std_string,
+            return_type=opt_string,
         )
         cg.add(var.set_content(lambda_))
     cg.add(var.set_newline(config[CONF_NEWLINE]))
