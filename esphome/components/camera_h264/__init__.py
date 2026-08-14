@@ -1,14 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import camera_video, psram
+from esphome.components.const import CONF_BITRATE
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     only_on_variant,
 )
 from esphome.components.esp32.const import VARIANT_ESP32P4
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.components.const import CONF_BITRATE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["camera_video"]

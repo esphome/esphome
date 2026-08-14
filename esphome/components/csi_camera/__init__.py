@@ -1,6 +1,5 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import camera_video, esp_ldo, i2c, psram
 from esphome.components.esp32 import (
     add_idf_component,
@@ -8,6 +7,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.esp32.const import VARIANT_ESP32P4
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
@@ -124,7 +124,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WIDTH, default=1920): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_HEIGHT, default=1080): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_FPS, default=30): cv.int_range(min=1, max=65535),
-            cv.Optional(CONF_RAW_FORMAT, default="raw10"): cv.one_of(*RAW_FORMATS, lower=True),
+            cv.Optional(CONF_RAW_FORMAT, default="raw10"): cv.one_of(
+                *RAW_FORMATS, lower=True
+            ),
             cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_POWER_SUPPLY): cv.use_id(esp_ldo.EspLdo),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=4): cv.int_range(2, 4),
