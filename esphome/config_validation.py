@@ -99,6 +99,10 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
+
+# Deprecated re-export for external components; remove before 2027.2.0
+# pylint: disable-next=unused-import
+from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
@@ -2639,17 +2643,6 @@ def require_esphome_version(
         return value
 
     return validator
-
-
-# Remove before 2027.2.0
-def parse_esphome_version() -> tuple[int, int, int]:
-    """Deprecated: use require_esphome_version instead."""
-    _LOGGER.warning(
-        "cv.parse_esphome_version() is deprecated, use "
-        "cv.require_esphome_version instead. Removed in 2027.2.0"
-    )
-    version = Version.parse(ESPHOME_VERSION)
-    return version.major, version.minor, version.patch
 
 
 @contextmanager
