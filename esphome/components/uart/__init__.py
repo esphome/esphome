@@ -5,6 +5,7 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.zephyr.const import ZephyrUartEmulator, ZephyrUartWriteTarget
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -34,6 +35,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
 
@@ -44,7 +46,9 @@ DOMAIN = "uart"
 
 
 uart_ns = cg.esphome_ns.namespace("uart")
-UARTComponent = uart_ns.class_("UARTComponent")
+# ZephyrUartWriteTarget is a Python-only marker parent (see its definition) that lets
+# `uart.write`'s `id:` validate against either a UARTComponent or a ZephyrUartEmulator.
+UARTComponent = uart_ns.class_("UARTComponent", ZephyrUartWriteTarget)
 
 IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
 ESP8266UartComponent = uart_ns.class_(
@@ -60,6 +64,10 @@ ZephyrUartPort = uart_ns.enum("ZephyrUartPort")
 ZEPHYR_UART_PORTS = {
     "uart0": ZephyrUartPort.ZEPHYR_UART_PORT_0,
     "uart1": ZephyrUartPort.ZEPHYR_UART_PORT_1,
+    "uart2": ZephyrUartPort.ZEPHYR_UART_PORT_2,
+    "uart3": ZephyrUartPort.ZEPHYR_UART_PORT_3,
+    "uart4": ZephyrUartPort.ZEPHYR_UART_PORT_4,
+    "uart5": ZephyrUartPort.ZEPHYR_UART_PORT_5,
 }
 
 
@@ -105,6 +113,7 @@ HOST_BAUD_RATES = [
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
+UARTEmulatorPushRxAction = uart_ns.class_("UARTEmulatorPushRxAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
@@ -212,6 +221,71 @@ CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
+CONF_EMULATION = "emulation"
+CONF_RESPONSES = "responses"
+
+
+def _normalize_trigger_bytes(value):
+    """Normalize a trigger/response byte value to a flat list of ints.
+
+    - string -> UTF-8 encoded bytes
+    - scalar int -> single-byte list
+    - list of ints -> as-is
+    """
+    if isinstance(value, str):
+        return list(value.encode("utf-8"))
+    if isinstance(value, int):
+        return [cv.uint8_t(value)]
+    if isinstance(value, list):
+        return [cv.uint8_t(b) for b in value]
+    raise cv.Invalid("Value must be a string, an integer, or a list of integers")
+
+
+def _normalize_response_value(value):
+    """Normalize a responses: map value to a list of byte-list entries.
+
+    A value that is a string/int/flat list of ints is one static response. A
+    value that is a list whose items are themselves strings or lists of ints
+    is a cycling sequence, one entry per item.
+    """
+    if isinstance(value, list) and value and isinstance(value[0], (str, list)):
+        return [_normalize_trigger_bytes(entry) for entry in value]
+    return [_normalize_trigger_bytes(value)]
+
+
+def _responses_schema(value):
+    if not isinstance(value, dict) or not value:
+        raise cv.Invalid(
+            "responses must be a non-empty mapping of trigger pattern to response(s)"
+        )
+    entries = []
+    for trigger, val in value.items():
+        trigger_bytes = _normalize_trigger_bytes(trigger)
+        if not trigger_bytes:
+            raise cv.Invalid("Trigger pattern must not be empty")
+        entries.append((trigger_bytes, _normalize_response_value(val)))
+    return entries
+
+
+_EMULATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ZephyrUartEmulator),
+        cv.Required(CONF_RESPONSES): _responses_schema,
+    }
+)
+
+
+def validate_uart_emulation_config(config):
+    if CONF_EMULATION in config and (
+        CONF_PORT in config or CONF_TX_PIN in config or CONF_RX_PIN in config
+    ):
+        raise cv.Invalid(
+            "'emulation:' is mutually exclusive with 'port:', 'tx_pin:', and 'rx_pin:' "
+            "-- it supplies the connection itself"
+        )
+    return config
+
+
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
     "RX": UARTDirection.UART_DIRECTION_RX,
@@ -251,7 +325,7 @@ def validate_port(value):
 
 
 def _fill_zephyr_uart_defaults(config):
-    if CORE.is_zephyr and CONF_PORT not in config:
+    if CORE.is_zephyr and CONF_PORT not in config and CONF_EMULATION not in config:
         config = dict(config)
         config[CONF_PORT] = "uart0"
     return config
@@ -297,6 +371,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT): cv.All(
                 validate_port, cv.only_on([PLATFORM_HOST, PLATFORM_ZEPHYR])
             ),
+            cv.Optional(CONF_EMULATION): cv.All(
+                cv.only_on([PLATFORM_ZEPHYR]), _EMULATION_SCHEMA
+            ),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
@@ -315,9 +392,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
+    cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT, CONF_EMULATION),
     validate_host_config,
     validate_zephyr_config,
+    validate_uart_emulation_config,
     validate_rx_buffer_size,
 )
 
@@ -378,6 +456,10 @@ async def to_code(config):
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
+            # setup() unconditionally uses uart_irq_callback_user_data_set()/
+            # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
+            # silently never arrives.
+            zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
             cg.add(var.set_port(ZEPHYR_UART_PORTS[config[CONF_PORT]]))
             port_label = config[CONF_PORT]
             if CONF_TX_PIN in config or CONF_RX_PIN in config:
@@ -417,6 +499,73 @@ async def to_code(config):
                 zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
         else:
             cg.add(var.set_name(config[CONF_PORT]))
+    elif CONF_EMULATION in config:
+        from pathlib import Path
+
+        from esphome.components.zephyr import (
+            add_extra_build_file,
+            zephyr_add_overlay,
+            zephyr_add_prj_conf,
+        )
+
+        zephyr_add_prj_conf("SERIAL", True)
+        zephyr_add_prj_conf("RING_BUFFER", True)
+        zephyr_add_prj_conf("EMUL", True)
+        zephyr_add_prj_conf("UART_EMUL", True)
+        # setup() unconditionally uses uart_irq_callback_user_data_set()/
+        # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
+        # silently never arrives.
+        zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
+        cg.add_define("USE_ZEPHYR_UART_EMULATION")
+
+        # Node label must be unique per `uart: emulation:` block -- ESPHome IDs are
+        # unique and identifier-safe, so they double as a safe DT label suffix.
+        emul_label = f"esphome_uart_emul_{config[CONF_ID].id}"
+        zephyr_add_overlay(
+            f"/ {{ {emul_label}: {emul_label} {{"
+            ' compatible = "zephyr,uart-emul";'
+            f" current-speed = <{config[CONF_BAUD_RATE]}>;"
+            ' status = "okay"; }; };'
+        )
+        cg.add(var.set_port(ZephyrUartPort.ZEPHYR_UART_PORT_EMUL))
+        cg.add(
+            var.set_emul_device(
+                cg.RawExpression(f"DEVICE_DT_GET(DT_NODELABEL({emul_label}))")
+            )
+        )
+
+        zephyr_here = Path(__file__).parent.parent / "zephyr"
+        for fname in ("uart_emulator.h", "uart_emulator.cpp"):
+            add_extra_build_file(fname, zephyr_here / fname)
+
+        emulation = config[CONF_EMULATION]
+        triggers = emulation[CONF_RESPONSES]
+        emul_var = cg.new_Pvariable(
+            emulation[CONF_ID],
+            MockObj(f"DEVICE_DT_GET(DT_NODELABEL({emul_label}))"),
+            len(triggers),
+        )
+        await cg.register_component(emul_var, {})
+        for t_index, (trigger_bytes, responses) in enumerate(triggers):
+            trig_id = ID(
+                f"{emulation[CONF_ID].id}_trigger_{t_index}",
+                is_declaration=True,
+                type=cg.uint8,
+            )
+            trig_arr = cg.static_const_array(
+                trig_id, cg.ArrayInitializer(*trigger_bytes)
+            )
+            cg.add(emul_var.add_trigger(trig_arr, len(trigger_bytes), len(responses)))
+            for r_index, resp_bytes in enumerate(responses):
+                resp_id = ID(
+                    f"{emulation[CONF_ID].id}_trigger_{t_index}_resp_{r_index}",
+                    is_declaration=True,
+                    type=cg.uint8,
+                )
+                resp_arr = cg.static_const_array(
+                    resp_id, cg.ArrayInitializer(*resp_bytes)
+                )
+                cg.add(emul_var.add_response(resp_arr, len(resp_bytes)))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
         if CONF_RX_FULL_THRESHOLD not in config:
@@ -579,7 +728,7 @@ async def register_uart_device(var, config):
     UARTWriteAction,
     cv.maybe_simple_value(
         {
-            cv.GenerateID(): cv.use_id(UARTComponent),
+            cv.GenerateID(): cv.use_id(ZephyrUartWriteTarget),
             cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
         },
         key=CONF_DATA,
@@ -587,6 +736,14 @@ async def register_uart_device(var, config):
     synchronous=True,
 )
 async def uart_write_to_code(config, action_id, template_arg, args):
+    # `id:` may target either the UART bus (write out TX, the common case) or a
+    # ZephyrUartEmulator (inject directly into the device's RX path, scenario 2 of
+    # uart: emulation:) -- which id it resolved to picks which C++ action class backs it.
+    # `config[CONF_ID].type` is only the asserted marker type from use_id(); the actual
+    # declared type lives on the already-registered variable's declaration id.
+    target = await cg.get_variable(config[CONF_ID])
+    if str(target.base.type) == str(ZephyrUartEmulator):
+        action_id.type = UARTEmulatorPushRxAction
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]

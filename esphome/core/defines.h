@@ -537,6 +537,10 @@
 #define USE_ZEPHYR_ADC_EMULATION
 // Emitted by zephyr/mcuboot.py's apply_single_slot() when zephyr: single_slot: true.
 #define USE_ZEPHYR_MCUBOOT_SINGLE_SLOT
+// Emitted by uart/__init__.py when any uart: block uses `emulation:` -- backs the port
+// with Zephyr's generic zephyr,uart-emul devicetree node instead of real silicon,
+// letting a ZephyrUartEmulator answer TX writes with scripted responses.
+#define USE_ZEPHYR_UART_EMULATION
 #endif
 
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
