@@ -63,6 +63,8 @@ CONF_WORKER_ID = "worker_id"
 CONF_ON_REGISTERED = "on_registered"
 CONF_ON_COMPLETE = "on_complete"
 CONF_ON_UNREGISTERED = "on_unregistered"
+CONF_ON_EXISTS = "on_exists"
+CONF_ON_MISSING = "on_missing"
 
 # No AUTO_LOAD of json: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT, so the json component
 # enters the build only when a config uses a `json:` extract step -- enforced by
@@ -1002,6 +1004,55 @@ async def file_exists_condition_to_code(
 ):
     var = cg.new_Pvariable(condition_id, template_arg)
     cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
+    return var
+
+
+FileStatAction = storage_ns.class_("FileStatAction", automation.Action)
+
+
+def _validate_stat(config):
+    # A stat with no handler is a silent no-op; require at least one so a failure is never swallowed.
+    if not any(k in config for k in (CONF_ON_EXISTS, CONF_ON_MISSING, CONF_ON_ERROR)):
+        raise cv.Invalid(
+            "storage.stat needs at least one of on_exists, on_missing, or on_error"
+        )
+    return config
+
+
+_FILE_STAT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.templatable(cv.string),
+            cv.Optional(CONF_ON_EXISTS): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_MISSING): automation.validate_automation(single=True),
+            # Distinct from on_missing: fires the error text when the medium is not ready or faulted,
+            # so an automation never mistakes "could not check" for "the file is absent".
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        }
+    ),
+    _validate_stat,
+)
+
+
+@automation.register_action(
+    "storage.stat",
+    FileStatAction,
+    _FILE_STAT_SCHEMA,
+    synchronous=True,
+)
+async def file_stat_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
+    if (on_exists := config.get(CONF_ON_EXISTS)) is not None:
+        await automation.build_automation(var.get_exists_trigger(), [], on_exists)
+    if (on_missing := config.get(CONF_ON_MISSING)) is not None:
+        await automation.build_automation(var.get_missing_trigger(), [], on_missing)
+    if (on_error := config.get(CONF_ON_ERROR)) is not None:
+        await automation.build_automation(
+            var.get_error_trigger(), [(cg.std_string, "x")], on_error
+        )
     return var
 
 
