@@ -769,7 +769,7 @@ async def _build_write_action(
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
         # is therefore a bounded line: content that does not fit the buffer, or that snprintf cannot
-        # encode, is rejected 
+        # encode, is rejected
         # formatting failure never truncates the target file to empty/partial content and never
         # looks like success. Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
