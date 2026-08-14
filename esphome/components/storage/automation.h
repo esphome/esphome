@@ -43,15 +43,6 @@ template<typename T> inline T printf_arg(T v) {
   return v;
 }
 
-// Set by the generated file_write format:/args: content lambda when snprintf reports an encoding
-// failure or the formatted line does not fit the fixed buffer. The lambda returns a std::string and
-// cannot otherwise signal failure, so it records the reason here; FileWriteAction::play() clears
-// this before evaluating content_ and, if the lambda set it, skips the write (an empty or truncated
-// write would destroy the target file) and reports the reason on on_complete instead of "success".
-// Main-loop-only (actions never run off the main loop), cleared and read within a single play(), so
-// a plain pointer needs no synchronization.
-extern const char *const FILE_WRITE_CONTENT_ERROR;
-
 void warn_invalid_bool(const std::string &s);
 void warn_invalid_number(const std::string &s);
 
@@ -218,15 +209,8 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
   Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
   void play(const Ts &...x) override {
-    FILE_WRITE_CONTENT_ERROR = nullptr;
-    std::string content = this->content_.value(x...);
-    if (FILE_WRITE_CONTENT_ERROR != nullptr) {
-      // format:/args: could not render the line -- do not write (an empty or truncated write here
-      // would destroy the target file) and report the reason rather than the empty "success" string.
-      this->complete_trigger_.trigger(std::string(FILE_WRITE_CONTENT_ERROR));
-      return;
-    }
-    StorageError err = perform_file_write(this->path_.value(x...), std::move(content), this->append_, this->newline_);
+    StorageError err =
+        perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
     this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 

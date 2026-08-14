@@ -769,8 +769,7 @@ async def _build_write_action(
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
         # is therefore a bounded line: content that does not fit the buffer, or that snprintf cannot
-        # encode, is rejected -- the lambda records the reason in file_write_content_error and
-        # FileWriteAction::play() reports it on on_complete without writing (see automation.h), so a
+        # encode, is rejected 
         # formatting failure never truncates the target file to empty/partial content and never
         # looks like success. Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
@@ -778,13 +777,11 @@ async def _build_write_action(
             f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
             "if (n < 0) {\n"
             '  ESP_LOGE("storage.automation", "file_write: could not format content");\n'
-            '  esphome::storage::file_write_content_error = "could not format content";\n'
             "  return std::string();\n"
             "}\n"
             "if ((size_t) n >= sizeof(buf)) {\n"
             '  ESP_LOGE("storage.automation", "file_write: formatted content exceeds %u bytes;'
             ' use content: with a lambda for longer data", (unsigned) (sizeof(buf) - 1));\n'
-            '  esphome::storage::file_write_content_error = "formatted content too long";\n'
             "  return std::string();\n"
             "}\n"
             "return std::string(buf, (size_t) n);"

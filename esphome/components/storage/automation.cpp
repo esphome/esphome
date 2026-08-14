@@ -21,9 +21,6 @@ namespace esphome::storage {
 
 static const char *const TAG = "storage.automation";
 
-// See automation.h for the contract. nullptr = the format:/args: lambda rendered its line cleanly.
-const char *file_write_content_error = nullptr;
-
 void warn_invalid_bool(const std::string &s) {
   ESP_LOGW(TAG, "file_read: '%s' is not a valid bool; global unchanged", s.c_str());
 }
