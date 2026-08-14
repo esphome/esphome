@@ -43,14 +43,14 @@ const WITHOUT_SCHEMA = 'CODEOWNERS = ["@esphome/core"]';
 
 // Builds a fresh context for detectMergeBranch tests instead of mutating the
 // shared CONTEXT fixture above (which other describe blocks rely on).
-function makeMergeContext(baseRef, { stack } = {}) {
+function makeMergeContext(baseRef, { stack, defaultBranch = 'dev' } = {}) {
   const pull_request = { number: 1, base: { ref: baseRef } };
   if (stack !== undefined) {
     pull_request.stack = stack;
   }
   return {
     repo: { owner: 'esphome', repo: 'esphome' },
-    payload: { pull_request }
+    payload: { pull_request, repository: { default_branch: defaultBranch } }
   };
 }
 
@@ -135,6 +135,20 @@ describe('detectMergeBranch', () => {
     const labels = await detectMergeBranch(github, context);
     assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
     assert.equal(state.calls, 1);
+  });
+
+  it('base ref matches a non-dev default branch adds no labels', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('dev', { defaultBranch: 'dev' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), []);
+  });
+
+  it('base ref dev when the default branch is dev adds chained-pr', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('other', { defaultBranch: 'dev' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
   });
 });
 
