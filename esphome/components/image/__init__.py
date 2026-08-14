@@ -55,6 +55,12 @@ TRANSPARENCY_TYPES = (
     CONF_ALPHA_CHANNEL,
 )
 
+# Shared with the `file`/`animation` and `online_image`/`runtime_image`
+# platform schemas (which validate `byte_order` themselves via this same
+# validator) so `_drop_incompatible_byte_order` below can check a value it is
+# about to discard without duplicating the accepted-values list.
+validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
+
 
 def get_image_type_enum(type):
     return getattr(ImageType, f"IMAGE_TYPE_{type.upper()}")
@@ -425,24 +431,32 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 # ---------------------------------------------------------------------------
 
 
-def _drop_incompatible_byte_order(merged: dict, explicit: dict) -> dict:
+def _drop_incompatible_byte_order(
+    merged: dict, explicit: dict, *, index: int | None = None
+) -> dict:
     """Drop `byte_order` from a merged entry if its resolved type doesn't support it
     -- but only when `byte_order` was NOT written directly on `explicit`.
 
     Used two different ways by the two callers below:
 
     * The `defaults:`/`files:` expansion passes the actual hand-written per-image
-      entry as `explicit`, so a `byte_order` the user wrote directly on that entry
-      (as opposed to one inherited from `defaults:`) is a direct, explicit conflict
-      with an incompatible `type:` on that same entry, and is left in place to
-      surface the normal "does not support byte order configuration" validation
-      error instead of being silently discarded.
-    * The legacy `defaults:`/`images:` flattener passes an empty dict, i.e. it
-      always drops an incompatible `byte_order` unconditionally -- matching the
-      pre-platform-component `get_options()` behavior this flattener restores,
-      which never distinguished "explicit" from "inherited from defaults" for
-      this deprecated shape. Changing that now would be a silent behavior change
-      for existing, still-supported deprecated configs.
+      entry as `explicit` and its own index as `index`, so a `byte_order` the user
+      wrote directly on that entry (as opposed to one inherited from `defaults:`)
+      is a direct, explicit conflict with an incompatible `type:` on that same
+      entry, and is left in place to surface the normal "does not support byte
+      order configuration" validation error instead of being silently discarded.
+      A value being dropped here came from `defaults:` and would otherwise never
+      reach the platform's own `CONFIG_SCHEMA` (which is what normally validates
+      it), so it is checked against `validate_byte_order` first -- a typo'd or
+      otherwise invalid `byte_order` in `defaults:` must still raise, not vanish
+      silently just because it happened to land on an incompatible `type:`.
+    * The legacy `defaults:`/`images:` flattener passes an empty dict and no
+      `index`, i.e. it always drops an incompatible `byte_order` unconditionally
+      and unchecked -- matching the pre-platform-component `get_options()`
+      behavior this flattener restores, which never distinguished "explicit" from
+      "inherited from defaults" (or validated the dropped value) for this
+      deprecated shape. Changing that now would be a silent behavior change for
+      existing, still-supported deprecated configs.
     """
     if CONF_BYTE_ORDER in explicit:
         return merged
@@ -453,6 +467,12 @@ def _drop_incompatible_byte_order(merged: dict, explicit: dict) -> dict:
         and issubclass(type_class, ImageEncoder)
         and not type_class.is_endian()
     ):
+        if index is not None:
+            try:
+                validate_byte_order(merged[CONF_BYTE_ORDER])
+            except cv.Invalid as exc:
+                exc.prepend([index])
+                raise
         del merged[CONF_BYTE_ORDER]
     return merged
 
@@ -513,7 +533,7 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
                 path=[index],
             )
         merged = {CONF_PLATFORM: platform, **defaults, **file_entry}
-        result.append(_drop_incompatible_byte_order(merged, file_entry))
+        result.append(_drop_incompatible_byte_order(merged, file_entry, index=index))
     return result
 
 

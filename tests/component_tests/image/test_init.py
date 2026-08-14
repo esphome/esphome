@@ -489,6 +489,21 @@ def test_expand_platform_entry_drops_byte_order_for_non_endian_override() -> Non
     assert "byte_order" not in out[1]
 
 
+def test_expand_platform_entry_invalid_byte_order_in_defaults_raises() -> None:
+    """A `byte_order` inherited from `defaults:` that gets dropped for an
+    entry overriding to a non-endian `type:` is still validated before being
+    discarded -- a typo must raise, not silently vanish just because it
+    happened to land on an incompatible type."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "rgb565", "byte_order": "little_andian"},
+        CONF_FILES: [{"id": "a", "file": "x.png", "type": "binary"}],
+    }
+    with pytest.raises(cv.Invalid, match="did you mean") as excinfo:
+        _expand_platform_entry(0, entry)
+    assert excinfo.value.path == [0]
+
+
 def test_expand_platform_entry_keeps_byte_order_for_endian_override() -> None:
     entry = {
         CONF_PLATFORM: "file",
