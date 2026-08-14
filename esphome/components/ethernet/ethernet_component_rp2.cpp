@@ -249,11 +249,6 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   }
 }
 
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
-}
-
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
   uint8_t mac[MAC_ADDRESS_SIZE];
