@@ -186,6 +186,6 @@ def test_resolve_path_max_fatfs_non_numeric_lfn_raises() -> None:
     with (
         patch.object(storage, "_get_data", return_value=_data(fatfs=True)),
         patch.object(storage, "CORE", MagicMock(is_esp32=True, data=sdkconfig)),
+        pytest.raises(EsphomeError),
     ):
-        with pytest.raises(EsphomeError):
-            storage._resolve_path_max({})
+        storage._resolve_path_max({})
