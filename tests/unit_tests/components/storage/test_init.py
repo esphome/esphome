@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import esphome.config_validation as cv
 import pytest
+
 from esphome.components import storage
+import esphome.config_validation as cv
 
 
 # validate_mount_path enforces the invariant resolve_path()/build_path() rely on but never re-check
