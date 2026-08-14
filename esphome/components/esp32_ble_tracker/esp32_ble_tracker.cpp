@@ -36,27 +36,6 @@ static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-const char *client_state_to_string(ClientState state) {
-  switch (state) {
-    case ClientState::INIT:
-      return "INIT";
-    case ClientState::DISCONNECTING:
-      return "DISCONNECTING";
-    case ClientState::IDLE:
-      return "IDLE";
-    case ClientState::DISCOVERED:
-      return "DISCOVERED";
-    case ClientState::CONNECTING:
-      return "CONNECTING";
-    case ClientState::CONNECTED:
-      return "CONNECTED";
-    case ClientState::ESTABLISHED:
-      return "ESTABLISHED";
-    default:
-      return "UNKNOWN";
-  }
-}
-
 float ESP32BLETracker::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void ESP32BLETracker::setup() {
@@ -76,6 +55,7 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    ESP_LOGD(TAG, "Stopping scan for OTA");
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
@@ -211,7 +191,9 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
-  ESP_LOGD(TAG, "Stopping scan.");
+  // V to match the start log: the mode-switch and OTA callers narrate their
+  // reason at D themselves, and the user-facing stop action is deliberate.
+  ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
   this->stop_scan_();
 }
@@ -220,8 +202,9 @@ void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); 
 
 void ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
-    // If scanner is already idle, there's nothing to stop - this is not an error
-    if (this->scanner_state_ != ScannerState::IDLE) {
+    // IDLE means there is nothing to stop; STOPPING means a stop is already in
+    // flight and will finish on its own. Neither is an error.
+    if (this->scanner_state_ != ScannerState::IDLE && this->scanner_state_ != ScannerState::STOPPING) {
       ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
     }
     return;
@@ -292,7 +275,9 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
   // Safe because ESP32BLETracker (singleton) outlives all registered clients.
   client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
-  this->recalculate_advertisement_parser_types();
+  // Registration is add-only, so the flag is a monotonic OR.
+  if (client->wants_parsed_advertisements())
+    this->parse_advertisements_ = true;
 #endif
 }
 
@@ -304,48 +289,11 @@ void ESP32BLETracker::register_listener(ble_device_base::ESPBTDeviceListener *li
 #endif
 }
 
-void ESP32BLETracker::get_adapter_mac(uint8_t out[6]) {
-  get_mac_address_raw(out);  // WiFi base MAC, MSB-first
-  // BT MAC = base MAC + 2 on the last octet only, wrapping without carry —
-  // exactly ESP-IDF's esp_read_mac(ESP_MAC_BT): mac[5] += MAC_ADDR_UNIVERSE_BT_OFFSET.
-  out[5] += 2;
-}
-
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   listener->set_parent(this);
   this->listeners_.push_back(listener);
-  this->recalculate_advertisement_parser_types();
-#endif
-}
-
-void ESP32BLETracker::recalculate_advertisement_parser_types() {
-  this->raw_advertisements_ = false;
-  this->parse_advertisements_ = false;
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  // Neutral (BLEHub) listeners are parsed-advertisement consumers and are not in
-  // listeners_; without this, any later esp32-path registration (e.g. the proxy's
-  // GATT clients) would recompute the flags and silently drop parsed dispatch.
-  if (!this->neutral_listeners_.empty())
-    this->parse_advertisements_ = true;
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      this->parse_advertisements_ = true;
-    } else {
-      this->raw_advertisements_ = true;
-    }
-  }
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  for (auto *client : this->clients_) {
-    if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      this->parse_advertisements_ = true;
-    } else {
-      this->raw_advertisements_ = true;
-    }
-  }
+  this->parse_advertisements_ = true;
 #endif
 }
 
@@ -443,9 +391,9 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
   this->state_version_++;
-#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
-  for (auto *listener : this->scanner_state_listeners_) {
-    listener->on_scanner_state(state);
+#ifdef USE_BLE_SCANNER_STATE_CALLBACK
+  if (this->scanner_state_callback_.is_set()) {
+    this->scanner_state_callback_.invoke(state);
   }
 #endif
 }
@@ -483,24 +431,23 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
 #endif  // USE_ESP32_BLE_DEVICE
 
 void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
-  // Process raw advertisements
-  if (this->raw_advertisements_) {
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-    for (auto *listener : this->listeners_) {
-      listener->parse_devices(&scan_result, 1);
-    }
-#endif
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-    for (auto *client : this->clients_) {
-      client->parse_devices(&scan_result, 1);
-    }
-#endif
+  // Neutral raw-advertisement subscriber (the bluetooth_proxy path).
+  if (this->raw_advertisement_callback_.is_set()) {
+    ble_device_base::RawAdvertisement adv;
+    adv.address = esp32_ble::ble_addr_to_uint64(scan_result.bda);
+    adv.data = scan_result.ble_adv;
+    adv.data_len = static_cast<uint16_t>(scan_result.adv_data_len) + scan_result.scan_rsp_len;
+    adv.rssi = scan_result.rssi;
+    adv.addr_type = scan_result.ble_addr_type;
+    this->raw_advertisement_callback_.invoke(adv);
   }
 
   // Process parsed advertisements
   if (this->parse_advertisements_) {
 #ifdef USE_ESP32_BLE_DEVICE
     ESPBTDevice device;
+    // The historical ingest keeps the raw scan-result fields populated for
+    // external components.
     device.parse_scan_rst(scan_result);
 
     bool found = false;
