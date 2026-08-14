@@ -149,9 +149,8 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
-      if (this->pending_updates_.any() && this->is_status_initialized()) {
-        this->set_state_(State::APPLYING_SETTINGS);
-      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
+      if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_() &&
+          (!this->pending_updates_.any() || !this->is_status_initialized())) {
         this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
         this->set_state_(State::SCHEDULE_NEXT_STATUS_REQUEST);
       } else {

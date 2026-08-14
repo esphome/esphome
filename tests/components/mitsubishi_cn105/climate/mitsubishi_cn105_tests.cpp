@@ -96,6 +96,9 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Clear TX bytes.
   ctx.uart.tx.clear();
 
+  // Queue a setting while waiting for telemetry.
+  ctx.sut.set_power(true);
+
   // Telemetry response
   ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
                     0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5});
@@ -115,6 +118,13 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.operation_start_ms_, 400);
+
+  // Apply the pending setting on the next update, outside RX processing.
+  ctx.sut.set_current_time(401);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  EXPECT_FALSE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 401);
 }
 
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
