@@ -589,7 +589,8 @@ def zephyr_to_code(config: ConfigType) -> None:
     # native_sim has no real watchdog hardware.
     # temporarily skip watchdog setup on stm32
     if zephyr_variant() is not None and zephyr_variant() not in (
-        ZEPHYR_VARIANT_NATIVE_SIM, ZEPHYR_VARIANT_STM32
+        ZEPHYR_VARIANT_NATIVE_SIM,
+        ZEPHYR_VARIANT_STM32,
     ):
         zephyr_add_prj_conf("WATCHDOG", True)
         zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
