@@ -155,6 +155,8 @@ def run_command(
         _LOGGER.debug("%s - running ...", cmd_str)
 
         run_env = os.environ.copy()
+        # Do not leak PYTHONPATH
+        run_env.pop("PYTHONPATH", None)
         if env:
             run_env.update(env)
 
