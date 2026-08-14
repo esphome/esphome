@@ -445,8 +445,12 @@ jobs:
       - common
       - determine-jobs
     if: >-
-      (github.event_name == 'push' && github.ref_name == 'dev') ||
-      (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
+      github.repository == 'esphome/esphome' && (
+        (github.event_name == 'push' && github.ref_name == 'dev') ||
+        (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
+      )
+    # CodSpeed benchmarks require a CodSpeed account linked to the repository to run
+    # (https://codspeed.io) -- disabled on forks that aren't esphome/esphome itself.
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
