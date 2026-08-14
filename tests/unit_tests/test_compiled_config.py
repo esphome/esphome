@@ -466,6 +466,43 @@ def test_run_esphome_fallback_skips_cache_when_sidecar_write_fails(
     assert not (tmp_path / ".esphome" / "storage" / "lite_test.yaml.json").exists()
 
 
+def test_run_esphome_fallback_leaves_unreadable_sidecar_alone(tmp_path: Path) -> None:
+    """A present-but-corrupt sidecar is not overwritten: it may hold a real
+    build's metadata, and replacing it would suppress the next compile's
+    clean of a possibly incoherent build tree. The cache save is skipped."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+    sidecar = storage_dir / "lite_test.yaml.json"
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text("{truncated", encoding="utf-8")
+
+    with _fallback_run() as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_not_called()
+    assert sidecar.read_text(encoding="utf-8") == "{truncated"
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+
+
+def test_run_esphome_fallback_skips_cache_when_rebuilt_sidecar_incomplete(
+    tmp_path: Path,
+) -> None:
+    """If the rebuilt sidecar would still be incomplete, nothing is written:
+    the cache could never be loaded back, so saving it would only rewrite
+    resolved secrets on every run."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+
+    incomplete = tmp_path / "incomplete_storage.json"
+    _write_storage(incomplete, build_path=None)
+
+    with _fallback_run(return_value=StorageJSON.load(incomplete)):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    assert not (storage_dir / "lite_test.yaml.json").exists()
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+
+
 def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) -> None:
     """Drive the real from_esphome_core on the fallback path: the
     post-validation CORE state yields a complete, loadable sidecar."""
