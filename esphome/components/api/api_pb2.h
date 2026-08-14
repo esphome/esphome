@@ -1289,6 +1289,7 @@ class GetTimeResponse final : public ProtoDecodableMessage {
 #endif
   uint32_t epoch_seconds{0};
   ParsedTimezone parsed_timezone{};
+  bool has_parsed_timezone{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif

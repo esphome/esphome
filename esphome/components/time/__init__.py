@@ -36,6 +36,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.helpers import cpp_string_escape
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -412,7 +413,7 @@ async def setup_time_core_(time_var, config):
 
         if CORE.is_host:
             # Host platform also needs setenv("TZ")/tzset() for libc compatibility
-            cg.add(cg.RawExpression(f'setenv("TZ", "{timezone}", 1)'))
+            cg.add(cg.RawExpression(f'setenv("TZ", {cpp_string_escape(timezone)}, 1)'))
             cg.add(cg.RawExpression("tzset()"))
 
         # Pre-parse at codegen time, emit struct directly

@@ -1007,7 +1007,7 @@ message GetTimeResponse {
   // Assistant 2026.3.0 that send only the string leave the device on its
   // codegen-configured timezone (or UTC).
   string timezone = 2 [deprecated = true];
-  ParsedTimezone parsed_timezone = 3;
+  ParsedTimezone parsed_timezone = 3 [(track_presence) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================

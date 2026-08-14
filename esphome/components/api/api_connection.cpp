@@ -1205,12 +1205,11 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     // Apply only if the sender provided pre-parsed timezone data (Home Assistant 2026.3.0
-    // and newer). Older clients send only the deprecated timezone string, which is no
-    // longer decoded; for them the struct stays all-zero and the device keeps its
-    // codegen-configured timezone. Actual UTC (all zeros) is also skipped, which is
-    // harmless since UTC is the default.
-    const auto &pt = value.parsed_timezone;
-    if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
+    // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
+    // absent field. Older clients send only the deprecated timezone string, which is no
+    // longer decoded; for them the device keeps its codegen-configured timezone.
+    if (value.has_parsed_timezone) {
+      const auto &pt = value.parsed_timezone;
       time::ParsedTimezone tz{};
       tz.std_offset_seconds = pt.std_offset_seconds;
       tz.dst_offset_seconds = pt.dst_offset_seconds;

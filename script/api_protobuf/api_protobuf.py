@@ -938,8 +938,28 @@ class MessageType(TypeInfo):
         return None
 
     @property
+    def public_content(self) -> list[str]:
+        content = [self.class_member]
+        if self._track_presence:
+            content.append(f"bool has_{self.name}{{false}};")
+        return content
+
+    @property
+    def _track_presence(self) -> bool:
+        # Use getattr to handle older versions of api_options_pb2
+        opt = getattr(pb, "track_presence", None)
+        return opt is not None and get_field_opt(self._field, opt, False)
+
+    @property
     def decode_length_content(self) -> str:
         # Custom decode that doesn't use templates
+        if self._track_presence:
+            return (
+                f"case {self.number}:\n"
+                f"      this->has_{self.name} = true;\n"
+                f"      value.decode_to_message(this->{self.field_name});\n"
+                f"      break;"
+            )
         return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
