@@ -1,0 +1,32 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+# Explicit ble_hub_id: pins the neutral binding as a declared key.
+xiaomi_rtcgq02lm:
+  - id: motion_rtcgq02lm
+    ble_hub_id: ble_tracker_hub
+    mac_address: 01:02:03:04:05:06
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+
+  # No ble_hub_id: exercises the generated binding real configs use.
+  - id: motion_rtcgq02lm_implicit
+    mac_address: 01:02:03:04:05:07
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+binary_sensor:
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    motion:
+      name: Mi Motion Sensor 2
+    light:
+      name: Mi Motion Sensor 2 Light
+    button:
+      name: Mi Motion Sensor 2 Button
+
+sensor:
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    battery_level:
+      name: Mi Motion Sensor 2 Battery level

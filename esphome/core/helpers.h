@@ -184,6 +184,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
+  bool empty() const { return this->len_ == 0; }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<const uint8_t>() const { return std::span<const uint8_t>(this->data(), this->len_); }
+
   /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
   /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
   /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
@@ -249,6 +254,11 @@ template<typename T, size_t N> class StaticVector {
         break;
       data_[count_++] = val;
     }
+  }
+
+  // Converting constructor from a smaller StaticVector of the same element type
+  template<size_t M> StaticVector(const StaticVector<T, M> &other) : StaticVector(other.begin(), other.end()) {
+    static_assert(M <= N, "Source StaticVector cannot be larger than the destination");
   }
 
   // Minimal vector-compatible interface - only what we actually use
