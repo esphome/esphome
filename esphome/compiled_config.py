@@ -80,8 +80,13 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
         old = StorageJSON.load(path)
         if old is None or not _sidecar_is_complete(old):
             StorageJSON.from_esphome_core(CORE, old).save(path)
-    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+    except OSError as err:
         _LOGGER.debug("Skipping storage sidecar write: %s", err)
+        return
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        # Structural, not transient: every upload/logs pays the slow
+        # path until this is fixed, so surface it.
+        _LOGGER.warning("Could not write the storage sidecar: %s", err)
         return
     save_compiled_config(config)
 
@@ -123,12 +128,14 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
 
 
 def _sidecar_is_complete(storage: StorageJSON) -> bool:
-    """True when a platform field is set, as apply_to_core assumes.
+    """True when the sidecar carries everything apply_to_core hands CORE.
 
-    Sidecars written by old wizard versions leave both unset and
-    can't drive upload/logs.
+    Wizard-written sidecars leave build_path unset (older wizards also
+    the platform fields) and can't drive upload/logs.
     """
-    return bool(storage.core_platform or storage.target_platform)
+    return bool(
+        (storage.core_platform or storage.target_platform) and storage.build_path
+    )
 
 
 # Remove before 2027.8: by then every maintained install has saved the

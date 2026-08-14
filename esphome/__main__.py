@@ -2745,18 +2745,21 @@ def run_esphome(argv):
         if config is None:
             return 2
     CORE.config = config
+
+    # Fallback for platforms whose validators didn't set the toolchain
+    # (only the esp32 component reads esp32.framework.toolchain). All
+    # other platforms only support PlatformIO today. Must run before the
+    # cache refresh below so its sidecar records the same toolchain a
+    # compile would.
+    if CORE.toolchain is None:
+        CORE.toolchain = Toolchain.PLATFORMIO
+
     # Refresh the cache so the next upload/logs hits the fast path
     # instead of re-running read_config.
     if cache_eligible and cache_missed:
         from esphome.compiled_config import save_compiled_config_and_sidecar
 
         save_compiled_config_and_sidecar(config)
-
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today.
-    if CORE.toolchain is None:
-        CORE.toolchain = Toolchain.PLATFORMIO
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")
