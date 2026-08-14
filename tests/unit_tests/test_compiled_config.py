@@ -419,8 +419,12 @@ def test_run_esphome_fallback_writes_sidecar_and_cache_without_sidecar(
     ):
         assert run_esphome(["esphome", command, str(yaml_path)]) == 0
         mock_from_core.assert_called_once()
-        assert (storage_dir / "lite_test.yaml.json").exists()
         assert (storage_dir / "lite_test.yaml.validated.json").exists()
+        storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
+        assert storage is not None
+        # No compile happened, so the sidecar must not claim one.
+        assert storage.esphome_version is None
+        assert storage.firmware_bin_path is None
 
         # The second run loads the cache instead of re-validating.
         assert run_esphome(["esphome", command, str(yaml_path)]) == 0
@@ -454,6 +458,9 @@ def test_run_esphome_fallback_completes_wizard_sidecar(
     mock_from_core.assert_called_once()
     storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
     assert storage is not None and storage.core_platform == "esp32"
+    # What the wizard recorded about a build (nothing, or a real one)
+    # carries through instead of being stamped with this run's values.
+    assert storage.esphome_version == "2026.1.0"
     assert load_compiled_config(yaml_path) is not None
 
 
@@ -537,24 +544,32 @@ def test_run_esphome_fallback_sidecar_records_platformio_toolchain(
     assert storage.toolchain == "platformio"
 
 
+@pytest.mark.parametrize("existing_sidecar", [None, "wizard"])
 def test_run_esphome_fallback_skips_sidecar_when_build_tree_exists(
-    tmp_path: Path,
+    tmp_path: Path, existing_sidecar: str | None
 ) -> None:
-    """A build tree without a sidecar keeps its missing sidecar: that is
-    what makes the next compile wipe the unknown tree, so the fallback
-    writes nothing and skips the cache."""
+    """An existing build tree with a missing or wizard-only sidecar keeps
+    it that way: the mismatch is what makes the next compile wipe the
+    unknown tree, so the fallback writes nothing and skips the cache."""
     yaml_path = _bare_yaml(tmp_path)
     CORE.name = "lite_test"
     CORE.build_path = tmp_path / "build" / "lite_test"
     CORE.build_path.mkdir(parents=True)
     storage_dir = tmp_path / ".esphome" / "storage"
+    if existing_sidecar == "wizard":
+        _write_storage(storage_dir / "lite_test.yaml.json", build_path=None)
+        wizard_body = (storage_dir / "lite_test.yaml.json").read_text(encoding="utf-8")
 
     with _fallback_run(return_value=_storage_fixture(tmp_path)) as (_, mock_from_core):
         assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
 
     mock_from_core.assert_not_called()
-    assert not (storage_dir / "lite_test.yaml.json").exists()
     assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+    if existing_sidecar == "wizard":
+        sidecar_body = (storage_dir / "lite_test.yaml.json").read_text(encoding="utf-8")
+        assert sidecar_body == wizard_body
+    else:
+        assert not (storage_dir / "lite_test.yaml.json").exists()
 
 
 def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) -> None:
@@ -578,6 +593,9 @@ def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) ->
     assert storage is not None
     assert storage.core_platform == "esp8266"
     assert storage.build_path is not None
+    # No compile happened, so the sidecar must not claim one.
+    assert storage.esphome_version is None
+    assert storage.firmware_bin_path is None
     assert load_compiled_config(yaml_path) is not None
 
 

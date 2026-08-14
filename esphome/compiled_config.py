@@ -65,7 +65,9 @@ def save_compiled_config(config: ConfigType) -> None:
         # non-basic dict key), so every upload/logs pays the slow path.
         _LOGGER.warning("Cannot cache the validated config: %s", err)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        _LOGGER.debug("Skipping compiled config cache write: %s", err)
+        # Likely persistent (permissions, full disk): every upload/logs
+        # pays the slow path until it clears, so surface it.
+        _LOGGER.warning("Skipping compiled config cache write: %s", err)
 
 
 def save_compiled_config_and_sidecar(config: ConfigType) -> None:
@@ -89,23 +91,33 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
             )
             return
         if old is None or not _sidecar_is_complete(old):
-            if old is None and CORE.build_path is not None and CORE.build_path.exists():
-                # A build tree without a sidecar: the missing sidecar is
-                # exactly what makes the next compile wipe that tree, so
-                # keep it missing rather than vouch for an unknown build.
-                _LOGGER.debug("Not caching: build tree exists without a sidecar")
+            if CORE.build_path is not None and CORE.build_path.exists():
+                # An unvalidated build tree: its absent or mismatched
+                # sidecar is what makes the next compile wipe it, so
+                # don't vouch for a build this run never saw.
+                _LOGGER.debug("Not caching: existing build tree has no valid sidecar")
                 return
             new = StorageJSON.from_esphome_core(CORE, old)
+            # Nothing was built here; don't claim this release's firmware.
+            new.esphome_version = old.esphome_version if old is not None else None
+            new.firmware_bin_path = old.firmware_bin_path if old is not None else None
             if not _sidecar_is_complete(new):
                 _LOGGER.warning(
                     "Not caching: rebuilt storage sidecar is still incomplete"
                 )
                 return
             new.save(path)
-    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        # Persistent either way (unwritable storage dir or a structural
-        # bug), so surface that every upload/logs pays the slow path.
+    except OSError as err:
+        # Persistent (unwritable storage dir), so surface that every
+        # upload/logs pays the slow path.
         _LOGGER.warning("Could not refresh the storage sidecar: %s", err)
+        return
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        # A structural bug; keep the traceback so it isn't mistaken
+        # for the I/O failure above.
+        _LOGGER.warning(
+            "Unexpected error refreshing the storage sidecar", exc_info=True
+        )
         return
     save_compiled_config(config)
 

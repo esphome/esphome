@@ -915,3 +915,43 @@ def test_storage_json_load_area(tmp_path: Path) -> None:
     legacy = storage_json.StorageJSON.load(legacy_path)
     assert legacy is not None
     assert legacy.area is None
+
+
+def test_as_dict_serializes_unset_paths_as_null(setup_core: Path) -> None:
+    """Unset build/firmware paths serialize as JSON null, not str(None)."""
+    storage = storage_json.StorageJSON.from_wizard(
+        name="wiz",
+        friendly_name="Wiz",
+        address="wiz.local",
+        platform="ESP32",
+    )
+
+    result = storage.as_dict()
+
+    assert result["build_path"] is None
+    assert result["firmware_bin_path"] is None
+
+
+def test_load_treats_legacy_none_string_paths_as_unset(tmp_path: Path) -> None:
+    """Sidecars written before as_dict emitted null hold str(None); those
+    must load as unset, not as Path("None")."""
+    file_path = tmp_path / "legacy_none.json"
+    file_path.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "wiz",
+                "friendly_name": "Wiz",
+                "esp_platform": "ESP32",
+                "core_platform": "esp32",
+                "build_path": "None",
+                "firmware_bin_path": "None",
+            }
+        )
+    )
+
+    result = storage_json.StorageJSON.load(file_path)
+
+    assert result is not None
+    assert result.build_path is None
+    assert result.firmware_bin_path is None
