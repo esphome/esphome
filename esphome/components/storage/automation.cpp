@@ -21,6 +21,9 @@ namespace esphome::storage {
 
 static const char *const TAG = "storage.automation";
 
+// See automation.h for the contract. nullptr = the format:/args: lambda rendered its line cleanly.
+const char *file_write_content_error = nullptr;
+
 void warn_invalid_bool(const std::string &s) {
   ESP_LOGW(TAG, "file_read: '%s' is not a valid bool; global unchanged", s.c_str());
 }
@@ -655,6 +658,12 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
     PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
     if (ps == nullptr) {
       raw_fail(on_complete, "write", std::string("no storage mounted for '") + path + "'");
+      return;
+    }
+    // stat() below runs on the main loop; every other helper that touches a path storage there
+    // refuses while the worker task owns it, or the two race on the same driver. Do the same.
+    if (worker_task_busy(ps)) {
+      raw_fail(on_complete, "write", "source storage is busy with a background transfer");
       return;
     }
     // The sync twin (perform_raw_write_from_file -> perform_raw_write) rejects a zero-length write

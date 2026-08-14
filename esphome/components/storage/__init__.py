@@ -166,13 +166,12 @@ def _collect_mount_paths(
     """Walk a validated config fragment, collecting every (mount point, location) it declares."""
     if isinstance(fragment, dict):
         for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH:
-                # A validated mount_path is always a str; a non-str here means a driver schema let
-                # one through, which would silently skip the duplicate-mount-point check.
-                if not isinstance(value, str):
-                    raise cv.Invalid(
-                        f"mount_path must be a string, not {type(value).__name__}"
-                    )
+            if key == CONF_MOUNT_PATH and isinstance(value, str):
+                # Only a string is a storage mount point. validate_mount_path() (cv.string_strict)
+                # guarantees a real driver's mount_path is a str, so a non-str mount_path key belongs
+                # to some other component's schema -- not ours to reject or reserve. Fall through to
+                # the recursion for it rather than raising; this sweep runs over every domain in the
+                # full config and must not police a foreign 'mount_path'.
                 out.append((value, where))
             else:
                 _collect_mount_paths(value, where, out)
@@ -769,22 +768,26 @@ async def _build_write_action(
         # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf /
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
-        # is therefore a bounded line like logger.log: content that does not fit is truncated and
-        # logged at ERROR (not ESP_LOGW, which compiles out below log level WARN and would make the
-        # loss silent). Authors who need arbitrary length use content: with a lambda, which has no
-        # cap. A negative snprintf return (an encoding error) is logged too rather than writing a
-        # silent empty file.
+        # is therefore a bounded line: content that does not fit the buffer, or that snprintf cannot
+        # encode, is rejected -- the lambda records the reason in file_write_content_error and
+        # FileWriteAction::play() reports it on on_complete without writing (see automation.h), so a
+        # formatting failure never truncates the target file to empty/partial content and never
+        # looks like success. Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
             "char buf[256];\n"
             f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
             "if (n < 0) {\n"
             '  ESP_LOGE("storage.automation", "file_write: could not format content");\n'
+            '  esphome::storage::file_write_content_error = "could not format content";\n'
             "  return std::string();\n"
             "}\n"
-            "if ((size_t) n >= sizeof(buf))\n"
-            '  ESP_LOGE("storage.automation", "file_write: formatted content truncated to %u bytes;'
+            "if ((size_t) n >= sizeof(buf)) {\n"
+            '  ESP_LOGE("storage.automation", "file_write: formatted content exceeds %u bytes;'
             ' use content: with a lambda for longer data", (unsigned) (sizeof(buf) - 1));\n'
-            "return std::string(buf, (size_t) n < sizeof(buf) ? (size_t) n : sizeof(buf) - 1);"
+            '  esphome::storage::file_write_content_error = "formatted content too long";\n'
+            "  return std::string();\n"
+            "}\n"
+            "return std::string(buf, (size_t) n);"
         )
         lambda_ = await cg.process_lambda(
             core.Lambda(lambda_body),
