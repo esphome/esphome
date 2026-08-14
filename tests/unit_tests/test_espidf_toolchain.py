@@ -265,6 +265,21 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
+def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
+    """A PYTHONPATH from the parent environment must not reach idf.py.
+
+    It would override the IDF venv's isolation, shadowing its pinned
+    packages and failing idf.py's dependency check.
+    """
+    toolchain._cache().env.clear()
+    with patch.dict(
+        os.environ,
+        {"IDF_PATH": str(setup_core), "PYTHONPATH": "/outside/site-packages"},
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "PYTHONPATH" not in env
+
+
 def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
     """A build dir that was never created raises EsphomeError.
 
