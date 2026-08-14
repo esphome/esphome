@@ -31,7 +31,6 @@ VARIANT = ZephyrVariant(
     family="stm32",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    soc=None,
     swap_methods=frozenset({"move", "offset"}),
 )
 
