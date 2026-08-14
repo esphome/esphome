@@ -137,14 +137,14 @@ describe('detectMergeBranch', () => {
     assert.equal(state.calls, 1);
   });
 
-  it('base ref matches a non-dev default branch adds no labels', async () => {
+  it('base ref matches default branch adds no labels', async () => {
     const { github } = makeStackGithub({ stack: null });
     const context = makeMergeContext('dev', { defaultBranch: 'dev' });
     const labels = await detectMergeBranch(github, context);
     assert.deepEqual(Array.from(labels).sort(), []);
   });
 
-  it('base ref dev when the default branch is dev adds chained-pr', async () => {
+  it('base ref other when the default branch is dev adds chained-pr', async () => {
     const { github } = makeStackGithub({ stack: null });
     const context = makeMergeContext('other', { defaultBranch: 'dev' });
     const labels = await detectMergeBranch(github, context);
