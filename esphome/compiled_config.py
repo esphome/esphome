@@ -73,9 +73,19 @@ def save_compiled_config(config: ConfigType) -> None:
 def save_compiled_config_and_sidecar(config: ConfigType) -> None:
     """Refresh the cache from the upload/logs fallback (CORE.config must be set).
 
-    Writes the StorageJSON sidecar first when missing or wizard-only; a
-    failed sidecar write is non-fatal and skips the cache save, since the
-    cache could never be loaded back and only holds resolved secrets.
+    The cache is only written when a complete sidecar is on disk:
+    load_compiled_config can't use it otherwise, and it holds resolved
+    secrets.
+    """
+    if _refresh_sidecar():
+        save_compiled_config(config)
+
+
+def _refresh_sidecar() -> bool:
+    """Ensure a complete sidecar is on disk; True when one is.
+
+    Writes one (without claiming a build) when missing or wizard-only.
+    Failures are non-fatal; the next upload/logs pays the slow path again.
     """
     try:
         path = storage_path()
@@ -89,42 +99,38 @@ def save_compiled_config_and_sidecar(config: ConfigType) -> None:
                 "'esphome compile' will rewrite it",
                 path,
             )
-            return
-        if old is None or not _sidecar_is_complete(old):
-            if CORE.build_path is not None and CORE.build_path.exists():
-                # An unvalidated build tree: its absent or mismatched
-                # sidecar is what makes the next compile wipe it, so
-                # don't vouch for a build this run never saw.
-                _LOGGER.warning(
-                    "Not caching: build tree %s has no matching sidecar; "
-                    "'esphome compile' will settle it",
-                    CORE.build_path,
-                )
-                return
-            new = StorageJSON.from_esphome_core(CORE, old)
-            # Nothing was built here; don't claim this release's firmware.
-            new.esphome_version = old.esphome_version if old is not None else None
-            new.firmware_bin_path = old.firmware_bin_path if old is not None else None
-            if not _sidecar_is_complete(new):
-                _LOGGER.warning(
-                    "Not caching: rebuilt storage sidecar is still incomplete"
-                )
-                return
-            new.save(path)
+            return False
+        if old is not None and old.can_apply_to_core():
+            # Compile-written; nothing to refresh.
+            return True
+        if CORE.build_path is not None and CORE.build_path.exists():
+            # An unvalidated build tree: its absent or mismatched sidecar
+            # is what makes the next compile wipe it, so don't vouch for
+            # a build this run never saw.
+            _LOGGER.warning(
+                "Not caching: build tree %s has no matching sidecar; "
+                "'esphome compile' will settle it",
+                CORE.build_path,
+            )
+            return False
+        new = StorageJSON.from_esphome_core(CORE, old, claim_build=False)
+        if not new.can_apply_to_core():
+            _LOGGER.warning("Not caching: rebuilt storage sidecar is still incomplete")
+            return False
+        new.save(path)
+        return True
     except (OSError, EsphomeError) as err:
         # write_file wraps OSError into EsphomeError. Persistent
         # (unwritable storage dir), so surface that every upload/logs
         # pays the slow path.
         _LOGGER.warning("Could not refresh the storage sidecar: %s", err)
-        return
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         # A structural bug; keep the traceback so it isn't mistaken
         # for the I/O failure above.
         _LOGGER.warning(
             "Unexpected error refreshing the storage sidecar", exc_info=True
         )
-        return
-    save_compiled_config(config)
+    return False
 
 
 def load_compiled_config(conf_path: Path) -> ConfigType | None:
@@ -157,21 +163,10 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
         return None
 
     storage = StorageJSON.load(ext_storage_path(conf_path.name))
-    if storage is None or not _sidecar_is_complete(storage):
+    if storage is None or not storage.can_apply_to_core():
         return None
     storage.apply_to_core()
     return config
-
-
-def _sidecar_is_complete(storage: StorageJSON) -> bool:
-    """True when the sidecar carries everything apply_to_core hands CORE.
-
-    Wizard-written sidecars leave build_path unset (older wizards also
-    the platform fields) and can't drive upload/logs.
-    """
-    return bool(
-        (storage.core_platform or storage.target_platform) and storage.build_path
-    )
 
 
 # Remove before 2027.8: by then every maintained install has saved the

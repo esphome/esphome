@@ -194,7 +194,18 @@ class StorageJSON:
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
-    def from_esphome_core(esph: CoreType, old: StorageJSON | None) -> StorageJSON:
+    def from_esphome_core(
+        esph: CoreType, old: StorageJSON | None, *, claim_build: bool = True
+    ) -> StorageJSON:
+        """Build a sidecar from post-validation CORE state.
+
+        claim_build=False (the upload/logs fallback, which runs no build)
+        carries the build-artifact fields (esphome_version,
+        firmware_bin_path) from *old* instead of asserting this run built
+        firmware. Validation-derived fields (platform, framework_version,
+        toolchain, build_path) always stamp; storage_should_clean compares
+        them against the next compile.
+        """
         hardware = esph.target_platform.upper()
         framework_version: str | None = None
         if esph.is_esp32:
@@ -209,13 +220,21 @@ class StorageJSON:
             name=esph.name,
             friendly_name=esph.friendly_name,
             comment=esph.comment,
-            esphome_version=const.__version__,
+            esphome_version=(
+                const.__version__
+                if claim_build
+                else (old.esphome_version if old else None)
+            ),
             src_version=1,
             address=esph.address,
             web_port=esph.web_port,
             target_platform=hardware,
             build_path=esph.build_path,
-            firmware_bin_path=esph.firmware_bin,
+            firmware_bin_path=(
+                esph.firmware_bin
+                if claim_build
+                else (old.firmware_bin_path if old else None)
+            ),
             loaded_integrations=esph.loaded_integrations,
             loaded_platforms=esph.loaded_platforms,
             no_mdns=(
@@ -307,11 +326,20 @@ class StorageJSON:
         except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
+    def can_apply_to_core(self) -> bool:
+        """True when the sidecar carries everything apply_to_core hands CORE.
+
+        Wizard-written sidecars leave build_path unset (older wizards also
+        the platform fields) and can't drive upload/logs.
+        """
+        return bool((self.core_platform or self.target_platform) and self.build_path)
+
     def apply_to_core(self) -> None:
         """Populate CORE with the metadata upload/logs read.
 
         Inverse of :meth:`from_esphome_core`. Keep paired -- a new
-        attribute upload/logs needs has to be captured there too.
+        attribute upload/logs needs has to be captured there too and
+        reflected in :meth:`can_apply_to_core`.
         Validator-only fields (loaded_integrations/platforms,
         friendly_name) are skipped; the fast path doesn't run
         validation and CORE.__init__ defaults them.

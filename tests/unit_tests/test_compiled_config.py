@@ -431,25 +431,37 @@ def test_run_esphome_fallback_writes_sidecar_and_cache_without_sidecar(
         storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
         assert storage is not None
         # No compile happened, so the sidecar must not claim one.
-        assert storage.esphome_version is None
-        assert storage.firmware_bin_path is None
+        assert mock_from_core.call_args.kwargs == {"claim_build": False}
 
         # The second run loads the cache instead of re-validating.
         assert run_esphome(["esphome", command, str(yaml_path)]) == 0
         mock_read.assert_called_once()
 
 
-@pytest.mark.parametrize(
+# as_dict serialized unset paths as str(None) until 2026.9; files
+# written by those wizards are still on disk.
+_WIZARD_SIDECAR_CASES = pytest.mark.parametrize(
     "wizard_kwargs",
     [
         {"esp_platform": None, "core_platform": None, "build_path": None},
         {"build_path": None},
-        # as_dict serialized unset paths as str(None) until 2026.9; files
-        # written by those wizards are still on disk.
         {"build_path": "None"},
     ],
     ids=["legacy_wizard", "modern_wizard", "none_string_wizard"],
 )
+
+
+def _prime_core(tmp_path: Path) -> None:
+    """Set the post-validation CORE state from_esphome_core reads."""
+    CORE.name = "lite_test"
+    CORE.build_path = tmp_path / "build" / "lite_test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+
+@_WIZARD_SIDECAR_CASES
 def test_run_esphome_fallback_completes_wizard_sidecar(
     tmp_path: Path, wizard_kwargs: dict[str, Any]
 ) -> None:
@@ -555,12 +567,7 @@ def test_run_esphome_fallback_sidecar_records_platformio_toolchain(
     whose validators leave CORE.toolchain unset record the same
     "platformio" a compile writes, not null."""
     yaml_path = _bare_yaml(tmp_path)
-    CORE.name = "lite_test"
-    CORE.build_path = tmp_path / "build" / "lite_test"
-    CORE.data[KEY_CORE] = {
-        KEY_TARGET_PLATFORM: "esp8266",
-        KEY_TARGET_FRAMEWORK: "arduino",
-    }
+    _prime_core(tmp_path)
     assert CORE.toolchain is None
 
     with _fallback_run():
@@ -581,8 +588,7 @@ def test_run_esphome_fallback_skips_sidecar_when_build_tree_exists(
     it that way: the mismatch is what makes the next compile wipe the
     unknown tree, so the fallback writes nothing and skips the cache."""
     yaml_path = _bare_yaml(tmp_path)
-    CORE.name = "lite_test"
-    CORE.build_path = tmp_path / "build" / "lite_test"
+    _prime_core(tmp_path)
     CORE.build_path.mkdir(parents=True)
     storage_dir = tmp_path / ".esphome" / "storage"
     if existing_sidecar == "wizard":
@@ -605,13 +611,8 @@ def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) ->
     """Drive the real from_esphome_core on the fallback path: the
     post-validation CORE state yields a complete, loadable sidecar."""
     yaml_path = _bare_yaml(tmp_path)
-    CORE.name = "lite_test"
+    _prime_core(tmp_path)
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "lite_test"}}
-    CORE.build_path = tmp_path / "build" / "lite_test"
-    CORE.data[KEY_CORE] = {
-        KEY_TARGET_PLATFORM: "esp8266",
-        KEY_TARGET_FRAMEWORK: "arduino",
-    }
     CORE.toolchain = Toolchain.PLATFORMIO
 
     save_compiled_config_and_sidecar(CORE.config)
@@ -892,26 +893,13 @@ def test_int_keys_coerce_to_strings(primed_storage: Path) -> None:
     assert config["table"] == {"1": "a", "2": "b"}
 
 
-@pytest.mark.parametrize(
-    "wizard_kwargs",
-    [
-        {"esp_platform": None, "core_platform": None, "build_path": None},
-        {"build_path": None},
-        # as_dict serialized unset paths as str(None) until 2026.9; files
-        # written by those wizards are still on disk.
-        {"build_path": "None"},
-    ],
-    ids=["legacy_wizard", "modern_wizard", "none_string_wizard"],
-)
+@_WIZARD_SIDECAR_CASES
 def test_load_compiled_config_rejects_wizard_only_sidecar(
     tmp_path: Path, wizard_kwargs: dict[str, Any]
 ) -> None:
     """A wizard-written sidecar (no build_path; older wizards also no
     platform fields) can't drive upload/logs, so the fast path falls back."""
-    yaml_path = tmp_path / "lite_test.yaml"
-    yaml_path.write_text("esphome:\n  name: lite_test\n")
-    CORE.config_path = yaml_path
-
+    yaml_path = _bare_yaml(tmp_path)
     storage_dir = tmp_path / ".esphome" / "storage"
     _write_storage(storage_dir / "lite_test.yaml.json", **wizard_kwargs)
     cache_path = _write_cache(storage_dir / "lite_test.yaml.validated.json")
