@@ -50,7 +50,7 @@ template<typename T> inline T printf_arg(T v) {
 // write would destroy the target file) and reports the reason on on_complete instead of "success".
 // Main-loop-only (actions never run off the main loop), cleared and read within a single play(), so
 // a plain pointer needs no synchronization.
-extern const char *file_write_content_error;
+extern const char *const file_write_content_error;
 
 void warn_invalid_bool(const std::string &s);
 void warn_invalid_number(const std::string &s);
