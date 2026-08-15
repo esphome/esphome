@@ -1,5 +1,7 @@
 """Unit tests for doc-link surfacing in esphome.config's validation error formatting."""
 
+from unittest.mock import patch
+
 import voluptuous as vol
 
 from esphome.config import Config, _format_vol_invalid, _manifest_for_domain
@@ -41,4 +43,26 @@ def test_format_vol_invalid_no_link_when_doc_url_unknown() -> None:
 
     message = _format_vol_invalid(err, config)
 
+    assert "See " not in message
+
+
+def test_format_vol_invalid_skips_lookup_for_sub_item_error() -> None:
+    """A sub-item error (path deeper than any registered output path) falls back to an
+    arbitrary nested config key, not a component domain. That key must never be looked
+    up as a component: it isn't one, and doing so would both spam an "Unable to import
+    component" log line for every such error and, if the key happens to collide with a
+    real component name (e.g. `button`, `light`, `sensor`), attach an unrelated doc link."""
+    register_external_component_doc_url("button", "https://example.com/docs")
+
+    config = Config()
+    config.add_output_path(["lvgl", 0], "lvgl")
+    err = vol.Invalid(
+        "extra keys not allowed",
+        path=["lvgl", 0, "widgets", 0, "button", "bad_key"],
+    )
+
+    with patch("esphome.config.get_component") as mock_get_component:
+        message = _format_vol_invalid(err, config)
+
+    mock_get_component.assert_not_called()
     assert "See " not in message
