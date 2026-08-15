@@ -2971,16 +2971,7 @@ _EXFAT_MARKER = ".esphome_exfat_override"
 
 
 def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> None:
-    """Patch a project-local copy of FatFs so exFAT is compiled in.
-
-    exFAT is a plain #define in FatFs (no Kconfig symbol), so the only way to turn it on is a
-    patched copy of the component. ESP-IDF auto-discovers <project>/components with the
-    highest precedence (project components override same-named IDF components), and the
-    generated project root is the build dir -- so a patched copy at
-    <build>/components/fatfs/ wins, with zero cmake anywhere and nothing outside this build
-    directory touched. Synced every codegen: created/refreshed when enabled (stamped with
-    the IDF version so an IDF switch re-copies), removed when disabled -- a stale copy would
-    keep exFAT on silently."""
+    """Patch a project-local copy of FatFs so exFAT is compiled in. """
     import shutil
 
     from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
