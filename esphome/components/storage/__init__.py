@@ -73,6 +73,7 @@ CONF_ON_MISSING = "on_missing"
 
 storage_ns = cg.esphome_ns.namespace("storage")
 Storage = storage_ns.class_("Storage", cg.Component)
+TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 FilesystemStorage = storage_ns.class_("FilesystemStorage", PathStorage)
@@ -102,6 +103,11 @@ def validate_sector_multiple(value: int) -> int:
 # request_storage_device()). With no such driver they are simply unused.
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.Optional("enable_psram_transfer_buffer"): cv.boolean,
+        cv.Optional("psram_transfer_buffer_size"): cv.All(
+            cv.validate_bytes, cv.Range(min=64 * 1024)
+        ),
+        cv.Optional("psram_transfer_buffer_override_limit", default=False): cv.boolean,
         cv.GenerateID(): cv.declare_id(StorageRegistry),
         # The async worker is a second component minted from this same storage: block. Declaring its
         # id here lets validation register it like any component, so the component count includes it;
@@ -223,7 +229,34 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+def _transfer_buffer_final_validate(config):
+    has_psram = "psram" in fv.full_config.get()
+    if "enable_psram_transfer_buffer" in config and not has_psram:
+        raise cv.Invalid(
+            "'enable_psram_transfer_buffer' is only available with the psram component"
+        )
+    enabled = config.get("enable_psram_transfer_buffer", has_psram)
+    if "psram_transfer_buffer_size" in config:
+        if not has_psram:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' is only available with the psram component"
+            )
+        if not enabled:
+            raise cv.Invalid(
+                "'psram_transfer_buffer_size' requires 'enable_psram_transfer_buffer' to be true"
+            )
+    if config.get("psram_transfer_buffer_override_limit") and (
+        not has_psram or not enabled
+    ):
+        raise cv.Invalid(
+            "'psram_transfer_buffer_override_limit' requires an enabled psram transfer buffer"
+        )
+    # The 25% default and the 80% ceiling are enforced in setup(): the actual PSRAM
+    # size is detected at boot and unknowable at config time.
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(_final_validate, _transfer_buffer_final_validate)
 
 
 @dataclass
@@ -470,6 +503,16 @@ async def to_code(config: ConfigType) -> None:
         "The storage component is experimental; its configuration and C++ API may change "
         "without following the normal breaking-changes policy."
     )
+    tb_enabled = config.get("enable_psram_transfer_buffer", "psram" in CORE.config)
+    if tb_enabled:
+        cg.add_define("USE_STORAGE_TRANSFER_BUFFER")
+        tb_id = ID("storage_transfer_buffer", is_declaration=True, type=TransferBuffer)
+        CORE.component_ids.add(str(tb_id))
+        tb = cg.new_Pvariable(tb_id)
+        await cg.register_component(tb, {})
+        # 0 = auto: setup() sizes the arena to 25% of the detected PSRAM
+        cg.add(tb.set_size(config.get("psram_transfer_buffer_size", 0)))
+        cg.add(tb.set_override_limit(config["psram_transfer_buffer_override_limit"]))
     var = cg.new_Pvariable(config[cv.GenerateID()])
     await cg.register_component(var, config)
 
