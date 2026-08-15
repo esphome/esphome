@@ -50,13 +50,11 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
 
   for (size_t i = 0; i < modes.size(); ++i) {
     SCOPED_TRACE(i);
-    ctx.hub.set_vane_mode(modes[i]);
-    ctx.hub.publish_status();
+    ctx.select.publish_vane_state(modes[i]);
     EXPECT_EQ(ctx.select.active_index(), std::optional{i});
   }
 
-  ctx.hub.set_vane_mode(MitsubishiCN105::VaneMode::UNKNOWN);
-  ctx.hub.publish_status();
+  ctx.select.publish_vane_state(MitsubishiCN105::VaneMode::UNKNOWN);
   EXPECT_EQ(ctx.select.active_index(), std::optional{modes.size() - 1});
 }
 

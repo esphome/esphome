@@ -38,6 +38,7 @@ TEST(MitsubishiCN105ComponentTests, PublishesUnknownVaneState) {
 
   hub.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
   hub.set_target_temperature(20.0f);
+  ASSERT_EQ(hub.status().vane_mode, MitsubishiCN105::VaneMode::UNKNOWN);
   hub.publish_status();
 
   EXPECT_EQ(status_callback_count, 1);

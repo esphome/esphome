@@ -10,7 +10,9 @@ namespace esphome::mitsubishi_cn105 {
 class SwingModeManager {
  public:
   const climate::ClimateSwingModeMask &supported_swing_modes() const { return this->supported_swing_modes_; }
-  climate::ClimateSwingModeMask &supported_swing_modes() { return this->supported_swing_modes_; }
+  void set_supported_swing_modes(const climate::ClimateSwingModeMask &supported_swing_modes) {
+    this->supported_swing_modes_ = supported_swing_modes;
+  }
 
   std::optional<MitsubishiCN105::VaneMode> vane_from(climate::ClimateSwingMode swing_mode) const {
     if (!this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
