@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from esphome import pins
 import esphome.codegen as cg
@@ -14,6 +14,21 @@ import esphome.final_validate as fv
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+# Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
+# generated unless a config uses one).
+AUTO_LOAD = ["modbus_client"]
+
+# Mirrors modbus::MAX_PDU_SIZE in modbus_definitions.h: 256-byte RTU frame minus address and CRC.
+MAX_PDU_SIZE = 253
+
+# Mirror the per-function entity count limits from modbus_definitions.h. Keep these in step with the
+# C++ constants of the same name; the spec sets a different ceiling for each function code.
+MAX_NUM_OF_COILS_TO_READ = 2000
+MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000
+MAX_NUM_OF_COILS_TO_WRITE = 1968
+MAX_NUM_OF_REGISTERS_TO_READ = 125
+MAX_NUM_OF_REGISTERS_TO_WRITE = 123
+MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
@@ -85,15 +100,28 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
+def _validate_server_address(value: Any) -> int:
+    address = cv.hex_uint8_t(value)
+    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+    # so it cannot identify an individual server device.
+    if address == 0:
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a "
+            "server device address. Assign a unique unit address instead."
+        )
+    return address
+
+
 def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
     hub_type = ModbusClient if role == "client" else ModbusServer
+    address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
     }
     if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
+        schema[cv.Required(CONF_ADDRESS)] = address_validator
     else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = address_validator
     return cv.Schema(schema)
 
 
