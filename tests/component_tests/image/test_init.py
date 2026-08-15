@@ -488,6 +488,38 @@ def test_expand_platform_entry_files_without_defaults() -> None:
     ]
 
 
+def test_expand_platform_entry_preserves_source_range() -> None:
+    """A merged entry keeps the source range of its original `files:` item
+    (rather than being a plain dict) so an error raised against the entry as
+    a whole -- not just one of its keys -- anchors at the actual file item
+    instead of falling back to the parent `- platform:` line."""
+    from esphome import yaml_util
+
+    file_entry = yaml_util.make_data_base({"id": "img1", "file": "foo.png"})
+    file_entry._esp_range = "sentinel-range"
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_DEFAULTS: {"type": "RGB565"},
+        CONF_FILES: [file_entry],
+    }
+    [out] = _expand_platform_entry(0, entry)
+    assert isinstance(out, yaml_util.ESPHomeDataBase)
+    assert out.esp_range == "sentinel-range"
+
+
+def test_expand_platform_entry_plain_dict_file_entry_has_no_source_range() -> None:
+    """A hand-built plain-dict `files:` item (as used throughout this test
+    module, and by any config not sourced from real YAML) must not crash --
+    `ESPHomeDataBase.from_database` reads `.esp_range` unconditionally, so it
+    can't be handed a plain dict directly."""
+    entry = {
+        CONF_PLATFORM: "file",
+        CONF_FILES: [{"id": "img1", "file": "foo.png"}],
+    }
+    [out] = _expand_platform_entry(0, entry)
+    assert out == {CONF_PLATFORM: "file", "id": "img1", "file": "foo.png"}
+
+
 def test_expand_platform_entry_per_file_overrides_win() -> None:
     entry = {
         CONF_PLATFORM: "file",

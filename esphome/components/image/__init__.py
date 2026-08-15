@@ -517,6 +517,8 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
                 path=[index],
             )
 
+    from esphome import yaml_util
+
     platform = entry[CONF_PLATFORM]
     result: list[dict] = []
     for file_entry in files:
@@ -532,7 +534,21 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
                 f"'{CONF_PLATFORM}' is not allowed inside '{CONF_FILES}'",
                 path=[index],
             )
-        merged = {CONF_PLATFORM: platform, **defaults, **file_entry}
+        # Wrapped with the source range of the original `files:` item (rather
+        # than left as a plain dict) so an error raised against this whole
+        # entry -- not just one of its keys -- still anchors at the actual
+        # file item instead of falling back to the parent `- platform:` line.
+        # `from_database` requires an actual ESPHomeDataBase (it reads
+        # `.esp_range` unconditionally, unlike `add_class_to_obj`, so it can't
+        # just be handed a plain dict) -- real YAML-sourced entries are always
+        # one, but hand-built dicts (e.g. in unit tests) are not, so only pass
+        # it through when it actually is one.
+        source = (
+            file_entry if isinstance(file_entry, yaml_util.ESPHomeDataBase) else None
+        )
+        merged = yaml_util.make_data_base(
+            {CONF_PLATFORM: platform, **defaults, **file_entry}, source
+        )
         result.append(_drop_incompatible_byte_order(merged, file_entry, index=index))
     return result
 
