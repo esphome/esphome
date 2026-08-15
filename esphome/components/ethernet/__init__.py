@@ -355,7 +355,7 @@ def _validate(config):
                     "  clk:\n"
                     "    mode: %s\n"
                     "    pin: %s\n"
-                    "Removal scheduled for 2026.9.0.",
+                    "Removal scheduled for 2026.11.0.",
                     config[CONF_CLK_MODE],
                     mode,
                     pin,
