@@ -777,7 +777,7 @@ def test_reconcile_vfs_fatfs_sdkconfig(
     for key, value in requires.items():
         CORE.data[key] = value
 
-    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables))
+    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables, enable_exfat))
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
 
