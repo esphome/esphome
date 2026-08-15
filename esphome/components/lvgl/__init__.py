@@ -10,7 +10,7 @@ from esphome.components.const import (
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
-    CONF_LABEL,
+    CONF_LABEL as CONF_LABEL,
 )
 from esphome.components.display import Display, get_display_metadata, validate_rotation
 from esphome.components.esp32 import (
