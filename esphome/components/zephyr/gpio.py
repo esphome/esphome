@@ -123,7 +123,9 @@ async def zephyr_pin_to_code(config):
     node_suffix = port_labels[port] if port_labels is not None else str(port)
     args = [
         config[CONF_ID],
-        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{node_suffix}))"),
+        cg.RawExpression(
+            f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({variant_info.gpio_node_prefix}{node_suffix}))"
+        ),
         gpio_port_width,
     ]
     if port_labels is not None:

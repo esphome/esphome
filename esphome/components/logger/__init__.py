@@ -342,6 +342,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_nrf52=USB_CDC,
                 zephyr_rp2040=USB_CDC,
                 zephyr_rp2350=USB_CDC,
+                zephyr_ra4m1=UART1,
             ): cv.All(
                 cv.only_on(
                     [

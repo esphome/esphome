@@ -105,6 +105,151 @@ def get_flash_runner(build_dir: Path) -> str | None:
     return (runners_yaml or {}).get("flash-runner")
 
 
+def count_dfu_devices_for(dfu_util_path: str, vid_pid: str, alt: str) -> int | None:
+    """Count how many attached USB devices match a dfu-util VID:PID and
+    alt-setting, by parsing `dfu-util -l` output.
+
+    West's own dfu-util runner (scripts/west_commands/runners/dfu.py) only
+    checks whether at least one matching device is present before flashing --
+    it never counts matches, so two boards sharing the same VID:PID (e.g. two
+    Arduino Nano R4s, or any other board using the same bootloader) both
+    sitting in DFU mode at once is silently ambiguous: which one gets flashed
+    is up to dfu-util's own handling of multiple matches, not something a
+    runner controls.
+
+    Returns None if dfu-util can't be run -- callers should treat that as
+    "unknown, proceed" rather than block flashing on an unrelated failure.
+    0 means no matching device is currently visible (e.g. not reset into DFU
+    mode yet).
+    """
+    import re
+
+    try:
+        result = subprocess.run(
+            [dfu_util_path, "-l", "-d", vid_pid],
+            capture_output=True,
+            timeout=10,
+            check=False,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    # Mirrors dfu.py's own list_pattern: numeric alt matches by index, non-numeric
+    # by name -- same distinction west's own runner makes when finding a device.
+    if alt.isdigit():
+        pattern = rf", alt={re.escape(alt)},"
+    else:
+        pattern = rf', name="{re.escape(alt)}",'
+    return len(re.findall(pattern, result.stdout))
+
+
+def count_dfu_devices(build_dir: Path) -> int | None:
+    """count_dfu_devices_for(), sourcing the VID:PID/alt from this build's own
+    runners.yaml (written by the CMake configure step) instead of taking them
+    directly -- see count_dfu_devices_for() for what's actually being counted
+    and why.
+
+    Returns None if dfu-util isn't installed, runners.yaml can't be read, or
+    the dfu-util args can't be parsed.
+    """
+    import shutil
+
+    dfu_util = shutil.which("dfu-util")
+    if dfu_util is None:
+        return None
+
+    runners_yaml_path = _find_runners_yaml(build_dir)
+    try:
+        with runners_yaml_path.open(encoding="utf-8") as f:
+            runners_yaml = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as e:
+        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
+        return None
+
+    dfu_args = (runners_yaml.get("args") or {}).get("dfu-util") or []
+    vid_pid = None
+    alt = "0"
+    for arg in dfu_args:
+        if arg.startswith("--pid="):
+            vid_pid = arg.removeprefix("--pid=")
+        elif arg.startswith("--alt="):
+            alt = arg.removeprefix("--alt=")
+    if vid_pid is None:
+        return None
+
+    return count_dfu_devices_for(dfu_util, vid_pid, alt)
+
+
+def run_arduino_dfu_flash(build_dir: Path, app_pid: str, dfu_pid: str) -> bool:
+    """Flash a board using Arduino's own patched dfu-util fork instead of
+    west's generic dfu-util runner.
+
+    Arduino's fork (bundled with the Arduino IDE/arduino-cli Renesas core,
+    reports itself as e.g. "dfu-util 0.11-arduinoN") adds a `-Q` quirks flag
+    (confirmed via `strings`: quirks.c/get_quirks) that stock dfu-util has no
+    equivalent for -- testing showed the board never leaves DFU mode with the
+    generic west runner + stock dfu-util + address-padded image, but does
+    with this exact tool and invocation shape (dual-VID:PID auto-detach, raw
+    unpadded image, no manual DFU-mode entry required). Not something to
+    silently fall back from: a plain-dfu-util attempt already reproducibly
+    leaves the board looking bricked, so this requires the real tool rather
+    than degrading to the known-broken path.
+    """
+    import shutil
+
+    dfu_util = shutil.which("dfu-util")
+    found = "no dfu-util found on PATH"
+    version_ok = False
+    if dfu_util is not None:
+        try:
+            result = subprocess.run(
+                [dfu_util, "--version"],
+                capture_output=True,
+                timeout=10,
+                check=False,
+                text=True,
+            )
+            version_ok = "-arduino" in result.stdout
+            stdout = result.stdout.strip()
+            version_line = stdout.splitlines()[0] if stdout else ""
+            found = f"found {version_line!r}"
+        except (OSError, subprocess.TimeoutExpired):
+            found = f"could not run {dfu_util!r}"
+    if dfu_util is None or not version_ok:
+        raise EsphomeError(
+            "This board needs Arduino's patched dfu-util (adds device-specific "
+            f"quirk handling stock dfu-util lacks) -- {found}. Install the "
+            "Arduino Renesas core via the Arduino IDE or arduino-cli, which "
+            "bundles a compatible build, and put its dfu-util on PATH instead."
+        )
+
+    device_count = count_dfu_devices_for(dfu_util, dfu_pid, "0")
+    if device_count is not None and device_count > 1:
+        raise EsphomeError(
+            f"Found {device_count} devices in DFU mode matching this board's "
+            "bootloader. Disconnect all but the target device before "
+            "uploading, or dfu-util may flash the wrong one."
+        )
+
+    domain_build_dir = _find_domain_build_dir(build_dir)
+    bin_path = domain_build_dir / "zephyr" / "zephyr.bin"
+    # No -R/--reset: this fork's -R unexpectedly requires an argument (differs from
+    # stock dfu-util's boolean -R), breaking the invocation -- matches the exact
+    # command confirmed working by hand, manual reset still needed after flashing.
+    return run_command_ok(
+        [
+            dfu_util,
+            "--device",
+            f"{app_pid},{dfu_pid}",
+            "-D",
+            str(bin_path),
+            "-a0",
+            "-Q",
+        ],
+        stream_output=True,
+    )
+
+
 def _flash_load_address(
     python_executable: Path, framework_path: Path, domain_build_dir: Path
 ) -> int | None:

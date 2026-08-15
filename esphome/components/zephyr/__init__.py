@@ -1363,8 +1363,8 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
             )
     else:
         max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
-        # A variant whose ceiling sits below the normal 5s floor can't reach 5s
-        # either -- push the floor down to match.
+        # A variant whose ceiling sits below the normal 5s floor (e.g. RA4M1's
+        # 5000ms) can't reach 5s either -- push the floor down to match.
         min_timeout_ms = 5000
         if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
             min_timeout_ms = max_timeout_ms
@@ -1841,7 +1841,23 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return _upload_using_picotool()
 
     if host == "DFU":
-        from .build_zephyr import pad_image_to_flash_address, run_west_flash_generic
+        build_dir = CORE.relative_build_path(".west_build")
+        if zephyr_variant() == ZEPHYR_VARIANT_RA4M1:
+            from .variants.ra4m1 import arduino_dfu_pids
+
+            arduino_pids = arduino_dfu_pids(zephyr_data()[KEY_BOARD])
+            if arduino_pids is not None:
+                from .build_zephyr import run_arduino_dfu_flash
+
+                if not run_arduino_dfu_flash(build_dir, *arduino_pids):
+                    raise EsphomeError("Zephyr DFU flash failed")
+                return True
+
+        from .build_zephyr import (
+            count_dfu_devices,
+            pad_image_to_flash_address,
+            run_west_flash_generic,
+        )
         from .framework_west import check_and_install as west_install
 
         version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
@@ -1855,13 +1871,24 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["sdk_source"],
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
         )
-        build_dir = CORE.relative_build_path(".west_build")
         # No dev_id: dfu-util disambiguates via --pid (already baked into the
         # board's own runner args by board.cmake), not -i/--dev-id, and there's
         # no serial port to look up a USB serial number from while the board is
         # sitting in its DFU bootloader anyway. West's own dfu-util runner prints
         # its own "please reset your board" prompt and polls for the device to
-        # appear, so no extra wait/detect logic is needed on our side.
+        # appear, so no extra wait/detect logic is needed on our side for the
+        # normal case -- but it also never checks *how many* devices match, so
+        # two boards sharing this exact bootloader's VID:PID both already sitting
+        # in DFU mode is silently ambiguous otherwise. Best-effort only: this
+        # checks once, right now -- it can't catch a board that's put into DFU
+        # mode only after this check already ran and west starts its own wait.
+        dfu_device_count = count_dfu_devices(build_dir)
+        if dfu_device_count is not None and dfu_device_count > 1:
+            raise EsphomeError(
+                f"Found {dfu_device_count} devices in DFU mode matching this "
+                "board's bootloader. Disconnect all but the target device before "
+                "uploading, or dfu-util may flash the wrong one."
+            )
         #
         # img: some dfu-util bootloaders (e.g. Arduino's own, on Nano R4) report a
         # DfuSe-shaped descriptor but don't reliably support DfuSe's

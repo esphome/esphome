@@ -82,6 +82,15 @@ VARIANT = ZephyrVariant(
     transports=frozenset(),
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=16,
+    # RA4M1's GPIO port nodes are labelled ioport0/ioport1/... in Zephyr's own dtsi
+    # (renesas,ra-gpio-ioport), not the gpio0/gpio1 convention every other variant uses.
+    gpio_node_prefix="ioport",
+    # RA4M1's WDT is clocked from pclkb (24MHz on every board shipped so far -- HOCO
+    # 48MHz / pclkb div=2). The driver's own largest divisor x cycle-count combination
+    # (8192 x 16384) only reaches ~5.6s at that clock regardless of what's requested;
+    # 5000ms coincides with the schema's own 5s floor, so this variant only supports
+    # the minimum requestable value.
+    watchdog_max_timeout_ms=5000,
     # UART0 -> ek_ra4m1's own sci1/uart1 (the default board); UART1 -> the
     # arduino_nano_r4 board's sci2/uart2 -- same shape as nRF54's own multi-entry
     # uart_node_labels, here spanning two different boards on this variant rather than
@@ -93,6 +102,20 @@ VARIANT = ZephyrVariant(
     # Only pwm1 is enabled in ek_ra4m1.dts.
     pwm_node_labels=["pwm1"],
 )
+
+# Board -> (app-mode VID:PID, DFU-mode VID:PID), for boards flashed via
+# Arduino's own dfu-util fork (adds a -Q quirks flag stock dfu-util doesn't
+# have) using its dual-VID:PID auto-detach form, rather than west's generic
+# single-VID:PID dfu-util runner. Confirmed against Arduino's own boards.txt
+# (nanor4.upload_port.0/.1) -- not derivable from board.cmake/runners.yaml,
+# which only knows the DFU-mode PID.
+_ARDUINO_DFU_BOARDS = {
+    "arduino_nano_r4": ("0x2341:0x0074", ":0x0374"),
+}
+
+
+def arduino_dfu_pids(board: str) -> tuple[str, str] | None:
+    return _ARDUINO_DFU_BOARDS.get(board)
 
 
 def config_schema(config: ConfigType) -> ConfigType:
