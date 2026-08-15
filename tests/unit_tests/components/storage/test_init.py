@@ -48,7 +48,7 @@ def _final_validate_over(full_config: dict) -> bool:
 def _device(mount_path: str) -> dict:
     """A validated storage-device fragment: an id whose type inherits from Storage, plus a mount."""
     return {
-        CONF_ID: ID("dev", type=storage.FilesystemStorage),
+        CONF_ID: ID("dev", type=storage.PathStorage),
         storage.CONF_MOUNT_PATH: mount_path,
     }
 
