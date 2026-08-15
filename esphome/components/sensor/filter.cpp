@@ -283,11 +283,11 @@ DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
 void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
 optional<float> DeltaFilter::new_value(float value) {
-  const bool value_nan = std::isnan(value);
+  const bool no_value = std::isnan(value);
   const bool no_reference = std::isnan(this->last_value_);
-  if (value_nan && no_reference)
+  if (no_value && no_reference)
     return {};
-  if (value_nan || no_reference) {
+  if (no_value || no_reference) {
     this->last_value_ = value;
     return value;
   }
