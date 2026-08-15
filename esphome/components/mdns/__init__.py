@@ -209,7 +209,7 @@ async def to_code(config):
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.11.0")
+        add_idf_component(name="espressif/mdns", ref="1.11.3")
 
     cg.add_define("USE_MDNS")
 
