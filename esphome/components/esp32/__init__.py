@@ -2291,14 +2291,14 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
     # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
     # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
+    lfn_keys = (
+        "CONFIG_FATFS_LFN_NONE",
+        "CONFIG_FATFS_LFN_HEAP",
+        "CONFIG_FATFS_LFN_STACK",
+    )
+    user_picked_lfn = any(k in opts for k in lfn_keys)
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Storage drivers need long filenames (heap-allocated, full 255-char length) and
-        # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
-        # every esp_vfs_fat mount consumes one). All of these are only defaults: override
-        # any of them via esp32 -> framework -> advanced -> sdkconfig_options
-        lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
-        lfn_off = getattr(lfn_off, "value", lfn_off)
-        if str(lfn_off).strip().lower() not in ("y", "true", "1"):
+        if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
@@ -3013,16 +3013,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     # Kconfig bool symbols that are disabled produce no #define, yet ff.c uses several of
     # them in plain C expressions (e.g. `if (FF_USE_LABEL && vol)`) -- inside the original
     # IDF component that resolves, in a project-component copy it surfaced as 'undeclared
-    # identifier'. Default every CONFIG_ symbol the header references to 0 when undefined:
-    # a no-op for anything sdkconfig.h defines, and exactly the value a disabled bool means
-    # otherwise. Scanned generically so new symbols in future IDF versions are covered.
-    # Only symbols used in *value* contexts and probed nowhere: defining a symbol that any
-    # compiled source probes with #ifdef/defined() makes the probe true and silently
-    # enables the guarded code -- vfs_fat.c does exactly that with USE_FASTSEEK (its
-    # fastseek block then references FIL::cltbl, which the ffconf side correctly compiled
-    # out). So the probe scan covers the whole copied component, not just ffconf.h;
-    # test_apps/host_test/fatfs_utils are excluded because they are never built and their
-    # probes must not suppress legitimate guards.
+    # identifier'. Default every CONFIG_ symbol the header references to 0 when undefined
     probed = set()
     skip_dirs = {"test_apps", "host_test", "fatfs_utils"}
     for f in dest.rglob("*"):
