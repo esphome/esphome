@@ -94,7 +94,7 @@ int OpenThreadComponent::openthread_stop_() {
   // registered but is safe (null-checks global_openthread_component). nRF52840 never
   // re-enters setup() after teardown so this is functionally correct.
   // Stop is synchronous here, so mark teardown complete immediately.
-  this->teardown_stage_ = OtcTeardownStage::COMPLETED;
+  this->teardown_stage_ = TeardownStage::COMPLETED;
   return 0;
 }
 
