@@ -684,33 +684,51 @@ size_t ModelHandler::probe_arena_size(const uint8_t *model_start, size_t initial
       continue;
     }
 
-    // Largest proven size is the successful attempt; smallest candidate is
-    // arena_used_bytes + 16 (rounded to 16-byte alignment with headroom).
+    // The successful attempt size is the proven-good upper bound. The smallest
+    // candidate is arena_used_bytes + 16 (aligned to 16 bytes with headroom).
     size_t lower = (probe_interpreter->arena_used_bytes() + 16 + 15) & ~15;
-    probe_interpreter.reset();
     size_t upper = attempt_size;
+    probe_interpreter.reset();
 
-    // Binary-search down to the smallest size that still allocates.
+    if (lower >= upper) {
+      // Arena usage is already at/above the attempt size. Using more than the
+      // allocated buffer would over-run it, so the attempt size is the
+      // practical minimum for this bounded probe.
+      ESP_LOGI(TAG, "probe_arena_size: arena usage at attempt size; using %zu bytes", upper);
+      return upper;
+    }
+
+    // Standard binary search down to the smallest proven-working size.
+    // Invariant: `upper` is always proven-good; `lower` is a lower bound that
+    // grows toward it. The midpoint stays < upper so the loop always makes
+    // progress.
     while (lower < upper) {
-      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, lower);
+      size_t mid = lower + (upper - lower) / 2;
+      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, mid);
       bool ok = test_interpreter->AllocateTensors() == kTfLiteOk;
       test_interpreter.reset();
       if (ok) {
-        // This size works; shrink further to find the true minimum.
-        upper = lower;
+        // mid works -- shrink the upper bound.
+        upper = mid;
+      } else {
+        // mid is too small -- raise the lower bound past it.
+        lower = mid + 1;
       }
-      lower = ((lower + upper) / 2 + 15) & ~15;
     }
 
-    // re-test the final lower bound (it may have been rounded down).
-    auto final_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, lower);
+    // lower == upper is the minimum proven-good size. Round up to 16-byte
+    // alignment and re-test to confirm (the result is >= the proven size, so it
+    // is guaranteed to work -- the re-test is a sanity check).
+    size_t aligned_minimum = (lower + 15) & ~15;
+    auto final_interpreter =
+        std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, aligned_minimum);
     bool final_ok = final_interpreter->AllocateTensors() == kTfLiteOk;
     final_interpreter.reset();
     probe_allocation.data.reset();
 
     if (final_ok) {
-      ESP_LOGI(TAG, "probe_arena_size: minimum required arena: %zu bytes", lower);
-      return lower;
+      ESP_LOGI(TAG, "probe_arena_size: minimum required arena: %zu bytes", aligned_minimum);
+      return aligned_minimum;
     }
     // upper was proven to work, so fall back to it.
     ESP_LOGI(TAG, "probe_arena_size: using proven size: %zu bytes", upper);

@@ -1,6 +1,8 @@
 #include "tflite_micro_helper.h"
+#include "esphome/core/application.h"
 #include <cstdlib>
 #include <algorithm>
+#include <esp_heap_caps.h>
 
 namespace esphome::tflite_micro_helper {
 
@@ -128,14 +130,22 @@ bool TFLiteMicroHelper::load_model() {
   }
   ESP_LOGI(TAG, "Loading TFLite model...");
 
+  // 5.2: capture per-attempt load timing statistics.
+  LoadStats stats;
+  stats.load_start_ms = millis();
+
   if (this->model_data_ == nullptr || this->model_length_ == 0) {
     ESP_LOGE(TAG, "Model data is NULL or empty");
+    stats.total_load_time_ms = millis() - stats.load_start_ms;
+    this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
     return false;
   }
 
   if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_)) {
     ESP_LOGE(TAG, "Model CRC32 verification failed");
+    stats.total_load_time_ms = millis() - stats.load_start_ms;
+    this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
     return false;
   }
@@ -156,11 +166,17 @@ bool TFLiteMicroHelper::load_model() {
   } else {
     ESP_LOGI(TAG, "Probed size matches configured size: %zu bytes", this->tensor_arena_size_requested_);
   }
+  stats.parse_time_ms = millis() - stats.load_start_ms;
 
+  uint32_t arena_alloc_start = millis();
   if (!this->allocate_tensor_arena_()) {
+    stats.arena_alloc_time_ms = millis() - arena_alloc_start;
+    stats.total_load_time_ms = millis() - stats.load_start_ms;
+    this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
     return false;
   }
+  stats.arena_alloc_time_ms = millis() - arena_alloc_start;
 
   ModelConfig config = this->build_config_();
   if (!this->model_handler_.load_model_with_arena(this->model_data_, this->model_length_,
@@ -170,6 +186,8 @@ bool TFLiteMicroHelper::load_model() {
     this->model_handler_.unload();
     this->tensor_arena_allocation_.data.reset();
     this->tensor_arena_allocation_.actual_size = 0;
+    stats.total_load_time_ms = millis() - stats.load_start_ms;
+    this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
     return false;
   }
@@ -186,12 +204,20 @@ bool TFLiteMicroHelper::load_model() {
     this->model_handler_.set_image_config(img_cfg);
   }
 
+  stats.success = true;
+  stats.total_load_time_ms = millis() - stats.load_start_ms;
+  this->last_load_stats_ = stats;
+
   this->state_.store(LoadState::READY);
   ESP_LOGI(TAG, "Model loaded successfully");
+#ifdef DEBUG_TFLITE_MICRO_HELPER
+  ESP_LOGI(TAG, "Load stats: parse=%u ms, arena_alloc=%u ms, total=%u ms", stats.parse_time_ms,
+           stats.arena_alloc_time_ms, stats.total_load_time_ms);
+#endif
   return true;
 }
 
-void TFLiteMicroHelper::unload_model() {
+void TFLiteMicroHelper::unload_model(bool reset_config) {
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
 
@@ -201,14 +227,48 @@ void TFLiteMicroHelper::unload_model() {
   this->tensor_arena_allocation_.actual_size = 0;
 
   // E3: reset runtime state (stats cache + load state). Config fields (model data,
-  // size, CRC, input/audio config) are intentionally preserved: the consumer reload
-  // path (meter_reader_tflite::reload_resources) calls unload_model() then
-  // load_model() without re-issuing set_model()/set_expected_crc32().
+  // size, CRC, input/audio config) are intentionally preserved by default: the
+  // consumer reload path (meter_reader_tflite::reload_resources) calls
+  // unload_model() then load_model() without re-issuing set_model()/
+  // set_expected_crc32().
+  //
+  // P1: when switching to a *different* model, call unload_model(true) to also
+  // reset_config() -- otherwise the previous model's arena size, dimensions,
+  // preprocessing, and audio config leak into the next load_model(), causing
+  // incorrect inference or tensor-allocation failure.
   {
     std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
     this->cached_arena_stats_ = ArenaStats{};
   }
+
+  if (reset_config) {
+    this->reset_config();
+  }
+
   this->state_.store(LoadState::UNLOADED);
+}
+
+void TFLiteMicroHelper::reset_config() {
+  ESP_LOGI(TAG, "Resetting model configuration to defaults");
+
+  this->model_data_ = nullptr;
+  this->model_length_ = 0;
+  this->tensor_arena_size_requested_ = 100 * 1024;
+  this->expected_crc32_ = 0;
+
+  this->model_type_ = "default";
+  this->input_type_ = "uint8";
+  this->input_channels_ = 3;
+  this->input_width_ = 32;
+  this->input_height_ = 20;
+  this->output_processing_ = "direct_class";
+  this->scale_factor_ = 1.0f;
+  this->input_order_ = "RGB";
+  this->normalize_ = false;
+  this->invert_ = false;
+
+  this->image_config_ = ImageModelConfig{};
+  this->audio_config_ = AudioModelConfig{};
 }
 
 ModelSpec TFLiteMicroHelper::get_model_spec() const {
@@ -249,6 +309,22 @@ void TFLiteMicroHelper::update_arena_stats_cache() {
 void TFLiteMicroHelper::report_memory_status() {
   MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->tensor_arena_allocation_.actual_size,
                                       this->model_handler_.get_arena_used_bytes(), this->model_length_);
+
+  // 5.1: monitor heap fragmentation -- warn when the largest contiguous free
+  // block can no longer satisfy the arena requirement. Query the heap the
+  // arena was actually allocated from (PSRAM vs internal) to avoid false
+  // warnings when internal RAM is fragmented but PSRAM has sufficient free
+  // contiguous space.
+  uint32_t heap_caps = this->tensor_arena_allocation_.from_psram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
+  size_t total_free = heap_caps_get_free_size(heap_caps);
+  size_t max_block = heap_caps_get_largest_free_block(heap_caps);
+
+  ESP_LOGD(TAG, "Heap status - Total free: %zu bytes, Largest block: %zu bytes", total_free, max_block);
+
+  if (max_block < this->tensor_arena_size_requested_) {
+    ESP_LOGW(TAG, "WARNING: Largest free block (%zu) < required arena size (%zu)", max_block,
+             this->tensor_arena_size_requested_);
+  }
 }
 
 }  // namespace esphome::tflite_micro_helper
