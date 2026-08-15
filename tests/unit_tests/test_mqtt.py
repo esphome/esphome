@@ -217,9 +217,9 @@ def test_get_esphome_device_ip_replaces_reconnect_handler(
         get_esphome_device_ip(_discovery_config(), timeout=0.25)
 
     assert client.on_disconnect is not prepare_handler
-    client.on_disconnect(client, None, 0)
+    client.on_disconnect(client, None, 0, 0, None)
     assert "Disconnected from MQTT broker" not in caplog.text
-    client.on_disconnect(client, None, 5)
+    client.on_disconnect(client, None, 0, 5, None)
     assert "Disconnected from MQTT broker (5)" in caplog.text
 
 
@@ -268,7 +268,7 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
     with patch("esphome.mqtt.prepare", return_value=client):
 
         def drop_connection(*args, **kwargs):
-            client.on_disconnect(client, None, 5)
+            client.on_disconnect(client, None, 0, 5, None)
 
         client.loop_start.side_effect = drop_connection
 
@@ -288,7 +288,7 @@ def test_get_esphome_device_ip_sends_discovery_ping() -> None:
 
         def connect_then_answer(*args, **kwargs):
             on_connect = mock_prepare.call_args.args[3]
-            on_connect(client, None, None, 0)
+            on_connect(client, None, None, 0, None)
             msg = MagicMock()
             msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
             mock_prepare.call_args.args[2](client, None, msg)
