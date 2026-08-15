@@ -7,6 +7,7 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
+from esphome.components.const import CONF_LABEL
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -30,7 +31,6 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
     CONF_FORMAT,
-    CONF_LABEL,
     CONF_LENGTH,
     CONF_MODEL,
     CONF_NUMBER,
