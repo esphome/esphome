@@ -81,10 +81,10 @@ from .const import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
-    ZEPHYR_VARIANT_NRF54LM20A,  
-    ZEPHYR_VARIANT_STM32L4,
+    ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32L4,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -676,7 +676,10 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    # temporarily skip watchdog setup on stm32
+    # STM32L4's iwdg devicetree node ships status = "disabled" by default
+    # (dts/arm/st/l4/stm32l4.dtsi) -- CONFIG_WATCHDOG alone doesn't enable it, an
+    # overlay setting `&iwdg { status = "okay"; };` is also needed. Skipped here
+    # until that overlay is added and verified on real hardware.
     if zephyr_variant() is not None and zephyr_variant() not in (
         ZEPHYR_VARIANT_NATIVE_SIM,
         ZEPHYR_VARIANT_STM32L4,
