@@ -620,7 +620,7 @@ def test_reconcile_network_sdkconfig(
 
 
 @pytest.mark.parametrize(
-    ("requires", "fatfs_required", "disables", "preset", "expected"),
+    ("requires", "fatfs_required", "disables", "preset", "expected", "enable_exfat"),
     [
         # Nothing required and every disable_* flag off (NOT the shipped defaults, which
         # disable everything): VFS enabled, FATFS left untouched entirely.
@@ -634,6 +634,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="nothing_disabled_nothing_required",
         ),
         # The shipped out-of-the-box path: every disable_* flag defaults to True and nothing
@@ -650,6 +651,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_NONE": True,
                 "CONFIG_FATFS_VOLUME_COUNT": 1,
             },
+            False,
             id="all_disabled_fatfs_fallback",
         ),
         # A component's require_* beats the user's disable_* flag for every VFS feature.
@@ -667,6 +669,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="require_beats_disable",
         ),
         # A user sdkconfig_options preset wins over a require (the set_opt guard).
@@ -680,6 +683,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": False,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="user_preset_wins_over_require",
         ),
         # require_fatfs() with no user preset: long filenames on the heap, 255 chars,
@@ -698,6 +702,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_MAX_LFN": 255,
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_required_defaults",
         ),
         # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice: a user picking any member
@@ -714,6 +719,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_STACK": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_user_lfn_stack_untouched",
         ),
         # disable_fatfs (the shipped default) with a user LFN pick: the choice group is the
@@ -730,6 +736,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_HEAP": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 1,
             },
+            False,
             id="disable_fatfs_user_lfn_untouched",
         ),
         # Same for an explicit LFN_NONE preset: the group is the user's, only the volume
@@ -746,6 +753,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_NONE": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_user_lfn_none_untouched",
         ),
     ],
