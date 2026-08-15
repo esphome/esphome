@@ -377,6 +377,18 @@ def test_migrate_legacy_warns_and_prepends_platform(
             False,
             id="platform_tagged_defaults_files_dict",
         ),
+        # A `files:` key alone -- even without `platform:` -- is also not a
+        # legacy shape: the pre-platform schema never recognised `files:`
+        # (only `images:`), so `_flatten_legacy_image_config` has no branch
+        # for it and would silently drop every file instead of raising.
+        pytest.param(
+            {
+                "defaults": {"type": "rgb565"},
+                "files": [{"id": "a", "file": "x.png"}],
+            },
+            False,
+            id="defaults_files_dict_without_platform",
+        ),
     ],
 )
 def test_is_legacy_image_format(config: object, expected: bool) -> None:
@@ -410,6 +422,21 @@ def test_migrate_returns_none_for_mapping_form_defaults_files() -> None:
     list-wrapping + EXPAND_PLATFORM_CONFIG path to handle."""
     config = {
         CONF_PLATFORM: "file",
+        "defaults": {"type": "rgb565"},
+        "files": [{"id": "a", "file": "a.png"}],
+    }
+    assert _migrate_legacy_image_config(config) is None
+
+
+def test_migrate_returns_none_for_defaults_files_dict_without_platform() -> None:
+    """The `defaults:`/`files:` shape written as a bare mapping with no
+    `platform:` key must not be swallowed by the legacy migrator either --
+    previously it matched the legacy detector (because of the `defaults:`
+    key), and `_flatten_legacy_image_config` -- which has no `files:` branch,
+    only `images:` -- silently returned `[]`, emptying every file with just a
+    bogus deprecation warning and no error. Leaving it unmigrated means it
+    falls through to the normal 'requires a platform key' error instead."""
+    config = {
         "defaults": {"type": "rgb565"},
         "files": [{"id": "a", "file": "a.png"}],
     }

@@ -658,13 +658,20 @@ def _is_legacy_image_format(config: object) -> bool:
         return bool(config) and all(
             isinstance(entry, dict) and CONF_PLATFORM not in entry for entry in config
         )
-    if not isinstance(config, dict) or CONF_PLATFORM in config:
+    if not isinstance(config, dict) or CONF_PLATFORM in config or CONF_FILES in config:
         # A dict already tagged with `platform:` is the new format written
         # without its list brackets (e.g. a single `defaults:`/`files:` entry,
         # or a single flat entry) -- not a legacy shape. Leave it alone; the
         # normal `elif not isinstance(self.conf, list): self.conf = [self.conf]`
         # normalization in LoadValidationStep wraps it into a one-entry list,
         # which the new EXPAND_PLATFORM_CONFIG hook then handles correctly.
+        #
+        # A `files:` key is also excluded even without `platform:` -- the
+        # pre-platform schema never recognised `files:` (only `images:`), so
+        # `_flatten_legacy_image_config` has no branch for it and would
+        # silently drop every file (returning `[]`) instead of raising. Left
+        # unmigrated, this shape falls through to the normal "requires a
+        # 'platform' key" error instead of vanishing.
         return False
     # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
     return (
