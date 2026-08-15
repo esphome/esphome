@@ -765,6 +765,7 @@ def test_reconcile_vfs_fatfs_sdkconfig(
     disables: tuple[bool, bool, bool, bool],
     preset: dict[str, Any],
     expected: dict[str, Any],
+    enable_exfat: bool,
 ) -> None:
     """The FINAL-priority reconciler resolves the VFS feature flags and the FATFS
     defaults from the recorded require_* calls, with user sdkconfig_options winning
