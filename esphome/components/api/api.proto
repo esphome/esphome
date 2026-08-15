@@ -2623,8 +2623,9 @@ message ZWaveProxyRequest {
 }
 
 enum ZWaveProxyStatus {
-  ZWAVE_PROXY_STATUS_OK = 0;      // Request completed successfully
-  ZWAVE_PROXY_STATUS_IN_USE = 1;  // Denied: another client is already subscribed
+  ZWAVE_PROXY_STATUS_OK = 0;             // Request completed successfully
+  ZWAVE_PROXY_STATUS_IN_USE = 1;         // Denied: another client is already subscribed
+  ZWAVE_PROXY_STATUS_NOT_SUPPORTED = 2;  // Request type not supported
 }
 
 // Acknowledges a ZWaveProxyRequest (subscribe/unsubscribe). Sent since API 1.16.

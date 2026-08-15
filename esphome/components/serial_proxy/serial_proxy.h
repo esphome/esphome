@@ -41,9 +41,11 @@ enum SerialProxyLineStateFlag : uint32_t {
 /// Result of a client-initiated operation; mapped to api::enums::SerialProxyStatus by the API layer
 enum class SerialProxyResult : uint8_t {
   SERIAL_PROXY_RESULT_OK,                ///< Operation completed or request accepted
+  SERIAL_PROXY_RESULT_ASSUMED_SUCCESS,   ///< Platform cannot confirm TX drain; success assumed
   SERIAL_PROXY_RESULT_PORT_IN_USE,       ///< Denied: another live client holds the port
   SERIAL_PROXY_RESULT_INVALID_ARGUMENT,  ///< A parameter value is out of range
   SERIAL_PROXY_RESULT_ERROR,             ///< Driver or hardware error
+  SERIAL_PROXY_RESULT_TIMEOUT,           ///< Timed out before TX completed
   SERIAL_PROXY_RESULT_NOT_SUPPORTED,     ///< Requested feature is not available on this instance
 };
 
@@ -104,12 +106,8 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   uint32_t get_modem_pins() const;
 
   /// Flush the serial port (block until all TX data is sent)
-  uart::UARTFlushResult flush_port();
-
-#ifdef USE_API
-  /// True when a live subscriber other than the given connection holds the port
-  bool port_claimed_by_other(api::APIConnection *api_connection) const;
-#endif
+  /// @param api_connection The API connection requesting the flush
+  SerialProxyResult flush_port(api::APIConnection *api_connection);
 
   /// Set the RTS GPIO pin (from YAML configuration)
   void set_rts_pin(GPIOPin *pin) { this->rts_pin_ = pin; }
@@ -121,6 +119,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 #ifdef USE_API
   /// Read from UART and send to API client (slow path with 256-byte stack buffer)
   void read_and_send_(size_t available);
+
+  /// True when a live subscriber other than the given connection holds the port
+  bool port_claimed_by_other_(api::APIConnection *api_connection) const;
 #endif
 
   /// Instance index for identifying this proxy in API messages

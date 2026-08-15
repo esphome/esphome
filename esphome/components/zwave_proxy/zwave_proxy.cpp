@@ -227,7 +227,7 @@ api::enums::ZWaveProxyStatus ZWaveProxy::zwave_proxy_request(api::APIConnection 
 
     default:
       ESP_LOGW(TAG, "Unknown request type: %" PRIu32, static_cast<uint32_t>(type));
-      return api::enums::ZWAVE_PROXY_STATUS_OK;
+      return api::enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED;
   }
 }
 

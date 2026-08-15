@@ -337,6 +337,7 @@ enum ZWaveProxyRequestType : uint32_t {
 enum ZWaveProxyStatus : uint32_t {
   ZWAVE_PROXY_STATUS_OK = 0,
   ZWAVE_PROXY_STATUS_IN_USE = 1,
+  ZWAVE_PROXY_STATUS_NOT_SUPPORTED = 2,
 };
 #endif
 #ifdef USE_SERIAL_PROXY

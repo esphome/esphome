@@ -822,6 +822,8 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyStatus>(enums::ZWav
       return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_OK");
     case enums::ZWAVE_PROXY_STATUS_IN_USE:
       return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_IN_USE");
+    case enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_NOT_SUPPORTED");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }

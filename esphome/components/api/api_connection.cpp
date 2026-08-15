@@ -1384,16 +1384,11 @@ void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
 }
 
 void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
-  enums::ZWaveProxyStatus status = zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
-  // Only subscribe/unsubscribe are acknowledged (other types are server-to-client notifications)
-  if (msg.type == enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE ||
-      msg.type == enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE) {
-    ZWaveProxyRequestResponse resp{};
-    resp.type = msg.type;
-    resp.status = status;
-    if (!this->send_message(resp)) {
-      API_LOG_MSG_DROPPED(TAG, "Z-Wave proxy response");
-    }
+  ZWaveProxyRequestResponse resp{};
+  resp.type = msg.type;
+  resp.status = zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Z-Wave proxy response");
   }
 }
 #endif
@@ -1567,10 +1562,14 @@ static enums::SerialProxyStatus serial_proxy_result_to_status(serial_proxy::Seri
   switch (result) {
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_OK:
       return enums::SERIAL_PROXY_STATUS_OK;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ASSUMED_SUCCESS:
+      return enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE:
       return enums::SERIAL_PROXY_STATUS_PORT_IN_USE;
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT:
       return enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_TIMEOUT:
+      return enums::SERIAL_PROXY_STATUS_TIMEOUT;
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED:
       return enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ERROR:
@@ -1656,26 +1655,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       status = serial_proxy_result_to_status(proxy->serial_proxy_request(this, msg.type));
       break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
-      // Flushing stalls the port, so it gets the same ownership check as writes
-      if (proxy->port_claimed_by_other(this)) {
-        status = enums::SERIAL_PROXY_STATUS_PORT_IN_USE;
-        break;
-      }
-      switch (proxy->flush_port()) {
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
-          status = enums::SERIAL_PROXY_STATUS_OK;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
-          status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
-          status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
-        default:
-          status = enums::SERIAL_PROXY_STATUS_ERROR;
-          break;
-      }
+      status = serial_proxy_result_to_status(proxy->flush_port(this));
       break;
     default:
       ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));

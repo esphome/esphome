@@ -92,7 +92,7 @@ void SerialProxy::dump_config() {
 SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control,
                                          uint8_t parity, uint8_t stop_bits, uint8_t data_size) {
 #ifdef USE_API
-  if (this->port_claimed_by_other(api_connection)) {
+  if (this->port_claimed_by_other_(api_connection)) {
     ESP_LOGW(TAG, "Ignoring configure request from client without port access [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
@@ -154,7 +154,7 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 #ifdef USE_API
   // Bytes from a client other than the live subscriber would interleave with the
   // subscriber's traffic on the wire
-  if (this->port_claimed_by_other(api_connection)) {
+  if (this->port_claimed_by_other_(api_connection)) {
     ESP_LOGW(TAG, "Ignoring write from client without port access [%" PRIu32 "]", this->instance_index_);
     return;
   }
@@ -166,13 +166,18 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 
 SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
 #ifdef USE_API
-  if (this->port_claimed_by_other(api_connection)) {
+  if (this->port_claimed_by_other_(api_connection)) {
     ESP_LOGW(TAG, "Ignoring modem pin request from client without port access [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
-  if (this->rts_pin_ == nullptr && this->dtr_pin_ == nullptr) {
-    ESP_LOGW(TAG, "No modem pins configured on serial proxy [%" PRIu32 "]", this->instance_index_);
+  // Asserting a pin that is not configured must fail so the client learns the signal never
+  // reached the wire; deasserting an absent pin is harmless and stays allowed
+  const uint32_t configured =
+      (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+      (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  if ((line_states & ~configured) != 0) {
+    ESP_LOGW(TAG, "Requested modem pin not configured on serial proxy [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
   }
   const bool rts = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_RTS) != 0;
@@ -195,13 +200,30 @@ uint32_t SerialProxy::get_modem_pins() const {
          (this->dtr_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }
 
-uart::UARTFlushResult SerialProxy::flush_port() {
+SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {
+#ifdef USE_API
+  // Flushing stalls the port, so it gets the same ownership check as writes
+  if (this->port_claimed_by_other_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring flush from client without port access [%" PRIu32 "]", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
+  }
+#endif
   ESP_LOGV(TAG, "Flushing serial proxy [%" PRIu32 "]", this->instance_index_);
-  return this->flush();
+  switch (this->flush()) {
+    case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
+      return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
+    case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
+      return SerialProxyResult::SERIAL_PROXY_RESULT_ASSUMED_SUCCESS;
+    case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
+      return SerialProxyResult::SERIAL_PROXY_RESULT_TIMEOUT;
+    case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
+      return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;
+  }
+  return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;  // Unreachable; all enum values handled above
 }
 
 #ifdef USE_API
-bool SerialProxy::port_claimed_by_other(api::APIConnection *api_connection) const {
+bool SerialProxy::port_claimed_by_other_(api::APIConnection *api_connection) const {
   return this->api_connection_ != nullptr && this->api_connection_ != api_connection &&
          this->api_connection_->is_connection_setup();
 }
