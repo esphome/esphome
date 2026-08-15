@@ -2,8 +2,22 @@
 
 import voluptuous as vol
 
-from esphome.config import Config, _format_vol_invalid
+from esphome.config import Config, _format_vol_invalid, _manifest_for_domain
 from esphome.loader import register_external_component_doc_url
+
+
+def test_manifest_for_domain_rejects_non_string_and_root() -> None:
+    """Non-string and "<root>" domains have no meaningful component to link to -> None."""
+    assert _manifest_for_domain(3) is None
+    assert _manifest_for_domain("<root>") is None
+
+
+def test_manifest_for_domain_resolves_platform_domain() -> None:
+    """A "<platform>.<component>" domain (e.g. a config error inside a sensor platform)
+    resolves to that platform's own manifest, not the parent domain's."""
+    manifest = _manifest_for_domain("sensor.dht")
+    assert manifest is not None
+    assert manifest.module.__name__ == "esphome.components.dht.sensor"
 
 
 def test_format_vol_invalid_appends_doc_link_when_known() -> None:

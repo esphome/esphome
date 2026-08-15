@@ -75,6 +75,21 @@ def test_doc_url_module_override_takes_precedence() -> None:
     assert manifest.doc_url == "https://custom.example/foo"
 
 
+def test_doc_url_none_for_shallow_module_name() -> None:
+    """A module name with fewer than 3 dotted parts (e.g. the "esphome" pseudo-component)
+    can't be resolved back to a component name -> None, even with a source registered."""
+    register_external_component_doc_url("foo", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.core")
+    assert manifest.doc_url is None
+
+
+def test_doc_url_none_when_component_not_in_registered_source() -> None:
+    """A source was registered, but for a different component name -> None."""
+    register_external_component_doc_url("bar", "https://example.com/docs")
+    manifest = _make_named_manifest("esphome.components.foo")
+    assert manifest.doc_url is None
+
+
 def test_testing_manifest_delegates_to_wrapped() -> None:
     """Unoverridden attributes fall through to the wrapped manifest."""
     inner = _make_manifest(dependencies=["wifi"])
