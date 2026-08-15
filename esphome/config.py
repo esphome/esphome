@@ -1426,6 +1426,15 @@ def _get_parent_name(path, config):
     return path[-1]
 
 
+def _manifest_for_domain(domain: Any) -> ComponentManifest | None:
+    if not isinstance(domain, str) or domain == "<root>":
+        return None
+    if "." in domain:
+        parent, platform = domain.split(".", 1)
+        return get_platform(parent, platform)
+    return get_component(domain)
+
+
 def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
     message = ""
 
@@ -1446,6 +1455,9 @@ def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
             message += ex.msg
     else:
         message += humanize_error(config, ex)
+
+    if (manifest := _manifest_for_domain(paren)) is not None and manifest.doc_url:
+        message += f" See {manifest.doc_url} for documentation."
 
     return message
 

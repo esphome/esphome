@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import importlib
 import importlib.abc
 import importlib.resources
@@ -38,6 +38,27 @@ class FileResource:
         return importlib.resources.as_file(
             importlib.resources.files(self.package) / self.resource
         )
+
+
+@dataclass
+class _ExternalDocURLs:
+    urls: dict[str, str] = field(default_factory=dict)
+
+
+_EXTERNAL_DOC_URLS_KEY = "loader_external_doc_urls"
+
+
+def register_external_component_doc_url(component_name: str, base_url: str) -> None:
+    """Record the documentation base URL for a component loaded from an
+    `external_components:` source. Called by
+    `external_components.do_external_components_pass` once per resolved
+    component name. Read later via `ComponentManifest.doc_url`.
+    """
+    # Local import: loader.py avoids eager esphome.core imports (see module docstring above).
+    from esphome.core import CORE
+
+    data = CORE.data.setdefault(_EXTERNAL_DOC_URLS_KEY, _ExternalDocURLs())
+    data.urls[component_name] = base_url
 
 
 class ComponentManifest:
@@ -101,6 +122,31 @@ class ComponentManifest:
     @property
     def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
+
+    @property
+    def doc_url(self) -> str | None:
+        """Documentation URL for this component, if known.
+
+        Checks for a component-declared `DOC_URL` override first (unused
+        today, reserved for a future per-component override), then falls
+        back to the base URL registered by an `external_components:` source,
+        if any.
+        """
+        if override := getattr(self.module, "DOC_URL", None):
+            return override
+        from esphome.core import CORE
+
+        data: _ExternalDocURLs | None = CORE.data.get(_EXTERNAL_DOC_URLS_KEY)
+        if data is None:
+            return None
+        parts = self.module.__name__.split(".")
+        if len(parts) < 3:
+            return None
+        if (base_url := data.urls.get(parts[2])) is None:
+            return None
+        from esphome.helpers import external_component_doc_url
+
+        return external_component_doc_url(base_url, self.module.__name__)
 
     @property
     def aliases(self) -> list[str]:

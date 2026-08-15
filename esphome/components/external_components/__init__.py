@@ -20,6 +20,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriodSeconds
 
+CONF_DOC_URL = "doc_url"
+
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_EXTERNAL_COMPONENTS
@@ -32,6 +34,7 @@ CONFIG_SCHEMA = cv.ensure_list(
         cv.Optional(CONF_COMPONENTS, default="all"): cv.Any(
             "all", cv.ensure_list(cv.string)
         ),
+        cv.Optional(CONF_DOC_URL): cv.url,
     }
 )
 
@@ -102,6 +105,18 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+
+    if (base_url := config.get(CONF_DOC_URL)) is not None:
+        names = allowed_components
+        if names is None:
+            names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        for name in names:
+            loader.register_external_component_doc_url(name, base_url)
+        _LOGGER.info(
+            "External component source '%s' provides documentation at %s",
+            conf.get(CONF_URL) or conf.get(CONF_PATH),
+            base_url,
+        )
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
