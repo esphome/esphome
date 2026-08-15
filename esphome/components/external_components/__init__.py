@@ -113,9 +113,10 @@ def _process_single_config(config: dict[str, Any]) -> None:
         for name in names:
             loader.register_external_component_doc_url(name, base_url)
         _LOGGER.info(
-            "External component source '%s' provides documentation at %s",
+            "External component source '%s' provides documentation at %s for components: %s",
             conf.get(CONF_URL) or conf.get(CONF_PATH),
             base_url,
+            ", ".join(names),
         )
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
