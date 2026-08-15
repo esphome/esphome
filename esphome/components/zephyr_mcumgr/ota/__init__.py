@@ -1,9 +1,15 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    SWAP_METHOD_SCHEMA,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.components.zephyr import (
     VARIANTS,
     HexValue,
+    mcuboot,
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -20,6 +26,8 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -65,6 +73,8 @@ ZEPHYR_VARIANTS = (
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_EFR32MG24,
+    ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
 )
 
 # Families whose boards actually have a USB peripheral this CDC-ACM transport can
@@ -72,9 +82,9 @@ ZEPHYR_VARIANTS = (
 # has no USB device controller node at all (board.yaml doesn't list "usb"), so
 # CDC/CDC1 would fail with an opaque "undefined node label 'zephyr_udc0'"
 # devicetree error instead of a clear config-time one -- same rule logger's own
-# hardware_uart: already applies (UART_SELECTION_ZEPHYR_NORDIC is the only zephyr
+# hardware_uart: already applies (UART_SELECTION_ZEPHYR_USB_CDC is the only zephyr
 # family list that includes USB_CDC).
-_CDC_CAPABLE_FAMILIES = {"nordic"}
+_CDC_CAPABLE_FAMILIES = {"nordic", "rpi_pico"}
 
 CDC_IDS = {"CDC": 0, "CDC1": 1}
 UARTS = ("CDC", "CDC1", "UART0", "UART1")
@@ -87,8 +97,8 @@ def _validate_platform(conf: ConfigType) -> ConfigType:
     if not (CORE.is_nrf52 or (CORE.is_zephyr and zephyr_variant() in ZEPHYR_VARIANTS)):
         raise cv.Invalid(
             "This feature is only available on nrf52 (platform: nrf52, or "
-            "platform: zephyr with variant: nrf52, nrf54l15, nrf54lm20a, or "
-            "efr32mg24)."
+            "platform: zephyr with variant: nrf52, nrf54l15, nrf54lm20a, efr32mg24, "
+            "rp2040, or rp2350)."
         )
     hw_uart = conf[CONF_TRANSPORT].get(CONF_HARDWARE_UART)
     if hw_uart in CDC_IDS and not (
@@ -114,12 +124,14 @@ CONFIG_SCHEMA = cv.All(
                     ): cv.one_of(*UARTS, upper=True),
                 }
             ),
+            **SWAP_METHOD_SCHEMA,
         }
     )
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
     _validate_platform,
+    mcuboot.validate_swap_method,
 )
 
 
@@ -161,6 +173,8 @@ async def to_code(config: ConfigType) -> None:
     await ota_to_code(var, config)
 
     await cg.register_component(var, config)
+
+    mcuboot.apply_swap_method(config)
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)

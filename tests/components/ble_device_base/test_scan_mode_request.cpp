@@ -29,11 +29,18 @@ class DefaultHub : public BLEHub {
 
 class SwitchingHub : public DefaultHub {
  public:
-  HubCapabilities get_capabilities() const override { return {true, false, false}; }
+  HubCapabilities get_capabilities() const override { return {true, false, false, /* scan_mode_switch = */ true}; }
   bool request_scan_mode(bool active) override {
     this->active_ = active;
     return true;
   }
+};
+
+// The esp32 shape: the controller supports active scanning but the hub keeps
+// the refusing default (mode is driven through its own tracker API).
+class CapableRefusingHub : public DefaultHub {
+ public:
+  HubCapabilities get_capabilities() const override { return {true, false, false}; }
 };
 
 }  // namespace
@@ -50,10 +57,20 @@ TEST(BLEHubScanModeRequest, DefaultRefusesAndChangesNothing) {
 
 TEST(BLEHubScanModeRequest, OverrideHonorsAndApplies) {
   SwitchingHub hub;
+  EXPECT_TRUE(hub.get_capabilities().scan_mode_switch);
   EXPECT_TRUE(hub.request_scan_mode(true));
   EXPECT_TRUE(hub.scan_active());
   EXPECT_TRUE(hub.request_scan_mode(false));
   EXPECT_FALSE(hub.scan_active());
+}
+
+TEST(BLEHubScanModeRequest, CapabilityAndSwitchAreIndependent) {
+  CapableRefusingHub hub;
+  EXPECT_TRUE(hub.get_capabilities().active_scan);
+  // The esp32 shape advertises no runtime switch, and the request refuses.
+  EXPECT_FALSE(hub.get_capabilities().scan_mode_switch);
+  EXPECT_FALSE(hub.request_scan_mode(false));
+  EXPECT_TRUE(hub.scan_active());
 }
 
 }  // namespace esphome::ble_device_base::testing

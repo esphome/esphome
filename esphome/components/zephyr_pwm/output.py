@@ -57,11 +57,15 @@ def _pwm_node_labels() -> list[str]:
 def _only_on_pwm_hardware(value):
     if CORE.is_nrf52:
         return value
-    if CORE.using_zephyr and zephyr_variant_family() == "nordic" and _pwm_node_labels():
+    if (
+        CORE.using_zephyr
+        and zephyr_variant_family() in ("nordic", "rpi_pico")
+        and _pwm_node_labels()
+    ):
         return value
     raise cv.Invalid(
         "zephyr_pwm is only available on nrf52 (platform: nrf52, or platform: zephyr "
-        "with a Nordic variant that has PWM hardware wired up)"
+        "with a variant that has PWM hardware wired up)"
     )
 
 

@@ -47,8 +47,10 @@ static void on_thread_state_changed(otChangedFlags flags, void *user_data) {
 }
 
 #ifdef USE_NRF52
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct openthread_state_changed_cb ot_state_changed_cb = {.state_changed_cb = on_thread_state_changed};
 #else
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct openthread_state_changed_callback ot_state_changed_cb = {.otCallback = on_thread_state_changed};
 #endif
 

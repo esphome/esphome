@@ -37,6 +37,29 @@ CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
+CONF_SWAP_METHOD = "swap_method"
+
+# Shared by every ota: platform that can run on Zephyr (platform: esphome and
+# platform: zephyr_mcumgr both end up pushing the very same MCUboot sysbuild
+# MCUBOOT_MODE_SWAP_* Kconfig choice symbol -- see
+# esphome.components.zephyr.mcuboot). Defined here, not in the zephyr package,
+# so that platform: esphome -- built on every platform, not just Zephyr -- can
+# use it without importing esphome.components.zephyr at module-load time.
+SWAP_METHOD_SCHEMA = {
+    cv.SplitDefault(
+        CONF_SWAP_METHOD,
+        zephyr="scratch",
+        zephyr_nrf52="offset",
+        zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
+        zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
+        # No scratch partition in this board's flash layout (boot/image-0/
+        # image-1/storage only) -- the generic zephyr="scratch" default above
+        # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
+        zephyr_efr32mg24="move",
+        zephyr_rp2040="offset",
+        zephyr_rp2350="offset",
+    ): cv.one_of("scratch", "move", "offset", lower=True),
+}
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
@@ -68,12 +91,40 @@ def _ota_final_validate(config):
         from esphome.components.zephyr.const import (  # noqa: PLC0415
             BOOTLOADER_MCUBOOT,
             KEY_BOOTLOADER,
+            KEY_SINGLE_SLOT,
         )
 
         if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
                 raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+
+        if zephyr_data()[KEY_SINGLE_SLOT]:
+            # No secondary slot to write into instead of the one currently executing --
+            # live OTA (any platform) risks corrupting the running image mid-transfer,
+            # not just losing revert-on-power-loss safety. Serial/wired flashing only.
+            raise cv.Invalid(
+                f"'{CONF_OTA}:' is not supported with 'single_slot: true' -- there is no "
+                f"secondary slot for OTA to write into, and writing into the slot "
+                f"currently executing risks crashing mid-update. Flash over serial/USB "
+                f"instead."
+            )
+
+        # platform: esphome and platform: zephyr_mcumgr can both be configured at
+        # once, each with its own swap_method:. They're validated independently,
+        # but both push the same MCUboot sysbuild swap-mode choice symbol -- a
+        # mismatch would otherwise pass validation and silently write two
+        # different, mutually-exclusive symbols =y into sysbuild.conf.
+        methods = {
+            ota_conf[CONF_PLATFORM]: ota_conf[CONF_SWAP_METHOD]
+            for ota_conf in config
+            if CONF_SWAP_METHOD in ota_conf
+        }
+        if len(set(methods.values())) > 1:
+            raise cv.Invalid(
+                f"'{CONF_SWAP_METHOD}:' must be the same across every '{CONF_OTA}:' "
+                f"entry, got {methods}"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _ota_final_validate
@@ -193,7 +244,7 @@ async def final_step():
         cg.add_define("USE_OTA_STATE_LISTENER")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_backend_source_files = filter_source_files_from_platform(
     {
         "ota_backend_esp_idf.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -210,3 +261,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "ota_backend_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    files = _filter_backend_source_files()
+    # ota_signature_esp_idf.cpp implements multi-key OTA signature verification,
+    # compiled only when the esp32 component enables it (external RSA signed
+    # OTA sets USE_OTA_SIGNED_VERIFICATION_MULTI_KEY). The define is set only on
+    # ESP32/IDF, so this also excludes the file on every other platform. Filter
+    # it out otherwise so the (otherwise fully #ifdef'd-out) file isn't opened
+    # and parsed on every build.
+    if not any(
+        define.name == "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY"
+        for define in CORE.defines
+    ):
+        files.append("ota_signature_esp_idf.cpp")
+    return files

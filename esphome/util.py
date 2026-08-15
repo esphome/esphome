@@ -5,7 +5,6 @@ import io
 import logging
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -289,6 +288,9 @@ def run_external_command(
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
+    # Deferred: an OTA upload/logs run never spawns an external process.
+    import subprocess
+
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -327,13 +329,6 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
-
-
-def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 # Custom OrderedDict with nicer repr method for debugging
@@ -400,6 +395,25 @@ def get_serial_ports() -> list[SerialPort]:
     return result
 
 
+def get_serial_number(port: str) -> str | None:
+    """Look up the USB serial number reported by the device backing a serial port.
+
+    Debug-probe boards (JLink, CMSIS-DAP/DAPLink, Simplicity Commander, ...) expose
+    their probe's serial number as the USB serial descriptor of the CDC-ACM port they
+    enumerate, so this doubles as a stable probe identifier -- useful to disambiguate
+    which physical board to flash when more than one is attached at once.
+
+    Returns None if the port can't be found or reports no serial number (e.g. it isn't
+    backed by a USB device at all).
+    """
+    from serial.tools.list_ports import comports
+
+    for info in comports(include_links=True):
+        if info.device == port:
+            return info.serial_number
+    return None
+
+
 PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
 
 
@@ -450,6 +464,8 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     Returns a BootselResult with the number of devices found (by counting
     'type:' lines in output), and whether a permission error was detected.
     """
+    import subprocess
+
     try:
         result = subprocess.run(
             [str(picotool_path), "info", "-d"],

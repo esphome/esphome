@@ -24,6 +24,10 @@
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
+#ifdef USE_ZEPHYR_BOOTSEL_TOUCH
+#include <zephyr/retention/bootmode.h>
+#include <zephyr/sys/reboot.h>
+#endif
 
 namespace esphome::zephyr_coredump {
 
@@ -50,6 +54,16 @@ void Logger::cdc_loop_() {
   if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
   }
+#ifdef USE_ZEPHYR_BOOTSEL_TOUCH
+  // Cross-ecosystem "1200 baud touch" convention: a host opening this port at 1200
+  // baud (e.g. to trigger a firmware update) means "reboot into the USB bootloader",
+  // not an actual serial session at that rate.
+  uint32_t baud = 0;
+  if (uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_BAUD_RATE, &baud) == 0 && baud == 1200) {
+    bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
+    sys_reboot(SYS_REBOOT_COLD);
+  }
+#endif
   static bool opened = false;
   uint32_t dtr = 0;
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);

@@ -20,6 +20,7 @@ from esphome.components.zephyr import (
     zephyr_setup_preferences,
     zephyr_to_code,
 )
+from esphome.components.zephyr.board_revision import parse_board_string
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
@@ -181,10 +182,14 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     config = config.copy()
     bootloaders: list[str] = []
     board = config[CONF_BOARD]
+    # BOARDS_ZEPHYR is keyed on the bare board name -- strip any "@<revision>"/
+    # "/<qualifiers>" suffix before the lookup so a revisioned board string still
+    # finds its bootloader entry.
+    board_name = parse_board_string(board).name
 
-    if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
+    if board_name in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board_name]:
         # this board have bootloaders config available
-        bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
+        bootloaders = BOARDS_ZEPHYR[board_name][KEY_BOOTLOADER]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -726,11 +731,17 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
+STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
+
+
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     if "Last crash:" in line:
         return True
     if backtrace_state:
-        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        match = STACKTRACE_NRF52_PC_LR_RE.search(line)
         if match:
             pc = match.group(1)
             lr = match.group(2)

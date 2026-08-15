@@ -4,7 +4,7 @@
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/core/component.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::modbus_controller {
 
@@ -20,7 +20,7 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
+    if (modbus::helpers::is_entity_type_binary(register_type)) {
       this->register_count = offset + 1;
     } else {
       this->register_count = 1;

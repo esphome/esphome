@@ -8,10 +8,13 @@ import subprocess
 from unittest.mock import patch
 
 from esphome.components.zephyr.dts_fetch import (
+    _SPARSE_CHECKOUT_SCHEMA,
     _framework_base_version,
     _resolve_boards_ref,
     _resolve_ncs_zigbee_boards_ref,
+    _sdk_source_cache_key,
     _sparse_clone_dts,
+    _sparse_clone_dts_from_source,
 )
 from esphome.components.zephyr.variants import MAINLINE, NCS, NCS_ZIGBEE
 import esphome.config_validation as cv
@@ -241,6 +244,9 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
     _set_framework_version(4, 4, 1)
     dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
     (dest / "boards").mkdir(parents=True)
+    (dest / ".resolved_ref").write_text(
+        f"{_resolve_boards_ref(MAINLINE, '4.4.1')}#{_SPARSE_CHECKOUT_SCHEMA}"
+    )
 
     with (
         patch(
@@ -253,3 +259,110 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
 
     mock_run.assert_not_called()
     assert result == dest
+
+
+def test_sparse_clone_dts_self_heals_when_resolved_ref_changed(
+    tmp_path: Path,
+) -> None:
+    """Regression test for a cache dir left behind by an older, now-fixed ref
+    resolution (e.g. before the ncs-zigbee two-hop fix). A stale marker must
+    trigger a re-clone instead of being reused forever just because boards/
+    happens to exist.
+    """
+    _set_framework_version(4, 4, 1)
+    dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
+    (dest / "boards").mkdir(parents=True)
+    (dest / "stale-marker-file").write_text("leftover from the old checkout")
+    (dest / ".resolved_ref").write_text("v0.0.0-stale")
+
+    def fake_run(cmd, **kwargs):
+        result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if cmd[:2] == ["git", "clone"]:
+            new_dest = Path(cmd[-1])
+            (new_dest / "boards").mkdir(parents=True, exist_ok=True)
+        return result
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
+            tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run) as mock_run,
+    ):
+        result = _sparse_clone_dts("ESP32H2", "zephyr", MAINLINE)
+
+    assert mock_run.call_args_list  # re-fetched instead of trusting the stale cache
+    assert not (dest / "stale-marker-file").exists()  # old checkout wiped, not merged
+    assert result == dest
+    assert (
+        (dest / ".resolved_ref").read_text()
+        == f"{_resolve_boards_ref(MAINLINE, '4.4.1')}#{_SPARSE_CHECKOUT_SCHEMA}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# _sparse_clone_dts_from_source -- schema-marker staleness guard (fix for the
+# from-source path silently missing the snippets/ sparse-checkout addition)
+# ---------------------------------------------------------------------------
+
+
+def test_sparse_clone_dts_from_source_cache_hit_with_current_schema_marker(
+    tmp_path: Path,
+) -> None:
+    source = {"url": "https://example.invalid/zephyr", "ref": "my-branch"}
+    dest = (
+        tmp_path
+        / "zephyr_dts_cache"
+        / _sdk_source_cache_key(source["url"], source["ref"])
+    )
+    (dest / "boards").mkdir(parents=True)
+    (dest / ".sparse_schema").write_text(_SPARSE_CHECKOUT_SCHEMA)
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
+            tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run") as mock_run,
+    ):
+        result = _sparse_clone_dts_from_source(source, refresh=None)
+
+    mock_run.assert_not_called()
+    assert result == dest
+
+
+def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
+    tmp_path: Path,
+) -> None:
+    """A cache dir from before the snippets/ sparse-checkout addition has no
+    .sparse_schema marker at all -- must be treated as stale and re-fetched
+    immediately, independent of the refresh: window (refresh=None here)."""
+    source = {"url": "https://example.invalid/zephyr", "ref": "my-branch"}
+    dest = (
+        tmp_path
+        / "zephyr_dts_cache"
+        / _sdk_source_cache_key(source["url"], source["ref"])
+    )
+    (dest / "boards").mkdir(parents=True)
+    (dest / "stale-marker-file").write_text("leftover from the old checkout")
+
+    def fake_run(cmd, **kwargs):
+        result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if cmd[:2] == ["git", "clone"]:
+            new_dest = Path(cmd[-1])
+            (new_dest / "boards").mkdir(parents=True, exist_ok=True)
+        return result
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
+            tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run) as mock_run,
+    ):
+        result = _sparse_clone_dts_from_source(source, refresh=None)
+
+    assert mock_run.call_args_list  # re-fetched, not trusted as a cache hit
+    assert not (dest / "stale-marker-file").exists()  # old checkout wiped
+    assert result == dest
+    assert (dest / ".sparse_schema").read_text() == _SPARSE_CHECKOUT_SCHEMA

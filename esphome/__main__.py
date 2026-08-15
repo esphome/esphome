@@ -2,16 +2,12 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime
 import functools
-import getpass
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import time
 from typing import Protocol
@@ -23,12 +19,14 @@ from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
+    BUNDLE_EXTENSION,
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -48,6 +46,8 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -55,6 +55,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -88,7 +89,7 @@ _RP2040_BOOTSEL_INSTRUCTIONS = (
     "  1. Unplug the device\n"
     "  2. Hold the BOOT/BOOTSEL button\n"
     "  3. Plug in the USB cable while holding the button\n"
-    "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
+    "  4. Release the button. The device should appear as a USB drive (RPI-RP2)\n"
     "Then run the upload command again."
 )
 
@@ -351,12 +352,24 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2
-        and (picotool := _find_picotool()) is not None
+        and (
+            picotool := (
+                (_find_picotool() if CORE.is_rp2 else None)
+                or (
+                    _find_picotool_zephyr()
+                    if (
+                        CORE.is_zephyr
+                        and CORE.data.get("zephyr", {}).get("family") == "rpi_pico"
+                    )
+                    else None
+                )
+            )
+        )
+        is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
         if bootsel.device_count > 0:
-            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+            options.append(("RP2040/RP2350 BOOTSEL (via picotool)", "BOOTSEL"))
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
@@ -395,22 +408,28 @@ def choose_upload_log_host(
     elif purpose == Purpose.UPLOADING and has_ota():
         add_ota_options()
 
-    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
+    # Show helpful BOOTSEL instructions for RP2040/RP2350 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2
+        and (
+            CORE.is_rp2
+            or (
+                CORE.is_zephyr
+                and CORE.data.get("zephyr", {}).get("family") == "rpi_pico"
+            )
+        )
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
             _LOGGER.warning(
-                "An RP2040 device in BOOTSEL mode was detected but could "
+                "An RP2040/RP2350 device in BOOTSEL mode was detected but could "
                 "not be accessed due to USB permissions."
             )
             if sys.platform.startswith("linux"):
                 _LOGGER.warning(_RP2040_UDEV_HINT)
         if not options:
             raise EsphomeError(
-                f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
+                f"No RP2040/RP2350 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
             )
         _LOGGER.info("Tip: %s", _RP2040_BOOTSEL_INSTRUCTIONS)
 
@@ -484,8 +503,6 @@ def has_web_server_ota() -> bool:
 
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -618,6 +635,8 @@ def _resolve_network_devices(
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
+    from datetime import datetime
+
     from aioesphomeapi import LogParser
     import serial
 
@@ -630,29 +649,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    # Stacktrace analysis is optional; a broken platform import must not
-    # stop serial log streaming, but it is a real breakage and must not
-    # masquerade as an ordinary capability gap.
-    try:
-        process_stacktrace = platform_hooks.get_platform_hook(
-            CORE.target_platform, "process_stacktrace"
-        )
-    except ImportError as err:
-        _LOGGER.debug("Stacktrace analyzer import failed", exc_info=True)
-        _LOGGER.warning(
-            'Stacktrace analysis is unavailable: analyzer for target platform "%s" failed to import: %s',
-            CORE.target_platform,
-            err,
-        )
-        process_stacktrace = None
-    else:
-        if process_stacktrace is None:
-            _LOGGER.info(
-                'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-                CORE.target_platform,
-            )
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -692,11 +691,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -941,9 +936,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
@@ -997,6 +993,8 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -1027,6 +1025,18 @@ def _find_picotool() -> Path | None:
     return get_picotool_path(idedata.cc_path)
 
 
+def _find_picotool_zephyr() -> Path | None:
+    """Find picotool without PlatformIO — looks in the global packages dir."""
+    import shutil
+
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    pio_packages = Path.home() / ".platformio" / "packages"
+    picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
+    if picotool.is_file():
+        return picotool
+    return Path(binary_name) if shutil.which(binary_name) else None
+
+
 def upload_using_picotool(config: ConfigType) -> int:
     """Upload firmware to RP2040 in BOOTSEL mode using picotool.
 
@@ -1034,6 +1044,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
+    import subprocess
+
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -1140,6 +1152,8 @@ def check_permissions(port: str):
                 "the USB cable can be used for data and is not a power-only cable."
             )
         if not (os.access(port, os.R_OK | os.W_OK)):
+            import getpass
+
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
@@ -1152,13 +1166,14 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+    port_type = get_port_type(host)
     platform_upload = platform_hooks.get_platform_hook(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
-        return 0, host
-
-    port_type = get_port_type(host)
+        # BOOTSEL isn't a real serial port -- report None so command_run() waits for
+        # the new port to enumerate instead of trying to use "BOOTSEL" for logging.
+        return 0, None if port_type == PortType.BOOTSEL else host
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1684,7 +1699,10 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if successful_device is None and CORE.is_rp2:
+    if successful_device is None and (
+        CORE.is_rp2
+        or (CORE.is_zephyr and CORE.data.get("zephyr", {}).get("family") == "rpi_pico")
+    ):
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
@@ -1735,7 +1753,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+    from esphome.bundle import ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
@@ -2585,10 +2603,11 @@ def run_esphome(argv):
         return 0
 
     # Bundle support: if the configuration is a .esphomebundle, extract it
-    # and rewrite conf_path to the extracted YAML config.
-    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+    # and rewrite conf_path to the extracted YAML config. The suffix check
+    # stays inline so the ordinary run never imports esphome.bundle.
+    if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        from esphome.bundle import prepare_bundle_for_compile
 
-    if is_bundle_path(conf_path):
         _LOGGER.info("Extracting config bundle %s...", conf_path)
         conf_path = prepare_bundle_for_compile(conf_path)
         # Update the argument so downstream code sees the extracted path
@@ -2629,6 +2648,8 @@ def run_esphome(argv):
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
+            # Snapshot only needed by `esphome config --no-defaults`.
+            snapshot_user_config=getattr(args, "no_defaults", False),
         )
         # Refresh the cache so the next upload/logs hits the fast path
         # instead of re-running read_config. Skip when the storage

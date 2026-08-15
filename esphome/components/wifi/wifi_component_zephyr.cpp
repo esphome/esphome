@@ -308,7 +308,12 @@ optional<ManualIP> get_manual_ip_or_none(const WiFiAP &ap) {
 void fill_ssid_and_security(wifi_connect_req_params &params, const CompactString &ssid, const CompactString &password) {
   params.ssid = reinterpret_cast<const uint8_t *>(ssid.c_str());
   params.ssid_length = ssid.size();
-  params.band = WIFI_FREQ_BAND_2_4_GHZ;
+  // esp32_wifi_connect() (Zephyr's esp32 wifi driver) never reads params.band -- only
+  // params.channel affects the actual connect attempt, and we leave that at "any". Left
+  // commented out, not deleted: WiFi is currently esp32-family-only in this platform, but
+  // if another Zephyr wifi driver gains support later, that driver may actually honor this
+  // field and it would need to be restored (band-aware, not hardcoded to 2.4GHz).
+  // params.band = WIFI_FREQ_BAND_2_4_GHZ;
   if (password.empty()) {
     params.security = WIFI_SECURITY_TYPE_NONE;
   } else {

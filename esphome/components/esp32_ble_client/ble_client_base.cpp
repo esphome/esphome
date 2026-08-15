@@ -13,20 +13,14 @@ namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
-// Intermediate connection parameters for standard operation
-// ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
-// causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static constexpr uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
-static constexpr uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
-// The timeout value was increased from 6s to 8s to address stability issues observed
-// in certain BLE devices when operating through WiFi-based BLE proxies. The longer
-// timeout reduces the likelihood of disconnections during periods of high latency.
-static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
-
-// Fastest connection parameters for devices with short discovery timeouts
-static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
-static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
-static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+// Connection parameters are shared with the other GATT client backends
+// (ble_device_base/ble_client_state.h) so the platforms cannot drift.
+using ble_device_base::FAST_CONN_TIMEOUT;
+using ble_device_base::FAST_MAX_CONN_INTERVAL;
+using ble_device_base::FAST_MIN_CONN_INTERVAL;
+using ble_device_base::MEDIUM_CONN_TIMEOUT;
+using ble_device_base::MEDIUM_MAX_CONN_INTERVAL;
+using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 static constexpr uint32_t DISCONNECTING_TIMEOUT = 10000;  // 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,

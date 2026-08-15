@@ -29,6 +29,10 @@ from .variants import ZephyrSDK
 _LOGGER = logging.getLogger(__name__)
 
 _DTS_CACHE = Path.home() / ".esphome" / "zephyr_dts_cache"
+# Bump when _sparse_clone_dts()'s `sparse-checkout set` file list changes, so a cache
+# from before the change (still matching on tag alone) is detected as stale and
+# re-fetched instead of silently missing the newly-added paths forever.
+_SPARSE_CHECKOUT_SCHEMA = "2"  # v2: added snippets/ (zephyr: snippets: DTS overlays)
 _SDK_SOURCE_VERSION_CACHE = Path.home() / ".esphome" / "zephyr_sdk_source_version_cache"
 _MANIFEST_REVISION_CACHE = Path.home() / ".esphome" / "zephyr_manifest_revision_cache"
 
@@ -360,16 +364,16 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
     repo.
 
     The clone is cached at ~/.esphome/zephyr_dts_cache/<variant>/<sdk_name>/<sdk_ver>/
-    and reused on subsequent compiles. Returns None if git is unavailable, the tag/ref
-    can't be resolved, or the clone fails.
+    and reused on subsequent compiles. The cache is keyed on the resolved boards
+    revision (stored in a small marker file), not just directory presence, so a stale
+    checkout from before a ref-resolution fix landed is detected and re-fetched
+    automatically instead of silently reused forever.
+    Returns None if git is unavailable, the tag/ref can't be resolved, or the clone
+    fails.
     """
     repo = sdk.boards_repo_url or sdk.manifest_url
     ver = _framework_base_version()
     dest = _DTS_CACHE / variant / sdk_name / ver
-
-    zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
-    if (zephyr_dir / "boards").is_dir():
-        return zephyr_dir  # cache hit
 
     tag = (
         _resolve_ncs_zigbee_boards_ref(sdk, ver)
@@ -384,6 +388,19 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
             ver,
         )
         return None
+
+    ref_marker = dest / ".resolved_ref"
+    marker_content = f"{tag}#{_SPARSE_CHECKOUT_SCHEMA}"
+    zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
+    if (
+        (zephyr_dir / "boards").is_dir()
+        and ref_marker.is_file()
+        and ref_marker.read_text().strip() == marker_content
+    ):
+        return zephyr_dir  # cache hit, and it's the revision we'd resolve today
+
+    if dest.is_dir():
+        shutil.rmtree(dest, ignore_errors=True)  # stale cache -- force a re-fetch
 
     _LOGGER.info(
         "[zephyr] Fetching board DTS files for %s %s (revision %s) — one-time download, cached afterward",
@@ -421,11 +438,14 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
                 # Full include/zephyr/ is needed since dt-bindings headers transitively
                 # include other core headers. scripts/dts/python-devicetree/ is the
                 # bundled edtlib preferred over the PyPI package, which rejects newer
-                # binding keys (e.g. 'examples:').
+                # binding keys (e.g. 'examples:'). boards/ already covers boards/shields/
+                # (shield definitions, no separate pattern needed); snippets/ is needed
+                # separately for zephyr: snippets:'s own devicetree overlay fragments.
                 "boards/",
                 "dts/",
                 "include/zephyr/",
                 "scripts/dts/python-devicetree/",
+                "snippets/",
             ],
             check=True,
             capture_output=True,
@@ -433,7 +453,10 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
         )
         # sdk-zephyr repos nest the Zephyr tree one level down
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
-        return zephyr_dir if (zephyr_dir / "boards").is_dir() else None
+        if (zephyr_dir / "boards").is_dir():
+            ref_marker.write_text(marker_content)
+            return zephyr_dir
+        return None
     except subprocess.CalledProcessError as exc:
         _LOGGER.warning("[zephyr] DTS fetch failed: %s", exc.stderr.strip())
     except FileNotFoundError:
@@ -462,10 +485,20 @@ def _sparse_clone_dts_from_source(
     url = source[CONF_URL]
     ref = source.get(CONF_REF)
     dest = _DTS_CACHE / _sdk_source_cache_key(url, ref)
+    schema_marker = dest / ".sparse_schema"
 
     zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
     if (zephyr_dir / "boards").is_dir():
-        stale = (
+        # A cache from before _SPARSE_CHECKOUT_SCHEMA's current value (e.g. one
+        # predating snippets/ being added to the sparse-checkout set below) is
+        # missing paths this schema version expects -- refetch immediately,
+        # independent of the refresh: window, the same way _sparse_clone_dts()'s
+        # own marker check does for the upstream-tag path.
+        schema_stale = (
+            not schema_marker.is_file()
+            or schema_marker.read_text().strip() != _SPARSE_CHECKOUT_SCHEMA
+        )
+        stale = schema_stale or (
             refresh is not None
             and not CORE.skip_external_update
             and (time.time() - dest.stat().st_mtime) > refresh.total_seconds
@@ -497,13 +530,17 @@ def _sparse_clone_dts_from_source(
                 "dts/",
                 "include/zephyr/",
                 "scripts/dts/python-devicetree/",
+                "snippets/",
             ],
             check=True,
             capture_output=True,
             text=True,
         )
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
-        return zephyr_dir if (zephyr_dir / "boards").is_dir() else None
+        if (zephyr_dir / "boards").is_dir():
+            schema_marker.write_text(_SPARSE_CHECKOUT_SCHEMA)
+            return zephyr_dir
+        return None
     except subprocess.CalledProcessError as exc:
         _LOGGER.warning("[zephyr] DTS fetch failed: %s", exc.stderr.strip())
     except FileNotFoundError:

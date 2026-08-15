@@ -73,6 +73,12 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 #zigbee end
+#openthread begin
+CONFIG_NET_L2_OPENTHREAD=y
+CONFIG_OPENTHREAD_NORDIC_LIBRARY_FTD=y
+CONFIG_OPENTHREAD_FTD=y
+CONFIG_MAIN_STACK_SIZE=4096
+#openthread end
 """
 
 
@@ -118,6 +124,7 @@ def _parse_lib_deps(platformio_ini: Path) -> list:
     for section, key in (
         ("common", "lib_deps_base"),
         ("common:idf-component-libs", "lib_deps"),
+        ("common:nrf52-zephyr", "lib_deps"),
     ):
         if parser.has_option(section, key):
             tokens += parser.get(section, key).splitlines()

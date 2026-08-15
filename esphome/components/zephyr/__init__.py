@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import logging
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -39,12 +40,18 @@ from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
+from .board_revision import declared_revisions, parse_board_string, resolve_revision
 from .const import (
+    BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
+    CONF_SHIELD_SOURCE,
+    CONF_SHIELDS,
+    CONF_SINGLE_SLOT,
+    CONF_SNIPPET_SOURCE,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
@@ -57,19 +64,27 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SHIELD_ROOT,
+    KEY_SHIELDS,
+    KEY_SINGLE_SLOT,
+    KEY_SNIPPET_ROOT,
     KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
-    ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_NRF54LM20A,  
     ZEPHYR_VARIANT_STM32L4,
+    ZEPHYR_VARIANT_RP2040,
+    ZEPHYR_VARIANT_RP2350,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -151,6 +166,9 @@ class ZephyrData(TypedDict):
     )  # resolved zephyr: framework: source:, or None if unset
     bootloader: str
     variant: str | None
+    family: (
+        str | None
+    )  # variant's ZephyrVariant.family (e.g. "esp32"), or None if unfamilied
     framework_type: str  # resolved zephyr: framework: type: (e.g. "zephyr", "ncs")
     prj_conf: dict[str, dict[str, tuple[PrjConfValueType, bool]]]
     sysbuild_conf: dict[str, tuple[PrjConfValueType, bool]]
@@ -170,7 +188,9 @@ class ZephyrData(TypedDict):
     cpp_path: str | None  # "" = unchecked; None = not found; else = executable path
     board_dir_cache: dict[str, str]  # board -> abs path str, "" = not found
     dts_include_paths: list[str] | None  # None = not yet computed
-    board_edt_cache: dict[str, object]  # board -> EDT | _NOT_FOUND; cleared each run
+    # (board, shields, snippets) -> EDT | _NOT_FOUND; cleared each run. Value stays
+    # `object` since edtlib.EDT isn't imported here (dts_lookup.py's own concern).
+    board_edt_cache: dict[tuple[str, tuple[str, ...], tuple[str, ...]], object]
     board_yaml_cache: dict[
         str, object
     ]  # board -> list[str] | _NOT_FOUND; cleared each run
@@ -179,6 +199,14 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
+    single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
+    shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
+    shield_root: (
+        Path | None
+    )  # resolved zephyr: shield_source: dir, or board_root, or None
+    snippet_root: (
+        Path | None
+    )  # resolved zephyr: snippet_source: dir, or board_root, or None
 
 
 # platform: nrf52 use only
@@ -189,6 +217,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         sdk_source=None,
         bootloader=config[KEY_BOOTLOADER],
         variant=None,
+        family=None,
         # platform: nrf52 is inherently NCS-based (no alternate).
         framework_type="ncs",
         prj_conf={},
@@ -212,6 +241,10 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
+        single_slot=False,
+        shields=[],
+        shield_root=None,
+        snippet_root=None,
     )
 
 
@@ -232,11 +265,7 @@ def zephyr_framework_type() -> str | None:
 
 def zephyr_variant_family() -> str | None:
     """Return the active variant's silicon family (e.g. "esp32"), or None if unset/unfamilied."""
-    variant = zephyr_variant()
-    if variant is None:
-        return None
-    variant_info = VARIANTS.get(variant)
-    return variant_info.family if variant_info is not None else None
+    return zephyr_data().get("family")
 
 
 def zephyr_dts_board_id(esphome_board: str) -> str:
@@ -505,13 +534,18 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 
 def _filter_source_files() -> list[str]:
-    # i2c_emulator.cpp/.h are auto-discovered for every Zephyr build, but only make sense
-    # when i2c: emulation: is configured (CONFIG_I2C_EMUL). Without this filter, sysbuild's
-    # --whole-archive link force-pulls i2c_emul_register() even when unused, breaking the
-    # link for real-hardware i2c: builds.
-    if "i2c_emulator.cpp" not in zephyr_data()[KEY_EXTRA_BUILD_FILES]:
-        return ["i2c_emulator.cpp", "i2c_emulator.h"]
-    return []
+    # i2c_emulator.cpp/.h and uart_emulator.cpp/.h are auto-discovered for every Zephyr
+    # build, but only make sense when the corresponding `emulation:` config is present
+    # (CONFIG_I2C_EMUL / CONFIG_UART_EMUL). Without this filter, sysbuild's
+    # --whole-archive link force-pulls their registration/callback functions even when
+    # unused, breaking the link for real-hardware builds.
+    excluded = []
+    extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
+    if "i2c_emulator.cpp" not in extra_build_files:
+        excluded += ["i2c_emulator.cpp", "i2c_emulator.h"]
+    if "uart_emulator.cpp" not in extra_build_files:
+        excluded += ["uart_emulator.cpp", "uart_emulator.h"]
+    return excluded
 
 
 FILTER_SOURCE_FILES = _filter_source_files
@@ -562,19 +596,74 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
+    elif zephyr_variant_family() == "rpi_pico":
+        # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
+        # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every rpi_pico-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RPI_PICO")
+        # Lets logger_zephyr.cpp's USB_CDC poll loop detect a host opening the port at
+        # 1200 baud (the cross-ecosystem "magic baud rate" convention) and reboot into
+        # the ROM USB bootloader (BOOTSEL) without needing the physical button --
+        # backed entirely by already-merged Zephyr infrastructure (subsys/retention's
+        # bootmode API + the RP2 SoC's own PRE_KERNEL_2 hook that acts on it).
+        #
+        # Applied directly rather than via the upstream `rp2-boot-mode-retention`
+        # snippet: that snippet's board-matching regex (`.*/rp2350b?/.*`) doesn't
+        # account for the "A package" qualifier real RP2350 boards use
+        # (`xiao_rp2350/rp2350a/m33`), so its devicetree overlay silently never
+        # applies there, and CONFIG_RETENTION_BOOT_MODE gets silently dropped for
+        # lack of the "zephyr,boot-mode" chosen node it depends on.
+        boot_mode_dtsi = (
+            "rp2040-boot-mode-retention"
+            if zephyr_variant() == ZEPHYR_VARIANT_RP2040
+            else "rp2350-boot-mode-retention"
+        )
+        boot_mode_overlay = f"#include <vendor/raspberrypi/{boot_mode_dtsi}.dtsi>"
+        # When mcuboot is enabled, it -- not the app -- is what runs first on the next
+        # boot after the app calls bootmode_set()+sys_reboot(). The RP2 SoC's own
+        # PRE_KERNEL_2 hook that reads the retained flag and jumps into the ROM USB
+        # bootloader has to run inside mcuboot's own boot sequence, since mcuboot
+        # decides whether to chain-load the app at all -- so mcuboot's own build needs
+        # this Kconfig/overlay applied too (image="mcuboot"), or nothing ever reads the
+        # flag and mcuboot just boots the app slot as normal.
+        images = ("",)
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            images = ("", "mcuboot")
+        for image in images:
+            zephyr_add_prj_conf("RETAINED_MEM", True, image=image)
+            zephyr_add_prj_conf("RETENTION", True, image=image)
+            zephyr_add_prj_conf("RETENTION_BOOT_MODE", True, image=image)
+            zephyr_add_overlay(boot_mode_overlay, image)
+        cg.add_build_flag("-DUSE_ZEPHYR_BOOTSEL_TOUCH")
     else:
         # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
 
-    # esp32_h2/esp32_c6 are RV32IMAC -- no hardware FPU. Original ESP32 is Xtensa LX6,
-    # which does have one (soc/espressif/esp32/Kconfig selects CPU_HAS_FPU), so it can't
-    # be excluded by family the way the RISC-V esp32-family chips are.
-    if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32_H2, ZEPHYR_VARIANT_ESP32_C6):
+    if zephyr_data()[KEY_SINGLE_SLOT]:
+        from . import mcuboot  # noqa: PLC0415
+
+        mcuboot.apply_single_slot()
+
+    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC and esp32_c3 is RV32IMC -- none have a
+    # hardware FPU; rp2040 is Cortex-M0+, also without FPU. Original ESP32 is Xtensa LX6,
+    # which does have one -- it can't be excluded by family the way these chips are.
+    if zephyr_variant() not in (
+        ZEPHYR_VARIANT_ESP32_H2,
+        ZEPHYR_VARIANT_ESP32_C6,
+        ZEPHYR_VARIANT_ESP32_C5,
+        ZEPHYR_VARIANT_ESP32_C3,
+        ZEPHYR_VARIANT_RP2040,
+    ):
         zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem. RP2040 has
+    # no hardware RNG; RP2350's does exist but Zephyr's driver for it hangs the whole boot
+    # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
+    if zephyr_variant() not in (ZEPHYR_VARIANT_RP2040, ZEPHYR_VARIANT_RP2350):
+        zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
@@ -626,7 +715,7 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() in ("nordic", "silabs"):
+            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico"):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
@@ -951,6 +1040,31 @@ _BOARD_SOURCE_SCHEMA = cv.Any(
 # constant for that case instead of relying on the schema to inject it.
 _DEFAULT_REFRESH = cv.All(cv.string, cv.source_refresh)("1d")
 
+# shield_source: is only needed when a shield lives outside board_source:'s repo (the
+# uncommon case) -- same git/local shape as board_source:, so reuse its git schema
+# rather than duplicating it.
+_SHIELD_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
+# snippet_source: mirrors shield_source: -- only needed when a snippet lives outside
+# board_source:'s repo (the uncommon case); same git/local shape.
+_SNIPPET_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
 _ZEPHYR_SCHEMA = cv.Schema(
@@ -958,6 +1072,16 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Required(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
         cv.Optional(CONF_BOARD): cv.string_strict,
         cv.Optional(CONF_BOARD_SOURCE): _BOARD_SOURCE_SCHEMA,
+        # Zephyr shields (physical add-on boards, e.g. an nRF7002 Wi-Fi/Zigbee
+        # companion board) -- one `-DSHIELD=` entry per item, natively space/semicolon
+        # stackable, hence a list rather than a single value.
+        cv.Optional(CONF_SHIELDS, default=[]): cv.ensure_list(cv.string_strict),
+        # Only needed when a shield doesn't live under board_source:'s (or the SDK's
+        # own) root -- see _resolve_shield_source().
+        cv.Optional(CONF_SHIELD_SOURCE): _SHIELD_SOURCE_SCHEMA,
+        # Only needed when a snippet doesn't live under board_source:'s (or the
+        # SDK's own) root -- see _resolve_snippet_source().
+        cv.Optional(CONF_SNIPPET_SOURCE): _SNIPPET_SOURCE_SCHEMA,
         # Which SDK to build against (type:), its version, where to fetch it from
         # (source:), and how often to recheck a git source: (refresh:) -- see
         # resolve_framework_version() in variants/__init__.py for the full resolution
@@ -993,6 +1117,8 @@ _ZEPHYR_SCHEMA = cv.Schema(
         # from kconfig_options: above. Lets a stock upstream board cover a differently
         # sized flash/PSRAM SKU without forking a whole custom board.
         cv.Optional(CONF_SNIPPETS, default=[]): cv.ensure_list(cv.string_strict),
+        # No secondary slot -- serial/wired flashing only, no live OTA path.
+        cv.Optional(CONF_SINGLE_SLOT, default=False): cv.boolean,
         # Raw devicetree overlay passthrough -- lets a stock upstream board's DT be
         # patched (e.g. a partition table redefined for MCUboot) without forking a
         # custom board. "mcuboot" targets the sysbuild bootloader child image.
@@ -1026,15 +1152,135 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     else:
         raise NotImplementedError
 
-    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully qualified.
-    board_name = board.split("/", 1)[0]
-    if not list(root.glob(f"boards/*/{board_name}/board.yml")):
+    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully
+    # qualified and/or carries an "@<revision>" suffix.
+    parts = parse_board_string(board)
+    board_yml_matches = list(root.glob(f"boards/*/{parts.name}/board.yml"))
+    if not board_yml_matches:
         raise cv.Invalid(
-            f"Could not find boards/*/{board_name}/board.yml under this board_source. "
+            f"Could not find boards/*/{parts.name}/board.yml under this board_source. "
             f"Please check the source contains that board.",
             [CONF_BOARD_SOURCE],
         )
+    if parts.revision is not None:
+        board_dir = board_yml_matches[0].parent
+        resolved, declares_revisions = resolve_revision(board_dir, parts.revision)
+        if not declares_revisions:
+            raise cv.Invalid(
+                f"Board {parts.name!r} does not declare any revisions, but "
+                f"'{CONF_BOARD}' requested '@{parts.revision}'.",
+                [CONF_BOARD],
+            )
+        if resolved is None:
+            revisions = declared_revisions(board_dir)
+            raise cv.Invalid(
+                f"Revision {parts.revision!r} is not valid for board {parts.name!r}. "
+                f"Declared revisions: {', '.join(revisions)}",
+                [CONF_BOARD],
+            )
     return root
+
+
+def _resolve_extra_source(
+    config: ConfigType,
+    items: list[str],
+    board_root: Path | None,
+    *,
+    source_key: str,
+    items_key: str,
+    marker_relpath: Callable[[str], str],
+    kind_label: str,
+) -> Path | None:
+    """Resolve a zephyr: <kind>_source: into a local root directory.
+
+    Shared by _resolve_shield_source()/_resolve_snippet_source() -- both mirror
+    board_source:'s own git/local resolution exactly, differing only in the config
+    key and the per-item existence-check path. <kind>_source: is optional even when
+    <items>: is set -- the root defaults to board_root (a shield/snippet
+    accompanying a custom board conventionally lives alongside that root's boards/,
+    mirroring Zephyr's own repo layout and its own SHIELD_ROOT/SNIPPET_ROOT
+    default), or to None (let west/dts_lookup search the SDK's own tree) when
+    board_source: wasn't set either.
+
+    Existence is validated against whichever root is ultimately used -- including
+    the board_root fallback, not just an explicit <kind>_source: override -- so a
+    typo'd or genuinely missing item is caught here at config time instead of
+    silently falling through to a debug-only "not found" warning during DTS
+    validation.
+    """
+    explicit = source_key in config
+    if not explicit:
+        root = board_root
+    else:
+        conf = config[source_key]
+        if conf[CONF_TYPE] == TYPE_GIT:
+            with cv.prepend_path([source_key]):
+                root, _ = git.clone_or_update(
+                    url=conf[CONF_URL],
+                    ref=conf.get(CONF_REF),
+                    refresh=conf.get(CONF_REFRESH, _DEFAULT_REFRESH),
+                    domain=KEY_ZEPHYR,
+                    username=conf.get(CONF_USERNAME),
+                    password=conf.get(CONF_PASSWORD),
+                )
+                if path := conf.get(CONF_PATH):
+                    root = root / path
+        elif conf[CONF_TYPE] == TYPE_LOCAL:
+            root = Path(CORE.relative_config_path(conf[CONF_PATH]))
+        else:
+            raise NotImplementedError
+
+    if root is None:
+        # No override and no board_source: either -- nothing to validate against,
+        # same as a bare `board:` with no board_source: (checked later, at DTS
+        # validation time, against the SDK's own tree instead).
+        return None
+
+    error_path = [source_key] if explicit else [items_key]
+    source_desc = (
+        f"this {source_key}"
+        if explicit
+        else f"'{CONF_BOARD_SOURCE}' (the default root, since '{source_key}' wasn't set)"
+    )
+    for item in items:
+        if not (root / marker_relpath(item)).is_file():
+            raise cv.Invalid(
+                f"Could not find {marker_relpath(item)} under {source_desc}. "
+                f"Please check the source contains that {kind_label}, or set "
+                f"'{source_key}' explicitly.",
+                error_path,
+            )
+    return root
+
+
+def _resolve_shield_source(
+    config: ConfigType, shields: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: shield_source: into a local SHIELD_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        shields,
+        board_root,
+        source_key=CONF_SHIELD_SOURCE,
+        items_key=CONF_SHIELDS,
+        marker_relpath=lambda shield: f"boards/shields/{shield}/shield.yml",
+        kind_label="shield",
+    )
+
+
+def _resolve_snippet_source(
+    config: ConfigType, snippets: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: snippet_source: into a local SNIPPET_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        snippets,
+        board_root,
+        source_key=CONF_SNIPPET_SOURCE,
+        items_key=CONF_SNIPPETS,
+        marker_relpath=lambda snippet: f"snippets/{snippet}/snippet.yml",
+        kind_label="snippet",
+    )
 
 
 def _variant_config_schema(config: ConfigType) -> ConfigType:
@@ -1083,6 +1329,24 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 f"See https://esphome.io/components/zephyr.html for valid boards.",
                 [CONF_BOARD],
             )
+    shields = config.get(CONF_SHIELDS, [])
+    if CONF_SHIELD_SOURCE in config and not shields:
+        raise cv.Invalid(
+            f"'{CONF_SHIELD_SOURCE}' requires '{CONF_SHIELDS}' to also be set",
+            [CONF_SHIELD_SOURCE],
+        )
+    shield_root = (
+        _resolve_shield_source(config, shields, board_root) if shields else None
+    )
+    snippets = config.get(CONF_SNIPPETS, [])
+    if CONF_SNIPPET_SOURCE in config and not snippets:
+        raise cv.Invalid(
+            f"'{CONF_SNIPPET_SOURCE}' requires '{CONF_SNIPPETS}' to also be set",
+            [CONF_SNIPPET_SOURCE],
+        )
+    snippet_root = (
+        _resolve_snippet_source(config, snippets, board_root) if snippets else None
+    )
     if variant == ZEPHYR_VARIANT_ESP32:
         from .variants.esp32 import config_schema as _esp32_config_schema
 
@@ -1095,6 +1359,14 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.esp32_c6 import config_schema as _esp32_c6_config_schema
 
         config = _esp32_c6_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_ESP32_C5:
+        from .variants.esp32_c5 import config_schema as _esp32_c5_config_schema
+
+        config = _esp32_c5_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import config_schema as _esp32_c3_config_schema
+
+        config = _esp32_c3_config_schema(config)
     elif variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import config_schema as _native_sim_config_schema
 
@@ -1119,9 +1391,26 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RP2040:
+        from .variants.rp2040 import config_schema as _rp2040_config_schema
+
+        config = _rp2040_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RP2350:
+        from .variants.rp2350 import config_schema as _rp2350_config_schema
+
+        config = _rp2350_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
+    if config[CONF_SINGLE_SLOT] and zephyr_data()[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        raise cv.Invalid(
+            f"'{CONF_SINGLE_SLOT}: true' requires the MCUboot bootloader "
+            f"(set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}' for this variant)",
+            [CONF_SINGLE_SLOT],
+        )
     zephyr_data()[KEY_BOARD_ROOT] = board_root
+    zephyr_data()[KEY_SHIELDS] = shields
+    zephyr_data()[KEY_SHIELD_ROOT] = shield_root
+    zephyr_data()[KEY_SNIPPET_ROOT] = snippet_root
     return config
 
 
@@ -1149,7 +1438,11 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_FRAMEWORK][CONF_REFRESH],
     )
 
-    from .dts_lookup import log_board_capabilities, validate_board
+    from .dts_lookup import (
+        log_board_capabilities,
+        validate_board,
+        validate_board_revision,
+    )
 
     board = zephyr_data()["board"]
     board_valid = validate_board(board)
@@ -1166,12 +1459,18 @@ async def to_code(config: ConfigType) -> None:
             board,
             board,
         )
+    elif validate_board_revision(board) is False:
+        raise EsphomeError(
+            f"Board '{board}' requests a revision that is not valid for that board. "
+            f"Check the '@<revision>' suffix in '{CONF_BOARD}'."
+        )
     log_board_capabilities(
         board,
         variant,
         VARIANTS[variant],
         str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
         zephyr_data()["board_root"],
+        zephyr_data()[KEY_SHIELDS],
     )
 
     if variant == ZEPHYR_VARIANT_ESP32:
@@ -1188,6 +1487,16 @@ async def to_code(config: ConfigType) -> None:
         from .variants.esp32_c6 import to_code as _esp32_c6_to_code
 
         await _esp32_c6_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_ESP32_C5:
+        from .variants.esp32_c5 import to_code as _esp32_c5_to_code
+
+        await _esp32_c5_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import to_code as _esp32_c3_to_code
+
+        await _esp32_c3_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import to_code as _native_sim_to_code
@@ -1219,16 +1528,218 @@ async def to_code(config: ConfigType) -> None:
 
         await _stm32_to_code(config)
         return
+    if variant == ZEPHYR_VARIANT_RP2040:
+        from .variants.rp2040 import to_code as _rp2040_to_code
+
+        await _rp2040_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_RP2350:
+        from .variants.rp2350 import to_code as _rp2350_to_code
+
+        await _rp2350_to_code(config)
+        return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
+
+
+def _signed_image_flash_address(signed_hex: Path) -> int | None:
+    """Return the absolute flash address imgtool wrote the signed image at, by
+    reading the Intel HEX records at the top of the file -- signed.bin (raw binary)
+    carries no address of its own, and this is the build's own authoritative value
+    rather than one derived/guessed locally.
+    """
+    with Path(signed_hex).open(encoding="ascii") as f:
+        extended_line = f.readline().strip()
+        data_line = f.readline().strip()
+    # ":02" byte count, "0000" record address, "04" = extended linear address,
+    # followed by the upper 16 bits of the 32-bit address.
+    if not extended_line.startswith(":02000004"):
+        return None
+    upper16 = int(extended_line[9:13], 16)
+    # Data record: ":<len><addr16><00><data...><checksum>" -- addr16 is the low 16
+    # bits of this record's address, not necessarily 0 (e.g. non-64KB-aligned slots).
+    if len(data_line) < 9 or data_line[7:9] != "00":
+        return None
+    lower16 = int(data_line[3:7], 16)
+    return (upper16 << 16) | lower16
+
+
+def _find_picotool() -> Path | None:
+    import shutil
+    import sys
+
+    from esphome.util import PICOTOOL_PACKAGE
+
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    pio_packages = Path.home() / ".platformio" / "packages"
+    picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
+    if not picotool.is_file():
+        picotool = Path(shutil.which(binary_name) or "")
+    return picotool if picotool and picotool.is_file() else None
+
+
+def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
+    """Trigger an RP2040/RP2350 running ESPHome's own firmware (with
+    USE_ZEPHYR_BOOTSEL_TOUCH's poll loop active) to reboot into BOOTSEL, by briefly
+    opening its USB CDC serial port at 1200 baud -- the cross-ecosystem "magic baud
+    rate" convention -- then waiting for it to re-enumerate in BOOTSEL mode.
+    """
+    import time
+
+    import serial
+
+    from esphome.util import detect_rp2040_bootsel, get_serial_ports
+
+    picotool = _find_picotool()
+    if picotool is None:
+        return False
+
+    # Once triggered, BOOTSEL mode is anonymous -- picotool can't tell devices apart
+    # (no serial number/bus-address selection is used anywhere in this upload path), so
+    # there's no way to prove after the fact that whatever appears in BOOTSEL is really
+    # the board we touched, versus some other RP-family device on the system. The only
+    # way to make this safe is to refuse up front whenever more than one candidate
+    # device could possibly be involved -- counting every serial port present (which
+    # includes the target's own port) plus every device already in BOOTSEL.
+    total_devices = (
+        len(get_serial_ports()) + detect_rp2040_bootsel(str(picotool)).device_count
+    )
+    if total_devices > 1:
+        _LOGGER.error(
+            "More than one RP2040/RP2350-capable device is connected. Disconnect all "
+            "but the target device before uploading, or put the target into BOOTSEL "
+            "mode manually and select it explicitly."
+        )
+        return False
+
+    try:
+        with serial.Serial(port, baudrate=1200):
+            pass
+    except serial.SerialException as err:
+        _LOGGER.warning("Could not open %s at 1200 baud: %s", port, err)
+        return False
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if detect_rp2040_bootsel(str(picotool)).device_count > 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _upload_using_picotool() -> bool:
+    """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
+    import sys
+
+    from esphome.util import detect_rp2040_bootsel, is_picotool_usb_permission_error
+
+    picotool = _find_picotool()
+    if picotool is None:
+        _LOGGER.error(
+            "picotool not found. Install it via PlatformIO (rp2040 platform) "
+            "or your system package manager."
+        )
+        return False
+
+    # sysbuild produces two separate images when mcuboot is enabled: the bootloader
+    # itself (linked to run from the start of flash) and the app, signed and linked
+    # to run from slot0_partition instead. Unlike a direct-boot image, the app alone
+    # has no valid image at the boot ROM's fixed entry address (flash offset 0), so
+    # both must be written -- Zephyr's own "uf2" runner doesn't handle this correctly
+    # either (its zephyr.uf2 output is always built from the unsigned binary).
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        mcuboot_elf = CORE.relative_build_path(".west_build/mcuboot/zephyr/zephyr.elf")
+        signed_bin = CORE.relative_build_path(
+            ".west_build/zephyr/zephyr/zephyr.signed.bin"
+        )
+        signed_hex = CORE.relative_build_path(
+            ".west_build/zephyr/zephyr/zephyr.signed.hex"
+        )
+        if (
+            not mcuboot_elf.is_file()
+            or not signed_bin.is_file()
+            or not signed_hex.is_file()
+        ):
+            _LOGGER.error("MCUboot firmware not found. Compile first.")
+            return False
+        address = _signed_image_flash_address(signed_hex)
+        if address is None:
+            _LOGGER.error(
+                "Could not determine the signed app image's flash address from %s.",
+                signed_hex,
+            )
+            return False
+        # (file, offset, execute-after-load) -- mcuboot first (no execute, so the
+        # device stays in BOOTSEL for the second write), then the signed app.
+        loads: list[tuple[Path, int | None, bool]] = [
+            (mcuboot_elf, None, False),
+            (signed_bin, address, True),
+        ]
+    else:
+        elf = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.elf")
+        if not elf.is_file():
+            _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
+            return False
+        loads = [(elf, None, True)]
+
+    bootsel = detect_rp2040_bootsel(str(picotool))
+    if bootsel.device_count == 0:
+        if bootsel.permission_error:
+            _LOGGER.error(
+                "A device in BOOTSEL mode was detected but could not be accessed "
+                "due to USB permissions."
+            )
+            if sys.platform.startswith("linux"):
+                from esphome.__main__ import _RP2040_UDEV_HINT
+
+                _LOGGER.error(_RP2040_UDEV_HINT)
+        else:
+            _LOGGER.error("No RP2040/RP2350 device in BOOTSEL mode found.")
+        return False
+
+    for file_path, offset, execute in loads:
+        _LOGGER.info("Uploading %s via picotool...", file_path.name)
+        cmd = [str(picotool), "load"]
+        if offset is not None:
+            cmd += ["-o", hex(offset)]
+        if execute:
+            cmd.append("-x")
+        cmd.append(str(file_path))
+        try:
+            result = subprocess.run(
+                cmd,
+                stderr=subprocess.PIPE,
+                timeout=60,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            _LOGGER.error("picotool upload timed out after 60 seconds.")
+            return False
+        except OSError as err:
+            _LOGGER.error("Failed to run picotool: %s", err)
+            return False
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode("utf-8", errors="replace").strip()
+            if stderr:
+                for line in stderr.splitlines():
+                    _LOGGER.error("picotool: %s", line)
+            if is_picotool_usb_permission_error(stderr):
+                msg = "Permission denied accessing USB device."
+                if sys.platform.startswith("linux"):
+                    from esphome.__main__ import _RP2040_UDEV_HINT
+
+                    msg += f" {_RP2040_UDEV_HINT}"
+                _LOGGER.error(msg)
+            else:
+                _LOGGER.error(
+                    "picotool upload failed (exit code %d).", result.returncode
+                )
+            return False
+    return True
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
     if KEY_ZEPHYR not in CORE.data:
-        # `esphome upload`/`logs` can skip full config validation via the
-        # validated-config cache (see compiled_config.py), so the variant
-        # runtime state that _variant_config_schema() ordinarily populates as
-        # a side effect never got set. Re-run it on the already-validated
-        # (round-tripped) zephyr: block to repopulate it.
         zephyr_config = config.get(CORE.target_platform)
         if not zephyr_config:
             raise EsphomeError(
@@ -1236,6 +1747,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 "please re-validate and recompile."
             )
         CONFIG_SCHEMA(zephyr_config)
+
+    if host == "BOOTSEL":
+        return _upload_using_picotool()
 
     if host == "PYOCD":
         if zephyr_variant_family() == "esp32":
@@ -1260,21 +1774,68 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             raise EsphomeError("Zephyr pyocd flash failed")
         return True
 
+    # rpi_pico-family variants (RP2040/RP2350) given a normal serial port instead of
+    # BOOTSEL: the board's default west runner (uf2) only works once already in
+    # BOOTSEL, so trigger that ourselves first via the 1200-baud touch (see
+    # USE_ZEPHYR_BOOTSEL_TOUCH), then flash the same way `--device BOOTSEL` would.
+    if zephyr_variant_family() == "rpi_pico":
+        from esphome.upload_targets import PortType, get_port_type
+
+        if get_port_type(host) != PortType.SERIAL:
+            return False
+
+        if not _touch_1200_baud_reboot(host):
+            raise EsphomeError(
+                f"Could not trigger a BOOTSEL reboot on {host}. Manually put the "
+                "device into BOOTSEL mode (hold BOOTSEL while plugging in) and retry."
+            )
+        return _upload_using_picotool()
+
     # Every esp32-family variant flashes the same way: Zephyr's generic esp32
     # runner (runners/esp32.py, wrapping esptool) via `west flash`.
-    if zephyr_variant_family() != "esp32":
-        return False  # no custom uploader for this variant yet; fall through to default OTA
+    if zephyr_variant_family() == "esp32":
+        from esphome.upload_targets import PortType, get_port_type
 
+        if get_port_type(host) != PortType.SERIAL:
+            return False  # only serial (esptool via west) is implemented so far
+
+        from esphome.__main__ import check_permissions
+
+        check_permissions(host)
+
+        from .build_zephyr import run_west_flash
+        from .framework_west import check_and_install as west_install
+
+        version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+        variant_data = VARIANTS[zephyr_variant()]
+        _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
+        python_bin, framework_path, west_env = west_install(
+            sdk,
+            version,
+            zephyr_data()["west_version"],
+            zephyr_data()["ninja_version"],
+            zephyr_data()["sdk_source"],
+            config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        )
+
+        build_dir = CORE.relative_build_path(".west_build")
+        speed = getattr(args, "upload_speed", None)
+
+        if not run_west_flash(
+            python_bin, framework_path, west_env, build_dir, host, speed
+        ):
+            raise EsphomeError("Zephyr west flash failed")
+        return True
+
+    # Non-ESP32 Zephyr variants (for example EFR32/nRF in SDK-Zephyr mode) are
+    # generally flashed by the board's default west runner (jlink, pyocd, etc.)
+    # rather than esptool over a selected serial port.
     from esphome.upload_targets import PortType, get_port_type
 
     if get_port_type(host) != PortType.SERIAL:
-        return False  # only serial (esptool via west) is implemented so far
+        return False
 
-    from esphome.__main__ import check_permissions
-
-    check_permissions(host)
-
-    from .build_zephyr import run_west_flash
+    from .build_zephyr import resolve_dev_id, run_west_flash_generic
     from .framework_west import check_and_install as west_install
 
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
@@ -1288,11 +1849,16 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
     )
-
     build_dir = CORE.relative_build_path(".west_build")
-    speed = getattr(args, "upload_speed", None)
-
-    if not run_west_flash(python_bin, framework_path, west_env, build_dir, host, speed):
+    # Disambiguate which attached probe to flash when the board's default
+    # runner supports device IDs -- see resolve_dev_id() for why this can't
+    # just always be forwarded, and #85 for the multi-probe problem it fixes.
+    dev_id = resolve_dev_id(python_bin, framework_path, build_dir, host)
+    if dev_id:
+        _LOGGER.info("Selecting probe %s (port %s) for west flash", dev_id, host)
+    if not run_west_flash_generic(
+        python_bin, framework_path, west_env, build_dir, dev_id
+    ):
         raise EsphomeError("Zephyr west flash failed")
     return True
 
@@ -1311,7 +1877,7 @@ def run_compile(args, config: ConfigType) -> bool:
     from .sdk_setup_west import check_and_install as sdk_install
 
     variant_data = VARIANTS[variant]
-    _, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
+    sdk_name, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     python_bin, framework_path, west_env = west_install(
         sdk,
@@ -1321,6 +1887,16 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
     )
+    if sdk_name == "silabs":
+        from .commander_setup import check_and_install as commander_install
+
+        # "commander_version" mirrors efr32mg24.CONF_COMMANDER_VERSION -- not imported
+        # directly to avoid this generic module depending on one specific variant.
+        commander_version = (
+            config[CORE.target_platform].get(CONF_ADVANCED, {}).get("commander_version")
+        )
+        commander_dir = commander_install(commander_version)
+        west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
     cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
     if blob_spec := variant_data.blobs:
@@ -1356,6 +1932,9 @@ def run_compile(args, config: ConfigType) -> bool:
         extra_modules=extra_modules,
         board_root=zephyr_data().get(KEY_BOARD_ROOT),
         snippets=zephyr_data()[KEY_SNIPPETS],
+        shield_root=zephyr_data().get(KEY_SHIELD_ROOT),
+        shields=zephyr_data()[KEY_SHIELDS],
+        snippet_root=zephyr_data().get(KEY_SNIPPET_ROOT),
     )
     return True
 
@@ -1374,11 +1953,17 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
+STACKTRACE_ZEPHYR_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
+
+
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     if "Last crash:" in line:
         return True
     if backtrace_state:
-        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        match = STACKTRACE_ZEPHYR_PC_LR_RE.search(line)
         if match:
             pc = match.group(1)
             lr = match.group(2)

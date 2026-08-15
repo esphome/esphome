@@ -25,6 +25,7 @@ from esphome.types import ConfigType
 
 from ..const import (
     CONF_NINJA_VERSION,
+    CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_ZEPHYR,
@@ -205,14 +206,23 @@ def _sdk_min_version(
     return sdk.min_version
 
 
-def qualify_board(variant: ZephyrVariant, board: str) -> str:
+def qualify_board(
+    variant: ZephyrVariant, board: str, qualifier: str | None = None
+) -> str:
     """Expand a bare board name into its full west target string. Already-qualified input
-    is left untouched."""
+    is left untouched.
+
+    qualifier overrides variant.qualifier for variants where the qualifier segment isn't
+    a fixed hardware fact (e.g. RP2040's board/soc/mcuboot vs. board/soc split depends on
+    a user config choice, not the chip itself) -- None (the default) falls back to
+    variant.qualifier, unchanged behavior for every other variant.
+    """
     if "/" in board or variant.soc is None:
         return board
     qualified = f"{board}/{variant.soc}"
-    if variant.qualifier:
-        qualified += f"/{variant.qualifier}"
+    qualifier = variant.qualifier if qualifier is None else qualifier
+    if qualifier:
+        qualified += f"/{qualifier}"
     return qualified
 
 
@@ -321,6 +331,9 @@ def set_core_data(
     board_edt_cache: dict | None = None,
     board_yaml_cache: dict | None = None,
     board_root: Path | None = None,
+    shields: list[str] | None = None,
+    shield_root: Path | None = None,
+    snippet_root: Path | None = None,
 ) -> None:
     """Populate CORE.data for a Zephyr variant's config_schema().
 
@@ -344,6 +357,7 @@ def set_core_data(
         sdk_source=sdk_source,
         bootloader=bootloader,
         variant=variant_name,
+        family=VARIANTS[variant_name].family,
         framework_type=framework_type,
         prj_conf=prj_conf if prj_conf is not None else {},
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
@@ -364,6 +378,10 @@ def set_core_data(
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
+        single_slot=config.get(CONF_SINGLE_SLOT, False),
+        shields=shields if shields is not None else [],
+        shield_root=shield_root,
+        snippet_root=snippet_root,
     )
 
 
@@ -406,18 +424,37 @@ NCS_ZIGBEE: ZephyrSDK = ZephyrSDK(
     resolve_boards_ref_via_manifest=True,
 )
 
+# Silicon Labs' "Simplicity SDK for Zephyr" -- same manifest-of-manifests shape as NCS:
+# a vendor overlay repo (mcuboot/tf-psa-crypto overrides, hal_silabs, extra HAL modules)
+# around a bundled Zephyr fork (SiliconLabsSoftware/zephyr) pinned by raw commit SHA in
+# zephyr-silabs's own west.yml, not derivable from the vendor repo's version tag -- same
+# reasoning as NCS's resolve_boards_ref_via_manifest. Real board/DTS support for chips
+# not yet upstreamed to mainline Zephyr lives in that bundled fork.
+SILABS: ZephyrSDK = ZephyrSDK(
+    manifest_url="https://github.com/SiliconLabsSoftware/zephyr-silabs",
+    boards_repo_url="https://github.com/SiliconLabsSoftware/zephyr",
+    tools_subdir="sdk-silabs",
+    default_version="2026.6.0",
+    min_version=cv.Version(2026, 6, 0),
+    resolve_boards_ref_via_manifest=True,
+)
+
 # Module names under this package that define a variant.
 # Each module must export VARIANT_NAME and a ZephyrVariant instance named VARIANT.
 _VARIANT_MODULES = [
     "esp32",
     "esp32_h2",
     "esp32_c6",
+    "esp32_c5",
+    "esp32_c3",
     "native_sim",
     "nrf52",
     "nrf54l15",
     "nrf54lm20a",
     "efr32mg24",
     "stm32l4",
+    "rp2040",
+    "rp2350",
 ]
 
 

@@ -8,7 +8,6 @@
 #include <array>
 #include <span>
 #include <string>
-#include <vector>
 
 #ifdef USE_ESP32
 
@@ -19,6 +18,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/ble_device_base/ble_hub.h"
 #include "esphome/components/esp32_ble/ble.h"
@@ -89,22 +89,11 @@ struct ClientStateCounts {
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
 };
 
-enum class ClientState : uint8_t {
-  // Connection is allocated
-  INIT,
-  // Client is disconnecting
-  DISCONNECTING,
-  // Connection is idle, no device detected.
-  IDLE,
-  // Device advertisement found.
-  DISCOVERED,
-  // Connection in progress.
-  CONNECTING,
-  // Initial connection established.
-  CONNECTED,
-  // The client and sub-clients have completed setup.
-  ESTABLISHED,
-};
+// The client connection state types are owned by the platform-neutral
+// ble_device_base layer; re-exported here for backward compatibility.
+using ClientState = ble_device_base::ClientState;
+using ConnectionType = ble_device_base::ConnectionType;
+using ble_device_base::client_state_to_string;
 
 enum class ScannerState {
   // Scanner is idle, init state
@@ -127,21 +116,6 @@ enum class ScannerState {
 class BLEScannerStateListener {
  public:
   virtual void on_scanner_state(ScannerState state) = 0;
-};
-
-// Helper function to convert ClientState to string
-const char *client_state_to_string(ClientState state);
-
-enum class ConnectionType : uint8_t {
-  // The default connection type, we hold all the services in ram
-  // for the duration of the connection.
-  V1,
-  // The client has a cache of the services and mtu so we should not
-  // fetch them again
-  V3_WITH_CACHE,
-  // The client does not need the services and mtu once we send them
-  // so we should wipe them from memory as soon as we send them
-  V3_WITHOUT_CACHE
 };
 
 /// Base class for BLE GATT clients that connect to remote devices.
@@ -243,7 +217,10 @@ class ESP32BLETracker final : public Component,
     this->raw_advertisement_callback_ = callback;
   }
   ble_device_base::HubCapabilities get_capabilities() const override {
-    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true};
+    // scan_mode_switch is false: the mode is driven through this tracker's own
+    // API (set_scan_active + restart), not the neutral request_scan_mode().
+    return {/* active_scan = */ true, /* merges_scan_response = */ true, /* gatt = */ true,
+            /* scan_mode_switch = */ false};
   }
   void get_adapter_mac(uint8_t out[6]) override;
   bool scan_running() override { return this->scanner_state_ == ScannerState::RUNNING; }
@@ -265,10 +242,15 @@ class ESP32BLETracker final : public Component,
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
 #endif
 
-  /// Add a listener for scanner state changes
+#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
+  /// Add a listener for scanner state changes. Only compiled when a consumer
+  /// requested a slot in codegen: register through
+  /// esp32_ble_tracker.register_scanner_state_listener() in your component's
+  /// to_code, which requests the slot and emits this call.
   void add_scanner_state_listener(BLEScannerStateListener *listener) {
     this->scanner_state_listeners_.push_back(listener);
   }
+#endif
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
  protected:
@@ -335,7 +317,10 @@ class ESP32BLETracker final : public Component,
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
 #endif
-  std::vector<BLEScannerStateListener *> scanner_state_listeners_;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
+  StaticVector<BLEScannerStateListener *, ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT>
+      scanner_state_listeners_;
+#endif
   // Parsed listeners registered through the neutral BLEHub contract (migrated
   // sensors); dispatched alongside listeners_.
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
