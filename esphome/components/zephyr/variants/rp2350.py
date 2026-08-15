@@ -12,7 +12,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER, ZEPHYR_VARIANT_RP2350
+from ..const import (
+    BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    CONF_BOOTLOADER,
+    KEY_BOOTLOADER,
+    ZEPHYR_VARIANT_RP2350,
+)
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -30,9 +36,6 @@ _DEFAULT_BOARD = "rpi_pico2"
 # rather than required. Only some boards (e.g. rpi_pico2) ship an upstream vendor
 # .../mcuboot DTS sibling -- xiao_rp2350 does not -- so anyone choosing mcuboot must
 # supply the fully qualified board themselves, e.g. board: rpi_pico2/rp2350a/m33/mcuboot.
-CONF_BOOTLOADER = "bootloader"
-BOOTLOADER_NONE = "none"
-
 _ADVANCED_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
@@ -70,7 +73,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    _version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "rp2350", config, "RP2350 support"
     )
     set_core_data(
