@@ -570,6 +570,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -2258,13 +2261,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     disable_fatfs: bool,
     enable_exfat: bool,
 ) -> None:
-    """Reconcile VFS/FATFS sdkconfig flags.
-
-    Runs at FINAL priority so every require_vfs_termios()/require_vfs_select()/
-    require_vfs_dir()/require_fatfs() call (made from the various components' to_code at
-    their own priorities) is seen first. A user-supplied sdkconfig_options value always
-    takes precedence.
-    """
+    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     def set_opt(name: str, value: SdkconfigValueType) -> None:
@@ -2272,49 +2269,36 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
+    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
-    # VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
+    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
+    # sockets use lwip_select() either way. ~2.7KB flash when off.
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-    # VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # Components that need it (e.g., storage drivers) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
+    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
-    # FATFS support
-    # Components that need FATFS (SD card, USB storage, ...) call require_fatfs().
+    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
+    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
+    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
+    lfn_keys = (
+        "CONFIG_FATFS_LFN_NONE",
+        "CONFIG_FATFS_LFN_HEAP",
+        "CONFIG_FATFS_LFN_STACK",
+    )
+    user_picked_lfn = any(k in opts for k in lfn_keys)
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Storage drivers need long filenames (heap-allocated, full 255-char length) and
-        # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
-        # every esp_vfs_fat mount consumes one). All of these are only defaults: override
-        # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        # Long filenames, unless the user turned them off. With CONFIG_FATFS_LFN_NONE set,
-        # FatFs is 8.3-only and the two options that size the LFN buffer have no dependency
-        # left to satisfy -- writing them then sets a symbol IDF has disabled. A YAML
-        # sdkconfig_options value arrives wrapped so it is written out verbatim; one set from
-        # here is a plain bool, hence reading through both shapes.
-        lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
-        lfn_off = getattr(lfn_off, "value", lfn_off)
-        if str(lfn_off).strip().lower() not in ("y", "true", "1"):
+        if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
@@ -2332,7 +2316,8 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
@@ -2926,9 +2911,8 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-    # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
-    # make those calls from their own to_code, which runs after this platform to_code, so
-    # reading the flags inline here would never see them (VFS/FATFS would stay disabled).
+    # FINAL: require_*() calls can come from to_code at or below this priority, so an
+    # inline read would be iteration-order-dependent; reconcile once after every job ran.
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
@@ -2987,16 +2971,7 @@ _EXFAT_MARKER = ".esphome_exfat_override"
 
 
 def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> None:
-    """Patch a project-local copy of FatFs so exFAT is compiled in.
-
-    exFAT is a plain #define in FatFs (no Kconfig symbol), so the only way to turn it on is a
-    patched copy of the component. ESP-IDF auto-discovers <project>/components with the
-    highest precedence (project components override same-named IDF components), and the
-    generated project root is the build dir -- so a patched copy at
-    <build>/components/fatfs/ wins, with zero cmake anywhere and nothing outside this build
-    directory touched. Synced every codegen: created/refreshed when enabled (stamped with
-    the IDF version so an IDF switch re-copies), removed when disabled -- a stale copy would
-    keep exFAT on silently."""
+    """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
     from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
@@ -3038,16 +3013,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     # Kconfig bool symbols that are disabled produce no #define, yet ff.c uses several of
     # them in plain C expressions (e.g. `if (FF_USE_LABEL && vol)`) -- inside the original
     # IDF component that resolves, in a project-component copy it surfaced as 'undeclared
-    # identifier'. Default every CONFIG_ symbol the header references to 0 when undefined:
-    # a no-op for anything sdkconfig.h defines, and exactly the value a disabled bool means
-    # otherwise. Scanned generically so new symbols in future IDF versions are covered.
-    # Only symbols used in *value* contexts and probed nowhere: defining a symbol that any
-    # compiled source probes with #ifdef/defined() makes the probe true and silently
-    # enables the guarded code -- vfs_fat.c does exactly that with USE_FASTSEEK (its
-    # fastseek block then references FIL::cltbl, which the ffconf side correctly compiled
-    # out). So the probe scan covers the whole copied component, not just ffconf.h;
-    # test_apps/host_test/fatfs_utils are excluded because they are never built and their
-    # probes must not suppress legitimate guards.
+    # identifier'. Default every CONFIG_ symbol the header references to 0 when undefined
     probed = set()
     skip_dirs = {"test_apps", "host_test", "fatfs_utils"}
     for f in dest.rglob("*"):
