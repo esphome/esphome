@@ -4,8 +4,19 @@ from unittest.mock import patch
 
 import voluptuous as vol
 
-from esphome.config import Config, _format_vol_invalid, _manifest_for_domain
+from esphome.config import (
+    Config,
+    _format_vol_invalid,
+    _get_parent_name,
+    _manifest_for_domain,
+)
 from esphome.loader import register_external_component_doc_url
+
+
+def test_get_parent_name_empty_path_is_root_not_domain() -> None:
+    """An empty path (e.g. an error on an entirely unknown top-level key) reports
+    "<root>", which is never a real domain -- doc-link lookup must not be attempted."""
+    assert _get_parent_name([], Config()) == ("<root>", False)
 
 
 def test_manifest_for_domain_rejects_non_string_and_root() -> None:
