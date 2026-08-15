@@ -4,6 +4,11 @@ import esphome.codegen as cg
 
 BOOTLOADER_MCUBOOT = "mcuboot"
 
+# advanced: bootloader: -- shared by every variant whose default board can boot
+# without MCUboot (rp2040, rp2350), so MCUboot is opt-in rather than assumed.
+CONF_BOOTLOADER = "bootloader"
+BOOTLOADER_NONE = "none"
+
 KEY_BOOTLOADER: Final = "bootloader"
 KEY_EXTRA_BUILD_FILES: Final = "extra_build_files"
 KEY_OVERLAY: Final = "overlay"

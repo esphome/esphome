@@ -12,7 +12,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER, ZEPHYR_VARIANT_RP2040
+from ..const import (
+    BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    CONF_BOOTLOADER,
+    KEY_BOOTLOADER,
+    ZEPHYR_VARIANT_RP2040,
+)
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -30,8 +36,6 @@ _DEFAULT_BOARD = "rpi_pico"
 # Default to none -- MCUboot only buys OTA/rollback, at the cost of a second board target
 # (rpi_pico/rp2040/mcuboot) upstream ships as a separate DTS, not a config layered onto
 # the default board the way BOOTLOADER_MCUBOOT sysbuild conf works for other chips.
-CONF_BOOTLOADER = "bootloader"
-BOOTLOADER_NONE = "none"
 
 # bootloader: mcuboot only controls the sysbuild/signing confs below -- it never rewrites
 # board:. Auto-appending /mcuboot onto a bare board name would target a west board that
@@ -76,7 +80,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    _version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "rp2040", config, "RP2040 support"
     )
     set_core_data(
