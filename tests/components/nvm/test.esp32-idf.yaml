@@ -1,0 +1,24 @@
+# Test configuration for NVM component with FRAM I2C platform
+#
+# This tests the NVM component with FRAM I2C platform and all partition types.
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+nvm:
+  - platform: fram_i2c
+    id: test_fram
+    address: 0x50
+    model: MB85RC256
+    partitions:
+      - id: pref_partition
+        type: preferences
+        size: 4kB
+      - id: raw_partition
+        type: raw
+        size: 8kB
+      - id: kv_partition
+        type: key_value
+        size: 2kB
