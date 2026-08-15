@@ -10,7 +10,7 @@
 #ifdef USE_BK72XX_BLE
 
 // Same SDK gate as bk72xx_ble.cpp (which carries the explanatory #error).
-#if !defined(CLANG_TIDY) && __has_include("ble_api.h")
+#if !defined(CLANG_TIDY) && __has_include("ble_api.h") && __has_include("app_ble.h")
 
 extern "C" {
 #include "app_ble.h"     // app_ble_env, app_ble_run, app_ble_reset, actv_state_t,
