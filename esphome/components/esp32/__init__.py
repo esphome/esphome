@@ -570,9 +570,6 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
-    # No recorded firmware path means nothing was built; no downloads.
-    if storage_json.firmware_bin_path is None:
-        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -2275,20 +2272,29 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
+    # VFS support for termios (terminal I/O functions)
+    # USB Serial JTAG VFS functions require termios support.
+    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
+    # as the logger output) call require_vfs_termios().
+    # Saves approximately 1.8KB of flash when disabled (default).
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
-    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
-    # sockets use lwip_select() either way. ~2.7KB flash when off.
+    # VFS support for select() with file descriptors
+    # ESPHome only uses select() with sockets via lwip_select(), which still works.
+    # VFS select is only needed for UART/eventfd file descriptors.
+    # Components that need it (e.g., openthread) call require_vfs_select().
+    # Saves approximately 2.7KB of flash when disabled (default).
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
+    # VFS support for directory functions (opendir, readdir, mkdir, etc.)
+    # Components that need it (e.g., storage drivers) call require_vfs_dir().
+    # Saves approximately 0.5KB+ of flash when disabled (default).
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
     else:
@@ -2326,8 +2332,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
     elif disable_fatfs:
-        if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", True)
+        set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
@@ -2921,8 +2926,9 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-    # FINAL: require_*() calls can come from to_code at or below this priority, so an
-    # inline read would be iteration-order-dependent; reconcile once after every job ran.
+    # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
+    # make those calls from their own to_code, which runs after this platform to_code, so
+    # reading the flags inline here would never see them (VFS/FATFS would stay disabled).
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
