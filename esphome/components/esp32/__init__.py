@@ -2326,7 +2326,8 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
