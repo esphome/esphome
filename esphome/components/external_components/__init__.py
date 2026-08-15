@@ -87,8 +87,10 @@ def _process_single_config(config: dict[str, Any]) -> None:
         raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        num_components = len(list(components_dir.glob("*/__init__.py")))
-        if num_components > 100:
+        all_component_names = [
+            p.parent.name for p in components_dir.glob("*/__init__.py")
+        ]
+        if len(all_component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -105,11 +107,14 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+        all_component_names = None
 
     if (base_url := config.get(CONF_DOC_URL)) is not None:
-        names = allowed_components
-        if names is None:
-            names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        names = (
+            allowed_components
+            if allowed_components is not None
+            else all_component_names
+        )
         for name in names:
             loader.register_external_component_doc_url(name, base_url)
         _LOGGER.info(
