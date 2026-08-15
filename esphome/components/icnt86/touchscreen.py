@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@siemon-geeroms"]
 DEPENDENCIES = ["i2c"]
@@ -11,12 +12,8 @@ icnt86_ns = cg.esphome_ns.namespace("icnt86")
 ICNT86Touchscreen = icnt86_ns.class_(
     "ICNT86Touchscreen",
     touchscreen.Touchscreen,
-    cg.Component,
     i2c.I2CDevice,
 )
-
-CONF_ICNT86_ID = "icnt86_id"
-CONF_RTS_PIN = "rts_pin"
 
 CONFIG_SCHEMA = touchscreen.touchscreen_schema("250ms").extend(
     cv.Schema(
@@ -29,7 +26,7 @@ CONFIG_SCHEMA = touchscreen.touchscreen_schema("250ms").extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)

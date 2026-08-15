@@ -4,6 +4,10 @@
 namespace esphome::icnt86 {
 
 static const char *const TAG = "icnt86";
+static const uint16_t REG_TOUCH_NUM = 0x1001;
+static const uint16_t REG_POINT1 = 0x1002;
+static const uint8_t MAX_TOUCHES = 5;
+static const uint8_t POINT_SIZE = 7;
 
 void ICNT86Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up icnt86 Touchscreen...");
@@ -29,36 +33,46 @@ void ICNT86Touchscreen::setup() {
 }
 
 void ICNT86Touchscreen::update_touches() {
-  uint8_t buf[100] = {0};
-  char mask[1] = {0x00};
+  uint8_t buf[MAX_TOUCHES * POINT_SIZE] = {0};
+  uint8_t mask[1] = {0x00};
 
-  this->i2c_read_byte_(0x1001, buf, 1);
+  if (this->read_register16(REG_TOUCH_NUM, buf, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    this->skip_update_ = true;
+    ESP_LOGW(TAG, "Failed to read touch count");
+    return;
+  }
   uint8_t touch_count = buf[0];
 
-  if (touch_count == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
+  if (touch_count == 0x00 || (touch_count > MAX_TOUCHES || touch_count < 1)) {  // No new touch
     return;
   } else {
-    this->i2c_read_byte_(0x1002, buf, touch_count * 7);
-    this->i2c_write_byte_(0x1001, mask, 1);
+    if (this->read_register16(REG_POINT1, buf, touch_count * POINT_SIZE) != i2c::ERROR_OK) {
+      this->status_set_warning();
+      this->skip_update_ = true;
+      ESP_LOGW(TAG, "Failed to read touch points");
+      return;
+    }
+    this->write_register16(REG_TOUCH_NUM, mask, 1);
     ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
     for (uint8_t i = 0; i < touch_count; i++) {
       uint16_t x = ((uint16_t) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
       uint16_t y = ((uint16_t) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
       uint8_t p = buf[5 + 7 * i];
-      uint8_t touch_evenid = buf[6 + 7 * i];
+      uint8_t touch_id = buf[6 + 7 * i];
 
       if (i == 0) {
-        if (touch_count == 1 && x == x_old_ && y == y_old_ && p == 0 && p_old_zero_) {
+        if (touch_count == 1 && x == this->x_old_ && y == this->y_old_ && p == 0 && this->p_old_zero_) {
           return;  // Skip this touch because previous was also zero
         }
-        x_old_ = x;
-        y_old_ = y;
-        p_old_zero_ = (p == 0);
+        this->x_old_ = x;
+        this->y_old_ = y;
+        this->p_old_zero_ = (p == 0);
       } else if (p > 0) {
-        p_old_zero_ = false;
+        this->p_old_zero_ = false;
       }
-      this->add_raw_touch_position_(touch_evenid, x, y, p);
+      this->add_raw_touch_position_(touch_id, x, y, p);
     }
   }
 }
@@ -72,24 +86,11 @@ void ICNT86Touchscreen::reset_() {
   }
 }
 
-void ICNT86Touchscreen::i2c_write_byte_(uint16_t reg, const char *data, uint8_t len) {
-  char wbuf[50] = {static_cast<char>(reg >> 8 & 0xff), static_cast<char>(reg & 0xff)};
-  for (uint8_t i = 0; i < len; i++) {
-    wbuf[i + 2] = data[i];
-  }
-  this->write((const uint8_t *) wbuf, len + 2);
-}
-
 void ICNT86Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "icnt86 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-}
-
-void ICNT86Touchscreen::i2c_read_byte_(uint16_t reg, uint8_t *data, uint8_t len) {
-  this->i2c_write_byte_(reg, nullptr, 0);
-  this->read(data, len);
 }
 
 }  // namespace esphome::icnt86
