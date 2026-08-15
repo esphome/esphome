@@ -2921,14 +2921,8 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-<<<<<<< HEAD
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
-=======
-    # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
-    # make those calls from their own to_code, which runs after this platform to_code, so
-    # reading the flags inline here would never see them (VFS/FATFS would stay disabled).
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
