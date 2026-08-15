@@ -109,7 +109,7 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 bool has_custom_mac_address() {
 #if !defined(USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC)
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   // do not use 'esp_efuse_mac_get_custom(mac)' because it drops an error in the logs whenever it fails
 #ifndef USE_ESP32_VARIANT_ESP32
   return (esp_efuse_read_field_blob(ESP_EFUSE_USER_DATA_MAC_CUSTOM, mac, MAC_ADDRESS_SIZE_BITS) == ESP_OK) &&

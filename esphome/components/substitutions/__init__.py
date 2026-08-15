@@ -1,5 +1,7 @@
 from collections import ChainMap
+from itertools import product
 import logging
+import re
 from typing import Any
 
 import esphome
@@ -7,6 +9,7 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.expression import JINJA_PROG
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
@@ -26,6 +29,14 @@ _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
 ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
+
+# Candidate-pattern shaping for include_candidate_patterns.
+_ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
+# Dots are included so a variant like `../*` counts as fully dynamic too;
+# it would otherwise glob everything in the parent directory.
+_WILDCARDS_ONLY_RE = re.compile(r"[*./\\]+")
+_GLOB_META_RE = re.compile(r"[?\[]")
+_STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
@@ -360,9 +371,7 @@ def resolve_include(
     )
     substituted = filename != original_str
     if substituted:
-        include = IncludeFile(
-            include.parent_file, filename, include.vars, include.yaml_loader
-        )
+        include = include.with_file(filename)
     try:
         return include.load()
     except esphome.core.EsphomeError as err:
@@ -372,6 +381,45 @@ def resolve_include(
             f"\n{format_path(path, original)}",
             path + [f"<{filename}>"],
         ) from err
+
+
+def include_candidate_patterns(value: str) -> list[str]:
+    """Expand a substitution/Jinja-templated path into glob-style candidate patterns.
+
+    Mirrors the two phases of :func:`_expand_substitutions` without variable
+    values: ``$var`` / ``${var}`` references become ``*`` and each remaining
+    Jinja expression contributes one pattern per quoted string literal it
+    holds (``*`` when it holds none), so every conditional branch is a
+    candidate — deliberately over-inclusive. Emitted wildcard patterns are
+    glob-safe: adjacent wildcards collapse (no recursive ``**``), ``[`` /
+    ``?`` from the filename text are escaped, and variants reduced to
+    nothing but wildcards, dots and separators are dropped so a fully
+    dynamic filename never expands to "everything in the directory",
+    including via a ``../*`` parent traversal.
+    """
+    # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
+    # matching correct for references nested inside string literals, the
+    # same ordering _expand_substitutions relies on.
+    value = cv.VARIABLE_PROG.sub("*", value)
+    options = [
+        [a or b for a, b in _STRING_LITERAL_RE.findall(expr)] or ["*"]
+        for expr in JINJA_PROG.findall(value)
+    ]
+
+    variants: list[str] = []
+    for combination in product(*options):
+        replacements = iter(combination)
+        spliced = JINJA_PROG.sub(lambda _, _next=replacements: next(_next), value)
+        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", spliced))
+
+    patterns: list[str] = []
+    for variant in dict.fromkeys(variants):
+        if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):
+            continue
+        if "*" in variant:
+            variant = _GLOB_META_RE.sub(r"[\g<0>]", variant)
+        patterns.append(variant)
+    return patterns
 
 
 def _substitute_include(

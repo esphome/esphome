@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 
 from esphome.const import (
     CONF_LEVEL,
@@ -96,6 +96,19 @@ def merge_config(old, new):
         return old
 
     return new
+
+
+def frameworks_for_platforms(platforms: Collection[str]) -> set[PlatformFramework]:
+    """All PlatformFramework members whose platform is in `platforms`.
+
+    For FILTER_SOURCE_FILES maps that must stay in sync with a platform
+    registry: deriving the framework set here means a platform added to the
+    registry cannot validate and then fail at link on a filtered-out file.
+    """
+    known = {pf.value[0].value for pf in PlatformFramework}
+    if unknown := set(platforms) - known:
+        raise ValueError(f"unknown platform(s): {sorted(unknown)}")
+    return {pf for pf in PlatformFramework if pf.value[0].value in platforms}
 
 
 def filter_source_files_from_platform(

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 #include "esphome/components/uart/uart_component.h"
 
 namespace esphome::modbus::testing {
@@ -17,6 +18,16 @@ class NullUART : public uart::UARTComponent {
   void load_settings(bool dump_config) override {}
 #endif
   void check_logger_conflict() override {}
+};
+
+// A UART that records every byte written so tests can assert on the exact wire response.
+class RecordingUART : public NullUART {
+ public:
+  void write_array(const uint8_t *data, size_t len) override {
+    this->written.insert(this->written.end(), data, data + len);
+  }
+
+  std::vector<uint8_t> written;
 };
 
 }  // namespace esphome::modbus::testing

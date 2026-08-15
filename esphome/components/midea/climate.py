@@ -153,7 +153,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
     cv.only_on(
         [
             PLATFORM_ESP32,
@@ -305,7 +304,14 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
-    if CORE.is_esp32:
+    # MideaUART uses the Arduino WiFi API for the network-notify frame
+    # (WiFi auto-enables Network via dependency mapping). On ESP-IDF the
+    # library talks to esp_wifi directly, so no library entry is needed.
+    if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    # Using the repository until a release containing ESP-IDF support is published
+    cg.add_library(
+        name="MideaUART",
+        version=None,
+        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+    )

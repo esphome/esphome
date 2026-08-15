@@ -1380,6 +1380,27 @@ def core_changed(files: list[str]) -> bool:
     )
 
 
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
+        for f in files
+    )
+
+
 def get_cpp_changed_components(files: list[str]) -> list[str]:
     """Get components that have changed C++ files or tests.
 
