@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_PRESSURE,
+    CONF_RADON,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -37,7 +38,6 @@ AUTO_LOAD = ["ble_device_base"]
 
 CONF_MEASUREMENT_AGE = "measurement_age"
 CONF_MEASUREMENT_INTERVAL = "measurement_interval"
-CONF_RADON = "radon"
 CONF_RADIATION_RATE = "radiation_rate"
 CONF_RADIATION_TOTAL = "radiation_total"
 CONF_RADIATION_DURATION = "radiation_duration"
