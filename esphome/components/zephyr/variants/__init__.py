@@ -465,6 +465,7 @@ _VARIANT_MODULES = [
     "stm32l4",
     "rp2040",
     "rp2350",
+    "ra4m1",
 ]
 
 

@@ -37,6 +37,7 @@ class PortType(StrEnum):
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
     BOOTSEL = "BOOTSEL"
+    DFU = "DFU"
 
 
 def get_port_type(port: str) -> PortType:
@@ -51,12 +52,15 @@ def get_port_type(port: str) -> PortType:
     Returns:
         PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
         PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
+        PortType.DFU for a board flashed via its west dfu-util runner
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
     if port == "BOOTSEL":
         return PortType.BOOTSEL
+    if port == "DFU":
+        return PortType.DFU
     if port.startswith(("/", "COM")):
         return PortType.SERIAL
     if port == "MQTT":

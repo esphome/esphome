@@ -5,7 +5,8 @@ import esphome.codegen as cg
 BOOTLOADER_MCUBOOT = "mcuboot"
 
 # advanced: bootloader: -- shared by every variant whose default board can boot
-# without MCUboot (rp2040, rp2350), so MCUboot is opt-in rather than assumed.
+# without MCUboot (rp2040, rp2350, ra4m1, stm32l4), so MCUboot is opt-in rather than
+# assumed.
 CONF_BOOTLOADER = "bootloader"
 BOOTLOADER_NONE = "none"
 
@@ -59,6 +60,7 @@ ZEPHYR_VARIANT_EFR32MG24 = "EFR32MG24"
 ZEPHYR_VARIANT_STM32L4 = "STM32L4"
 ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
+ZEPHYR_VARIANT_RA4M1 = "RA4M1"
 
 ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
 
