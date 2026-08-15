@@ -3,14 +3,9 @@
 
 namespace esphome::mitsubishi_cn105::testing {
 
-class TestableMitsubishiCN105VerticalVaneDirectionSelect : public MitsubishiCN105VerticalVaneDirectionSelect {
- public:
-  using MitsubishiCN105VerticalVaneDirectionSelect::control;
-};
-
 struct VerticalVaneDirectionSelectTestContext {
   MitsubishiCN105Component hub;
-  TestableMitsubishiCN105VerticalVaneDirectionSelect select;
+  MitsubishiCN105VerticalVaneDirectionSelect select;
 
   VerticalVaneDirectionSelectTestContext() {
     this->select.traits.set_options({"Auto", "1", "2", "3", "4", "5", "Swing"});
@@ -31,7 +26,7 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, MapsIndexesToVaneModes) {
 
   for (size_t i = 0; i < expected_modes.size(); ++i) {
     SCOPED_TRACE(i);
-    ctx.select.control(i);
+    ctx.select.make_call().set_index(i).perform();
     EXPECT_EQ(ctx.hub.status().vane_mode, expected_modes[i]);
   }
 }
@@ -50,7 +45,8 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
 
   for (size_t i = 0; i < modes.size(); ++i) {
     SCOPED_TRACE(i);
-    ctx.select.publish_vane_state(modes[i]);
+    ctx.hub.set_vane_mode(modes[i]);
+    ctx.hub.publish_status();
     EXPECT_EQ(ctx.select.active_index(), std::optional{i});
   }
 
@@ -68,11 +64,11 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ControlPublishesSelectAndC
   ctx.hub.set_target_temperature(20.0f);
   climate_entity.setup();
 
-  ctx.select.control(6);
+  ctx.select.make_call().set_index(6).perform();
   EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{6});
   EXPECT_EQ(climate_entity.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 
-  ctx.select.control(3);
+  ctx.select.make_call().set_index(3).perform();
   EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{3});
   EXPECT_EQ(climate_entity.swing_mode, climate::CLIMATE_SWING_OFF);
 }
@@ -97,7 +93,7 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ClimateControlPublishesSel
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNotPublishSelectState) {
   VerticalVaneDirectionSelectTestContext ctx;
 
-  ctx.select.control(3);
+  ctx.select.make_call().set_index(3).perform();
 
   EXPECT_EQ(ctx.hub.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_3);
   EXPECT_FALSE(ctx.select.has_state());
