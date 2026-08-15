@@ -2316,14 +2316,26 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
     elif disable_fatfs:
-        set_opt("CONFIG_FATFS_LFN_NONE", True)
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
 async def _finalize_arduino_aware_flags():
-    """Build flags that depend on whether arduino-esp32 is linked in. """
+    """Build flags that depend on whether arduino-esp32 is linked in.
+
+    Scheduler runs lower priority values later, so ``FINAL - 1`` fires
+    after every ``FINAL`` job (incl. ``_add_yaml_idf_components``) --
+    by then ``KEY_COMPONENTS`` is fully populated.
+
+    - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
+      wraps the same symbol and the linker errors on the duplicate.
+    - Define USE_ARDUINO in the hybrid esp-idf+arduino-esp32-component
+      case so ESPHome's ``#ifdef USE_ARDUINO`` paths light up. The
+      framework=arduino branch already adds it inline in to_code.
+    """
     arduino_linked = (
         CORE.using_arduino
         or ARDUINO_ESP32_COMPONENT_NAME in CORE.data[KEY_ESP32][KEY_COMPONENTS]
@@ -2899,9 +2911,8 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
-    # FINAL priority: runs after every require_vfs_*() / require_fatfs() call — components
-    # make those calls from their own to_code, which runs after this platform to_code, so
-    # reading the flags inline here would never see them (VFS/FATFS would stay disabled).
+    # FINAL: require_*() calls can come from to_code at or below this priority, so an
+    # inline read would be iteration-order-dependent; reconcile once after every job ran.
     CORE.add_job(
         _reconcile_vfs_fatfs_sdkconfig,
         advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
