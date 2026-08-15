@@ -7,10 +7,9 @@ static const char *const TAG = "modbus_controller.select";
 
 void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", this); }
 
-void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
-  int64_t value = modbus::helpers::payload_to_number(std::span<const uint8_t>(data), this->sensor_value_type,
-                                                     this->offset, this->bitmask)
-                      .value_or(0);
+void ModbusSelect::parse_and_publish(std::span<const uint8_t> data) {
+  int64_t value =
+      modbus::helpers::payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask).value_or(0);
 
   ESP_LOGD(TAG, "New select value %lld from payload", value);
 
@@ -72,16 +71,30 @@ void ModbusSelect::control(size_t index) {
     return;
   }
 
-  const uint16_t write_address = this->start_address + this->offset / 2;
-  ModbusCommandItem write_cmd;
-  if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]);
-  } else {
-    write_cmd =
-        ModbusCommandItem::create_write_multiple_command(this->parent_, write_address, this->register_count, data);
+  // The command declares register_count registers, so the payload must be exactly that many words:
+  // a value type narrower than the declared width is zero-padded (the config deliberately allows
+  // register_count larger than the value type). Anything else would put a byte count on the wire
+  // that disagrees with the quantity field, which conformant devices reject.
+  // register_count declares the READ range width - it may pull neighboring registers into one poll -
+  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
+  // never from register_count (padding to it would zero registers the user only declared for reading).
+  // A payload wider than the declared range means the config and the lambda disagree - drop it.
+  if (data.size() > this->register_count) {
+    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
+             this->register_count);
+    return;
   }
 
-  this->parent_->queue_command(write_cmd);
+  const uint16_t write_address = this->write_address();
+  optional<ModbusCommandItem> write_cmd;
+  if ((this->register_count == 1) && (!this->use_write_multiple_)) {
+    write_cmd.emplace(ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]));
+  } else {
+    write_cmd.emplace(
+        ModbusCommandItem::create_write_multiple_command(this->parent_, write_address, data.size(), data));
+  }
+
+  this->parent_->queue_command(std::move(*write_cmd));
 
   if (this->optimistic_)
     this->publish_state(index);

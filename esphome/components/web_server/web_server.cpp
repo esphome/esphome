@@ -510,7 +510,7 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
@@ -1115,6 +1115,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
   if (obj->get_traits().get_supports_tilt())
     root[ESPHOME_F("tilt")] = obj->tilt;
   if (start_config == DETAIL_ALL) {
+    root[ESPHOME_F("assumed_state")] = obj->get_traits().get_is_assumed_state();
     this->add_sorting_info_(root, obj);
   }
 
