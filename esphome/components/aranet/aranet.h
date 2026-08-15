@@ -4,11 +4,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome::aranet4 {
+namespace esphome::aranet {
 
-class Aranet4 final : public Component, public ble_device_base::ESPBTDeviceListener {
+class Aranet final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
-  explicit Aranet4(uint64_t address) : address_(address) {}
+  explicit Aranet(uint64_t address) : address_(address) {}
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
@@ -44,6 +44,7 @@ class Aranet4 final : public Component, public ble_device_base::ESPBTDeviceListe
   bool has_measurement_{false};
   bool has_warned_invalid_length_{false};
   bool has_warned_integration_disabled_{false};
+  bool has_warned_unsupported_type_{false};
 };
 
-}  // namespace esphome::aranet4
+}  // namespace esphome::aranet

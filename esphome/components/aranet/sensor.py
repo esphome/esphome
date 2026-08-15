@@ -41,17 +41,16 @@ CONF_MEASUREMENT_INTERVAL = "measurement_interval"
 CONF_RADIATION_RATE = "radiation_rate"
 CONF_RADIATION_TOTAL = "radiation_total"
 CONF_RADIATION_DURATION = "radiation_duration"
+UNIT_NANOSIEVERT = "nSv"
 
-aranet4_ns = cg.esphome_ns.namespace("aranet4")
-Aranet4 = aranet4_ns.class_(
-    "Aranet4", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+aranet_ns = cg.esphome_ns.namespace("aranet")
+Aranet = aranet_ns.class_("Aranet", ble_device_base.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.All(
-    ble_device_base.rename_legacy_hub_id("aranet4"),
+    ble_device_base.rename_legacy_hub_id("aranet"),
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(Aranet4),
+            cv.GenerateID(): cv.declare_id(Aranet),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -67,7 +66,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -118,7 +117,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_RADIATION_TOTAL): sensor.sensor_schema(
-                unit_of_measurement="nSv",
+                unit_of_measurement=UNIT_NANOSIEVERT,
                 accuracy_decimals=0,
                 icon=ICON_RADIOACTIVE,
                 state_class=STATE_CLASS_TOTAL_INCREASING,

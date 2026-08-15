@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace esphome::aranet4::testing {
+namespace esphome::aranet::testing {
 
 constexpr uint8_t MAC_ADDRESS[6] = {0x55, 0x44, 0x33, 0x22, 0x11, 0x00};
 
@@ -22,4 +22,4 @@ inline std::array<uint8_t, 22> make_payload() {
   };
 }
 
-}  // namespace esphome::aranet4::testing
+}  // namespace esphome::aranet::testing

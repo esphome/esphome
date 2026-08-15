@@ -1,11 +1,13 @@
-#include "aranet4.h"
+#include "aranet.h"
+
+#include <cinttypes>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome::aranet4 {
+namespace esphome::aranet {
 
-static const char *const TAG = "aranet4";
+static const char *const TAG = "aranet";
 static constexpr uint16_t ARANET_MANUFACTURER_ID = 0x0702;
 static constexpr size_t ARANET4_DATA_LENGTH = 22;
 static constexpr size_t OTHER_ARANET_DATA_LENGTH = 24;
@@ -22,8 +24,8 @@ enum class AranetDeviceType : uint8_t {
 // https://github.com/Anrijs/Aranet4-Python/blob/master/aranet4/client.py
 // https://github.com/Anrijs/Aranet4-ESP32/blob/main/src/Aranet4.h
 
-void Aranet4::dump_config() {
-  ESP_LOGCONFIG(TAG, "Aranet4");
+void Aranet::dump_config() {
+  ESP_LOGCONFIG(TAG, "Aranet");
   LOG_SENSOR("  ", "Carbon Dioxide", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -38,7 +40,7 @@ void Aranet4::dump_config() {
   LOG_SENSOR("  ", "Radiation Dose Duration", this->radiation_duration_sensor_);
 }
 
-bool Aranet4::parse_device(const ble_device_base::ESPBTDevice &device) {
+bool Aranet::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_)
     return false;
 
@@ -70,7 +72,10 @@ bool Aranet4::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!is_aranet4 && device_type != AranetDeviceType::ARANET_DEVICE_TYPE_ARANET2 &&
         device_type != AranetDeviceType::ARANET_DEVICE_TYPE_RADIATION &&
         device_type != AranetDeviceType::ARANET_DEVICE_TYPE_RADON) {
-      ESP_LOGW(TAG, "Unsupported Aranet device type: %u", data[0]);
+      if (!this->has_warned_unsupported_type_) {
+        ESP_LOGW(TAG, "Unsupported Aranet device type: %u", data[0]);
+        this->has_warned_unsupported_type_ = true;
+      }
       return false;
     }
 
@@ -117,6 +122,7 @@ bool Aranet4::parse_device(const ble_device_base::ESPBTDevice &device) {
       const float humidity = encode_uint16(data[15], data[14]) / 10.0f;
       if (this->radon_sensor_ != nullptr)
         this->radon_sensor_->publish_state(radon);
+      // Aranet Radon One uses zero temperature and humidity to indicate fields not supported by that model.
       if (this->temperature_sensor_ != nullptr && temperature != 0)
         this->temperature_sensor_->publish_state(temperature);
       if (this->pressure_sensor_ != nullptr)
@@ -135,7 +141,8 @@ bool Aranet4::parse_device(const ble_device_base::ESPBTDevice &device) {
         this->radiation_total_sensor_->publish_state(radiation_total);
       if (this->radiation_duration_sensor_ != nullptr)
         this->radiation_duration_sensor_->publish_state(radiation_duration);
-      ESP_LOGD(TAG, "Aranet Radiation dose rate: %u nSv/h, total dose: %u nSv", radiation_rate, radiation_total);
+      ESP_LOGD(TAG, "Aranet Radiation dose rate: %u nSv/h, total dose: %" PRIu32 " nSv", radiation_rate,
+               radiation_total);
     }
     if (this->battery_level_sensor_ != nullptr)
       this->battery_level_sensor_->publish_state(data[15 + 2 * header_offset]);
@@ -148,4 +155,4 @@ bool Aranet4::parse_device(const ble_device_base::ESPBTDevice &device) {
   return false;
 }
 
-}  // namespace esphome::aranet4
+}  // namespace esphome::aranet
