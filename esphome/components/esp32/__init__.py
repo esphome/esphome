@@ -570,6 +570,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -2258,13 +2261,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     disable_fatfs: bool,
     enable_exfat: bool,
 ) -> None:
-    """Reconcile VFS/FATFS sdkconfig flags.
-
-    Runs at FINAL priority so every require_vfs_termios()/require_vfs_select()/
-    require_vfs_dir()/require_fatfs() call (made from the various components' to_code at
-    their own priorities) is seen first. A user-supplied sdkconfig_options value always
-    takes precedence.
-    """
+    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     def set_opt(name: str, value: SdkconfigValueType) -> None:
@@ -2272,46 +2269,33 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    # VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
+    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
-    # VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
+    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
+    # sockets use lwip_select() either way. ~2.7KB flash when off.
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-    # VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # Components that need it (e.g., storage drivers) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
+    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
-    # FATFS support
-    # Components that need FATFS (SD card, USB storage, ...) call require_fatfs().
+    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
+    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
+    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
         # Storage drivers need long filenames (heap-allocated, full 255-char length) and
         # enough FATFS volumes for several drivers at once (SD + USB + wear levelling —
         # every esp_vfs_fat mount consumes one). All of these are only defaults: override
-        # any of them via esp32 -> framework -> advanced -> sdkconfig_options.
-        # Long filenames, unless the user turned them off. With CONFIG_FATFS_LFN_NONE set,
-        # FatFs is 8.3-only and the two options that size the LFN buffer have no dependency
-        # left to satisfy -- writing them then sets a symbol IDF has disabled. A YAML
-        # sdkconfig_options value arrives wrapped so it is written out verbatim; one set from
-        # here is a plain bool, hence reading through both shapes.
+        # any of them via esp32 -> framework -> advanced -> sdkconfig_options
         lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() not in ("y", "true", "1"):
@@ -2339,18 +2323,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
 async def _finalize_arduino_aware_flags():
-    """Build flags that depend on whether arduino-esp32 is linked in.
-
-    Scheduler runs lower priority values later, so ``FINAL - 1`` fires
-    after every ``FINAL`` job (incl. ``_add_yaml_idf_components``) --
-    by then ``KEY_COMPONENTS`` is fully populated.
-
-    - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
-      wraps the same symbol and the linker errors on the duplicate.
-    - Define USE_ARDUINO in the hybrid esp-idf+arduino-esp32-component
-      case so ESPHome's ``#ifdef USE_ARDUINO`` paths light up. The
-      framework=arduino branch already adds it inline in to_code.
-    """
+    """Build flags that depend on whether arduino-esp32 is linked in. """
     arduino_linked = (
         CORE.using_arduino
         or ARDUINO_ESP32_COMPONENT_NAME in CORE.data[KEY_ESP32][KEY_COMPONENTS]
