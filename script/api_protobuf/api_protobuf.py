@@ -2401,7 +2401,10 @@ def get_varint64_ifdef(
         # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
         return True, None
     ifdefs.discard(None)
-    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+    # Several guards: the define is needed under any of them, so emit the union.
+    # Falling back to unconditional would pull 64-bit varint support into builds
+    # that have none of them.
+    return True, " || ".join(sorted(ifdefs))
 
 
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
