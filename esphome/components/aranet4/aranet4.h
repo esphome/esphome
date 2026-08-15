@@ -21,6 +21,10 @@ class Aranet4 final : public Component, public ble_device_base::ESPBTDeviceListe
   void set_measurement_interval_sensor(sensor::Sensor *sensor) { this->measurement_interval_sensor_ = sensor; }
   void set_measurement_age_sensor(sensor::Sensor *sensor) { this->measurement_age_sensor_ = sensor; }
   void set_signal_strength_sensor(sensor::Sensor *sensor) { this->signal_strength_sensor_ = sensor; }
+  void set_radon_sensor(sensor::Sensor *sensor) { this->radon_sensor_ = sensor; }
+  void set_radiation_rate_sensor(sensor::Sensor *sensor) { this->radiation_rate_sensor_ = sensor; }
+  void set_radiation_total_sensor(sensor::Sensor *sensor) { this->radiation_total_sensor_ = sensor; }
+  void set_radiation_duration_sensor(sensor::Sensor *sensor) { this->radiation_duration_sensor_ = sensor; }
 
  protected:
   uint64_t address_;
@@ -32,6 +36,10 @@ class Aranet4 final : public Component, public ble_device_base::ESPBTDeviceListe
   sensor::Sensor *measurement_interval_sensor_{nullptr};
   sensor::Sensor *measurement_age_sensor_{nullptr};
   sensor::Sensor *signal_strength_sensor_{nullptr};
+  sensor::Sensor *radon_sensor_{nullptr};
+  sensor::Sensor *radiation_rate_sensor_{nullptr};
+  sensor::Sensor *radiation_total_sensor_{nullptr};
+  sensor::Sensor *radiation_duration_sensor_{nullptr};
   uint8_t last_measurement_counter_{0};
   bool has_measurement_{false};
   bool has_warned_invalid_length_{false};

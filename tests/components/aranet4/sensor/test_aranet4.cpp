@@ -92,5 +92,62 @@ TEST(Aranet4, RejectsDisabledIntegrationAndMalformedPayload) {
   EXPECT_FALSE(aranet.parse_device(make_device({payload.begin(), payload.end()})));
 }
 
+TEST(Aranet4, DecodesAranet2) {
+  const std::vector<uint8_t> payload{0x01, 0x21, 0x04, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x99, 0x01,
+                                     0x00, 0x00, 0x0A, 0x02, 0x00, 0x3B, 0x09, 0x78, 0x00, 0x52, 0x00, 0x64};
+  auto device = make_device(payload);
+  Aranet4 aranet(device.address_uint64());
+  sensor::Sensor temperature;
+  sensor::Sensor humidity;
+  sensor::Sensor battery;
+  aranet.set_temperature_sensor(&temperature);
+  aranet.set_humidity_sensor(&humidity);
+  aranet.set_battery_level_sensor(&battery);
+
+  EXPECT_TRUE(aranet.parse_device(device));
+  EXPECT_NEAR(temperature.state, 20.45f, 0.001f);
+  EXPECT_FLOAT_EQ(humidity.state, 52.2f);
+  EXPECT_FLOAT_EQ(battery.state, 59.0f);
+}
+
+TEST(Aranet4, DecodesAranetRadiation) {
+  const std::vector<uint8_t> payload{0x02, 0x21, 0x26, 0x04, 0x01, 0x00, 0xD0, 0x33, 0x00, 0x00, 0x6C, 0x60,
+                                     0x06, 0x00, 0x82, 0x00, 0x00, 0x63, 0x00, 0x2C, 0x01, 0x58, 0x00, 0x72};
+  auto device = make_device(payload);
+  Aranet4 aranet(device.address_uint64());
+  sensor::Sensor rate;
+  sensor::Sensor total;
+  sensor::Sensor duration;
+  aranet.set_radiation_rate_sensor(&rate);
+  aranet.set_radiation_total_sensor(&total);
+  aranet.set_radiation_duration_sensor(&duration);
+
+  EXPECT_TRUE(aranet.parse_device(device));
+  EXPECT_FLOAT_EQ(rate.state, 0.13f);
+  EXPECT_FLOAT_EQ(total.state, 13264.0f);
+  EXPECT_FLOAT_EQ(duration.state, 417900.0f);
+}
+
+TEST(Aranet4, DecodesAranetRadon) {
+  const std::vector<uint8_t> payload{0x03, 0x21, 0x04, 0x06, 0x01, 0x00, 0x00, 0x00, 0x07, 0x00, 0xFE, 0x01,
+                                     0xC9, 0x27, 0xCE, 0x01, 0x00, 0x64, 0x01, 0x58, 0x02, 0xF6, 0x01, 0x08};
+  auto device = make_device(payload);
+  Aranet4 aranet(device.address_uint64());
+  sensor::Sensor radon;
+  sensor::Sensor temperature;
+  sensor::Sensor humidity;
+  sensor::Sensor pressure;
+  aranet.set_radon_sensor(&radon);
+  aranet.set_temperature_sensor(&temperature);
+  aranet.set_humidity_sensor(&humidity);
+  aranet.set_pressure_sensor(&pressure);
+
+  EXPECT_TRUE(aranet.parse_device(device));
+  EXPECT_FLOAT_EQ(radon.state, 7.0f);
+  EXPECT_FLOAT_EQ(temperature.state, 25.5f);
+  EXPECT_FLOAT_EQ(humidity.state, 46.2f);
+  EXPECT_FLOAT_EQ(pressure.state, 1018.5f);
+}
+
 }  // namespace
 }  // namespace esphome::aranet4::testing

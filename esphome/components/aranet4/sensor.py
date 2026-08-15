@@ -15,13 +15,18 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_RADIOACTIVE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_BECQUEREL_PER_CUBIC_METER,
     UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_HECTOPASCAL,
+    UNIT_MICROSILVERTS_PER_HOUR,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -32,6 +37,10 @@ AUTO_LOAD = ["ble_device_base"]
 
 CONF_MEASUREMENT_AGE = "measurement_age"
 CONF_MEASUREMENT_INTERVAL = "measurement_interval"
+CONF_RADON = "radon"
+CONF_RADIATION_RATE = "radiation_rate"
+CONF_RADIATION_TOTAL = "radiation_total"
+CONF_RADIATION_DURATION = "radiation_duration"
 
 aranet4_ns = cg.esphome_ns.namespace("aranet4")
 Aranet4 = aranet4_ns.class_(
@@ -96,6 +105,30 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_RADON): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_RADON,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_RADIATION_RATE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROSILVERTS_PER_HOUR,
+                accuracy_decimals=3,
+                icon=ICON_RADIOACTIVE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_RADIATION_TOTAL): sensor.sensor_schema(
+                unit_of_measurement="nSv",
+                accuracy_decimals=0,
+                icon=ICON_RADIOACTIVE,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+            ),
+            cv.Optional(CONF_RADIATION_DURATION): sensor.sensor_schema(
+                unit_of_measurement=UNIT_SECOND,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_DURATION,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -117,6 +150,10 @@ async def to_code(config: ConfigType) -> None:
         (CONF_MEASUREMENT_INTERVAL, var.set_measurement_interval_sensor),
         (CONF_MEASUREMENT_AGE, var.set_measurement_age_sensor),
         (CONF_SIGNAL_STRENGTH, var.set_signal_strength_sensor),
+        (CONF_RADON, var.set_radon_sensor),
+        (CONF_RADIATION_RATE, var.set_radiation_rate_sensor),
+        (CONF_RADIATION_TOTAL, var.set_radiation_total_sensor),
+        (CONF_RADIATION_DURATION, var.set_radiation_duration_sensor),
     ):
         if sensor_config := config.get(key):
             sens = await sensor.new_sensor(sensor_config)

@@ -17,3 +17,11 @@ sensor:
       name: Aranet4 Measurement Age
     signal_strength:
       name: Aranet4 Signal Strength
+    radon:
+      name: Aranet Radon Concentration
+    radiation_rate:
+      name: Aranet Radiation Dose Rate
+    radiation_total:
+      name: Aranet Radiation Total Dose
+    radiation_duration:
+      name: Aranet Radiation Dose Duration
