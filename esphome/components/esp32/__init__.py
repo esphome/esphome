@@ -2259,10 +2259,6 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     disable_vfs_select: bool,
     disable_vfs_dir: bool,
     disable_fatfs: bool,
-<<<<<<< HEAD
-) -> None:
-    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
-=======
     enable_exfat: bool,
 ) -> None:
     """Reconcile VFS/FATFS sdkconfig flags.
@@ -2272,7 +2268,6 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     their own priorities) is seen first. A user-supplied sdkconfig_options value always
     takes precedence.
     """
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     def set_opt(name: str, value: SdkconfigValueType) -> None:
@@ -2280,60 +2275,26 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-<<<<<<< HEAD
     # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
-=======
-    # VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
-<<<<<<< HEAD
     # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
     # sockets use lwip_select() either way. ~2.7KB flash when off.
-=======
-    # VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-<<<<<<< HEAD
+
     # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
-=======
-    # VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # Components that need it (e.g., storage drivers) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
     else:
         set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
-<<<<<<< HEAD
-    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
-    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
-    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
-    lfn_keys = (
-        "CONFIG_FATFS_LFN_NONE",
-        "CONFIG_FATFS_LFN_HEAP",
-        "CONFIG_FATFS_LFN_STACK",
-    )
-    user_picked_lfn = any(k in opts for k in lfn_keys)
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        if not user_picked_lfn:
-=======
     # FATFS support
     # Components that need FATFS (SD card, USB storage, ...) call require_fatfs().
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
@@ -2349,16 +2310,10 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         lfn_off = opts.get("CONFIG_FATFS_LFN_NONE")
         lfn_off = getattr(lfn_off, "value", lfn_off)
         if str(lfn_off).strip().lower() not in ("y", "true", "1"):
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
-<<<<<<< HEAD
-    elif disable_fatfs:
-        if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", True)
-=======
         # Long filenames are a hard requirement of exFAT and are already set right above;
         # the FatFs #defines themselves come via a patched project-local component copy.
         _sync_exfat_fatfs_override(
@@ -2373,7 +2328,6 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         )
     elif disable_fatfs:
         set_opt("CONFIG_FATFS_LFN_NONE", True)
->>>>>>> e244536fe4ecbd108707cc8fe4cac3bba2746466
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
