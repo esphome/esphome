@@ -2,9 +2,7 @@ import hashlib
 from pathlib import Path
 import re
 
-import requests
-
-from esphome import pins
+from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
 from esphome.components.const import CONF_SHA256
@@ -28,7 +26,9 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 DOMAIN = "shelly_dimmer"
 AUTO_LOAD = ["sensor"]
@@ -75,43 +75,83 @@ def parse_firmware_version(value):
     return major, minor
 
 
-def get_firmware(value):
+def _firmware_cache_path(name: str) -> Path:
+    return external_files.compute_local_file_dir(DOMAIN) / f"{name}_fw_stm.bin"
+
+
+def _firmware_path(url: str, sha: str | None) -> Path:
+    """Cache path for a firmware blob: sha-keyed when verifiable, else
+    URL-keyed. Shared by the validator and the prefetch hook."""
+    return _firmware_cache_path(
+        sha.lower() if sha else external_files.url_cache_key(url)
+    )
+
+
+def get_firmware(value: ConfigType) -> list[HexInt] | None:
     if not value[CONF_UPDATE]:
         return None
 
-    def dl(url):
-        try:
-            req = requests.get(url, timeout=30)
-            req.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            raise cv.Invalid(f"Could not download firmware file ({url}): {e}") from e
-
-        h = hashlib.new("sha256")
-        h.update(req.content)
-        return req.content, h.hexdigest()
-
     url = value[CONF_URL]
 
-    if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = Path(CORE.data_dir) / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
-
-        if not path.is_file():
-            firmware_data, dl_hash = dl(url)
-
-            if dl_hash != value[CONF_SHA256]:
-                raise cv.Invalid(
-                    f"Hash mismatch for {url}: {dl_hash} != {value[CONF_SHA256]}"
-                )
-
-            path.parent.mkdir(exist_ok=True, parents=True)
-            path.write_bytes(firmware_data)
-
-        else:
+    if expected := value.get(CONF_SHA256):
+        expected = expected.lower()
+        path = _firmware_path(url, expected)
+        if path.is_file():
             firmware_data = path.read_bytes()
-    else:  # no caching, download every time
-        firmware_data, dl_hash = dl(url)
+            if hashlib.sha256(firmware_data).hexdigest() == expected:
+                return [HexInt(x) for x in firmware_data]
+            # A corrupted or foreign cache entry must never be trusted just
+            # because the file exists; discard it and download again.
+            path.unlink()
+        firmware_data = external_files.download_content(url, path)
+        if (actual := hashlib.sha256(firmware_data).hexdigest()) != expected:
+            path.unlink(missing_ok=True)
+            raise cv.Invalid(f"Hash mismatch for {url}: {actual} != {expected}")
+    else:
+        # No hash to verify the bytes, so an unrevalidated copy is an
+        # error rather than a silent fallback.
+        firmware_data = external_files.download_content(
+            url,
+            _firmware_path(url, None),
+            allow_stale=False,
+        )
 
     return [HexInt(x) for x in firmware_data]
+
+
+def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
+    firmware = entry.get(CONF_FIRMWARE)
+    if not isinstance(firmware, dict):
+        return None
+    try:
+        # cv.boolean, not truthiness: `update: "false"` is a valid False.
+        if not cv.boolean(firmware.get(CONF_UPDATE, False)):
+            return None
+    except cv.Invalid:
+        return None
+    url = firmware.get(CONF_URL)
+    sha = firmware.get(CONF_SHA256)
+    if url is None and (known := KNOWN_FIRMWARE.get(str(firmware.get(CONF_VERSION)))):
+        url, sha = known
+    if not isinstance(url, str):
+        return None
+    if sha is not None:
+        # Reject anything but a well-formed hash; a raw string would
+        # otherwise become a path component before validation runs.
+        try:
+            sha = validate_sha256(sha)
+        except (cv.Invalid, ValueError, TypeError):
+            return None
+    path = _firmware_path(url, sha)
+    if sha is not None and path.is_file():
+        # Content-addressed and already on disk; get_firmware verifies it
+        # by hash, so there is nothing to revalidate.
+        return None
+    # No hash means no stale copies, matching the validator's policy.
+    return RemoteFile(url, path, allow_stale=sha is not None)
+
+
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
 def validate_firmware(value):

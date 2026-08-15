@@ -1,6 +1,7 @@
 from collections import UserDict
 from collections.abc import Callable
 from functools import reduce
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,8 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import EsphomeError
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
 # Guard against infinite include chains (e.g. A includes B includes A).
@@ -198,6 +201,14 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
+    # Deferred import: keeps esphome.bundle off the device builder's
+    # startup path, since packages is loaded on every config parse.
+    from esphome.bundle import add_secret_scan_dir
+
+    # Register the path-narrowed dir, not repo_root, so example configs
+    # elsewhere in the repo do not widen the shipped secrets.
+    add_secret_scan_dir(repo_dir)
+
     for file in config[CONF_FILES]:
         if isinstance(file, str):
             files.append({CONF_PATH: file, CONF_VARS: {}})
@@ -267,8 +278,23 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         # If loading fails, the cached checkout may be stale — revert and retry once.
         try:
             return {CONF_PACKAGES: get_packages(files)}
-        except cv.Invalid:
-            revert()
+        except cv.Invalid as err:
+            if not revert():
+                # The pre-update content is out of reach (lock timeout, the
+                # checkout moved, or the reset failed; see the log), so a
+                # retry could not see it.
+                raise cv.Invalid(
+                    f"Failed to load packages and could not revert the cached "
+                    f"checkout to retry. {err}",
+                    path=err.path,
+                ) from err
+            # If the retry succeeds this is the only trace that the
+            # refreshed upstream content was broken.
+            _LOGGER.warning(
+                "Loading packages failed (%s), reverted the cached checkout "
+                "and retrying",
+                err,
+            )
         try:
             return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid as err:
