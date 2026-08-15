@@ -532,6 +532,7 @@ class SerialProxyInfo final : public ProtoMessage {
  public:
   StringRef name{};
   enums::SerialProxyPortType port_type{};
+  uint32_t configured_line_states{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3340,12 +3341,13 @@ class SerialProxyGetModemPinsRequest final : public ProtoDecodableMessage {
 class SerialProxyGetModemPinsResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 143;
-  static constexpr uint8_t ESTIMATED_SIZE = 8;
+  static constexpr uint8_t ESTIMATED_SIZE = 10;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_get_modem_pins_response"); }
 #endif
   uint32_t instance{0};
   uint32_t line_states{0};
+  enums::SerialProxyStatus status{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

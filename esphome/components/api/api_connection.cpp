@@ -1628,13 +1628,14 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
-  if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
-    return;
-  }
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
-  resp.line_states = proxies[msg.instance]->get_modem_pins();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+  } else {
+    resp.line_states = proxies[msg.instance]->get_modem_pins();
+  }
   if (!this->send_message(resp)) {
     API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
   }
@@ -1656,6 +1657,12 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
       status = serial_proxy_result_to_status(proxy->flush_port(this));
+      break;
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      // Response-only discriminators; never valid in a request
+      ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
+      status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
       break;
     default:
       ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
@@ -1923,6 +1930,7 @@ bool APIConnection::send_device_info_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
 #ifdef USE_API_NOISE
@@ -1983,6 +1991,7 @@ bool APIConnection::send_device_capabilities_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
   return this->send_message(resp);

@@ -105,6 +105,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
 
+  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values
+  uint32_t get_configured_modem_pins() const {
+    return (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+           (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  }
+
   /// Flush the serial port (block until all TX data is sent)
   /// @param api_connection The API connection requesting the flush
   SerialProxyResult flush_port(api::APIConnection *api_connection);

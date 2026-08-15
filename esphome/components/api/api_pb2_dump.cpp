@@ -934,6 +934,7 @@ const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyInfo"));
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("port_type"), static_cast<enums::SerialProxyPortType>(this->port_type));
+  dump_field(out, ESPHOME_PSTR("configured_line_states"), this->configured_line_states);
   return out.c_str();
 }
 #endif
@@ -2779,6 +2780,7 @@ const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetModemPinsResponse"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("line_states"), this->line_states);
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
   return out.c_str();
 }
 const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {

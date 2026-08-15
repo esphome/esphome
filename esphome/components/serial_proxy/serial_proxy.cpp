@@ -172,11 +172,9 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   }
 #endif
   // Asserting a pin that is not configured must fail so the client learns the signal never
-  // reached the wire; deasserting an absent pin is harmless and stays allowed
-  const uint32_t configured =
-      (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-      (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
-  if ((line_states & ~configured) != 0) {
+  // reached the wire; deasserting an absent pin is harmless and stays allowed. Clients can
+  // avoid this by masking against SerialProxyInfo.configured_line_states.
+  if ((line_states & ~this->get_configured_modem_pins()) != 0) {
     ESP_LOGW(TAG, "Requested modem pin not configured on serial proxy [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
   }
