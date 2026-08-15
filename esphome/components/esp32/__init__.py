@@ -2288,7 +2288,6 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     else:
         set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
-
     # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
         set_opt("CONFIG_VFS_SUPPORT_DIR", True)
