@@ -670,9 +670,19 @@ def _is_legacy_image_format(config: object) -> bool:
     proper error instead of the migration silently dropping the input.
     """
     if isinstance(config, list):
-        # A bare list of (not-yet-platform-tagged) image dicts.
+        # A bare list of (not-yet-platform-tagged) image dicts. An entry with a
+        # `files:` key is excluded for the same reason as in the mapping branch
+        # below -- `_flatten_legacy_image_config`'s list branch copies list
+        # entries verbatim, so a `defaults:`/`files:` entry missing `platform:`
+        # (e.g. the user meant `platform: animation` and forgot the key) would
+        # otherwise be silently migrated to a hard-coded `platform: file`
+        # instead of raising the normal "required key not provided: 'platform'"
+        # error.
         return bool(config) and all(
-            isinstance(entry, dict) and CONF_PLATFORM not in entry for entry in config
+            isinstance(entry, dict)
+            and CONF_PLATFORM not in entry
+            and CONF_FILES not in entry
+            for entry in config
         )
     if not isinstance(config, dict) or CONF_PLATFORM in config or CONF_FILES in config:
         # A dict already tagged with `platform:` is the new format written

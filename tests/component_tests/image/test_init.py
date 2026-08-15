@@ -389,6 +389,22 @@ def test_migrate_legacy_warns_and_prepends_platform(
             False,
             id="defaults_files_dict_without_platform",
         ),
+        # Same as above, but wrapped in a list -- the list branch copies
+        # entries verbatim in `_flatten_legacy_image_config`, so without this
+        # exclusion a `defaults:`/`files:` entry missing `platform:` (e.g. the
+        # user meant `platform: animation` and forgot the key) would be
+        # silently migrated to a hard-coded `platform: file` instead of
+        # raising the normal "required key not provided: 'platform'" error.
+        pytest.param(
+            [
+                {
+                    "defaults": {"type": "rgb565"},
+                    "files": [{"id": "a", "file": "x.png"}],
+                }
+            ],
+            False,
+            id="defaults_files_list_entry_without_platform",
+        ),
     ],
 )
 def test_is_legacy_image_format(config: object, expected: bool) -> None:
@@ -440,6 +456,23 @@ def test_migrate_returns_none_for_defaults_files_dict_without_platform() -> None
         "defaults": {"type": "rgb565"},
         "files": [{"id": "a", "file": "a.png"}],
     }
+    assert _migrate_legacy_image_config(config) is None
+
+
+def test_migrate_returns_none_for_defaults_files_list_entry_without_platform() -> None:
+    """Same as above, but wrapped in a list -- previously the list branch of
+    `_is_legacy_image_format` didn't exclude `files:` entries, so this shape
+    (e.g. the user meant `platform: animation` and forgot the key) matched the
+    legacy detector and `_flatten_legacy_image_config`'s list branch copied
+    the entry verbatim, silently migrating it to a hard-coded `platform: file`
+    with just a deprecation warning instead of raising a missing-platform
+    error."""
+    config = [
+        {
+            "defaults": {"type": "rgb565"},
+            "files": [{"id": "a", "file": "a.png"}],
+        }
+    ]
     assert _migrate_legacy_image_config(config) is None
 
 
