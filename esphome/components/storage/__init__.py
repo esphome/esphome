@@ -14,7 +14,8 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.const import CONF_ID
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -137,18 +138,26 @@ CONFIG_SCHEMA = cv.Schema(
 def _collect_mount_paths(
     fragment: object, where: str, out: list[tuple[str, str]]
 ) -> None:
-    """Walk a validated config fragment, collecting every (mount point, location) it declares."""
+    """Walk a validated config fragment, collecting the mount point of every storage device.
+
+    A storage device is identified by its own id, not by a key name: cv.declare_id gives it a type
+    that inherits from Storage. mount_path is collected only from such a node. A foreign component
+    that happens to use a key literally named 'mount_path' is not a storage device, and there is no
+    way to enumerate every external component to exclude, so we key off the device's own identity
+    rather than reserving the name 'mount_path' across the whole config.
+    """
     if isinstance(fragment, dict):
-        for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH and isinstance(value, str):
-                # Only a string is a storage mount point. validate_mount_path() (cv.string_strict)
-                # guarantees a real driver's mount_path is a str, so a non-str mount_path key belongs
-                # to some other component's schema -- not ours to reject or reserve. Fall through to
-                # the recursion for it rather than raising; this sweep runs over every domain in the
-                # full config and must not police a foreign 'mount_path'.
-                out.append((value, where))
-            else:
-                _collect_mount_paths(value, where, out)
+        node_id = fragment.get(CONF_ID)
+        mount = fragment.get(CONF_MOUNT_PATH)
+        if (
+            isinstance(node_id, ID)
+            and node_id.type is not None
+            and node_id.type.inherits_from(Storage)
+            and isinstance(mount, str)
+        ):
+            out.append((mount, where))
+        for value in fragment.values():
+            _collect_mount_paths(value, where, out)
     elif isinstance(fragment, list):
         for item in fragment:
             _collect_mount_paths(item, where, out)

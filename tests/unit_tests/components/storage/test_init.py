@@ -6,8 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import esphome.codegen as cg
 from esphome.components import storage
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
+from esphome.core import ID
 
 
 # validate_mount_path enforces the invariant resolve_path()/build_path() rely on but never re-check
@@ -42,41 +45,55 @@ def _final_validate_over(full_config: dict) -> bool:
     return result is marker
 
 
+def _device(mount_path: str) -> dict:
+    """A validated storage-device fragment: an id whose type inherits from Storage, plus a mount."""
+    return {
+        CONF_ID: ID("dev", type=storage.FilesystemStorage),
+        storage.CONF_MOUNT_PATH: mount_path,
+    }
+
+
 # _final_validate is the only place that can catch two storage devices sharing a mount point,
 # because each driver is a separate component and cannot see the others (see its docstring).
 def test_final_validate_rejects_duplicate_within_one_domain() -> None:
     with pytest.raises(cv.Invalid, match="claimed twice"):
-        _final_validate_over(
-            {"sd_storage": [{"mount_path": "/sd"}, {"mount_path": "/sd"}]}
-        )
+        _final_validate_over({"sd_storage": [_device("/sd"), _device("/sd")]})
 
 
 def test_final_validate_rejects_duplicate_across_domains() -> None:
     with pytest.raises(cv.Invalid, match="claimed by both"):
         _final_validate_over(
-            {
-                "sd_storage": [{"mount_path": "/sd"}],
-                "nfs_client": [{"mount_path": "/sd"}],
-            }
+            {"sd_storage": [_device("/sd")], "nfs_client": [_device("/sd")]}
         )
 
 
 def test_final_validate_accepts_distinct_mount_points() -> None:
     assert _final_validate_over(
-        {
-            "sd_storage": [{"mount_path": "/sd"}],
-            "nfs_client": [{"mount_path": "/nfs"}],
-        }
+        {"sd_storage": [_device("/sd")], "nfs_client": [_device("/nfs")]}
     )
 
 
-# The sweep runs over every domain in the full config, so a non-string mount_path belonging to some
-# other component's schema must be skipped, not rejected -- storage mount paths are strings via
-# validate_mount_path().
-def test_collect_mount_paths_skips_foreign_non_string() -> None:
+# A storage device is identified by its id type, not by a key named mount_path. A foreign component
+# using that key -- even with a string value matching a real device -- must be ignored, or it would
+# raise a false collision and reserve the name 'mount_path' across every component's schema.
+def test_final_validate_ignores_foreign_mount_path() -> None:
+    foreign = {CONF_ID: ID("x", type=cg.Component), storage.CONF_MOUNT_PATH: "/sd"}
+    assert _final_validate_over({"other": [foreign], "sd_storage": [_device("/sd")]})
+
+
+def test_collect_mount_paths_collects_only_storage_devices() -> None:
     out: list[tuple[str, str]] = []
-    storage._collect_mount_paths({"mount_path": {"nested": "value"}}, "other", out)
-    assert out == []
+    storage._collect_mount_paths(
+        {
+            "devices": [
+                _device("/sd"),
+                {CONF_ID: ID("x", type=cg.Component), storage.CONF_MOUNT_PATH: "/foo"},
+            ]
+        },
+        "sd_storage",
+        out,
+    )
+    assert out == [("/sd", "sd_storage")]
 
 
 def _data(path_max: int = 0, fatfs: bool = False) -> MagicMock:
