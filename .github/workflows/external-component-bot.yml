@@ -2,7 +2,7 @@ name: Add External Component Comment
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, edited]
 
 # All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
 # the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
