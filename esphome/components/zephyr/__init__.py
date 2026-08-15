@@ -40,6 +40,7 @@ from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
+from .board_revision import declared_revisions, parse_board_string, resolve_revision
 from .const import (
     BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
@@ -47,6 +48,10 @@ from .const import (
     CONF_KCONFIG_OPTIONS,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
+    CONF_SHIELD_SOURCE,
+    CONF_SHIELDS,
+    CONF_SINGLE_SLOT,
+    CONF_SNIPPET_SOURCE,
     CONF_SNIPPETS,
     CONF_WEST_VERSION,
     KEY_BOARD,
@@ -59,12 +64,17 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SHIELD_ROOT,
+    KEY_SHIELDS,
+    KEY_SINGLE_SLOT,
+    KEY_SNIPPET_ROOT,
     KEY_SNIPPETS,
     KEY_SYSBUILD_CONF,
     KEY_USER,
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
     ZEPHYR_VARIANT_ESP32_C5,
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
@@ -74,6 +84,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32L4,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -177,7 +188,9 @@ class ZephyrData(TypedDict):
     cpp_path: str | None  # "" = unchecked; None = not found; else = executable path
     board_dir_cache: dict[str, str]  # board -> abs path str, "" = not found
     dts_include_paths: list[str] | None  # None = not yet computed
-    board_edt_cache: dict[str, object]  # board -> EDT | _NOT_FOUND; cleared each run
+    # (board, shields, snippets) -> EDT | _NOT_FOUND; cleared each run. Value stays
+    # `object` since edtlib.EDT isn't imported here (dts_lookup.py's own concern).
+    board_edt_cache: dict[tuple[str, tuple[str, ...], tuple[str, ...]], object]
     board_yaml_cache: dict[
         str, object
     ]  # board -> list[str] | _NOT_FOUND; cleared each run
@@ -187,6 +200,14 @@ class ZephyrData(TypedDict):
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
     swap_method: str | None  # ota: swap_method:, set by mcuboot.apply_swap_method()
+    single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
+    shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
+    shield_root: (
+        Path | None
+    )  # resolved zephyr: shield_source: dir, or board_root, or None
+    snippet_root: (
+        Path | None
+    )  # resolved zephyr: snippet_source: dir, or board_root, or None
 
 
 # platform: nrf52 use only
@@ -222,6 +243,10 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         ninja_version=None,
         snippets=[],
         swap_method=None,
+        single_slot=False,
+        shields=[],
+        shield_root=None,
+        snippet_root=None,
     )
 
 
@@ -511,13 +536,18 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 
 def _filter_source_files() -> list[str]:
-    # i2c_emulator.cpp/.h are auto-discovered for every Zephyr build, but only make sense
-    # when i2c: emulation: is configured (CONFIG_I2C_EMUL). Without this filter, sysbuild's
-    # --whole-archive link force-pulls i2c_emul_register() even when unused, breaking the
-    # link for real-hardware i2c: builds.
-    if "i2c_emulator.cpp" not in zephyr_data()[KEY_EXTRA_BUILD_FILES]:
-        return ["i2c_emulator.cpp", "i2c_emulator.h"]
-    return []
+    # i2c_emulator.cpp/.h and uart_emulator.cpp/.h are auto-discovered for every Zephyr
+    # build, but only make sense when the corresponding `emulation:` config is present
+    # (CONFIG_I2C_EMUL / CONFIG_UART_EMUL). Without this filter, sysbuild's
+    # --whole-archive link force-pulls their registration/callback functions even when
+    # unused, breaking the link for real-hardware builds.
+    excluded = []
+    extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
+    if "i2c_emulator.cpp" not in extra_build_files:
+        excluded += ["i2c_emulator.cpp", "i2c_emulator.h"]
+    if "uart_emulator.cpp" not in extra_build_files:
+        excluded += ["uart_emulator.cpp", "uart_emulator.h"]
+    return excluded
 
 
 FILTER_SOURCE_FILES = _filter_source_files
@@ -564,6 +594,10 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
+    elif zephyr_variant_family() == "stm32":
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
     elif zephyr_variant_family() == "rpi_pico":
         # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
         # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
@@ -610,13 +644,19 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
 
-    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC -- no hardware FPU; rp2040 is Cortex-M0+,
-    # also without FPU. Original ESP32 is Xtensa LX6, which does have one -- it can't be
-    # excluded by family the way these chips are.
+    if zephyr_data()[KEY_SINGLE_SLOT]:
+        from . import mcuboot  # noqa: PLC0415
+
+        mcuboot.apply_single_slot()
+
+    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC and esp32_c3 is RV32IMC -- none have a
+    # hardware FPU; rp2040 is Cortex-M0+, also without FPU. Original ESP32 is Xtensa LX6,
+    # which does have one -- it can't be excluded by family the way these chips are.
     if zephyr_variant() not in (
         ZEPHYR_VARIANT_ESP32_H2,
         ZEPHYR_VARIANT_ESP32_C6,
         ZEPHYR_VARIANT_ESP32_C5,
+        ZEPHYR_VARIANT_ESP32_C3,
         ZEPHYR_VARIANT_RP2040,
     ):
         zephyr_add_prj_conf("FPU", True)
@@ -638,7 +678,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    # STM32L4's iwdg devicetree node ships status = "disabled" by default
+    # (dts/arm/st/l4/stm32l4.dtsi) -- CONFIG_WATCHDOG alone doesn't enable it, an
+    # overlay setting `&iwdg { status = "okay"; };` is also needed. Skipped here
+    # until that overlay is added and verified on real hardware.
+    if zephyr_variant() is not None and zephyr_variant() not in (
+        ZEPHYR_VARIANT_NATIVE_SIM,
+        ZEPHYR_VARIANT_STM32L4,
+    ):
         zephyr_add_prj_conf("WATCHDOG", True)
         zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
@@ -998,6 +1045,31 @@ _BOARD_SOURCE_SCHEMA = cv.Any(
 # constant for that case instead of relying on the schema to inject it.
 _DEFAULT_REFRESH = cv.All(cv.string, cv.source_refresh)("1d")
 
+# shield_source: is only needed when a shield lives outside board_source:'s repo (the
+# uncommon case) -- same git/local shape as board_source:, so reuse its git schema
+# rather than duplicating it.
+_SHIELD_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
+# snippet_source: mirrors shield_source: -- only needed when a snippet lives outside
+# board_source:'s repo (the uncommon case); same git/local shape.
+_SNIPPET_SOURCE_SCHEMA = cv.Any(
+    cv.validate_source_shorthand,
+    cv.typed_schema(
+        {
+            TYPE_GIT: _BOARD_SOURCE_GIT_SCHEMA,
+            TYPE_LOCAL: cv.LOCAL_SCHEMA,
+        }
+    ),
+)
+
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
 _ZEPHYR_SCHEMA = cv.Schema(
@@ -1005,6 +1077,16 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Required(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
         cv.Optional(CONF_BOARD): cv.string_strict,
         cv.Optional(CONF_BOARD_SOURCE): _BOARD_SOURCE_SCHEMA,
+        # Zephyr shields (physical add-on boards, e.g. an nRF7002 Wi-Fi/Zigbee
+        # companion board) -- one `-DSHIELD=` entry per item, natively space/semicolon
+        # stackable, hence a list rather than a single value.
+        cv.Optional(CONF_SHIELDS, default=[]): cv.ensure_list(cv.string_strict),
+        # Only needed when a shield doesn't live under board_source:'s (or the SDK's
+        # own) root -- see _resolve_shield_source().
+        cv.Optional(CONF_SHIELD_SOURCE): _SHIELD_SOURCE_SCHEMA,
+        # Only needed when a snippet doesn't live under board_source:'s (or the
+        # SDK's own) root -- see _resolve_snippet_source().
+        cv.Optional(CONF_SNIPPET_SOURCE): _SNIPPET_SOURCE_SCHEMA,
         # Which SDK to build against (type:), its version, where to fetch it from
         # (source:), and how often to recheck a git source: (refresh:) -- see
         # resolve_framework_version() in variants/__init__.py for the full resolution
@@ -1040,6 +1122,8 @@ _ZEPHYR_SCHEMA = cv.Schema(
         # from kconfig_options: above. Lets a stock upstream board cover a differently
         # sized flash/PSRAM SKU without forking a whole custom board.
         cv.Optional(CONF_SNIPPETS, default=[]): cv.ensure_list(cv.string_strict),
+        # No secondary slot -- serial/wired flashing only, no live OTA path.
+        cv.Optional(CONF_SINGLE_SLOT, default=False): cv.boolean,
         # Raw devicetree overlay passthrough -- lets a stock upstream board's DT be
         # patched (e.g. a partition table redefined for MCUboot) without forking a
         # custom board. "mcuboot" targets the sysbuild bootloader child image.
@@ -1073,15 +1157,135 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     else:
         raise NotImplementedError
 
-    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully qualified.
-    board_name = board.split("/", 1)[0]
-    if not list(root.glob(f"boards/*/{board_name}/board.yml")):
+    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully
+    # qualified and/or carries an "@<revision>" suffix.
+    parts = parse_board_string(board)
+    board_yml_matches = list(root.glob(f"boards/*/{parts.name}/board.yml"))
+    if not board_yml_matches:
         raise cv.Invalid(
-            f"Could not find boards/*/{board_name}/board.yml under this board_source. "
+            f"Could not find boards/*/{parts.name}/board.yml under this board_source. "
             f"Please check the source contains that board.",
             [CONF_BOARD_SOURCE],
         )
+    if parts.revision is not None:
+        board_dir = board_yml_matches[0].parent
+        resolved, declares_revisions = resolve_revision(board_dir, parts.revision)
+        if not declares_revisions:
+            raise cv.Invalid(
+                f"Board {parts.name!r} does not declare any revisions, but "
+                f"'{CONF_BOARD}' requested '@{parts.revision}'.",
+                [CONF_BOARD],
+            )
+        if resolved is None:
+            revisions = declared_revisions(board_dir)
+            raise cv.Invalid(
+                f"Revision {parts.revision!r} is not valid for board {parts.name!r}. "
+                f"Declared revisions: {', '.join(revisions)}",
+                [CONF_BOARD],
+            )
     return root
+
+
+def _resolve_extra_source(
+    config: ConfigType,
+    items: list[str],
+    board_root: Path | None,
+    *,
+    source_key: str,
+    items_key: str,
+    marker_relpath: Callable[[str], str],
+    kind_label: str,
+) -> Path | None:
+    """Resolve a zephyr: <kind>_source: into a local root directory.
+
+    Shared by _resolve_shield_source()/_resolve_snippet_source() -- both mirror
+    board_source:'s own git/local resolution exactly, differing only in the config
+    key and the per-item existence-check path. <kind>_source: is optional even when
+    <items>: is set -- the root defaults to board_root (a shield/snippet
+    accompanying a custom board conventionally lives alongside that root's boards/,
+    mirroring Zephyr's own repo layout and its own SHIELD_ROOT/SNIPPET_ROOT
+    default), or to None (let west/dts_lookup search the SDK's own tree) when
+    board_source: wasn't set either.
+
+    Existence is validated against whichever root is ultimately used -- including
+    the board_root fallback, not just an explicit <kind>_source: override -- so a
+    typo'd or genuinely missing item is caught here at config time instead of
+    silently falling through to a debug-only "not found" warning during DTS
+    validation.
+    """
+    explicit = source_key in config
+    if not explicit:
+        root = board_root
+    else:
+        conf = config[source_key]
+        if conf[CONF_TYPE] == TYPE_GIT:
+            with cv.prepend_path([source_key]):
+                root, _ = git.clone_or_update(
+                    url=conf[CONF_URL],
+                    ref=conf.get(CONF_REF),
+                    refresh=conf.get(CONF_REFRESH, _DEFAULT_REFRESH),
+                    domain=KEY_ZEPHYR,
+                    username=conf.get(CONF_USERNAME),
+                    password=conf.get(CONF_PASSWORD),
+                )
+                if path := conf.get(CONF_PATH):
+                    root = root / path
+        elif conf[CONF_TYPE] == TYPE_LOCAL:
+            root = Path(CORE.relative_config_path(conf[CONF_PATH]))
+        else:
+            raise NotImplementedError
+
+    if root is None:
+        # No override and no board_source: either -- nothing to validate against,
+        # same as a bare `board:` with no board_source: (checked later, at DTS
+        # validation time, against the SDK's own tree instead).
+        return None
+
+    error_path = [source_key] if explicit else [items_key]
+    source_desc = (
+        f"this {source_key}"
+        if explicit
+        else f"'{CONF_BOARD_SOURCE}' (the default root, since '{source_key}' wasn't set)"
+    )
+    for item in items:
+        if not (root / marker_relpath(item)).is_file():
+            raise cv.Invalid(
+                f"Could not find {marker_relpath(item)} under {source_desc}. "
+                f"Please check the source contains that {kind_label}, or set "
+                f"'{source_key}' explicitly.",
+                error_path,
+            )
+    return root
+
+
+def _resolve_shield_source(
+    config: ConfigType, shields: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: shield_source: into a local SHIELD_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        shields,
+        board_root,
+        source_key=CONF_SHIELD_SOURCE,
+        items_key=CONF_SHIELDS,
+        marker_relpath=lambda shield: f"boards/shields/{shield}/shield.yml",
+        kind_label="shield",
+    )
+
+
+def _resolve_snippet_source(
+    config: ConfigType, snippets: list[str], board_root: Path | None
+) -> Path | None:
+    """Resolve zephyr: snippet_source: into a local SNIPPET_ROOT directory."""
+    return _resolve_extra_source(
+        config,
+        snippets,
+        board_root,
+        source_key=CONF_SNIPPET_SOURCE,
+        items_key=CONF_SNIPPETS,
+        marker_relpath=lambda snippet: f"snippets/{snippet}/snippet.yml",
+        kind_label="snippet",
+    )
 
 
 def _variant_config_schema(config: ConfigType) -> ConfigType:
@@ -1130,6 +1334,24 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 f"See https://esphome.io/components/zephyr.html for valid boards.",
                 [CONF_BOARD],
             )
+    shields = config.get(CONF_SHIELDS, [])
+    if CONF_SHIELD_SOURCE in config and not shields:
+        raise cv.Invalid(
+            f"'{CONF_SHIELD_SOURCE}' requires '{CONF_SHIELDS}' to also be set",
+            [CONF_SHIELD_SOURCE],
+        )
+    shield_root = (
+        _resolve_shield_source(config, shields, board_root) if shields else None
+    )
+    snippets = config.get(CONF_SNIPPETS, [])
+    if CONF_SNIPPET_SOURCE in config and not snippets:
+        raise cv.Invalid(
+            f"'{CONF_SNIPPET_SOURCE}' requires '{CONF_SNIPPETS}' to also be set",
+            [CONF_SNIPPET_SOURCE],
+        )
+    snippet_root = (
+        _resolve_snippet_source(config, snippets, board_root) if snippets else None
+    )
     if variant == ZEPHYR_VARIANT_ESP32:
         from .variants.esp32 import config_schema as _esp32_config_schema
 
@@ -1146,6 +1368,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.esp32_c5 import config_schema as _esp32_c5_config_schema
 
         config = _esp32_c5_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import config_schema as _esp32_c3_config_schema
+
+        config = _esp32_c3_config_schema(config)
     elif variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import config_schema as _native_sim_config_schema
 
@@ -1166,6 +1392,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.efr32mg24 import config_schema as _efr32mg24_config_schema
 
         config = _efr32mg24_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32L4:
+        from .variants.stm32l4 import config_schema as _stm32_config_schema
+
+        config = _stm32_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import config_schema as _rp2040_config_schema
 
@@ -1176,7 +1406,16 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         config = _rp2350_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
+    if config[CONF_SINGLE_SLOT] and zephyr_data()[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        raise cv.Invalid(
+            f"'{CONF_SINGLE_SLOT}: true' requires the MCUboot bootloader "
+            f"(set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}' for this variant)",
+            [CONF_SINGLE_SLOT],
+        )
     zephyr_data()[KEY_BOARD_ROOT] = board_root
+    zephyr_data()[KEY_SHIELDS] = shields
+    zephyr_data()[KEY_SHIELD_ROOT] = shield_root
+    zephyr_data()[KEY_SNIPPET_ROOT] = snippet_root
     return config
 
 
@@ -1204,7 +1443,11 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_FRAMEWORK][CONF_REFRESH],
     )
 
-    from .dts_lookup import log_board_capabilities, validate_board
+    from .dts_lookup import (
+        log_board_capabilities,
+        validate_board,
+        validate_board_revision,
+    )
 
     board = zephyr_data()["board"]
     board_valid = validate_board(board)
@@ -1221,12 +1464,18 @@ async def to_code(config: ConfigType) -> None:
             board,
             board,
         )
+    elif validate_board_revision(board) is False:
+        raise EsphomeError(
+            f"Board '{board}' requests a revision that is not valid for that board. "
+            f"Check the '@<revision>' suffix in '{CONF_BOARD}'."
+        )
     log_board_capabilities(
         board,
         variant,
         VARIANTS[variant],
         str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
         zephyr_data()["board_root"],
+        zephyr_data()[KEY_SHIELDS],
     )
 
     if variant == ZEPHYR_VARIANT_ESP32:
@@ -1248,6 +1497,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.esp32_c5 import to_code as _esp32_c5_to_code
 
         await _esp32_c5_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_ESP32_C3:
+        from .variants.esp32_c3 import to_code as _esp32_c3_to_code
+
+        await _esp32_c3_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_NATIVE_SIM:
         from .variants.native_sim import to_code as _native_sim_to_code
@@ -1273,6 +1527,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.efr32mg24 import to_code as _efr32mg24_to_code
 
         await _efr32mg24_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32L4:
+        from .variants.stm32l4 import to_code as _stm32_to_code
+
+        await _stm32_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import to_code as _rp2040_to_code
@@ -1678,6 +1937,9 @@ def run_compile(args, config: ConfigType) -> bool:
         extra_modules=extra_modules,
         board_root=zephyr_data().get(KEY_BOARD_ROOT),
         snippets=zephyr_data()[KEY_SNIPPETS],
+        shield_root=zephyr_data().get(KEY_SHIELD_ROOT),
+        shields=zephyr_data()[KEY_SHIELDS],
+        snippet_root=zephyr_data().get(KEY_SNIPPET_ROOT),
     )
     return True
 

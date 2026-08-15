@@ -58,6 +58,7 @@ SWAP_METHOD_SCHEMA = {
         zephyr_efr32mg24="move",
         zephyr_rp2040="offset",
         zephyr_rp2350="offset",
+        zephyr_stm32l4="move",  # pending offset testing on real hardware
     ): cv.one_of("scratch", "move", "offset", "direct", lower=True),
 }
 
@@ -91,12 +92,24 @@ def _ota_final_validate(config):
         from esphome.components.zephyr.const import (  # noqa: PLC0415
             BOOTLOADER_MCUBOOT,
             KEY_BOOTLOADER,
+            KEY_SINGLE_SLOT,
         )
 
         if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
                 raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+
+        if zephyr_data()[KEY_SINGLE_SLOT]:
+            # No secondary slot to write into instead of the one currently executing --
+            # live OTA (any platform) risks corrupting the running image mid-transfer,
+            # not just losing revert-on-power-loss safety. Serial/wired flashing only.
+            raise cv.Invalid(
+                f"'{CONF_OTA}:' is not supported with 'single_slot: true' -- there is no "
+                f"secondary slot for OTA to write into, and writing into the slot "
+                f"currently executing risks crashing mid-update. Flash over serial/USB "
+                f"instead."
+            )
 
         # platform: esphome and platform: zephyr_mcumgr can both be configured at
         # once, each with its own swap_method:. They're validated independently,

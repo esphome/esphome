@@ -84,3 +84,18 @@ def zephyr_swap_method() -> str | None:
     from . import zephyr_data  # noqa: PLC0415
 
     return zephyr_data().get("swap_method")
+
+
+def apply_single_slot() -> None:
+    """Push zephyr: single_slot: true to sysbuild.conf.
+
+    Called directly from zephyr_to_code(), independent of whether any ota:
+    platform is configured -- unlike apply_swap_method(), single_slot: has no
+    ota: dependency at all (see ota/__init__.py's _ota_final_validate, which
+    rejects any ota: platform when single_slot: true is set).
+    """
+    from . import zephyr_add_sysbuild_conf
+
+    zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+    zephyr_add_sysbuild_conf("MCUBOOT_MODE_SINGLE_APP", True)
+    cg.add_define("USE_ZEPHYR_MCUBOOT_SINGLE_SLOT")

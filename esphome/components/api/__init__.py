@@ -339,6 +339,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32h2=4,  # ~320KB RAM, embedded target
                 zephyr_esp32c6=4,  # ~512KB RAM, embedded target
                 zephyr_esp32c5=4,  # 384KB RAM, embedded target
+                zephyr_esp32c3=4,  # ~400KB RAM, embedded target
                 zephyr_nativesim=8,  # Abundant resources
                 zephyr_nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
                 zephyr_nrf54l15=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
@@ -346,6 +347,9 @@ CONFIG_SCHEMA = cv.All(
                 # value pending real-world profiling on this newer variant.
                 zephyr_nrf54lm20a=4,
                 zephyr_efr32mg24=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
+                zephyr_rp2040=4,  # 264KB RAM, matches platform: rp2's own rp2=4 tier
+                zephyr_rp2350=4,  # 520KB RAM, kept at rp2040's conservative tier
+                zephyr_stm32l4=4,  # 128KB RAM (nucleo_l476rg), below every 8-tier board
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -365,11 +369,15 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_esp32h2=8,  # Moderate RAM
                 zephyr_esp32c6=8,  # Moderate RAM
                 zephyr_esp32c5=8,  # Moderate RAM
+                zephyr_esp32c3=8,  # Moderate RAM
                 zephyr_nativesim=16,  # Abundant resources
                 zephyr_nrf52=8,  # Moderate RAM
                 zephyr_nrf54l15=8,  # Moderate RAM
                 zephyr_nrf54lm20a=8,  # Moderate RAM, same reasoning as max_connections above
                 zephyr_efr32mg24=8,  # Moderate RAM
+                zephyr_rp2040=8,  # Moderate RAM, matches platform: rp2's own rp2=8 tier
+                zephyr_rp2350=8,  # Moderate RAM
+                zephyr_stm32l4=4,  # 128KB RAM, fail fast like esp8266 rather than buffer
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),

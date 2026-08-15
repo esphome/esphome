@@ -4,6 +4,11 @@ import esphome.codegen as cg
 
 BOOTLOADER_MCUBOOT = "mcuboot"
 
+# advanced: bootloader: -- shared by every variant whose default board can boot
+# without MCUboot (rp2040, rp2350), so MCUboot is opt-in rather than assumed.
+CONF_BOOTLOADER = "bootloader"
+BOOTLOADER_NONE = "none"
+
 KEY_BOOTLOADER: Final = "bootloader"
 KEY_EXTRA_BUILD_FILES: Final = "extra_build_files"
 KEY_OVERLAY: Final = "overlay"
@@ -28,6 +33,14 @@ CONF_WEST_VERSION = "west_version"
 CONF_NINJA_VERSION = "ninja_version"
 CONF_SNIPPETS = "snippets"
 KEY_SNIPPETS: Final = "snippets"
+CONF_SINGLE_SLOT = "single_slot"
+KEY_SINGLE_SLOT: Final = "single_slot"
+CONF_SHIELDS = "shields"
+CONF_SHIELD_SOURCE = "shield_source"
+KEY_SHIELDS: Final = "shields"
+KEY_SHIELD_ROOT: Final = "shield_root"
+CONF_SNIPPET_SOURCE = "snippet_source"
+KEY_SNIPPET_ROOT: Final = "snippet_root"
 
 # zephyr: version: "recommended" -- explicit alias for the variant's default_version,
 # same as omitting `version:` entirely.
@@ -37,12 +50,23 @@ ZEPHYR_VARIANT_ESP32 = "ESP32"
 ZEPHYR_VARIANT_ESP32_H2 = "ESP32H2"
 ZEPHYR_VARIANT_ESP32_C6 = "ESP32C6"
 ZEPHYR_VARIANT_ESP32_C5 = "ESP32C5"
+ZEPHYR_VARIANT_ESP32_C3 = "ESP32C3"
 ZEPHYR_VARIANT_NATIVE_SIM = "NATIVESIM"
 ZEPHYR_VARIANT_NRF52 = "NRF52"
 ZEPHYR_VARIANT_NRF54L15 = "NRF54L15"
 ZEPHYR_VARIANT_NRF54LM20A = "NRF54LM20A"
 ZEPHYR_VARIANT_EFR32MG24 = "EFR32MG24"
+ZEPHYR_VARIANT_STM32L4 = "STM32L4"
 ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
 
 ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
+
+# Python-only marker interface (no C++ side, see MockObjClass.class_/inherits_from) shared by
+# UARTComponent and ZephyrUartEmulator so `uart.write`'s `id:` can validate against either --
+# defined here rather than in uart/const.py to avoid a zephyr <-> uart import cycle, since
+# uart's __init__.py already imports this module.
+ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
+ZephyrUartEmulator = zephyr_ns.class_(
+    "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
+)

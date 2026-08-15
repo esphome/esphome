@@ -14,9 +14,10 @@ void ZephyrUartComponent::uart_irq_handler_s(const struct device *dev, void *use
 }
 
 void ZephyrUartComponent::uart_irq_handler_() {
-  if (!uart_irq_update(this->uart_dev_)) {
-    return;
-  }
+  // Return value intentionally ignored: every driver's irq_update() returns 1 on success
+  // (0 is never documented or observed), and some in-flight Zephyr forks have changed the
+  // signature to return void entirely -- discarding it compiles under both.
+  uart_irq_update(this->uart_dev_);
   while (uart_irq_rx_ready(this->uart_dev_)) {
     uint8_t buf[64];
     int len = uart_fifo_read(this->uart_dev_, buf, sizeof(buf));
@@ -39,12 +40,33 @@ void ZephyrUartComponent::setup() {
     case ZEPHYR_UART_PORT_1:
       dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
       break;
+    case ZEPHYR_UART_PORT_2:
+      dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart2));
+      break;
+    case ZEPHYR_UART_PORT_3:
+      dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart3));
+      break;
+    case ZEPHYR_UART_PORT_4:
+      dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart4));
+      break;
+    case ZEPHYR_UART_PORT_5:
+      dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart5));
+      break;
+    case ZEPHYR_UART_PORT_EMUL:
+      // set_emul_device() resolves this instance's own devicetree node at codegen time,
+      // since each `uart: emulation:` block gets a distinct DT node label.
+      dev = this->emul_dev_;
+      break;
     default:
       __builtin_unreachable();
   }
 
   if (dev == nullptr || !device_is_ready(dev)) {
-    ESP_LOGE(TAG, "UART device uart%u not ready", static_cast<unsigned>(this->port_));
+    if (this->port_ == ZEPHYR_UART_PORT_EMUL) {
+      ESP_LOGE(TAG, "UART emulation device not ready");
+    } else {
+      ESP_LOGE(TAG, "UART device uart%u not ready", static_cast<unsigned>(this->port_));
+    }
     this->mark_failed();
     return;
   }
@@ -88,7 +110,11 @@ void ZephyrUartComponent::setup() {
 
 void ZephyrUartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART (Zephyr):");
-  ESP_LOGCONFIG(TAG, "  Port: uart%u", static_cast<unsigned>(this->port_));
+  if (this->port_ == ZEPHYR_UART_PORT_EMUL) {
+    ESP_LOGCONFIG(TAG, "  Port: emulated");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Port: uart%u", static_cast<unsigned>(this->port_));
+  }
   if (this->uart_dev_ == nullptr) {
     ESP_LOGCONFIG(TAG, "  Status: NOT READY");
     return;

@@ -11,6 +11,14 @@
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
+#ifdef USE_ZEPHYR_MCUBOOT_SINGLE_SLOT
+#include <zephyr/storage/flash_map.h>
+#if PARTITION_EXISTS(slot1_partition)
+#error \
+    "single_slot: true requires a single-slot flash layout, but this build still defines slot1_partition (from the board default, overlays:, or to_code()). Remove the second slot, or set single_slot: false."
+#endif
+#endif
+
 // Probe rather than require: this header only exists once another component (sha256, md5,
 // api encryption) has turned on the MBEDTLS Kconfig.
 #if __has_include(<mbedtls/build_info.h>)
