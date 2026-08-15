@@ -88,6 +88,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF54LM20A,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32L4,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -676,6 +677,10 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
+    elif zephyr_variant_family() == "stm32":
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
     elif zephyr_variant_family() == "rpi_pico":
         # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
         # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
@@ -756,7 +761,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    # STM32L4's iwdg devicetree node ships status = "disabled" by default
+    # (dts/arm/st/l4/stm32l4.dtsi) -- CONFIG_WATCHDOG alone doesn't enable it, an
+    # overlay setting `&iwdg { status = "okay"; };` is also needed. Skipped here
+    # until that overlay is added and verified on real hardware.
+    if zephyr_variant() is not None and zephyr_variant() not in (
+        ZEPHYR_VARIANT_NATIVE_SIM,
+        ZEPHYR_VARIANT_STM32L4,
+    ):
         zephyr_add_prj_conf("WATCHDOG", True)
         zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
@@ -1525,6 +1537,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.efr32mg24 import config_schema as _efr32mg24_config_schema
 
         config = _efr32mg24_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32L4:
+        from .variants.stm32l4 import config_schema as _stm32_config_schema
+
+        config = _stm32_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import config_schema as _rp2040_config_schema
 
@@ -1656,6 +1672,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.efr32mg24 import to_code as _efr32mg24_to_code
 
         await _efr32mg24_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32L4:
+        from .variants.stm32l4 import to_code as _stm32_to_code
+
+        await _stm32_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import to_code as _rp2040_to_code

@@ -520,6 +520,7 @@ _VARIANT_MODULES = [
     "nrf54l15",
     "nrf54lm20a",
     "efr32mg24",
+    "stm32l4",
     "rp2040",
     "rp2350",
 ]

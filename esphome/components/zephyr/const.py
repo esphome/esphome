@@ -4,6 +4,11 @@ import esphome.codegen as cg
 
 BOOTLOADER_MCUBOOT = "mcuboot"
 
+# advanced: bootloader: -- shared by every variant whose default board can boot
+# without MCUboot (rp2040, rp2350), so MCUboot is opt-in rather than assumed.
+CONF_BOOTLOADER = "bootloader"
+BOOTLOADER_NONE = "none"
+
 KEY_BOOTLOADER: Final = "bootloader"
 KEY_EXTRA_BUILD_FILES: Final = "extra_build_files"
 KEY_OVERLAY: Final = "overlay"
@@ -54,6 +59,7 @@ ZEPHYR_VARIANT_NRF52 = "NRF52"
 ZEPHYR_VARIANT_NRF54L15 = "NRF54L15"
 ZEPHYR_VARIANT_NRF54LM20A = "NRF54LM20A"
 ZEPHYR_VARIANT_EFR32MG24 = "EFR32MG24"
+ZEPHYR_VARIANT_STM32L4 = "STM32L4"
 ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
 

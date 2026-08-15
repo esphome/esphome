@@ -58,6 +58,7 @@ SWAP_METHOD_SCHEMA = {
         zephyr_efr32mg24="move",
         zephyr_rp2040="offset",
         zephyr_rp2350="offset",
+        zephyr_stm32l4="move",  # pending offset testing on real hardware
     ): cv.one_of("scratch", "move", "offset", lower=True),
 }
 
