@@ -48,8 +48,7 @@ void FlashPartition::setup() {
     const esp_partition_t *part =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, this->partition_label_);
     if (part != nullptr) {
-      ESP_LOGW(TAG, "First-time format of '%s' failed; erasing the partition and retrying",
-               this->partition_label_);
+      ESP_LOGW(TAG, "First-time format of '%s' failed; erasing the partition and retrying", this->partition_label_);
       esp_err_t erase_err = esp_partition_erase_range(part, 0, part->size);
       if (erase_err == ESP_OK) {
         ret = esp_vfs_littlefs_register(&conf);
