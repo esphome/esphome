@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_VARIANT,
 )
 from esphome.cpp_generator import add_define
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@swoboda1337"]
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
@@ -122,6 +123,22 @@ CONFIG_SCHEMA = cv.typed_schema(
     },
     default_type="sdio",
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # The esp_hosted releases compatible with older ESP-IDF versions crash at
+    # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
+    # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
+    if (idf_ver := esp32.idf_version()) < cv.Version(5, 3, 0):
+        raise cv.Invalid(
+            f"esp32_hosted requires ESP-IDF 5.3 or newer, got {idf_ver}. "
+            "Remove the framework version from your configuration to use the "
+            "recommended version, or pin a version at or above 5.3."
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _configure_sdio(config):
@@ -251,22 +268,14 @@ async def to_code(config):
     if config[CONF_USE_PSRAM]:
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
 
-    # Library versions
-    # The current component set supports ESP-IDF 5.3 and newer. The legacy
-    # fallback (esp_hosted 2.0.11) must not be used on 5.3/5.4: its SDIO RX
-    # path has a double free (crashes with a tlsf_free assert at boot) that
-    # was only fixed in esp_hosted 2.11.0.
+    # Library versions; this component set requires ESP-IDF 5.3 or newer,
+    # which is enforced at validation time.
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
-    if idf_ver >= cv.Version(5, 3, 0):
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
-        esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
-        esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
-    else:
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
-        esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.0.11")
+    esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
+    esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
+    esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
