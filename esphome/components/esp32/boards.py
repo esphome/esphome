@@ -1978,6 +1978,10 @@ BOARDS = {
         "name": "Franzininho WiFi MSC",
         "variant": VARIANT_ESP32S2,
     },
+    "freenove-esp32-s3-fnk0104n": {
+        "name": "Freenove ESP32-S3 FNK0104N (16MB Flash / 8MB PSRAM)",
+        "variant": VARIANT_ESP32S3,
+    },
     "freenove-esp32-s3-n8r8": {
         "name": "Freenove ESP32-S3 WROOM N8R8 (8MB Flash / 8MB PSRAM)",
         "variant": VARIANT_ESP32S3,

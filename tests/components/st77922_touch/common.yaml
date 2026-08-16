@@ -1,0 +1,13 @@
+display:
+  - platform: mipi_spi
+    id: fnk0104n_display
+    spi_id: quad_spi
+    model: FNK0104N
+
+touchscreen:
+  - platform: st77922_touch
+    id: fnk0104n_touchscreen
+    i2c_id: i2c_bus
+    display: fnk0104n_display
+    interrupt_pin: GPIO18
+    reset_pin: GPIO19

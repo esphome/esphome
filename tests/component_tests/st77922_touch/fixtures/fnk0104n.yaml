@@ -1,0 +1,48 @@
+esphome:
+  name: fnk0104n
+
+esp32:
+  board: freenove-esp32-s3-fnk0104n
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+spi:
+  id: spi_bus
+  type: quad
+  clk_pin: GPIO12
+  data_pins: [GPIO11, GPIO13, GPIO14, GPIO9]
+
+i2c:
+  id: i2c_bus
+  sda: GPIO38
+  scl: GPIO39
+
+display:
+  - platform: mipi_spi
+    id: fnk0104n_display
+    spi_id: spi_bus
+    model: FNK0104N
+
+touchscreen:
+  - platform: st77922_touch
+    id: fnk0104n_touchscreen
+    i2c_id: i2c_bus
+    display: fnk0104n_display
+    interrupt_pin: GPIO47
+    reset_pin: GPIO48
+
+output:
+  - platform: gpio
+    id: backlight_output
+    pin: GPIO8
+
+light:
+  - platform: binary
+    id: fnk0104n_backlight
+    name: "FNK0104N Backlight"
+    output: backlight_output
+    restore_mode: ALWAYS_ON
