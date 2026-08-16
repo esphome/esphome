@@ -160,11 +160,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #else
 #error "No frame helper defined"
 #endif
-#ifdef USE_CAMERA
-  if (camera::Camera::instance() != nullptr) {
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
-#endif
 }
 
 void APIConnection::start() {
@@ -1169,8 +1164,10 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_)
-    return;
+  if (!this->image_reader_) {
+    // Created on first image so log-only connections never pay for a reader
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
+  }
   if (this->image_reader_->available())
     return;
   if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
