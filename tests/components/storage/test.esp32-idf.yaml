@@ -1,92 +1,18 @@
+packages:
+  storage: !include common.yaml
+
+# Validates the flattened worker knobs (config-only here): USE_STORAGE_WORKER itself is only
+# ever compiled in when a path-based driver calls request_storage_worker() in its own
+# to_code() (e.g. sd_storage) -- see that driver's own test suite for actual worker C++
+# coverage.
 storage:
-  # Validates the flattened worker knobs (config-only here): USE_STORAGE_WORKER itself is only
-  # ever compiled in when a path-based driver calls request_storage_worker() in its own
-  # to_code() (e.g. sd_storage) -- see that driver's own test suite for actual worker C++
-  # coverage.
   task_stack_size: 8192
   task_priority: 1
   max_pending: 4
 
-# One restoring dummy per supported entity kind -- compiles every codec path
-# and lets a flashed export be checked type by type. (climate omitted: no
-# self-contained template platform; media_player omitted: needs real audio.)
-switch:
-  - platform: template
-    id: d_switch
-    name: d_switch
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-
-number:
-  - platform: template
-    id: d_number
-    name: d_number
-    optimistic: true
-    restore_value: true
-    min_value: 0
-    max_value: 100
-    step: 1
-
-select:
-  - platform: template
-    id: d_select
-    name: d_select
-    optimistic: true
-    restore_value: true
-    options: ["a", "b"]
-
-datetime:
-  - platform: template
-    id: d_date
-    name: d_date
-    type: date
-    optimistic: true
-    restore_value: true
-  - platform: template
-    id: d_time
-    name: d_time
-    type: time
-    optimistic: true
-    restore_value: true
-  - platform: template
-    id: d_datetime
-    name: d_datetime
-    type: datetime
-    optimistic: true
-    restore_value: true
-
-fan:
-  - platform: template
-    id: d_fan
-    name: d_fan
-    restore_mode: RESTORE_DEFAULT_OFF
-
-output:
-  - platform: template
-    id: d_output
-    type: float
-    write_action:
-      - logger.log: "out"
-
-light:
-  - platform: monochromatic
-    id: d_light
-    name: d_light
-    output: d_output
-    restore_mode: RESTORE_DEFAULT_OFF
-
-cover:
-  - platform: template
-    id: d_cover
-    name: d_cover
-    optimistic: true
-
-valve:
-  - platform: template
-    id: d_valve
-    name: d_valve
-    optimistic: true
-
+# On top of common.yaml's platform-neutral script: the action shapes that only matter where a
+# real driver can exist -- lambda paths, the async copy/move pair, the multi-step and key=value
+# extractions, on_value, and a recursive delete.
 globals:
   - id: g_setpoint
     type: float
@@ -114,6 +40,10 @@ script:
               index: 1
             - trim: true
           to_global: g_setpoint
+          on_error:
+            - logger.log:
+                format: "read failed: %s"
+                args: ["x.c_str()"]
       - storage.file_read:
           path: /sdcard/config/device.conf
           extract:
@@ -127,9 +57,15 @@ script:
       - storage.file_copy:
           from: /sdcard/a.txt
           to: /usb/a.txt
+          on_complete:
+            - logger.log: "copy done"
       - storage.file_move:
           from: !lambda 'return "/sdcard/old.log";'
           to: /sdcard/archive/old.log
+          on_complete:
+            - logger.log:
+                format: "move done: %s"
+                args: ["x.c_str()"]
       - if:
           condition:
             storage.file_exists: /sdcard/config.txt
@@ -137,37 +73,3 @@ script:
             - storage.file_delete:
                 path: /sdcard/tmp
                 recursive: true
-
-  # Instantiates the preference actions with a NON-EMPTY template pack. A script with
-  # parameters is the cheapest way to get one: Action<Ts...>::play() takes (const Ts &...),
-  # and a play() declared as (Ts...) only collapses onto it while the pack is empty, so every
-  # argument-less trigger (on_press, on_boot) hides a mismatch. Exercised here the way an
-  # on_value or a parameterised script would use them.
-  - id: exercise_preferences_with_args
-    parameters:
-      label: string
-    then:
-      - storage.export_preferences:
-          path: !lambda 'return "/sdcard/prefs-" + label + ".kv";'
-      - storage.import_preferences:
-          path: !lambda 'return "/sdcard/prefs-" + label + ".kv";'
-
-button:
-  - platform: template
-    name: "Backup selected preferences"
-    on_press:
-      - storage.export_preferences:
-          path: /sdcard/prefs-selected.kv
-          preferences: [g_setpoint, g_label]
-  - platform: template
-    name: "Backup all preferences"
-    on_press:
-      - storage.export_preferences:
-          path: !lambda 'return "/sdcard/prefs.kv";'
-  - platform: template
-    name: "Restore preferences"
-    on_press:
-      - storage.import_preferences:
-          path: /sdcard/prefs-selected.kv
-          preferences: [g_setpoint]
-          reboot: true
