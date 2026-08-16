@@ -301,6 +301,14 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
+  if (!this->is_ready()) {
+    // Another component used the bus before setup() installed the driver, or
+    // after the bus failed. Calling the driver would fail and mark this
+    // component failed, which would then skip the driver installation entirely
+    // and permanently disable the bus, so drop the data instead.
+    ESP_LOGW(TAG, "write_array called while the bus is not ready; dropping %zu bytes", len);
+    return;
+  }
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   if (write_len != (int32_t) len) {
     ESP_LOGW(TAG, "uart_write_bytes failed: %" PRId32 " != %zu", write_len, len);
@@ -314,6 +322,9 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
 }
 
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
+  if (!this->is_ready()) {
+    return false;
+  }
   if (!this->check_read_timeout_())
     return false;
   if (this->has_peek_) {
@@ -331,7 +342,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
-  if (len == 0) {
+  if (len == 0 || !this->is_ready()) {
     return false;
   }
   size_t length_to_read = len;
@@ -357,6 +368,12 @@ size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
+  if (!this->is_ready()) {
+    // The driver is not installed yet (or the bus failed); asking the driver
+    // would fail and mark the whole bus failed, so report no data instead.
+    return this->has_peek_ ? 1 : 0;
+  }
+
   err = uart_get_buffered_data_len(this->uart_num_, &available);
 
   if (err != ESP_OK) {
@@ -370,6 +387,10 @@ size_t IDFUARTComponent::available() {
 }
 
 UARTFlushResult IDFUARTComponent::flush() {
+  if (!this->is_ready()) {
+    // Nothing can be pending before the driver is installed
+    return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+  }
   ESP_LOGVV(TAG, "    Flushing");
   TickType_t ticks = this->flush_timeout_ms_ == 0 ? portMAX_DELAY : pdMS_TO_TICKS(this->flush_timeout_ms_);
   esp_err_t err = uart_wait_tx_done(this->uart_num_, ticks);
