@@ -18,6 +18,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -186,7 +187,7 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
 void perform_file_copy_async(const std::string &from, const std::string &to, bool is_move,
                              Trigger<std::string> *on_complete);
 StorageError perform_file_delete(const std::string &path, bool recursive);
-bool check_file_exists(const std::string &path);
+StorageError check_file_exists(const std::string &path);
 StorageError perform_file_write(const std::string &path, std::string content, bool append, bool newline);
 bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &steps, std::string &out,
                        std::string &error);
@@ -203,14 +204,21 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
   explicit FileWriteAction(bool append) : append_(append) {}
 
   TEMPLATABLE_VALUE(std::string, path)
-  TEMPLATABLE_VALUE(std::string, content)
+  TEMPLATABLE_VALUE(std::optional<std::string>, content)
   void set_newline(bool newline) { this->newline_ = newline; }
 
   Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
   void play(const Ts &...x) override {
-    StorageError err =
-        perform_file_write(this->path_.value(x...), this->content_.value(x...), this->append_, this->newline_);
+    std::optional<std::string> content = this->content_.value(x...);
+    if (!content.has_value()) {
+      // The format:/args: lambda could not render the line (encoding failure or over-long). Abort
+      // before any open -- write_file() opens with OpenMode::WRITE and would truncate the target to
+      // empty here -- and report the error instead of the empty "success" string.
+      this->complete_trigger_.trigger(std::string("format failed"));
+      return;
+    }
+    StorageError err = perform_file_write(this->path_.value(x...), std::move(*content), this->append_, this->newline_);
     this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
   }
 
@@ -484,7 +492,46 @@ template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, path)
 
-  bool check(const Ts &...x) override { return check_file_exists(this->path_.value(x...)); }
+  bool check(const Ts &...x) override {
+    // Only a clean NOT_FOUND means "absent". Any other non-OK is a not-ready or faulted medium, not
+    // proof the file is gone, so read it as present (true): a guard-then-write must not overwrite a
+    // file that is merely temporarily unavailable. Use storage.stat to branch on the error itself.
+    return check_file_exists(this->path_.value(x...)) != StorageError::NOT_FOUND;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// storage.stat action -- three-way existence with an explicit error path.
+// A Condition can only answer yes/no, which cannot distinguish "absent" from "could not check".
+// This action fires exactly one of on_exists / on_missing / on_error so an automation can tell a
+// genuine absence from a not-ready/faulted medium instead of overwriting on the strength of an
+// error. check_file_exists() also logs the failure cause, so on_error is additive, never the only
+// trace.
+// ---------------------------------------------------------------------------
+
+template<typename... Ts> class FileStatAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(std::string, path)
+
+  Trigger<> *get_exists_trigger() { return &this->exists_trigger_; }
+  Trigger<> *get_missing_trigger() { return &this->missing_trigger_; }
+  Trigger<std::string> *get_error_trigger() { return &this->error_trigger_; }
+
+  void play(const Ts &...x) override {
+    StorageError err = check_file_exists(this->path_.value(x...));
+    if (err == StorageError::OK) {
+      this->exists_trigger_.trigger();
+    } else if (err == StorageError::NOT_FOUND) {
+      this->missing_trigger_.trigger();
+    } else {
+      this->error_trigger_.trigger(std::string(error_to_string(err)));
+    }
+  }
+
+ protected:
+  Trigger<> exists_trigger_;
+  Trigger<> missing_trigger_;
+  Trigger<std::string> error_trigger_;
 };
 
 // ---------------------------------------------------------------------------

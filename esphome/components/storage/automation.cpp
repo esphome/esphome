@@ -657,6 +657,12 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
       raw_fail(on_complete, "write", std::string("no storage mounted for '") + path + "'");
       return;
     }
+    // stat() below runs on the main loop; every other helper that touches a path storage there
+    // refuses while the worker task owns it, or the two race on the same driver. Do the same.
+    if (worker_task_busy(ps)) {
+      raw_fail(on_complete, "write", "source storage is busy with a background transfer");
+      return;
+    }
     // The sync twin (perform_raw_write_from_file -> perform_raw_write) rejects a zero-length write
     // and preflights the address against the device geometry before touching it; the worker path did
     // neither. from_file needs a path driver and every path driver requests the worker, so the sync
@@ -861,31 +867,31 @@ StorageError perform_file_delete(const std::string &path, bool recursive) {
   return err;
 }
 
-bool check_file_exists(const std::string &path) {
+StorageError check_file_exists(const std::string &path) {
   if (global_storage_registry == nullptr) {
-    ESP_LOGW(TAG, "file_exists: no storage registry; reporting '%s' as absent", path.c_str());
-    return false;
+    ESP_LOGW(TAG, "file_exists: no storage registry; cannot check '%s'", path.c_str());
+    return StorageError::NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
-    // Almost always a typo'd mount point in the config -- without this log the condition
-    // just reads as a permanent "no".
-    ESP_LOGW(TAG, "file_exists: no storage mounted for '%s'; reporting it as absent", path.c_str());
-    return false;
+    // Almost always a typo'd mount point in the config -- not a real "the file is absent".
+    ESP_LOGW(TAG, "file_exists: no storage mounted for '%s'", path.c_str());
+    return StorageError::NOT_READY;
   }
   if (worker_task_busy(ps)) {
-    ESP_LOGW(TAG, "file_exists: '%s' is busy with a background transfer; reporting it as absent", path.c_str());
-    return false;
+    ESP_LOGW(TAG, "file_exists: '%s' is busy with a background transfer", path.c_str());
+    return StorageError::NOT_READY;
   }
   StorageError err = StorageError::OK;
-  bool found = exists(ps, rel, &err);
-  // Only NOT_FOUND is a clean "no" -- surface anything else (unmounted/faulted medium) so a
-  // transient failure is visible instead of silently reading as absence.
-  if (!found && err != StorageError::NOT_FOUND && err != StorageError::OK) {
+  exists(ps, rel, &err);
+  // OK = present, NOT_FOUND = a clean absent. Anything else is a not-ready/faulted medium: log it
+  // here so the failure is never silent even for a caller (the bool condition) that cannot forward
+  // it, and pass the code up so storage.stat can branch on it.
+  if (err != StorageError::OK && err != StorageError::NOT_FOUND) {
     ESP_LOGE(TAG, "file_exists: checking '%s' failed (%s)", path.c_str(), error_to_string(err));
   }
-  return found;
+  return err;
 }
 
 static void mount_fire(bool mount, StorageError result, Trigger<std::string> *on_complete) {
