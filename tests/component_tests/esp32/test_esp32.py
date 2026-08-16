@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -785,7 +786,10 @@ def test_reconcile_vfs_fatfs_sdkconfig(
     for key, value in requires.items():
         CORE.data[key] = value
 
-    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables, enable_exfat))
+    # exFAT patches a project-local FatFs copy on disk; that side effect is not what this test
+    # covers (it checks the reconciled sdkconfig flags), so stub it out to keep the test CI-safe.
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override"):
+        asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables, enable_exfat))
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
 
