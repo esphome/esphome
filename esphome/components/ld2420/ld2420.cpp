@@ -69,11 +69,11 @@ static constexpr uint8_t CMD_MAX_RETRIES = 3;
 
 // Startup state machine timing. The module starts transmitting ~3.5 s after a
 // power cycle; the listen window is three times that to be safe. The ack
-// timeout and command retry count match the blocking command engine.
+// timeout and command retry count are shared with the blocking command engine.
 static constexpr uint32_t STARTUP_LISTEN_TIMEOUT_MS = 10000;
 static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 3000;
-static constexpr uint32_t STARTUP_ACK_TIMEOUT_MS = 1000;
-static constexpr uint8_t STARTUP_CMD_MAX_RETRIES = 3;
+static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
+static constexpr uint8_t CMD_MAX_RETRIES = 3;
 static constexpr uint8_t STARTUP_SEQUENCE_MAX_RETRIES = 3;
 
 // Command sets
@@ -94,6 +94,7 @@ static constexpr uint16_t CMD_SYSTEM_MODE_GR = 0x0003;
 static constexpr uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
 static constexpr uint16_t CMD_SYSTEM_MODE_SIMPLE = 0x0064;
 static constexpr uint16_t CMD_SYSTEM_MODE_DEBUG = 0x0000;
+static constexpr uint16_t CMD_SYSTEM_MODE_ENERGY = 0x0004;
 static constexpr uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
 static constexpr uint16_t CMD_WRITE_ABD_PARAM = 0x0007;
 static constexpr uint16_t CMD_WRITE_REGISTER = 0x0001;
@@ -226,17 +227,19 @@ void LD2420Component::dump_config() {
   }
 }
 
-void LD2420Component::setup() { this->begin_startup_(STARTUP_LISTEN_TIMEOUT_MS); }
+void LD2420Component::setup() { this->begin_startup_(); }
 
-void LD2420Component::begin_startup_(uint32_t listen_timeout_ms) {
+void LD2420Component::begin_startup_() {
+  // Default to energy mode so the stream parser can frame data from a module
+  // that kept streaming across a soft restart, before the mode is negotiated.
+  this->system_mode_ = CMD_SYSTEM_MODE_ENERGY;
   this->startup_sequence_retries_ = 0;
-  this->begin_listen_(listen_timeout_ms);
+  this->begin_listen_();
 }
 
-void LD2420Component::begin_listen_(uint32_t listen_timeout_ms) {
+void LD2420Component::begin_listen_() {
   this->rx_seen_ = false;
   this->buffer_pos_ = 0;
-  this->listen_timeout_ms_ = listen_timeout_ms;
   this->phase_start_ms_ = millis();
   this->startup_state_ = StartupState::STARTUP_STATE_LISTEN;
 }
@@ -248,39 +251,68 @@ void LD2420Component::drain_rx_() {
   this->buffer_pos_ = 0;
 }
 
-void LD2420Component::send_cmd_async_(const CmdFrameT &frame) {
+// Builds the command frame for the current startup state
+void LD2420Component::build_startup_frame_(CmdFrameT &frame) {
+  switch (this->startup_state_) {
+    case StartupState::STARTUP_STATE_ENTER_CONFIG:
+      this->build_config_mode_frame_(frame, true);
+      break;
+    case StartupState::STARTUP_STATE_READ_LIMITS:
+      this->build_min_max_timeout_frame_(frame);
+      break;
+    case StartupState::STARTUP_STATE_READ_VERSION:
+      this->build_version_frame_(frame);
+      break;
+    case StartupState::STARTUP_STATE_READ_GATES:
+      this->build_gate_threshold_frame_(frame, this->startup_gate_);
+      break;
+    case StartupState::STARTUP_STATE_SET_MODE:
+      this->build_system_mode_frame_(frame, this->system_mode_);
+      break;
+    case StartupState::STARTUP_STATE_EXIT_CONFIG:
+      this->build_config_mode_frame_(frame, false);
+      break;
+    default:
+      break;
+  }
+}
+
+void LD2420Component::send_startup_cmd_() {
+  CmdFrameT frame;
+  this->build_startup_frame_(frame);
+  this->startup_cmd_ = (uint8_t) frame.command;
   this->cmd_reply_.ack = false;
   this->write_cmd_frame_(frame);
   this->phase_start_ms_ = millis();
 }
 
 void LD2420Component::start_startup_cmd_(StartupState state) {
-  this->startup_cmd_retries_ = 1;
   this->startup_state_ = state;
-  this->send_cmd_async_(this->startup_frame_);
+  this->startup_cmd_retries_ = 1;
+  this->send_startup_cmd_();
 }
 
 // Common ack handling for the startup commands: returns true once the reply to
 // the current startup frame arrived; resends on timeout, and after too many
 // failed sends either restarts the whole sequence or gives up with a warning.
 bool LD2420Component::startup_ack_check_() {
-  if (this->cmd_reply_.ack && this->cmd_reply_.command == (uint8_t) this->startup_frame_.command) {
+  if (this->cmd_reply_.ack && this->cmd_reply_.command == this->startup_cmd_) {
     return true;
   }
-  if (millis() - this->phase_start_ms_ <= STARTUP_ACK_TIMEOUT_MS) {
+  if (millis() - this->phase_start_ms_ <= CMD_ACK_TIMEOUT_MS) {
     return false;
   }
-  if (this->startup_cmd_retries_ < STARTUP_CMD_MAX_RETRIES) {
+  if (this->startup_cmd_retries_ < CMD_MAX_RETRIES) {
     this->startup_cmd_retries_++;
-    ESP_LOGV(TAG, "No reply to startup command %2X; resending", this->startup_frame_.command);
-    this->send_cmd_async_(this->startup_frame_);
+    ESP_LOGV(TAG, "No reply to startup command %2X; resending", this->startup_cmd_);
+    this->send_startup_cmd_();
     return false;
   }
   if (this->startup_sequence_retries_ < STARTUP_SEQUENCE_MAX_RETRIES) {
     this->startup_sequence_retries_++;
     ESP_LOGW(TAG, "Module setup attempt %u failed; retrying", this->startup_sequence_retries_);
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-    this->begin_listen_(STARTUP_RETRY_LISTEN_MS);
+    this->begin_listen_();
     return false;
   }
   // Give up on configuration but keep parsing the stream; a module that is
@@ -293,28 +325,29 @@ bool LD2420Component::startup_ack_check_() {
 
 void LD2420Component::loop_startup_() {
   switch (this->startup_state_) {
-    case StartupState::STARTUP_STATE_LISTEN:
+    case StartupState::STARTUP_STATE_LISTEN: {
       // The module locks up until power cycled if it receives data before it
       // has sent its first frame after powering on, so wait until it has
       // provably transmitted before sending anything. A module stuck in some
       // other state stays quiet, so fall through after the listen window.
       if (!this->rx_seen_) {
-        if (millis() - this->phase_start_ms_ < this->listen_timeout_ms_) {
+        const uint32_t listen_timeout_ms =
+            this->startup_sequence_retries_ == 0 ? STARTUP_LISTEN_TIMEOUT_MS : STARTUP_RETRY_LISTEN_MS;
+        if (millis() - this->phase_start_ms_ < listen_timeout_ms) {
           return;
         }
         ESP_LOGW(TAG, "No data received from the module; attempting configuration anyway");
       }
       // Drop any partial frame so the ack parser starts clean
       this->drain_rx_();
-      this->build_config_mode_frame_(this->startup_frame_, true);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_ENTER_CONFIG);
       return;
+    }
 
     case StartupState::STARTUP_STATE_ENTER_CONFIG:
       if (!this->startup_ack_check_()) {
         return;
       }
-      this->build_min_max_timeout_frame_(this->startup_frame_);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_LIMITS);
       return;
 
@@ -325,7 +358,6 @@ void LD2420Component::loop_startup_() {
       this->current_config.min_gate = (uint16_t) this->cmd_reply_.data[0];
       this->current_config.max_gate = (uint16_t) this->cmd_reply_.data[1];
       this->current_config.timeout = (uint16_t) this->cmd_reply_.data[2];
-      this->build_version_frame_(this->startup_frame_);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_VERSION);
       return;
 
@@ -338,7 +370,6 @@ void LD2420Component::loop_startup_() {
         listener->on_fw_version(fw_str);
       }
       this->startup_gate_ = 0;
-      this->build_gate_threshold_frame_(this->startup_frame_, this->startup_gate_);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_GATES);
       return;
     }
@@ -350,7 +381,6 @@ void LD2420Component::loop_startup_() {
       this->current_config.move_thresh[this->startup_gate_] = this->cmd_reply_.data[0];
       this->current_config.still_thresh[this->startup_gate_] = this->cmd_reply_.data[1];
       if (++this->startup_gate_ < TOTAL_GATES) {
-        this->build_gate_threshold_frame_(this->startup_frame_, this->startup_gate_);
         this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_GATES);
         return;
       }
@@ -375,7 +405,6 @@ void LD2420Component::loop_startup_() {
 #ifdef USE_NUMBER
       this->init_gate_config_numbers();
 #endif
-      this->build_system_mode_frame_(this->startup_frame_, this->system_mode_);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_SET_MODE);
       return;
 
@@ -383,7 +412,6 @@ void LD2420Component::loop_startup_() {
       if (!this->startup_ack_check_()) {
         return;
       }
-      this->build_config_mode_frame_(this->startup_frame_, false);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_EXIT_CONFIG);
       return;
 
@@ -464,12 +492,16 @@ void LD2420Component::factory_reset_action() {
 }
 
 void LD2420Component::restart_module_action() {
+  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+    return;
+  }
   ESP_LOGD(TAG, "Restarting");
   this->send_module_restart();
   // The module is silent while it boots and locks up if it receives data
   // before it has sent its first frame, so re-run the listen-first startup
   // sequence instead of transmitting into the boot window.
-  this->begin_startup_(STARTUP_LISTEN_TIMEOUT_MS);
+  this->begin_startup_();
 }
 
 void LD2420Component::revert_config_action() {
@@ -485,8 +517,11 @@ void LD2420Component::loop() {
   if (this->cmd_active_) {
     return;
   }
-  this->read_batch_(this->buffer_data_);
+  const bool got_data = this->read_batch_(this->buffer_data_);
   if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    if (got_data) {
+      this->rx_seen_ = true;
+    }
     this->loop_startup_();
   }
 }
@@ -695,12 +730,10 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
 }
 
-void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
+bool LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
-  if (avail > 0) {
-    this->rx_seen_ = true;
-  }
+  const bool got_data = avail > 0;
   uint8_t buf[MAX_LINE_LENGTH];
   while (avail > 0) {
     size_t to_read = std::min(avail, sizeof(buf));
@@ -713,6 +746,7 @@ void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
       this->readline_(buf[i], buffer.data(), buffer.size());
     }
   }
+  return got_data;
 }
 
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {

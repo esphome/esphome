@@ -172,20 +172,21 @@ async def test_uart_mock_ld2420(
         )
 
 
-@pytest.mark.asyncio
-async def test_uart_mock_ld2420_warm_restart(
+async def _run_listen_first_test(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
+    *,
+    post_setup_distance: float | None = None,
 ) -> None:
-    """Module streams from boot; component must listen first, then set up."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
+    """Shared body for the listen-first startup tests.
 
+    Asserts the component never transmits before the module has sent data
+    (real hardware locks up until power cycled if it does), that the setup
+    handshake completes, and that sensor data publishes. When
+    post_setup_distance is given, additionally waits for that value to prove
+    streaming still works after the handshake.
+    """
     loop = asyncio.get_running_loop()
 
     setup_complete = loop.create_future()
@@ -217,6 +218,15 @@ async def test_uart_mock_ld2420_warm_restart(
         binary_sensor_names=["has_target"],
     )
 
+    post_setup_received = None
+    if post_setup_distance is not None:
+        post_setup_received = collector.add_waiter(
+            lambda: (
+                pytest.approx(post_setup_distance)
+                in collector.sensor_states["moving_distance"]
+            )
+        )
+
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
@@ -234,7 +244,7 @@ async def test_uart_mock_ld2420_warm_restart(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Setup handshake must complete against the live stream
+        # Setup handshake must complete once the module has talked
         try:
             await asyncio.wait_for(setup_complete, timeout=10.0)
         except TimeoutError:
@@ -256,6 +266,16 @@ async def test_uart_mock_ld2420_warm_restart(
         assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
         assert collector.binary_states["has_target"][0] is True
 
+        if post_setup_received is not None:
+            try:
+                await asyncio.wait_for(post_setup_received, timeout=5.0)
+            except TimeoutError:
+                pytest.fail(
+                    f"Timeout waiting for post-setup frame "
+                    f"(distance={post_setup_distance}). Received:\n"
+                    f"  moving_distance: {collector.sensor_states['moving_distance']}"
+                )
+
         # The component must never transmit before the module has talked;
         # real hardware locks up until power cycled if it does.
         assert not tx_before_rx, (
@@ -267,111 +287,25 @@ async def test_uart_mock_ld2420_warm_restart(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_ld2420_warm_restart(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Module streams from boot; component must listen first, then set up."""
+    await _run_listen_first_test(yaml_config, run_compiled, api_client_connected)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_ld2420_delayed_boot(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Module silent for 2 s; component must not transmit into the boot window."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
+    await _run_listen_first_test(
+        yaml_config, run_compiled, api_client_connected, post_setup_distance=50.0
     )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-
-    setup_complete = loop.create_future()
-    rx_seen = False
-    tx_before_rx = False
-    failure_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        nonlocal rx_seen, tx_before_rx
-        if "uart_mock" in line:
-            if "RX inject" in line or "Injecting" in line:
-                rx_seen = True
-            elif "TX " in line and not rx_seen:
-                tx_before_rx = True
-        if (
-            "Module setup complete; firmware v2.0.0" in line
-            and not setup_complete.done()
-        ):
-            setup_complete.set_result(True)
-        if (
-            "marked FAILED" in line
-            or "Communication failed" in line
-            or "No data received from the module" in line
-        ):
-            failure_lines.append(line)
-
-    collector = SensorStateCollector(
-        sensor_names=["moving_distance"],
-        binary_sensor_names=["has_target"],
-    )
-
-    # The second injected frame (distance=50) proves streaming works post-setup
-    post_setup_received = collector.add_waiter(
-        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
-    )
-
-    async with (
-        run_compiled(yaml_config, line_callback=line_callback),
-        api_client_connected() as client,
-    ):
-        entities, _ = await client.list_entities_services()
-        collector.build_key_mapping(entities)
-
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
-        )
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        # Module's first frame arrives at t=2000ms; handshake follows
-        try:
-            await asyncio.wait_for(setup_complete, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for 'Module setup complete' log line. "
-                "The startup state machine did not finish its handshake."
-            )
-
-        try:
-            await collector.wait_for_all(timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for sensor data. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
-
-        # First frame (t=2000ms) publishes distance=100
-        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
-        assert collector.binary_states["has_target"][0] is True
-
-        # Second frame (t=3300ms, after setup) publishes distance=50
-        try:
-            await asyncio.wait_for(post_setup_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for post-setup frame (distance=50). Received:\n"
-                f"  moving_distance: {collector.sensor_states['moving_distance']}"
-            )
-
-        # The component must have stayed quiet for the module's whole 2 s boot
-        # window; transmitting into it locks up real LD2420 hardware.
-        assert not tx_before_rx, (
-            "Component transmitted on the UART before the module sent its "
-            "first frame; this locks up real LD2420 hardware"
-        )
-
-        assert not failure_lines, f"Unexpected failure log lines: {failure_lines}"
 
 
 @pytest.mark.asyncio
