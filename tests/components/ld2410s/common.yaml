@@ -1,0 +1,20 @@
+uart:
+  id: uart_bus
+  tx_pin: ${uart_tx}
+  rx_pin: ${uart_rx}
+  baud_rate: 115200
+  parity: NONE
+  stop_bits: 1
+
+ld2410s:
+  uart_id: uart_bus
+
+sensor:
+  - platform: ld2410s
+    target_distance:
+      name: Target Distance
+
+binary_sensor:
+  - platform: ld2410s
+    has_target:
+      name: Presence
