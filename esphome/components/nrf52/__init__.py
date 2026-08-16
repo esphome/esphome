@@ -37,9 +37,13 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_INVERTED,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_OTA,
     CONF_PIN,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
     CONF_STARTUP_DELAY,
@@ -234,14 +238,28 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 
 # Some nRF52 boards (mostly cheap hobby clones, e.g. "SuperMini nRF52840"/nRFMicro)
-# gate their external peripheral header behind a GPIO-controlled power rail that
-# Arduino's board-support code enables invisibly on boot. Zephyr has no board port
-# for these clones, so nothing does that for them. Modelling the pin as a Zephyr
-# `regulator-fixed` devicetree node (rather than app-level C++) means the rail is
-# enabled by Zephyr's own device init, before any ESPHome component's setup() runs.
+# have no pull-up on their external-peripheral-rail enable pin, so it floats at an
+# indeterminate level instead of the rail reliably being on by default (confirmed on
+# real hardware with a multimeter: 1.9V floating vs. 3.3V driven). Modelling the pin
+# as a Zephyr `regulator-fixed` devicetree node (rather than app-level C++) means the
+# rail is driven deterministically during Zephyr's own device init, before any
+# ESPHome component's setup() runs.
+def _validate_power_enable_pin(value: ConfigType) -> ConfigType:
+    # nRF52's EXTRA_ADC pin names (e.g. "VDD", "VDDHDIV5") validate as non-numeric
+    # strings under an output pin schema -- reject them here with a clear config
+    # error instead of crashing later on `pin_no // 32` in to_code().
+    if not isinstance(value[CONF_NUMBER], int):
+        raise cv.Invalid(
+            f"power_enable pin must be a numeric GPIO pin (e.g. P0.13), not '{value[CONF_NUMBER]}'"
+        )
+    return value
+
+
 _POWER_ENABLE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN): cv.All(
+            pins.gpio_output_pin_schema, _validate_power_enable_pin
+        ),
         cv.Optional(
             CONF_STARTUP_DELAY, default="0us"
         ): cv.positive_time_period_microseconds,
@@ -424,7 +442,15 @@ async def to_code(config: ConfigType) -> None:
     if power_enable_config := config.get(CONF_POWER_ENABLE):
         pin = power_enable_config[CONF_PIN]
         pin_no = pin[CONF_NUMBER]
-        active = "GPIO_ACTIVE_LOW" if pin[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
+        flags = ["GPIO_ACTIVE_LOW" if pin[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"]
+        mode = pin[CONF_MODE]
+        if mode.get(CONF_OPEN_DRAIN):
+            flags.append("GPIO_OPEN_DRAIN")
+        if mode.get(CONF_PULLUP):
+            flags.append("GPIO_PULL_UP")
+        if mode.get(CONF_PULLDOWN):
+            flags.append("GPIO_PULL_DOWN")
+        flags_expr = flags[0] if len(flags) == 1 else "(" + " | ".join(flags) + ")"
         startup_delay_us = int(
             power_enable_config[CONF_STARTUP_DELAY].total_microseconds
         )
@@ -435,7 +461,7 @@ async def to_code(config: ConfigType) -> None:
                     esphome_power_enable: esphome_power_enable {{
                         compatible = "regulator-fixed";
                         regulator-name = "esphome_power_enable";
-                        enable-gpios = <&gpio{pin_no // 32} {pin_no % 32} {active}>;
+                        enable-gpios = <&gpio{pin_no // 32} {pin_no % 32} {flags_expr}>;
                         regulator-boot-on;
                         startup-delay-us = <{startup_delay_us}>;
                     }};
