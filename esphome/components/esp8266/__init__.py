@@ -30,6 +30,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -112,6 +113,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Standard format",
@@ -294,9 +298,11 @@ async def to_code(config):
         )
 
     extra_scripts = [
+        "pre:ccache.py",
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
+        "pre:relocate_ratetable.py",
     ]
     if not enable_scanf_float:
         extra_scripts.append("pre:remove_float_scanf.py")
@@ -443,31 +449,19 @@ async def finalize_serial_config() -> None:
 # Called by writer.py
 def copy_files() -> None:
     dir = Path(__file__).parent
-    post_build_file = dir / "post_build.py.script"
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
-    testing_mode_file = dir / "testing_mode.py.script"
-    copy_file_if_changed(
-        testing_mode_file,
-        CORE.relative_build_path("testing_mode.py"),
-    )
-    exclude_updater_file = dir / "exclude_updater.py.script"
-    copy_file_if_changed(
-        exclude_updater_file,
-        CORE.relative_build_path("exclude_updater.py"),
-    )
-    exclude_waveform_file = dir / "exclude_waveform.py.script"
-    copy_file_if_changed(
-        exclude_waveform_file,
-        CORE.relative_build_path("exclude_waveform.py"),
-    )
-    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
-    copy_file_if_changed(
-        remove_float_scanf_file,
-        CORE.relative_build_path("remove_float_scanf.py"),
-    )
+    for script in (
+        "post_build",
+        "testing_mode",
+        "exclude_updater",
+        "exclude_waveform",
+        "remove_float_scanf",
+        "relocate_ratetable",
+    ):
+        copy_file_if_changed(
+            dir / f"{script}.py.script",
+            CORE.relative_build_path(f"{script}.py"),
+        )
+    copy_ccache_script()
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder

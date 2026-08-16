@@ -444,7 +444,7 @@ LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_r
   lv_indev_set_type(this->drv_, LV_INDEV_TYPE_POINTER);
   lv_indev_set_disp(this->drv_, parent->get_disp());
   lv_indev_set_long_press_time(this->drv_, long_press_time);
-  // long press repeat time TBD
+  lv_indev_set_long_press_repeat_time(this->drv_, long_press_repeat_time);
   lv_indev_set_user_data(this->drv_, this);
   lv_indev_set_read_cb(this->drv_, [](lv_indev_t *d, lv_indev_data_t *data) {
     auto *l = static_cast<LVTouchListener *>(lv_indev_get_user_data(d));
