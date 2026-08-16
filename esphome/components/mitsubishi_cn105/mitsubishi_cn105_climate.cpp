@@ -138,7 +138,8 @@ void MitsubishiCN105Climate::apply_values_() {
     ESP_LOGD(TAG, "Unable to map fan mode");
   }
 
-  if (const auto swing_mode = this->swing_mode_manager_.swing_mode_from(status.vane_mode, status.wide_vane_mode)) {
+  if (const auto swing_mode =
+          this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
     this->swing_mode = *swing_mode;
   }
 

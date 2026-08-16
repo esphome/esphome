@@ -7,7 +7,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-class SwingModeManager {
+class SwingModeManager final {
  public:
   const climate::ClimateSwingModeMask &supported_swing_modes() const { return this->supported_swing_modes_; }
   void set_supported_swing_modes(const climate::ClimateSwingModeMask &supported_swing_modes) {
@@ -42,8 +42,8 @@ class SwingModeManager {
     }
   }
 
-  std::optional<climate::ClimateSwingMode> swing_mode_from(MitsubishiCN105::VaneMode vane_mode,
-                                                           MitsubishiCN105::WideVaneMode wide_vane_mode) {
+  std::optional<climate::ClimateSwingMode> update_and_get_swing_mode(MitsubishiCN105::VaneMode vane_mode,
+                                                                     MitsubishiCN105::WideVaneMode wide_vane_mode) {
     if (this->supported_swing_modes_.empty()) {
       return std::nullopt;
     }
@@ -77,7 +77,7 @@ class SwingModeManager {
     return climate::CLIMATE_SWING_OFF;
   }
 
- protected:
+ private:
   climate::ClimateSwingModeMask supported_swing_modes_{};
   MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
   MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
