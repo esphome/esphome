@@ -172,6 +172,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void loop_startup_();
   void start_startup_cmd_(StartupState state);
   void send_startup_cmd_();
+  void abort_startup_cmd_();
   bool startup_ack_check_();
   void drain_rx_();
   void write_cmd_frame_(const CmdFrameT &frame);

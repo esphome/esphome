@@ -308,6 +308,7 @@ bool LD2420Component::startup_ack_check_() {
     this->send_startup_cmd_();
     return false;
   }
+  this->abort_startup_cmd_();
   if (this->startup_sequence_retries_ < STARTUP_SEQUENCE_MAX_RETRIES) {
     this->startup_sequence_retries_++;
     ESP_LOGW(TAG, "Module setup attempt %u failed; retrying", this->startup_sequence_retries_);
@@ -321,6 +322,19 @@ bool LD2420Component::startup_ack_check_() {
   this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
   return false;
+}
+
+void LD2420Component::abort_startup_cmd_() {
+  // If the module already acknowledged config mode it stops streaming until
+  // config mode is exited, so send the exit command blind before abandoning
+  // the sequence; otherwise the stream never resumes and neither passive
+  // parsing nor the next listen phase would ever see data.
+  if (this->startup_state_ == StartupState::STARTUP_STATE_ENTER_CONFIG) {
+    return;  // Config mode was never acknowledged; the module is still streaming
+  }
+  CmdFrameT frame;
+  this->build_config_mode_frame_(frame, false);
+  this->write_cmd_frame_(frame);
 }
 
 void LD2420Component::loop_startup_() {
@@ -875,6 +889,9 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
+  // On ack the reply parser already cleared this; clear it here as well so an
+  // exhausted retry loop cannot leave loop() skipping all processing forever.
+  this->cmd_active_ = false;
   return error;
 }
 

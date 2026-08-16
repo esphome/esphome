@@ -45,10 +45,29 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Post-setup frame (t=3300ms): distance=50 proves streaming still works
-    # after the setup handshake. Delay=1300ms keeps >1000ms publish throttle
-    # gap from the first frame.
-    - delay: 1300ms
+    # Repeat frame (t=3100ms): distance=100 again. If the API client happens
+    # to subscribe after the first frame, the first published state is
+    # swallowed as the entity's initial state; repeating the value makes the
+    # test's first collected state deterministic. Delay=1100ms keeps >1000ms
+    # publish throttle gap from the first frame.
+    - delay: 1100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Post-setup frame (t=4200ms): distance=50 proves streaming still works
+    # after the setup handshake. Delay=1100ms keeps >1000ms publish throttle
+    # gap from the repeat frame.
+    - delay: 1100ms
       inject_rx:
         [
           0xF4, 0xF3, 0xF2, 0xF1,
