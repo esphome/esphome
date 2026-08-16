@@ -7,7 +7,6 @@ namespace esphome::kuntze {
 
 static const char *const TAG = "kuntze";
 
-static const uint8_t CMD_READ_REG = 0x03;
 static const uint16_t REGISTER[] = {4136, 4160, 4680, 6000, 4688, 4728, 5832};
 
 // Maximum bytes to log for Modbus responses (2 registers = 4, plus count = 5)
@@ -77,7 +76,7 @@ void Kuntze::loop() {
   if (this->waiting_ || (this->state_ == 0))
     return;
   this->last_send_ = now;
-  send(CMD_READ_REG, REGISTER[this->state_ - 1], 2);
+  this->read_holding_registers(REGISTER[this->state_ - 1], 2);
   this->waiting_ = true;
 }
 
