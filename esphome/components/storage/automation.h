@@ -176,7 +176,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 
 // Non-template workers for the actions below -- all error logging lives in the .cpp.
 void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete);
-void perform_format_async(FilesystemStorage *target, Trigger<std::string> *on_complete);
+void perform_format_async(Storage *target, Trigger<std::string> *on_complete);
 // Returns the error so the no-worker fallback in perform_file_copy_async() can report it --
 // on_complete's contract is "error text, empty = success", which a void return cannot honour.
 // The raw helpers below already work this way.
@@ -560,7 +560,7 @@ template<typename... Ts> class MountAction : public Action<Ts...> {
 
 template<typename... Ts> class FormatAction : public Action<Ts...> {
  public:
-  explicit FormatAction(FilesystemStorage *target) : target_(target) {}
+  explicit FormatAction(Storage *target) : target_(target) {}
   Trigger<std::string> *get_complete_trigger() { return &this->complete_trigger_; }
 
   // Fire-and-forget like the streaming actions: play() submits the worker job and returns;
@@ -568,7 +568,7 @@ template<typename... Ts> class FormatAction : public Action<Ts...> {
   void play(const Ts &...x) override { perform_format_async(this->target_, &this->complete_trigger_); }
 
  protected:
-  FilesystemStorage *target_;
+  Storage *target_;
   Trigger<std::string> complete_trigger_;
 };
 
