@@ -63,7 +63,6 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import ObjectIdEntity, validate_no_object_id_conflicts
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -330,68 +329,6 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
-)
-
-
-# Platforms whose MQTT components subscribe to an object_id-derived command topic.
-# Keep in sync with the platforms extending cv.MQTT_COMMAND_COMPONENT_SCHEMA, plus
-# text, whose MQTT component subscribes a command topic that cannot be overridden.
-_COMMAND_TOPIC_PLATFORMS = frozenset(
-    {
-        "alarm_control_panel",
-        "button",
-        "climate",
-        "cover",
-        "datetime",
-        "fan",
-        "light",
-        "lock",
-        "number",
-        "select",
-        "switch",
-        "text",
-        "update",
-        "valve",
-    }
-)
-
-
-# Platforms whose MQTT components derive extra sub-topics (position/command,
-# mode/command, speed/command, ...) from the object_id, each with its own config
-# key; custom state and command topics cannot exempt them from conflicting.
-_SUB_TOPIC_PLATFORMS = frozenset({"climate", "cover", "fan", "valve"})
-
-
-def _topics_conflict(entities: list[ObjectIdEntity], config: ConfigType) -> bool:
-    """Check whether more than one entity actually uses an object_id-derived topic.
-
-    An empty topic_prefix disables default topics entirely, custom state and
-    command topics avoid the default topics, and disabling discovery (globally
-    or per entity) avoids the discovery config topic.
-    """
-    if config[CONF_TOPIC_PREFIX]:
-        platform = entities[0].platform
-        if platform in _SUB_TOPIC_PLATFORMS:
-            return True
-        if sum(CONF_STATE_TOPIC not in entity.config for entity in entities) > 1:
-            return True
-        if (
-            platform in _COMMAND_TOPIC_PLATFORMS
-            and sum(CONF_COMMAND_TOPIC not in entity.config for entity in entities) > 1
-        ):
-            return True
-    if not config[CONF_DISCOVERY]:
-        return False
-    discovery_entities = sum(
-        entity.config.get(CONF_DISCOVERY, True) for entity in entities
-    )
-    return discovery_entities > 1
-
-
-FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts(
-    "mqtt builds default topics and discovery topics from the entity object_id, "
-    "which is the name converted to ASCII",
-    conflict_filter=_topics_conflict,
 )
 
 

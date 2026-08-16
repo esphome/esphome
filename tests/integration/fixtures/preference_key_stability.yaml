@@ -1,5 +1,5 @@
 esphome:
-  name: host-pref-key-migration
+  name: host-pref-key-stability
 
 host:
 api:
