@@ -174,6 +174,18 @@ async def to_code(config):
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
+            # Zephyr defaults NET_SOCKETS_POLL_MAX to 3, which is far too low: sockets
+            # for unpolled entries are silently dropped once API + OTA + mdns + any UDP
+            # components run concurrently. All Zephyr sockets share this single poll pool,
+            # so size it from the aggregated component socket budget, applying the
+            # recommended minimums as a floor.
+            counts = get_socket_counts()
+            poll_max = (
+                max(counts.tcp, MIN_TCP_SOCKETS)
+                + max(counts.udp, MIN_UDP_SOCKETS)
+                + max(counts.tcp_listen, MIN_TCP_LISTEN_SOCKETS)
+            )
+            zephyr_add_prj_conf("NET_SOCKETS_POLL_MAX", poll_max)
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.

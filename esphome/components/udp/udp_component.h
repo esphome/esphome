@@ -46,7 +46,18 @@ class UDPComponent final : public Component {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
-  std::vector<struct sockaddr> sockaddrs_{};
+  struct SockAddr {
+    struct sockaddr_storage addr;
+    socklen_t len;
+  };
+  // Each destination paired with the socklen_t set_sockaddr() actually wrote, so sendto()
+  // passes the correct length for whichever family the address resolved to.
+  FixedVector<SockAddr> sockaddrs_{};
+#ifdef USE_ZEPHYR
+  // Whether the send socket has been bound to a concrete (OMR) source address yet. Binding
+  // is lazy: the routable source only exists once the device has attached to the network.
+  bool broadcast_socket_bound_{false};
+#endif
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   std::vector<IPAddress> ipaddrs_{};

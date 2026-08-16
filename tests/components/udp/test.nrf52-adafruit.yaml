@@ -1,0 +1,21 @@
+network:
+  enable_ipv6: true
+
+openthread:
+  tlv: 0E080000000000010000
+
+udp:
+  id: my_udp
+  addresses:
+    - "ff02::1"
+    - "2001:db8::1"
+  on_receive:
+    - logger.log:
+        format: "Received UDP packet"
+    - udp.write:
+        id: my_udp
+        data: "hello world"
+    - udp.write:
+        id: my_udp
+        data: !lambda |-
+          return std::vector<uint8_t>{1,3,4,5,6};
