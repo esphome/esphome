@@ -191,6 +191,12 @@ class Storage : public Component {
   // Bitwise OR of StorageCaps. Default 0: drivers must explicitly opt in to
   // capabilities -- a driver that never considered task-safety is never treated as such.
   virtual uint8_t get_capabilities() const { return 0; }
+
+  // Reformat the medium to an empty state. The default rejects it: only RawStorage,
+  // KeyValueStorage and FilesystemStorage override this. NetworkStorage (and anything that models
+  // no on-device format) inherits NOT_SUPPORTED, so a format target can be resolved through the
+  // common base and still be rejected -- at YAML time by the actions, at runtime here as a backstop.
+  virtual StorageError format() { return StorageError::NOT_SUPPORTED; }
 };
 
 // What a raw medium's erase() accepts -- NOT how it does it: which opcode (chip/block/sector)
