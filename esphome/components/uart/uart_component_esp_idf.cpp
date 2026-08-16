@@ -371,7 +371,10 @@ size_t IDFUARTComponent::available() {
   if (!this->is_ready()) {
     // The driver is not installed yet (or the bus failed); asking the driver
     // would fail and mark the whole bus failed, so report no data instead.
-    return this->has_peek_ ? 1 : 0;
+    // A stale peeked byte must not be counted either: the read paths refuse
+    // to deliver it while the bus is not ready, so advertising it would make
+    // the common `while (available()) read()` pattern spin forever.
+    return 0;
   }
 
   err = uart_get_buffered_data_len(this->uart_num_, &available);
