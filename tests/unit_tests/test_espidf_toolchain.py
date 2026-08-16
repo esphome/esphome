@@ -10,7 +10,13 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain
 
@@ -50,7 +56,7 @@ def test_get_esphome_esp_idf_paths_forwards_source_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=url)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=url)
 
 
 def test_get_esphome_esp_idf_paths_no_override():
@@ -61,7 +67,28 @@ def test_get_esphome_esp_idf_paths_no_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=None)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
+
+
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
+    """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() == ["esp32s3"]
+
+
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
+    """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() is None
 
 
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
@@ -238,6 +265,21 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
+def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
+    """A PYTHONPATH from the parent environment must not reach idf.py.
+
+    It would override the IDF venv's isolation, shadowing its pinned
+    packages and failing idf.py's dependency check.
+    """
+    toolchain._cache().env.clear()
+    with patch.dict(
+        os.environ,
+        {"IDF_PATH": str(setup_core), "PYTHONPATH": "/outside/site-packages"},
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "PYTHONPATH" not in env
+
+
 def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
     """A build dir that was never created raises EsphomeError.
 
@@ -307,6 +349,58 @@ def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
 
     mock_env.assert_not_called()
     mock_run.assert_not_called()
+
+
+def test_run_idf_py_jobs_sets_build_jobs_env(setup_core: Path) -> None:
+    """The jobs argument is exported to idf.py as IDF_PY_BUILD_JOBS."""
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "_get_idf_env", return_value={"PATH": "/bin"}),
+        patch.object(toolchain, "_get_idf_tool", return_value="python"),
+        patch.object(toolchain.subprocess, "run") as mock_run,
+    ):
+        mock_run.return_value.returncode = 0
+
+        toolchain.run_idf_py("build", jobs=2)
+        env = mock_run.call_args.kwargs["env"]
+        assert env["IDF_PY_BUILD_JOBS"] == "2"
+        assert env["PATH"] == "/bin"
+
+        toolchain.run_idf_py("build")
+        env = mock_run.call_args.kwargs["env"]
+        assert "IDF_PY_BUILD_JOBS" not in env
+
+
+def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
+    """compile_process_limit is forwarded to run_idf_py as the job limit."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 1}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with("build", "size", jobs=1)
+
+
+def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
+    """When no compile_process_limit is set, no job limit is passed to idf.py."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with("build", "size", jobs=None)
 
 
 def test_get_core_framework_version_from_core_data():

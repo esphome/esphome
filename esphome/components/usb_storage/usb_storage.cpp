@@ -387,7 +387,6 @@ void USBStorageClient::on_connected() {
   char drive_path[8];
   snprintf(drive_path, sizeof(drive_path), "%d:", this->fatfs_drive_);
 
-
   FATFS *fs = nullptr;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   esp_vfs_fat_conf_t vfs_conf = {

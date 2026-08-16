@@ -3,7 +3,7 @@ from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
-from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -33,7 +33,6 @@ CONF_DATA_READY_PIN = "data_ready_pin"
 CONF_HANDSHAKE_ACTIVE_HIGH = "handshake_active_high"
 CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
-CONF_SLOT = "slot"
 CONF_SPI_MODE = "spi_mode"
 
 # Shared fields for both transport modes
@@ -256,10 +255,10 @@ async def to_code(config):
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
     if idf_ver >= cv.Version(5, 5, 0):
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.5.1")
-        esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.2")
+        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
+        esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.9")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
     else:
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
