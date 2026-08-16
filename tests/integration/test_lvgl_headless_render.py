@@ -11,21 +11,17 @@ machine running the test takes part in the result.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from pathlib import Path
 
 import pytest
 
 from .artifact_utils import keep_artifact
-from .bmp_utils import wait_for_bmp
+from .bmp_utils import capture_when_drawn
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 300
 HEIGHT = 300
-
-# How long to keep capturing while waiting for LVGL to draw its first frame.
-DRAW_TIMEOUT = 15.0
 
 # sha256 of the pixel data of a 300x300 screen showing "Hello World!" centred in white on a dark
 # blue background, drawn with the built in montserrat_14 font. To regenerate, run this test and
@@ -53,31 +49,14 @@ async def test_lvgl_headless_render(
         _, services = await client.list_entities_services()
         service = next(s for s in services if s.name == "take_screenshot")
 
-        # Capture until LVGL has drawn something, rather than waiting a fixed time and hoping. A
-        # capture taken before the first frame is a plain background, and comparing that against
-        # the hash would report a drawing regression when the real problem was timing.
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + DRAW_TIMEOUT
-        attempt = 0
-        while True:
-            attempt += 1
-            name = f"render-{attempt}.bmp"
+        async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})
-            capture = snapshot_dir / name
-            image = await wait_for_bmp(capture)
-            assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
-            # The background is not the whole picture: something must have been drawn on it.
-            # Count whole pixels, not bytes - the background alone is made of the byte values
-            # 0x00 and 0x80, so counting bytes would find two of them and pass on a blank screen.
-            colours = {image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}
-            if len(colours) > 1:
-                break
-            if loop.time() >= deadline:
-                pytest.fail(
-                    f"the screen was still a single flat colour after {DRAW_TIMEOUT}s "
-                    f"and {attempt} captures - LVGL drew nothing"
-                )
-            await asyncio.sleep(0.5)
+
+        # The background is not the whole picture: LVGL must have drawn on it. Waiting for that
+        # rather than for a fixed time keeps a slow first frame from being reported as a hash
+        # mismatch, which would look like a drawing regression.
+        image, capture = await capture_when_drawn(take, snapshot_dir, prefix="render")
+        assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
 
         digest = hashlib.sha256(image.pixels).hexdigest()
         if digest != EXPECTED_SHA256:

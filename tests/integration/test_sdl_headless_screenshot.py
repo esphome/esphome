@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from .bmp_utils import wait_for_bmp
+from .bmp_utils import capture_when_drawn
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
@@ -39,12 +39,11 @@ async def test_sdl_headless_screenshot(
         _, services = await client.list_entities_services()
         service = next(s for s in services if s.name == "take_screenshot")
 
-        await client.execute_service(service, {})
+        async def take(name: str) -> None:
+            await client.execute_service(service, {"name": name})
 
-        image = await wait_for_bmp(snapshot_dir / "capture.bmp")
+        # The test card is drawn in several colours, so once it is on the screen the picture is
+        # not one flat shade. Capturing until that is true waits out the first update rather than
+        # racing it.
+        image, _ = await capture_when_drawn(take, snapshot_dir)
         assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
-        # The test card is drawn in several colours, so a picture of it is not one flat shade.
-        # Count whole pixels rather than byte values, which would find more than one of those in
-        # even a blank screen.
-        colours = {image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}
-        assert len(colours) > 1

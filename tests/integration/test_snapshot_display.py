@@ -8,7 +8,7 @@ from pathlib import Path
 from aioesphomeapi import LogLevel
 import pytest
 
-from .bmp_utils import wait_for_bmp
+from .bmp_utils import capture_when_drawn, wait_for_bmp
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
@@ -39,15 +39,11 @@ async def test_snapshot_display(
         async def take(name: str) -> None:
             await client.execute_service(service, {"name": name})
 
-        await take("capture.bmp")
-        capture = snapshot_dir / "capture.bmp"
-        image = await wait_for_bmp(capture)
+        # The test card is drawn in several colours, so once it is on the screen the picture is
+        # not one flat shade. Capturing until that is true waits out the first update rather than
+        # racing it.
+        image, capture = await capture_when_drawn(take, snapshot_dir)
         assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
-        # The test card is drawn in several colours, so a picture of it is not one flat shade.
-        # Count whole pixels rather than byte values, which would find more than one of those in
-        # even a blank screen.
-        colours = {image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}
-        assert len(colours) > 1
 
         # An extension is only added when there is not one already, whatever its case.
         await take("UPPER.BMP")
@@ -71,11 +67,12 @@ async def test_snapshot_display(
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
 
         before = capture.read_bytes()
-        await take("capture.bmp")
+        await take(capture.name)
         await asyncio.wait_for(refused.wait(), timeout=10.0)
         assert capture.read_bytes() == before
-        assert sorted(p.name for p in snapshot_dir.iterdir()) == [
-            ".._escape.bmp",
-            "UPPER.BMP",
-            "capture.bmp",
-        ]
+        # Nothing beyond what was asked for, leaving out however many captures it took to wait
+        # for the first frame.
+        written = sorted(
+            p.name for p in snapshot_dir.iterdir() if not p.name.startswith("drawn-")
+        )
+        assert written == [".._escape.bmp", "UPPER.BMP"]

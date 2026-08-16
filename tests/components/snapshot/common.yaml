@@ -15,15 +15,20 @@ display:
     lambda: |-
       it.filled_rectangle(0, 0, 40, 20, Color(0xFF, 0x80, 0x00));
 
+esphome:
+  # A name of your own is only good for one snapshot - a second one under the same name fails
+  # rather than writing over the first - so these run once rather than on a repeating interval.
+  on_boot:
+    - delay: 2s
+    - snapshot.take:
+        id: snapshot_display
+        filename: test_card.bmp
+    - snapshot.take:
+        id: snapshot_rotated
+        filename: !lambda 'return "rotated.bmp";'
+
 interval:
+  # A generated name has the time in it, so this one can repeat.
   - interval: 10s
     then:
-      # a name made up from the time
       - snapshot.take: snapshot_display
-      # a fixed name, so a test can look for exactly this file
-      - snapshot.take:
-          id: snapshot_display
-          filename: test_card.bmp
-      - snapshot.take:
-          id: snapshot_rotated
-          filename: !lambda 'return "rotated.bmp";'

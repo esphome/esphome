@@ -57,7 +57,7 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   int get_height_internal() override { return this->height_; }
   void redraw_(SDL_Rect &rect);
   bool setup_renderer_();
-  /// Release the window, surface, renderer and texture, and forget them.
+  /// Release the window, surface, renderer and textures, and forget them.
   void destroy_renderer_();
   /// Log an SDL failure during setup, release anything already created, and return false.
   bool setup_failed_(const char *what);

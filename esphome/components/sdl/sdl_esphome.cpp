@@ -39,6 +39,10 @@ int Sdl::get_height() {
 
 void Sdl::destroy_renderer_() {
   // Reverse order of creation: the renderer refers to the window or surface it was made from.
+  if (this->shot_target_ != nullptr) {
+    SDL_DestroyTexture(this->shot_target_);
+    this->shot_target_ = nullptr;
+  }
   if (this->texture_ != nullptr) {
     SDL_DestroyTexture(this->texture_);
     this->texture_ = nullptr;

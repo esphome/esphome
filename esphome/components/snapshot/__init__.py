@@ -6,6 +6,8 @@ component, or an SDL window - saves files the same way, under the same directory
 rules about names.
 """
 
+from dataclasses import dataclass
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -15,6 +17,8 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@clydebarrow"]
+
+DOMAIN = "snapshot"
 
 CONF_FILENAME = "filename"
 
@@ -47,10 +51,26 @@ async def snapshot_take_to_code(
     return var
 
 
+@dataclass
+class SnapshotData:
+    directory_defined: bool = False
+
+
+def _get_data() -> SnapshotData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SnapshotData()
+    return CORE.data[DOMAIN]
+
+
 async def register_snapshot(var: MockObj, config: ConfigType) -> None:
     """Set up a component so that the snapshot action can write its picture to a file."""
-    cg.add_define(
-        "ESPHOME_SNAPSHOT_DIR",
-        (CORE.data_dir / "snapshots" / CORE.name).as_posix(),
-    )
+    data = _get_data()
+    # Only once, however many displays there are: two defines that say the same thing do not
+    # compare equal, so asking for this per display repeats the line in defines.h.
+    if not data.directory_defined:
+        data.directory_defined = True
+        cg.add_define(
+            "ESPHOME_SNAPSHOT_DIR",
+            (CORE.data_dir / "snapshots" / CORE.name).as_posix(),
+        )
     cg.add(var.set_snapshot_prefix(str(config[CONF_ID])))

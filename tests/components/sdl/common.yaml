@@ -56,15 +56,20 @@ binary_sensor:
     id: key_enter
     key: SDLK_RETURN
 
+esphome:
+  # A name of your own is only good for one snapshot - a second one under the same name fails
+  # rather than writing over the first - so these run once rather than on a repeating interval.
+  on_boot:
+    - delay: 2s
+    - snapshot.take:
+        id: headless_display
+        filename: test_card.bmp
+    - snapshot.take:
+        id: headless_display
+        filename: !lambda 'return "shot.bmp";'
+
 interval:
+  # A generated name has the time in it, so this one can repeat.
   - interval: 10s
     then:
-      # timestamped name
       - snapshot.take: sdl_sdl_display
-      # fixed name, for a test that asserts on the path
-      - snapshot.take:
-          id: headless_display
-          filename: test_card.bmp
-      - snapshot.take:
-          id: headless_display
-          filename: !lambda 'return "shot.bmp";'

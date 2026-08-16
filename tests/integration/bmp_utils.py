@@ -1,14 +1,18 @@
-"""Shared utilities for ESPHome integration tests - reading BMP screenshots."""
+"""Shared utilities for ESPHome integration tests - reading BMP snapshots."""
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 import struct
 
 # Size of the smallest BMP header pair (file header plus BITMAPINFOHEADER).
 _MIN_HEADER_SIZE = 54
+
+# How long capture_when_drawn() keeps asking for a picture with something on it.
+DRAW_TIMEOUT = 15.0
 
 
 @dataclass(frozen=True)
@@ -98,7 +102,60 @@ async def wait_for_bmp(path: Path, timeout: float = 5.0) -> Bmp:
             break
         await asyncio.sleep(0.05)
     if not data:
-        raise AssertionError(f"no screenshot appeared at {path} within {timeout}s")
+        raise AssertionError(f"no snapshot appeared at {path} within {timeout}s")
     raise AssertionError(
         f"{path} was still incomplete after {timeout}s ({len(data)} bytes)"
     )
+
+
+def is_blank(image: Bmp) -> bool:
+    """True if every pixel of the image is the same colour.
+
+    Whole pixels are counted rather than byte values: a plain background is usually made of more
+    than one distinct byte, so counting bytes would find several of them in a blank screen.
+    """
+    return len({image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}) <= 1
+
+
+async def capture_when_drawn(
+    take: Callable[[str], Awaitable[None]],
+    directory: Path,
+    prefix: str = "drawn",
+    timeout: float = DRAW_TIMEOUT,
+) -> tuple[Bmp, Path]:
+    """Ask for snapshots until one has something drawn on it, and return it and where it went.
+
+    A display holds one flat colour until it first draws, which is one update interval after it
+    starts - long enough that a test connecting over the API can easily get in first. Capturing
+    once and hoping would compare a blank screen against whatever the test expects, reporting a
+    drawing fault where the real trouble was timing.
+
+    Args:
+        take: Asks the device for a snapshot under the name it is given.
+        directory: Where the device writes them.
+        prefix: Start of the names asked for. Each attempt needs its own, because a snapshot never
+            writes over a file that is already there.
+        timeout: How long to keep asking.
+
+    Returns:
+        The first image that is not one flat colour, and the path it was read from.
+
+    Raises:
+        AssertionError: If nothing had been drawn within ``timeout``.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    attempt = 0
+    while True:
+        attempt += 1
+        path = directory / f"{prefix}-{attempt}.bmp"
+        await take(path.name)
+        image = await wait_for_bmp(path)
+        if not is_blank(image):
+            return image, path
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f"the screen was still a single flat colour after {timeout}s and "
+                f"{attempt} captures - nothing was drawn"
+            )
+        await asyncio.sleep(0.5)
