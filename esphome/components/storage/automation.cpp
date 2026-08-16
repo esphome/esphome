@@ -951,7 +951,7 @@ static void format_fire(Trigger<std::string> *on_complete, StorageError result) 
     on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
 }
 
-void perform_format_async(FilesystemStorage *target, Trigger<std::string> *on_complete) {
+void perform_format_async(Storage *target, Trigger<std::string> *on_complete) {
 #ifdef USE_STORAGE_WORKER
   if (global_storage_worker != nullptr) {
     ESP_LOGI(TAG, "Formatting filesystem...");
