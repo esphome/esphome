@@ -67,6 +67,15 @@ static constexpr uint16_t REFRESH_RATE_MS = 1000;
 static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
 static constexpr uint8_t CMD_MAX_RETRIES = 3;
 
+// Startup state machine timing. The module starts transmitting ~3.5 s after a
+// power cycle; the listen window is three times that to be safe. The ack
+// timeout and command retry count match the blocking command engine.
+static constexpr uint32_t STARTUP_LISTEN_TIMEOUT_MS = 10000;
+static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 3000;
+static constexpr uint32_t STARTUP_ACK_TIMEOUT_MS = 1000;
+static constexpr uint8_t STARTUP_CMD_MAX_RETRIES = 3;
+static constexpr uint8_t STARTUP_SEQUENCE_MAX_RETRIES = 3;
+
 // Command sets
 static constexpr uint16_t CMD_DISABLE_CONF = 0x00FE;
 static constexpr uint16_t CMD_ENABLE_CONF = 0x00FF;
@@ -85,7 +94,6 @@ static constexpr uint16_t CMD_SYSTEM_MODE_GR = 0x0003;
 static constexpr uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
 static constexpr uint16_t CMD_SYSTEM_MODE_SIMPLE = 0x0064;
 static constexpr uint16_t CMD_SYSTEM_MODE_DEBUG = 0x0000;
-static constexpr uint16_t CMD_SYSTEM_MODE_ENERGY = 0x0004;
 static constexpr uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
 static constexpr uint16_t CMD_WRITE_ABD_PARAM = 0x0007;
 static constexpr uint16_t CMD_WRITE_REGISTER = 0x0001;
@@ -212,60 +220,192 @@ void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
 #endif
-  if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
+  const int32_t firmware = ld2420::get_firmware_int(this->firmware_ver_);
+  if (firmware > 0 && firmware < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   }
 }
 
-void LD2420Component::setup() {
-  if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
-    return;
-  }
-  this->get_min_max_distances_timeout_();
-#ifdef USE_NUMBER
-  this->init_gate_config_numbers();
-#endif
-  this->get_firmware_version_();
-  const char *pfw = this->firmware_ver_;
-  std::string fw_str(pfw);
+void LD2420Component::setup() { this->begin_startup_(STARTUP_LISTEN_TIMEOUT_MS); }
 
-  for (auto &listener : this->listeners_) {
-    listener->on_fw_version(fw_str);
-  }
+void LD2420Component::begin_startup_(uint32_t listen_timeout_ms) {
+  this->startup_sequence_retries_ = 0;
+  this->begin_listen_(listen_timeout_ms);
+}
 
-  for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
-    delay_microseconds_safe(125);
-    this->get_gate_threshold_(gate);
-  }
+void LD2420Component::begin_listen_(uint32_t listen_timeout_ms) {
+  this->rx_seen_ = false;
+  this->buffer_pos_ = 0;
+  this->listen_timeout_ms_ = listen_timeout_ms;
+  this->phase_start_ms_ = millis();
+  this->startup_state_ = StartupState::STARTUP_STATE_LISTEN;
+}
 
-  memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
-  if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
-    this->set_operating_mode(OP_SIMPLE_MODE_STRING);
-#ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+void LD2420Component::drain_rx_() {
+  while (this->available()) {
+    this->read();
+  }
+  this->buffer_pos_ = 0;
+}
+
+void LD2420Component::send_cmd_async_(const CmdFrameT &frame) {
+  this->cmd_reply_.ack = false;
+  this->write_cmd_frame_(frame);
+  this->phase_start_ms_ = millis();
+}
+
+void LD2420Component::start_startup_cmd_(StartupState state) {
+  this->startup_cmd_retries_ = 1;
+  this->startup_state_ = state;
+  this->send_cmd_async_(this->startup_frame_);
+}
+
+// Common ack handling for the startup commands: returns true once the reply to
+// the current startup frame arrived; resends on timeout, and after too many
+// failed sends either restarts the whole sequence or gives up with a warning.
+bool LD2420Component::startup_ack_check_() {
+  if (this->cmd_reply_.ack && this->cmd_reply_.command == (uint8_t) this->startup_frame_.command) {
+    return true;
+  }
+  if (millis() - this->phase_start_ms_ <= STARTUP_ACK_TIMEOUT_MS) {
+    return false;
+  }
+  if (this->startup_cmd_retries_ < STARTUP_CMD_MAX_RETRIES) {
+    this->startup_cmd_retries_++;
+    ESP_LOGV(TAG, "No reply to startup command %2X; resending", this->startup_frame_.command);
+    this->send_cmd_async_(this->startup_frame_);
+    return false;
+  }
+  if (this->startup_sequence_retries_ < STARTUP_SEQUENCE_MAX_RETRIES) {
+    this->startup_sequence_retries_++;
+    ESP_LOGW(TAG, "Module setup attempt %u failed; retrying", this->startup_sequence_retries_);
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->begin_listen_(STARTUP_RETRY_LISTEN_MS);
+    return false;
+  }
+  // Give up on configuration but keep parsing the stream; a module that is
+  // still streaming keeps publishing sensor data even without a config read.
+  ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+  this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
+  return false;
+}
+
+void LD2420Component::loop_startup_() {
+  switch (this->startup_state_) {
+    case StartupState::STARTUP_STATE_LISTEN:
+      // The module locks up until power cycled if it receives data before it
+      // has sent its first frame after powering on, so wait until it has
+      // provably transmitted before sending anything. A module stuck in some
+      // other state stays quiet, so fall through after the listen window.
+      if (!this->rx_seen_) {
+        if (millis() - this->phase_start_ms_ < this->listen_timeout_ms_) {
+          return;
+        }
+        ESP_LOGW(TAG, "No data received from the module; attempting configuration anyway");
+      }
+      // Drop any partial frame so the ack parser starts clean
+      this->drain_rx_();
+      this->build_config_mode_frame_(this->startup_frame_, true);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_ENTER_CONFIG);
+      return;
+
+    case StartupState::STARTUP_STATE_ENTER_CONFIG:
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      this->build_min_max_timeout_frame_(this->startup_frame_);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_LIMITS);
+      return;
+
+    case StartupState::STARTUP_STATE_READ_LIMITS:
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      this->current_config.min_gate = (uint16_t) this->cmd_reply_.data[0];
+      this->current_config.max_gate = (uint16_t) this->cmd_reply_.data[1];
+      this->current_config.timeout = (uint16_t) this->cmd_reply_.data[2];
+      this->build_version_frame_(this->startup_frame_);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_VERSION);
+      return;
+
+    case StartupState::STARTUP_STATE_READ_VERSION: {
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      std::string fw_str(this->firmware_ver_);
+      for (auto &listener : this->listeners_) {
+        listener->on_fw_version(fw_str);
+      }
+      this->startup_gate_ = 0;
+      this->build_gate_threshold_frame_(this->startup_frame_, this->startup_gate_);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_GATES);
+      return;
     }
-#endif
-    this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
-    ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
-  } else {
-    this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
+
+    case StartupState::STARTUP_STATE_READ_GATES:
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      this->current_config.move_thresh[this->startup_gate_] = this->cmd_reply_.data[0];
+      this->current_config.still_thresh[this->startup_gate_] = this->cmd_reply_.data[1];
+      if (++this->startup_gate_ < TOTAL_GATES) {
+        this->build_gate_threshold_frame_(this->startup_frame_, this->startup_gate_);
+        this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_GATES);
+        return;
+      }
+      memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
+      if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
+        this->set_operating_mode(OP_SIMPLE_MODE_STRING);
 #ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
-    }
+        if (this->operating_selector_ != nullptr) {
+          this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+        }
 #endif
-  }
+        this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
+        ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
+      } else {
+        this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
+#ifdef USE_SELECT
+        if (this->operating_selector_ != nullptr) {
+          this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
+        }
+#endif
+      }
 #ifdef USE_NUMBER
-  this->init_gate_config_numbers();
+      this->init_gate_config_numbers();
 #endif
-  this->set_system_mode(this->system_mode_);
-  this->set_config_mode(false);
+      this->build_system_mode_frame_(this->startup_frame_, this->system_mode_);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_SET_MODE);
+      return;
+
+    case StartupState::STARTUP_STATE_SET_MODE:
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      this->build_config_mode_frame_(this->startup_frame_, false);
+      this->start_startup_cmd_(StartupState::STARTUP_STATE_EXIT_CONFIG);
+      return;
+
+    case StartupState::STARTUP_STATE_EXIT_CONFIG:
+      if (!this->startup_ack_check_()) {
+        return;
+      }
+      this->status_clear_warning();
+      this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
+      ESP_LOGI(TAG, "Module setup complete; firmware %s", this->firmware_ver_);
+      return;
+
+    case StartupState::STARTUP_STATE_RUNNING:
+      return;
+  }
 }
 
 void LD2420Component::apply_config_action() {
+  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+    return;
+  }
   const uint8_t checksum = calc_checksum(&this->new_config, sizeof(this->new_config));
   if (checksum == calc_checksum(&this->current_config, sizeof(this->current_config))) {
     ESP_LOGD(TAG, "No configuration change detected");
@@ -274,7 +414,7 @@ void LD2420Component::apply_config_action() {
   ESP_LOGD(TAG, "Reconfiguring");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->set_min_max_distances_timeout(this->new_config.max_gate, this->new_config.min_gate, this->new_config.timeout);
@@ -292,10 +432,14 @@ void LD2420Component::apply_config_action() {
 }
 
 void LD2420Component::factory_reset_action() {
+  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+    return;
+  }
   ESP_LOGD(TAG, "Setting factory defaults");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->set_min_max_distances_timeout(FACTORY_MAX_GATE, FACTORY_MIN_GATE, FACTORY_TIMEOUT);
@@ -322,11 +466,10 @@ void LD2420Component::factory_reset_action() {
 void LD2420Component::restart_module_action() {
   ESP_LOGD(TAG, "Restarting");
   this->send_module_restart();
-  this->set_timeout(250, [this]() {
-    this->set_config_mode(true);
-    this->set_system_mode(this->system_mode_);
-    this->set_config_mode(false);
-  });
+  // The module is silent while it boots and locks up if it receives data
+  // before it has sent its first frame, so re-run the listen-first startup
+  // sequence instead of transmitting into the boot window.
+  this->begin_startup_(STARTUP_LISTEN_TIMEOUT_MS);
 }
 
 void LD2420Component::revert_config_action() {
@@ -343,6 +486,9 @@ void LD2420Component::loop() {
     return;
   }
   this->read_batch_(this->buffer_data_);
+  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    this->loop_startup_();
+  }
 }
 
 void LD2420Component::update_radar_data(uint16_t const *gate_energy, uint8_t sample_number) {
@@ -552,6 +698,9 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
 void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
+  if (avail > 0) {
+    this->rx_seen_ = true;
+  }
   uint8_t buf[MAX_LINE_LENGTH];
   while (avail > 0) {
     size_t to_read = std::min(avail, sizeof(buf));
@@ -761,17 +910,6 @@ void LD2420Component::build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate
   ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, frame.command);
 }
 
-int LD2420Component::get_gate_threshold_(uint8_t gate) {
-  CmdFrameT cmd_frame;
-  this->build_gate_threshold_frame_(cmd_frame, gate);
-  uint8_t error = this->send_cmd_from_array(cmd_frame);
-  if (error == 0) {
-    this->current_config.move_thresh[gate] = cmd_reply_.data[0];
-    this->current_config.still_thresh[gate] = cmd_reply_.data[1];
-  }
-  return error;
-}
-
 void LD2420Component::build_min_max_timeout_frame_(CmdFrameT &frame) {
   frame.data_length = 0;
   frame.header = CMD_FRAME_HEADER;
@@ -789,16 +927,19 @@ void LD2420Component::build_min_max_timeout_frame_(CmdFrameT &frame) {
   ESP_LOGV(TAG, "Sending read gate min max and timeout command: %2X", frame.command);
 }
 
-int LD2420Component::get_min_max_distances_timeout_() {
-  CmdFrameT cmd_frame;
-  this->build_min_max_timeout_frame_(cmd_frame);
-  uint8_t error = this->send_cmd_from_array(cmd_frame);
-  if (error == 0) {
-    this->current_config.min_gate = (uint16_t) cmd_reply_.data[0];
-    this->current_config.max_gate = (uint16_t) cmd_reply_.data[1];
-    this->current_config.timeout = (uint16_t) cmd_reply_.data[2];
-  }
-  return error;
+void LD2420Component::build_system_mode_frame_(CmdFrameT &frame, uint16_t mode) {
+  uint16_t unknown_parm = 0x0000;
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = CMD_WRITE_SYS_PARAM;
+  memcpy(&frame.data[frame.data_length], &CMD_SYSTEM_MODE, sizeof(CMD_SYSTEM_MODE));
+  frame.data_length += sizeof(CMD_SYSTEM_MODE);
+  memcpy(&frame.data[frame.data_length], &mode, sizeof(mode));
+  frame.data_length += sizeof(mode);
+  memcpy(&frame.data[frame.data_length], &unknown_parm, sizeof(unknown_parm));
+  frame.data_length += sizeof(unknown_parm);
+  frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGV(TAG, "Sending write system mode command: %2X", frame.command);
 }
 
 void LD2420Component::build_system_mode_frame_(CmdFrameT &frame, uint16_t mode) {
@@ -830,12 +971,6 @@ void LD2420Component::build_version_frame_(CmdFrameT &frame) {
   frame.command = CMD_READ_VERSION;
   frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending read firmware version command: %2X", frame.command);
-}
-
-void LD2420Component::get_firmware_version_() {
-  CmdFrameT cmd_frame;
-  this->build_version_frame_(cmd_frame);
-  this->send_cmd_from_array(cmd_frame);
 }
 
 void LD2420Component::set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance,  // NOLINT

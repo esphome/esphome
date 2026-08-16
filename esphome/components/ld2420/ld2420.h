@@ -25,6 +25,7 @@ static constexpr uint8_t CALIBRATE_SAMPLES = 64;
 // inside the buffer during footer-based resynchronization after losing sync.
 static constexpr uint8_t MAX_LINE_LENGTH = 50;
 static constexpr uint8_t TOTAL_GATES = 16;
+static constexpr uint16_t CMD_SYSTEM_MODE_ENERGY = 0x0004;
 
 enum OpMode : uint8_t {
   OP_NORMAL_MODE = 1,
@@ -152,15 +153,36 @@ class LD2420Component final : public Component, public uart::UARTDevice {
     volatile bool ack;
   };
 
-  void get_firmware_version_();
-  int get_gate_threshold_(uint8_t gate);
-  int get_min_max_distances_timeout_();
+  // Startup runs as a non-blocking state machine driven from loop(). The module
+  // locks up until power cycled if it receives any data before it has sent its
+  // first frame after powering on, so the state machine listens for data from
+  // the module before transmitting anything.
+  enum class StartupState : uint8_t {
+    STARTUP_STATE_LISTEN = 0,
+    STARTUP_STATE_ENTER_CONFIG,
+    STARTUP_STATE_READ_LIMITS,
+    STARTUP_STATE_READ_VERSION,
+    STARTUP_STATE_READ_GATES,
+    STARTUP_STATE_SET_MODE,
+    STARTUP_STATE_EXIT_CONFIG,
+    STARTUP_STATE_RUNNING,
+  };
+
+  void begin_startup_(uint32_t listen_timeout_ms);
+  void begin_listen_(uint32_t listen_timeout_ms);
+  void loop_startup_();
+  void start_startup_cmd_(StartupState state);
+  bool startup_ack_check_();
+  void drain_rx_();
   void write_cmd_frame_(const CmdFrameT &frame);
+  void send_cmd_async_(const CmdFrameT &frame);
   void build_config_mode_frame_(CmdFrameT &frame, bool enable);
   void build_min_max_timeout_frame_(CmdFrameT &frame);
   void build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate);
   void build_version_frame_(CmdFrameT &frame);
   void build_system_mode_frame_(CmdFrameT &frame, uint16_t mode);
+
+  void get_reg_value_(uint16_t reg);
   uint16_t get_mode_() { return this->system_mode_; };
   void set_mode_(uint16_t mode) { this->system_mode_ = mode; };
   bool get_presence_() { return this->presence_; };
@@ -187,8 +209,16 @@ class LD2420Component final : public Component, public uart::UARTDevice {
 #endif
 
   uint16_t distance_{0};
-  uint16_t system_mode_;
+  uint16_t system_mode_{CMD_SYSTEM_MODE_ENERGY};
   uint16_t gate_energy_[TOTAL_GATES];
+  uint32_t phase_start_ms_{0};
+  uint32_t listen_timeout_ms_{0};
+  CmdFrameT startup_frame_;
+  StartupState startup_state_{StartupState::STARTUP_STATE_LISTEN};
+  uint8_t startup_cmd_retries_{0};
+  uint8_t startup_sequence_retries_{0};
+  uint8_t startup_gate_{0};
+  bool rx_seen_{false};
   uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   char firmware_ver_[8]{"v0.0.0"};
