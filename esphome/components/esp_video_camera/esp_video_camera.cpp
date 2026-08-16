@@ -44,10 +44,13 @@ static const char *const TAG = "esp_video_camera";
 // How long setup() waits for esp_video_init() on core 0 before giving up.
 static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
 
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 // Settling time between the host port's 5 V rail coming up and the USB Host
 // Library being installed. Matches the delay Espressif's own board support code
-// leaves for the port's inrush.
+// leaves for the port's inrush. Only the USB path has a rail to wait on, so a
+// build without it must not carry this at all.
 static constexpr uint32_t VBUS_SETTLE_MS = 100;
+#endif
 
 // Frame buffers are rounded up to this many bytes so that consecutive frames of
 // slightly different sizes reuse the same heap block (see deliver_frame_).
