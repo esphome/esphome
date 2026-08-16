@@ -10,8 +10,8 @@ from esphome.components.esp32 import (
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
+    zephyr_add_overlay_builder,
     zephyr_add_prj_conf,
-    zephyr_add_user,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -67,6 +67,13 @@ def validate_config(config):
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
 
+    # Remove before 2027.2.0
+    if config[CONF_PIN] == "TEMPERATURE":
+        _LOGGER.warning(
+            "[adc] `pin: TEMPERATURE` is deprecated, use the `internal_temperature` "
+            "sensor platform instead. Will be removed in 2027.2.0"
+        )
+
     return config
 
 
@@ -113,6 +120,18 @@ CONFIG_SCHEMA = cv.All(
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
 
 
+def _overlay_io_channels():
+    channel_count = CORE.data[CONF_ADC_CHANNEL_ID]
+    entries = ", ".join(f"<&adc {channel_id}>" for channel_id in range(channel_count))
+    return f"""
+            / {{
+                zephyr,user {{
+                    io-channels = {entries};
+                }};
+            }};
+            """
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -121,6 +140,7 @@ async def to_code(config):
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
+        # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
@@ -173,9 +193,8 @@ async def to_code(config):
         if isinstance(pin_number, int):
             GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
             pin_number = GPIO_TO_AIN[pin_number]
-        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
-        zephyr_add_overlay(
-            f"""
+        zephyr_add_overlay_builder(_overlay_io_channels)
+        zephyr_add_overlay(f"""
                 &adc {{
                     #address-cells = <1>;
                     #size-cells = <0>;
@@ -190,8 +209,7 @@ async def to_code(config):
                         zephyr,oversampling = <8>;
                     }};
                 }};
-            """
-        )
+            """)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
