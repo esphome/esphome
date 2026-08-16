@@ -54,19 +54,6 @@ class OnlineImage final : public PollingComponent,
     this->last_modified_ = "";
   }
 
-  /**
-   * @brief Get/set the ETag and Last-Modified caching headers.
-   *
-   * Exposed so callers can persist them (e.g. across a deep-sleep reboot, where the plain
-   * member variables below don't survive) and restore them before the next update() to get
-   * a conditional GET instead of a full re-download when the source hasn't changed.
-   * set_url() always clears both, so restore after set_url() and before update().
-   */
-  const std::string &get_etag() const { return this->etag_; }
-  void set_etag(const std::string &etag) { this->etag_ = etag; }
-  const std::string &get_last_modified() const { return this->last_modified_; }
-  void set_last_modified(const std::string &last_modified) { this->last_modified_ = last_modified; }
-
   /** Add the request header */
   template<typename V> void add_request_header(const std::string &header, V value) {
     this->request_headers_.push_back(std::pair<std::string, TemplatableValue<std::string>>(header, value));
