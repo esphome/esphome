@@ -748,7 +748,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
   for (size_t i = 0; i < this->pool_.size(); i++) {
     TransferRequest &req = this->pool_[i];
     if (req.src_storage != s && req.dst_storage != s && req.raw_device != s &&
-        !(req.op == RequestOp::FORMAT && req.format_target == s))
+        (req.op != RequestOp::FORMAT || req.format_target != s))
       continue;
 
     RequestState state = req.state.load();
