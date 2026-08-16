@@ -5,8 +5,18 @@ esphome:
           id: inverter0_battery_recharge_voltage_out
           value: 48.0
 
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: pipsolar_time
+
 pipsolar:
   id: inverter0
+  time_id: pipsolar_time
+  clock_correction_threshold: 30s
 
 binary_sensor:
   - platform: pipsolar
