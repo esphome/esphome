@@ -334,6 +334,16 @@ async def to_code(config):
         # host's device list with no wait at all. 500 is the Kconfig minimum.
         add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
 
+        # Let the UVC host driver size its transfer blocks from the endpoint it
+        # found. Its header says a size of 0 means four times the endpoint's
+        # maximum packet size; esp_video hardcodes 10240 instead, which is not a
+        # multiple of that packet size for any camera in particular. An
+        # isochronous transfer that does not land on a packet boundary loses the
+        # rest of the microframe, so a camera can enumerate, negotiate a format
+        # and then deliver a torn picture or none at all -- the more so at
+        # 1080p, where the endpoint's packets are largest.
+        add_idf_sdkconfig_option("CONFIG_USB_UVC_VIDEO_DEVICE_URB_SIZE", 0)
+
     # Pin the dynamic-link detection mode: auto-detection needs every detect
     # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
     # walk. It is the upstream default, but this component depends on it.
