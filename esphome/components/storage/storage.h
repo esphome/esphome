@@ -248,7 +248,6 @@ class RawStorage : public Storage {
   //    granularity, so an unaligned request would take neighbouring data; returns INVALID_ARGS.
   //  - Within a valid range the driver picks the coarsest opcode that fits.
   virtual StorageError erase(uint64_t offset, size_t len) = 0;
-  virtual StorageError format() = 0;
 
   // Every driver answers for its own medium -- consumers must not infer geometry from the type.
   virtual void get_raw_geometry(RawGeometry *out) const = 0;
@@ -304,9 +303,6 @@ class KeyValueStorage : public Storage {
   // a flash-time-laid-out partition, real work for an external bus device on first boot once its bus
   // is up. Called at backend setup, never from codegen.
   virtual StorageError ensure_initialized() = 0;
-
-  // Destructive: wipe and recreate an empty store.
-  virtual StorageError format() = 0;
 };
 
 // Path-based operations shared by FilesystemStorage and NetworkStorage, so path-oriented consumers
@@ -382,7 +378,6 @@ class FilesystemStorage : public PathStorage {
 
   virtual StorageError mount() = 0;
   virtual StorageError unmount() = 0;
-  virtual StorageError format() = 0;
   virtual StorageError sync() = 0;
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
