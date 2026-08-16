@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import threading
 from types import SimpleNamespace
@@ -431,6 +432,7 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         env = toolchain._ccache_env()
 
@@ -455,6 +457,44 @@ def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
         env = toolchain._ccache_env()
 
     assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
+
+
+@pytest.mark.parametrize(
+    "probe_error",
+    [
+        pytest.param(OSError("not runnable"), id="oserror"),
+        pytest.param(subprocess.CalledProcessError(1, "ccache"), id="nonzero-exit"),
+        pytest.param(subprocess.TimeoutExpired("ccache", 15), id="timeout"),
+    ],
+)
+def test_ccache_env_disabled_when_probe_fails(
+    setup_core: Path, probe_error: Exception
+) -> None:
+    """A ccache that resolves on PATH but fails to run stays disabled."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run", side_effect=probe_error),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
+
+
+def test_ccache_env_forced_on_skips_probe(setup_core: Path) -> None:
+    """An explicit ESPHOME_CCACHE_ENABLE=1 does not probe the binary."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    with (
+        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
+        patch.object(toolchain.subprocess, "run") as mock_probe,
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["ESPHOME_CCACHE_ENABLE"] == "1"
+    mock_probe.assert_not_called()
 
 
 def test_ccache_env_opt_out(setup_core: Path) -> None:
@@ -496,6 +536,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     with (
         patch.dict(os.environ, user_env, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         env = toolchain._ccache_env()
 
@@ -514,6 +555,7 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
     with (
         patch.dict(os.environ, {}, clear=False),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         mock_run_external_process.return_value = 0
@@ -533,6 +575,7 @@ def test_ccache_env_requires_build_path(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
         pytest.raises(ValueError, match="CORE.build_path must be set"),
     ):
         toolchain._ccache_env()
@@ -544,7 +587,10 @@ def test_run_platformio_cli_merges_caller_env(
     """A caller-supplied env is the base and gains the ccache settings."""
     CORE.build_path = str(setup_core / "build" / "test")
 
-    with patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"):
+    with (
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
+    ):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli(
             "test", env={"CUSTOM_VAR": "1", "ESPHOME_CCACHE_ENABLE": "0"}
