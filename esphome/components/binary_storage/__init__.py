@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_NUMBER,
+    CONF_SIZE,
     CONF_SPI_ID,
     CONF_TARGET,
     CONF_TYPE,
@@ -123,7 +124,6 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_REGIONS = "regions"
 CONF_FORMAT = "format"
-CONF_SIZE = "size"
 FORMAT_RAW = "raw"
 FORMAT_LITTLEFS = "littlefs"
 FORMAT_KV = "kv"

@@ -22,7 +22,7 @@ class FlashPartition : public storage::FilesystemStorage, public storage::Mounta
 {
  public:
   FlashPartition() = default;
-  ~FlashPartition();
+  ~FlashPartition() override;
 
   // Component lifecycle
   void setup() override;
