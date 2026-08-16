@@ -1,5 +1,5 @@
 esphome:
-  name: slotcount-controller
+  name: bk-family-gate-n
 
 bk72xx:
   board: cb2s
