@@ -218,6 +218,10 @@ struct TransferRequest {
   RequestOp op{RequestOp::COPY};
   storage::PathStorage *src_storage{nullptr};
   storage::PathStorage *dst_storage{nullptr};
+  // FORMAT target only: it may be a RawStorage or KeyValueStorage, neither a PathStorage, so it
+  // cannot ride in dst_storage. Read only on the op == FORMAT path (run, is_task_safe_,
+  // overlaps_active_, drain); a stale value on a non-format slot is therefore never consulted.
+  storage::Storage *format_target{nullptr};
   char src_path[STORAGE_WORKER_MAX_PATH]{};
   char dst_path[STORAGE_WORKER_MAX_PATH]{};
 
@@ -507,7 +511,7 @@ class StorageWorker : public PollingComponent {
   // fires once with the driver's mount() result.
   storage::StorageError async_mount(storage::PathStorage *target, CompletionCallback &&on_done,
                                     TransferJob *job_out = nullptr);
-  storage::StorageError async_format(storage::FilesystemStorage *target, CompletionCallback &&on_done,
+  storage::StorageError async_format(storage::Storage *target, CompletionCallback &&on_done,
                                      TransferJob *job_out = nullptr);
 
   // Raw-device transfers -- the storage-interface home of what the raw HTTP API used to
@@ -604,7 +608,7 @@ class StorageWorker : public PollingComponent {
   storage::StorageError tell(const StreamHandle &handle, uint64_t *position, CompletionCallback &&on_told);
 
  protected:
-  storage::StorageError submit_control_op_(RequestOp op, storage::PathStorage *target, CompletionCallback &&on_done,
+  storage::StorageError submit_control_op_(RequestOp op, storage::Storage *target, CompletionCallback &&on_done,
                                            TransferJob *job_out);
   storage::StorageError submit_(RequestOp op, storage::PathStorage *src, const char *src_path,
                                 storage::PathStorage *dst, const char *dst_path, CompletionCallback &&on_done,

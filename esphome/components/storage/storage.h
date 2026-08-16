@@ -191,6 +191,12 @@ class Storage : public Component {
   // Bitwise OR of StorageCaps. Default 0: drivers must explicitly opt in to
   // capabilities -- a driver that never considered task-safety is never treated as such.
   virtual uint8_t get_capabilities() const { return 0; }
+
+  // Reformat the medium to an empty state. The default rejects it: only RawStorage,
+  // KeyValueStorage and FilesystemStorage override this. NetworkStorage (and anything that models
+  // no on-device format) inherits NOT_SUPPORTED, so a format target can be resolved through the
+  // common base and still be rejected -- at YAML time by the actions, at runtime here as a backstop.
+  virtual StorageError format() { return StorageError::NOT_SUPPORTED; }
 };
 
 // What a raw medium's erase() accepts -- NOT how it does it: which opcode (chip/block/sector)
@@ -242,7 +248,6 @@ class RawStorage : public Storage {
   //    granularity, so an unaligned request would take neighbouring data; returns INVALID_ARGS.
   //  - Within a valid range the driver picks the coarsest opcode that fits.
   virtual StorageError erase(uint64_t offset, size_t len) = 0;
-  virtual StorageError format() = 0;
 
   // Every driver answers for its own medium -- consumers must not infer geometry from the type.
   virtual void get_raw_geometry(RawGeometry *out) const = 0;
@@ -287,13 +292,17 @@ class KeyValueStorage : public Storage {
   // Byte length of the value for `key` into *out. NOT_FOUND if the key is absent.
   virtual StorageError get_size(uint32_t key, size_t *out) = 0;
 
+  // Enumerate every stored key, invoking `callback` once per key with its value's byte length.
+  // Return false from the callback to stop the walk early (mirrors list_dir()); list_keys() itself
+  // still returns StorageError::OK in that case. The value is not read here -- a consumer that wants
+  // it calls get() with the reported size. Iteration order is backend-defined and not stable across
+  // writes; a key rewritten in place is reported once, with its current length.
+  virtual StorageError list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) = 0;
+
   // Runtime bring-up: detect an empty/invalid medium and initialize it in place -- a fast no-op for
   // a flash-time-laid-out partition, real work for an external bus device on first boot once its bus
   // is up. Called at backend setup, never from codegen.
   virtual StorageError ensure_initialized() = 0;
-
-  // Destructive: wipe and recreate an empty store.
-  virtual StorageError format() = 0;
 };
 
 // Path-based operations shared by FilesystemStorage and NetworkStorage, so path-oriented consumers
@@ -369,7 +378,6 @@ class FilesystemStorage : public PathStorage {
 
   virtual StorageError mount() = 0;
   virtual StorageError unmount() = 0;
-  virtual StorageError format() = 0;
   virtual StorageError sync() = 0;
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode) = 0;
   virtual StorageError close(FileHandle *handle) = 0;

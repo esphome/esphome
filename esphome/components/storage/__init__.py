@@ -63,6 +63,8 @@ CONF_WORKER_ID = "worker_id"
 CONF_ON_REGISTERED = "on_registered"
 CONF_ON_COMPLETE = "on_complete"
 CONF_ON_UNREGISTERED = "on_unregistered"
+CONF_ON_EXISTS = "on_exists"
+CONF_ON_MISSING = "on_missing"
 
 # No AUTO_LOAD of json: ArduinoJson is gated behind USE_STORAGE_JSON_EXTRACT, so the json component
 # enters the build only when a config uses a `json:` extract step -- enforced by
@@ -74,6 +76,7 @@ Storage = storage_ns.class_("Storage", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 FilesystemStorage = storage_ns.class_("FilesystemStorage", PathStorage)
+NetworkStorage = storage_ns.class_("NetworkStorage", PathStorage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
 MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
@@ -163,19 +166,26 @@ CONFIG_SCHEMA = cv.Schema(
 def _collect_mount_paths(
     fragment: object, where: str, out: list[tuple[str, str]]
 ) -> None:
-    """Walk a validated config fragment, collecting every (mount point, location) it declares."""
+    """Walk a validated config fragment, collecting the mount point of every storage device.
+
+    A storage device is identified by its own id, not by a key name: cv.declare_id gives it a type
+    that inherits from Storage. mount_path is collected only from such a node. A foreign component
+    that happens to use a key literally named 'mount_path' is not a storage device, and there is no
+    way to enumerate every external component to exclude, so we key off the device's own identity
+    rather than reserving the name 'mount_path' across the whole config.
+    """
     if isinstance(fragment, dict):
-        for key, value in fragment.items():
-            if key == CONF_MOUNT_PATH:
-                # A validated mount_path is always a str; a non-str here means a driver schema let
-                # one through, which would silently skip the duplicate-mount-point check.
-                if not isinstance(value, str):
-                    raise cv.Invalid(
-                        f"mount_path must be a string, not {type(value).__name__}"
-                    )
-                out.append((value, where))
-            else:
-                _collect_mount_paths(value, where, out)
+        node_id = fragment.get(CONF_ID)
+        mount = fragment.get(CONF_MOUNT_PATH)
+        if (
+            isinstance(node_id, ID)
+            and node_id.type is not None
+            and node_id.type.inherits_from(Storage)
+            and isinstance(mount, str)
+        ):
+            out.append((mount, where))
+        for value in fragment.values():
+            _collect_mount_paths(value, where, out)
     elif isinstance(fragment, list):
         for item in fragment:
             _collect_mount_paths(item, where, out)
@@ -754,8 +764,17 @@ async def _build_write_action(
     var = cg.new_Pvariable(action_id, template_arg, append)
     template_ = await cg.templatable(config[CONF_PATH], args, cg.std_string)
     cg.add(var.set_path(template_))
+    opt_string = cg.optional.template(cg.std_string)
     if (content := config.get(CONF_CONTENT)) is not None:
-        template_ = await cg.templatable(content, args, cg.std_string)
+        # content_ is optional<std::string> so a format failure can abort the write (see play()).
+        # A static string is wrapped as std::string(...) so the stateless lambda cg.templatable
+        # emits returns it with a single conversion to optional (a bare literal would need two).
+        template_ = await cg.templatable(
+            content,
+            args,
+            opt_string,
+            to_exp=lambda v: cg.RawExpression(f"std::string({cg.safe_exp(v)})"),
+        )
         cg.add(var.set_content(template_))
     else:
         # Render printf-style format + args into the content string, logger.log-style:
@@ -769,27 +788,28 @@ async def _build_write_action(
         # Render into a stack buffer with snprintf rather than the heap-allocating str_sprintf /
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
-        # is therefore a bounded line like logger.log: content that does not fit is truncated and
-        # logged at ERROR (not ESP_LOGW, which compiles out below log level WARN and would make the
-        # loss silent). Authors who need arbitrary length use content: with a lambda, which has no
-        # cap. A negative snprintf return (an encoding error) is logged too rather than writing a
-        # silent empty file.
+        # is a bounded line: content that does not fit the buffer, or that snprintf cannot encode,
+        # returns std::nullopt so play() aborts before opening the target (OpenMode::WRITE would
+        # truncate it to empty) and reports the failure instead of a silent zero-byte success.
+        # Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
             "char buf[256];\n"
             f"int n = snprintf(buf, sizeof(buf), {format_literal}{arg_exprs});\n"
             "if (n < 0) {\n"
             '  ESP_LOGE("storage.automation", "file_write: could not format content");\n'
-            "  return std::string();\n"
+            "  return std::nullopt;\n"
             "}\n"
-            "if ((size_t) n >= sizeof(buf))\n"
-            '  ESP_LOGE("storage.automation", "file_write: formatted content truncated to %u bytes;'
+            "if ((size_t) n >= sizeof(buf)) {\n"
+            '  ESP_LOGE("storage.automation", "file_write: formatted content exceeds %u bytes;'
             ' use content: with a lambda for longer data", (unsigned) (sizeof(buf) - 1));\n'
-            "return std::string(buf, (size_t) n < sizeof(buf) ? (size_t) n : sizeof(buf) - 1);"
+            "  return std::nullopt;\n"
+            "}\n"
+            "return std::string(buf, (size_t) n);"
         )
         lambda_ = await cg.process_lambda(
             core.Lambda(lambda_body),
             args,
-            return_type=cg.std_string,
+            return_type=opt_string,
         )
         cg.add(var.set_content(lambda_))
     cg.add(var.set_newline(config[CONF_NEWLINE]))
@@ -996,6 +1016,55 @@ async def file_exists_condition_to_code(
     return var
 
 
+FileStatAction = storage_ns.class_("FileStatAction", automation.Action)
+
+
+def _validate_stat(config):
+    # A stat with no handler is a silent no-op; require at least one so a failure is never swallowed.
+    if not any(k in config for k in (CONF_ON_EXISTS, CONF_ON_MISSING, CONF_ON_ERROR)):
+        raise cv.Invalid(
+            "storage.stat needs at least one of on_exists, on_missing, or on_error"
+        )
+    return config
+
+
+_FILE_STAT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): cv.templatable(cv.string),
+            cv.Optional(CONF_ON_EXISTS): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_MISSING): automation.validate_automation(single=True),
+            # Distinct from on_missing: fires the error text when the medium is not ready or faulted,
+            # so an automation never mistakes "could not check" for "the file is absent".
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        }
+    ),
+    _validate_stat,
+)
+
+
+@automation.register_action(
+    "storage.stat",
+    FileStatAction,
+    _FILE_STAT_SCHEMA,
+    synchronous=True,
+)
+async def file_stat_action_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    cg.add(var.set_path(await cg.templatable(config[CONF_PATH], args, cg.std_string)))
+    if (on_exists := config.get(CONF_ON_EXISTS)) is not None:
+        await automation.build_automation(var.get_exists_trigger(), [], on_exists)
+    if (on_missing := config.get(CONF_ON_MISSING)) is not None:
+        await automation.build_automation(var.get_missing_trigger(), [], on_missing)
+    if (on_error := config.get(CONF_ON_ERROR)) is not None:
+        await automation.build_automation(
+            var.get_error_trigger(), [(cg.std_string, "x")], on_error
+        )
+    return var
+
+
 MountAction = storage_ns.class_("MountAction", automation.Action)
 
 _MOUNT_SCHEMA = cv.maybe_simple_value(
@@ -1048,7 +1117,7 @@ FormatAction = storage_ns.class_("FormatAction", automation.Action)
 
 _FORMAT_SCHEMA = cv.maybe_simple_value(
     {
-        cv.Required(CONF_ID): cv.use_id(FilesystemStorage),
+        cv.Required(CONF_ID): cv.use_id(Storage),
         # Fires (error text, empty = success) when the format finishes on the worker.
         cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
     },
@@ -1062,9 +1131,16 @@ _FORMAT_SCHEMA = cv.maybe_simple_value(
 async def format_action_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ):
-    # Any FilesystemStorage may be a target; the driver's format() reports NOT_SUPPORTED at
-    # runtime if its backend cannot format.
-    target = await cg.get_variable(config[CONF_ID])
+    # format() lives on the Storage base (default NOT_SUPPORTED) and is implemented by filesystem,
+    # raw and key-value storages. A network storage has nothing to format on the far side, so reject
+    # it here -- the concrete target type is known once the id is resolved.
+    full_id, target = await cg.get_variable_with_full_id(config[CONF_ID])
+    if full_id.type is not None and full_id.type.inherits_from(NetworkStorage):
+        raise cv.Invalid(
+            "'storage.format' cannot target a network storage -- there is nothing to format on "
+            "the far side.",
+            [CONF_ID],
+        )
     var = cg.new_Pvariable(action_id, template_arg, target)
     if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
         await automation.build_automation(
