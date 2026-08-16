@@ -352,7 +352,7 @@ void ESPVideoCamera::setup() {
 }
 
 bool ESPVideoCamera::is_uvc_device_() const {
-  return this->device_.starts_with("uvc") || this->resolved_device_.rfind(ESP_VIDEO_USB_UVC_NAME_PREFIX, 0) == 0;
+  return this->device_.starts_with("uvc") || this->resolved_device_.starts_with(ESP_VIDEO_USB_UVC_NAME_PREFIX);
 }
 
 bool ESPVideoCamera::init_pipeline_() {
