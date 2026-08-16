@@ -49,6 +49,12 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 
 def _set_max_packet_size(config: dict) -> dict:
+    # Resolve the variant-dependent default here rather than as a schema-level default: the
+    # language-schema builder evaluates every Optional's default() with no esp32 config context,
+    # so get_esp32_variant() would raise. This validator only runs for a real config, where the
+    # variant is known.
+    if CONF_MAX_PACKET_SIZE not in config:
+        config[CONF_MAX_PACKET_SIZE] = _default_max_packet_size()
     CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
         CONF_MAX_PACKET_SIZE
     ]
@@ -78,9 +84,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(
-                CONF_MAX_PACKET_SIZE, default=_default_max_packet_size
-            ): cv.one_of(64, 128, 256, 512, 1024, int=True),
+            cv.Optional(CONF_MAX_PACKET_SIZE): cv.one_of(
+                64, 128, 256, 512, 1024, int=True
+            ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
