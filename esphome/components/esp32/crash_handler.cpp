@@ -435,14 +435,15 @@ void crash_handler_log() {
   // Build addr2line hints for easy copy-paste. One line per core: the two
   // backtraces are separate stacks, and a combined list decodes as one
   // impossible call chain (and can overflow the buffer, dropping addresses).
+  static const char *const ADDR2LINE_CMD = "addr2line -pfiaC -e firmware.elf";
   char hint[256];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
+  int pos = snprintf(hint, sizeof(hint), "Use: %s 0x%08" PRIX32, ADDR2LINE_CMD, s_raw_crash_data.pc);
   append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
                        s_raw_crash_data.reg_frame_count);
   ESP_LOGE(TAG, "%s", hint);
 #if SOC_CPU_CORES_NUM > 1
   if (s_raw_crash_data.other_backtrace_count > 0) {
-    pos = snprintf(hint, sizeof(hint), "Other core: addr2line -pfiaC -e firmware.elf");
+    pos = snprintf(hint, sizeof(hint), "Other core: %s", ADDR2LINE_CMD);
     append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
                          s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
     ESP_LOGE(TAG, "%s", hint);
