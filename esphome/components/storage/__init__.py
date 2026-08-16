@@ -77,6 +77,7 @@ TransferBuffer = storage_ns.class_("TransferBuffer", cg.Component)
 StoragePtr = Storage.operator("ptr")
 PathStorage = storage_ns.class_("PathStorage", Storage)
 FilesystemStorage = storage_ns.class_("FilesystemStorage", PathStorage)
+NetworkStorage = storage_ns.class_("NetworkStorage", PathStorage)
 RawStorage = storage_ns.class_("RawStorage", Storage)
 MountableStorage = storage_ns.class_("MountableStorage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
@@ -1159,7 +1160,7 @@ FormatAction = storage_ns.class_("FormatAction", automation.Action)
 
 _FORMAT_SCHEMA = cv.maybe_simple_value(
     {
-        cv.Required(CONF_ID): cv.use_id(FilesystemStorage),
+        cv.Required(CONF_ID): cv.use_id(Storage),
         # Fires (error text, empty = success) when the format finishes on the worker.
         cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
     },
@@ -1173,9 +1174,16 @@ _FORMAT_SCHEMA = cv.maybe_simple_value(
 async def format_action_to_code(
     config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
 ):
-    # Any FilesystemStorage may be a target; the driver's format() reports NOT_SUPPORTED at
-    # runtime if its backend cannot format.
-    target = await cg.get_variable(config[CONF_ID])
+    # format() lives on the Storage base (default NOT_SUPPORTED) and is implemented by filesystem,
+    # raw and key-value storages. A network storage has nothing to format on the far side, so reject
+    # it here -- the concrete target type is known once the id is resolved.
+    full_id, target = await cg.get_variable_with_full_id(config[CONF_ID])
+    if full_id.type is not None and full_id.type.inherits_from(NetworkStorage):
+        raise cv.Invalid(
+            "'storage.format' cannot target a network storage -- there is nothing to format on "
+            "the far side.",
+            [CONF_ID],
+        )
     var = cg.new_Pvariable(action_id, template_arg, target)
     if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
         await automation.build_automation(
