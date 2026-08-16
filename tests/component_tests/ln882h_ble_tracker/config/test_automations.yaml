@@ -1,0 +1,44 @@
+esphome:
+  name: ln-trigger-codegen
+  on_boot:
+    then:
+      - ln882h_ble_tracker.start_scan:
+          continuous: true
+      # Bare form: restores the configured scan_parameters mode — no
+      # set_continuous emitted (asserted in the codegen test).
+      - ln882h_ble_tracker.start_scan:
+      - ln882h_ble_tracker.stop_scan:
+
+ln882x:
+  board: generic-ln882h
+
+ln882h_ble_tracker:
+  scan_parameters:
+    continuous: false
+  on_ble_advertise:
+    - mac_address:
+        - AC:37:43:77:5F:4C
+        - 11:22:33:44:55:66
+      then:
+        - lambda: 'char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE]; ESP_LOGD("t", "%s", x.address_str_to(addr));'
+  on_ble_service_data_advertise:
+    - service_uuid: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+    - service_uuid: ABCDABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+    - manufacturer_id: ABCDABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+    - manufacturer_id: ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD
+      then:
+        - lambda: 'ESP_LOGD("t", "%zu", x.size());'
+  on_scan_end:
+    - then:
+        - lambda: 'ESP_LOGD("t", "end");'
