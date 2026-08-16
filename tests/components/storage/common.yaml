@@ -1,16 +1,19 @@
-# Shared by the platform tests that have no storage driver available (bk72xx, esp8266,
-# ln882x, nrf52, rp2040, rtl87xx). Those cannot register a device, so the registry stays
-# empty and nothing is mounted at runtime -- but the action layer is platform-neutral and
-# has to compile everywhere the component does. With `storage:` alone it did not: no
-# action means automation.h/.cpp are never instantiated, so these tests only proved that
-# the schema validates and the registry links.
+# Component-only config, shared by every platform test. No driver is configured here, so the
+# registry stays empty and nothing is mounted at runtime -- this proves that the schema
+# validates and that the component links on every target ESPHome builds for. Driver-side
+# coverage lives in the driver components' own test suites.
 #
-# The actions below cover the parts that are the same on every target: the printf-style
-# write path, the extraction pipeline, a condition, and a delete. Deliberately no json:
-# or regex: step (each pulls in a heavy dependency that is not the point here), and no
-# raw or preferences action (those need a device, or are ESP32-only).
+# The action script below covers what is identical on every target: the printf-style write
+# path, the extraction pipeline, a condition, and a delete. It has to live here rather than
+# in the per-platform files, because without at least one action in the config
+# automation.h/.cpp are never instantiated -- the action layer is platform-neutral and has to
+# compile everywhere the component does. Deliberately no json: or regex: step (each pulls in
+# a heavy dependency and is covered by test-extract.*) and no raw action (those need a
+# device).
 
 storage:
+  copy_chunk_size: 8192
+  max_blocking_transfer_size: 2097152
 
 globals:
   - id: g_read_back
