@@ -252,9 +252,13 @@ async def to_code(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
 
     # Library versions
+    # The current component set supports ESP-IDF 5.3 and newer. The legacy
+    # fallback (esp_hosted 2.0.11) must not be used on 5.3/5.4: its SDIO RX
+    # path has a double free (crashes with a tlsf_free assert at boot) that
+    # was only fixed in esp_hosted 2.11.0.
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
-    if idf_ver >= cv.Version(5, 5, 0):
+    if idf_ver >= cv.Version(5, 3, 0):
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
         esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
