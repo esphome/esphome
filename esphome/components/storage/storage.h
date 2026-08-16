@@ -378,7 +378,6 @@ class FilesystemStorage : public PathStorage {
 
   virtual StorageError mount() = 0;
   virtual StorageError unmount() = 0;
-  virtual StorageError format() = 0;
   virtual StorageError sync() = 0;
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
