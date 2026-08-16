@@ -421,7 +421,10 @@ def _get_github_event_data() -> dict | None:
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
     if github_event_path and Path(github_event_path).exists():
-        with Path(github_event_path).open() as f:
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -1373,6 +1376,27 @@ def core_changed(files: list[str]) -> bool:
     """
     return any(
         f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
         for f in files
     )
 
