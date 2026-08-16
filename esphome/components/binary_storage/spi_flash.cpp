@@ -405,7 +405,8 @@ bool SPIFlash::esp_partition_setup_() {
   }
   err = esp_flash_init(this->ext_chip_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_flash_init failed: %s -- flash not reachable on the exclusive bus?", esp_err_to_name(err));
+    ESP_LOGE(TAG, "esp_flash_init failed: %s -- flash not reachable on the exclusive bus?",
+             esp_err_to_name(err));
     return false;
   }
   uint32_t chip_size = 0;
@@ -417,7 +418,8 @@ bool SPIFlash::esp_partition_setup_() {
   for (auto &region : this->partition_regions_) {
     const esp_partition_t *part = nullptr;
     err = esp_partition_register_external(this->ext_chip_, static_cast<size_t>(region.offset),
-                                          static_cast<size_t>(region.size), region.label, ESP_PARTITION_TYPE_DATA,
+                                          static_cast<size_t>(region.size), region.label,
+                                          ESP_PARTITION_TYPE_DATA,
                                           static_cast<esp_partition_subtype_t>(region.subtype), &part);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_partition_register_external('%s') failed: %s", region.label, esp_err_to_name(err));
@@ -470,7 +472,8 @@ storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
     return storage::StorageError::OK;
 #ifdef USE_ESP_IDF
   if (this->esp_partition_mode_) {
-    esp_err_t err = esp_flash_erase_region(this->ext_chip_, static_cast<uint32_t>(offset), static_cast<uint32_t>(len));
+    esp_err_t err = esp_flash_erase_region(this->ext_chip_, static_cast<uint32_t>(offset),
+                                           static_cast<uint32_t>(len));
     return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
   }
 #endif

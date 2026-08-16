@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 import re
 
@@ -24,22 +23,23 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_CAPACITY,
-    CONF_CS_PIN,
     CONF_DATA,
-    CONF_DATA_RATE,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LENGTH,
     CONF_MODEL,
-    CONF_NUMBER,
     CONF_PIN,
     CONF_SOURCE,
+    CONF_CS_PIN,
+    CONF_DATA_RATE,
+    CONF_NUMBER,
     CONF_SPI_ID,
     CONF_TARGET,
     CONF_TYPE,
     CONF_VALUE,
 )
 from esphome.core import CORE
+import logging
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
@@ -228,6 +228,7 @@ _ASSUME_EXCLUSIVE_BUS_SCHEMA = cv.Schema(
         cv.Optional(CONF_ASSUME_EXCLUSIVE_BUS): cv.All(cv.boolean, cv.only_on_esp32),
     }
 )
+
 
 
 def region_size(value):
@@ -623,14 +624,10 @@ def _validate_regions(config):
         raise cv.Invalid(f"'{CONF_REGIONS}' requires an explicit '{CONF_CAPACITY}'")
     remaining = [r for r in regions if r[CONF_SIZE] == REGION_REMAINING]
     if len(remaining) > 1:
-        raise cv.Invalid(
-            f"at most one region may use '{CONF_SIZE}: {REGION_REMAINING}'"
-        )
+        raise cv.Invalid(f"at most one region may use '{CONF_SIZE}: {REGION_REMAINING}'")
     explicit = sum(r[CONF_SIZE] for r in regions if r[CONF_SIZE] != REGION_REMAINING)
     if explicit > capacity:
-        raise cv.Invalid(
-            f"region sizes ({explicit}) exceed the device capacity ({capacity})"
-        )
+        raise cv.Invalid(f"region sizes ({explicit}) exceed the device capacity ({capacity})")
     rem_size = capacity - explicit
     if remaining and rem_size <= 0:
         raise cv.Invalid(
@@ -657,18 +654,14 @@ def _validate_regions(config):
                 )
             label = region.get(CONF_LABEL) or _derive_partition_label(region)
             if label is None:
-                raise cv.Invalid(
-                    "this region needs an explicit 'label' (none could be derived)"
-                )
+                raise cv.Invalid("this region needs an explicit 'label' (none could be derived)")
             if len(label) > MAX_PARTITION_LABEL:
                 raise cv.Invalid(
                     f"partition label '{label}' exceeds {MAX_PARTITION_LABEL} characters; set a "
                     f"shorter explicit 'label'"
                 )
             if label in seen_labels:
-                raise cv.Invalid(
-                    f"duplicate partition label '{label}'; set an explicit 'label'"
-                )
+                raise cv.Invalid(f"duplicate partition label '{label}'; set an explicit 'label'")
             seen_labels.add(label)
             region["_label"] = label
         if fmt == FORMAT_KV:
@@ -678,14 +671,10 @@ def _validate_regions(config):
                     "devices (FRAM/MRAM)."
                 )
             if size < 256:
-                raise cv.Invalid(
-                    f"format: kv region must be at least 256 bytes (got {size})"
-                )
+                raise cv.Invalid(f"format: kv region must be at least 256 bytes (got {size})")
         elif fmt == FORMAT_LITTLEFS:
             if CORE.using_arduino or not CORE.is_esp32:
-                raise cv.Invalid(
-                    "format: littlefs requires ESP32 with the ESP-IDF framework."
-                )
+                raise cv.Invalid("format: littlefs requires ESP32 with the ESP-IDF framework.")
             if erase is not None and size % erase != 0:
                 raise cv.Invalid(
                     f"format: littlefs region size ({size}) must be a multiple of the erase "
@@ -695,7 +684,6 @@ def _validate_regions(config):
         region["_offset"] = offset
         offset += size
     return config
-
 
 def _validate_device_node(config):
     """The node name defaults to the device type -- fine for one FRAM, ambiguous for two.
@@ -838,9 +826,7 @@ def _final_validate(config):
         if any(r[CONF_FORMAT] == FORMAT_NVS for r in regions):
             CORE.data.setdefault("binary_storage_device_types", set()).add("nvs")
         if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
-            CORE.data.setdefault("binary_storage_device_types", set()).add(
-                "flash_partition"
-            )
+            CORE.data.setdefault("binary_storage_device_types", set()).add("flash_partition")
     needs_littlefs = any(
         r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions
     ) or device_type in [
@@ -996,9 +982,7 @@ async def to_code(config):
         return
 
     # External memory devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire)
-    regions = config.get(CONF_REGIONS) or [
-        {CONF_FORMAT: FORMAT_RAW, "_offset": 0, CONF_SIZE: 0}
-    ]
+    regions = config.get(CONF_REGIONS) or [{CONF_FORMAT: FORMAT_RAW, "_offset": 0, CONF_SIZE: 0}]
 
     # Custom block device support required for external memory LittleFS
     if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
@@ -1025,9 +1009,7 @@ async def to_code(config):
             host = spi.get_spi_interface(config["_esp_flash_host_index"])
             cs_num = config[CONF_CS_PIN][CONF_NUMBER]
             freq_mhz = int(config.get(CONF_DATA_RATE, 40_000_000) // 1_000_000) or 40
-            cg.add(
-                var.enable_esp_partition_mode(cg.RawExpression(host), cs_num, freq_mhz)
-            )
+            cg.add(var.enable_esp_partition_mode(cg.RawExpression(host), cs_num, freq_mhz))
         else:
             await spi.register_spi_device(var, config)
         if device_type in ["SPI_FLASH", "FLASH"]:
@@ -1104,19 +1086,13 @@ async def to_code(config):
             # Register the region as a real esp_partition; consumers use it by label.
             label = region["_label"]
             if fmt == FORMAT_RAW:
-                cg.add(
-                    var.add_partition_region(
-                        offset, size, label, SUBTYPE_DATA_UNDEFINED
-                    )
-                )
+                cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_UNDEFINED))
                 cg.add(var.set_raw_window(offset, size))
                 if (rname := region.get(CONF_STORAGE_NAME)) is not None:
                     cg.add(var.set_storage_name(rname))
                 request_storage_device()
             elif fmt == FORMAT_LITTLEFS:
-                cg.add(
-                    var.add_partition_region(offset, size, label, SUBTYPE_DATA_LITTLEFS)
-                )
+                cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_LITTLEFS))
                 fp = cg.new_Pvariable(region[CONF_PARTITION_ID])
                 await cg.register_component(fp, {})
                 # External esp_partition regions may be unmounted (e.g. to format); internal
@@ -1168,13 +1144,8 @@ async def to_code(config):
             cg.add(kv_var.set_device(var))
             cg.add(kv_var.set_window(offset, size))
             cg.add(kv_var.set_storage_id(str(region[CONF_ID])))
-            cg.add(
-                kv_var.set_storage_name(
-                    region.get(CONF_STORAGE_NAME) or str(region[CONF_ID])
-                )
-            )
+            cg.add(kv_var.set_storage_name(region.get(CONF_STORAGE_NAME) or str(region[CONF_ID])))
             request_storage_device()
-
 
 # ============================================================================
 # Automation Actions and Conditions
