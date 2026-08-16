@@ -291,4 +291,67 @@ TEST(ExtractJson, FailsForADocumentThatDoesNotParse) {
 
 #endif  // USE_STORAGE_JSON_EXTRACT
 
+// assign_from_string() is the other end of storage.file_read: it turns extracted text into a typed
+// global. Its promise mirrors the pipeline's -- text that does not parse leaves the global untouched
+// and returns false, which is what lets FileReadAction skip firing on_value on a value that never
+// landed.
+namespace {
+struct FakeFloatGlobal {
+  float v{-1.0f};
+  float &value() { return v; }
+};
+struct FakeBoolGlobal {
+  bool v{false};
+  bool &value() { return v; }
+};
+}  // namespace
+
+TEST(AssignFromString, ValidNumberAssignsAndReturnsTrue) {
+  FakeFloatGlobal g;
+  EXPECT_TRUE(assign_from_string(&g, "42.5"));
+  EXPECT_FLOAT_EQ(g.v, 42.5f);
+}
+
+TEST(AssignFromString, InvalidNumberLeavesGlobalUntouched) {
+  FakeFloatGlobal g;  // sentinel -1
+  EXPECT_FALSE(assign_from_string(&g, "not a number"));
+  EXPECT_FLOAT_EQ(g.v, -1.0f);
+}
+
+TEST(AssignFromString, BoolAcceptsWordsAndDigits) {
+  FakeBoolGlobal g;
+  EXPECT_TRUE(assign_from_string(&g, "on"));
+  EXPECT_TRUE(g.v);
+  EXPECT_TRUE(assign_from_string(&g, "0"));
+  EXPECT_FALSE(g.v);
+}
+
+TEST(AssignFromString, InvalidBoolLeavesGlobalUntouched) {
+  FakeBoolGlobal g;
+  g.v = true;
+  EXPECT_FALSE(assign_from_string(&g, "maybe"));
+  EXPECT_TRUE(g.v);
+}
+
+// The action play() bodies are only type-checked when the class template is instantiated, and no
+// YAML test config exercises a raw_*/mount/format action (they need a device the storage-only test
+// harness has no driver for). Instantiating one of each here forces its vtable, which compiles the
+// play() body -- so a bad edit to those bodies is caught at CI compile time. The objects are never
+// run, so a null device pointer is fine; this is compile coverage, not behaviour.
+TEST(StorageActions, PlayBodiesCompile) {
+#ifdef USE_STORAGE_RAW_ACTIONS
+  RawReadAction<> raw_read(nullptr);
+  RawWriteAction<> raw_write(nullptr);
+  RawEraseAction<> raw_erase(nullptr);
+  (void) raw_read;
+  (void) raw_write;
+  (void) raw_erase;
+#endif
+  MountAction<> mount(nullptr, true);
+  FormatAction<> format(nullptr);
+  (void) mount;
+  (void) format;
+  SUCCEED();
+}
+
 }  // namespace esphome::storage::testing
