@@ -1,9 +1,12 @@
-"""Integration test that checks what LVGL actually draws, using a headless SDL display.
+"""Integration test that checks what LVGL actually draws, using a display with no screen.
 
 The rendered screen is compared against a hash rather than a checked in reference image, so the
 repository does not have to carry a binary file. If a change to the drawing code or to the bundled
 LVGL alters the output, this test fails and prints the hash it saw; update EXPECTED_SHA256 once the
 new image has been looked at and found to be correct.
+
+The picture is drawn and encoded entirely by code in this repository, so nothing installed on the
+machine running the test takes part in the result.
 """
 
 from __future__ import annotations
@@ -32,10 +35,6 @@ EXPECTED_SHA256 = "a995b002dd1d183c47514da15ab9a60a3e7d788c2e24386a02fddd4865509
 # generated against. A version bump can shift anti-aliasing enough to change the hash even though
 # nothing is actually wrong -- if this test fails, check that first before regenerating the hash.
 EXPECTED_LVGL_VERSION = "9.5.0"
-# The hash covers more than LVGL's drawing: the screen is captured through SDL, which expands the
-# RGB565 framebuffer to the 24 bit BMP. SDL comes from the runner's package archive rather than
-# from this repository, so an updated image can change the result on its own. Check the SDL
-# version too before concluding that a drawing change is at fault.
 
 
 @pytest.mark.asyncio
@@ -46,11 +45,9 @@ async def test_lvgl_headless_render(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """LVGL draws the expected screen on a headless 300x300 display."""
-    screenshot_dir = tmp_path / "screenshots"
-    monkeypatch.setenv("ESPHOME_SCREENSHOT_DIR", str(screenshot_dir))
-    monkeypatch.delenv("DISPLAY", raising=False)
-    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    """LVGL draws the expected screen on a 300x300 display with no screen behind it."""
+    snapshot_dir = tmp_path / "snapshots"
+    monkeypatch.setenv("ESPHOME_SNAPSHOT_DIR", str(snapshot_dir))
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
@@ -66,7 +63,7 @@ async def test_lvgl_headless_render(
             attempt += 1
             name = f"render-{attempt}.bmp"
             await client.execute_service(service, {"name": name})
-            capture = screenshot_dir / name
+            capture = snapshot_dir / name
             image = await wait_for_bmp(capture)
             assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
             # The background is not the whole picture: something must have been drawn on it.
@@ -103,7 +100,5 @@ async def test_lvgl_headless_render(
                 f"  expected: {EXPECTED_SHA256}\n"
                 f"  actual:   {digest}\n"
                 f"the image that was rendered has been kept at {kept}\n"
-                f"on CI it is in the integration-test-artifacts upload for this job\n"
-                f"if the drawing looks right, check whether the installed SDL version "
-                f"changed - the capture goes through it"
+                f"on CI it is in the integration-test-artifacts upload for this job"
             )

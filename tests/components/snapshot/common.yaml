@@ -1,0 +1,29 @@
+display:
+  - platform: snapshot
+    id: snapshot_display
+    update_interval: 1s
+    show_test_card: true
+    # An odd width exercises the row padding in the BMP writer
+    dimensions:
+      width: 101
+      height: 64
+
+  - platform: snapshot
+    id: snapshot_rotated
+    rotation: 90
+    dimensions: 320x240
+    lambda: |-
+      it.filled_rectangle(0, 0, 40, 20, Color(0xFF, 0x80, 0x00));
+
+interval:
+  - interval: 10s
+    then:
+      # a name made up from the time
+      - snapshot.take: snapshot_display
+      # a fixed name, so a test can look for exactly this file
+      - snapshot.take:
+          id: snapshot_display
+          filename: test_card.bmp
+      - snapshot.take:
+          id: snapshot_rotated
+          filename: !lambda 'return "rotated.bmp";'

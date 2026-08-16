@@ -14,7 +14,7 @@ display:
       position:
         x: 100
         y: 100
-    screenshot_key: SDLK_F12
+    snapshot_key: SDLK_F12
 
   - platform: sdl
     id: headless_display
@@ -60,11 +60,11 @@ interval:
   - interval: 10s
     then:
       # timestamped name
-      - sdl.screenshot: sdl_sdl_display
+      - snapshot.take: sdl_sdl_display
       # fixed name, for a test that asserts on the path
-      - sdl.screenshot:
+      - snapshot.take:
           id: headless_display
           filename: test_card.bmp
-      - sdl.screenshot:
+      - snapshot.take:
           id: headless_display
           filename: !lambda 'return "shot.bmp";'

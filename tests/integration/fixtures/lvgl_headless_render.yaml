@@ -4,13 +4,13 @@ host:
 
 api:
   actions:
-    # The name comes from the test so it can capture more than once: a screenshot never writes over
+    # The name comes from the test so it can capture more than once: a snapshot never writes over
     # a file that is already there, so a fixed name could only ever be captured once.
     - action: take_screenshot
       variables:
         name: string
       then:
-        - sdl.screenshot:
+        - snapshot.take:
             id: lvgl_display
             filename: !lambda return name;
 
@@ -18,9 +18,10 @@ logger:
   level: DEBUG
 
 display:
-  - platform: sdl
+  # A display with no screen, so what LVGL draws depends on LVGL alone - nothing about the machine
+  # running the test, and no graphics library outside this repository, can move the result.
+  - platform: snapshot
     id: lvgl_display
-    headless: true
     auto_clear_enabled: false
     dimensions:
       width: 300

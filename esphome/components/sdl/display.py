@@ -1,8 +1,8 @@
 import subprocess
 
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display
+from esphome.components.snapshot import Snapshot, register_snapshot
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIMENSIONS,
@@ -15,21 +15,21 @@ from esphome.const import (
     CONF_Y,
     PLATFORM_HOST,
 )
-from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import SDL_KEYMAP
 
+AUTO_LOAD = ["snapshot"]
+
 sdl_ns = cg.esphome_ns.namespace("sdl")
-Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
-SdlScreenshotAction = sdl_ns.class_("SdlScreenshotAction", automation.Action)
+Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component, Snapshot)
 sdl_window_flags = cg.global_ns.enum("SDL_WindowFlags")
 
 
 CONF_CENTERED_ON_DISPLAY = "centered_on_display"
-CONF_FILENAME = "filename"
 CONF_HEADLESS = "headless"
-CONF_SCREENSHOT_KEY = "screenshot_key"
+CONF_SNAPSHOT_KEY = "snapshot_key"
 CONF_SDL_OPTIONS = "sdl_options"
 CONF_SDL_ID = "sdl_id"
 CONF_WINDOW_OPTIONS = "window_options"
@@ -80,10 +80,10 @@ def _validate_headless(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"'{CONF_WINDOW_OPTIONS}' has no effect when '{CONF_HEADLESS}' is set - there is no window"
         )
-    if CONF_SCREENSHOT_KEY in config:
+    if CONF_SNAPSHOT_KEY in config:
         raise cv.Invalid(
-            f"'{CONF_SCREENSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
-            f"there is no keyboard. Use the 'sdl.screenshot' action instead"
+            f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
+            f"there is no keyboard. Use the 'snapshot.take' action instead"
         )
     return config
 
@@ -95,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.GenerateID(): cv.declare_id(Sdl),
                 cv.Optional(CONF_SDL_OPTIONS, default=""): get_sdl_options,
                 cv.Optional(CONF_HEADLESS, default=False): cv.boolean,
-                cv.Optional(CONF_SCREENSHOT_KEY): cv.enum(SDL_KEYMAP),
+                cv.Optional(CONF_SNAPSHOT_KEY): cv.enum(SDL_KEYMAP),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,
                     cv.Schema(
@@ -148,44 +148,16 @@ def headless_final_validate(platform: str):
     )
 
 
-@automation.register_action(
-    "sdl.screenshot",
-    SdlScreenshotAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(Sdl),
-            cv.Optional(CONF_FILENAME): cv.templatable(cv.string),
-        }
-    ),
-    synchronous=True,
-)
-async def sdl_screenshot_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (filename := config.get(CONF_FILENAME)) is not None:
-        cg.add(var.set_filename(await cg.templatable(filename, args, cg.std_string)))
-    return var
-
-
-async def to_code(config: ConfigType):
+async def to_code(config: ConfigType) -> None:
     for option in config[CONF_SDL_OPTIONS].split():
         cg.add_build_flag(option)
     cg.add_build_flag("-DSDL_BYTEORDER=4321")
-    cg.add_define(
-        "ESPHOME_SDL_SCREENSHOT_DIR",
-        (CORE.data_dir / "screenshots" / CORE.name).as_posix(),
-    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
+    await register_snapshot(var, config)
     cg.add(var.set_headless(config[CONF_HEADLESS]))
-    cg.add(var.set_screenshot_prefix(str(config[CONF_ID])))
-    if (key := config.get(CONF_SCREENSHOT_KEY)) is not None:
-        cg.add(var.set_screenshot_key(key))
+    if (key := config.get(CONF_SNAPSHOT_KEY)) is not None:
+        cg.add(var.set_snapshot_key(key))
 
     dimensions = config[CONF_DIMENSIONS]
     if isinstance(dimensions, dict):

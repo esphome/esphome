@@ -1,11 +1,14 @@
-"""Integration test for headless SDL rendering and screenshot capture."""
+"""Integration test for headless SDL rendering and snapshot capture.
+
+How a file is named and written is the same for every display that can take a snapshot and is
+covered by test_snapshot_display; what is tested here is that SDL renders and can be read back
+with no display server present.
+"""
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
-from aioesphomeapi import LogLevel
 import pytest
 
 from .bmp_utils import wait_for_bmp
@@ -13,9 +16,6 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 101
 HEIGHT = 64
-
-# Part of the message write_bmp_() logs when it will not write over a file that is already there.
-REFUSAL_MESSAGE = b"not overwriting"
 
 
 @pytest.mark.asyncio
@@ -27,10 +27,10 @@ async def test_sdl_headless_screenshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A headless SDL display renders with no display server and can be captured."""
-    screenshot_dir = tmp_path / "screenshots"
-    # The device reads this when it writes a screenshot; the subprocess inherits our environment,
-    # so it must be set before the binary is launched.
-    monkeypatch.setenv("ESPHOME_SCREENSHOT_DIR", str(screenshot_dir))
+    snapshot_dir = tmp_path / "snapshots"
+    # The device reads this when it writes a file; the subprocess inherits our environment, so it
+    # must be set before the binary is launched.
+    monkeypatch.setenv("ESPHOME_SNAPSHOT_DIR", str(snapshot_dir))
     # Make sure the run really is headless even when the test machine has a display.
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
@@ -41,32 +41,10 @@ async def test_sdl_headless_screenshot(
 
         await client.execute_service(service, {})
 
-        capture = screenshot_dir / "capture.bmp"
-        image = await wait_for_bmp(capture)
+        image = await wait_for_bmp(snapshot_dir / "capture.bmp")
         assert (image.width, image.height, image.bits) == (WIDTH, HEIGHT, 24)
-
-        # An extension is only added when there is not one already, whatever its case.
-        upper = next(s for s in services if s.name == "take_screenshot_upper")
-        await client.execute_service(upper, {})
-        await wait_for_bmp(screenshot_dir / "UPPER.BMP")
-
-        # A second capture to the same name must fail rather than overwrite the first. Wait for
-        # the device to report the refusal: on its own, an unchanged file cannot tell a refusal
-        # apart from a request the device has not got to yet, so a regression that overwrote the
-        # file could still pass on a busy machine.
-        refused = asyncio.Event()
-
-        def on_log(msg) -> None:
-            if REFUSAL_MESSAGE in msg.message:
-                refused.set()
-
-        client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
-
-        before = capture.read_bytes()
-        await client.execute_service(service, {})
-        await asyncio.wait_for(refused.wait(), timeout=10.0)
-        assert capture.read_bytes() == before
-        assert sorted(p.name for p in screenshot_dir.iterdir()) == [
-            "UPPER.BMP",
-            "capture.bmp",
-        ]
+        # The test card is drawn in several colours, so a picture of it is not one flat shade.
+        # Count whole pixels rather than byte values, which would find more than one of those in
+        # even a blank screen.
+        colours = {image.pixels[i : i + 3] for i in range(0, len(image.pixels), 3)}
+        assert len(colours) > 1

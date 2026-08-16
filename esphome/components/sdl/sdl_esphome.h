@@ -6,22 +6,16 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/display/display.h"
+#include "esphome/components/snapshot/snapshot.h"
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
 #include <map>
-#include <string>
-
-// Directory screenshots are written to. Normally set by codegen to a folder under .esphome; the
-// fallback keeps the component compiling for static analysis, where no defines.h is generated.
-#ifndef ESPHOME_SDL_SCREENSHOT_DIR
-#define ESPHOME_SDL_SCREENSHOT_DIR "."
-#endif
 
 namespace esphome::sdl {
 
 constexpr static const char *const TAG = "sdl";
 
-class Sdl final : public display::Display {
+class Sdl final : public display::Display, public snapshot::Snapshot {
  public:
   display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
   void update() override;
@@ -41,12 +35,7 @@ class Sdl final : public display::Display {
     this->pos_y_ = pos_y;
   }
   void set_headless(bool headless) { this->headless_ = headless; }
-  void set_screenshot_key(int32_t keycode) { this->screenshot_key_ = keycode; }
-  void set_screenshot_prefix(const char *prefix) { this->screenshot_prefix_ = prefix; }
-
-  /// Write the current screen contents to a BMP file. Pass nullptr to generate a timestamped name.
-  /// An existing file is never overwritten. Returns true if the file was written.
-  bool save_screenshot(const char *filename);
+  void set_snapshot_key(int32_t keycode) { this->snapshot_key_ = keycode; }
 
   int get_width() override;
   int get_height() override;
@@ -72,7 +61,9 @@ class Sdl final : public display::Display {
   void destroy_renderer_();
   /// Log an SDL failure during setup, release anything already created, and return false.
   bool setup_failed_(const char *what);
-  bool write_bmp_(SDL_Surface *surface, const std::string &name, bool exact);
+  int snapshot_width_() override { return this->width_; }
+  int snapshot_height_() override { return this->height_; }
+  bool capture_bgr_(uint8_t *dest, size_t row_stride) override;
   void handle_event_(const SDL_Event &event);
   /// The display owning the given window, or nullptr if it is not one of ours.
   static Sdl *instance_for_window_(uint32_t window_id);
@@ -82,8 +73,7 @@ class Sdl final : public display::Display {
   int32_t pos_x_{SDL_WINDOWPOS_UNDEFINED};
   int32_t pos_y_{SDL_WINDOWPOS_UNDEFINED};
   bool headless_{false};
-  int32_t screenshot_key_{0};
-  const char *screenshot_prefix_{"screenshot"};
+  int32_t snapshot_key_{0};
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};
@@ -91,26 +81,13 @@ class Sdl final : public display::Display {
   // surface, and the renderer goes back to using it as its output whenever the capture target is
   // released, so it has to stay alive as long as the renderer does.
   SDL_Surface *surface_{};
-  // Capture target, created on first screenshot.
+  // Capture target, created on first snapshot.
   SDL_Texture *shot_target_{};
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
-};
-
-template<typename... Ts> class SdlScreenshotAction final : public Action<Ts...>, public Parented<Sdl> {
- public:
-  TEMPLATABLE_VALUE(std::string, filename)
-
-  void play(const Ts &...x) override {
-    if (this->filename_.has_value()) {
-      this->parent_->save_screenshot(this->filename_.value(x...).c_str());
-    } else {
-      this->parent_->save_screenshot(nullptr);
-    }
-  }
 };
 
 }  // namespace esphome::sdl

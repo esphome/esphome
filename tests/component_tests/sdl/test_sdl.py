@@ -51,16 +51,16 @@ def test_headless_rejects_window_options() -> None:
         )
 
 
-def test_headless_rejects_screenshot_key() -> None:
+def test_headless_rejects_snapshot_key() -> None:
     """A headless display has no keyboard, so the action is the only way in."""
-    with pytest.raises(cv.Invalid, match="sdl.screenshot"):
-        CONFIG_SCHEMA(_config(headless=True, screenshot_key="SDLK_F12"))
+    with pytest.raises(cv.Invalid, match="snapshot.take"):
+        CONFIG_SCHEMA(_config(headless=True, snapshot_key="SDLK_F12"))
 
 
-def test_screenshot_key_accepted_when_windowed() -> None:
+def test_snapshot_key_accepted_when_windowed() -> None:
     """The key is only valid alongside a window."""
-    config = CONFIG_SCHEMA(_config(screenshot_key="SDLK_F12"))
-    assert str(config["screenshot_key"]) == "SDLK_F12"
+    config = CONFIG_SCHEMA(_config(snapshot_key="SDLK_F12"))
+    assert str(config["snapshot_key"]) == "SDLK_F12"
 
 
 def _declare_sdl_display(headless: bool) -> ID:

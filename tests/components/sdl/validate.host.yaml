@@ -13,7 +13,7 @@ display:
   - platform: sdl
     id: windowed_display
     dimensions: 320x240
-    screenshot_key: SDLK_F12
+    snapshot_key: SDLK_F12
 
 binary_sensor:
   - platform: sdl
@@ -24,6 +24,6 @@ binary_sensor:
 interval:
   - interval: 10s
     then:
-      - sdl.screenshot:
+      - snapshot.take:
           id: headless_display
           filename: periodic.bmp
