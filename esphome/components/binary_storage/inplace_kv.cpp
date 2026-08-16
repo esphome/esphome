@@ -334,6 +334,39 @@ storage::StorageError InplaceKVStore::get_size(uint32_t key, size_t *out) {
   return storage::StorageError::OK;
 }
 
+storage::StorageError InplaceKVStore::list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) {
+  storage::StorageError err = this->ensure_initialized();
+  if (err != storage::StorageError::OK)
+    return err;
+  const uint64_t half_off = this->active_off_;
+  const uint64_t half_end = half_off + this->half_size_();
+  uint64_t pos = half_off + HALF_HDR;
+  while (pos + ENTRY_HDR <= half_end) {
+    uint8_t eh[ENTRY_HDR];
+    if (!this->read_(pos, eh, ENTRY_HDR))
+      break;
+    if (eh[0] != COMMITTED)
+      break;  // first uncommitted slot marks the end of the log
+    uint8_t live = eh[1];
+    uint32_t ekey = rd_u32(eh + 2);
+    uint16_t elen = rd_u16(eh + 6);
+    uint64_t total = ENTRY_HDR + elen;
+    if (pos + total > half_end)
+      break;
+    if (live == 1) {
+      // A key rewritten in place appears multiple times in the log; report it once, at the entry
+      // find_in_ resolves as current (last-wins), so the length reported is the live one.
+      uint64_t last_off = 0;
+      if (this->find_in_(half_off, ekey, &last_off, nullptr, nullptr) && last_off == pos) {
+        if (!callback(ekey, elen, ctx))
+          return storage::StorageError::OK;  // callback asked to stop
+      }
+    }
+    pos += total;
+  }
+  return storage::StorageError::OK;
+}
+
 bool InplaceKVStore::has(uint32_t key) {
   if (this->ensure_initialized() != storage::StorageError::OK)
     return false;

@@ -14,8 +14,7 @@ namespace esphome::binary_storage {
 // LittleFS on an internal flash partition via ESP-IDF's esp_vfs_littlefs.
 // Simpler than LittleFSMount -- IDF handles VFS registration and LittleFS internals.
 // The partition must be defined in the partition table with subtype=littlefs.
-class FlashPartition : public storage::FilesystemStorage,
-                       public storage::MountableStorage
+class FlashPartition : public storage::FilesystemStorage, public storage::MountableStorage
 #if defined(USE_BINARY_STORAGE_PREFILL) && defined(USE_OTA_PARTITIONS)
     ,
                        public ota::OTADataPartitionListener
@@ -23,7 +22,7 @@ class FlashPartition : public storage::FilesystemStorage,
 {
  public:
   FlashPartition() = default;
-  ~FlashPartition() override;
+  ~FlashPartition();
 
   // Component lifecycle
   void setup() override;

@@ -6,6 +6,7 @@
 
 #include <nvs_flash.h>
 #include <cstdio>
+#include <cstdlib>
 
 namespace esphome {
 namespace binary_storage {
@@ -144,6 +145,33 @@ storage::StorageError NVSStore::get_size(uint32_t key, size_t *out) {
   if (err != ESP_OK)
     return storage::StorageError::READ_ERROR;
   *out = need;
+  return storage::StorageError::OK;
+}
+
+storage::StorageError NVSStore::list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) {
+  if (!this->open_())
+    return storage::StorageError::NOT_READY;
+  // A null partition_label means the system default partition; nvs_entry_find needs its real name.
+  const char *part = this->partition_label_ != nullptr ? this->partition_label_ : NVS_DEFAULT_PART_NAME;
+  nvs_iterator_t it = nullptr;
+  esp_err_t err = nvs_entry_find(part, this->namespace_, NVS_TYPE_BLOB, &it);
+  while (err == ESP_OK && it != nullptr) {
+    nvs_entry_info_t info;
+    nvs_entry_info(it, &info);
+    // Keys are decimal (key_to_str's "%u"); skip anything that does not round-trip to a uint32.
+    char *end = nullptr;
+    unsigned long parsed = strtoul(info.key, &end, 10);
+    if (end != nullptr && *end == '\0') {
+      size_t need = 0;
+      if (nvs_get_blob(this->handle_, info.key, nullptr, &need) == ESP_OK &&
+          !callback(static_cast<uint32_t>(parsed), need, ctx)) {
+        nvs_release_iterator(it);
+        return storage::StorageError::OK;  // callback asked to stop
+      }
+    }
+    err = nvs_entry_next(&it);
+  }
+  nvs_release_iterator(it);
   return storage::StorageError::OK;
 }
 

@@ -47,6 +47,7 @@ class NVSStore : public storage::KeyValueStorage {
   storage::StorageError erase(uint32_t key) override;
   bool has(uint32_t key) override;
   storage::StorageError get_size(uint32_t key, size_t *out) override;
+  storage::StorageError list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) override;
   storage::StorageError ensure_initialized() override;
   storage::StorageError format() override;
 
