@@ -123,7 +123,9 @@ bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
   // network driver that reports STORAGE_CAP_IO_TASK_SAFE is asserting that its mount path
   // (resolve/connect/TLS, i.e. its socket and lwip use) is safe to run from this background task;
   // the worker takes that at face value, as it does for every other task-routed call.
-  if (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)
+  if (req.op == RequestOp::FORMAT)
+    return (req.format_target->get_capabilities() & StorageCaps::STORAGE_CAP_IO_TASK_SAFE) != 0;
+  if (req.op == RequestOp::MOUNT)
     return (req.dst_storage->get_capabilities() & StorageCaps::STORAGE_CAP_IO_TASK_SAFE) != 0;
   // Every storage this op touches must be task-safe, or a background task would race the main
   // loop on it. A copy/move touches src_storage AND dst_storage (both non-null, no raw_device).
@@ -205,11 +207,19 @@ bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
     if (state != RequestState::RUNNING && state != RequestState::CANCELLED)
       continue;
     // Null sides (raw ops carry only one path-storage side) must not match other nulls.
+    // A FORMAT's target rides in format_target (may be Raw/KV); consult it only when the op is
+    // FORMAT, so it serializes against any active op on the same storage, and vice versa.
+    storage::Storage *req_fmt = req.op == RequestOp::FORMAT ? req.format_target : nullptr;
+    storage::Storage *cand_fmt = candidate.op == RequestOp::FORMAT ? candidate.format_target : nullptr;
     if ((req.src_storage != nullptr &&
          (req.src_storage == candidate.src_storage || req.src_storage == candidate.dst_storage)) ||
         (req.dst_storage != nullptr &&
          (req.dst_storage == candidate.src_storage || req.dst_storage == candidate.dst_storage)) ||
-        (req.raw_device != nullptr && req.raw_device == candidate.raw_device))
+        (req.raw_device != nullptr && req.raw_device == candidate.raw_device) ||
+        (req_fmt != nullptr && (req_fmt == candidate.src_storage || req_fmt == candidate.dst_storage ||
+                                req_fmt == candidate.raw_device || req_fmt == cand_fmt)) ||
+        (cand_fmt != nullptr &&
+         (cand_fmt == req.src_storage || cand_fmt == req.dst_storage || cand_fmt == req.raw_device)))
       return true;
   }
   // Streams drive the same storages through the same drivers -- see stream_overlaps_active_().
@@ -458,7 +468,7 @@ StorageError StorageWorker::async_raw_erase(RawStorage *device, uint64_t address
                            job_out, force_sliced);
 }
 
-StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target, CompletionCallback &&on_done,
+StorageError StorageWorker::submit_control_op_(RequestOp op, Storage *target, CompletionCallback &&on_done,
                                                TransferJob *job_out) {
   // After mark_failed() (no registry -> the drain contract cannot hold) update() never runs,
   // so a queued request would never complete. Reject up front so callers chaining on the
@@ -477,10 +487,13 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   if (slot == nullptr)
     return StorageError::NOT_READY;
   slot->op = op;
-  // The target rides in dst_storage so the registry check, overlaps_active_() and the
-  // completion drain treat it like any transfer; src is null and no handle is ever opened.
+  // MOUNT rides in dst_storage (always a PathStorage) so the registry check, overlaps_active_()
+  // and the completion drain treat it like any transfer. FORMAT's target may be a Raw or KV device
+  // (not a PathStorage), so it rides in format_target instead; those same mechanisms consult it via
+  // the op == FORMAT gate. src is null and no handle is ever opened.
   slot->src_storage = nullptr;
-  slot->dst_storage = target;
+  slot->dst_storage = op == RequestOp::FORMAT ? nullptr : static_cast<PathStorage *>(target);
+  slot->format_target = op == RequestOp::FORMAT ? target : nullptr;
   slot->src_path[0] = '\0';
   slot->dst_path[0] = '\0';
   slot->raw_device = nullptr;
@@ -536,8 +549,7 @@ StorageError StorageWorker::submit_control_op_(RequestOp op, PathStorage *target
   return StorageError::OK;
 }
 
-StorageError StorageWorker::async_format(FilesystemStorage *target, CompletionCallback &&on_done,
-                                         TransferJob *job_out) {
+StorageError StorageWorker::async_format(Storage *target, CompletionCallback &&on_done, TransferJob *job_out) {
   // Guard here, not only in run_chunk_: submit_control_op_ reaches is_task_safe_(), which
   // dereferences dst_storage->get_capabilities() for FORMAT before run_chunk_'s null guard can run.
   // Mirror async_mount()'s up-front check so a null target is a clean error, not a crash.
@@ -735,7 +747,8 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
   // to unmount/tear down the driver right afterward.
   for (size_t i = 0; i < this->pool_.size(); i++) {
     TransferRequest &req = this->pool_[i];
-    if (req.src_storage != s && req.dst_storage != s && req.raw_device != s)
+    if (req.src_storage != s && req.dst_storage != s && req.raw_device != s &&
+        !(req.op == RequestOp::FORMAT && req.format_target == s))
       continue;
 
     RequestState state = req.state.load();
@@ -1888,13 +1901,13 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
     // Single blocking control-plane op: one format() call, then done. On task-safe media this
     // runs on the worker task (main loop free); otherwise from a loop() step -- still one
     // blocking call, but owned, with the completion delivered exactly like any transfer.
-    // async_format() always sets dst_storage; the guard keeps the static analyzer happy and
+    // async_format() always sets format_target; the guard keeps the static analyzer happy and
     // turns a caller bug into a clean error rather than a null dereference.
-    if (req.dst_storage == nullptr) {
+    if (req.format_target == nullptr) {
       finish_request(req, StorageError::INVALID_ARGS);
       return;
     }
-    finish_request(req, static_cast<FilesystemStorage *>(req.dst_storage)->format());
+    finish_request(req, req.format_target->format());
     return;
   }
   if (req.op == RequestOp::MOUNT) {
