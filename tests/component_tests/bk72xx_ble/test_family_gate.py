@@ -23,9 +23,13 @@ def test_unsupported_family_rejected(
     component_config_path: Callable[[str], Path],
     config_file: str,
     match: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     with pytest.raises(EsphomeError, match=match):
         generate_main(component_config_path(config_file))
+    # Validation itself must not fail (CI validate fixtures run on a BLE 4.2
+    # board), but it warns before codegen raises.
+    assert "cannot compile" in caplog.text
 
 
 def test_ble5_family_generates(

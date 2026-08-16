@@ -57,17 +57,31 @@ CONFIG_SCHEMA = cv.Schema(
 request_scan_listener_slot = cg.slot_counter("BK72XX_BLE_SCAN_LISTENER_COUNT")
 
 
-async def to_code(config: ConfigType) -> None:
-    # Reject known non-5.x families at codegen, not config validation: the
-    # validate-only CI fixtures run on a BLE 4.2 board and must keep passing.
-    family = libretiny.get_libretiny_family()
+def _unsupported_family_message(family: str) -> str | None:
     if family in (FAMILY_BK7231T, FAMILY_BK7251):
-        raise EsphomeError(
+        return (
             f"bk72xx_ble does not support {family}: this SoC has the Beken BLE 4.2 "
             "stack; a BLE 5.x SoC such as BK7231N or BK7238 is required"
         )
     if family == FAMILY_BK7231Q:
-        raise EsphomeError("bk72xx_ble does not support BK7231Q: this SoC has no BLE")
+        return "bk72xx_ble does not support BK7231Q: this SoC has no BLE"
+    return None
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Warn only: a hard error here would break the validate-only CI fixtures,
+    # which run on a BLE 4.2 board. The hard error is raised at codegen.
+    if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
+        _LOGGER.warning("%s (this configuration cannot compile)", msg)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
+        raise EsphomeError(msg)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

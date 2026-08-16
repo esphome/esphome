@@ -115,5 +115,5 @@ BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created, int *err_out) {
 
 }  // namespace esphome::bk72xx_ble
 
-#endif  // !CLANG_TIDY && ble_api.h
+#endif  // !CLANG_TIDY && ble_api.h && app_ble.h
 #endif  // USE_BK72XX_BLE
