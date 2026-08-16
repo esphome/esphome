@@ -23,6 +23,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
+    KEY_IDF_VERSION,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -771,7 +772,14 @@ def test_reconcile_vfs_fatfs_sdkconfig(
     defaults from the recorded require_* calls, with user sdkconfig_options winning
     and the LFN Kconfig choice treated as one group."""
     set_core_config(PlatformFramework.ESP32_IDF)
-    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        # The FATFS branch hands the exFAT FatFs-override the active IDF version and variant (used
+        # to locate and version-stamp the component it patches), so both must be present even for
+        # the enable_exfat=False cases, where the override only evaluates the arguments.
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
     if fatfs_required:
         CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
     for key, value in requires.items():
