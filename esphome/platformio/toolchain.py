@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -234,6 +235,35 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
+def _ccache_usable() -> bool:
+    """Return True when the ``ccache`` on PATH actually runs.
+
+    ``shutil.which`` proves existence, not runnability: on Windows it also
+    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
+    target is gone. Wrapping compiles around such a find fails every compile
+    step with an opaque OS error, so probe once and fall back to compiling
+    without ccache when the probe fails.
+    """
+    ccache = shutil.which("ccache")
+    if ccache is None:
+        return False
+    try:
+        subprocess.run(
+            [ccache, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.warning(
+            "Ignoring ccache at %s because it failed to run; compiling without ccache",
+            ccache,
+        )
+        return False
+    return True
+
+
 def _ccache_env() -> dict[str, str]:
     """Return ccache settings for PlatformIO builds.
 
@@ -266,7 +296,7 @@ def _ccache_env() -> dict[str, str]:
     if "ESPHOME_CCACHE_ENABLE" in os.environ:
         enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
     else:
-        enabled = shutil.which("ccache") is not None
+        enabled = _ccache_usable()
     env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
     if not enabled:
         return env
