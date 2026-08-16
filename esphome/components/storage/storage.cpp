@@ -16,11 +16,10 @@ static const char *const TAG = "storage";
 StorageRegistry *global_storage_registry = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_STORAGE_CHANGE_FEED
-// Collapse duplicate slashes and drop any trailing slash, so a directory is reported to the
-// change feed in exactly the form the browser holds it as an openDirs key (the same shape the
-// file API's normalize_vfs_path produces). Callers assemble paths as mount_path + "/" + rel,
-// which can introduce "//" (empty rel, or a rel with a leading slash) or a trailing slash -- an
-// un-normalized string would never string-match the client's key and the relist would be lost.
+// Collapse duplicate slashes and drop any trailing slash, so a directory reaches the change feed
+// in the exact form the browser holds as an openDirs key (what the file API's normalize_vfs_path
+// produces). Callers build mount_path + "/" + rel, which can yield "//" (empty/leading-slash rel)
+// or a trailing slash; un-normalized it would never match the client's key and the relist is lost.
 // "" (the roots marker) passes through unchanged.
 static std::string normalize_feed_dir(const std::string &dir) {
   std::string out;
@@ -119,11 +118,10 @@ void StorageRegistry::quiesce_storage(Storage *s) {
     if (!found)
       return;
   }
-  // Same drain as unregister_storage() (see the comment there on why this must run while
-  // the entry is still registered), just without the removal afterwards. Only the drain
-  // channel fires: the device stays registered and usable once its medium is back, so
-  // telling on_unregistered_ subscribers it went away would be a departure they never see
-  // a matching registration for.
+  // Same drain as unregister_storage() (see there on why it runs while still registered), without
+  // the removal. Only the drain channel fires: the device stays registered and usable once its
+  // medium is back, so telling on_unregistered_ subscribers it went away would be a departure with
+  // no matching registration.
   this->on_quiesce_.call(s);
 }
 
@@ -144,15 +142,14 @@ void StorageRegistry::unregister_storage(Storage *s) {
       return;
   }
 
-  // Drain FIRST, while the entry is still registered: the worker's drain handler
-  // synchronously cancels/waits out any in-flight task work on this storage, and the task's
-  // per-chunk is_registered() checks must be able to run against an intact vector until that
-  // drain completes. Only then is it safe to mutate storages_ below. (The lock alone is not
-  // enough: removing before the drain would free this storage's slot while the task may
+  // Drain FIRST, while the entry is still registered: the worker's drain handler synchronously
+  // cancels/waits out in-flight task work on this storage, and the task's per-chunk is_registered()
+  // checks need an intact vector until that completes. Only then is it safe to mutate storages_.
+  // (The lock alone is not enough: removing before the drain frees this slot while the task may
   // still be inside a blocking I/O call on it.)
   //
-  // Removal implies quiescing, so both channels fire, drain first. Both run before the entry
-  // is taken out, which is the timing on_unregistered_ subscribers already had.
+  // Removal implies quiescing, so both channels fire, drain first, both before the entry is taken
+  // out -- the timing on_unregistered_ subscribers already had.
   this->on_quiesce_.call(s);
   this->on_unregistered_.call(s);
 
@@ -181,6 +178,8 @@ void StorageRegistry::unregister_storage(Storage *s) {
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
     ESP_LOGD(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
+  } else {
+    ESP_LOGD(TAG, "Storage unregistered (get_info failed)");
   }
 }
 
@@ -199,8 +198,18 @@ bool StorageRegistry::is_registered(const Storage *s) const {
 size_t StorageRegistry::snapshot_(Storage **out) const {
   size_t n = 0;
   for (auto *s : this->storages_) {
-    if (n >= STORAGE_MAX_DEVICES)
-      break;  // codegen sizes both to device_count, so this cannot trip in a real build
+    if (n >= STORAGE_MAX_DEVICES) {
+      // codegen sizes STORAGE_MAX_DEVICES to device_count, so a real build never truncates; a
+      // stale or absent define (clang-tidy, IDE) would, and silently dropping devices from every
+      // enumeration is worth one diagnosable line.
+      static bool logged = false;
+      if (!logged) {
+        logged = true;
+        ESP_LOGE(TAG, "storage snapshot truncated at %u devices -- STORAGE_MAX_DEVICES too small",
+                 (unsigned) STORAGE_MAX_DEVICES);
+      }
+      break;
+    }
     out[n++] = s;
   }
   return n;
@@ -229,6 +238,15 @@ void StorageRegistry::for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *c
   for (size_t i = 0; i < n; i++) {
     if (entries[i]->get_storage_type() == StorageType::RAW)
       cb(static_cast<RawStorage *>(entries[i]), ctx);
+  }
+}
+
+void StorageRegistry::for_each_kv(void (*cb)(KeyValueStorage *s, void *ctx), void *ctx) {
+  Storage *entries[STORAGE_MAX_DEVICES];
+  size_t n = this->snapshot_(entries);
+  for (size_t i = 0; i < n; i++) {
+    if (entries[i]->get_storage_type() == StorageType::KEY_VALUE)
+      cb(static_cast<KeyValueStorage *>(entries[i]), ctx);
   }
 }
 
@@ -335,8 +353,10 @@ bool StorageRegistry::build_path(const PathStorage *s, const char *rel, char *ou
 // Shared guard-rail check for the blocking helpers below. No-op (returns OK) when no limit is
 // configured (registry unset, or max_blocking_transfer_size == 0).
 static StorageError check_blocking_transfer_size(uint64_t size) {
-  if (global_storage_registry == nullptr)
-    return StorageError::OK;
+  if (global_storage_registry == nullptr) {
+    ESP_LOGE(TAG, "no storage registry -- blocking-transfer size guard unavailable");
+    return StorageError::NOT_READY;  // guard unavailable, not "unlimited" -- matches raw_size_allowed()
+  }
   uint64_t limit = global_storage_registry->get_max_blocking_transfer_size();
   if (limit != 0 && size > limit)
     return StorageError::TRANSFER_TOO_LARGE;
@@ -480,12 +500,19 @@ StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &
       return err;
     }
     if (bytes_transferred == 0)
-      break;  // EOF before stat()-reported size -- return what we got
+      break;  // EOF before the stat()-reported size; caught by the short-read check after the loop
     total_read += bytes_transferred;
     App.feed_wdt();
   }
   storage->close(handle);
 
+  if (total_read < buf_size) {
+    // The buffer was sized from stat(); a short read means the file ended before its reported
+    // size, so the whole-file read the caller asked for cannot be honored -- returning OK with a
+    // truncated buffer would let it pass as complete. A concurrent writer that shrank the file
+    // lands here too; the caller can re-stat and retry.
+    return StorageError::READ_ERROR;
+  }
   out = std::move(buf);
   *size = total_read;
   return StorageError::OK;
@@ -528,11 +555,18 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
     if (err != StorageError::OK)
       return err;
     if (bytes_transferred == 0)
-      break;  // EOF before stat()-reported size -- return what we got
+      break;  // EOF before the stat()-reported size; caught by the short-read check after the loop
     total_read += bytes_transferred;
     App.feed_wdt();
   }
 
+  if (total_read < buf_size) {
+    // The buffer was sized from stat(); a short read means the file ended before its reported
+    // size, so the whole-file read the caller asked for cannot be honored -- returning OK with a
+    // truncated buffer would let it pass as complete. A concurrent writer that shrank the file
+    // lands here too; the caller can re-stat and retry.
+    return StorageError::READ_ERROR;
+  }
   out = std::move(buf);
   *size = total_read;
   return StorageError::OK;
@@ -610,6 +644,75 @@ StorageError write_file(PathStorage *storage, const char *path, const uint8_t *d
       return write_file(static_cast<FilesystemStorage *>(storage), path, data, size);
     case StorageType::NETWORK:
       return write_file(static_cast<NetworkStorage *>(storage), path, data, size);
+    default:
+      return StorageError::NOT_SUPPORTED;
+  }
+}
+
+StorageError append_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError err = check_blocking_transfer_size(size);
+  if (err != StorageError::OK)
+    return err;
+
+  FileHandle *handle = nullptr;
+  err = storage->open(path, handle, OpenMode::APPEND);
+  if (err != StorageError::OK)
+    return err;
+
+  size_t total_written = 0;
+  while (total_written < size) {
+    size_t bytes_transferred = 0;
+    err = storage->write(handle, data + total_written, size - total_written, &bytes_transferred);
+    if (err != StorageError::OK) {
+      storage->close(handle);
+      return err;
+    }
+    if (bytes_transferred == 0) {
+      storage->close(handle);
+      return StorageError::WRITE_ERROR;
+    }
+    total_written += bytes_transferred;
+    App.feed_wdt();
+  }
+  // Close errors must surface: FATFS-backed drivers flush on close (see copy()'s contract).
+  return storage->close(handle);
+}
+StorageError append_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError size_check = check_blocking_transfer_size(size);
+  if (size_check != StorageError::OK)
+    return size_check;
+
+  // write_chunk() addresses by explicit offset, so appending is stat-for-size + writing at EOF.
+  // A missing file starts at offset 0 (created by the write).
+  uint64_t offset = 0;
+  FileStat st{};
+  StorageError err = storage->stat(path, &st);
+  if (err == StorageError::OK) {
+    offset = st.size;
+  } else if (err != StorageError::NOT_FOUND) {
+    return err;
+  }
+
+  size_t total_written = 0;
+  while (total_written < size) {
+    size_t bytes_transferred = 0;
+    err = storage->write_chunk(path, data + total_written, offset + total_written, size - total_written,
+                               &bytes_transferred);
+    if (err != StorageError::OK)
+      return err;
+    if (bytes_transferred == 0)
+      return StorageError::WRITE_ERROR;
+    total_written += bytes_transferred;
+    App.feed_wdt();
+  }
+  return StorageError::OK;
+}
+StorageError append_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  switch (storage->get_storage_type()) {
+    case StorageType::FILESYSTEM:
+      return append_file(static_cast<FilesystemStorage *>(storage), path, data, size);
+    case StorageType::NETWORK:
+      return append_file(static_cast<NetworkStorage *>(storage), path, data, size);
     default:
       return StorageError::NOT_SUPPORTED;
   }
@@ -787,19 +890,17 @@ static StorageError copy_tree_at_depth(PathStorage *src_storage, char *src_path,
   return ctx.err;
 }
 
-// Streaming-buffer allocation with placement chosen from the execution context. See the
-// declaration in storage.h for the policy; the mechanics live here.
+// Streaming-buffer allocation; placement chosen from the execution context. Policy is on the
+// declaration in storage.h; the mechanics live here.
 //
-// The 20 ms loop-slice budget caps a main-loop chunk at ~16 kB even on the fastest S3 SD path
-// (a slow SPI write does not manage more in 20 ms), so the loop path stays at `want` in internal
-// RAM. The worker task carries no such budget, so on a chip whose PSRAM can be a DMA target
-// (S3/P4) it stages a larger chunk (64 kB on P4, 32 kB on S3) in DMA-capable PSRAM -- fewer I/O
-// calls, DMA straight out of the arena. Everywhere else the task path is the same as the loop
-// path: `want` internal.
+// The 20 ms loop-slice budget caps a main-loop chunk at ~16 kB even on the fastest S3 SD path, so
+// the loop path stays at `want` in internal RAM. The task has no such budget, so where PSRAM is a
+// DMA target (S3/P4) it stages a larger chunk (64 kB P4, 32 kB S3) in DMA-capable PSRAM; everywhere
+// else the task path equals the loop path (`want` internal).
 //
 // Uses heap_caps_malloc directly (not RAMAllocator) because only the cap-based API can request
-// MALLOC_CAP_DMA. The result still frees through RamBufferDeleter: on ESP32 free() routes to the
-// owning heap, so a heap_caps_malloc'd block and a RAMAllocator block are freed identically.
+// MALLOC_CAP_DMA. Still frees through RamBufferDeleter: on ESP32 free() routes to the owning heap,
+// so heap_caps_malloc'd and RAMAllocator blocks free identically.
 RamBuffer alloc_dma_capable(size_t want, bool on_task, size_t *actual_size) {
   uint8_t *raw = nullptr;
 #ifdef USE_ESP32
@@ -808,11 +909,10 @@ RamBuffer alloc_dma_capable(size_t want, bool on_task, size_t *actual_size) {
 #else
   constexpr bool psram_dma = false;
 #endif
-  // Task path on a PSRAM-DMA chip: stage a large DMA-capable PSRAM chunk. Sizes match the
-  // proven throughput of the previous monolithic component -- 64 kB on P4 (wide SDMMC bus +
-  // guaranteed PSRAM), 32 kB on S3. Bigger fread/fwrite blocks cut per-call VFS/FatFs overhead,
-  // and the task carries no 20 ms loop budget so the larger block is safe here. On failure fall
-  // through to the internal path below at `want` (never leaves the transfer without a buffer).
+  // Task path on a PSRAM-DMA chip: stage a large DMA-capable PSRAM chunk. Sizes match the proven
+  // throughput of the previous monolithic component -- 64 kB on P4 (wide SDMMC bus + guaranteed
+  // PSRAM), 32 kB on S3; bigger fread/fwrite blocks cut per-call VFS/FatFs overhead, and the task
+  // has no 20 ms budget. On failure fall through to the internal path below at `want`.
 #if defined(USE_ESP32_VARIANT_ESP32P4)
   constexpr size_t task_psram_chunk = 65536;
 #else
@@ -868,10 +968,9 @@ StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *d
 
   if (src_storage == dst_storage) {
     // Copying a file onto itself would truncate the destination before the first read of the
-    // source, leaving an empty file where the data was. And copying a directory into its own
-    // subtree walks what the walk is creating: it terminates on STORAGE_MAX_RECURSION_DEPTH,
-    // but only after landing several levels of duplicates that the caller then has to undo.
-    // Both are rejected outright; neither has a sensible outcome to produce.
+    // source, leaving an empty file. Copying a directory into its own subtree walks what the walk
+    // creates: it terminates on STORAGE_MAX_RECURSION_DEPTH, but only after landing levels of
+    // duplicates the caller must undo. Both are rejected -- neither has a sensible outcome.
     size_t src_len = strlen(src_path);
     if (strcmp(src_path, dst_path) == 0)
       return StorageError::INVALID_ARGS;
@@ -992,29 +1091,5 @@ StorageError remove_recursive(PathStorage *storage, const char *path) {
     return StorageError::INVALID_ARGS;
   return remove_recursive_at_depth(storage, buf, static_cast<size_t>(len), 0);
 }
-
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-// Log sinks for fatfs_select.h, which is header-only (it includes FatFs headers that only
-// exist in the driver's build) and therefore cannot hold the log macros itself.
-void fatfs_log_probe_read_failed(const char *tag) { ESP_LOGW(tag, "file_system probe: cannot read sector 0"); }
-
-void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat) {
-  ESP_LOGW(tag, "file_system: no recognizable filesystem on the medium - formatting as %s",
-           want_exfat ? "exFAT" : "FAT32");
-}
-
-void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat) {
-  ESP_LOGW(tag, "file_system: found %s but %s is configured - REFORMATTING, all data on the medium is erased",
-           found_exfat ? "exFAT" : "FAT", want_exfat ? "exFAT" : "FAT32");
-}
-
-void fatfs_log_format_failed(const char *tag, bool want_exfat, int result) {
-  ESP_LOGE(tag, "file_system: formatting as %s failed (FatFs error %d)", want_exfat ? "exFAT" : "FAT32", result);
-}
-
-void fatfs_log_format_done(const char *tag, bool want_exfat) {
-  ESP_LOGI(tag, "file_system: medium formatted as %s", want_exfat ? "exFAT" : "FAT32");
-}
-#endif  // USE_STORAGE_FILE_SYSTEM_SELECT
 
 }  // namespace esphome::storage
