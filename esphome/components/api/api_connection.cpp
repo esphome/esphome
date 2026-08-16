@@ -1164,13 +1164,15 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_) {
-    // Created on first image so log-only connections never pay for a reader
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
-  if (this->image_reader_->available())
+  if (this->image_reader_ && this->image_reader_->available())
     return;
   if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
+    if (!this->image_reader_) {
+      // Created on the first image this connection will send, so connections
+      // that never receive one never pay for a reader
+      this->image_reader_ =
+          std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
+    }
     this->image_reader_->set_image(std::move(image));
     // Try to send immediately to reduce latency
     this->try_send_camera_image_();
