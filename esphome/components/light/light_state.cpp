@@ -212,6 +212,10 @@ void LightState::add_effects(const std::initializer_list<LightEffect *> &effects
   this->effects_ = effects;
 }
 
+#ifdef USE_LIGHT_RESTORE_EFFECT
+void LightState::set_restore_effect(bool restore_effect) { this->restore_effect_ = restore_effect; }
+#endif  // USE_LIGHT_RESTORE_EFFECT
+
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness);

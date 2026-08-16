@@ -188,6 +188,11 @@ class LightState : public EntityBase, public Component {
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
 
+#ifdef USE_LIGHT_RESTORE_EFFECT
+  /// Set whether to restore the effect when restoring the light state when turned ON and OFF.
+  void set_restore_effect(bool restore_effect);
+#endif  // USE_LIGHT_RESTORE_EFFECT
+
   /// Set a callback to populate the initial state defaults during setup.
   /// The callback is called once, then cleared. Values live in flash as code.
   void set_initial_state(void (*callback)(LightStateRTCState &));
@@ -365,6 +370,13 @@ class LightState : public EntityBase, public Component {
   bool is_transformer_active_{false};
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
+
+#ifdef USE_LIGHT_RESTORE_EFFECT
+  /// Whether to restore the effect when restoring the light state when turned ON and OFF.
+  bool restore_effect_{false};
+  /// The previous effect index before the light was turned OFF.
+  uint32_t previous_effect_index_{0};
+#endif  // USE_LIGHT_RESTORE_EFFECT
 };
 
 }  // namespace esphome::light

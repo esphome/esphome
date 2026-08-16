@@ -75,6 +75,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 DOMAIN = "light"
+CONF_RESTORE_EFFECT = "restore_effect"
 
 
 @dataclass
@@ -263,6 +264,7 @@ LIGHT_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_INITIAL_STATE): LIGHT_STATE_SCHEMA,
+            cv.Optional(CONF_RESTORE_EFFECT, default=False): cv.boolean,
         }
     )
 )
@@ -368,6 +370,9 @@ def validate_color_temperature_channels(value):
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    if config.get(CONF_RESTORE_EFFECT, False):
+        cg.add_define("USE_LIGHT_RESTORE_EFFECT")
+        cg.add(light_var.set_restore_effect(config[CONF_RESTORE_EFFECT]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
         # Emit a stateless lambda that constructs the initial state — values live
