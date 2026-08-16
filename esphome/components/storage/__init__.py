@@ -1347,3 +1347,59 @@ async def raw_erase_action_to_code(
             var.get_complete_trigger(), [(cg.std_string, "x")], on_complete
         )
     return var
+
+
+# ---- file_system option (sd_storage / usb_storage) --------------------------------------
+# The option does not exist without esp32 enable_exfat: without exFAT the filesystem is
+# always FAT32, there is nothing to choose and nothing to probe -- the mount path stays
+# exactly as it is today. With exFAT enabled the option appears with default "auto"
+# (FatFs' own boot-sector detection inside f_mount); an explicit fat32/exfat probes the
+# medium BEFORE the mount and reformats first on mismatch, so the one mount that happens
+# is already on the requested filesystem.
+CONF_FILE_SYSTEM = "file_system"
+FILE_SYSTEM_AUTO = "auto"
+FILE_SYSTEM_FAT32 = "fat32"
+FILE_SYSTEM_EXFAT = "exfat"
+
+FILE_SYSTEM_SCHEMA_ENTRY = cv.Optional(CONF_FILE_SYSTEM)
+validate_file_system_value = cv.one_of(
+    FILE_SYSTEM_AUTO, FILE_SYSTEM_FAT32, FILE_SYSTEM_EXFAT, lower=True
+)
+
+
+def _esp32_exfat_enabled(fconf) -> bool:
+    from esphome.components.esp32 import CONF_ENABLE_EXFAT
+    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.const import CONF_ADVANCED, CONF_FRAMEWORK
+
+    esp32 = fconf.get(KEY_ESP32)
+    if not esp32:
+        return False
+    return bool(
+        esp32.get(CONF_FRAMEWORK, {})
+        .get(CONF_ADVANCED, {})
+        .get(CONF_ENABLE_EXFAT, False)
+    )
+
+
+def final_validate_file_system(config) -> None:
+    """Reject the option outright when exFAT is not compiled in."""
+    if CONF_FILE_SYSTEM not in config:
+        return
+    if not _esp32_exfat_enabled(fv.full_config.get()):
+        raise cv.Invalid(
+            f"'{CONF_FILE_SYSTEM}' is not available without 'enable_exfat: true' in the "
+            f"esp32 framework advanced options -- without exFAT the filesystem is always "
+            f"FAT32 and there is nothing to choose"
+        )
+
+
+async def file_system_to_code(var, config) -> None:
+    """Emit the selection define + setter -- only when the option may exist at all."""
+    if not _esp32_exfat_enabled(CORE.config):
+        return  # not even the auto path is compiled in
+
+    cg.add_define("USE_STORAGE_FILE_SYSTEM_SELECT")
+    fs = config.get(CONF_FILE_SYSTEM, FILE_SYSTEM_AUTO)
+    value = {FILE_SYSTEM_AUTO: 0, FILE_SYSTEM_FAT32: 1, FILE_SYSTEM_EXFAT: 2}[fs]
+    cg.add(var.set_requested_file_system(value))
