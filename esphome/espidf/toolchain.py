@@ -109,6 +109,8 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
     env_cache = _cache().env
     if version not in env_cache:
         env_cache[version] = os.environ.copy()
+        # Do not leak PYTHONPATH into child env
+        env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
         if "IDF_PATH" not in os.environ:
