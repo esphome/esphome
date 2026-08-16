@@ -7,6 +7,7 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
+from esphome.components.const import CONF_LABEL
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -27,6 +28,7 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA,
     CONF_DATA_RATE,
+    CONF_FORMAT,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LENGTH,
@@ -126,12 +128,10 @@ CONF_DEVICE_NODE_NAME = "device_node_name"
 _LOGGER = logging.getLogger(__name__)
 
 CONF_REGIONS = "regions"
-CONF_FORMAT = "format"
 FORMAT_RAW = "raw"
 FORMAT_LITTLEFS = "littlefs"
 FORMAT_KV = "kv"
 FORMAT_NVS = "nvs"
-CONF_LABEL = "label"
 SUBTYPE_DATA_NVS = 0x02
 SUBTYPE_DATA_LITTLEFS = 0x83
 SUBTYPE_DATA_UNDEFINED = 0x06
