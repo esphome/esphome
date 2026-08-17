@@ -43,7 +43,7 @@ namespace esphome::socket {
 // (Ethernet). On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket.lwip";
+static const char *const TAG = "socket";
 
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
