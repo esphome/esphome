@@ -813,9 +813,10 @@ storage::StorageError LittleFSMount::mkdir(const char *path) {
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
-  if (::mkdir(full_path, 0755) != 0)
+  if (::mkdir(full_path, 0755) != 0) {
     return errno == EEXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS
                            : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
 
   return storage::StorageError::STORAGE_ERROR_OK;
 }
@@ -831,9 +832,10 @@ storage::StorageError LittleFSMount::rmdir(const char *path) {
 
   // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
-  if (::rmdir(full_path) != 0)
+  if (::rmdir(full_path) != 0) {
     return errno == ENOTEMPTY ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY
                               : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
 
   return storage::StorageError::STORAGE_ERROR_OK;
 }
