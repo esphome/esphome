@@ -862,7 +862,8 @@ storage::StorageError NFSClient::mkdir(const char *path) {
   // Distinguish 'already there' (fine for mkdir-p style callers, e.g. the
   // store_yaml export tree recreation) from real write failures -- same
   // mapping the local-filesystem drivers use for EEXIST.
-  return nfs_status == NFS3ERR_EXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return nfs_status == NFS3ERR_EXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS
+                                     : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rmdir(const char *path) {
@@ -901,7 +902,8 @@ storage::StorageError NFSClient::rmdir(const char *path) {
     return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
   }
 
-  return this->nfs_rmdir_(parent_fh, dirname) ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return this->nfs_rmdir_(parent_fh, dirname) ? storage::StorageError::STORAGE_ERROR_OK
+                                              : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::remove(const char *path) {
@@ -919,7 +921,8 @@ storage::StorageError NFSClient::remove(const char *path) {
     return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
   }
 
-  return this->nfs_remove_(parent_fh, filename) ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return this->nfs_remove_(parent_fh, filename) ? storage::StorageError::STORAGE_ERROR_OK
+                                                : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rename(const char *old_path, const char *new_path) {
