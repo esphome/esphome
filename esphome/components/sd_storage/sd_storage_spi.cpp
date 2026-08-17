@@ -154,8 +154,8 @@ StorageError SdSpi::mount() {
 
   if (mount_error != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
-    this->init_error_ =
-        (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT : ErrorCode::ERROR_CODE_NO_CARD;
+    this->init_error_ = (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT
+                                                                                        : ErrorCode::ERROR_CODE_NO_CARD;
     return StorageError::NOT_READY;
   }
 
