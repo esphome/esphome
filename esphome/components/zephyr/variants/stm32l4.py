@@ -1,5 +1,7 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
@@ -8,7 +10,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_STM32L4
+from ..const import (
+    BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    CONF_BOOTLOADER,
+    KEY_BOOTLOADER,
+    ZEPHYR_VARIANT_STM32L4,
+)
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -22,6 +30,17 @@ from . import (
 # unset below).
 _DEFAULT_BOARD = "nucleo_l476rg"
 
+# nucleo_l476rg's stock board has no slot0/slot1 partitions -- MCUboot is opt-in, same
+# shape as rp2040.py/ra4m1.py: anyone choosing it supplies their own fully-qualified
+# board and MCUboot-shaped partition overlay.
+_ADVANCED_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
+            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
+        ),
+    }
+)
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32L4
 VARIANT = ZephyrVariant(
@@ -30,6 +49,7 @@ VARIANT = ZephyrVariant(
     family="stm32",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
+    transports=frozenset(),
     swap_methods=frozenset({"move", "offset"}),
     # STM32 GPIO controllers are 16 pins/port (dts/bindings/gpio/st,stm32-gpio.yaml's
     # ngpios defaults to 16), labeled gpioa..gpioh in devicetree -- not Nordic/Espressif's
@@ -46,6 +66,8 @@ def config_schema(config: ConfigType) -> ConfigType:
     config = dict(config)
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "stm32", config, "mainline STM32 support"
@@ -53,7 +75,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        BOOTLOADER_MCUBOOT,
+        bootloader if bootloader == BOOTLOADER_MCUBOOT else "",
         framework_ver,
         config,
         framework_type=sdk_name,
@@ -63,7 +85,13 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_data,
+        zephyr_setup_preferences,
+        zephyr_to_code,
+    )
 
     zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_STM32L4")
@@ -74,3 +102,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
     zephyr_add_prj_conf("HWINFO", True)
+
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
+        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
