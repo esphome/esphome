@@ -21,7 +21,7 @@ using CompletionCallback = std::function<void(storage::StorageError)>;
 // Maximum path length copied into each pooled request. Paths are copied (not referenced) at
 // submit time, since the caller's pointers must not be assumed to outlive submission — the
 // request may still be pending when the calling code returns. Longer paths are rejected with
-// StorageError::INVALID_ARGS.
+// StorageError::STORAGE_ERROR_INVALID_ARGS.
 static constexpr size_t STORAGE_WORKER_MAX_PATH = 256;
 
 enum class RequestOp : uint8_t {
@@ -66,7 +66,7 @@ struct TransferRequest {
   char dst_path[STORAGE_WORKER_MAX_PATH]{};
 
   CompletionCallback callback;
-  storage::StorageError result{storage::StorageError::OK};
+  storage::StorageError result{storage::StorageError::STORAGE_ERROR_OK};
 
   // Transfer progress, kept here so the loop-sliced engine can resume across loop()
   // iterations and so the same fields serve the worker task path unchanged.
@@ -105,11 +105,11 @@ class StorageWorker : public Component {
   // component's own setup_priority is lower than DATA).
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  // Submits an async copy/move. Returns StorageError::OK once the request is queued (the
+  // Submits an async copy/move. Returns StorageError::STORAGE_ERROR_OK once the request is queued (the
   // callback will be invoked exactly once, later, always on the main loop) — or an error
   // immediately if the request could not be queued, in which case the callback is NOT
-  // invoked. Rejections: StorageError::NOT_READY (request pool full — this is backpressure,
-  // not a frozen-enum addition, see the PR notes) or StorageError::INVALID_ARGS (a path
+  // invoked. Rejections: StorageError::STORAGE_ERROR_NOT_READY (request pool full — this is backpressure,
+  // not a frozen-enum addition, see the PR notes) or StorageError::STORAGE_ERROR_INVALID_ARGS (a path
   // exceeds STORAGE_WORKER_MAX_PATH).
   storage::StorageError async_copy(storage::PathStorage *src, const char *src_path, storage::PathStorage *dst,
                                    const char *dst_path, CompletionCallback &&on_done);

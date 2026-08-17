@@ -74,7 +74,7 @@ bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
                                     const char *dst_path, CompletionCallback &&on_done) {
   if (strlen(src_path) >= STORAGE_WORKER_MAX_PATH || strlen(dst_path) >= STORAGE_WORKER_MAX_PATH)
-    return StorageError::INVALID_ARGS;
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   // Find a free slot. Backpressure: a full pool returns NOT_READY immediately, callback not
   // invoked — this reuses the existing "device not ready to serve calls" error rather than
@@ -88,7 +88,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
     }
   }
   if (slot == nullptr)
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
 
   slot->op = op;
   slot->src_storage = src;
@@ -98,15 +98,15 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   strncpy(slot->dst_path, dst_path, STORAGE_WORKER_MAX_PATH - 1);
   slot->dst_path[STORAGE_WORKER_MAX_PATH - 1] = '\0';
   slot->callback = std::move(on_done);
-  slot->result = StorageError::OK;
+  slot->result = StorageError::STORAGE_ERROR_OK;
   slot->offset = 0;
   slot->src_handle = nullptr;
   slot->dst_handle = nullptr;
   slot->handles_open = false;
   slot->chunk_buf.reset();
   slot->chunk_size = 0;
-  slot->src_is_fs = src->get_storage_type() == StorageType::FILESYSTEM;
-  slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
+  slot->src_is_fs = src->get_storage_type() == StorageType::STORAGE_TYPE_FILESYSTEM;
+  slot->dst_is_fs = dst->get_storage_type() == StorageType::STORAGE_TYPE_FILESYSTEM;
 
 #ifdef USE_ESP32
   // Skip task dispatch if another active (RUNNING/CANCELLED) request already shares a storage
@@ -118,7 +118,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
     size_t index = slot - this->pool_.begin();
     slot->state = RequestState::RUNNING;
     if (xQueueSend(this->task_queue_, &index, 0) == pdTRUE) {
-      return StorageError::OK;
+      return StorageError::STORAGE_ERROR_OK;
     }
     // Queue send failed despite a free slot (shouldn't normally happen since the queue and
     // pool are sized identically) — fall through to loop-sliced handling instead of losing
@@ -128,7 +128,7 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
 #endif
 
   // Loop-sliced mode: leave the request PENDING; loop() picks up requests FIFO.
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError StorageWorker::async_copy(PathStorage *src, const char *src_path, PathStorage *dst, const char *dst_path,
@@ -153,7 +153,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
     RequestState state = req.state.load();
     if (state == RequestState::PENDING) {
       // Not started yet — finish it immediately, no partial I/O to unwind.
-      req.result = StorageError::NOT_READY;
+      req.result = StorageError::STORAGE_ERROR_NOT_READY;
       req.state = RequestState::DONE;
     } else if (state == RequestState::RUNNING) {
       if (i == this->loop_active_index_) {
@@ -280,7 +280,7 @@ void finish_request(TransferRequest &req, StorageError result) {
       static_cast<FilesystemStorage *>(req.src_storage)->close(req.src_handle);
     if (req.dst_is_fs && req.dst_handle != nullptr) {
       StorageError close_err = static_cast<FilesystemStorage *>(req.dst_storage)->close(req.dst_handle);
-      if (result == StorageError::OK)
+      if (result == StorageError::STORAGE_ERROR_OK)
         result = close_err;
     }
   }
@@ -294,12 +294,12 @@ void finish_request(TransferRequest &req, StorageError result) {
 void StorageWorker::run_chunk_(TransferRequest &req) {
   // Cancellation / hotplug check, before doing any I/O this call.
   if (req.state.load() == RequestState::CANCELLED) {
-    finish_request(req, StorageError::NOT_READY);
+    finish_request(req, StorageError::STORAGE_ERROR_NOT_READY);
     return;
   }
   if (global_storage_registry != nullptr && (!global_storage_registry->is_registered(req.src_storage) ||
                                              !global_storage_registry->is_registered(req.dst_storage))) {
-    finish_request(req, StorageError::NOT_READY);
+    finish_request(req, StorageError::STORAGE_ERROR_NOT_READY);
     return;
   }
 
@@ -321,7 +321,7 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
       chunk_size /= 2;
     }
     if (raw == nullptr) {
-      finish_request(req, StorageError::NO_SPACE);
+      finish_request(req, StorageError::STORAGE_ERROR_NO_SPACE);
       return;
     }
     req.chunk_buf = RamBuffer(raw, RamBufferDeleter{chunk_size});
@@ -329,16 +329,16 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
 
     if (req.src_is_fs) {
       StorageError err =
-          static_cast<FilesystemStorage *>(req.src_storage)->open(req.src_path, req.src_handle, OpenMode::READ);
-      if (err != StorageError::OK) {
+          static_cast<FilesystemStorage *>(req.src_storage)->open(req.src_path, req.src_handle, OpenMode::OPEN_MODE_READ);
+      if (err != StorageError::STORAGE_ERROR_OK) {
         finish_request(req, err);
         return;
       }
     }
     if (req.dst_is_fs) {
       StorageError err =
-          static_cast<FilesystemStorage *>(req.dst_storage)->open(req.dst_path, req.dst_handle, OpenMode::WRITE);
-      if (err != StorageError::OK) {
+          static_cast<FilesystemStorage *>(req.dst_storage)->open(req.dst_path, req.dst_handle, OpenMode::OPEN_MODE_WRITE);
+      if (err != StorageError::STORAGE_ERROR_OK) {
         req.handles_open = true;  // src handle (if any) is open — let finish_request() close it
         finish_request(req, err);
         return;
@@ -358,7 +358,7 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
     err = static_cast<NetworkStorage *>(req.src_storage)
               ->read_chunk(req.src_path, req.chunk_buf.get(), req.offset, req.chunk_size, &bytes_read);
   }
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     finish_request(req, err);
     return;
   }
@@ -386,12 +386,12 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
                 ->write_chunk(req.dst_path, req.chunk_buf.get() + total_written, req.offset + total_written,
                               bytes_read - total_written, &bytes_written);
     }
-    if (err != StorageError::OK) {
+    if (err != StorageError::STORAGE_ERROR_OK) {
       finish_request(req, err);
       return;
     }
     if (bytes_written == 0) {
-      finish_request(req, StorageError::WRITE_ERROR);
+      finish_request(req, StorageError::STORAGE_ERROR_WRITE_ERROR);
       return;
     }
     total_written += bytes_written;
