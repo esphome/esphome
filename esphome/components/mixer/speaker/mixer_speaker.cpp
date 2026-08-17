@@ -7,8 +7,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <mixer.h>        // esp-audio-libs
+#include <pcm_convert.h>  // esp-audio-libs
+
 #include <algorithm>
-#include <array>
 #include <cstring>
 
 namespace esphome::mixer_speaker {
@@ -22,18 +24,7 @@ static const uint32_t MIXER_AUTO_STOP_DEBOUNCE_MS = 200;
 
 static const size_t TASK_STACK_SIZE = 4096;
 
-static const int16_t MAX_AUDIO_SAMPLE_VALUE = INT16_MAX;
-static const int16_t MIN_AUDIO_SAMPLE_VALUE = INT16_MIN;
-
 static const char *const TAG = "speaker_mixer";
-
-// Gives the Q15 fixed point scaling factor to reduce by 0 dB, 1dB, ..., 50 dB
-// dB to PCM scaling factor formula: floating_point_scale_factor = 2^(-db/6.014)
-// float to Q15 fixed point formula: q15_scale_factor = floating_point_scale_factor * 2^(15)
-static const std::array<int16_t, 51> DECIBEL_REDUCTION_TABLE = {
-    32767, 29201, 26022, 23189, 20665, 18415, 16410, 14624, 13032, 11613, 10349, 9222, 8218, 7324, 6527, 5816, 5183,
-    4619,  4116,  3668,  3269,  2913,  2596,  2313,  2061,  1837,  1637,  1459,  1300, 1158, 1032, 920,  820,  731,
-    651,   580,   517,   461,   411,   366,   326,   291,   259,   231,   206,   183,  163,  146,  130,  116,  103};
 
 // Event bits for SourceSpeaker command processing
 enum SourceSpeakerEventBits : uint32_t {
@@ -315,97 +306,17 @@ size_t SourceSpeaker::process_data_from_source(std::shared_ptr<audio::RingBuffer
 
   uint32_t samples_to_duck = this->audio_stream_info_.bytes_to_samples(bytes_read);
   if (samples_to_duck > 0) {
-    int16_t *current_buffer = reinterpret_cast<int16_t *>(audio_source->mutable_data());
-
-    duck_samples(current_buffer, samples_to_duck, &this->current_ducking_db_reduction_,
-                 &this->ducking_transition_samples_remaining_, this->samples_per_ducking_step_,
-                 this->db_change_per_ducking_step_);
+    esp_audio_libs::ducking::apply(audio_source->mutable_data(),
+                                   static_cast<uint8_t>(this->audio_stream_info_.get_bits_per_sample() / 8),
+                                   samples_to_duck, this->ducking_state_);
   }
 
   return bytes_read;
 }
 
 void SourceSpeaker::apply_ducking(uint8_t decibel_reduction, uint32_t duration) {
-  if (this->target_ducking_db_reduction_ != decibel_reduction) {
-    // Start transition from the previous target (which becomes the new current level)
-    this->current_ducking_db_reduction_ = this->target_ducking_db_reduction_;
-
-    this->target_ducking_db_reduction_ = decibel_reduction;
-
-    // Calculate the number of intermediate dB steps for the transition timing.
-    // Subtract 1 because the first step is taken immediately after this calculation.
-    uint8_t total_ducking_steps = 0;
-    if (this->target_ducking_db_reduction_ > this->current_ducking_db_reduction_) {
-      // The dB reduction level is increasing (which results in quieter audio)
-      total_ducking_steps = this->target_ducking_db_reduction_ - this->current_ducking_db_reduction_ - 1;
-      this->db_change_per_ducking_step_ = 1;
-    } else {
-      // The dB reduction level is decreasing (which results in louder audio)
-      total_ducking_steps = this->current_ducking_db_reduction_ - this->target_ducking_db_reduction_ - 1;
-      this->db_change_per_ducking_step_ = -1;
-    }
-    if ((duration > 0) && (total_ducking_steps > 0)) {
-      this->ducking_transition_samples_remaining_ = this->audio_stream_info_.ms_to_samples(duration);
-
-      this->samples_per_ducking_step_ = this->ducking_transition_samples_remaining_ / total_ducking_steps;
-      this->ducking_transition_samples_remaining_ =
-          this->samples_per_ducking_step_ * total_ducking_steps;  // adjust for integer division rounding
-
-      this->current_ducking_db_reduction_ += this->db_change_per_ducking_step_;
-    } else {
-      this->ducking_transition_samples_remaining_ = 0;
-      this->current_ducking_db_reduction_ = this->target_ducking_db_reduction_;
-    }
-  }
-}
-
-void SourceSpeaker::duck_samples(int16_t *input_buffer, uint32_t input_samples_to_duck,
-                                 int8_t *current_ducking_db_reduction, uint32_t *ducking_transition_samples_remaining,
-                                 uint32_t samples_per_ducking_step, int8_t db_change_per_ducking_step) {
-  if (*ducking_transition_samples_remaining > 0) {
-    // Ducking level is still transitioning
-
-    // Takes the ceiling of input_samples_to_duck/samples_per_ducking_step
-    uint32_t ducking_steps_in_batch =
-        input_samples_to_duck / samples_per_ducking_step + (input_samples_to_duck % samples_per_ducking_step != 0);
-
-    for (uint32_t i = 0; i < ducking_steps_in_batch; ++i) {
-      uint32_t samples_left_in_step = *ducking_transition_samples_remaining % samples_per_ducking_step;
-
-      if (samples_left_in_step == 0) {
-        samples_left_in_step = samples_per_ducking_step;
-      }
-
-      uint32_t samples_to_duck = std::min(input_samples_to_duck, samples_left_in_step);
-      samples_to_duck = std::min(samples_to_duck, *ducking_transition_samples_remaining);
-
-      // Ensure we only point to valid index in the Q15 scaling factor table
-      uint8_t safe_db_reduction_index =
-          clamp<uint8_t>(*current_ducking_db_reduction, 0, DECIBEL_REDUCTION_TABLE.size() - 1);
-      int16_t q15_scale_factor = DECIBEL_REDUCTION_TABLE[safe_db_reduction_index];
-
-      audio::scale_audio_samples(input_buffer, input_buffer, q15_scale_factor, samples_to_duck);
-
-      if (samples_left_in_step - samples_to_duck == 0) {
-        // After scaling the current samples, we are ready to transition to the next step
-        *current_ducking_db_reduction += db_change_per_ducking_step;
-      }
-
-      input_buffer += samples_to_duck;
-      *ducking_transition_samples_remaining -= samples_to_duck;
-      input_samples_to_duck -= samples_to_duck;
-    }
-  }
-
-  if ((*current_ducking_db_reduction > 0) && (input_samples_to_duck > 0)) {
-    // Audio is ducked, but its not in the middle of a transition step
-
-    uint8_t safe_db_reduction_index =
-        clamp<uint8_t>(*current_ducking_db_reduction, 0, DECIBEL_REDUCTION_TABLE.size() - 1);
-    int16_t q15_scale_factor = DECIBEL_REDUCTION_TABLE[safe_db_reduction_index];
-
-    audio::scale_audio_samples(input_buffer, input_buffer, q15_scale_factor, input_samples_to_duck);
-  }
+  const uint32_t transition_samples = duration > 0 ? this->audio_stream_info_.ms_to_samples(duration) : 0;
+  esp_audio_libs::ducking::set_target(this->ducking_state_, decibel_reduction, transition_samples);
 }
 
 void SourceSpeaker::enter_stopping_state_() {
@@ -417,8 +328,9 @@ void SourceSpeaker::enter_stopping_state_() {
 void MixerSpeaker::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Speaker Mixer:\n"
-                "  Number of output channels: %u",
-                this->output_channels_);
+                "  Number of output channels: %" PRIu8 "\n"
+                "  Output bits per sample: %" PRIu8,
+                this->output_channels_, this->output_bits_per_sample_);
 }
 
 void MixerSpeaker::setup() {
@@ -512,13 +424,8 @@ void MixerSpeaker::loop() {
 
 esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
   if (!this->audio_stream_info_.has_value()) {
-    if (stream_info.get_bits_per_sample() != 16) {
-      // Audio streams that don't have 16 bits per sample are not supported
-      return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    this->audio_stream_info_ = audio::AudioStreamInfo(stream_info.get_bits_per_sample(), this->output_channels_,
-                                                      stream_info.get_sample_rate());
+    this->audio_stream_info_ =
+        audio::AudioStreamInfo(this->output_bits_per_sample_, this->output_channels_, stream_info.get_sample_rate());
     this->output_speaker_->set_audio_stream_info(this->audio_stream_info_.value());
   } else {
     if (!this->queue_mode_ && (stream_info.get_sample_rate() != this->audio_stream_info_.value().get_sample_rate())) {
@@ -540,57 +447,6 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
   }
 
   return ESP_OK;
-}
-
-void MixerSpeaker::copy_frames(const int16_t *input_buffer, audio::AudioStreamInfo input_stream_info,
-                               int16_t *output_buffer, audio::AudioStreamInfo output_stream_info,
-                               uint32_t frames_to_transfer) {
-  uint8_t input_channels = input_stream_info.get_channels();
-  uint8_t output_channels = output_stream_info.get_channels();
-  const uint8_t max_input_channel_index = input_channels - 1;
-
-  if (input_channels == output_channels) {
-    size_t bytes_to_copy = input_stream_info.frames_to_bytes(frames_to_transfer);
-    memcpy(output_buffer, input_buffer, bytes_to_copy);
-
-    return;
-  }
-
-  for (uint32_t frame_index = 0; frame_index < frames_to_transfer; ++frame_index) {
-    for (uint8_t output_channel_index = 0; output_channel_index < output_channels; ++output_channel_index) {
-      uint8_t input_channel_index = std::min(output_channel_index, max_input_channel_index);
-      output_buffer[output_channels * frame_index + output_channel_index] =
-          input_buffer[input_channels * frame_index + input_channel_index];
-    }
-  }
-}
-
-void MixerSpeaker::mix_audio_samples(const int16_t *primary_buffer, audio::AudioStreamInfo primary_stream_info,
-                                     const int16_t *secondary_buffer, audio::AudioStreamInfo secondary_stream_info,
-                                     int16_t *output_buffer, audio::AudioStreamInfo output_stream_info,
-                                     uint32_t frames_to_mix) {
-  const uint8_t primary_channels = primary_stream_info.get_channels();
-  const uint8_t secondary_channels = secondary_stream_info.get_channels();
-  const uint8_t output_channels = output_stream_info.get_channels();
-
-  const uint8_t max_primary_channel_index = primary_channels - 1;
-  const uint8_t max_secondary_channel_index = secondary_channels - 1;
-
-  for (uint32_t frames_index = 0; frames_index < frames_to_mix; ++frames_index) {
-    for (uint8_t output_channel_index = 0; output_channel_index < output_channels; ++output_channel_index) {
-      const uint32_t secondary_channel_index = std::min(output_channel_index, max_secondary_channel_index);
-      const int32_t secondary_sample = secondary_buffer[frames_index * secondary_channels + secondary_channel_index];
-
-      const uint32_t primary_channel_index = std::min(output_channel_index, max_primary_channel_index);
-      const int32_t primary_sample =
-          static_cast<int32_t>(primary_buffer[frames_index * primary_channels + primary_channel_index]);
-
-      const int32_t added_sample = secondary_sample + primary_sample;
-
-      output_buffer[frames_index * output_channels + output_channel_index] =
-          static_cast<int16_t>(clamp<int32_t>(added_sample, MIN_AUDIO_SAMPLE_VALUE, MAX_AUDIO_SAMPLE_VALUE));
-    }
-  }
 }
 
 // NOLINTBEGIN(bugprone-unchecked-optional-access) -- audio_stream_info_ always set before this task is created
@@ -662,6 +518,10 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
       uint32_t frames_to_mix = output_frames_free;
 
+      const audio::AudioStreamInfo &output_info = this_mixer->audio_stream_info_.value();
+      const uint8_t output_bps = output_info.get_bits_per_sample() / 8;
+      const uint8_t output_channels = output_info.get_channels();
+
       if ((audio_sources_with_data.size() == 1) || this_mixer->queue_mode_) {
         // Only one speaker has audio data, just copy samples over
 
@@ -669,14 +529,15 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
         if (active_stream_info.get_sample_rate() ==
             this_mixer->output_speaker_->get_audio_stream_info().get_sample_rate()) {
-          // Speaker's sample rate matches the output speaker's, copy directly
+          // Speaker's sample rate matches the output speaker's, convert directly into the output buffer
 
           const uint32_t frames_available_in_buffer =
               active_stream_info.bytes_to_frames(audio_sources_with_data[0]->available());
           frames_to_mix = std::min(frames_to_mix, frames_available_in_buffer);
-          copy_frames(reinterpret_cast<const int16_t *>(audio_sources_with_data[0]->data()), active_stream_info,
-                      reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()),
-                      this_mixer->audio_stream_info_.value(), frames_to_mix);
+          esp_audio_libs::pcm_convert::copy_frames(
+              audio_sources_with_data[0]->data(), output_transfer_buffer->get_buffer_end(),
+              static_cast<uint8_t>(active_stream_info.get_bits_per_sample() / 8), active_stream_info.get_channels(),
+              output_bps, output_channels, frames_to_mix);
 
           // Set playback delay for newly contributing source
           if (!speakers_with_data[0]->has_contributed_.load(std::memory_order_acquire)) {
@@ -690,8 +551,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           audio_sources_with_data[0]->consume(active_stream_info.frames_to_bytes(frames_to_mix));
 
           // Update output transfer buffer length and pipeline frame count
-          output_transfer_buffer->increase_buffer_length(
-              this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+          output_transfer_buffer->increase_buffer_length(output_info.frames_to_bytes(frames_to_mix));
           this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
         } else {
           // Speaker's stream info doesn't match the output speaker's, so it's a new source speaker
@@ -703,7 +563,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           } else {
             // Speaker has finished writing the current audio, update the stream information and restart the speaker
             this_mixer->audio_stream_info_ =
-                audio::AudioStreamInfo(active_stream_info.get_bits_per_sample(), this_mixer->output_channels_,
+                audio::AudioStreamInfo(this_mixer->output_bits_per_sample_, this_mixer->output_channels_,
                                        active_stream_info.get_sample_rate());
             this_mixer->output_speaker_->set_audio_stream_info(this_mixer->audio_stream_info_.value());
             this_mixer->output_speaker_->start();
@@ -719,21 +579,22 @@ void MixerSpeaker::audio_mixer_task(void *params) {
               speakers_with_data[i]->get_audio_stream_info().bytes_to_frames(audio_sources_with_data[i]->available());
           frames_to_mix = std::min(frames_to_mix, frames_available_in_buffer);
         }
-        const int16_t *primary_buffer = reinterpret_cast<const int16_t *>(audio_sources_with_data[0]->data());
+        const uint8_t *primary_buffer = audio_sources_with_data[0]->data();
         audio::AudioStreamInfo primary_stream_info = speakers_with_data[0]->get_audio_stream_info();
 
-        // Mix two streams together
+        // Mix two streams together at a time, accumulating into the output buffer.
         for (size_t i = 1; i < audio_sources_with_data.size(); ++i) {
-          mix_audio_samples(primary_buffer, primary_stream_info,
-                            reinterpret_cast<const int16_t *>(audio_sources_with_data[i]->data()),
-                            speakers_with_data[i]->get_audio_stream_info(),
-                            reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()),
-                            this_mixer->audio_stream_info_.value(), frames_to_mix);
+          esp_audio_libs::mixer::mix_frames(
+              primary_buffer, static_cast<uint8_t>(primary_stream_info.get_bits_per_sample() / 8),
+              primary_stream_info.get_channels(), audio_sources_with_data[i]->data(),
+              static_cast<uint8_t>(speakers_with_data[i]->get_audio_stream_info().get_bits_per_sample() / 8),
+              speakers_with_data[i]->get_audio_stream_info().get_channels(), output_transfer_buffer->get_buffer_end(),
+              output_bps, output_channels, frames_to_mix);
 
           if (i != audio_sources_with_data.size() - 1) {
             // Need to mix more streams together, point primary buffer and stream info to the already mixed output
-            primary_buffer = reinterpret_cast<const int16_t *>(output_transfer_buffer->get_buffer_end());
-            primary_stream_info = this_mixer->audio_stream_info_.value();
+            primary_buffer = output_transfer_buffer->get_buffer_end();
+            primary_stream_info = output_info;
           }
         }
 
@@ -754,8 +615,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
         }
 
         // Update output transfer buffer length and pipeline frame count (once, not per source)
-        output_transfer_buffer->increase_buffer_length(
-            this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+        output_transfer_buffer->increase_buffer_length(output_info.frames_to_bytes(frames_to_mix));
         this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
       }
     }

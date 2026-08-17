@@ -17,9 +17,9 @@ void HomeassistantSensor::setup() {
     }
 
     if (this->attribute_ != nullptr) {
-      ESP_LOGD(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_, this->attribute_, *val);
+      ESP_LOGV(TAG, "'%s::%s': Got attribute state %.2f", this->entity_id_, this->attribute_, *val);
     } else {
-      ESP_LOGD(TAG, "'%s': Got state %.2f", this->entity_id_, *val);
+      ESP_LOGV(TAG, "'%s': Got state %.2f", this->entity_id_, *val);
     }
     this->publish_state(*val);
   });

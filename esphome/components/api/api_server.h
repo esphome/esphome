@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_buffer.h"
+// Must precede clients_ so APIConnection is complete for default_delete (libc++).
+#include "api_connection.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -12,8 +14,9 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
-#include "list_entities.h"
-#include "subscribe_state.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -191,15 +194,9 @@ class APIServer final : public Component,
   bool is_connected_with_state_subscription() const;
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
-  // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
+  // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
   // APIConnection but cannot reset/move the slot and break the count invariant.
-  // Custom deleter is defined out-of-line in api_server.cpp so libc++ does not
-  // eagerly instantiate `delete static_cast<APIConnection *>(p)` here, where
-  // only the forward declaration of APIConnection is visible (incomplete type).
-  struct APIConnectionDeleter {
-    void operator()(APIConnection *p) const;
-  };
-  using APIConnectionPtr = std::unique_ptr<APIConnection, APIConnectionDeleter>;
+  using APIConnectionPtr = std::unique_ptr<APIConnection>;
   class ActiveClientsView {
     const APIConnectionPtr *begin_;
     const APIConnectionPtr *end_;
@@ -260,6 +257,19 @@ class APIServer final : public Component,
   void __attribute__((noinline)) accept_new_connections_();
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
+
+#ifdef USE_PROVISIONING
+  // True while a configured provisioning window is still pending (the device is
+  // unprovisioned). Suppresses the reboot timeout and its warning so the device is
+  // not auto-rebooted while waiting to be provisioned. False when no provisioning
+  // window is configured.
+  bool provisioning_pending_() const {
+    return provisioning::global_provisioning_manager != nullptr &&
+           provisioning::global_provisioning_manager->window_pending();
+  }
+#else
+  bool provisioning_pending_() const { return false; }
+#endif
 
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
@@ -338,7 +348,10 @@ class APIServer final : public Component,
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
-  // 7 bytes used, 1 byte padding
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Index assigned by the provisioning manager for reporting this transport's state.
+  uint8_t provisioning_source_{0};
+#endif
 
 #ifdef USE_API_NOISE
   APINoiseContext noise_ctx_;
@@ -348,7 +361,7 @@ class APIServer final : public Component,
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {

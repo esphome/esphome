@@ -319,7 +319,7 @@ void Inkplate::fill(Color color) {
     memset(this->partial_buffer_, fill, this->get_buffer_length_());
   }
 
-  ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Fill finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::display() {

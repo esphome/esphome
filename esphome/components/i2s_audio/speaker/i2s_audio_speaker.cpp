@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <driver/gpio.h>
 #include <driver/i2s_std.h>
 
 #include "esphome/components/audio/audio.h"
@@ -138,7 +139,7 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
   this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
   if (this->audio_dac_ != nullptr) {
-    if (volume > 0.0) {
+    if (volume > 0.0f) {
       this->audio_dac_->set_mute_off();
     }
     this->audio_dac_->set_volume(volume);
@@ -299,6 +300,15 @@ void I2SAudioSpeakerBase::stop_i2s_driver_() {
     i2s_channel_disable(this->tx_handle_);
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
+
+    // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
+    // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
+    // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
+    // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
+    // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
+    gpio_reset_pin(this->dout_pin_);
+    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+    gpio_set_level(this->dout_pin_, 0);
   }
   this->parent_->unlock();
 }
@@ -344,7 +354,7 @@ void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_rea
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {
 #ifdef USE_ESP32_VARIANT_ESP32
   // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
-  if (this->current_stream_info_.get_channels() == 1 && this->current_stream_info_.get_bits_per_sample() == 16) {
+  if (this->output_stream_info_.get_channels() == 1 && this->output_stream_info_.get_bits_per_sample() == 16) {
     int16_t *samples = reinterpret_cast<int16_t *>(data);
     size_t sample_count = bytes_read / sizeof(int16_t);
     for (size_t i = 0; i + 1 < sample_count; i += 2) {

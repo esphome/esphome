@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTEventComponent : public mqtt::MQTTComponent {
+class MQTTEventComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTEventComponent(event::Event *event);
 
