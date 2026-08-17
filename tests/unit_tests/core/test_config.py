@@ -1242,6 +1242,15 @@ def test_make_app_name_cpp_special_chars_escaped() -> None:
             None,
             "https://github.com/esphome/noise-c.git",
         ),
+        # A local file:// source is routed to the repository, not a registry name
+        # -- including the fewer-than-two-slashes spelling.
+        (
+            "TeslaBLE=file:///config/esphome/lib_dev",
+            "TeslaBLE",
+            None,
+            "file:///config/esphome/lib_dev",
+        ),
+        ("MyLib=file:lib_dev", "MyLib", None, "file:lib_dev"),
     ],
 )
 def test_add_library_str(

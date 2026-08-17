@@ -33,12 +33,12 @@ enum class FunctionCode : uint8_t {
   GET_COMM_EVENT_LOG = 0x0C,      // not implemented
   WRITE_MULTIPLE_COILS = 0x0F,
   WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
+  REPORT_SERVER_ID = 0x11,     // not implemented
+  READ_FILE_RECORD = 0x14,     // not implemented
+  WRITE_FILE_RECORD = 0x15,    // not implemented
+  MASK_WRITE_REGISTER = 0x16,  // not implemented
+  READ_WRITE_MULTIPLE_REGISTERS = 0x17,
+  READ_FIFO_QUEUE = 0x18,  // not implemented
 };
 
 // Remove before 2027.2.0
@@ -116,6 +116,31 @@ static constexpr uint16_t READ_PDU_SIZE = 5;
 // A single-write PDU is always function code(1) + address(2) + value(2)
 static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
+
+// 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
+static constexpr uint8_t BROADCAST_ADDRESS = 0;
+
+// Both send paths bound their payload so the framed result lands exactly on the RTU limit: a client
+// PDU gains an address byte and a CRC, a raw server frame gains a CRC. send_frame_() therefore never
+// has to check the framed size - it cannot be exceeded.
+static_assert(MAX_PDU_SIZE + 3 == MAX_FRAME_SIZE, "a framed client PDU must fill the RTU frame limit");
+static_assert(MAX_RAW_SIZE + 2 == MAX_FRAME_SIZE, "a framed raw server payload must fill the RTU frame limit");
+/// Bits pack 8 per data byte, rounded up to whole bytes.
+constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
+
+// A coil/discrete-input read answers with byte count(1) + packed_bit_bytes(count) bytes, which has to fit
+// the raw frame body. The runtime check on that path catches a caller entering with bytes already written;
+// this catches the other way in, raising the ceiling past what a frame can carry.
+static_assert(1 + packed_bit_bytes(MAX_NUM_OF_COILS_TO_READ) <= MAX_RAW_SIZE,
+              "MAX_NUM_OF_COILS_TO_READ yields a read response larger than MAX_RAW_SIZE");
+static_assert(1 + packed_bit_bytes(MAX_NUM_OF_DISCRETE_INPUTS_TO_READ) <= MAX_RAW_SIZE,
+              "MAX_NUM_OF_DISCRETE_INPUTS_TO_READ yields a read response larger than MAX_RAW_SIZE");
+
+// The coil and discrete-input ceilings are separate limits in the spec but hold the same value, so the
+// read paths validate both against MAX_NUM_OF_COILS_TO_READ. Should the spec ever split them, this fires.
+static_assert(MAX_NUM_OF_COILS_TO_READ == MAX_NUM_OF_DISCRETE_INPUTS_TO_READ,
+              "the coil and discrete-input read ceilings must match");
+
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.
@@ -123,9 +148,6 @@ static constexpr uint16_t MAX_FRAME_SIZE = 256;
  * with any subscript. Writes and forwarding are defensive: set() drops out-of-range bits and
  * bytes() clamps to the real span, because those paths touch buffers and the wire directly.
  */
-/// Bits pack 8 per data byte, rounded up to whole bytes.
-constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
-
 class PackedBits {
  public:
   PackedBits(std::span<const uint8_t> data, uint16_t count) : data_(data), count_(count) {}
