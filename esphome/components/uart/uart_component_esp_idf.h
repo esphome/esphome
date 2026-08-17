@@ -54,9 +54,12 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
-  uart_port_t uart_num_;
   uart_config_t get_config_();
 
+  // Members ordered largest to smallest to minimize padding
+  uart_port_t uart_num_;
+  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
+  uint8_t peek_byte_;
   bool has_peek_{false};
   /// True once uart_driver_install() succeeded for uart_num_. Gates all
   /// driver-touching I/O: before setup uart_num_ is not even assigned, so
@@ -66,8 +69,6 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   /// I/O like it always did, and load_settings() can revive it.
   bool driver_installed_{false};
   bool warned_not_ready_{false};
-  uint8_t peek_byte_;
-  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.
