@@ -2071,8 +2071,8 @@ const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETT
 void set_mac_address(uint8_t *mac);
 
 /// Read the custom MAC address from eFuse into the provided byte array (6 bytes).
-/// Never logs, so it is safe to call before the logger is initialized.
-/// @return True if a valid custom MAC address was read, else false.
+/// Must not use the ESPHome logger (may run before it is initialized); IDF itself may still log.
+/// @return True if a valid custom MAC address was read; on false, the contents of mac are undefined.
 bool get_custom_mac_address(uint8_t *mac);
 #endif
 

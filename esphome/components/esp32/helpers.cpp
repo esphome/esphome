@@ -71,8 +71,10 @@ static bool read_valid_mac(uint8_t *mac, esp_err_t err) { return err == ESP_OK &
 
 static constexpr size_t MAC_ADDRESS_SIZE_BITS = MAC_ADDRESS_SIZE * 8;  // 48 bits
 
-// Log-free (safe to call before the logger exists, e.g. from app_main()).
+// Must not use the ESPHome logger (may run before it exists, e.g. from app_main()).
 bool get_custom_mac_address(uint8_t *mac) {
+  // has_custom_mac_address() checks the raw eFuse field, while the reads below select their
+  // method differently and may still fail (CRC), so the result must be validated again.
   if (!has_custom_mac_address())
     return false;
 #if defined(CONFIG_SOC_IEEE802154_SUPPORTED)
