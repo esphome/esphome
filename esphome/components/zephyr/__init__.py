@@ -676,25 +676,32 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    # STM32L4's iwdg devicetree node ships status = "disabled" by default
-    # (dts/arm/st/l4/stm32l4.dtsi) -- CONFIG_WATCHDOG alone doesn't enable it, an
-    # overlay setting `&iwdg { status = "okay"; };` is also needed. Skipped here
-    # until that overlay is added and verified on real hardware.
-    if zephyr_variant() is not None and zephyr_variant() not in (
-        ZEPHYR_VARIANT_NATIVE_SIM,
-        ZEPHYR_VARIANT_STM32L4,
-    ):
-        zephyr_add_prj_conf("WATCHDOG", True)
-        zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
-        cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
-        # Identifies the stalled thread on the console from the watchdog callback (see
-        # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
-        zephyr_add_prj_conf("THREAD_NAME", True)
-        # arch_stack_walk() isn't implemented for Xtensa (original ESP32); the call
-        # would silently do nothing there.
-        if zephyr_variant() != ZEPHYR_VARIANT_ESP32:
-            cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
+        # 0 disables the watchdog: leave CONFIG_WATCHDOG unset so hal.cpp's #ifdef
+        # compiles it out entirely, rather than requesting a timeout of zero.
+        if timeout_ms != 0:
+            zephyr_add_prj_conf("WATCHDOG", True)
+            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
+            # Every STM32 family member's iwdg node (dts/arm/st/*/stm32*.dtsi, "st,stm32-watchdog")
+            # ships status = "disabled" -- CONFIG_WATCHDOG alone doesn't enable it. hal.cpp
+            # resolves the watchdog device via DT_ALIAS(watchdog0), same as every other
+            # family's stock board -- but unlike nrf52/esp32 boards, STM32 boards don't
+            # define that alias themselves (watchdog wasn't previously used on this family),
+            # so it has to be added here too, not just the node's status.
+            if zephyr_variant_family() == "stm32":
+                zephyr_add_overlay(
+                    '&iwdg { status = "okay"; };\n'
+                    "/ { aliases { watchdog0 = &iwdg; }; };"
+                )
+            # Identifies the stalled thread on the console from the watchdog callback (see
+            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
+            zephyr_add_prj_conf("THREAD_NAME", True)
+            # arch_stack_walk() isn't implemented for Xtensa (original ESP32); the call
+            # would silently do nothing there.
+            if zephyr_variant() != ZEPHYR_VARIANT_ESP32:
+                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
 
     # .get(): nrf52's config dict has no log_level key yet, falls back to the same
     # default as a genuine platform: zephyr block.
@@ -964,11 +971,23 @@ def copy_files() -> None:
 
 
 # Watchdog range mirrors esp32's own CONF_WATCHDOG_TIMEOUT validator (esp32/__init__.py) --
-# confirmed working on real ESP32-H2 hardware under Zephyr.
-_WATCHDOG_TIMEOUT_VALIDATOR = cv.All(
-    cv.positive_time_period_seconds,
-    cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
-)
+# confirmed working on real ESP32-H2 hardware under Zephyr. 0 is a special case, not part of
+# that shared range: it disables the watchdog entirely (no CONFIG_WATCHDOG, no wdt_setup()
+# call at all -- see the zephyr_variant() watchdog codegen block below), rather than
+# requesting an unusably short real timeout.
+def _validate_watchdog_timeout(value):
+    # Bare 0 has no unit, so it wouldn't parse as a normal TimePeriod otherwise.
+    # Only the 60s ceiling is checked here; the 5s floor is variant-aware (some
+    # variants can't reach it) and enforced later once VARIANTS[variant] is known.
+    if isinstance(value, (int, float)) and value == 0:
+        return cv.TimePeriod(seconds=0)
+    period = cv.positive_time_period_seconds(value)
+    if period == cv.TimePeriod(seconds=0):
+        return period
+    return cv.Range(max=cv.TimePeriod(seconds=60))(period)
+
+
+_WATCHDOG_TIMEOUT_VALIDATOR = _validate_watchdog_timeout
 
 # Like cv.SOURCE_SCHEMA's git shape, but `url` is optional: `framework: source: {ref: ...}`
 # alone is enough to pin an alpha/pre-release branch of the selected framework's own
@@ -1311,10 +1330,36 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 [CONF_WATCHDOG_TIMEOUT],
             )
     else:
+        max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
+        # A variant whose ceiling sits below the normal 5s floor can't reach 5s
+        # either -- push the floor down to match.
+        min_timeout_ms = 5000
+        if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
+            min_timeout_ms = max_timeout_ms
+        explicit_timeout = config.get(CONF_WATCHDOG_TIMEOUT)
+        if explicit_timeout is not None and explicit_timeout.total_milliseconds != 0:
+            explicit_ms = explicit_timeout.total_milliseconds
+            if explicit_ms < min_timeout_ms or (
+                max_timeout_ms is not None and explicit_ms > max_timeout_ms
+            ):
+                raise cv.Invalid(
+                    f"'{CONF_WATCHDOG_TIMEOUT}' of {explicit_timeout} is outside what "
+                    f"variant '{variant}' can actually arm ({min_timeout_ms}-"
+                    f"{max_timeout_ms if max_timeout_ms is not None else 60000} ms) -- "
+                    "use 0 to disable the watchdog instead, or a value in that range",
+                    [CONF_WATCHDOG_TIMEOUT],
+                )
         # 10s: covers ZBOSS's heavy CPU usage during zigbee startup without needing a
         # separate zigbee-conditional bump (platform: nrf52's own equivalent) -- the
-        # plain default was arbitrary anyway.
-        config.setdefault(CONF_WATCHDOG_TIMEOUT, cv.TimePeriod(seconds=10))
+        # plain default was arbitrary anyway. Clamped down to the variant's own
+        # achievable ceiling when that's lower (see watchdog_max_timeout_ms).
+        default_timeout = cv.TimePeriod(seconds=10)
+        if (
+            max_timeout_ms is not None
+            and max_timeout_ms < default_timeout.total_milliseconds
+        ):
+            default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
+        config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:
