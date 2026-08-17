@@ -157,7 +157,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   // first frame after powering on, so the state machine listens for data from
   // the module before transmitting anything.
   enum class StartupState : uint8_t {
-    STARTUP_STATE_LISTEN = 0,
+    STARTUP_STATE_LISTEN_SETTLE = 0,
+    STARTUP_STATE_LISTEN,
     STARTUP_STATE_ENTER_CONFIG,
     STARTUP_STATE_READ_LIMITS,
     STARTUP_STATE_READ_VERSION,
@@ -169,11 +170,13 @@ class LD2420Component final : public Component, public uart::UARTDevice {
 
   void begin_startup_();
   void begin_listen_();
-  void loop_startup_();
+  void loop_startup_(bool got_data);
   void start_startup_cmd_(StartupState state);
   void send_startup_cmd_();
   void abort_startup_cmd_();
+  void abandon_startup_();
   bool startup_ack_check_();
+  bool action_allowed_(bool needs_config);
   void drain_rx_();
   void write_cmd_frame_(const CmdFrameT &frame);
   bool build_startup_frame_(CmdFrameT &frame);
@@ -212,13 +215,11 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   uint16_t system_mode_{0};  // Set to the energy mode default in begin_startup_()
   uint16_t gate_energy_[TOTAL_GATES];
   uint32_t phase_start_ms_{0};
-  StartupState startup_state_{StartupState::STARTUP_STATE_LISTEN};
+  StartupState startup_state_{StartupState::STARTUP_STATE_LISTEN_SETTLE};
   uint8_t startup_cmd_{0};  // Command byte of the in-flight startup command, for ack matching
-  uint8_t startup_cmd_retries_{0};
+  uint8_t startup_cmd_attempts_{0};
   uint8_t startup_sequence_retries_{0};
   uint8_t startup_gate_{0};
-  bool rx_seen_{false};
-  bool listen_drained_{false};
   uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   char firmware_ver_[8]{"v0.0.0"};

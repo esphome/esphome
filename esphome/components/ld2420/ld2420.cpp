@@ -73,8 +73,6 @@ static constexpr uint8_t CMD_MAX_RETRIES = 3;
 static constexpr uint32_t STARTUP_LISTEN_TIMEOUT_MS = 10000;
 static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 3000;
 static constexpr uint32_t STARTUP_LISTEN_SETTLE_MS = 500;
-static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
-static constexpr uint8_t CMD_MAX_RETRIES = 3;
 static constexpr uint8_t STARTUP_SEQUENCE_MAX_RETRIES = 3;
 
 // Command sets
@@ -241,16 +239,17 @@ void LD2420Component::begin_startup_() {
 }
 
 void LD2420Component::begin_listen_() {
-  this->rx_seen_ = false;
-  this->listen_drained_ = false;
-  this->buffer_pos_ = 0;
   this->phase_start_ms_ = millis();
-  this->startup_state_ = StartupState::STARTUP_STATE_LISTEN;
+  this->startup_state_ = StartupState::STARTUP_STATE_LISTEN_SETTLE;
 }
 
 void LD2420Component::drain_rx_() {
-  while (this->available()) {
-    this->read();
+  uint8_t buf[MAX_LINE_LENGTH];
+  size_t avail;
+  while ((avail = this->available()) > 0) {
+    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
+      break;
+    }
   }
   this->buffer_pos_ = 0;
 }
@@ -305,7 +304,7 @@ void LD2420Component::send_startup_cmd_() {
 
 void LD2420Component::start_startup_cmd_(StartupState state) {
   this->startup_state_ = state;
-  this->startup_cmd_retries_ = 1;
+  this->startup_cmd_attempts_ = 1;
   this->send_startup_cmd_();
 }
 
@@ -325,8 +324,8 @@ bool LD2420Component::startup_ack_check_() {
   if (millis() - this->phase_start_ms_ <= CMD_ACK_TIMEOUT_MS) {
     return false;
   }
-  if (this->startup_cmd_retries_ < CMD_MAX_RETRIES) {
-    this->startup_cmd_retries_++;
+  if (this->startup_cmd_attempts_ < CMD_MAX_RETRIES) {
+    this->startup_cmd_attempts_++;
     ESP_LOGV(TAG, "No reply to startup command %2X; resending", this->startup_cmd_);
     this->send_startup_cmd_();
     return false;
@@ -339,8 +338,13 @@ bool LD2420Component::startup_ack_check_() {
     this->begin_listen_();
     return false;
   }
-  // Give up on configuration but keep parsing the stream; a module that is
-  // still streaming keeps publishing sensor data even without a config read.
+  this->abandon_startup_();
+  return false;
+}
+
+// Gives up on configuration but keeps parsing the stream; a module that is
+// still streaming keeps publishing sensor data even without a config read.
+void LD2420Component::abandon_startup_() {
   ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
     // Old firmware streams text frames that are only parsed in simple mode;
@@ -355,7 +359,6 @@ bool LD2420Component::startup_ack_check_() {
 #endif
   this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
-  return false;
 }
 
 void LD2420Component::abort_startup_cmd_() {
@@ -370,36 +373,36 @@ void LD2420Component::abort_startup_cmd_() {
   this->write_cmd_frame_(frame);
 }
 
-void LD2420Component::loop_startup_() {
+void LD2420Component::loop_startup_(bool got_data) {
   switch (this->startup_state_) {
-    case StartupState::STARTUP_STATE_LISTEN: {
-      const uint32_t elapsed = millis() - this->phase_start_ms_;
+    case StartupState::STARTUP_STATE_LISTEN_SETTLE:
       // Bytes can already be in flight when the listen phase starts: the tail
       // of a frame the module was transmitting when it was told to restart,
       // stale data buffered before setup, or the ack to the blind config mode
-      // exit. Ignore reception during a short settle window (clearing the rx
-      // flag and the frame parser) so only data the module sends afterwards
-      // counts as proof that it is up and streaming. The listen_drained_ flag
-      // guarantees at least one such drain pass even when the main loop
-      // stalls past the whole window, so bytes that arrived before the listen
-      // phase can never be mistaken for fresh data. (A full-frame check
-      // cannot serve as that proof here: old-firmware text frames are only
-      // recognized once the operating mode is known, which requires the very
-      // handshake this phase gates.)
-      if (elapsed < STARTUP_LISTEN_SETTLE_MS || !this->listen_drained_) {
-        this->drain_rx_();
-        this->rx_seen_ = false;
-        this->listen_drained_ = true;
-        return;
+      // exit. Discard everything received during this settle window so only
+      // data the module sends afterwards counts as proof that it is up and
+      // streaming. The state runs at least one drain pass even when the main
+      // loop stalls past the whole window, so bytes that arrived before the
+      // listen phase can never be mistaken for fresh data.
+      this->drain_rx_();
+      if (millis() - this->phase_start_ms_ >= STARTUP_LISTEN_SETTLE_MS) {
+        this->phase_start_ms_ = millis();
+        this->startup_state_ = StartupState::STARTUP_STATE_LISTEN;
       }
+      return;
+
+    case StartupState::STARTUP_STATE_LISTEN:
       // The module locks up until power cycled if it receives data before it
       // has sent its first frame after powering on, so wait until it has
-      // provably transmitted before sending anything. A module stuck in some
-      // other state stays quiet, so fall through after the listen window.
-      if (!this->rx_seen_) {
+      // provably transmitted before sending anything. (A full-frame check
+      // cannot serve as that proof: old-firmware text frames are only
+      // recognized once the operating mode is known, which requires the very
+      // handshake this phase gates.) A module stuck in some other state
+      // stays quiet, so fall through after the listen window.
+      if (!got_data) {
         const uint32_t listen_timeout_ms =
             this->startup_sequence_retries_ == 0 ? STARTUP_LISTEN_TIMEOUT_MS : STARTUP_RETRY_LISTEN_MS;
-        if (elapsed < listen_timeout_ms) {
+        if (millis() - this->phase_start_ms_ < listen_timeout_ms) {
           return;
         }
         ESP_LOGW(TAG, "No data received from the module; attempting configuration anyway");
@@ -408,7 +411,6 @@ void LD2420Component::loop_startup_() {
       this->drain_rx_();
       this->start_startup_cmd_(StartupState::STARTUP_STATE_ENTER_CONFIG);
       return;
-    }
 
     case StartupState::STARTUP_STATE_ENTER_CONFIG:
       if (!this->startup_ack_check_()) {
@@ -495,15 +497,25 @@ void LD2420Component::loop_startup_() {
   }
 }
 
-void LD2420Component::apply_config_action() {
+// Common precondition for the button actions: the startup handshake must have
+// finished, and actions that write configuration additionally require that the
+// configuration was actually read (setup may have given up before the version
+// read; writing the unread config to the module's NVM would wipe its stored
+// thresholds).
+bool LD2420Component::action_allowed_(bool needs_config) {
   if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
     ESP_LOGW(TAG, "Module is still starting up; ignoring");
-    return;
+    return false;
   }
-  if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
-    // Setup gave up before the configuration was ever read; writing the
-    // unread config to the module's NVM would wipe its stored thresholds
+  if (needs_config && ld2420::get_firmware_int(this->firmware_ver_) == 0) {
     ESP_LOGW(TAG, "Module configuration was never read; ignoring");
+    return false;
+  }
+  return true;
+}
+
+void LD2420Component::apply_config_action() {
+  if (!this->action_allowed_(true)) {
     return;
   }
   const uint8_t checksum = calc_checksum(&this->new_config, sizeof(this->new_config));
@@ -539,12 +551,7 @@ void LD2420Component::apply_config_action() {
 }
 
 void LD2420Component::factory_reset_action() {
-  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
-    ESP_LOGW(TAG, "Module is still starting up; ignoring");
-    return;
-  }
-  if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
-    ESP_LOGW(TAG, "Module configuration was never read; ignoring");
+  if (!this->action_allowed_(true)) {
     return;
   }
   ESP_LOGD(TAG, "Setting factory defaults");
@@ -579,8 +586,7 @@ void LD2420Component::factory_reset_action() {
 }
 
 void LD2420Component::restart_module_action() {
-  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
-    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+  if (!this->action_allowed_(false)) {
     return;
   }
   ESP_LOGD(TAG, "Restarting");
@@ -592,8 +598,7 @@ void LD2420Component::restart_module_action() {
 }
 
 void LD2420Component::revert_config_action() {
-  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
-    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+  if (!this->action_allowed_(false)) {
     return;
   }
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
@@ -610,10 +615,7 @@ void LD2420Component::loop() {
   }
   const bool got_data = this->read_batch_(this->buffer_data_);
   if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
-    if (got_data) {
-      this->rx_seen_ = true;
-    }
-    this->loop_startup_();
+    this->loop_startup_(got_data);
   }
 }
 
@@ -1053,21 +1055,6 @@ void LD2420Component::build_min_max_timeout_frame_(CmdFrameT &frame) {
   frame.data_length += sizeof(CMD_TIMEOUT_REG);
   frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending read gate min max and timeout command: %2X", frame.command);
-}
-
-void LD2420Component::build_system_mode_frame_(CmdFrameT &frame, uint16_t mode) {
-  uint16_t unknown_parm = 0x0000;
-  frame.data_length = 0;
-  frame.header = CMD_FRAME_HEADER;
-  frame.command = CMD_WRITE_SYS_PARAM;
-  memcpy(&frame.data[frame.data_length], &CMD_SYSTEM_MODE, sizeof(CMD_SYSTEM_MODE));
-  frame.data_length += sizeof(CMD_SYSTEM_MODE);
-  memcpy(&frame.data[frame.data_length], &mode, sizeof(mode));
-  frame.data_length += sizeof(mode);
-  memcpy(&frame.data[frame.data_length], &unknown_parm, sizeof(unknown_parm));
-  frame.data_length += sizeof(unknown_parm);
-  frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending write system mode command: %2X", frame.command);
 }
 
 void LD2420Component::build_system_mode_frame_(CmdFrameT &frame, uint16_t mode) {
