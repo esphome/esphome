@@ -7,7 +7,7 @@
 #include "esphome/core/defines.h"
 
 #if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
@@ -68,7 +68,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   memcpy(mac, addr, sizeof(addr));
 }
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   // hwinfo_get_device_id() is a generic Zephyr API; covers every esp32-family, nRF5x,
   // and Silicon Labs chip.

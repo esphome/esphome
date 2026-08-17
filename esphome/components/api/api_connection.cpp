@@ -1804,6 +1804,8 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Nordic Semiconductor"
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
 #define ESPHOME_MANUFACTURER "Silicon Labs"
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
+#define ESPHOME_MANUFACTURER "Raspberry Pi"
 #elif defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
 #define ESPHOME_MANUFACTURER "Zephyr Native Sim"
 #elif defined(USE_HOST)

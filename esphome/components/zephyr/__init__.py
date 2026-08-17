@@ -219,6 +219,9 @@ class ZephyrData(TypedDict):
     # module name -> a full user-authored ZephyrModule (zephyr: modules: with source:),
     # or a plain version string overriding a component-requested module's default.
     module_overrides: dict[str, ZephyrModule | str]
+    # (west_module, allow_regex, sentinel_name) entries added via zephyr_add_blobs() --
+    # transport-conditional blob fetches, on top of the variant's own static `blobs`.
+    blobs: list[tuple[str, str, str]]
 
 
 # platform: nrf52 use only
@@ -259,6 +262,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         snippet_root=None,
         module_requests={},
         module_overrides={},
+        blobs=[],
     )
 
 
@@ -592,7 +596,19 @@ def zephyr_add_overlay(content: str, image: str = "") -> None:
     data = zephyr_data()
     if image not in data[KEY_OVERLAY]:
         data[KEY_OVERLAY][image] = ""
+    else:
+        # A chunk without a trailing newline (e.g. a bare #include line) would
+        # otherwise merge onto the same line as the next chunk.
+        data[KEY_OVERLAY][image] += "\n"
     data[KEY_OVERLAY][image] += textwrap.dedent(content)
+
+
+def zephyr_add_blobs(module: str, allow_regex: str, sentinel_name: str) -> None:
+    """Request a `west blobs fetch`, gated on a transport actually being configured
+    (unlike a variant's static `blobs`, which always runs)."""
+    spec = (module, allow_regex, sentinel_name)
+    if spec not in zephyr_data()["blobs"]:
+        zephyr_data()["blobs"].append(spec)
 
 
 def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
@@ -1037,6 +1053,19 @@ def copy_files() -> None:
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
             path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.overlay")
+            if (
+                image == "mcuboot"
+                and zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+            ):
+                # Writing any overlay file for the mcuboot sysbuild image replaces its
+                # normal auto-detected overlay chain (Zephyr sysbuild convention),
+                # which silently drops MCUboot's own
+                # zephyr,code-partition = &boot_partition; setting -- restate it here,
+                # once, for every caller that writes to this image's overlay, rather
+                # than relying on each one to remember to.
+                content += (
+                    "\n/ { chosen { zephyr,code-partition = &boot_partition; }; };\n"
+                )
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
         changed |= write_file_if_changed(path, content)
@@ -1783,7 +1812,7 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
 
     import serial
 
-    from esphome.util import detect_rp2040_bootsel, get_serial_ports
+    from esphome.util import get_serial_ports
 
     picotool = _find_picotool()
     if picotool is None:
@@ -1792,14 +1821,12 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     # Once triggered, BOOTSEL mode is anonymous -- picotool can't tell devices apart
     # (no serial number/bus-address selection is used anywhere in this upload path), so
     # there's no way to prove after the fact that whatever appears in BOOTSEL is really
-    # the board we touched, versus some other RP-family device on the system. The only
-    # way to make this safe is to refuse up front whenever more than one candidate
-    # device could possibly be involved -- counting every serial port present (which
-    # includes the target's own port) plus every device already in BOOTSEL.
-    total_devices = (
-        len(get_serial_ports()) + detect_rp2040_bootsel(str(picotool)).device_count
-    )
-    if total_devices > 1:
+    # the board we touched, versus some other RP-family device on the system. The best
+    # available guard is refusing up front whenever more than one serial-capable
+    # candidate is present -- a device already sitting in raw BOOTSEL can't be counted
+    # here too, since detecting it requires `picotool info -d`, which is not reliable
+    # enough to depend on for a safety check (see _upload_using_picotool()).
+    if len(get_serial_ports()) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
             "but the target device before uploading, or put the target into BOOTSEL "
@@ -1814,9 +1841,12 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
         _LOGGER.warning("Could not open %s at 1200 baud: %s", port, err)
         return False
 
+    # `picotool info -d` isn't reliable enough to poll for BOOTSEL re-enumeration (see
+    # _upload_using_picotool()) -- instead, wait for the touched port itself to
+    # disappear, which is what actually happens when the device reboots out of CDC-ACM.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if detect_rp2040_bootsel(str(picotool)).device_count > 0:
+        if port not in (p.path for p in get_serial_ports()):
             return True
         time.sleep(0.5)
     return False
@@ -1826,7 +1856,7 @@ def _upload_using_picotool() -> bool:
     """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
     import sys
 
-    from esphome.util import detect_rp2040_bootsel, is_picotool_usb_permission_error
+    from esphome.util import is_picotool_usb_permission_error
 
     picotool = _find_picotool()
     if picotool is None:
@@ -1876,21 +1906,6 @@ def _upload_using_picotool() -> bool:
             _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
             return False
         loads = [(elf, None, True)]
-
-    bootsel = detect_rp2040_bootsel(str(picotool))
-    if bootsel.device_count == 0:
-        if bootsel.permission_error:
-            _LOGGER.error(
-                "A device in BOOTSEL mode was detected but could not be accessed "
-                "due to USB permissions."
-            )
-            if sys.platform.startswith("linux"):
-                from esphome.__main__ import _RP2040_UDEV_HINT
-
-                _LOGGER.error(_RP2040_UDEV_HINT)
-        else:
-            _LOGGER.error("No RP2040/RP2350 device in BOOTSEL mode found.")
-        return False
 
     for file_path, offset, execute in loads:
         _LOGGER.info("Uploading %s via picotool...", file_path.name)
@@ -2105,8 +2120,10 @@ def run_compile(args, config: ConfigType) -> bool:
         west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
     cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
-    if blob_spec := variant_data.blobs:
-        module, allow_regex, sentinel_name = blob_spec
+    blob_specs = list(zephyr_data()["blobs"])
+    if variant_data.blobs:
+        blob_specs.append(variant_data.blobs)
+    for module, allow_regex, sentinel_name in blob_specs:
         run_west_blobs_fetch(
             python_bin, framework_path, west_env, module, allow_regex, sentinel_name
         )
