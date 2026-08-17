@@ -271,7 +271,7 @@ def migrate_channel_colors(
     return validator
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate all recorded effect name references against their target lights.
 
     This runs once per light platform instance. If no light platform is configured,
@@ -279,7 +279,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     """
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
-        return config
+        return
 
     # Drain the lists so we only validate once even though
     # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
@@ -322,8 +322,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"references it. Add at least one effect to the light.",
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

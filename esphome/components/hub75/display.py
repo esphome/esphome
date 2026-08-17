@@ -315,7 +315,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate requirements when using HUB75 display."""
     # Local imports to avoid circular dependencies
     from esphome.components.esp32 import get_esp32_variant
@@ -380,8 +380,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(_final_validate)
