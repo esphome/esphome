@@ -45,7 +45,7 @@ class SerialProxy {
     return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
   }
   SerialProxyResult configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
-                              uint32_t stop_bits, uint32_t data_size) {
+                              uint8_t stop_bits, uint8_t data_size) {
     return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
   }
   void write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {}
