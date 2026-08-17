@@ -536,15 +536,15 @@ bool SdStorageBase::log_list_dir_entry(const storage::FileStat *entry, void *ctx
 
 const char *SdStorageBase::card_type_to_string(CardType type) {
   switch (type) {
-    case CardType::SDIO:
+    case CardType::CARD_TYPE_SDIO:
       return "SDIO";
-    case CardType::MMC:
+    case CardType::CARD_TYPE_MMC:
       return "MMC";
-    case CardType::SDHC:
+    case CardType::CARD_TYPE_SDHC:
       return "SDHC/SDXC";
-    case CardType::SDSC:
+    case CardType::CARD_TYPE_SDSC:
       return "SDSC";
-    case CardType::UNKNOWN:
+    case CardType::CARD_TYPE_UNKNOWN:
     default:
       return "UNKNOWN";
   }

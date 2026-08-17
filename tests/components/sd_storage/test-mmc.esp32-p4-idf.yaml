@@ -1,1 +1,2 @@
-<<: !include common-mmc.yaml
+packages:
+  sd_storage: !include common-mmc.yaml
