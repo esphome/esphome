@@ -1171,9 +1171,8 @@ def upload_program(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
-        # BOOTSEL isn't a real serial port -- report None so command_run() waits
-        # for the new port to enumerate instead of trying to use "BOOTSEL" for
-        # logging.
+        # BOOTSEL isn't a real serial port -- report None so command_run() waits for
+        # the new port to enumerate instead of trying to use "BOOTSEL" for logging.
         return 0, None if port_type == PortType.BOOTSEL else host
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
@@ -1698,7 +1697,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if args.no_logs:
         return 0
 
-    # After a BOOTSEL upload, wait for a new serial port to appear
+    # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
     if successful_device is None and (
         CORE.is_rp2
