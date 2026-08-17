@@ -18,35 +18,35 @@ class DummyPathStorage : public FilesystemStorage {
 
   StorageError get_info(StorageInfo *info) override {
     *info = StorageInfo{};
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
   }
-  StorageError stat(const char *, FileStat *) override { return StorageError::NOT_FOUND; }
+  StorageError stat(const char *, FileStat *) override { return StorageError::STORAGE_ERROR_NOT_FOUND; }
   StorageError list_dir(const char *, bool (*)(const FileStat *, void *), void *) override {
-    return StorageError::NOT_SUPPORTED;
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
   }
-  StorageError mkdir(const char *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError rmdir(const char *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError remove(const char *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError rename(const char *, const char *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError mount() override { return StorageError::OK; }
-  StorageError unmount() override { return StorageError::OK; }
-  StorageError format() override { return StorageError::NOT_SUPPORTED; }
-  StorageError sync() override { return StorageError::OK; }
-  StorageError open(const char *, FileHandle *&, OpenMode) override { return StorageError::NOT_SUPPORTED; }
-  StorageError close(FileHandle *) override { return StorageError::OK; }
-  StorageError read(FileHandle *, uint8_t *, size_t, size_t *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError write(FileHandle *, const uint8_t *, size_t, size_t *) override { return StorageError::NOT_SUPPORTED; }
-  StorageError seek(FileHandle *, int64_t, SeekMode) override { return StorageError::NOT_SUPPORTED; }
-  StorageError tell(FileHandle *, uint64_t *) override { return StorageError::NOT_SUPPORTED; }
+  StorageError mkdir(const char *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError rmdir(const char *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError remove(const char *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError rename(const char *, const char *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError mount() override { return StorageError::STORAGE_ERROR_OK; }
+  StorageError unmount() override { return StorageError::STORAGE_ERROR_OK; }
+  StorageError format() override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError sync() override { return StorageError::STORAGE_ERROR_OK; }
+  StorageError open(const char *, FileHandle *&, OpenMode) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError close(FileHandle *) override { return StorageError::STORAGE_ERROR_OK; }
+  StorageError read(FileHandle *, uint8_t *, size_t, size_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError write(FileHandle *, const uint8_t *, size_t, size_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError seek(FileHandle *, int64_t, SeekMode) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError tell(FileHandle *, uint64_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
 };
 
 class RegistryTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->registry_.set_device_count(3);
-    ASSERT_EQ(this->registry_.register_storage(&this->sd_), StorageError::OK);
-    ASSERT_EQ(this->registry_.register_storage(&this->sd_nested_), StorageError::OK);
-    ASSERT_EQ(this->registry_.register_storage(&this->usb_), StorageError::OK);
+    ASSERT_EQ(this->registry_.register_storage(&this->sd_), StorageError::STORAGE_ERROR_OK);
+    ASSERT_EQ(this->registry_.register_storage(&this->sd_nested_), StorageError::STORAGE_ERROR_OK);
+    ASSERT_EQ(this->registry_.register_storage(&this->usb_), StorageError::STORAGE_ERROR_OK);
   }
 
   StorageRegistry registry_;
@@ -130,45 +130,45 @@ TEST(ErrorToString, NamesEveryEnumerator) {
   // "UNKNOWN" is the fallthrough: every enumerator must have its own case, or a new one added
   // later renders as UNKNOWN in every log line that reports it.
   const StorageError all[] = {
-      StorageError::OK,
-      StorageError::NOT_FOUND,
-      StorageError::READ_ERROR,
-      StorageError::WRITE_ERROR,
-      StorageError::INVALID_ARGS,
-      StorageError::NO_SPACE,
-      StorageError::NOT_READY,
-      StorageError::PERMISSION_DENIED,
-      StorageError::TIMEOUT,
-      StorageError::CORRUPT,
-      StorageError::NOT_SUPPORTED,
-      StorageError::ALREADY_EXISTS,
-      StorageError::NOT_EMPTY,
-      StorageError::TOO_MANY_OPEN_FILES,
-      StorageError::TRANSFER_TOO_LARGE,
-      StorageError::VERIFY_MISMATCH,
+      StorageError::STORAGE_ERROR_OK,
+      StorageError::STORAGE_ERROR_NOT_FOUND,
+      StorageError::STORAGE_ERROR_READ_ERROR,
+      StorageError::STORAGE_ERROR_WRITE_ERROR,
+      StorageError::STORAGE_ERROR_INVALID_ARGS,
+      StorageError::STORAGE_ERROR_NO_SPACE,
+      StorageError::STORAGE_ERROR_NOT_READY,
+      StorageError::STORAGE_ERROR_PERMISSION_DENIED,
+      StorageError::STORAGE_ERROR_TIMEOUT,
+      StorageError::STORAGE_ERROR_CORRUPT,
+      StorageError::STORAGE_ERROR_NOT_SUPPORTED,
+      StorageError::STORAGE_ERROR_ALREADY_EXISTS,
+      StorageError::STORAGE_ERROR_NOT_EMPTY,
+      StorageError::STORAGE_ERROR_TOO_MANY_OPEN_FILES,
+      StorageError::STORAGE_ERROR_TRANSFER_TOO_LARGE,
+      StorageError::STORAGE_ERROR_VERIFY_MISMATCH,
   };
   for (StorageError err : all)
     EXPECT_STRNE(error_to_string(err), "UNKNOWN");
 }
 
 TEST(ErrorFromErrno, MapsEveryErrnoTheEnumClaims) {
-  EXPECT_EQ(error_from_errno(ENOENT, false), StorageError::NOT_FOUND);
-  EXPECT_EQ(error_from_errno(EEXIST, false), StorageError::ALREADY_EXISTS);
-  EXPECT_EQ(error_from_errno(ENOTEMPTY, false), StorageError::NOT_EMPTY);
-  EXPECT_EQ(error_from_errno(ENOSPC, true), StorageError::NO_SPACE);
-  EXPECT_EQ(error_from_errno(EACCES, false), StorageError::PERMISSION_DENIED);
-  EXPECT_EQ(error_from_errno(EMFILE, false), StorageError::TOO_MANY_OPEN_FILES);
-  EXPECT_EQ(error_from_errno(EINVAL, false), StorageError::INVALID_ARGS);
-  EXPECT_EQ(error_from_errno(ENOTSUP, false), StorageError::NOT_SUPPORTED);
-  EXPECT_EQ(error_from_errno(ENODEV, false), StorageError::NOT_READY);
-  EXPECT_EQ(error_from_errno(ETIMEDOUT, false), StorageError::TIMEOUT);
-  EXPECT_EQ(error_from_errno(EILSEQ, false), StorageError::CORRUPT);
+  EXPECT_EQ(error_from_errno(ENOENT, false), StorageError::STORAGE_ERROR_NOT_FOUND);
+  EXPECT_EQ(error_from_errno(EEXIST, false), StorageError::STORAGE_ERROR_ALREADY_EXISTS);
+  EXPECT_EQ(error_from_errno(ENOTEMPTY, false), StorageError::STORAGE_ERROR_NOT_EMPTY);
+  EXPECT_EQ(error_from_errno(ENOSPC, true), StorageError::STORAGE_ERROR_NO_SPACE);
+  EXPECT_EQ(error_from_errno(EACCES, false), StorageError::STORAGE_ERROR_PERMISSION_DENIED);
+  EXPECT_EQ(error_from_errno(EMFILE, false), StorageError::STORAGE_ERROR_TOO_MANY_OPEN_FILES);
+  EXPECT_EQ(error_from_errno(EINVAL, false), StorageError::STORAGE_ERROR_INVALID_ARGS);
+  EXPECT_EQ(error_from_errno(ENOTSUP, false), StorageError::STORAGE_ERROR_NOT_SUPPORTED);
+  EXPECT_EQ(error_from_errno(ENODEV, false), StorageError::STORAGE_ERROR_NOT_READY);
+  EXPECT_EQ(error_from_errno(ETIMEDOUT, false), StorageError::STORAGE_ERROR_TIMEOUT);
+  EXPECT_EQ(error_from_errno(EILSEQ, false), StorageError::STORAGE_ERROR_CORRUPT);
 }
 
 TEST(ErrorFromErrno, FallbackFollowsTheDirection) {
   // EIO has no dedicated case; `writing` decides which way an unmapped errno is reported.
-  EXPECT_EQ(error_from_errno(EIO, false), StorageError::READ_ERROR);
-  EXPECT_EQ(error_from_errno(EIO, true), StorageError::WRITE_ERROR);
+  EXPECT_EQ(error_from_errno(EIO, false), StorageError::STORAGE_ERROR_READ_ERROR);
+  EXPECT_EQ(error_from_errno(EIO, true), StorageError::STORAGE_ERROR_WRITE_ERROR);
 }
 
 }  // namespace esphome::storage::testing

@@ -55,7 +55,7 @@ void SdSpi::setup() {
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
   // component, and this lets sd_storage.mount retry later without a reboot.
   if (storage::global_storage_registry != nullptr)
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
@@ -68,13 +68,13 @@ void SdSpi::setup() {
     // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
     // rationale as above.
     if (this->card_present_()) {
-      if (this->mount() != StorageError::OK) {
+      if (this->mount() != StorageError::STORAGE_ERROR_OK) {
         ESP_LOGE(TAG_SPI, "Failed to mount SD card");
       }
     } else {
       ESP_LOGD(TAG_SPI, "Waiting for card (CD)");
     }
-  } else if (this->mount() != StorageError::OK) {
+  } else if (this->mount() != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount SD card");
   }
 }
@@ -218,7 +218,7 @@ StorageError SdSpi::mount() {
   if (init_err != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to init sdspi host: %s", esp_err_to_name(init_err));
     this->init_error_ = ErrorCode::ERROR_CODE_MOUNT;
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
 
   sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
@@ -261,7 +261,7 @@ StorageError SdSpi::mount() {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
     this->init_error_ =
         (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT : ErrorCode::ERROR_CODE_NO_CARD;
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
 
   if (this->card_->is_mmc) {
@@ -287,7 +287,7 @@ StorageError SdSpi::mount() {
            static_cast<uint32_t>(this->card_->max_freq_khz), static_cast<uint32_t>(this->card_->real_freq_khz));
 
   if (storage::global_storage_registry != nullptr)
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
@@ -296,12 +296,12 @@ StorageError SdSpi::mount() {
 
   this->on_mounted_.call(this->mount_path_);
 
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError SdSpi::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
 
   // Quiesce before the VFS unmount below -- same drain guarantee as unregister_storage()
   // (no in-flight storage_worker data-plane call against this device remains, handles the
@@ -333,7 +333,7 @@ StorageError SdSpi::unmount() {
   sdspi_host_deinit();
   ESP_LOGI(TAG_SPI, "SD card unmounted safely");
 
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 bool SdSpi::update_card_info() {

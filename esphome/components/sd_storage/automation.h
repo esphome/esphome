@@ -44,7 +44,7 @@ template<typename... Ts> class MountCardAction : public Action<Ts...> {
   explicit MountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
-    bool ok = this->parent_->mount() == storage::StorageError::OK;
+    bool ok = this->parent_->mount() == storage::StorageError::STORAGE_ERROR_OK;
     this->parent_->log_mount_result_(ok);
   }
 

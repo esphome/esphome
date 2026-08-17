@@ -213,13 +213,13 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
     std::optional<std::string> content = this->content_.value(x...);
     if (!content.has_value()) {
       // The format:/args: lambda could not render the line (encoding failure or over-long). Abort
-      // before any open -- write_file() opens with OpenMode::WRITE and would truncate the target to
+      // before any open -- write_file() opens with OpenMode::OPEN_MODE_WRITE and would truncate the target to
       // empty here -- and report the error instead of the empty "success" string.
       this->complete_trigger_.trigger(std::string("format failed"));
       return;
     }
     StorageError err = perform_file_write(this->path_.value(x...), std::move(*content), this->append_, this->newline_);
-    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
@@ -364,7 +364,7 @@ template<typename... Ts> class RawReadAction : public Action<Ts...> {
     // synchronous and is meant for small reads. Large content should use to_file instead.
     std::vector<uint8_t> data;
     StorageError err = perform_raw_read(this->device_, address, size, data);
-    if (err != StorageError::OK) {
+    if (err != StorageError::STORAGE_ERROR_OK) {
       // Failure was invisible before -- on_value simply never fired. Report it on on_complete
       // (now allowed on the sync path too), matching the file actions.
       this->complete_trigger_.trigger(std::string(error_to_string(err)));
@@ -415,12 +415,12 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
     if (this->len_ >= 0) {
       StorageError err = perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
                                            this->erase_first_);
-      this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+      this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
       return;
     }
     std::vector<uint8_t> data = (*this->code_.func)(x...);
     StorageError err = perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
-    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
@@ -476,7 +476,7 @@ template<typename... Ts> class FileDeleteAction : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     StorageError err = perform_file_delete(this->path_.value(x...), this->recursive_);
-    this->complete_trigger_.trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
   }
 
  protected:
@@ -496,7 +496,7 @@ template<typename... Ts> class FileExistsCondition : public Condition<Ts...> {
     // Only a clean NOT_FOUND means "absent". Any other non-OK is a not-ready or faulted medium, not
     // proof the file is gone, so read it as present (true): a guard-then-write must not overwrite a
     // file that is merely temporarily unavailable. Use storage.stat to branch on the error itself.
-    return check_file_exists(this->path_.value(x...)) != StorageError::NOT_FOUND;
+    return check_file_exists(this->path_.value(x...)) != StorageError::STORAGE_ERROR_NOT_FOUND;
   }
 };
 
@@ -519,9 +519,9 @@ template<typename... Ts> class FileStatAction : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     StorageError err = check_file_exists(this->path_.value(x...));
-    if (err == StorageError::OK) {
+    if (err == StorageError::STORAGE_ERROR_OK) {
       this->exists_trigger_.trigger();
-    } else if (err == StorageError::NOT_FOUND) {
+    } else if (err == StorageError::STORAGE_ERROR_NOT_FOUND) {
       this->missing_trigger_.trigger();
     } else {
       this->error_trigger_.trigger(std::string(error_to_string(err)));

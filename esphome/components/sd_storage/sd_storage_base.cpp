@@ -24,22 +24,22 @@ static const char *const TAG_BASE = "sd_storage";
 static StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
   switch (res) {
     case FR_OK:
-      return StorageError::OK;
+      return StorageError::STORAGE_ERROR_OK;
     case FR_NO_FILE:
     case FR_NO_PATH:
-      return StorageError::NOT_FOUND;
+      return StorageError::STORAGE_ERROR_NOT_FOUND;
     case FR_EXIST:
-      return StorageError::ALREADY_EXISTS;
+      return StorageError::STORAGE_ERROR_ALREADY_EXISTS;
     case FR_DENIED:
-      return for_rmdir ? StorageError::NOT_EMPTY : StorageError::PERMISSION_DENIED;
+      return for_rmdir ? StorageError::STORAGE_ERROR_NOT_EMPTY : StorageError::STORAGE_ERROR_PERMISSION_DENIED;
     case FR_INVALID_NAME:
-      return StorageError::INVALID_ARGS;
+      return StorageError::STORAGE_ERROR_INVALID_ARGS;
     case FR_NOT_READY:
-      return StorageError::NOT_READY;
+      return StorageError::STORAGE_ERROR_NOT_READY;
     case FR_WRITE_PROTECTED:
-      return StorageError::PERMISSION_DENIED;
+      return StorageError::STORAGE_ERROR_PERMISSION_DENIED;
     default:
-      return is_write ? StorageError::WRITE_ERROR : StorageError::READ_ERROR;
+      return is_write ? StorageError::STORAGE_ERROR_WRITE_ERROR : StorageError::STORAGE_ERROR_READ_ERROR;
   }
 }
 
@@ -84,12 +84,12 @@ storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
   info->is_mounted = this->is_mounted_;
   info->is_removable = true;
   info->is_read_only = false;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::format() {
   ESP_LOGW(TAG_BASE, "Format not implemented for SD cards");
-  return storage::StorageError::NOT_SUPPORTED;
+  return storage::StorageError::STORAGE_ERROR_NOT_SUPPORTED;
 }
 
 void SdStorageBase::loop_cd_() {
@@ -117,7 +117,7 @@ void SdStorageBase::loop_cd_() {
 
   if (present) {
     ESP_LOGI(TAG_BASE, "Card inserted (CD edge)");
-    bool ok = this->mount() == storage::StorageError::OK;
+    bool ok = this->mount() == storage::StorageError::STORAGE_ERROR_OK;
     this->log_mount_result_(ok);
     if (ok)
       this->on_inserted_.call();
@@ -176,28 +176,28 @@ bool SdStorageBase::should_poll_cd_() {
 
 storage::StorageError SdStorageBase::sync() {
   SdFileHandle *pool = this->get_handle_pool();
-  storage::StorageError err = storage::StorageError::OK;
+  storage::StorageError err = storage::StorageError::STORAGE_ERROR_OK;
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
     if (!pool[i].in_use || pool[i].file == nullptr)
       continue;
     if (fflush(pool[i].file) != 0 || fsync(fileno(pool[i].file)) != 0)
-      err = storage::StorageError::WRITE_ERROR;
+      err = storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   }
   return err;
 }
 
 storage::StorageError SdStorageBase::flush_open_handles_() {
   SdFileHandle *pool = this->get_handle_pool();
-  storage::StorageError err = storage::StorageError::OK;
+  storage::StorageError err = storage::StorageError::STORAGE_ERROR_OK;
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
     if (!pool[i].in_use)
       continue;
     if (pool[i].file != nullptr) {
       ESP_LOGW(TAG_BASE, "File still open at unmount, flushing and closing: %s", pool[i].path);
       if (fflush(pool[i].file) != 0 || fsync(fileno(pool[i].file)) != 0)
-        err = storage::StorageError::WRITE_ERROR;
+        err = storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
       if (fclose(pool[i].file) != 0)
-        err = storage::StorageError::WRITE_ERROR;
+        err = storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
       pool[i].file = nullptr;
     }
     pool[i].in_use = false;
@@ -209,7 +209,7 @@ storage::StorageError SdStorageBase::flush_open_handles_() {
 
 storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   SdFileHandle *pool = this->get_handle_pool();
   SdFileHandle *h = nullptr;
@@ -220,30 +220,30 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
     }
   }
   if (h == nullptr)
-    return storage::StorageError::TOO_MANY_OPEN_FILES;
+    return storage::StorageError::STORAGE_ERROR_TOO_MANY_OPEN_FILES;
 
   if (!this->build_full_path_(path, h->path_buf, sizeof(h->path_buf)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   const char *fmode = nullptr;
   switch (mode) {
-    case storage::OpenMode::READ:
+    case storage::OpenMode::OPEN_MODE_READ:
       fmode = "rb";
       break;
-    case storage::OpenMode::WRITE:
+    case storage::OpenMode::OPEN_MODE_WRITE:
       fmode = "wb";
       break;
-    case storage::OpenMode::APPEND:
+    case storage::OpenMode::OPEN_MODE_APPEND:
       fmode = "ab";
       break;
-    case storage::OpenMode::READ_WRITE:
+    case storage::OpenMode::OPEN_MODE_READ_WRITE:
       fmode = "r+b";
       break;
   }
 
   FILE *f = fopen(h->path_buf, fmode);
   if (f == nullptr) {
-    return storage::error_from_errno(errno, mode != storage::OpenMode::READ);
+    return storage::error_from_errno(errno, mode != storage::OpenMode::OPEN_MODE_READ);
   }
 
   h->in_use = true;
@@ -251,18 +251,18 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
   h->storage = this;
   h->file = f;
   handle = h;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::close(storage::FileHandle *handle) {
   if (handle == nullptr || !handle->in_use)
-    return storage::StorageError::INVALID_ARGS;
-  storage::StorageError err = storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
+  storage::StorageError err = storage::StorageError::STORAGE_ERROR_OK;
   if (handle->file != nullptr) {
     // FATFS flushes on close (see the dst-close-error propagation in storage.cpp's copy()) --
     // a failed close here can mean a silently truncated/corrupt file.
     if (fclose(handle->file) != 0)
-      err = storage::StorageError::WRITE_ERROR;
+      err = storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
     handle->file = nullptr;
   }
   handle->in_use = false;
@@ -274,7 +274,7 @@ storage::StorageError SdStorageBase::close(storage::FileHandle *handle) {
 storage::StorageError SdStorageBase::read(storage::FileHandle *handle, uint8_t *buf, size_t len,
                                           size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   size_t n = fread(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
@@ -282,61 +282,61 @@ storage::StorageError SdStorageBase::read(storage::FileHandle *handle, uint8_t *
   // partial-read contract in storage.h) or a real I/O error -- ferror() disambiguates.
   if (n < len && ferror(handle->file)) {
     clearerr(handle->file);
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
   }
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                                            size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   size_t n = fwrite(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
-  return (n == len) ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return (n == len) ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   // ESP-IDF's newlib fseek() takes a 32-bit `long` offset -- FATFS/POSIX on this platform can't
   // address beyond that anyway (files >4GB aren't representable here), so reject rather than
   // silently truncating a caller-supplied 64-bit offset (the interface allows >4GB elsewhere,
   // e.g. NetworkStorage).
   if (offset > INT32_MAX || offset < INT32_MIN)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   int whence;
   switch (mode) {
-    case storage::SeekMode::SET:
+    case storage::SeekMode::SEEK_MODE_SET:
       whence = SEEK_SET;
       break;
-    case storage::SeekMode::CUR:
+    case storage::SeekMode::SEEK_MODE_CUR:
       whence = SEEK_CUR;
       break;
-    case storage::SeekMode::END:
+    case storage::SeekMode::SEEK_MODE_END:
       whence = SEEK_END;
       break;
     default:
-      return storage::StorageError::INVALID_ARGS;
+      return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
-  return fseek(handle->file, static_cast<int32_t>(offset), whence) == 0 ? storage::StorageError::OK
-                                                                        : storage::StorageError::READ_ERROR;
+  return fseek(handle->file, static_cast<int32_t>(offset), whence) == 0 ? storage::StorageError::STORAGE_ERROR_OK
+                                                                        : storage::StorageError::STORAGE_ERROR_READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   int32_t pos = ftell(handle->file);
   if (pos < 0)
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
   *position = static_cast<uint64_t>(pos);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *st) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   // f_stat() on the drive root ("N:/") fails by FATFS design -- synthesize the result instead of
   // calling it. path is "" or "/" exactly when the caller asked to stat the mount point itself.
@@ -345,12 +345,12 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
     st->size = 0;
     st->is_dir = true;
     st->mtime = 0;
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
   }
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_fatfs_path_(path, full, sizeof(full)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   FILINFO fno;
   FRESULT res = f_stat(full, &fno);
@@ -374,17 +374,17 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   st->is_dir = (fno.fattrib & AM_DIR) != 0;
   st->size = st->is_dir ? 0 : static_cast<uint64_t>(fno.fsize);
   st->mtime = 0;  // FatFs FILINFO exposes fdate/ftime (DOS format), not a Unix timestamp.
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::list_dir(const char *path,
                                               bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_fatfs_path_(path, full, sizeof(full)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
@@ -413,16 +413,16 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
   }
 
   f_closedir(&fat_dir);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::mkdir(const char *path) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_fatfs_path_(path, full, sizeof(full)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   FRESULT res = f_mkdir(full);
   return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/true);
@@ -430,11 +430,11 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
 
 storage::StorageError SdStorageBase::rmdir(const char *path) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_fatfs_path_(path, full, sizeof(full)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   // Non-recursive per the storage:: contract: must fail with NOT_EMPTY if the directory has
   // contents. Recursive delete is the free storage::remove_recursive() helper, built on top
@@ -455,7 +455,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
   }
   f_closedir(&fat_dir);
   if (has_entries)
-    return storage::StorageError::NOT_EMPTY;
+    return storage::StorageError::STORAGE_ERROR_NOT_EMPTY;
 
   // FATFS removes empty directories via f_unlink() -- there is no dedicated f_rmdir().
   res = f_unlink(full);
@@ -464,32 +464,32 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
 
 storage::StorageError SdStorageBase::remove(const char *path) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path_(path, full, sizeof(full)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
-  return ::remove(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return ::remove(full) == 0 ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError SdStorageBase::rename(const char *old_path, const char *new_path) {
   if (!this->is_mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   char full_old[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   char full_new[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path_(old_path, full_old, sizeof(full_old)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   if (!this->build_full_path_(new_path, full_new, sizeof(full_new)))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   // Report why it failed: FatFs refuses an existing destination (FR_EXIST -> EEXIST), and a
   // caller that cannot tell that apart from an I/O error cannot offer to overwrite.
   errno = 0;
   if (::rename(full_old, full_new) != 0)
     return storage::error_from_errno(errno, true);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 void SdStorageBase::log_mount_result_(bool success) const {

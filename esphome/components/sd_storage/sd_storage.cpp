@@ -48,7 +48,7 @@ void SdMmc::setup() {
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
   // component, and this lets sd_storage.mount retry later without a reboot.
   if (storage::global_storage_registry != nullptr)
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
@@ -62,13 +62,13 @@ void SdMmc::setup() {
     // to mount" for a socket that's simply empty right now. No mark_failed() either way, same
     // rationale as above.
     if (this->card_present_()) {
-      if (this->mount() != storage::StorageError::OK) {
+      if (this->mount() != storage::StorageError::STORAGE_ERROR_OK) {
         ESP_LOGE(TAG, "Failed to mount SD/MMC card");
       }
     } else {
       ESP_LOGD(TAG, "Waiting for card (CD)");
     }
-  } else if (this->mount() != storage::StorageError::OK) {
+  } else if (this->mount() != storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "Failed to mount SD/MMC card");
   }
 }
@@ -203,7 +203,7 @@ storage::StorageError SdMmc::mount() {
     esp_err_t pre_ret = sdmmc_host_init_slot(host.slot, &slot_config);
     if (pre_ret != ESP_OK) {
       ESP_LOGE(TAG, "Failed to init SDMMC slot %d: %s", this->slot_, esp_err_to_name(pre_ret));
-      return storage::StorageError::NOT_READY;
+      return storage::StorageError::STORAGE_ERROR_NOT_READY;
     }
   }
 #endif
@@ -231,7 +231,7 @@ storage::StorageError SdMmc::mount() {
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to mount SD card: %s", esp_err_to_name(ret));
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   }
 
   if (this->card_->is_mmc) {
@@ -256,7 +256,7 @@ storage::StorageError SdMmc::mount() {
   ESP_LOGI(TAG, "SD/MMC card mounted at %s", this->mount_path_);
 
   if (storage::global_storage_registry != nullptr)
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
@@ -265,12 +265,12 @@ storage::StorageError SdMmc::mount() {
 
   this->on_mounted_.call(this->mount_path_);
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdMmc::unmount() {
   if (!this->is_mounted_ || this->card_ == nullptr)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 
   // Quiesce before the VFS unmount below -- same drain guarantee as unregister_storage()
   // (no in-flight storage_worker data-plane call against this device remains, handles the
@@ -301,7 +301,7 @@ storage::StorageError SdMmc::unmount() {
 
   ESP_LOGI(TAG, "SD/MMC card unmounted safely");
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 bool SdMmc::update_card_info() {

@@ -100,7 +100,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
 
   // Closes every still-open handle before unmount, so nothing is left holding a FILE* into a
   // filesystem that's about to disappear. Best-effort: keeps going even if a flush/close fails
-  // partway through, and returns the first error seen (StorageError::OK if none did).
+  // partway through, and returns the first error seen (StorageError::STORAGE_ERROR_OK if none did).
   storage::StorageError flush_open_handles_();
 
   // Debounced card-detect read. Always true if no CD pin is configured (cd_pin_ == nullptr),
