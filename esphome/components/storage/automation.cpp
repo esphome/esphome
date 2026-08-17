@@ -697,8 +697,7 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
 #endif
   StorageError ferr = perform_raw_write_from_file(device, address, path, erase_first);
   if (on_complete != nullptr) {
-    on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string()
-                                                                : std::string(error_to_string(ferr)));
+    on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(ferr)));
   }
 }
 
@@ -734,8 +733,7 @@ void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size
 #endif
   StorageError err = perform_raw_erase(device, address, size, /*all=*/false);  // address/size already resolved above
   if (on_complete != nullptr) {
-    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
-                                                               : std::string(error_to_string(err)));
+    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
   }
 }
 #endif  // USE_STORAGE_RAW_ACTIONS
@@ -852,8 +850,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   // path above is the norm; this is only the degenerate no-worker build.
   StorageError err = perform_file_copy(from, to, is_move);
   if (on_complete != nullptr) {
-    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
-                                                               : std::string(error_to_string(err)));
+    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
   }
 }
 
