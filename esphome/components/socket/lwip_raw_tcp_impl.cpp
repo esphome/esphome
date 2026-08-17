@@ -46,8 +46,7 @@ namespace esphome::socket {
 static const char *const TAG = "socket";
 
 #ifdef USE_ESP8266
-// optimistic_yield() rate-limits itself: it yields at most once per this many
-// microseconds of CONT time, so the call sites below are cheap when hot.
+// optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.
 static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
 #endif
 
@@ -542,14 +541,9 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 #ifdef USE_ESP8266
-  // No buffered data: yield to the SYS context so queued WiFi RX reaches
-  // lwip, which may let this very read succeed instead of would-blocking.
-  // CONT and SYS are cooperative on ESP8266; without this, inbound segments
-  // can sit unprocessed for seconds during API connection setup while the
-  // main loop polls a socket that lwip has not been given time to fill.
-  // Reads with data already buffered skip the yield entirely, as do closed
-  // or reset sockets where yielding cannot help; optimistic_yield itself
-  // rate-limits to one yield per millisecond.
+  // Would block: yield to SYS so queued WiFi RX reaches lwip and this read
+  // may succeed. Without this, inbound segments can sit unprocessed for
+  // seconds while the main loop polls (CONT/SYS are cooperative on ESP8266).
   if (this->waiting_for_data_()) {
     optimistic_yield(ESP8266_YIELD_INTERVAL_US);
   }
@@ -564,9 +558,8 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
-  // No would-block yield here: the ESP8266 SYS yield lives in read() because
-  // that is the only path the API frame helpers use. If a consumer switches
-  // to scatter-gather reads, mirror the waiting_for_data_() yield from read().
+  // No ESP8266 SYS yield here: only read() needs it today. If a consumer
+  // switches to scatter-gather reads, mirror the yield from read().
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -644,11 +637,9 @@ int LWIPRawImpl::internal_output_() {
     }
   }
 #ifdef USE_ESP8266
-  // Data was written and flushed: yield to the SYS context so the segments
-  // queued by tcp_output actually reach the WiFi driver; otherwise a written
-  // frame can sit untransmitted until an unrelated SYS slot, delaying the
-  // noise handshake by seconds. Callers only invoke this after a successful
-  // tcp_write, so the yield never runs on idle or failed paths.
+  // Flushed: yield to SYS so the queued segments reach the WiFi driver
+  // instead of waiting seconds for an unrelated SYS slot. Callers only get
+  // here after a successful tcp_write, so idle paths never yield.
   optimistic_yield(ESP8266_YIELD_INTERVAL_US);
 #endif
   return 0;
