@@ -362,8 +362,8 @@ void ESPNowComponent::apply_wifi_channel() {
 }
 
 void ESPNowComponent::loop() {
-  
-# @todo refactor needed start
+
+#@todo refactor needed start
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
     int32_t new_channel = wifi::global_wifi_component->get_wifi_channel();
@@ -383,8 +383,8 @@ void ESPNowComponent::loop() {
     }
   }
 #endif
-# @todo refactor needed end
-  
+#@todo refactor needed end
+
   // Process received packets
   ESPNowPacket *packet = this->receive_packet_queue_.pop();
   while (packet != nullptr) {
