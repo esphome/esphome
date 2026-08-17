@@ -591,19 +591,19 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
  */
 APIError APINoiseFrameHelper::init_handshake_() {
   int err;
-  // Stack local: noise_handshakestate_new_by_id copies the id, so keeping it
-  // as a member would waste 104 bytes for the life of the connection.
-  NoiseProtocolId nid;
-  memset(&nid, 0, sizeof(nid));
-  // const char *proto = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-  // err = noise_protocol_name_to_id(&nid, proto, strlen(proto));
-  nid.pattern_id = NOISE_PATTERN_NN;
-  nid.cipher_id = NOISE_CIPHER_CHACHAPOLY;
-  nid.dh_id = NOISE_DH_CURVE25519;
-  nid.prefix_id = NOISE_PREFIX_STANDARD;
-  nid.hybrid_id = NOISE_DH_NONE;
-  nid.hash_id = NOISE_HASH_SHA256;
-  nid.modifier_ids[0] = NOISE_MODIFIER_PSK0;
+  // Noise_NNpsk0_25519_ChaChaPoly_SHA256, built on the stack:
+  // noise_handshakestate_new_by_id copies it, so a member would waste
+  // 104 bytes per connection, and a static const would sit in RAM on
+  // ESP8266 (.rodata is DRAM there).
+  const NoiseProtocolId nid = {
+      .prefix_id = NOISE_PREFIX_STANDARD,
+      .pattern_id = NOISE_PATTERN_NN,
+      .modifier_ids = {NOISE_MODIFIER_PSK0},
+      .dh_id = NOISE_DH_CURVE25519,
+      .cipher_id = NOISE_CIPHER_CHACHAPOLY,
+      .hash_id = NOISE_HASH_SHA256,
+      .hybrid_id = NOISE_DH_NONE,
+  };
 
   err = noise_handshakestate_new_by_id(&handshake_, &nid, NOISE_ROLE_RESPONDER);
   APIError aerr =
