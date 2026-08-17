@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 from esphome import config_validation as cv
@@ -34,3 +36,26 @@ def test_inverted_rejected(stage_esp32: None) -> None:
 def test_allow_other_uses_rejected(stage_esp32: None) -> None:
     with pytest.raises(cv.Invalid, match="'allow_other_uses: true' is not supported"):
         validate_interrupt_pin({"number": 16, "allow_other_uses": True})
+
+
+# mcp23017 covers the shared mcp23xxx_base schema
+@pytest.mark.parametrize(
+    "component",
+    [
+        "pcf8574",
+        "pca9554",
+        "tca9555",
+        "pca6416a",
+        "pi4ioe5v6408",
+        "mcp23016",
+        "mcp23017",
+    ],
+)
+def test_component_schemas_route_through_validator(
+    stage_esp32: None, component: str
+) -> None:
+    module = importlib.import_module(f"esphome.components.{component}")
+    with pytest.raises(cv.Invalid, match="'inverted: true' is not supported"):
+        module.CONFIG_SCHEMA(
+            {"id": "expander_hub", "interrupt_pin": {"number": 16, "inverted": True}}
+        )
