@@ -26,11 +26,9 @@ def test_plain_pin_accepted(stage_esp32: None) -> None:
     assert value["number"] == 16
 
 
-def test_inverted_accepted(stage_esp32: None) -> None:
-    # Inversion is normalized away at runtime (INT is treated as physically
-    # active-low either way), so the flag must not be rejected.
-    value = validate_interrupt_pin({"number": 16, "inverted": True})
-    assert value["inverted"] is True
+def test_inverted_rejected(stage_esp32: None) -> None:
+    with pytest.raises(cv.Invalid, match="'inverted: true' is not supported"):
+        validate_interrupt_pin({"number": 16, "inverted": True})
 
 
 def test_allow_other_uses_rejected(stage_esp32: None) -> None:
