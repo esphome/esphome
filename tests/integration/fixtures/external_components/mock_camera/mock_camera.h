@@ -2,7 +2,6 @@
 
 #include "esphome/components/camera/camera.h"
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 
 #include <memory>
 #include <vector>
@@ -15,20 +14,21 @@ namespace esphome::mock_camera {
  */
 class MockCameraImage : public camera::CameraImage {
  public:
-  MockCameraImage(size_t size, uint8_t frame_counter, uint8_t requesters) : requesters_(requesters) {
-    this->data_.resize(size);
+  MockCameraImage(size_t size, uint8_t frame_counter, uint8_t requesters)
+      : data_(new uint8_t[size]), size_(size), requesters_(requesters) {
     for (size_t i = 0; i < size; i++) {
       this->data_[i] = static_cast<uint8_t>(frame_counter + i);
     }
   }
-  uint8_t *get_data_buffer() override { return this->data_.data(); }
-  size_t get_data_length() override { return this->data_.size(); }
+  uint8_t *get_data_buffer() override { return this->data_.get(); }
+  size_t get_data_length() override { return this->size_; }
   bool was_requested_by(camera::CameraRequester requester) const override {
     return (this->requesters_ & (1 << requester)) != 0;
   }
 
  protected:
-  std::vector<uint8_t> data_;
+  std::unique_ptr<uint8_t[]> data_;
+  size_t size_;
   uint8_t requesters_;
 };
 
@@ -54,7 +54,6 @@ class MockCameraImageReader : public camera::CameraImageReader {
 /** Virtual camera producing deterministic frames on request or stream. */
 class MockCamera : public camera::Camera {
  public:
-  void setup() override {}
   void loop() override;
   void dump_config() override;
 
@@ -64,13 +63,14 @@ class MockCamera : public camera::Camera {
   void start_stream(camera::CameraRequester requester) override { this->stream_requesters_ |= (1 << requester); }
   void stop_stream(camera::CameraRequester requester) override { this->stream_requesters_ &= ~(1 << requester); }
 
-  void set_image_size(size_t size) { this->image_size_ = size; }
-  void set_frame_interval(uint32_t ms) { this->frame_interval_ = ms; }
+  void set_image_size(uint32_t size) { this->image_size_ = size; }
 
  protected:
+  static constexpr uint32_t FRAME_INTERVAL_MS = 50;
+
+  // Members ordered largest to smallest to minimize padding
   std::vector<camera::CameraListener *> listeners_;
-  size_t image_size_{1024};
-  uint32_t frame_interval_{50};
+  uint32_t image_size_{1024};
   uint32_t last_frame_ms_{0};
   uint8_t frame_counter_{0};
   uint8_t single_requesters_{0};
