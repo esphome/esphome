@@ -42,9 +42,15 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-  # The config mode enable command is answered from the on_tx hook below so
-  # that the first attempt can be ignored; it must not have a responder here.
+  # The config mode enable command is matched by an empty responder so the
+  # catch-all cannot answer it (responders match on the TX suffix and every
+  # command ends with the frame footer); the on_tx hook below acks it from
+  # the second attempt on, so the first attempt is genuine silence.
   responses:
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x02, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx: []
+
     # Version response: returns "v2.0.0" → 200 >= 154 → energy mode
     - expect_tx:
         [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]

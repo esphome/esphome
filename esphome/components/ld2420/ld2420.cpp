@@ -68,12 +68,18 @@ static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
 static constexpr uint8_t CMD_MAX_RETRIES = 3;
 
 // Startup state machine timing. The module starts transmitting ~3.5 s after a
-// power cycle; the listen window is three times that to be safe. The ack
-// timeout and command retry count are shared with the blocking command engine.
+// power cycle; the first listen window is roughly three times that to be
+// safe, and the shorter retry window still stays above the boot silence in
+// case the module reset itself between attempts.
 static constexpr uint32_t STARTUP_LISTEN_TIMEOUT_MS = 10000;
-static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 3000;
+static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 5000;
 static constexpr uint32_t STARTUP_LISTEN_SETTLE_MS = 500;
 static constexpr uint8_t STARTUP_SEQUENCE_MAX_RETRIES = 3;
+// Minimum reply data lengths for the startup reads: the limits read returns
+// three values and each gate read returns two, four bytes each plus the four
+// status bytes counted in the reply length field
+static constexpr uint8_t REPLY_MIN_LEN_LIMITS = 16;
+static constexpr uint8_t REPLY_MIN_LEN_GATE = 12;
 
 // Command sets
 static constexpr uint16_t CMD_DISABLE_CONF = 0x00FE;
@@ -235,6 +241,7 @@ void LD2420Component::begin_startup_() {
   // that kept streaming across a soft restart, before the mode is negotiated.
   this->system_mode_ = CMD_SYSTEM_MODE_ENERGY;
   this->startup_sequence_retries_ = 0;
+  this->config_read_complete_ = false;
   this->begin_listen_();
 }
 
@@ -248,6 +255,7 @@ void LD2420Component::drain_rx_() {
   size_t avail;
   while ((avail = this->available()) > 0) {
     if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
+      ESP_LOGV(TAG, "Failed to drain the receive buffer");
       break;
     }
   }
@@ -271,7 +279,7 @@ bool LD2420Component::build_startup_frame_(CmdFrameT &frame) {
       this->build_gate_threshold_frame_(frame, this->startup_gate_);
       return true;
     case StartupState::STARTUP_STATE_SET_MODE:
-      this->build_system_mode_frame_(frame, this->system_mode_);
+      this->build_system_mode_frame_(frame, this->startup_target_mode_);
       return true;
     case StartupState::STARTUP_STATE_EXIT_CONFIG:
       this->build_config_mode_frame_(frame, false);
@@ -284,6 +292,9 @@ bool LD2420Component::build_startup_frame_(CmdFrameT &frame) {
 void LD2420Component::send_startup_cmd_() {
   CmdFrameT frame;
   if (!this->build_startup_frame_(frame)) {
+    // Programming error: a command state without a frame would otherwise look
+    // exactly like a module timeout
+    ESP_LOGE(TAG, "No command frame for startup state %u", (unsigned) this->startup_state_);
     return;
   }
   // Discard anything still buffered (including a late reply to a previous
@@ -311,8 +322,11 @@ void LD2420Component::start_startup_cmd_(StartupState state) {
 // Common ack handling for the startup commands: returns true once the reply to
 // the current startup frame arrived; resends on timeout, and after too many
 // failed sends either restarts the whole sequence or gives up with a warning.
-bool LD2420Component::startup_ack_check_() {
-  if (this->cmd_reply_.ack && this->cmd_reply_.command == this->startup_cmd_) {
+// A reply shorter than min_data_len is treated like silence so a truncated
+// read cannot be stored as zeroed configuration.
+bool LD2420Component::startup_ack_check_(uint8_t min_data_len) {
+  if (this->cmd_reply_.ack && this->cmd_reply_.command == this->startup_cmd_ &&
+      this->cmd_reply_.length >= min_data_len) {
     return true;
   }
   if (this->cmd_reply_.error > 0) {
@@ -351,7 +365,12 @@ void LD2420Component::abandon_startup_() {
     // without a version read the mode was never negotiated, so such a module
     // will not publish sensor data either.
     ESP_LOGE(TAG, "Firmware version and operating mode were never read");
+  } else if (this->startup_state_ == StartupState::STARTUP_STATE_SET_MODE) {
+    ESP_LOGE(TAG, "Operating mode write was not acknowledged; sensor data may not be parsed");
   }
+  // Keep the editable config in sync with what was actually read so a later
+  // Apply Config cannot write values that were never read from the module
+  memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
 #ifdef USE_NUMBER
   // Publish whatever was read before giving up so the number entities show
   // values next to the warning status instead of staying unknown forever
@@ -420,7 +439,7 @@ void LD2420Component::loop_startup_(bool got_data) {
       return;
 
     case StartupState::STARTUP_STATE_READ_LIMITS:
-      if (!this->startup_ack_check_()) {
+      if (!this->startup_ack_check_(REPLY_MIN_LEN_LIMITS)) {
         return;
       }
       this->current_config.min_gate = (uint16_t) this->cmd_reply_.data[0];
@@ -443,7 +462,7 @@ void LD2420Component::loop_startup_(bool got_data) {
     }
 
     case StartupState::STARTUP_STATE_READ_GATES:
-      if (!this->startup_ack_check_()) {
+      if (!this->startup_ack_check_(REPLY_MIN_LEN_GATE)) {
         return;
       }
       this->current_config.move_thresh[this->startup_gate_] = this->cmd_reply_.data[0];
@@ -452,6 +471,7 @@ void LD2420Component::loop_startup_(bool got_data) {
         this->start_startup_cmd_(StartupState::STARTUP_STATE_READ_GATES);
         return;
       }
+      this->config_read_complete_ = true;
       memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
       if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
         this->set_operating_mode(OP_SIMPLE_MODE_STRING);
@@ -460,10 +480,10 @@ void LD2420Component::loop_startup_(bool got_data) {
           this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
         }
 #endif
-        this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
+        this->startup_target_mode_ = CMD_SYSTEM_MODE_SIMPLE;
         ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
       } else {
-        this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
+        this->startup_target_mode_ = CMD_SYSTEM_MODE_ENERGY;
 #ifdef USE_SELECT
         if (this->operating_selector_ != nullptr) {
           this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
@@ -480,6 +500,9 @@ void LD2420Component::loop_startup_(bool got_data) {
       if (!this->startup_ack_check_()) {
         return;
       }
+      // Switch the parser only after the module acknowledged the mode write,
+      // so both sides stay in the same mode when the write is never acked
+      this->set_mode_(this->startup_target_mode_);
       this->start_startup_cmd_(StartupState::STARTUP_STATE_EXIT_CONFIG);
       return;
 
@@ -498,17 +521,17 @@ void LD2420Component::loop_startup_(bool got_data) {
 }
 
 // Common precondition for the button actions: the startup handshake must have
-// finished, and actions that write configuration additionally require that the
-// configuration was actually read (setup may have given up before the version
-// read; writing the unread config to the module's NVM would wipe its stored
-// thresholds).
+// finished, and actions that write configuration additionally require that
+// every limit and gate threshold was actually read (setup may have given up
+// partway through; writing the unread config to the module's NVM would wipe
+// its stored thresholds).
 bool LD2420Component::action_allowed_(bool needs_config) {
   if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
     ESP_LOGW(TAG, "Module is still starting up; ignoring");
     return false;
   }
-  if (needs_config && ld2420::get_firmware_int(this->firmware_ver_) == 0) {
-    ESP_LOGW(TAG, "Module configuration was never read; ignoring");
+  if (needs_config && !this->config_read_complete_) {
+    ESP_LOGW(TAG, "Module configuration was never fully read; ignoring");
     return false;
   }
   return true;
@@ -529,22 +552,25 @@ void LD2420Component::apply_config_action() {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->set_min_max_distances_timeout(this->new_config.max_gate, this->new_config.min_gate, this->new_config.timeout);
+  uint8_t error = this->set_min_max_distances_timeout(this->new_config.max_gate, this->new_config.min_gate,
+                                                      this->new_config.timeout);
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
     delay_microseconds_safe(125);
-    this->set_gate_threshold(gate);
+    error |= this->set_gate_threshold(gate);
   }
-  memcpy(&current_config, &new_config, sizeof(new_config));
+  if (error == LD2420_ERROR_NONE) {
+    // Only adopt the new values as current once every write was acknowledged
+    memcpy(&current_config, &new_config, sizeof(new_config));
+  }
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
 #endif
   this->set_system_mode(this->system_mode_);
-  // Disable config mode to save new values in LD2420 nvm. The individual
-  // write commands do not report errors, so use the final ack as the best
-  // available signal before reporting the reconfiguration as healthy.
-  if (this->set_config_mode(false) == LD2420_ERROR_NONE) {
+  // Disable config mode to save the new values in the LD2420 nvm
+  if (this->set_config_mode(false) == LD2420_ERROR_NONE && error == LD2420_ERROR_NONE) {
     this->status_clear_warning();
   } else {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   }
   this->set_operating_mode(OP_NORMAL_MODE_STRING);
@@ -560,7 +586,7 @@ void LD2420Component::factory_reset_action() {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->set_min_max_distances_timeout(FACTORY_MAX_GATE, FACTORY_MIN_GATE, FACTORY_TIMEOUT);
+  uint8_t error = this->set_min_max_distances_timeout(FACTORY_MAX_GATE, FACTORY_MIN_GATE, FACTORY_TIMEOUT);
 #ifdef USE_NUMBER
   this->gate_timeout_number_->state = FACTORY_TIMEOUT;
   this->min_gate_distance_number_->state = FACTORY_MIN_GATE;
@@ -570,13 +596,16 @@ void LD2420Component::factory_reset_action() {
     this->new_config.move_thresh[gate] = FACTORY_MOVE_THRESH[gate];
     this->new_config.still_thresh[gate] = FACTORY_STILL_THRESH[gate];
     delay_microseconds_safe(125);
-    this->set_gate_threshold(gate);
+    error |= this->set_gate_threshold(gate);
   }
-  memcpy(&this->current_config, &this->new_config, sizeof(this->new_config));
+  if (error == LD2420_ERROR_NONE) {
+    memcpy(&this->current_config, &this->new_config, sizeof(this->new_config));
+  }
   this->set_system_mode(this->system_mode_);
-  if (this->set_config_mode(false) == LD2420_ERROR_NONE) {
+  if (this->set_config_mode(false) == LD2420_ERROR_NONE && error == LD2420_ERROR_NONE) {
     this->status_clear_warning();
   } else {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   }
 #ifdef USE_NUMBER
@@ -1088,8 +1117,9 @@ void LD2420Component::build_version_frame_(CmdFrameT &frame) {
   ESP_LOGV(TAG, "Sending read firmware version command: %2X", frame.command);
 }
 
-void LD2420Component::set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance,  // NOLINT
-                                                    uint32_t timeout) {
+uint8_t LD2420Component::set_min_max_distances_timeout(uint32_t max_gate_distance,
+                                                       uint32_t min_gate_distance,  // NOLINT
+                                                       uint32_t timeout) {
   // Header H, Length L, Register R, Value V, Footer F
   //                        |Min Gate         |Max Gate         |Timeout          |
   // HH HH HH HH LL LL CC CC RR RR VV VV VV VV RR RR VV VV VV VV RR RR VV VV VV VV FF FF FF FF
@@ -1118,10 +1148,10 @@ void LD2420Component::set_min_max_distances_timeout(uint32_t max_gate_distance, 
   cmd_frame.footer = CMD_FRAME_FOOTER;
 
   ESP_LOGV(TAG, "Sending write gate min max and timeout command: %2X", cmd_frame.command);
-  this->send_cmd_from_array(cmd_frame);
+  return this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::set_gate_threshold(uint8_t gate) {
+uint8_t LD2420Component::set_gate_threshold(uint8_t gate) {
   // Header H, Length L, Command C, Register R, Value V, Footer F
   // HH HH HH HH LL LL CC CC RR RR VV VV VV VV RR RR VV VV VV VV FF FF FF FF
   // FD FC FB FA 14 00 07 00 10 00 00 FF 00 00 00 01 00 0F 00 00 04 03 02 01
@@ -1144,7 +1174,7 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
   cmd_frame.data_length += sizeof(this->new_config.still_thresh[gate]);
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending set gate %4X sensitivity command: %2X", gate, cmd_frame.command);
-  this->send_cmd_from_array(cmd_frame);
+  return this->send_cmd_from_array(cmd_frame);
 }
 
 #ifdef USE_NUMBER

@@ -287,6 +287,7 @@ async def _run_listen_first_test(
     api_client_connected: APIClientConnectedFactory,
     *,
     post_setup_distance: float | None = None,
+    strict_first: bool = True,
 ) -> None:
     """Shared body for the listen-first startup tests.
 
@@ -294,7 +295,9 @@ async def _run_listen_first_test(
     (real hardware locks up until power cycled if it does), that the setup
     handshake completes, and that sensor data publishes. When
     post_setup_distance is given, additionally waits for that value to prove
-    streaming still works after the handshake.
+    streaming still works after the handshake. strict_first asserts on the
+    first collected state; pass False for fixtures whose stream alternates
+    values, where the first collected state depends on subscribe timing.
     """
     loop = asyncio.get_running_loop()
 
@@ -314,6 +317,7 @@ async def _run_listen_first_test(
             setup_complete.set_result(True)
         if (
             "marked FAILED" in line
+            or "was marked as failed" in line
             or "Communication failed" in line
             or "No data received from the module" in line
         ):
@@ -358,8 +362,12 @@ async def _run_listen_first_test(
             ),
         )
 
-        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
-        assert collector.binary_states["has_target"][0] is True
+        if strict_first:
+            assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
+            assert collector.binary_states["has_target"][0] is True
+        else:
+            assert pytest.approx(100.0) in collector.sensor_states["moving_distance"]
+            assert True in collector.binary_states["has_target"]
 
         if post_setup_received is not None:
             await _wait_or_fail(
@@ -389,7 +397,9 @@ async def test_uart_mock_ld2420_warm_restart(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Module streams from boot; component must listen first, then set up."""
-    await _run_listen_first_test(yaml_config, run_compiled, api_client_connected)
+    await _run_listen_first_test(
+        yaml_config, run_compiled, api_client_connected, strict_first=False
+    )
 
 
 @pytest.mark.asyncio
@@ -414,7 +424,12 @@ async def test_uart_mock_ld2420_cmd_retry(
     watcher = _LogWatcher()
     resend_seen = watcher.watch("No reply to startup command")
     setup_complete = watcher.watch(SETUP_COMPLETE_LOG)
-    watcher.collect("marked FAILED", "Communication failed", "Module setup attempt")
+    watcher.collect(
+        "marked FAILED",
+        "was marked as failed",
+        "Communication failed",
+        "Module setup attempt",
+    )
 
     collector = SensorStateCollector(
         sensor_names=["moving_distance"],
@@ -472,7 +487,7 @@ async def test_uart_mock_ld2420_give_up(
     parser_alive_after_give_up = watcher.watch(
         "Max command length exceeded", after=give_up_seen
     )
-    watcher.collect("marked FAILED")
+    watcher.collect("marked FAILED", "was marked as failed")
 
     collector = SensorStateCollector(
         sensor_names=["moving_distance"],
@@ -535,7 +550,7 @@ async def test_uart_mock_ld2420_restart_button(
         after=restart_seen,
         until=module_frame_after_restart,
     )
-    watcher.collect("marked FAILED", "Communication failed")
+    watcher.collect("marked FAILED", "was marked as failed", "Communication failed")
 
     async with (
         run_compiled(yaml_config, line_callback=watcher),
