@@ -2,6 +2,16 @@ sensor:
   - platform: bmi270
     name: "BMI270 Temperature"
 
+  - platform: bmi270
+    type: magnetic_field_x
+    name: "BMM150 Magnetic Field X"
+  - platform: bmi270
+    type: magnetic_field_y
+    name: "BMM150 Magnetic Field Y"
+  - platform: bmi270
+    type: magnetic_field_z
+    name: "BMM150 Magnetic Field Z"
+
   - platform: motion
     motion_id: bmi270_motion
     type: acceleration_x
@@ -74,6 +84,7 @@ motion:
     # Gyroscope output data rate: 25HZ | 50HZ | 100HZ | 200HZ |
     #                               400HZ | 800HZ | 1600HZ | 3200HZ
     gyroscope_odr: 200HZ
+    aux_device: BMM150
     axis_map:
       x: y
       y: x

@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
+#include "bmm150_aux.h"
 #include <functional>
 
 namespace esphome::bmi270 {
@@ -33,6 +34,17 @@ static const uint8_t BMI270_REG_GYR_CONF = 0x42;
 static const uint8_t BMI270_REG_GYR_RANGE = 0x43;
 
 static const uint8_t BMI270_CHIP_ID_VALUE = 0x24;
+
+//  Auxiliary (secondary I2C master) interface registers.
+//  Used to optionally drive a BMM150 magnetometer wired to the BMI270's AUX pins
+//  instead of the main I2C bus - the BMM150 has no address of its own on that bus.
+static const uint8_t BMI270_REG_AUX_X_LSB = 0x04;  // start of aux data: X,Y,Z,R (8 bytes)
+static const uint8_t BMI270_REG_AUX_DEV_ID = 0x4B;
+static const uint8_t BMI270_REG_AUX_IF_CONF = 0x4C;
+static const uint8_t BMI270_REG_AUX_RD_ADDR = 0x4D;
+static const uint8_t BMI270_REG_AUX_WR_ADDR = 0x4E;
+static const uint8_t BMI270_REG_AUX_WR_DATA = 0x4F;
+static const uint8_t BMI270_REG_IF_CONF = 0x6B;
 
 //  Accelerometer range options
 enum BMI270AccelRange : uint8_t {
@@ -75,7 +87,12 @@ enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_3200 = 0x0D,
 };
 
-// ---Data class
+// What, if anything, is wired to the BMI270's auxiliary (secondary I2C master) interface.
+// Only one aux device can be attached at a time - it's a single secondary bus, not a mux.
+enum BMI270AuxDevice : uint8_t {
+  BMI270_AUX_DEVICE_NONE = 0,
+  BMI270_AUX_DEVICE_BMM150 = 1,
+};
 
 // Main component class
 class BMI270Component final : public motion::MotionComponent, public i2c::I2CDevice {
@@ -90,19 +107,32 @@ class BMI270Component final : public motion::MotionComponent, public i2c::I2CDev
   void set_accel_odr(BMI270AccelODR o) { this->accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { this->gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { this->gyro_odr_ = o; }
+  void set_aux_device(BMI270AuxDevice device) { this->aux_device_ = device; }
+  void set_aux_device_address(uint8_t address) { this->aux_device_address_ = address; }
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_magnetometer_listener(F &&cb) { this->magnetometer_callback_.add(std::forward<F>(cb)); }
 
  protected:
   bool update_data(motion::MotionData &data) override;
   bool load_config_file_();
+  // Brings up the BMM150 over the BMI270's aux interface. Optional: on failure this only
+  // disables magnetometer reporting, it does not fail the whole component (accel/gyro still work).
+  bool setup_magnetometer_();
+  // Blocking poll of the aux-transaction-busy bit; aux transaction time depends on the
+  // attached device, so this is bounded by retries/timeout rather than a fixed delay.
+  bool wait_for_aux_idle_(uint32_t timeout_ms);
 
   // Config
   BMI270AccelRange accel_range_{BMI270_ACCEL_RANGE_4G};
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
+  BMI270AuxDevice aux_device_{BMI270_AUX_DEVICE_NONE};
+  uint8_t aux_device_address_{bmm150::BMM150_DEFAULT_I2C_ADDRESS};
+  bool magnetometer_ready_{false};
 
   LazyCallbackManager<void(float)> temperature_callback_{};
+  LazyCallbackManager<void(bmm150::BMM150Data &)> magnetometer_callback_{};
 };
 
 }  // namespace esphome::bmi270
