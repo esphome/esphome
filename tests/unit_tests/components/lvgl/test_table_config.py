@@ -109,6 +109,25 @@ def test_column_width_accepts_pixels_and_percent(width, expected) -> None:
     assert config["columns"][0]["width"] == expected
 
 
+def test_columns_percent_widths_summing_over_100_percent_raises() -> None:
+    with pytest.raises(cv.Invalid, match="columns"):
+        TABLE_SCHEMA({"columns": [{"width": "60%"}, {"width": "50%"}]})
+
+
+def test_columns_percent_widths_summing_to_100_percent_is_valid() -> None:
+    config = TABLE_SCHEMA({"columns": [{"width": "60%"}, {"width": "40%"}]})
+    assert [c["width"] for c in config["columns"]] == [0.6, 0.4]
+
+
+def test_columns_mixed_pixel_and_percent_widths_ignore_pixels_in_the_total() -> None:
+    # Pixel widths aren't part of the percentage budget, so they shouldn't
+    # count towards the 100% limit.
+    config = TABLE_SCHEMA(
+        {"columns": [{"width": 200}, {"width": "80%"}, {"width": "20%"}]}
+    )
+    assert [c["width"] for c in config["columns"]] == [200, 0.8, 0.2]
+
+
 def test_selected_row_and_selected_column_are_independently_optional() -> None:
     config = TABLE_SCHEMA({"selected_row": 1})
     assert config["selected_row"] == 1

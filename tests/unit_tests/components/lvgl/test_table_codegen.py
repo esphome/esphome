@@ -8,10 +8,19 @@ from esphome.automation import ACTION_REGISTRY
 from esphome.components.lvgl.defines import set_widgets_completed
 from esphome.components.lvgl.lvcode import LvContext
 from esphome.components.lvgl.schemas import container_schema
+from esphome.components.lvgl.trigger import generate_triggers
 from esphome.components.lvgl.widgets import Widget, widget_to_code
 from esphome.components.lvgl.widgets.table import table_spec
+from esphome.const import (
+    CONF_AUTOMATION_ID,
+    CONF_ON_VALUE,
+    CONF_THEN,
+    CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
+)
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArguments
+from esphome.yaml_util import make_data_base
 
 
 async def _create_table(raw_config: dict) -> Widget:
@@ -103,6 +112,7 @@ async def test_percent_column_width_uses_the_dynamic_helper(setup_core) -> None:
     """
     await _create_table({"id": "table_pct", "columns": [{"width": "40%"}]})
     statements = _statements()
+    assert any("table_pct->init_column_pct(1)" in s for s in statements)
     assert any("table_pct->add_column_width_pct(0, 40)" in s for s in statements)
     assert not any(
         "lv_table_set_column_width(table_pct->obj, 0" in s for s in statements
@@ -161,3 +171,38 @@ async def test_cell_update_action_writes_only_the_given_fields(setup_core) -> No
     )
     # Neither control flag was specified, so neither call should be emitted.
     assert not any("LV_TABLE_CELL_CTRL" in s for s in statements)
+
+
+@pytest.mark.asyncio
+async def test_on_value_registers_a_value_changed_event_callback(setup_core) -> None:
+    config = container_schema(table_spec)(
+        {
+            "id": "table_on_value",
+            "rows": [["a"]],
+            "on_value": [
+                {"lambda": make_data_base("id(table_on_value).get_selected_row();")}
+            ],
+        }
+    )
+    # Auto-generated IDs (trigger/automation/action) are normally resolved to
+    # unique names by esphome's full config pass before code generation; do
+    # that by hand here since this test only exercises the widget/trigger
+    # codegen slice in isolation.
+    automation_conf = config[CONF_ON_VALUE][0]
+    automation_conf[CONF_TRIGGER_ID].resolve([])
+    automation_conf[CONF_AUTOMATION_ID].resolve([])
+    automation_conf[CONF_THEN][0][CONF_TYPE_ID].resolve([])
+
+    parent = MockObj("parent_obj")
+    async with LvContext():
+        await widget_to_code(config, table_spec, parent)
+        set_widgets_completed(True)
+        await generate_triggers()
+
+    statements = _statements()
+    assert any(
+        "table_on_value->obj" in s
+        and "add_event_cb" in s
+        and "LV_EVENT_VALUE_CHANGED" in s
+        for s in statements
+    )

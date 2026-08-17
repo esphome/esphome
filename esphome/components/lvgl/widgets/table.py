@@ -69,6 +69,16 @@ def _validate_table(config):
             f"{CONF_COLUMNS} defines {len(columns)} columns, but the table has only {column_count}",
             path=[CONF_COLUMNS],
         )
+    total_pct = sum(
+        width
+        for column in columns or ()
+        if isinstance((width := column.get(CONF_WIDTH)), float)
+    )
+    if total_pct > 1.0:
+        raise cv.Invalid(
+            f"{CONF_COLUMNS} percentage widths add up to {total_pct * 100:.0f}%, which exceeds 100%",
+            path=[CONF_COLUMNS],
+        )
     return config
 
 
@@ -152,7 +162,13 @@ class TableType(WidgetType):
             lv.table_set_row_count(w.obj, row_count)
         if column_count is not None:
             lv.table_set_column_count(w.obj, column_count)
-        for index, column in enumerate(config.get(CONF_COLUMNS, ())):
+        columns = config.get(CONF_COLUMNS, ())
+        pct_column_count = sum(
+            1 for column in columns if isinstance(column.get(CONF_WIDTH), float)
+        )
+        if pct_column_count:
+            lv_add(w.var.init_column_pct(pct_column_count))
+        for index, column in enumerate(columns):
             if (width := column.get(CONF_WIDTH)) is None:
                 continue
             if isinstance(width, float):

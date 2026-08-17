@@ -503,6 +503,8 @@ class LvLineType : public LvCompound {
 class LvTableType : public LvCompound {
  public:
   void set_obj(lv_obj_t *lv_obj) override;
+  // count is the number of percentage-width columns, known at code-generation time.
+  void init_column_pct(size_t count) { this->column_pct_.init(count); }
   void add_column_width_pct(uint32_t col, uint8_t pct);
 
  protected:
@@ -512,7 +514,7 @@ class LvTableType : public LvCompound {
     uint32_t col;
     uint8_t pct;
   };
-  std::vector<ColumnPct> column_pct_{};
+  FixedVector<ColumnPct> column_pct_{};
 };
 #endif  // USE_LVGL_TABLE
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

@@ -552,9 +552,9 @@ void LvTableType::set_obj(lv_obj_t *lv_obj) {
 }
 
 void LvTableType::add_column_width_pct(uint32_t col, uint8_t pct) {
-  for (auto &entry : this->column_pct_) {
-    if (entry.col == col) {
-      entry.pct = pct;
+  for (size_t i = 0; i < this->column_pct_.size(); i++) {
+    if (this->column_pct_[i].col == col) {
+      this->column_pct_[i].pct = pct;
       this->update_column_widths_();
       return;
     }
