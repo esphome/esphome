@@ -570,6 +570,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",

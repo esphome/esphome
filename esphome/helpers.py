@@ -91,13 +91,8 @@ def fnv1a_32bit_hash(string: str) -> int:
 def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h
-    with per_code_point set. This is the OLD entity hash; it computes preference
-    keys that existing devices already have stored (see
-    https://github.com/esphome/backlog/issues/85) and is also still used for live
-    keys derived from config IDs (see the motion component's calibration key).
-    Note: lower() here is Unicode aware while the C++ reconstruction is not; see
-    the known limitation note on the C++ function.
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
 
@@ -105,9 +100,9 @@ def fnv1_hash_object_id(name: str) -> int:
 def fnv1_hash_name(name: str) -> int:
     """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_bytes() in helpers.h,
-    which hashes the name bytes as stored on the device.
-    Used for pre-computing entity keys at code generation time.
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
     """
     return _fnv1_hash(name.encode("utf-8"))
 

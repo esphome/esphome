@@ -48,7 +48,7 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32p4]"
   espressif/esp-zigbee-lib:
-    version: 2.0.3
+    version: 2.0.4
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:
@@ -110,7 +110,7 @@ dependencies:
   # refuses to build two managed components whose names differ only by
   # namespace. The Arduino envs get noise-c as a PlatformIO library instead.
   esphome/noise-c:
-    version: 0.1.15
+    version: 0.1.18
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   # Declared even though noise-c depends on it, so that the PlatformIO-library
