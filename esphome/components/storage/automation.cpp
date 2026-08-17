@@ -194,17 +194,17 @@ StorageError perform_file_write(const std::string &path, std::string content, bo
 
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage registry", op);
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage mounted for '%s'", op, path.c_str());
-    return StorageError::NOT_FOUND;
+    return StorageError::STORAGE_ERROR_NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "file_%s: '%s' is busy with a background transfer -- refusing blocking I/O", op, path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
 
   StorageError err;
@@ -217,7 +217,7 @@ StorageError perform_file_write(const std::string &path, std::string content, bo
     err = append_file(ps, rel, reinterpret_cast<const uint8_t *>(content.data()), content.size());
   }
 
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "file_%s: writing '%s' failed (%s)", op, path.c_str(), error_to_string(err));
   }
   return err;
@@ -247,7 +247,7 @@ bool perform_file_read(const std::string &path, const FixedVector<ExtractStep> &
   size_t size = 0;
   // PathStorage-level helper -- works on FILESYSTEM and NETWORK storages alike.
   StorageError err = read_file(ps, rel, buf, &size);
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     // Error path leaves any configured global untouched and does not fire on_value.
     ESP_LOGE(TAG, "file_read: reading '%s' failed (%s)", path.c_str(), error_to_string(err));
     error = error_to_string(err);
@@ -289,29 +289,29 @@ static StorageError raw_preflight(RawStorage *device, const char *op, uint64_t a
   device->get_raw_geometry(geo);
   if (geo->capacity == 0) {
     ESP_LOGE(TAG, "raw_%s: device reports no capacity", op);
-    return StorageError::NOT_READY;  // no medium yet, not a bad argument
+    return StorageError::STORAGE_ERROR_NOT_READY;  // no medium yet, not a bad argument
   }
   if (address >= geo->capacity || size > geo->capacity - address) {
     ESP_LOGE(TAG, "raw_%s: 0x%08" PRIX32 " + %" PRIu32 " exceeds the device capacity %" PRIu32, op, (uint32_t) address,
              (uint32_t) size, (uint32_t) geo->capacity);
-    return StorageError::INVALID_ARGS;
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 // Same guard rail the blocking file helpers use: these actions run on the main loop.
 static StorageError raw_size_allowed(const char *op, uint64_t size) {
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_%s: no storage registry", op);
-    return StorageError::NOT_READY;  // not "unlimited" -- the guard is simply unavailable
+    return StorageError::STORAGE_ERROR_NOT_READY;  // not "unlimited" -- the guard is simply unavailable
   }
   uint64_t limit = global_storage_registry->get_max_blocking_transfer_size();
   if (limit != 0 && size > limit) {
     ESP_LOGE(TAG, "raw_%s: %" PRIu32 " bytes exceeds max_blocking_transfer_size (%" PRIu32 ")", op, (uint32_t) size,
              (uint32_t) limit);
-    return StorageError::TRANSFER_TOO_LARGE;
+    return StorageError::STORAGE_ERROR_TRANSFER_TOO_LARGE;
   }
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 // Erases the sector range covering [address, address+len) -- expanding to sector bounds, which
@@ -319,7 +319,7 @@ static StorageError raw_size_allowed(const char *op, uint64_t size) {
 static StorageError raw_erase_for_write(RawStorage *device, const RawGeometry &geo, uint64_t address, size_t len) {
   if (geo.erase_sector == 0) {
     ESP_LOGE(TAG, "raw_write: erase_first requested but this device has no erase");
-    return StorageError::NOT_SUPPORTED;
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
   }
   uint64_t start = address - (address % geo.erase_sector);
   uint64_t end = address + len;
@@ -334,16 +334,16 @@ static StorageError raw_erase_for_write(RawStorage *device, const RawGeometry &g
              "raw_write: erase_first would have to erase up to %" PRIu32 " to cover this write, past the device's "
              "%" PRIu32 " bytes -- this device's last sector is partial",
              (uint32_t) end, (uint32_t) geo.capacity);
-    return StorageError::INVALID_ARGS;
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
   ESP_LOGD(TAG, "raw_write: erasing 0x%08" PRIX32 " + %" PRIu32 " before writing", (uint32_t) start,
            (uint32_t) (end - start));
   StorageError err = device->erase(start, static_cast<size_t>(end - start));
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "raw_write: erase failed (%s)", error_to_string(err));
     return err;
   }
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 // Reads the range into an already-sized buffer, honoring the partial-read contract.
@@ -352,7 +352,7 @@ static StorageError raw_read_into(RawStorage *device, uint64_t address, uint8_t 
   while (done < size) {
     size_t got = 0;
     StorageError err = device->read(address + done, buf + done, size - done, &got);
-    if (err != StorageError::OK) {
+    if (err != StorageError::STORAGE_ERROR_OK) {
       ESP_LOGE(TAG, "raw_read: failed at 0x%08" PRIX32 " (%s)", (uint32_t) (address + done), error_to_string(err));
       return err;  // propagate the driver's verdict instead of a generic READ_ERROR
     }
@@ -368,26 +368,26 @@ static StorageError raw_read_into(RawStorage *device, uint64_t address, uint8_t 
     // streaming callers, not this one).
     ESP_LOGE(TAG, "raw_read: short read at 0x%08" PRIX32 " (%u of %u bytes)", (uint32_t) address, (unsigned) done,
              (unsigned) size);
-    return StorageError::READ_ERROR;  // the medium ended before the requested size
+    return StorageError::STORAGE_ERROR_READ_ERROR;  // the medium ended before the requested size
   }
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size, std::vector<uint8_t> &out) {
   if (size == 0) {
     ESP_LOGE(TAG, "raw_read: refusing a zero-length request");
-    return StorageError::INVALID_ARGS;  // a raw read of 0 bytes is meaningless (unlike an empty file)
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;  // a raw read of 0 bytes is meaningless (unlike an empty file)
   }
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "read", address, size, &geo);
-  if (pf != StorageError::OK)
+  if (pf != StorageError::STORAGE_ERROR_OK)
     return pf;
   StorageError sz = raw_size_allowed("read", size);
-  if (sz != StorageError::OK)
+  if (sz != StorageError::STORAGE_ERROR_OK)
     return sz;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_read: device is busy with a background transfer -- refusing blocking I/O");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   // std::vector::resize() cannot report a failed allocation in an exceptions-free build -- it
   // aborts. Ask the nothrow allocator first (null on failure) and hand the block straight back:
@@ -400,25 +400,25 @@ StorageError perform_raw_read(RawStorage *device, uint64_t address, size_t size,
     uint8_t *probe = allocator.allocate(size);
     if (probe == nullptr) {
       ESP_LOGE(TAG, "raw_read: cannot allocate %" PRIu32 " bytes", (uint32_t) size);
-      return StorageError::NO_SPACE;
+      return StorageError::STORAGE_ERROR_NO_SPACE;
     }
     allocator.deallocate(probe, size);
   }
   out.resize(size);
   size_t done = 0;
   StorageError rerr = raw_read_into(device, address, out.data(), size, &done);
-  if (rerr != StorageError::OK) {
+  if (rerr != StorageError::STORAGE_ERROR_OK) {
     out.clear();
     return rerr;
   }
   out.resize(done);
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint64_t size, const std::string &path) {
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_read: device is busy with a background transfer -- refusing blocking I/O");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   RawGeometry geo;
   device->get_raw_geometry(&geo);
@@ -427,74 +427,74 @@ StorageError perform_raw_read_to_file(RawStorage *device, uint64_t address, uint
   ESP_LOGI(TAG, "Transfer started: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) size,
            path.c_str());
   StorageError pf = raw_preflight(device, "read", address, size, &geo);
-  if (pf != StorageError::OK)
+  if (pf != StorageError::STORAGE_ERROR_OK)
     return pf;
   StorageError sz = raw_size_allowed("read", size);
-  if (sz != StorageError::OK)
+  if (sz != StorageError::STORAGE_ERROR_OK)
     return sz;
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_read: no storage registry");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "raw_read: no storage mounted for '%s'", path.c_str());
-    return StorageError::NOT_FOUND;
+    return StorageError::STORAGE_ERROR_NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "raw_read: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
 
   if constexpr (sizeof(size_t) < sizeof(uint64_t)) {
     if (size > static_cast<uint64_t>(SIZE_MAX)) {
       ESP_LOGE(TAG, "raw_read: requested size exceeds this target's address space");
-      return StorageError::NO_SPACE;
+      return StorageError::STORAGE_ERROR_NO_SPACE;
     }
   }
   auto buf_size = static_cast<size_t>(size);
   uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
   if (raw == nullptr) {
     ESP_LOGE(TAG, "raw_read: cannot allocate %" PRIu32 " bytes", (uint32_t) buf_size);
-    return StorageError::NO_SPACE;
+    return StorageError::STORAGE_ERROR_NO_SPACE;
   }
   RamBuffer buf(raw, RamBufferDeleter{buf_size});
   size_t done = 0;
   StorageError rerr = raw_read_into(device, address, buf.get(), buf_size, &done);
-  if (rerr != StorageError::OK)
+  if (rerr != StorageError::STORAGE_ERROR_OK)
     return rerr;
 
   StorageError err = write_file(ps, rel, buf.get(), done);
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "raw_read: writing '%s' failed (%s)", path.c_str(), error_to_string(err));
     return err;
   }
   ESP_LOGI(TAG, "Transfer done: read 0x%08" PRIX32 " + %" PRIu32 " -> '%s'", (uint32_t) address, (uint32_t) done,
            path.c_str());
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8_t *data, size_t len,
                                bool erase_first) {
   if (len == 0) {
     ESP_LOGE(TAG, "raw_write: refusing a zero-length request");
-    return StorageError::INVALID_ARGS;  // a raw write of 0 bytes is meaningless (unlike an empty file)
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;  // a raw write of 0 bytes is meaningless (unlike an empty file)
   }
   RawGeometry geo;
   StorageError pf = raw_preflight(device, "write", address, len, &geo);
-  if (pf != StorageError::OK)
+  if (pf != StorageError::STORAGE_ERROR_OK)
     return pf;
   StorageError sz = raw_size_allowed("write", len);
-  if (sz != StorageError::OK)
+  if (sz != StorageError::STORAGE_ERROR_OK)
     return sz;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   if (erase_first) {
     StorageError eerr = raw_erase_for_write(device, geo, address, len);
-    if (eerr != StorageError::OK)
+    if (eerr != StorageError::STORAGE_ERROR_OK)
       return eerr;  // NOT_SUPPORTED / INVALID_ARGS / the driver's erase error, not a blanket WRITE_ERROR
   }
 
@@ -502,50 +502,50 @@ StorageError perform_raw_write(RawStorage *device, uint64_t address, const uint8
   while (done < len) {
     size_t written = 0;
     StorageError err = device->write(address + done, data + done, len - done, &written);
-    if (err != StorageError::OK) {
+    if (err != StorageError::STORAGE_ERROR_OK) {
       ESP_LOGE(TAG, "raw_write: failed at 0x%08" PRIX32 " (%s)", (uint32_t) (address + done), error_to_string(err));
       return err;
     }
     if (written == 0) {
       ESP_LOGE(TAG, "raw_write: device stopped accepting data at 0x%08" PRIX32, (uint32_t) (address + done));
-      return StorageError::WRITE_ERROR;
+      return StorageError::STORAGE_ERROR_WRITE_ERROR;
     }
     done += written;
   }
   ESP_LOGD(TAG, "raw_write: %" PRIu32 " bytes at 0x%08" PRIX32, (uint32_t) len, (uint32_t) address);
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 StorageError perform_raw_write_from_file(RawStorage *device, uint64_t address, const std::string &path,
                                          bool erase_first) {
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_write: device is busy with a background transfer -- refusing blocking I/O");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   ESP_LOGI(TAG, "Transfer started: write '%s' -> 0x%08" PRIX32, path.c_str(), (uint32_t) address);
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "raw_write: no storage registry");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "raw_write: no storage mounted for '%s'", path.c_str());
-    return StorageError::NOT_FOUND;
+    return StorageError::STORAGE_ERROR_NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "raw_write: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   RamBuffer buf;
   size_t size = 0;
   StorageError err = read_file(ps, rel, buf, &size);
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "raw_write: reading '%s' failed (%s)", path.c_str(), error_to_string(err));
     return err;
   }
   StorageError werr = perform_raw_write(device, address, buf.get(), size, erase_first);
-  if (werr == StorageError::OK) {
+  if (werr == StorageError::STORAGE_ERROR_OK) {
     ESP_LOGI(TAG, "Transfer done: write '%s' (%" PRIu32 " bytes) -> 0x%08" PRIX32, path.c_str(), (uint32_t) size,
              (uint32_t) address);
   }
@@ -561,25 +561,25 @@ StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t si
   }
   if (size == 0) {
     ESP_LOGE(TAG, "raw_erase: refusing a zero-length request");
-    return StorageError::INVALID_ARGS;  // a raw erase of 0 bytes is meaningless (unlike an empty file)
+    return StorageError::STORAGE_ERROR_INVALID_ARGS;  // a raw erase of 0 bytes is meaningless (unlike an empty file)
   }
   StorageError pf = raw_preflight(device, "erase", address, size, &geo);
-  if (pf != StorageError::OK)
+  if (pf != StorageError::STORAGE_ERROR_OK)
     return pf;
   if (worker_task_busy(device)) {
     ESP_LOGE(TAG, "raw_erase: device is busy with a background transfer -- refusing blocking I/O");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   // No alignment massaging here: erase() rejects an unaligned range on purpose (it would take
   // the neighbouring data with it), and silently rounding would defeat that.
   StorageError err = device->erase(address, static_cast<size_t>(size));
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "raw_erase: 0x%08" PRIX32 " + %" PRIu32 " failed (%s)", (uint32_t) address, (uint32_t) size,
              error_to_string(err));
     return err;
   }
   ESP_LOGD(TAG, "raw_erase: 0x%08" PRIX32 " + %" PRIu32 " done", (uint32_t) address, (uint32_t) size);
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 // --- async raw helpers: submit to the worker, stream, fire on_complete (error text) ---------
@@ -587,13 +587,13 @@ StorageError perform_raw_erase(RawStorage *device, uint64_t address, uint64_t si
 // Shared completion glue for the async raw actions: log on failure, fire the trigger once with
 // the error text (empty = success).
 static void raw_fire(Trigger<std::string> *on_complete, const char *op, StorageError result) {
-  if (result != StorageError::OK) {
+  if (result != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "raw_%s failed (%s)", op, error_to_string(result));
   } else {
     ESP_LOGI(TAG, "Transfer done: raw %s", op);
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
 }
 // Report a pre-submission failure and fire the trigger once so it always fires exactly once.
 static void raw_fail(Trigger<std::string> *on_complete, const char *op, const std::string &msg) {
@@ -614,7 +614,7 @@ void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64
     // The sync twin (perform_raw_read_to_file) runs raw_preflight() here; the worker path skipped it
     // and submitted an out-of-range address as a zero-length "success". Reject it the same way.
     StorageError pf = raw_preflight(device, "read", address, size, &geo);
-    if (pf != StorageError::OK) {
+    if (pf != StorageError::STORAGE_ERROR_OK) {
       raw_fail(on_complete, "read", error_to_string(pf));
       return;
     }
@@ -633,14 +633,14 @@ void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64
     StorageError err = global_storage_worker->async_raw_read(
         device, address, size, ps, rel, [on_complete](StorageError r) { raw_fire(on_complete, "read", r); }, nullptr,
         /*overwrite=*/true);
-    if (err != StorageError::OK)
+    if (err != StorageError::STORAGE_ERROR_OK)
       raw_fail(on_complete, "read", std::string("could not queue (") + error_to_string(err) + ")");
     return;
   }
 #endif
   StorageError ferr = perform_raw_read_to_file(device, address, size, path);
   if (on_complete != nullptr)
-    on_complete->trigger(ferr == StorageError::OK ? std::string() : std::string(error_to_string(ferr)));
+    on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(ferr)));
 }
 
 void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, const std::string &path, bool erase_first,
@@ -670,15 +670,15 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
     // here. The stat gives the length to preflight with; if the stat itself fails, fall through and
     // let the worker report the real error (a missing source, etc.).
     FileStat st{};
-    const bool have_stat = ps->stat(rel, &st) == StorageError::OK && !st.is_dir;
+    const bool have_stat = ps->stat(rel, &st) == StorageError::STORAGE_ERROR_OK && !st.is_dir;
     if (have_stat && st.size == 0) {
-      raw_fail(on_complete, "write", error_to_string(StorageError::INVALID_ARGS));
+      raw_fail(on_complete, "write", error_to_string(StorageError::STORAGE_ERROR_INVALID_ARGS));
       return;
     }
     if (have_stat) {
       RawGeometry geo;
       StorageError pf = raw_preflight(device, "write", address, st.size, &geo);
-      if (pf != StorageError::OK) {
+      if (pf != StorageError::STORAGE_ERROR_OK) {
         raw_fail(on_complete, "write", error_to_string(pf));
         return;
       }
@@ -686,14 +686,14 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
     ESP_LOGI(TAG, "Transfer started: write '%s' -> 0x%08" PRIX32, path.c_str(), (uint32_t) address);
     StorageError err = global_storage_worker->async_raw_write(
         ps, rel, device, address, erase_first, [on_complete](StorageError r) { raw_fire(on_complete, "write", r); });
-    if (err != StorageError::OK)
+    if (err != StorageError::STORAGE_ERROR_OK)
       raw_fail(on_complete, "write", std::string("could not queue (") + error_to_string(err) + ")");
     return;
   }
 #endif
   StorageError ferr = perform_raw_write_from_file(device, address, path, erase_first);
   if (on_complete != nullptr)
-    on_complete->trigger(ferr == StorageError::OK ? std::string() : std::string(error_to_string(ferr)));
+    on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(ferr)));
 }
 
 void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size, bool all,
@@ -708,11 +708,11 @@ void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size
   // too, or a zero-length or out-of-range erase (e.g. all:true when get_raw_geometry() reports
   // capacity 0 because the probe failed) submits and fires on_complete with the empty success string.
   if (size == 0) {
-    raw_fail(on_complete, "erase", error_to_string(StorageError::INVALID_ARGS));
+    raw_fail(on_complete, "erase", error_to_string(StorageError::STORAGE_ERROR_INVALID_ARGS));
     return;
   }
   StorageError pf = raw_preflight(device, "erase", address, size, &geo);
-  if (pf != StorageError::OK) {
+  if (pf != StorageError::STORAGE_ERROR_OK) {
     raw_fail(on_complete, "erase", error_to_string(pf));
     return;
   }
@@ -721,14 +721,14 @@ void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size
     StorageError err = global_storage_worker->async_raw_erase(
         device, address, size, [on_complete](StorageError r) { raw_fire(on_complete, "erase", r); }, nullptr,
         force_sliced);
-    if (err != StorageError::OK)
+    if (err != StorageError::STORAGE_ERROR_OK)
       raw_fail(on_complete, "erase", std::string("could not queue (") + error_to_string(err) + ")");
     return;
   }
 #endif
   StorageError err = perform_raw_erase(device, address, size, /*all=*/false);  // address/size already resolved above
   if (on_complete != nullptr)
-    on_complete->trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
 }
 #endif  // USE_STORAGE_RAW_ACTIONS
 
@@ -737,7 +737,7 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
   ESP_LOGI(TAG, "Transfer started: %s '%s' -> '%s'", op, from.c_str(), to.c_str());
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage registry", op);
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *src_rel = nullptr;
   const char *dst_rel = nullptr;
@@ -745,25 +745,25 @@ StorageError perform_file_copy(const std::string &from, const std::string &to, b
   PathStorage *dst = global_storage_registry->resolve_path(to.c_str(), &dst_rel);
   if (src == nullptr || dst == nullptr) {
     ESP_LOGE(TAG, "file_%s: no storage mounted for '%s'", op, src == nullptr ? from.c_str() : to.c_str());
-    return StorageError::NOT_FOUND;
+    return StorageError::STORAGE_ERROR_NOT_FOUND;
   }
   // Same guard as every other blocking helper here: refuse if the worker task is streaming either
   // volume, so an external main-loop caller cannot put two threads into one storage at once.
   if (worker_task_busy(src) || worker_task_busy(dst)) {
     ESP_LOGE(TAG, "file_%s: storage is busy with a background transfer -- refusing blocking I/O", op);
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   // move() internally takes the same-storage rename() fast path and only falls back to
   // copy+delete across devices -- so this action doubles as a rename action. Both helpers are
   // PathStorage-level (filesystem and network alike), take a directory as readily as a file
   // (recursively, source decides), and honor max_blocking_transfer_size per file.
   StorageError err = is_move ? move(src, src_rel, dst, dst_rel) : copy(src, src_rel, dst, dst_rel);
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "file_%s: '%s' -> '%s' failed (%s)", op, from.c_str(), to.c_str(), error_to_string(err));
     return err;
   }
   ESP_LOGI(TAG, "Transfer done: %s '%s' -> '%s'", op, from.c_str(), to.c_str());
-  return StorageError::OK;
+  return StorageError::STORAGE_ERROR_OK;
 }
 
 void perform_file_copy_async(const std::string &from, const std::string &to, bool is_move,
@@ -815,13 +815,13 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
     // at "Transfer started" above and the worker holds its own copies for its completion logs.
     auto on_done = [on_complete, is_move](StorageError result) {
       const char *op = is_move ? "move" : "copy";
-      if (result != StorageError::OK) {
+      if (result != StorageError::STORAGE_ERROR_OK) {
         ESP_LOGE(TAG, "file_%s failed (%s)", op, error_to_string(result));
       } else {
         ESP_LOGI(TAG, "Transfer done: %s", op);
       }
       if (on_complete != nullptr)
-        on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
+        on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
     };
     StorageError err = is_move ? global_storage_worker->async_move(src, src_rel, dst, dst_rel, std::move(on_done),
                                                                    nullptr, /*overwrite=*/true)
@@ -829,7 +829,7 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
                                                                    nullptr, /*overwrite=*/true);
     // Submission itself can fail (pool full -> NOT_READY, or bad args) before any callback is
     // scheduled -- report that synchronously so the trigger still fires exactly once.
-    if (err != StorageError::OK) {
+    if (err != StorageError::STORAGE_ERROR_OK) {
       fail(std::string("could not queue (") + error_to_string(err) + ")");
     }
     return;
@@ -841,27 +841,27 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   // path above is the norm; this is only the degenerate no-worker build.
   StorageError err = perform_file_copy(from, to, is_move);
   if (on_complete != nullptr)
-    on_complete->trigger(err == StorageError::OK ? std::string() : std::string(error_to_string(err)));
+    on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
 }
 
 StorageError perform_file_delete(const std::string &path, bool recursive) {
   if (global_storage_registry == nullptr) {
     ESP_LOGE(TAG, "file_delete: no storage registry");
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     ESP_LOGE(TAG, "file_delete: no storage mounted for '%s'", path.c_str());
-    return StorageError::NOT_FOUND;
+    return StorageError::STORAGE_ERROR_NOT_FOUND;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGE(TAG, "file_delete: '%s' is busy with a background transfer -- refusing blocking I/O", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   // remove() deletes files and empty directories; remove_recursive() walks subtrees.
   StorageError err = recursive ? remove_recursive(ps, rel) : ps->remove(rel);
-  if (err != StorageError::OK) {
+  if (err != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "file_delete: '%s' failed (%s)", path.c_str(), error_to_string(err));
   }
   return err;
@@ -870,36 +870,36 @@ StorageError perform_file_delete(const std::string &path, bool recursive) {
 StorageError check_file_exists(const std::string &path) {
   if (global_storage_registry == nullptr) {
     ESP_LOGW(TAG, "file_exists: no storage registry; cannot check '%s'", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   const char *rel = nullptr;
   PathStorage *ps = global_storage_registry->resolve_path(path.c_str(), &rel);
   if (ps == nullptr) {
     // Almost always a typo'd mount point in the config -- not a real "the file is absent".
     ESP_LOGW(TAG, "file_exists: no storage mounted for '%s'", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
   if (worker_task_busy(ps)) {
     ESP_LOGW(TAG, "file_exists: '%s' is busy with a background transfer", path.c_str());
-    return StorageError::NOT_READY;
+    return StorageError::STORAGE_ERROR_NOT_READY;
   }
-  StorageError err = StorageError::OK;
+  StorageError err = StorageError::STORAGE_ERROR_OK;
   exists(ps, rel, &err);
   // OK = present, NOT_FOUND = a clean absent. Anything else is a not-ready/faulted medium: log it
   // here so the failure is never silent even for a caller (the bool condition) that cannot forward
   // it, and pass the code up so storage.stat can branch on it.
-  if (err != StorageError::OK && err != StorageError::NOT_FOUND) {
+  if (err != StorageError::STORAGE_ERROR_OK && err != StorageError::STORAGE_ERROR_NOT_FOUND) {
     ESP_LOGE(TAG, "file_exists: checking '%s' failed (%s)", path.c_str(), error_to_string(err));
   }
   return err;
 }
 
 static void mount_fire(bool mount, StorageError result, Trigger<std::string> *on_complete) {
-  if (result != StorageError::OK) {
+  if (result != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(result));
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
 }
 
 void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete) {
@@ -914,7 +914,7 @@ void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_com
   // unmount-only) so an unsupported op returns a uniform NOT_SUPPORTED, not driver-defined behaviour.
   const uint8_t need = mount ? MountableStorage::MOUNT_CAP_MOUNT : MountableStorage::MOUNT_CAP_UNMOUNT;
   if ((m->get_mount_caps() & need) == 0) {
-    mount_fire(mount, StorageError::NOT_SUPPORTED, on_complete);
+    mount_fire(mount, StorageError::STORAGE_ERROR_NOT_SUPPORTED, on_complete);
     return;
   }
   if (mount) {
@@ -925,7 +925,7 @@ void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_com
     if (global_storage_worker != nullptr) {
       StorageError err = global_storage_worker->async_mount(
           target, [on_complete](StorageError r) { mount_fire(true, r, on_complete); }, nullptr);
-      if (err != StorageError::OK)
+      if (err != StorageError::STORAGE_ERROR_OK)
         mount_fire(true, err, on_complete);  // could not queue -- report inline
       return;
     }
@@ -940,15 +940,15 @@ void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_com
 }
 
 static void format_fire(Trigger<std::string> *on_complete, StorageError result) {
-  if (result == StorageError::NOT_SUPPORTED) {
+  if (result == StorageError::STORAGE_ERROR_NOT_SUPPORTED) {
     ESP_LOGE(TAG, "format is not supported by this filesystem");
-  } else if (result != StorageError::OK) {
+  } else if (result != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "format failed (%s)", error_to_string(result));
   } else {
     ESP_LOGI(TAG, "filesystem formatted");
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
 }
 
 void perform_format_async(Storage *target, Trigger<std::string> *on_complete) {
@@ -957,7 +957,7 @@ void perform_format_async(Storage *target, Trigger<std::string> *on_complete) {
     ESP_LOGI(TAG, "Formatting filesystem...");
     StorageError err = global_storage_worker->async_format(
         target, [on_complete](StorageError r) { format_fire(on_complete, r); }, nullptr);
-    if (err != StorageError::OK)
+    if (err != StorageError::STORAGE_ERROR_OK)
       format_fire(on_complete, err);  // could not queue -- report inline
     return;
   }
