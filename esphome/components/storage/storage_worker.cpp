@@ -178,7 +178,8 @@ static bool ensure_tree(TransferRequest &req) {
 }
 
 bool StorageWorker::wait_for_network_ready_(TransferRequest &req, StorageError err, const Storage *side) {
-  if (err != StorageError::STORAGE_ERROR_NOT_READY || side == nullptr || side->get_storage_type() != StorageType::STORAGE_TYPE_NETWORK)
+  if (err != StorageError::STORAGE_ERROR_NOT_READY || side == nullptr ||
+      side->get_storage_type() != StorageType::STORAGE_TYPE_NETWORK)
     return false;
   if (millis() - req.submitted_ms > NETWORK_READY_WINDOW_MS)
     return false;
@@ -2077,16 +2078,16 @@ void StorageWorker::run_chunk_(TransferRequest &req, bool on_task) {
     }
 
     if (req.src_is_fs) {
-      StorageError err =
-          static_cast<FilesystemStorage *>(req.src_storage)->open(req.src_path, req.src_handle, OpenMode::OPEN_MODE_READ);
+      StorageError err = static_cast<FilesystemStorage *>(req.src_storage)
+                             ->open(req.src_path, req.src_handle, OpenMode::OPEN_MODE_READ);
       if (err != StorageError::STORAGE_ERROR_OK) {
         finish_request(req, err);
         return;
       }
     }
     if (req.dst_is_fs) {
-      StorageError err =
-          static_cast<FilesystemStorage *>(req.dst_storage)->open(req.dst_path, req.dst_handle, OpenMode::OPEN_MODE_WRITE);
+      StorageError err = static_cast<FilesystemStorage *>(req.dst_storage)
+                             ->open(req.dst_path, req.dst_handle, OpenMode::OPEN_MODE_WRITE);
       if (err != StorageError::STORAGE_ERROR_OK) {
         req.handles_open = true;  // src handle (if any) is open -- let finish_request() close it
         finish_request(req, err);
