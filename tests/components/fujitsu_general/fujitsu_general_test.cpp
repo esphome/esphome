@@ -29,12 +29,23 @@ TEST(FujitsuGeneralDecodeModeTest, KeepsTheCurrentModeForUnassignedValues) {
   // 0x5 to 0x7 fit in the field but the protocol does not use them.
   EXPECT_EQ(decode_mode(0x05, climate::CLIMATE_MODE_COOL), climate::CLIMATE_MODE_COOL);
   EXPECT_EQ(decode_mode(0x06, climate::CLIMATE_MODE_HEAT), climate::CLIMATE_MODE_HEAT);
-  EXPECT_EQ(decode_mode(0x07, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_OFF);
+  EXPECT_EQ(decode_mode(0x07, climate::CLIMATE_MODE_DRY), climate::CLIMATE_MODE_DRY);
 
   // The same three with the clean bit set. Without the mask these would not reach this branch.
   EXPECT_EQ(decode_mode(0x0D, climate::CLIMATE_MODE_COOL), climate::CLIMATE_MODE_COOL);
   EXPECT_EQ(decode_mode(0x0E, climate::CLIMATE_MODE_HEAT), climate::CLIMATE_MODE_HEAT);
-  EXPECT_EQ(decode_mode(0x0F, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_OFF);
+  EXPECT_EQ(decode_mode(0x0F, climate::CLIMATE_MODE_FAN_ONLY), climate::CLIMATE_MODE_FAN_ONLY);
+}
+
+TEST(FujitsuGeneralDecodeModeTest, NeverReportsOffForAStateFrame) {
+  // A state frame describes a running unit, so keeping an off current mode would publish it as off
+  // and turn the next transmission into a power off command. Automatic is the least specific mode
+  // available, which is what the field's unassigned values decoded to before they were masked.
+  for (uint8_t field = 0x05; field <= 0x07; field++) {
+    SCOPED_TRACE(static_cast<int>(field));
+    EXPECT_EQ(decode_mode(field, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_HEAT_COOL);
+    EXPECT_EQ(decode_mode(field | 0b1000, climate::CLIMATE_MODE_OFF), climate::CLIMATE_MODE_HEAT_COOL);
+  }
 }
 
 // The fan speed field is three bits wide as well, and used to fold every value it did not

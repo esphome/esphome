@@ -251,9 +251,11 @@ climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode curren
       return climate::CLIMATE_MODE_HEAT_COOL;
     default:
       // The protocol does not assign these values, so there is nothing to report. Keeping the
-      // current mode claims less than inventing one.
+      // current mode claims less than inventing one. A state frame does describe a running unit
+      // though, so off is not an answer this can give: reporting it would publish a unit that is
+      // running as off, and make the next transmission a power off command.
       ESP_LOGW(TAG, "Received unassigned mode %X, keeping the current mode", mode_field & FUJITSU_GENERAL_MODE_MASK);
-      return current_mode;
+      return current_mode == climate::CLIMATE_MODE_OFF ? climate::CLIMATE_MODE_HEAT_COOL : current_mode;
   }
 }
 

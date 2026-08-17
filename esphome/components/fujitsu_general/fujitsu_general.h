@@ -72,7 +72,8 @@ const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
 /// Turn the mode field of a received frame into a climate mode.
 ///
 /// Only the low three bits carry the mode; the fourth bit belongs to the clean feature and is
-/// ignored here. Values the protocol does not assign leave the mode as it was.
+/// ignored here. Values the protocol does not assign leave the mode as it was, except that a state
+/// frame never describes a unit that is off, so an off current mode becomes automatic.
 climate::ClimateMode decode_mode(uint8_t mode_field, climate::ClimateMode current_mode);
 
 /// Turn the fan speed field of a received frame into a fan mode.
