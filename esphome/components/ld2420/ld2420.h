@@ -176,7 +176,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   bool startup_ack_check_();
   void drain_rx_();
   void write_cmd_frame_(const CmdFrameT &frame);
-  void build_startup_frame_(CmdFrameT &frame);
+  bool build_startup_frame_(CmdFrameT &frame);
   void build_config_mode_frame_(CmdFrameT &frame, bool enable);
   void build_min_max_timeout_frame_(CmdFrameT &frame);
   void build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate);

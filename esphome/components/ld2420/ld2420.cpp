@@ -72,6 +72,7 @@ static constexpr uint8_t CMD_MAX_RETRIES = 3;
 // timeout and command retry count are shared with the blocking command engine.
 static constexpr uint32_t STARTUP_LISTEN_TIMEOUT_MS = 10000;
 static constexpr uint32_t STARTUP_RETRY_LISTEN_MS = 3000;
+static constexpr uint32_t STARTUP_LISTEN_SETTLE_MS = 500;
 static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
 static constexpr uint8_t CMD_MAX_RETRIES = 3;
 static constexpr uint8_t STARTUP_SEQUENCE_MAX_RETRIES = 3;
@@ -251,37 +252,47 @@ void LD2420Component::drain_rx_() {
   this->buffer_pos_ = 0;
 }
 
-// Builds the command frame for the current startup state
-void LD2420Component::build_startup_frame_(CmdFrameT &frame) {
+// Builds the command frame for the current startup state; returns false when
+// the state has no associated command
+bool LD2420Component::build_startup_frame_(CmdFrameT &frame) {
   switch (this->startup_state_) {
     case StartupState::STARTUP_STATE_ENTER_CONFIG:
       this->build_config_mode_frame_(frame, true);
-      break;
+      return true;
     case StartupState::STARTUP_STATE_READ_LIMITS:
       this->build_min_max_timeout_frame_(frame);
-      break;
+      return true;
     case StartupState::STARTUP_STATE_READ_VERSION:
       this->build_version_frame_(frame);
-      break;
+      return true;
     case StartupState::STARTUP_STATE_READ_GATES:
       this->build_gate_threshold_frame_(frame, this->startup_gate_);
-      break;
+      return true;
     case StartupState::STARTUP_STATE_SET_MODE:
       this->build_system_mode_frame_(frame, this->system_mode_);
-      break;
+      return true;
     case StartupState::STARTUP_STATE_EXIT_CONFIG:
       this->build_config_mode_frame_(frame, false);
-      break;
+      return true;
     default:
-      break;
+      return false;
   }
 }
 
 void LD2420Component::send_startup_cmd_() {
   CmdFrameT frame;
-  this->build_startup_frame_(frame);
+  if (!this->build_startup_frame_(frame)) {
+    return;
+  }
+  // Discard anything still buffered (including a late reply to a previous
+  // send of the same command) so a stale ack cannot be matched to this one.
+  // READ_LIMITS and all gate reads share the same command byte, so a late
+  // reply accepted for the wrong request would shift every following gate's
+  // thresholds by one.
+  this->drain_rx_();
   this->startup_cmd_ = (uint8_t) frame.command;
   this->cmd_reply_.ack = false;
+  this->cmd_reply_.error = 0;
   this->write_cmd_frame_(frame);
   this->phase_start_ms_ = millis();
 }
@@ -298,6 +309,12 @@ void LD2420Component::start_startup_cmd_(StartupState state) {
 bool LD2420Component::startup_ack_check_() {
   if (this->cmd_reply_.ack && this->cmd_reply_.command == this->startup_cmd_) {
     return true;
+  }
+  if (this->cmd_reply_.error > 0) {
+    // The module explicitly rejected the command; log why instead of letting
+    // it look like silence. The normal retry cadence still applies.
+    this->handle_cmd_error(this->cmd_reply_.error);
+    this->cmd_reply_.error = 0;
   }
   if (millis() - this->phase_start_ms_ <= CMD_ACK_TIMEOUT_MS) {
     return false;
@@ -319,6 +336,12 @@ bool LD2420Component::startup_ack_check_() {
   // Give up on configuration but keep parsing the stream; a module that is
   // still streaming keeps publishing sensor data even without a config read.
   ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
+    // Old firmware streams text frames that are only parsed in simple mode;
+    // without a version read the mode was never negotiated, so such a module
+    // will not publish sensor data either.
+    ESP_LOGE(TAG, "Firmware version and operating mode were never read");
+  }
   this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
   return false;
@@ -328,10 +351,9 @@ void LD2420Component::abort_startup_cmd_() {
   // If the module already acknowledged config mode it stops streaming until
   // config mode is exited, so send the exit command blind before abandoning
   // the sequence; otherwise the stream never resumes and neither passive
-  // parsing nor the next listen phase would ever see data.
-  if (this->startup_state_ == StartupState::STARTUP_STATE_ENTER_CONFIG) {
-    return;  // Config mode was never acknowledged; the module is still streaming
-  }
+  // parsing nor the next listen phase would ever see data. This is also sent
+  // when config mode was never acknowledged: the ack may merely have been
+  // lost, and the frame is harmless to a module that is not in config mode.
   CmdFrameT frame;
   this->build_config_mode_frame_(frame, false);
   this->write_cmd_frame_(frame);
@@ -340,6 +362,21 @@ void LD2420Component::abort_startup_cmd_() {
 void LD2420Component::loop_startup_() {
   switch (this->startup_state_) {
     case StartupState::STARTUP_STATE_LISTEN: {
+      const uint32_t elapsed = millis() - this->phase_start_ms_;
+      // Bytes can already be in flight when the listen phase starts: the tail
+      // of a frame the module was transmitting when it was told to restart,
+      // stale data buffered before setup, or the ack to the blind config mode
+      // exit. Ignore reception during a short settle window (clearing the rx
+      // flag and the frame parser) so only data the module sends afterwards
+      // counts as proof that it is up and streaming. (A full-frame check
+      // cannot serve as that proof here: old-firmware text frames are only
+      // recognized once the operating mode is known, which requires the very
+      // handshake this phase gates.)
+      if (elapsed < STARTUP_LISTEN_SETTLE_MS) {
+        this->drain_rx_();
+        this->rx_seen_ = false;
+        return;
+      }
       // The module locks up until power cycled if it receives data before it
       // has sent its first frame after powering on, so wait until it has
       // provably transmitted before sending anything. A module stuck in some
@@ -347,7 +384,7 @@ void LD2420Component::loop_startup_() {
       if (!this->rx_seen_) {
         const uint32_t listen_timeout_ms =
             this->startup_sequence_retries_ == 0 ? STARTUP_LISTEN_TIMEOUT_MS : STARTUP_RETRY_LISTEN_MS;
-        if (millis() - this->phase_start_ms_ < listen_timeout_ms) {
+        if (elapsed < listen_timeout_ms) {
           return;
         }
         ESP_LOGW(TAG, "No data received from the module; attempting configuration anyway");
@@ -471,6 +508,7 @@ void LD2420Component::apply_config_action() {
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
   this->set_operating_mode(OP_NORMAL_MODE_STRING);
+  this->status_clear_warning();
 }
 
 void LD2420Component::factory_reset_action() {
@@ -503,6 +541,7 @@ void LD2420Component::factory_reset_action() {
   this->init_gate_config_numbers();
   this->refresh_gate_config_numbers();
 #endif
+  this->status_clear_warning();
 }
 
 void LD2420Component::restart_module_action() {
