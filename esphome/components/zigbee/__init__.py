@@ -228,7 +228,7 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    if config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
