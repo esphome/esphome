@@ -5,6 +5,13 @@ climate:
     model: YAN
     transmitter_id: xmitr
 
+  - platform: gree
+    name: GREE YX1FF
+    id: my_gree_yx1ff_ac
+    model: YX1FF
+    transmitter_id: xmitr
+    receiver_id: rcvr
+
 switch:
   - platform: gree
     gree_id: my_gree_ac
