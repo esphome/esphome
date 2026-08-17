@@ -6,18 +6,16 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_OTA,
     CONF_SOURCE,
-    CONF_TYPE,
     ThreadModel,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_NRF52
+from ..const import BOOTLOADER_MCUBOOT, KEY_MODULE_REQUESTS, ZEPHYR_VARIANT_NRF52
 from . import (
     MAINLINE,
     NCS,
-    NCS_ZIGBEE,
     ZephyrVariant,
     qualify_board,
     resolve_framework_version,
@@ -58,8 +56,7 @@ VARIANT = ZephyrVariant(
     # regression only present on one side.
     sdk=NCS,
     sdk_name="ncs",
-    # "zigbee": ncs-zigbee, NCS 3.4.0+'s separate ZBOSS add-on repo (see NCS_ZIGBEE).
-    alt_sdks={"zephyr": MAINLINE, "zigbee": NCS_ZIGBEE},
+    alt_sdks={"zephyr": MAINLINE},
     family="nordic",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
@@ -69,7 +66,8 @@ VARIANT = ZephyrVariant(
     # source build the esp32-family variants already use. The default
     # framework: type: ncs here uses NCS's own OpenThread, so that original coupling
     # concern applies again there. Zigbee here is a radio-capability declaration only --
-    # zigbee/__init__.py's own gate additionally requires framework: type: zigbee.
+    # zigbee_zephyr.py's own gate additionally requires the "zigbee" module (NCS_ZIGBEE_TEMPLATE
+    # via NCS.modules) to actually resolve, which only ncs (not mainline) offers.
     transports=frozenset({"openthread", "ble", "zigbee"}),
     soc="nrf52840",
     # No "scratch": neither board defines a scratch_partition (upstream's stock
@@ -86,9 +84,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
-    framework = config[CONF_FRAMEWORK]
-    if CONF_TYPE not in framework and "zigbee" in CORE.loaded_integrations:
-        framework[CONF_TYPE] = "zigbee"
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf52", config, "nRF52840 support"
     )
@@ -105,13 +100,7 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import (
-        zephyr_add_prj_conf,
-        zephyr_add_sysbuild_conf,
-        zephyr_framework_type,
-        zephyr_setup_preferences,
-        zephyr_to_code,
-    )
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
 
     zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
@@ -122,10 +111,21 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
 
+    CORE.add_job(_bootloader_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _bootloader_to_code(config: ConfigType) -> None:
+    from .. import zephyr_add_prj_conf, zephyr_add_sysbuild_conf, zephyr_data
+
     # ncs-zigbee's default devicetree has no boot/slot1 partitions, so zigbee only
-    # gets MCUboot when OTA is actually configured.
+    # gets MCUboot when OTA is actually configured. Deferred to FINAL priority: this
+    # variant's own to_code() (above) always runs before zigbee:'s (zigbee depends on
+    # zephyr), so checking the module request there would be premature -- by FINAL,
+    # zigbee_zephyr.py's request_zephyr_module("zigbee") call has already run if
+    # zigbee: is configured.
     # TBD - single slot MCUBOOT
-    if zephyr_framework_type() != "zigbee" or CORE.config.get(CONF_OTA):
+    if "zigbee" not in zephyr_data()[KEY_MODULE_REQUESTS] or CORE.config.get(CONF_OTA):
         # west build always runs with --sysbuild (build_zephyr.py), but sysbuild
         # still needs to be told which bootloader to build as its "mcuboot" child
         # image -- without this, only the (unsigned) app image gets built and

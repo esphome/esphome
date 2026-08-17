@@ -8,12 +8,15 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.zephyr import (
+    _MODULE_SCHEMA,
     _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
+    request_zephyr_module,
+    resolve_zephyr_modules,
     upload_program,
     zephyr_add_kconfig,
     zephyr_add_overlay,
@@ -23,23 +26,36 @@ from esphome.components.zephyr import (
     zephyr_add_user,
     zephyr_dts_board_id,
     zephyr_only_on_variant,
+    zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
     zephyr_variant,
     zephyr_variant_family,
 )
 from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
-from esphome.components.zephyr.variants import VARIANTS, ZephyrSDK, ZephyrVariant
+from esphome.components.zephyr.variants import (
+    VARIANTS,
+    ZephyrModule,
+    ZephyrModuleTemplate,
+    ZephyrSDK,
+    ZephyrVariant,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FRAMEWORK,
+    CONF_NAME,
     CONF_PATH,
     CONF_REFRESH,
+    CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL,
     CONF_VARIANT,
+    CONF_VERSION,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ZEPHYR,
+    TYPE_GIT,
     TYPE_LOCAL,
 )
 from esphome.core import CORE, EsphomeError
@@ -83,6 +99,8 @@ def _empty_zephyr_data(
         "board_edt_cache": {},
         "board_yaml_cache": {},
         "snippets": [],
+        "module_requests": {},
+        "module_overrides": {},
     }
 
 
@@ -702,3 +720,164 @@ def test_resolve_board_source_raises_for_revision_on_board_without_revisions(
     config = _local_board_source_config(tmp_path)
     with pytest.raises(cv.Invalid, match="does not declare any revisions"):
         _resolve_board_source(config, "my_board@1.0.0")
+
+
+# ---------------------------------------------------------------------------
+# request_zephyr_module / zephyr_set_module_override / resolve_zephyr_modules --
+# real registered NRF52 variant (NCS.modules == {"zigbee": NCS_ZIGBEE_TEMPLATE}) used
+# throughout rather than a fake, since the point is exercising the real capability
+# table.
+# ---------------------------------------------------------------------------
+
+
+def _set_framework_version(version: cv.Version) -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_ESP32,
+        KEY_FRAMEWORK_VERSION: version,
+    }
+
+
+def test_request_zephyr_module_records_template_for_available_capability() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    request_zephyr_module("zigbee")
+    requests = CORE.data[KEY_ZEPHYR]["module_requests"]
+    assert requests["zigbee"].name == "ncs-zigbee"
+
+
+def test_request_zephyr_module_raises_for_unavailable_capability() -> None:
+    # framework: type: zephyr (mainline) has no "zigbee" module -- only ncs does.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="zephyr")
+    with pytest.raises(EsphomeError, match="isn't available"):
+        request_zephyr_module("zigbee")
+
+
+def test_resolve_zephyr_modules_uses_template_default_version() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 4, 0))
+    request_zephyr_module("zigbee")
+
+    resolved = resolve_zephyr_modules()
+
+    assert len(resolved) == 1
+    assert resolved[0].name == "ncs-zigbee"
+    assert resolved[0].revision == "v1.4.0"
+
+
+def test_resolve_zephyr_modules_raises_without_override_or_table_match() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 9, 0))  # no (3, 9) entry in default_versions
+    request_zephyr_module("zigbee")
+
+    with pytest.raises(EsphomeError, match="no known compatible version"):
+        resolve_zephyr_modules()
+
+
+def test_resolve_zephyr_modules_version_override_avoids_table_miss() -> None:
+    # The scenario a plain table-miss error would otherwise block: a root SDK version
+    # with no known-compatible module version still works once the user names one
+    # explicitly via zephyr: modules:, without needing to touch the request itself.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 9, 0))
+    request_zephyr_module("zigbee")
+    zephyr_set_module_override("ncs-zigbee", "1.9.9")
+
+    resolved = resolve_zephyr_modules()
+
+    assert resolved[0].revision == "v1.9.9"
+
+
+def test_resolve_zephyr_modules_full_module_override_replaces_template() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 4, 0))
+    request_zephyr_module("zigbee")
+    custom = ZephyrModule(
+        name="ncs-zigbee", manifest_url="https://example.com/fork", revision="my-branch"
+    )
+    zephyr_set_module_override("ncs-zigbee", custom)
+
+    resolved = resolve_zephyr_modules()
+
+    assert resolved == [custom]
+
+
+def test_resolve_zephyr_modules_unrequested_override_without_source_raises() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 4, 0))
+    zephyr_set_module_override("mystery", "1.0.0")
+
+    with pytest.raises(EsphomeError, match="wasn't requested by any component"):
+        resolve_zephyr_modules()
+
+
+def test_resolve_zephyr_modules_empty_when_nothing_requested() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 4, 0))
+
+    assert resolve_zephyr_modules() == []
+
+
+def test_resolve_zephyr_modules_raises_when_two_capabilities_collide_on_module_name() -> (
+    None
+):
+    # Two different capability keys resolving to templates that share a module name
+    # but aren't the same template -- must not silently let one clobber the other.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52", framework_type="ncs")
+    _set_framework_version(cv.Version(3, 4, 0))
+    requests = CORE.data[KEY_ZEPHYR]["module_requests"]
+    requests["zigbee"] = ZephyrModuleTemplate(
+        name="shared-name", manifest_url="http://a", default_versions={(3, 4): "1.0.0"}
+    )
+    requests["other"] = ZephyrModuleTemplate(
+        name="shared-name", manifest_url="http://b", default_versions={(3, 4): "2.0.0"}
+    )
+
+    with pytest.raises(EsphomeError, match="both resolve to 'shared-name'"):
+        resolve_zephyr_modules()
+
+
+# ---------------------------------------------------------------------------
+# _MODULE_SCHEMA -- zephyr: modules: entries
+# ---------------------------------------------------------------------------
+
+
+def test_module_schema_accepts_name_and_git_source() -> None:
+    result = _MODULE_SCHEMA(
+        {
+            CONF_NAME: "my_module",
+            CONF_SOURCE: {CONF_TYPE: TYPE_GIT, CONF_URL: "https://example.com/mod"},
+        }
+    )
+    assert result[CONF_NAME] == "my_module"
+    assert result[CONF_SOURCE][CONF_URL] == "https://example.com/mod"
+
+
+def test_module_schema_defaults_git_ref_to_main() -> None:
+    result = _MODULE_SCHEMA(
+        {
+            CONF_NAME: "my_module",
+            CONF_SOURCE: {CONF_TYPE: TYPE_GIT, CONF_URL: "https://example.com/mod"},
+        }
+    )
+    assert result[CONF_SOURCE]["ref"] == "main"
+
+
+def test_module_schema_accepts_name_and_version_only() -> None:
+    result = _MODULE_SCHEMA({CONF_NAME: "ncs-zigbee", CONF_VERSION: "1.4.2"})
+    assert result[CONF_VERSION] == "1.4.2"
+    assert CONF_SOURCE not in result
+
+
+def test_module_schema_accepts_local_source(tmp_path: Path) -> None:
+    CORE.config_path = tmp_path / "test.yaml"
+    result = _MODULE_SCHEMA(
+        {
+            CONF_NAME: "my_local_module",
+            CONF_SOURCE: {CONF_TYPE: TYPE_LOCAL, CONF_PATH: "."},
+        }
+    )
+    assert result[CONF_SOURCE][CONF_PATH] == tmp_path
+
+
+def test_module_schema_rejects_name_alone() -> None:
+    with pytest.raises(cv.Invalid, match="at least one"):
+        _MODULE_SCHEMA({CONF_NAME: "bare"})
