@@ -126,13 +126,15 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
   if (uart_is_driver_installed(this->uart_num_)) {
-    this->driver_installed_ = false;
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
       this->mark_failed();
       return;
     }
+    // Only mark the driver gone once the delete actually succeeded; a failed
+    // delete leaves the old driver installed and working
+    this->driver_installed_ = false;
   }
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
