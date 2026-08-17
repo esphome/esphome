@@ -49,7 +49,10 @@ void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::update() {
   switch (this->state_) {
-    case State::SCHEDULE_NEXT_STATUS_REQUEST:
+    case State::DEFERRED_STATUS_REQUEST:
+      // Defer the next request to a later loop iteration; some units might not respond if a request is sent
+      // immediately after a response. See https://github.com/esphome/esphome/issues/18099. No minimum RX-to-TX delay
+      // is enforced.
       this->set_state_(State::UPDATING_STATUS);
       return false;
 
@@ -105,12 +108,12 @@ bool MitsubishiCN105::should_transition(State from, State to) {
       return from == State::CONNECTING;
 
     case State::UPDATING_STATUS:
-      return from == State::SCHEDULE_NEXT_STATUS_REQUEST || from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
+      return from == State::DEFERRED_STATUS_REQUEST || from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
 
     case State::STATUS_UPDATED:
       return from == State::UPDATING_STATUS;
 
-    case State::SCHEDULE_NEXT_STATUS_REQUEST:
+    case State::DEFERRED_STATUS_REQUEST:
       return from == State::CONNECTED || from == State::STATUS_UPDATED;
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
@@ -120,7 +123,7 @@ bool MitsubishiCN105::should_transition(State from, State to) {
       return from == State::SCHEDULE_NEXT_STATUS_UPDATE;
 
     case State::APPLYING_SETTINGS:
-      return from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE || from == State::STATUS_UPDATED;
+      return from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
 
     case State::SETTINGS_APPLIED:
       return from == State::APPLYING_SETTINGS;
@@ -141,7 +144,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::CONNECTED:
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
-      this->set_state_(State::SCHEDULE_NEXT_STATUS_REQUEST);
+      this->set_state_(State::DEFERRED_STATUS_REQUEST);
       break;
 
     case State::UPDATING_STATUS:
@@ -149,10 +152,14 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
-      if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_() &&
-          (!this->pending_updates_.any() || !this->is_status_initialized())) {
+      if (this->pending_updates_.any() && this->is_status_initialized()) {
+        // Pending settings are applied from WAITING_FOR_SCHEDULED_STATUS_UPDATE during the next update(), deferring
+        // transmission to a later loop iteration; some units might not respond if a request is sent immediately after
+        // a response, causing the request to time out.
+        this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
+      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
         this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
-        this->set_state_(State::SCHEDULE_NEXT_STATUS_REQUEST);
+        this->set_state_(State::DEFERRED_STATUS_REQUEST);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       }
@@ -180,8 +187,9 @@ void MitsubishiCN105::did_transition_(State to) {
       this->set_state_(State::CONNECTING);
       break;
 
-    case State::SCHEDULE_NEXT_STATUS_REQUEST:
-    default:
+    case State::NOT_CONNECTED:
+    case State::DEFERRED_STATUS_REQUEST:
+    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
       break;
   }
 }
@@ -365,8 +373,8 @@ const LogString *MitsubishiCN105::state_to_string(State state) {
       return LOG_STR("UpdatingStatus");
     case State::STATUS_UPDATED:
       return LOG_STR("StatusUpdated");
-    case State::SCHEDULE_NEXT_STATUS_REQUEST:
-      return LOG_STR("ScheduleNextStatusRequest");
+    case State::DEFERRED_STATUS_REQUEST:
+      return LOG_STR("DeferredStatusRequest");
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       return LOG_STR("ScheduleNextStatusUpdate");
     case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:

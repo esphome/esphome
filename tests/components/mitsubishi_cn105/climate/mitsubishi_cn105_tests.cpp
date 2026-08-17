@@ -43,7 +43,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // All bytes from UART should be consumed
   EXPECT_TRUE(ctx.uart.rx.empty());
   // Defer the first settings request (0x02) until the next update.
-  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_REQUEST);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
   EXPECT_TRUE(ctx.uart.tx.empty());
 
   ctx.sut.set_current_time(201);
@@ -82,7 +82,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SWING);
 
   // Defer the telemetry request (0x03) until the next update.
-  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_REQUEST);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
   EXPECT_TRUE(ctx.uart.tx.empty());
 
   ctx.sut.set_current_time(301);
