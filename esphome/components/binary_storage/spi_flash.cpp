@@ -432,46 +432,46 @@ bool SPIFlash::esp_partition_setup_() {
 
 storage::StorageError SPIFlash::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 #ifdef USE_ESP_IDF
   if (this->esp_partition_mode_) {
     esp_err_t err = esp_flash_read(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
     if (bytes_transferred != nullptr)
       *bytes_transferred = (err == ESP_OK) ? len : 0;
-    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_READ_ERROR;
   }
 #endif
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
-  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_READ_ERROR;
 }
 
 storage::StorageError SPIFlash::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 #ifdef USE_ESP_IDF
   if (this->esp_partition_mode_) {
     esp_err_t err = esp_flash_write(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
     if (bytes_transferred != nullptr)
       *bytes_transferred = (err == ESP_OK) ? len : 0;
-    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   }
 #endif
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
-  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
   if (len == 0)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 #ifdef USE_ESP_IDF
   if (this->esp_partition_mode_) {
     esp_err_t err = esp_flash_erase_region(this->ext_chip_, static_cast<uint32_t>(offset), static_cast<uint32_t>(len));
-    return err == ESP_OK ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   }
 #endif
 
@@ -480,19 +480,19 @@ storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
   if (offset + len > capacity) {
     ESP_LOGE(TAG, "Erase out of bounds: 0x%08" PRIX32 " + %" PRIu32 " > capacity %" PRIu32, (uint32_t) offset,
              (uint32_t) len, (uint32_t) capacity);
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
   // Erasing is destructive at sector granularity: an unaligned range would take the
   // neighbouring data sharing the first or last sector with it. Refuse rather than surprise.
   if ((offset % sector) != 0 || (len % sector) != 0) {
     ESP_LOGE(TAG, "Erase range 0x%08" PRIX32 " + %" PRIu32 " is not aligned to the %" PRIu32 " byte sector size",
              (uint32_t) offset, (uint32_t) len, sector);
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
 
   // Whole device: one chip erase instead of thousands of sector commands.
   if (offset == 0 && len == capacity)
-    return this->erase_chip() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+    return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   // The block opcodes are only usable when the configured sector size tiles them evenly --
   // with an exotic sector_size_ the sector opcode stays the only safe choice.
@@ -515,13 +515,13 @@ storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
       addr += sector;
     }
     if (!ok)
-      return storage::StorageError::WRITE_ERROR;
+      return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   }
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SPIFlash::format() {
-  return this->erase_chip() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {

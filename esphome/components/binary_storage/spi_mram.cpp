@@ -66,24 +66,24 @@ void SPIMRAM::dump_config() {
 
 storage::StorageError SPIMRAM::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
-  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_READ_ERROR;
 }
 
 storage::StorageError SPIMRAM::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                               size_t *bytes_transferred) {
   if (!this->is_valid_address_(offset, len))
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
-  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
-storage::StorageError SPIMRAM::erase_physical(uint64_t offset, size_t len) { return storage::StorageError::OK; }
+storage::StorageError SPIMRAM::erase_physical(uint64_t offset, size_t len) { return storage::StorageError::STORAGE_ERROR_OK; }
 
 storage::StorageError SPIMRAM::format() { return this->BinaryStorage::format(); }
 

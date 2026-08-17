@@ -26,31 +26,31 @@ class FakeByteMedium : public storage::RawStorage {
 
   StorageError get_info(storage::StorageInfo *info) override {
     *info = storage::StorageInfo{};
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
   }
   StorageError read(uint64_t off, uint8_t *buf, size_t len, size_t *got) override {
     *got = 0;
     if (off + len > this->data_.size())
-      return StorageError::INVALID_ARGS;
+      return StorageError::STORAGE_ERROR_INVALID_ARGS;
     std::memcpy(buf, &this->data_[off], len);
     *got = len;
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
   }
   StorageError write(uint64_t off, const uint8_t *buf, size_t len, size_t *put) override {
     *put = 0;
     if (off + len > this->data_.size())
-      return StorageError::INVALID_ARGS;
+      return StorageError::STORAGE_ERROR_INVALID_ARGS;
     if (this->fail_after >= 0 && this->writes >= this->fail_after)
-      return StorageError::WRITE_ERROR;  // simulated power loss
+      return StorageError::STORAGE_ERROR_WRITE_ERROR;  // simulated power loss
     ++this->writes;
     std::memcpy(&this->data_[off], buf, len);
     *put = len;
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
   }
-  StorageError erase(uint64_t, size_t) override { return StorageError::NOT_SUPPORTED; }  // in-place: no erase
+  StorageError erase(uint64_t, size_t) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }  // in-place: no erase
   StorageError format() override {
     std::fill(this->data_.begin(), this->data_.end(), 0xCC);
-    return StorageError::OK;
+    return StorageError::STORAGE_ERROR_OK;
   }
   void get_raw_geometry(storage::RawGeometry *out) const override {
     *out = storage::RawGeometry{};
@@ -83,7 +83,7 @@ TEST(InplaceKV, AdvertisesKeyValueType) {
   FakeByteMedium m(4096);
   InplaceKVStore kv;
   setup_store(kv, &m, 4096);
-  EXPECT_EQ(kv.get_storage_type(), storage::StorageType::KEY_VALUE);
+  EXPECT_EQ(kv.get_storage_type(), storage::StorageType::STORAGE_TYPE_KEY_VALUE);
 }
 
 TEST(InplaceKV, RefusesEraseMedium) {
@@ -99,14 +99,14 @@ TEST(InplaceKV, RefusesEraseMedium) {
   } m(4096);
   InplaceKVStore kv;
   setup_store(kv, &m, 4096);
-  EXPECT_EQ(kv.ensure_initialized(), StorageError::NOT_SUPPORTED);
+  EXPECT_EQ(kv.ensure_initialized(), StorageError::STORAGE_ERROR_NOT_SUPPORTED);
 }
 
 TEST(InplaceKV, SetGetEraseContract) {
   FakeByteMedium m(4096);
   InplaceKVStore kv;
   setup_store(kv, &m, 4096);
-  ASSERT_EQ(kv.ensure_initialized(), StorageError::OK);
+  ASSERT_EQ(kv.ensure_initialized(), StorageError::STORAGE_ERROR_OK);
 
   const uint32_t key = 4231u;
   const uint8_t value[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01};
@@ -115,24 +115,24 @@ TEST(InplaceKV, SetGetEraseContract) {
   size_t sz = 0;
 
   EXPECT_FALSE(kv.has(key));
-  EXPECT_EQ(kv.get(key, buf, sizeof(buf), &got), StorageError::NOT_FOUND);
+  EXPECT_EQ(kv.get(key, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_NOT_FOUND);
 
-  ASSERT_EQ(kv.set(key, value, sizeof(value)), StorageError::OK);
+  ASSERT_EQ(kv.set(key, value, sizeof(value)), StorageError::STORAGE_ERROR_OK);
   EXPECT_TRUE(kv.has(key));
-  ASSERT_EQ(kv.get_size(key, &sz), StorageError::OK);
+  ASSERT_EQ(kv.get_size(key, &sz), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(sz, sizeof(value));
 
-  ASSERT_EQ(kv.get(key, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv.get(key, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(got, sizeof(value));
   EXPECT_EQ(0, std::memcmp(buf, value, sizeof(value)));
 
   uint8_t small[2];
-  EXPECT_EQ(kv.get(key, small, sizeof(small), &got), StorageError::INVALID_ARGS);
+  EXPECT_EQ(kv.get(key, small, sizeof(small), &got), StorageError::STORAGE_ERROR_INVALID_ARGS);
   EXPECT_EQ(got, 0u);
 
-  EXPECT_EQ(kv.erase(key), StorageError::OK);
+  EXPECT_EQ(kv.erase(key), StorageError::STORAGE_ERROR_OK);
   EXPECT_FALSE(kv.has(key));
-  EXPECT_EQ(kv.erase(key), StorageError::OK);  // idempotent
+  EXPECT_EQ(kv.erase(key), StorageError::STORAGE_ERROR_OK);  // idempotent
 }
 
 TEST(InplaceKV, OverwriteLastWins) {
@@ -141,11 +141,11 @@ TEST(InplaceKV, OverwriteLastWins) {
   setup_store(kv, &m, 4096);
   const uint8_t a[] = {1, 2, 3};
   const uint8_t b[] = {9, 9};
-  ASSERT_EQ(kv.set(5u, a, sizeof(a)), StorageError::OK);
-  ASSERT_EQ(kv.set(5u, b, sizeof(b)), StorageError::OK);
+  ASSERT_EQ(kv.set(5u, a, sizeof(a)), StorageError::STORAGE_ERROR_OK);
+  ASSERT_EQ(kv.set(5u, b, sizeof(b)), StorageError::STORAGE_ERROR_OK);
   uint8_t buf[8];
   size_t got = 0;
-  ASSERT_EQ(kv.get(5u, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv.get(5u, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(got, sizeof(b));
   EXPECT_EQ(0, std::memcmp(buf, b, sizeof(b)));
 }
@@ -155,9 +155,9 @@ TEST(InplaceKV, FormatWipes) {
   InplaceKVStore kv;
   setup_store(kv, &m, 4096);
   const uint8_t v[] = {1};
-  ASSERT_EQ(kv.set(1u, v, 1), StorageError::OK);
-  ASSERT_EQ(kv.set(2u, v, 1), StorageError::OK);
-  ASSERT_EQ(kv.format(), StorageError::OK);
+  ASSERT_EQ(kv.set(1u, v, 1), StorageError::STORAGE_ERROR_OK);
+  ASSERT_EQ(kv.set(2u, v, 1), StorageError::STORAGE_ERROR_OK);
+  ASSERT_EQ(kv.format(), StorageError::STORAGE_ERROR_OK);
   EXPECT_FALSE(kv.has(1u));
   EXPECT_FALSE(kv.has(2u));
 }
@@ -172,11 +172,11 @@ TEST(InplaceKV, SurvivesManyCompactions) {
   setup_store(kv, &m, 256);
   for (int i = 0; i < 200; i++) {
     uint8_t v[4] = {(uint8_t) i, (uint8_t) (i >> 8), 0xAB, 0xCD};
-    ASSERT_EQ(kv.set(42u, v, 4), StorageError::OK) << "iteration " << i;
+    ASSERT_EQ(kv.set(42u, v, 4), StorageError::STORAGE_ERROR_OK) << "iteration " << i;
   }
   uint8_t buf[8];
   size_t got = 0;
-  ASSERT_EQ(kv.get(42u, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv.get(42u, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   const uint8_t expect[4] = {199 & 0xFF, (199 >> 8) & 0xFF, 0xAB, 0xCD};
   EXPECT_EQ(got, 4u);
   EXPECT_EQ(0, std::memcmp(buf, expect, 4));
@@ -189,13 +189,13 @@ TEST(InplaceKV, MultiKeyCompaction) {
   for (int r = 0; r < 50; r++) {
     for (uint32_t k = 1; k <= 3; k++) {
       uint8_t v[3] = {(uint8_t) k, (uint8_t) r, 0xEE};
-      ASSERT_EQ(kv.set(k, v, 3), StorageError::OK);
+      ASSERT_EQ(kv.set(k, v, 3), StorageError::STORAGE_ERROR_OK);
     }
   }
   uint8_t buf[8];
   size_t got = 0;
   for (uint32_t k = 1; k <= 3; k++) {
-    ASSERT_EQ(kv.get(k, buf, sizeof(buf), &got), StorageError::OK);
+    ASSERT_EQ(kv.get(k, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
     const uint8_t expect[3] = {(uint8_t) k, 49, 0xEE};
     EXPECT_EQ(got, 3u);
     EXPECT_EQ(0, std::memcmp(buf, expect, 3)) << "key " << k;
@@ -212,7 +212,7 @@ TEST(InplaceKV, TornWriteBeforeCommitKeepsOldValue) {
     InplaceKVStore kv;
     setup_store(kv, &m, 4096);
     const uint8_t a[] = {7, 7, 7, 7};
-    ASSERT_EQ(kv.set(5u, a, 4), StorageError::OK);
+    ASSERT_EQ(kv.set(5u, a, 4), StorageError::STORAGE_ERROR_OK);
     m.fail_after = m.writes + 2;  // header + value written, fault before the commit marker
     const uint8_t b[] = {5, 5};
     kv.set(5u, b, 2);  // interrupted
@@ -222,7 +222,7 @@ TEST(InplaceKV, TornWriteBeforeCommitKeepsOldValue) {
   setup_store(kv2, &m, 4096);  // remount
   uint8_t buf[8];
   size_t got = 0;
-  ASSERT_EQ(kv2.get(5u, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv2.get(5u, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(got, 4u);  // old value survived; torn entry ignored
 }
 
@@ -232,7 +232,7 @@ TEST(InplaceKV, TornWriteAfterCommitTakesNewValue) {
     InplaceKVStore kv;
     setup_store(kv, &m, 4096);
     const uint8_t a[] = {7, 7, 7, 7};
-    ASSERT_EQ(kv.set(5u, a, 4), StorageError::OK);
+    ASSERT_EQ(kv.set(5u, a, 4), StorageError::STORAGE_ERROR_OK);
     m.fail_after = m.writes + 3;  // header + value + commit succeed, fault before clearing the old
     const uint8_t b[] = {5, 5};
     kv.set(5u, b, 2);
@@ -242,7 +242,7 @@ TEST(InplaceKV, TornWriteAfterCommitTakesNewValue) {
   setup_store(kv2, &m, 4096);
   uint8_t buf[8];
   size_t got = 0;
-  ASSERT_EQ(kv2.get(5u, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv2.get(5u, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(got, 2u);  // new value wins (last-wins)
 }
 
@@ -252,12 +252,12 @@ TEST(InplaceKV, TornCompactionRecovers) {
   {
     InplaceKVStore kv;
     setup_store(kv, &m, 256);
-    ASSERT_EQ(kv.set(6u, untouched, 4), StorageError::OK);  // a key we never touch again
+    ASSERT_EQ(kv.set(6u, untouched, 4), StorageError::STORAGE_ERROR_OK);  // a key we never touch again
     // Hammer key 5 to force a compaction, faulting partway through the rebuild.
     m.fail_after = m.writes + 2;
     for (int i = 0; i < 60; i++) {
       uint8_t v[4] = {(uint8_t) i, 1, 2, 3};
-      if (kv.set(5u, v, 4) != StorageError::OK)
+      if (kv.set(5u, v, 4) != StorageError::STORAGE_ERROR_OK)
         break;
     }
     m.fail_after = -1;
@@ -267,7 +267,7 @@ TEST(InplaceKV, TornCompactionRecovers) {
   uint8_t buf[8];
   size_t got = 0;
   // The untouched key must be intact regardless of when the compaction was cut.
-  ASSERT_EQ(kv2.get(6u, buf, sizeof(buf), &got), StorageError::OK);
+  ASSERT_EQ(kv2.get(6u, buf, sizeof(buf), &got), StorageError::STORAGE_ERROR_OK);
   EXPECT_EQ(got, 4u);
   EXPECT_EQ(0, std::memcmp(buf, untouched, 4));
   EXPECT_TRUE(kv2.has(5u));  // hammered key still present

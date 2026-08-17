@@ -505,7 +505,7 @@ void LittleFSMount::setup() {
     return;
   }
 
-  if (this->mount() != storage::StorageError::OK) {
+  if (this->mount() != storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "Failed to mount LittleFS!");
     this->mark_failed();
     return;
@@ -515,7 +515,7 @@ void LittleFSMount::setup() {
   // manual unmount -- mount()/unmount() only flip the mounted state (unmount quiesces), the
   // registry entry stays for the device's lifetime.
   if (storage::global_storage_registry != nullptr) {
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
@@ -550,7 +550,7 @@ void LittleFSMount::dump_config() {
 
 storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
   if (info == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   info->id = this->storage_ != nullptr ? this->storage_->get_device_type() : "littlefs";
   info->name = this->mount_path_;
@@ -572,24 +572,24 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
     }
   }
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::mount() {
   if (this->mounted_)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 
   if (!this->mount_lfs_())
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
   this->register_with_vfs_();
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::unmount() {
   if (!this->mounted_)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 
   // Drain BEFORE teardown: after quiesce_storage() no worker data-plane call against this
   // device is in flight, so lfs_unmount() and the VFS unregistration below cannot race a
@@ -598,20 +598,20 @@ storage::StorageError LittleFSMount::unmount() {
     storage::global_storage_registry->quiesce_storage(this);
 
   if (!this->unmount_lfs_())
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   this->unregister_from_vfs_();
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::format() {
-  return this->format_lfs_() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return this->format_lfs_() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError LittleFSMount::sync() {
   if (!this->mounted_ || this->vfs_context_ == nullptr)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {
     if (this->vfs_context_->fd_used[i]) {
@@ -619,14 +619,14 @@ storage::StorageError LittleFSMount::sync() {
     }
   }
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   // Build full VFS path (mount_path_ + path)
   char full_path[STORAGE_MAX_PATH_LEN];
@@ -634,16 +634,16 @@ storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle 
 
   const char *fopen_mode;
   switch (mode) {
-    case storage::OpenMode::READ:
+    case storage::OpenMode::OPEN_MODE_READ:
       fopen_mode = "rb";
       break;
-    case storage::OpenMode::WRITE:
+    case storage::OpenMode::OPEN_MODE_WRITE:
       fopen_mode = "wb";
       break;
-    case storage::OpenMode::APPEND:
+    case storage::OpenMode::OPEN_MODE_APPEND:
       fopen_mode = "ab";
       break;
-    case storage::OpenMode::READ_WRITE:
+    case storage::OpenMode::OPEN_MODE_READ_WRITE:
       fopen_mode = "r+b";
       break;
     default:
@@ -653,101 +653,101 @@ storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle 
 
   FILE *f = fopen(full_path, fopen_mode);
   if (f == nullptr)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   storage::FileHandle *h = this->alloc_handle_(path);
   if (h == nullptr) {
     fclose(f);
-    return storage::StorageError::NO_SPACE;
+    return storage::StorageError::STORAGE_ERROR_NO_SPACE;
   }
 
   h->file = f;
   handle = h;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::close(storage::FileHandle *handle) {
   if (handle == nullptr || !handle->in_use)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   if (handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   fclose(handle->file);
   handle->file = nullptr;
   this->free_handle_(handle);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::read(storage::FileHandle *handle, uint8_t *buf, size_t len,
                                           size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || buf == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   size_t n = fread(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
 
   if (n < len && ferror(handle->file))
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                                            size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || buf == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   size_t n = fwrite(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
 
   if (n < len)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   int whence = SEEK_SET;
-  if (mode == storage::SeekMode::CUR) {
+  if (mode == storage::SeekMode::SEEK_MODE_CUR) {
     whence = SEEK_CUR;
-  } else if (mode == storage::SeekMode::END) {
+  } else if (mode == storage::SeekMode::SEEK_MODE_END) {
     whence = SEEK_END;
   }
   if (fseek(handle->file, static_cast<long>(offset), whence) != 0)  // NOLINT(google-runtime-int)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   long pos = ftell(handle->file);  // NOLINT(google-runtime-int)
   if (pos < 0)
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
   *position = static_cast<uint64_t>(pos);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::stat(const char *path, storage::FileStat *stat_out) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr || stat_out == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   struct stat st;
   if (::stat(full_path, &st) != 0)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   const char *base = strrchr(path, '/');
   base = (base != nullptr) ? base + 1 : path;  // FileStat.name is the basename only, by contract
@@ -756,22 +756,22 @@ storage::StorageError LittleFSMount::stat(const char *path, storage::FileStat *s
   stat_out->size = (size_t) st.st_size;
   stat_out->is_dir = S_ISDIR(st.st_mode);
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::list_dir(const char *path,
                                               bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr || callback == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   DIR *dir = opendir(full_path);
   if (dir == nullptr)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != nullptr) {
@@ -800,29 +800,29 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
   }
 
   closedir(dir);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::mkdir(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   if (::mkdir(full_path, 0755) != 0)
-    return errno == EEXIST ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
+    return errno == EEXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::rmdir(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
@@ -830,31 +830,31 @@ storage::StorageError LittleFSMount::rmdir(const char *path) {
   // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
-    return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
+    return errno == ENOTEMPTY ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::remove(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   snprintf(full_path, sizeof(full_path), "%s/%s", this->mount_path_, path[0] == '/' ? path + 1 : path);
 
   if (::unlink(full_path) != 0)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError LittleFSMount::rename(const char *old_path, const char *new_path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (old_path == nullptr || new_path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_old[STORAGE_MAX_PATH_LEN];
   char full_new[STORAGE_MAX_PATH_LEN];
@@ -868,7 +868,7 @@ storage::StorageError LittleFSMount::rename(const char *old_path, const char *ne
   if (::rename(full_old, full_new) != 0)
     return storage::error_from_errno(errno, true);
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 bool LittleFSMount::remount() {

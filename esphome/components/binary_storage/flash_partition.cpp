@@ -92,7 +92,7 @@ void FlashPartition::setup() {
   // manual unmount -- mount()/unmount() only flip the mounted state (unmount quiesces), the
   // registry entry stays for the device's lifetime.
   if (storage::global_storage_registry != nullptr) {
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG, "Storage registration failed");
@@ -124,7 +124,7 @@ void FlashPartition::dump_config() {
 
 storage::StorageError FlashPartition::get_info(storage::StorageInfo *info) {
   if (info == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   info->id = this->storage_id_ != nullptr ? this->storage_id_ : this->partition_label_;
   info->name = this->storage_name_ != nullptr ? this->storage_name_ : this->mount_path_;
@@ -144,12 +144,12 @@ storage::StorageError FlashPartition::get_info(storage::StorageInfo *info) {
     }
   }
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::mount() {
   if (this->mounted_)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 
   esp_vfs_littlefs_conf_t conf = {
       .base_path = this->mount_path_,
@@ -159,7 +159,7 @@ storage::StorageError FlashPartition::mount() {
   };
 
   if (esp_vfs_littlefs_register(&conf) != ESP_OK)
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
   this->mounted_ = true;
 #ifdef USE_STORAGE_CHANGE_FEED
@@ -167,12 +167,12 @@ storage::StorageError FlashPartition::mount() {
     storage::global_storage_registry->note_dir_changed("");  // mount state is roots-listing state
 #endif
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::unmount() {
   if (!this->mounted_)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
 
   // Drain BEFORE teardown: after quiesce_storage() no worker data-plane call against this
   // device is in flight, so the esp_littlefs unregistration below (which frees the esp_vfs
@@ -182,41 +182,41 @@ storage::StorageError FlashPartition::unmount() {
     storage::global_storage_registry->quiesce_storage(this);
 
   if (!this->unmount_lfs_())
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::format() {
-  return this->format_lfs_() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return this->format_lfs_() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError FlashPartition::sync() {
   // esp_vfs_littlefs handles sync internally -- no explicit flush needed
-  return this->mounted_ ? storage::StorageError::OK : storage::StorageError::NOT_READY;
+  return this->mounted_ ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_NOT_READY;
 }
 
 storage::StorageError FlashPartition::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
   const char *fopen_mode;
   switch (mode) {
-    case storage::OpenMode::READ:
+    case storage::OpenMode::OPEN_MODE_READ:
       fopen_mode = "rb";
       break;
-    case storage::OpenMode::WRITE:
+    case storage::OpenMode::OPEN_MODE_WRITE:
       fopen_mode = "wb";
       break;
-    case storage::OpenMode::APPEND:
+    case storage::OpenMode::OPEN_MODE_APPEND:
       fopen_mode = "ab";
       break;
-    case storage::OpenMode::READ_WRITE:
+    case storage::OpenMode::OPEN_MODE_READ_WRITE:
       fopen_mode = "r+b";
       break;
     default:
@@ -226,99 +226,99 @@ storage::StorageError FlashPartition::open(const char *path, storage::FileHandle
 
   FILE *f = fopen(full_path, fopen_mode);
   if (f == nullptr)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   storage::FileHandle *h = this->alloc_handle_(path);
   if (h == nullptr) {
     fclose(f);
-    return storage::StorageError::NO_SPACE;
+    return storage::StorageError::STORAGE_ERROR_NO_SPACE;
   }
 
   h->file = f;
   handle = h;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::close(storage::FileHandle *handle) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   fclose(handle->file);
   handle->file = nullptr;
   this->free_handle_(handle);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::read(storage::FileHandle *handle, uint8_t *buf, size_t len,
                                            size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || buf == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   size_t n = fread(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
 
   if (n < len && ferror(handle->file))
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                                             size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || buf == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   size_t n = fwrite(buf, 1, len, handle->file);
   if (bytes_transferred != nullptr)
     *bytes_transferred = n;
 
   if (n < len)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::seek(storage::FileHandle *handle, int64_t offset, storage::SeekMode mode) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   int whence = SEEK_SET;
-  if (mode == storage::SeekMode::CUR) {
+  if (mode == storage::SeekMode::SEEK_MODE_CUR) {
     whence = SEEK_CUR;
-  } else if (mode == storage::SeekMode::END) {
+  } else if (mode == storage::SeekMode::SEEK_MODE_END) {
     whence = SEEK_END;
   }
   if (fseek(handle->file, static_cast<int32_t>(offset), whence) != 0)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::tell(storage::FileHandle *handle, uint64_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   int32_t pos = ftell(handle->file);
   if (pos < 0)
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
 
   *position = static_cast<uint64_t>(pos);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *stat_out) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr || stat_out == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
   struct stat st;
   if (::stat(full_path, &st) != 0)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   const char *base = strrchr(path, '/');
   base = (base != nullptr) ? base + 1 : path;  // FileStat.name is the basename only, by contract
@@ -327,22 +327,22 @@ storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *
   stat_out->size = (size_t) st.st_size;
   stat_out->is_dir = S_ISDIR(st.st_mode);
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::list_dir(const char *path,
                                                bool (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr || callback == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
   DIR *dir = opendir(full_path);
   if (dir == nullptr)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != nullptr) {
@@ -365,7 +365,7 @@ storage::StorageError FlashPartition::list_dir(const char *path,
       if (base_len + 1 + name_len + 1 > sizeof(entry_path)) {
         ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
         closedir(dir);
-        return storage::StorageError::INVALID_ARGS;
+        return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
       }
       // Exact-length join (the guard above makes it provably fitting) -- snprintf here
       // draws -Wformat-truncation because GCC cannot see the runtime length check.
@@ -382,29 +382,29 @@ storage::StorageError FlashPartition::list_dir(const char *path,
   }
 
   closedir(dir);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::mkdir(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
   if (::mkdir(full_path, 0755) != 0)
-    return errno == EEXIST ? storage::StorageError::ALREADY_EXISTS : storage::StorageError::WRITE_ERROR;
+    return errno == EEXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::rmdir(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
@@ -412,31 +412,31 @@ storage::StorageError FlashPartition::rmdir(const char *path) {
   // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
-    return errno == ENOTEMPTY ? storage::StorageError::NOT_EMPTY : storage::StorageError::WRITE_ERROR;
+    return errno == ENOTEMPTY ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::remove(const char *path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_path[STORAGE_MAX_PATH_LEN];
   this->build_path_(full_path, sizeof(full_path), path);
 
   if (::unlink(full_path) != 0)
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError FlashPartition::rename(const char *old_path, const char *new_path) {
   if (!this->mounted_)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   if (old_path == nullptr || new_path == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   char full_old[STORAGE_MAX_PATH_LEN];
   char full_new[STORAGE_MAX_PATH_LEN];
@@ -450,7 +450,7 @@ storage::StorageError FlashPartition::rename(const char *old_path, const char *n
   if (::rename(full_old, full_new) != 0)
     return storage::error_from_errno(errno, true);
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 void FlashPartition::build_path_(char *out, size_t out_size, const char *path) const {
@@ -477,7 +477,7 @@ void FlashPartition::build_path_(char *out, size_t out_size, const char *path) c
 bool FlashPartition::remount() {
   // Used by format_lfs_() to bring the freshly formatted filesystem back up.
   // mount() is idempotent and carries the full register sequence.
-  return this->mount() == storage::StorageError::OK;
+  return this->mount() == storage::StorageError::STORAGE_ERROR_OK;
 }
 
 bool FlashPartition::unmount_lfs_() {

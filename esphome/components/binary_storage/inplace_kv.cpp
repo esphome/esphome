@@ -43,7 +43,7 @@ bool InplaceKVStore::read_(uint64_t rel_offset, uint8_t *buf, size_t len) {
   while (done < len) {
     size_t got = 0;
     if (this->device_->read(this->offset_ + rel_offset + done, buf + done, len - done, &got) !=
-        storage::StorageError::OK)
+        storage::StorageError::STORAGE_ERROR_OK)
       return false;
     if (got == 0)
       return false;
@@ -59,7 +59,7 @@ bool InplaceKVStore::write_(uint64_t rel_offset, const uint8_t *buf, size_t len)
   while (done < len) {
     size_t put = 0;
     if (this->device_->write(this->offset_ + rel_offset + done, buf + done, len - done, &put) !=
-        storage::StorageError::OK)
+        storage::StorageError::STORAGE_ERROR_OK)
       return false;
     if (put == 0)
       return false;
@@ -160,11 +160,11 @@ storage::StorageError InplaceKVStore::append_(uint32_t key, const uint8_t *data,
   this->find_in_(this->active_off_, key, nullptr, nullptr, &end);
   if (end + total > this->active_off_ + this->half_size_()) {
     storage::StorageError c = this->compact_();
-    if (c != storage::StorageError::OK)
+    if (c != storage::StorageError::STORAGE_ERROR_OK)
       return c;
     this->find_in_(this->active_off_, key, nullptr, nullptr, &end);
     if (end + total > this->active_off_ + this->half_size_())
-      return storage::StorageError::NO_SPACE;
+      return storage::StorageError::STORAGE_ERROR_NO_SPACE;
   }
 
   uint8_t eh[ENTRY_HDR];
@@ -173,15 +173,15 @@ storage::StorageError InplaceKVStore::append_(uint32_t key, const uint8_t *data,
   wr_u32(eh + 2, key);
   wr_u16(eh + 6, (uint16_t) len);
   if (!this->write_(end, eh, ENTRY_HDR))
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   if (len > 0 && !this->write_(end + ENTRY_HDR, data, len))
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   uint8_t commit = COMMITTED;
   if (!this->write_(end, &commit, 1))  // commit marker last (atomic single byte)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   this->clear_live_before_(this->active_off_, key, end);
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::compact_() {
@@ -191,7 +191,7 @@ storage::StorageError InplaceKVStore::compact_() {
   const uint64_t dst_limit = dst + this->half_size_();
 
   if (!this->zero_(dst, this->half_size_()))
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   uint64_t wpos = dst + HALF_HDR;
   uint64_t pos = src + HALF_HDR;
@@ -223,7 +223,7 @@ storage::StorageError InplaceKVStore::compact_() {
       }
       if (!superseded) {
         if (wpos + total > dst_limit)
-          return storage::StorageError::NO_SPACE;  // live set does not fit
+          return storage::StorageError::STORAGE_ERROR_NO_SPACE;  // live set does not fit
         // Copy header (committed already set -- this half is not active yet) + value.
         uint8_t ne[ENTRY_HDR];
         ne[0] = COMMITTED;
@@ -231,7 +231,7 @@ storage::StorageError InplaceKVStore::compact_() {
         wr_u32(ne + 2, ekey);
         wr_u16(ne + 6, elen);
         if (!this->write_(wpos, ne, ENTRY_HDR))
-          return storage::StorageError::WRITE_ERROR;
+          return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
         if (elen > 0) {
           uint8_t vbuf[256];
           uint64_t vdone = 0;
@@ -239,7 +239,7 @@ storage::StorageError InplaceKVStore::compact_() {
             size_t chunk = (size_t) ((elen - vdone) < sizeof(vbuf) ? (elen - vdone) : sizeof(vbuf));
             if (!this->read_(pos + ENTRY_HDR + vdone, vbuf, chunk) ||
                 !this->write_(wpos + ENTRY_HDR + vdone, vbuf, chunk))
-              return storage::StorageError::WRITE_ERROR;
+              return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
             vdone += chunk;
           }
         }
@@ -251,22 +251,22 @@ storage::StorageError InplaceKVStore::compact_() {
 
   // All live entries are durable in dst; activate it by writing its generation last.
   if (!this->write_half_header_(dst, this->active_gen_ + 1))
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   this->active_off_ = dst;
   this->active_gen_ += 1;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::ensure_initialized() {
   if (this->initialized_)
-    return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_OK;
   if (this->device_ == nullptr || this->size_ < MIN_WINDOW)
-    return storage::StorageError::NOT_READY;
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
   storage::RawGeometry geo{};
   this->device_->get_raw_geometry(&geo);
   if ((geo.caps & storage::RAW_WRITE_NEEDS_ERASE) != 0) {
     ESP_LOGE(TAG, "Backing device needs erase; not an in-place medium");
-    return storage::StorageError::NOT_SUPPORTED;
+    return storage::StorageError::STORAGE_ERROR_NOT_SUPPORTED;
   }
   uint32_t gen_a = this->half_generation_(0);
   uint32_t gen_b = this->half_generation_(this->half_size_());
@@ -282,25 +282,25 @@ storage::StorageError InplaceKVStore::ensure_initialized() {
     this->active_gen_ = gen_b;
   }
   this->initialized_ = true;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::format() {
   if (!this->zero_(0, this->size_))
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   if (!this->write_half_header_(0, 1))  // half A active at generation 1; half B stays zeroed (gen 0)
-    return storage::StorageError::WRITE_ERROR;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
   this->active_off_ = 0;
   this->active_gen_ = 1;
   this->initialized_ = true;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::set(uint32_t key, const uint8_t *data, size_t len) {
   if (len > 0xFFFF)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   storage::StorageError err = this->ensure_initialized();
-  if (err != storage::StorageError::OK)
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
     return err;
   return this->append_(key, data, len);
 }
@@ -308,35 +308,35 @@ storage::StorageError InplaceKVStore::set(uint32_t key, const uint8_t *data, siz
 storage::StorageError InplaceKVStore::get(uint32_t key, uint8_t *buf, size_t len, size_t *got) {
   *got = 0;
   storage::StorageError err = this->ensure_initialized();
-  if (err != storage::StorageError::OK)
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
     return err;
   uint64_t off = 0;
   uint16_t vlen = 0;
   if (!this->find_in_(this->active_off_, key, &off, &vlen, nullptr))
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
   if (vlen > len)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   if (vlen > 0 && !this->read_(off + ENTRY_HDR, buf, vlen))
-    return storage::StorageError::READ_ERROR;
+    return storage::StorageError::STORAGE_ERROR_READ_ERROR;
   *got = vlen;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::get_size(uint32_t key, size_t *out) {
   *out = 0;
   storage::StorageError err = this->ensure_initialized();
-  if (err != storage::StorageError::OK)
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
     return err;
   uint16_t vlen = 0;
   if (!this->find_in_(this->active_off_, key, nullptr, &vlen, nullptr))
-    return storage::StorageError::NOT_FOUND;
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
   *out = vlen;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) {
   storage::StorageError err = this->ensure_initialized();
-  if (err != storage::StorageError::OK)
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
     return err;
   const uint64_t half_off = this->active_off_;
   const uint64_t half_end = half_off + this->half_size_();
@@ -359,31 +359,31 @@ storage::StorageError InplaceKVStore::list_keys(bool (*callback)(uint32_t key, s
       uint64_t last_off = 0;
       if (this->find_in_(half_off, ekey, &last_off, nullptr, nullptr) && last_off == pos) {
         if (!callback(ekey, elen, ctx))
-          return storage::StorageError::OK;  // callback asked to stop
+          return storage::StorageError::STORAGE_ERROR_OK;  // callback asked to stop
       }
     }
     pos += total;
   }
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 bool InplaceKVStore::has(uint32_t key) {
-  if (this->ensure_initialized() != storage::StorageError::OK)
+  if (this->ensure_initialized() != storage::StorageError::STORAGE_ERROR_OK)
     return false;
   return this->find_in_(this->active_off_, key, nullptr, nullptr, nullptr);
 }
 
 storage::StorageError InplaceKVStore::erase(uint32_t key) {
   storage::StorageError err = this->ensure_initialized();
-  if (err != storage::StorageError::OK)
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
     return err;
   uint64_t off = 0;
   if (!this->find_in_(this->active_off_, key, &off, nullptr, nullptr))
-    return storage::StorageError::OK;  // idempotent
+    return storage::StorageError::STORAGE_ERROR_OK;  // idempotent
   uint8_t dead = 0;
   if (!this->write_(off + 1, &dead, 1))
-    return storage::StorageError::WRITE_ERROR;
-  return storage::StorageError::OK;
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError InplaceKVStore::get_info(storage::StorageInfo *info) {
@@ -396,12 +396,12 @@ storage::StorageError InplaceKVStore::get_info(storage::StorageInfo *info) {
   info->is_mounted = this->initialized_;
   info->is_removable = false;
   info->is_read_only = false;
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 void InplaceKVStore::setup() {
   if (storage::global_storage_registry != nullptr) {
-    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::OK) {
+    if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       ESP_LOGE(TAG, "Storage registration failed");
       this->mark_failed();
       return;

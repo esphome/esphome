@@ -55,7 +55,7 @@ void BinaryStorage::dump_config() {
 
 storage::StorageError BinaryStorage::get_info(storage::StorageInfo *info) {
   if (info == nullptr)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   info->id = this->storage_id_ != nullptr ? this->storage_id_ : this->get_device_type();
   info->name = this->storage_name_ != nullptr ? this->storage_name_ : this->get_device_name();
@@ -67,7 +67,7 @@ storage::StorageError BinaryStorage::get_info(storage::StorageInfo *info) {
   info->is_removable = false;
   info->is_read_only = false;
 
-  return storage::StorageError::OK;
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError BinaryStorage::format() {
@@ -75,7 +75,7 @@ storage::StorageError BinaryStorage::format() {
   // filesystem region below it -- fill() goes through the window wrappers, so it cannot.
   uint64_t raw_cap = this->get_raw_capacity();
   uint32_t written = this->fill(0xFF);
-  return (written == raw_cap) ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return (written == raw_cap) ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 // ===========================================================================================
@@ -87,21 +87,21 @@ storage::StorageError BinaryStorage::format() {
 storage::StorageError BinaryStorage::read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   return this->read_physical(offset + this->raw_offset_, buf, len, bytes_transferred);
 }
 
 storage::StorageError BinaryStorage::write(uint64_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   return this->write_physical(offset + this->raw_offset_, buf, len, bytes_transferred);
 }
 
 storage::StorageError BinaryStorage::erase(uint64_t offset, size_t len) {
   const uint64_t cap = this->get_raw_capacity();
   if (len > cap || offset > cap - len)
-    return storage::StorageError::INVALID_ARGS;
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   // the raw window is validated (setup()), so rebasing keeps
   // the caller's alignment intact -- the driver's own alignment checks still apply physically.
   return this->erase_physical(offset + this->raw_offset_, len);
@@ -126,7 +126,7 @@ uint32_t BinaryStorage::fill(uint8_t value) {
 
   while (address < capacity) {
     size_t chunk_size = std::min((size_t) (capacity - address), buffer_size);
-    if (this->write(address, buffer, chunk_size, nullptr) != storage::StorageError::OK) {
+    if (this->write(address, buffer, chunk_size, nullptr) != storage::StorageError::STORAGE_ERROR_OK) {
       ESP_LOGE(TAG, "Fill failed at address 0x%" PRIx32, address);
       return address;
     }
@@ -180,7 +180,7 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
   }
 
   // Physical, deliberately: the FS region sits below the raw window, which would refuse it.
-  return (this->read_physical(address, static_cast<uint8_t *>(buffer), size, nullptr) == storage::StorageError::OK)
+  return (this->read_physical(address, static_cast<uint8_t *>(buffer), size, nullptr) == storage::StorageError::STORAGE_ERROR_OK)
              ? 0
              : -1;
 }
@@ -196,7 +196,7 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
   }
 
   return (this->write_physical(address, static_cast<const uint8_t *>(buffer), size, nullptr) ==
-          storage::StorageError::OK)
+          storage::StorageError::STORAGE_ERROR_OK)
              ? 0
              : -1;
 }
@@ -211,7 +211,7 @@ int BinaryStorage::block_erase(uint32_t block) {
   if (this->get_erase_caps() == 0)
     return 0;
 
-  return (this->erase_physical(address, cfg.block_size) == storage::StorageError::OK) ? 0 : -1;
+  return (this->erase_physical(address, cfg.block_size) == storage::StorageError::STORAGE_ERROR_OK) ? 0 : -1;
 }
 
 #endif  // USE_BINARY_STORAGE_LITTLEFS
