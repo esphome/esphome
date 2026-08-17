@@ -45,6 +45,12 @@ namespace esphome::socket {
 
 static const char *const TAG = "socket";
 
+#ifdef USE_ESP8266
+// optimistic_yield() rate-limits itself: it yields at most once per this many
+// microseconds of CONT time, so the call sites below are cheap when hot.
+static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
+#endif
+
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
 #define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
@@ -545,7 +551,7 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
   // or reset sockets where yielding cannot help; optimistic_yield itself
   // rate-limits to one yield per millisecond.
   if (this->waiting_for_data_()) {
-    optimistic_yield(1000UL);
+    optimistic_yield(ESP8266_YIELD_INTERVAL_US);
   }
 #endif
   // See waiting_for_data_() for safety of unlocked reads.
@@ -625,26 +631,22 @@ int LWIPRawImpl::internal_output_() {
   }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
-  if (err == ERR_ABRT) {
-    // sometimes lwip returns ERR_ABRT for no apparent reason
-    // the connection works fine afterwards, and back with ESPAsyncTCP we
-    // indirectly also ignored this error
-    // FIXME: figure out where this is returned and what it means in this context
-    LWIP_LOG("  -> err ERR_ABRT");
-    return 0;
-  }
-  if (err != ERR_OK) {
+  if (err != ERR_OK && err != ERR_ABRT) {
     LWIP_LOG("  -> err %d", err);
     errno = ECONNRESET;
     return -1;
   }
+  // ERR_ABRT: sometimes lwip returns it for no apparent reason; the connection
+  // works fine afterwards, and back with ESPAsyncTCP we indirectly also
+  // ignored this error, so treat it as success for flush purposes too.
+  // FIXME: figure out where this is returned and what it means in this context
 #ifdef USE_ESP8266
   // Data was written and flushed: yield to the SYS context so the segments
   // queued by tcp_output actually reach the WiFi driver; otherwise a written
   // frame can sit untransmitted until an unrelated SYS slot, delaying the
   // noise handshake by seconds. Callers only invoke this after a successful
   // tcp_write, so the yield never runs on idle or failed paths.
-  optimistic_yield(1000UL);
+  optimistic_yield(ESP8266_YIELD_INTERVAL_US);
 #endif
   return 0;
 }
