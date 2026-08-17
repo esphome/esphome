@@ -152,12 +152,12 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
-      if (this->pending_updates_.any() && this->is_status_initialized()) {
-        // Pending settings are applied from WAITING_FOR_SCHEDULED_STATUS_UPDATE during the next update(), deferring
-        // transmission to a later loop iteration; some units might not respond if a request is sent immediately after
-        // a response, causing the request to time out.
-        this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
-      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
+      // When present, pending settings are applied from WAITING_FOR_SCHEDULED_STATUS_UPDATE during the next update(),
+      // deferring transmission to a later loop iteration; some units might not respond if a request is sent
+      // immediately after a response, causing the request to time out.
+      const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
+      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS &&
+          this->should_request_telemetry_()) {
         this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
         this->set_state_(State::DEFERRED_STATUS_REQUEST);
       } else {
