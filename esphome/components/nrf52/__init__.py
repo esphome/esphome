@@ -257,12 +257,20 @@ def _validate_power_enable_pin(value: ConfigType) -> ConfigType:
 
 _POWER_ENABLE_SCHEMA = cv.Schema(
     {
+        # internal_gpio_output_pin_schema (not gpio_output_pin_schema) scopes pin
+        # validation to CORE.target_platform, so a GPIO-expander pin (e.g. a
+        # pcf8574 pin) is rejected outright instead of silently validating and
+        # then getting rendered as an on-chip nRF52 pin number in the overlay.
         cv.Required(CONF_PIN): cv.All(
-            pins.gpio_output_pin_schema, _validate_power_enable_pin
+            pins.internal_gpio_output_pin_schema, _validate_power_enable_pin
         ),
-        cv.Optional(
-            CONF_STARTUP_DELAY, default="0us"
-        ): cv.positive_time_period_microseconds,
+        cv.Optional(CONF_STARTUP_DELAY, default="0us"): cv.All(
+            cv.positive_time_period_microseconds,
+            # startup-delay-us is a single 32-bit devicetree cell; catch an
+            # overflow here with a clear config error instead of a dtc failure
+            # ("value out of range") that doesn't point back at this key.
+            cv.Range(max=cv.TimePeriod(microseconds=(1 << 32) - 1)),
+        ),
     }
 )
 
@@ -451,9 +459,7 @@ async def to_code(config: ConfigType) -> None:
         if mode.get(CONF_PULLDOWN):
             flags.append("GPIO_PULL_DOWN")
         flags_expr = flags[0] if len(flags) == 1 else "(" + " | ".join(flags) + ")"
-        startup_delay_us = int(
-            power_enable_config[CONF_STARTUP_DELAY].total_microseconds
-        )
+        startup_delay_us = power_enable_config[CONF_STARTUP_DELAY].total_microseconds
         zephyr_add_prj_conf("REGULATOR", True)
         zephyr_add_overlay(
             f"""
