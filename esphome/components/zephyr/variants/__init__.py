@@ -150,6 +150,12 @@ class ZephyrVariant:
     # "enable one Kconfig + one DT node" shape use it -- openthread/zigbee configure
     # their own Kconfig directly instead.
     transport_drivers: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # Per-transport binary blobs, keyed by transport name -- same (west_module,
+    # allow_regex, sentinel_name) shape as `blobs` above, but only fetched when that
+    # transport is actually configured (unlike `blobs`, which always runs for the
+    # variant). Use this when the blobs are for hardware not every board of the variant
+    # has (e.g. rp2040's CYW43439 wifi chip, only present on `/w`-qualified boards).
+    transport_blobs: dict[str, tuple[str, str, str]] = field(default_factory=dict)
     # Per-variant override of the SDK's default version window (see ZephyrSDK); None uses
     # the SDK's value unchanged.
     default_version_override: str | None = None
@@ -410,6 +416,7 @@ def set_core_data(
         shields=shields if shields is not None else [],
         shield_root=shield_root,
         snippet_root=snippet_root,
+        blobs=[],
     )
 
 
