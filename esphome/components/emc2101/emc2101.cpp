@@ -145,9 +145,9 @@ float Emc2101Component::get_external_temperature() {
     return NAN;
   }
 
-  // join msb and lsb (5 least significant bits are not used)
-  uint16_t raw = (msb << 8 | lsb) >> 5;
-  return raw * 0.125;
+  // join msb and lsb (5 least significant bits are not used); msb is signed, so read as int16_t
+  int16_t raw = static_cast<int16_t>((msb << 8) | lsb) >> 5;
+  return raw * 0.125f;
 }
 
 float Emc2101Component::get_speed() {

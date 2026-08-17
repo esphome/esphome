@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -36,7 +37,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -58,7 +59,7 @@ PLATFORM_SPI_CLOCKS = {
     # ESPHome binds the nRF52 SPI to Zephyr's spi2 node (SPIM2), which the
     # nrf52840.dtsi caps at 8 MHz; only spi3 (SPIM3) supports 32 MHz.
     PLATFORM_NRF52: 8e6,
-    PLATFORM_RP2040: 62.5e6,
+    PLATFORM_RP2: 62.5e6,
 }
 
 MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
@@ -179,10 +180,11 @@ def get_hw_interface_list():
             VARIANT_ESP32C6,
             VARIANT_ESP32C61,
             VARIANT_ESP32H2,
+            VARIANT_ESP32H21,
         ]:
             return [["spi", "spi2"]]
         return [["spi", "spi2"], ["spi3"]]
-    if target_platform == PLATFORM_RP2040:
+    if target_platform == PLATFORM_RP2:
         return [["spi"], ["spi1"]]
     if target_platform == PLATFORM_NRF52:
         return [["spi", "spi2"]]
@@ -252,7 +254,7 @@ def validate_hw_pins(spi, index=-1):
     if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
 
-    if target_platform == PLATFORM_RP2040:
+    if target_platform == PLATFORM_RP2:
         if index == -1:
             matches = list(
                 filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS)
@@ -330,7 +332,7 @@ def get_spi_interface(index):
         # ESP32 uses ESP-IDF SPI driver for both Arduino and IDF frameworks
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
-    if platform == PLATFORM_RP2040:
+    if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
     if platform == PLATFORM_NRF52:
         return "DEVICE_DT_GET(DT_NODELABEL(spi2))"
@@ -358,7 +360,7 @@ SPI_SINGLE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2040]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2]),
 )
 
 
@@ -563,7 +565,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "spi_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
