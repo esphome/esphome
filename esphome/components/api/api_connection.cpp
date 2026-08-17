@@ -160,11 +160,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #else
 #error "No frame helper defined"
 #endif
-#ifdef USE_CAMERA
-  if (camera::Camera::instance() != nullptr) {
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
-#endif
 }
 
 void APIConnection::start() {
@@ -1140,6 +1135,7 @@ void APIConnection::try_send_camera_image_() {
   if (!this->image_reader_)
     return;
 
+  const auto *cam = camera::Camera::instance();
   // Send as many chunks as possible without blocking
   while (this->image_reader_->available()) {
     if (!this->helper_->can_write_without_blocking())
@@ -1149,11 +1145,11 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = cam->get_object_id_hash();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
+    msg.device_id = cam->get_device_id();
 #endif
 
     if (!this->send_message(msg)) {
@@ -1169,15 +1165,19 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_)
+  if (this->image_reader_ && this->image_reader_->available())
     return;
-  if (this->image_reader_->available())
+  if (!image->was_requested_by(esphome::camera::API_REQUESTER) && !image->was_requested_by(esphome::camera::IDLE))
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
-    this->image_reader_->set_image(std::move(image));
-    // Try to send immediately to reduce latency
-    this->try_send_camera_image_();
+  if (!this->image_reader_) {
+    // Created on the first image this connection will send, so connections
+    // that never receive one never pay for a reader. Only a registered
+    // camera's listener can reach this, so instance() is non-null here.
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
   }
+  this->image_reader_->set_image(std::move(image));
+  // Try to send immediately to reduce latency
+  this->try_send_camera_image_();
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *camera = static_cast<camera::Camera *>(entity);
