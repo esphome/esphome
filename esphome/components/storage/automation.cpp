@@ -592,14 +592,17 @@ static void raw_fire(Trigger<std::string> *on_complete, const char *op, StorageE
   } else {
     ESP_LOGI(TAG, "Transfer done: raw %s", op);
   }
-  if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+  if (on_complete != nullptr) {
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
+  }
 }
 // Report a pre-submission failure and fire the trigger once so it always fires exactly once.
 static void raw_fail(Trigger<std::string> *on_complete, const char *op, const std::string &msg) {
   ESP_LOGE(TAG, "raw_%s: %s", op, msg.c_str());
-  if (on_complete != nullptr)
+  if (on_complete != nullptr) {
     on_complete->trigger(msg);
+  }
 }
 
 void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64_t size, const std::string &path,
@@ -639,8 +642,9 @@ void perform_raw_read_to_file_async(RawStorage *device, uint64_t address, uint64
   }
 #endif
   StorageError ferr = perform_raw_read_to_file(device, address, size, path);
-  if (on_complete != nullptr)
+  if (on_complete != nullptr) {
     on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(ferr)));
+  }
 }
 
 void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, const std::string &path, bool erase_first,
@@ -692,8 +696,9 @@ void perform_raw_write_from_file_async(RawStorage *device, uint64_t address, con
   }
 #endif
   StorageError ferr = perform_raw_write_from_file(device, address, path, erase_first);
-  if (on_complete != nullptr)
+  if (on_complete != nullptr) {
     on_complete->trigger(ferr == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(ferr)));
+  }
 }
 
 void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size, bool all,
@@ -727,8 +732,9 @@ void perform_raw_erase_async(RawStorage *device, uint64_t address, uint64_t size
   }
 #endif
   StorageError err = perform_raw_erase(device, address, size, /*all=*/false);  // address/size already resolved above
-  if (on_complete != nullptr)
+  if (on_complete != nullptr) {
     on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+  }
 }
 #endif  // USE_STORAGE_RAW_ACTIONS
 
@@ -775,8 +781,9 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   // the message so an automation can react. Reused for every early-out below.
   auto fail = [&](const std::string &msg) {
     ESP_LOGE(TAG, "file_%s: %s", op, msg.c_str());
-    if (on_complete != nullptr)
+    if (on_complete != nullptr) {
       on_complete->trigger(msg);
+    }
   };
 
   if (global_storage_registry == nullptr) {
@@ -820,8 +827,10 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
       } else {
         ESP_LOGI(TAG, "Transfer done: %s", op);
       }
-      if (on_complete != nullptr)
-        on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+      if (on_complete != nullptr) {
+        on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                      : std::string(error_to_string(result)));
+      }
     };
     StorageError err = is_move ? global_storage_worker->async_move(src, src_rel, dst, dst_rel, std::move(on_done),
                                                                    nullptr, /*overwrite=*/true)
@@ -840,8 +849,9 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
   // blocking helper. This can exceed the 30 ms loop budget for large transfers -- the async
   // path above is the norm; this is only the degenerate no-worker build.
   StorageError err = perform_file_copy(from, to, is_move);
-  if (on_complete != nullptr)
+  if (on_complete != nullptr) {
     on_complete->trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+  }
 }
 
 StorageError perform_file_delete(const std::string &path, bool recursive) {
@@ -898,16 +908,19 @@ static void mount_fire(bool mount, StorageError result, Trigger<std::string> *on
   if (result != StorageError::STORAGE_ERROR_OK) {
     ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(result));
   }
-  if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+  if (on_complete != nullptr) {
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
+  }
 }
 
 void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete) {
   MountableStorage *m = target->as_mountable();
   if (m == nullptr) {
     ESP_LOGE(TAG, "target is not mountable");
-    if (on_complete != nullptr)
+    if (on_complete != nullptr) {
       on_complete->trigger(std::string("not mountable"));
+    }
     return;
   }
   // as_mountable() only means at least one op works; gate each op on its cap bit (USB is
@@ -947,8 +960,10 @@ static void format_fire(Trigger<std::string> *on_complete, StorageError result) 
   } else {
     ESP_LOGI(TAG, "filesystem formatted");
   }
-  if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+  if (on_complete != nullptr) {
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
+  }
 }
 
 void perform_format_async(Storage *target, Trigger<std::string> *on_complete) {
