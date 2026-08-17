@@ -148,6 +148,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
   this->driver_installed_ = true;
+  // Re-arm the dropped-write warning so a later not-installed episode
+  // (a failed reinstall through load_settings) is loud again
+  this->warned_not_ready_ = false;
 
   // uart_param_config must be called after uart_driver_install and before any
   // other uart_set_*() calls. The driver installation resets the UART peripheral
@@ -281,7 +284,7 @@ void IDFUARTComponent::dump_config() {
 }
 
 void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
-  if (this->is_ready()) {
+  if (this->driver_installed_) {
     esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
@@ -292,7 +295,7 @@ void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
 }
 
 void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
-  if (this->is_ready()) {
+  if (this->driver_installed_) {
     esp_err_t err = uart_set_rx_timeout(this->uart_num_, rx_timeout);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
