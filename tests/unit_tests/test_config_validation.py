@@ -1,5 +1,8 @@
+import json
+import logging
 from pathlib import Path
 import string
+from unittest.mock import patch
 
 from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
@@ -39,7 +42,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_LN882X,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
@@ -438,7 +441,7 @@ def hex_int__valid(value):
         ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32C6, "16", "16", "14", "14"),
         ("arduino", PLATFORM_ESP32, VARIANT_ESP32H2, "18", "17", "18", "17"),
         ("esp-idf", PLATFORM_ESP32, VARIANT_ESP32H2, "19", "19", "17", "17"),
-        ("arduino", PLATFORM_RP2040, None, "20", "20", "20", "20"),
+        ("arduino", PLATFORM_RP2, None, "20", "20", "20", "20"),
         ("arduino", PLATFORM_BK72XX, None, "21", "21", "21", "21"),
         ("arduino", PLATFORM_RTL87XX, None, "22", "22", "22", "22"),
         ("arduino", PLATFORM_LN882X, None, "23", "23", "23", "23"),
@@ -469,7 +472,7 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "esp32_c3": "11",
         "esp32_c6": "14",
         "esp32_h2": "17",
-        "rp2040": "20",
+        "rp2": "20",
         "bk72xx": "21",
         "rtl87xx": "22",
         "ln882x": "23",
@@ -517,7 +520,7 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         ("arduino", PLATFORM_ESP32, "ESP32 using arduino framework"),
         ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP8266, "ESP8266 using arduino framework"),
-        ("arduino", PLATFORM_RP2040, "RP2040 using arduino framework"),
+        ("arduino", PLATFORM_RP2, "RP2 using arduino framework"),
         ("arduino", PLATFORM_BK72XX, "BK72XX using arduino framework"),
         ("host", PLATFORM_HOST, "HOST using host framework"),
     ],
@@ -540,7 +543,7 @@ def test_require_framework_version(framework, platform, message):
             esp_idf=cv.Version(0, 5, 0),
             esp32_arduino=cv.Version(0, 5, 0),
             esp8266_arduino=cv.Version(0, 5, 0),
-            rp2040_arduino=cv.Version(0, 5, 0),
+            rp2_arduino=cv.Version(0, 5, 0),
             bk72xx_arduino=cv.Version(0, 5, 0),
             host=cv.Version(0, 5, 0),
             extra_message="test 1",
@@ -556,7 +559,7 @@ def test_require_framework_version(framework, platform, message):
             esp_idf=cv.Version(2, 0, 0),
             esp32_arduino=cv.Version(2, 0, 0),
             esp8266_arduino=cv.Version(2, 0, 0),
-            rp2040_arduino=cv.Version(2, 0, 0),
+            rp2_arduino=cv.Version(2, 0, 0),
             bk72xx_arduino=cv.Version(2, 0, 0),
             host=cv.Version(2, 0, 0),
             extra_message="test 2",
@@ -567,7 +570,7 @@ def test_require_framework_version(framework, platform, message):
             esp_idf=cv.Version(1, 5, 0),
             esp32_arduino=cv.Version(1, 5, 0),
             esp8266_arduino=cv.Version(1, 5, 0),
-            rp2040_arduino=cv.Version(1, 5, 0),
+            rp2_arduino=cv.Version(1, 5, 0),
             bk72xx_arduino=cv.Version(1, 5, 0),
             host=cv.Version(1, 5, 0),
             max_version=True,
@@ -584,7 +587,7 @@ def test_require_framework_version(framework, platform, message):
             esp_idf=cv.Version(0, 5, 0),
             esp32_arduino=cv.Version(0, 5, 0),
             esp8266_arduino=cv.Version(0, 5, 0),
-            rp2040_arduino=cv.Version(0, 5, 0),
+            rp2_arduino=cv.Version(0, 5, 0),
             bk72xx_arduino=cv.Version(0, 5, 0),
             host=cv.Version(0, 5, 0),
             max_version=True,
@@ -597,6 +600,194 @@ def test_require_framework_version(framework, platform, message):
         cv.require_framework_version(
             extra_message="test 5",
         )("test")
+
+
+def _setup_core_for_framework(platform: str, framework: str) -> None:
+    """Wire CORE.data with the minimum keys for require_framework_version /
+    SplitDefault to evaluate without raising KeyError."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: framework,
+        KEY_FRAMEWORK_VERSION: cv.Version(1, 0, 0),
+    }
+
+
+def test_only_on_rp2_passes_on_rp2_platform() -> None:
+    """``cv.only_on_rp2`` is the canonical family gate. It accepts any value
+    untouched when the configured platform is rp2."""
+    _setup_core_for_framework(PLATFORM_RP2, "arduino")
+    assert cv.only_on_rp2("anything") == "anything"
+
+
+def test_only_on_rp2_rejects_other_platforms() -> None:
+    """The same gate raises ``Invalid`` outside the rp2 platform."""
+    _setup_core_for_framework(PLATFORM_ESP32, "arduino")
+    with pytest.raises(Invalid, match="rp2"):
+        cv.only_on_rp2("anything")
+
+
+def test_only_on_rp2040_delegates_and_warns_once(caplog) -> None:
+    """``cv.only_on_rp2040`` is a deprecation shim — it logs a one-shot
+    warning, dedupes via CORE.data, and delegates to ``only_on_rp2``.
+    Repeated calls in the same run must not log again."""
+    import logging
+
+    _setup_core_for_framework(PLATFORM_RP2, "arduino")
+    # Reset the dedupe flag so this test is independent of order.
+    CORE.data.pop(cv._ONLY_ON_RP2040_DEPRECATED_KEY, None)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert cv.only_on_rp2040("ok") == "ok"
+        first_warnings = [r for r in caplog.records if "only_on_rp2040" in r.message]
+        assert len(first_warnings) == 1
+        assert "2027.7.0" in first_warnings[0].message
+
+        # Second call dedupes — no additional warning is emitted.
+        assert cv.only_on_rp2040("ok") == "ok"
+        warnings_after_second = [
+            r for r in caplog.records if "only_on_rp2040" in r.message
+        ]
+        assert len(warnings_after_second) == 1
+
+
+def test_only_on_rp2040_still_gates_on_non_rp2(caplog) -> None:
+    """The deprecation shim must still raise on non-rp2 platforms — it
+    delegates to ``only_on_rp2``, so the gating behavior is preserved."""
+    import logging
+
+    _setup_core_for_framework(PLATFORM_ESP32, "arduino")
+    CORE.data.pop(cv._ONLY_ON_RP2040_DEPRECATED_KEY, None)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="rp2"),
+    ):
+        cv.only_on_rp2040("anything")
+
+
+def test_require_framework_version_esp32_variant_specific_key() -> None:
+    """ESP32 variant-specific kwargs (``esp32_c3_arduino``) must win over
+    the base ``esp32_arduino`` key when the configured variant matches."""
+    from esphome.components.esp32 import KEY_ESP32
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        KEY_VARIANT,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_ESP32,
+        KEY_TARGET_FRAMEWORK: "arduino",
+        KEY_FRAMEWORK_VERSION: cv.Version(1, 2, 0),
+    }
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32C3}
+
+    # Variant-specific entry permits this version; base key would reject it.
+    assert (
+        cv.require_framework_version(
+            esp32_arduino=cv.Version(5, 0, 0),  # would reject
+            esp32_c3_arduino=cv.Version(1, 0, 0),  # wins, ok
+        )("test")
+        == "test"
+    )
+
+
+def test_require_framework_version_rp2_variant_specific_key() -> None:
+    """RP2 variant kwargs (``rp2_2040_arduino``) must win over the base
+    ``rp2_arduino`` key when ``CORE.data['rp2']['variant']`` is wired."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_RP2,
+        KEY_TARGET_FRAMEWORK: "arduino",
+        KEY_FRAMEWORK_VERSION: cv.Version(1, 2, 0),
+    }
+    CORE.data["rp2"] = {"variant": "RP2040"}
+
+    # Variant key wins — base ``rp2_arduino`` (which would reject) is ignored.
+    assert (
+        cv.require_framework_version(
+            rp2_arduino=cv.Version(5, 0, 0),  # would reject
+            rp2_2040_arduino=cv.Version(1, 0, 0),  # wins, ok
+        )("test")
+        == "test"
+    )
+
+    # Without a variant kwarg the base ``rp2_arduino`` is used (fallback).
+    CORE.data["rp2"] = {"variant": "RP2350"}
+    assert (
+        cv.require_framework_version(
+            rp2_arduino=cv.Version(1, 0, 0),
+        )("test")
+        == "test"
+    )
+
+
+def test_split_default_rp2_variant_keys() -> None:
+    """``SplitDefault`` resolves ``rp2_<chip>_<framework>`` first, falling
+    back to ``rp2_<chip>`` and ``rp2_<framework>`` before the base key."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_RP2,
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.data["rp2"] = {"variant": "RP2040"}
+
+    schema = cv.Schema(
+        {
+            cv.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="variant-only",
+                rp2_2040_arduino="variant-framework",
+            ): str,
+        }
+    )
+    # Most specific (variant + framework) wins.
+    assert schema({}).get("full") == "variant-framework"
+
+    # Drop the most-specific kwarg → variant-only wins.
+    schema = cv.Schema(
+        {
+            cv.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="variant-only",
+            ): str,
+        }
+    )
+    assert schema({}).get("full") == "variant-only"
+
+    # RP2350 variant — no rp2_2350_* kwargs → fall through to base framework.
+    CORE.data["rp2"] = {"variant": "RP2350"}
+    schema = cv.Schema(
+        {
+            cv.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="not-this",
+            ): str,
+        }
+    )
+    assert schema({}).get("full") == "base-framework"
 
 
 def test_only_with_single_component_loaded() -> None:
@@ -741,7 +932,7 @@ def test_string_no_slash__slash_replaced_with_warning(
     actual = cv.string_no_slash(value)
     assert actual == expected
     assert "reserved as a URL path separator" in caplog.text
-    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+    assert "will become an error in ESPHome 2027.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -986,9 +1177,10 @@ def test_update_interval__never_passes_through() -> None:
 def test_optional_default_visibility_is_none() -> None:
     """An ``Optional`` with no ``visibility`` kwarg reports ``None``.
 
-    Consumers can read the attribute directly with plain attribute
-    access; absence (``None``) means "render on the editor's main
-    form."
+    The marker stays faithful to what the author wrote: ESPHome does
+    not encode the default on it. Resolving ``None`` to an effective
+    visibility is the consumer's job — a schema-aware editor treats an
+    unset ``Optional`` as ``ADVANCED`` (see :class:`Visibility`).
     """
     o = cv.Optional("foo")
     assert o.visibility is None
@@ -1006,6 +1198,17 @@ def test_optional_visibility_yaml_only() -> None:
     assert o.visibility is cv.Visibility.YAML_ONLY
 
 
+def test_optional_visibility_ui() -> None:
+    """``visibility=Visibility.UI`` is recorded on the marker.
+
+    ``UI`` promotes an ``Optional`` onto the editor's main form,
+    overriding the consumer's default of ``ADVANCED`` for unset
+    optionals.
+    """
+    o = cv.Optional("foo", visibility=cv.Visibility.UI)
+    assert o.visibility is cv.Visibility.UI
+
+
 def test_visibility_str_values_match_dump_emission() -> None:
     """``Visibility`` is a ``StrEnum`` whose values are the literal
     strings the schema dumper emits.
@@ -1015,6 +1218,7 @@ def test_visibility_str_values_match_dump_emission() -> None:
     field — pinning the on-the-wire spelling here keeps the dump
     contract stable.
     """
+    assert str(cv.Visibility.UI) == "ui"
     assert str(cv.Visibility.ADVANCED) == "advanced"
     assert str(cv.Visibility.YAML_ONLY) == "yaml_only"
 
@@ -1137,6 +1341,57 @@ def test_visibility_marker_is_per_field_no_mutation() -> None:
     assert inner_yaml_only.visibility is cv.Visibility.YAML_ONLY
 
 
+def test_entity_metadata_visibility_hints() -> None:
+    """Entity and value-describing metadata is classified for visual editors.
+
+    The headline ``name`` stays on the main form (``UI``); descriptive
+    metadata (device_class, unit, …), presentation options, and per-entity
+    integration plumbing (MQTT, web_server ordering) fall to the advanced
+    disclosure (``ADVANCED``).
+    """
+    advanced = cv.Visibility.ADVANCED
+
+    entity_base = {str(k): k for k in cv.ENTITY_BASE_SCHEMA.schema}
+    assert entity_base["name"].visibility is cv.Visibility.UI
+    for field in (
+        "icon",
+        "internal",
+        "disabled_by_default",
+        "entity_category",
+        "device_id",
+    ):
+        assert entity_base[field].visibility is advanced, field
+
+    mqtt = {str(k): k for k in cv.MQTT_COMPONENT_SCHEMA.schema}
+    for field in ("qos", "retain", "discovery", "state_topic", "availability"):
+        assert mqtt[field].visibility is advanced, field
+
+    from esphome.components import binary_sensor, number, sensor
+    from esphome.components.web_server import WEBSERVER_SORTING_SCHEMA
+
+    sensor_markers = {str(k): k for k in sensor.sensor_schema().schema}
+    for field in (
+        "unit_of_measurement",
+        "accuracy_decimals",
+        "device_class",
+        "state_class",
+        "force_update",
+    ):
+        assert sensor_markers[field].visibility is advanced, field
+
+    binary = {str(k): k for k in binary_sensor.binary_sensor_schema().schema}
+    assert binary["device_class"].visibility is advanced
+
+    number_markers = {str(k): k for k in number.number_schema(number.Number).schema}
+    assert number_markers["mode"].visibility is advanced
+    assert number_markers["device_class"].visibility is advanced
+
+    # The whole per-entity web_server block is advanced; children inherit
+    # via the consumer cascade, so only the parent key carries the hint.
+    web = {str(k): k for k in WEBSERVER_SORTING_SCHEMA.schema}
+    assert web["web_server"].visibility is advanced
+
+
 def _wrap_str(value: str) -> ESPHomeDataBase:
     """Wrap a raw string as an ESPHomeDataBase, mimicking a YAML-loaded value."""
     return make_data_base(value)
@@ -1184,9 +1439,41 @@ def test_version_parse_with_extra() -> None:
     assert version.extra == "dev20240101"
 
 
-def test_version_parse_invalid() -> None:
+def test_version_parse_without_patch() -> None:
+    """A two-part version parses with patch defaulting to 0, so framework
+    shorthands like '6.0' and '6.0-rc1' are accepted."""
+    version = cv.Version.parse("6.0")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        6,
+        0,
+        0,
+        "",
+    )
+    version = cv.Version.parse("6.0-rc1")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        6,
+        0,
+        0,
+        "rc1",
+    )
+
+
+def test_version_parse_numeric_extra() -> None:
+    """Four-part versions keep the trailing component as extra (pioarduino
+    packaging revisions, e.g. 5.5.3.1)."""
+    version = cv.Version.parse("5.5.3.1")
+    assert (version.major, version.minor, version.patch, version.extra) == (
+        5,
+        5,
+        3,
+        "1",
+    )
+
+
+@pytest.mark.parametrize("value", ["not.a.version", "6", "a.b", ""])
+def test_version_parse_invalid(value: str) -> None:
     with pytest.raises(ValueError, match="Not a valid version number"):
-        cv.Version.parse("not.a.version")
+        cv.Version.parse(value)
 
 
 def test_version_is_beta() -> None:
@@ -2142,6 +2429,58 @@ def test_one_of_string_and_space() -> None:
     assert cv.one_of("a_b", string=True, space="_")("a b") == "a_b"
 
 
+def test_one_of_string_and_underscore() -> None:
+    assert cv.one_of("a-b", string=True, underscore="-")("a_b") == "a-b"
+    assert cv.one_of("a-b", string=True, underscore="-")("a-b") == "a-b"
+
+
+def test_one_of_string_lower_space_and_underscore() -> None:
+    validator = cv.one_of("output-mode", lower=True, space="-", underscore="-")
+    assert validator("output_mode") == "output-mode"
+    assert validator("OUTPUT_MODE") == "output-mode"
+    assert validator("output mode") == "output-mode"
+    assert validator("output-mode") == "output-mode"
+
+
+def test_one_of_string_underscore_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True, underscore="-")("c_d")
+
+
+def test_one_of_string_underscore_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True)("a_b")
+
+
+def test_one_of_string_and_hyphen() -> None:
+    assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
+    assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
+
+
+def test_one_of_string_lower_space_and_hyphen() -> None:
+    validator = cv.one_of("output_mode", lower=True, space="_", hyphen="_")
+    assert validator("output-mode") == "output_mode"
+    assert validator("OUTPUT-MODE") == "output_mode"
+    assert validator("output mode") == "output_mode"
+    assert validator("output_mode") == "output_mode"
+
+
+def test_one_of_string_hyphen_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True, hyphen="_")("c-d")
+
+
+def test_one_of_string_hyphen_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True)("a-b")
+
+
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 
@@ -2178,6 +2517,20 @@ def test_enum_valid() -> None:
     result = cv.enum(mapping)("a")
     assert result == "a"
     assert result.enum_value == 10
+
+
+def test_enum_valid_with_underscore() -> None:
+    mapping = {"a-b": 1}
+    result = cv.enum(mapping, string=True, underscore="-")("a_b")
+    assert result == "a-b"
+    assert result.enum_value == 1
+
+
+def test_enum_valid_with_hyphen() -> None:
+    mapping = {"a_b": 1}
+    result = cv.enum(mapping, string=True, hyphen="_")("a-b")
+    assert result == "a_b"
+    assert result.enum_value == 1
 
 
 # ---------------------------------------------------------------------------
@@ -2574,9 +2927,61 @@ def test_require_esphome_version_ok() -> None:
     assert cv.require_esphome_version(1, 0, 0)("test") == "test"
 
 
+def test_require_esphome_version_accepts_version_object() -> None:
+    """The Version form matches require_framework_version's style."""
+    assert cv.require_esphome_version(cv.Version(1, 0, 0))("test") == "test"
+    with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
+        cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
+
+
+def test_require_esphome_version_partial_ints_fail_at_call_site() -> None:
+    """Missing ints raise immediately instead of a TypeError inside the validator."""
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026, 8)
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026)
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
+
+
+@pytest.mark.parametrize("current", ["2026.8.0", "2026.8.0b1", "2026.8.0-dev20260801"])
+def test_require_esphome_version_prerelease_of_required_passes(current: str) -> None:
+    """A dev or beta build of the required version satisfies it.
+
+    Pins the behavior of the old tuple comparison that dropped the
+    suffix, now expressed through Version ordering where the extra field
+    only breaks ties upward.
+    """
+    with patch.object(cv, "ESPHOME_VERSION", current):
+        assert cv.require_esphome_version(2026, 8, 0)("test") == "test"
+
+
+def test_require_esphome_version_older_prerelease_fails() -> None:
+    with (
+        patch.object(cv, "ESPHOME_VERSION", "2026.7.0-dev20260701"),
+        pytest.raises(Invalid, match="at least ESPHome version 2026.8.0"),
+    ):
+        cv.require_esphome_version(2026, 8, 0)("test")
+
+
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
 
 
 # ---------------------------------------------------------------------------
@@ -2628,3 +3033,135 @@ def test_rename_key_present() -> None:
 
 def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
+
+
+def test_rename_key_no_removed_in_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert cv.rename_key("old", "new")({"old": 5}) == {"new": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_renames_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5})
+    assert result == {"new": 5}
+    assert "'old' is deprecated, use 'new'. Will be removed in 2026.8.0" in caplog.text
+
+
+def test_rename_key_removed_in_absent_key_no_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"other": 5})
+    assert result == {"other": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_with_component_prefixes_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key(
+            "old", "new", removed_in="2026.8.0", component="my_component"
+        )({"old": 5})
+    assert result == {"new": 5}
+    assert (
+        "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
+        in caplog.text
+    )
+
+
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
+
+
+def test_file__existing_relative_path(setup_core: Path) -> None:
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("partitions.csv")
+
+
+def test_file__remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute path in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("/original/config/partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_absolute_path_without_bundle(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("/original/config/partitions.csv")
+
+
+def test_file__remaps_windows_bundle_absolute_path(setup_core: Path) -> None:
+    """A bundle created on Windows resolves on a host with another layout."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "C:\\Users\\nick\\esphome",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    result = cv.file_("C:\\Users\\nick\\esphome\\partitions.csv")
+
+    assert result == setup_core / "partitions.csv"
+
+
+def test_directory_remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute directory in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    assert cv.directory("/original/config/headers") == setup_core / "headers"
+
+
+def test_directory_missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find directory"):
+        cv.directory("/original/config/headers")
+
+
+def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
+    """A remapped path that is a directory still fails file validation."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    with pytest.raises(Invalid, match="is not a file"):
+        cv.file_("/original/config/headers")
