@@ -33,7 +33,7 @@ using CompletionCallback = std::function<void(storage::StorageError)>;
 // Maximum path length copied into each pooled request. Paths are copied (not referenced) at
 // submit time, since the caller's pointers must not be assumed to outlive submission -- the
 // request may still be pending when the calling code returns. Longer paths are rejected with
-// StorageError::INVALID_ARGS.
+// StorageError::STORAGE_ERROR_INVALID_ARGS.
 static constexpr size_t STORAGE_WORKER_MAX_PATH = STORAGE_PATH_MAX;
 
 enum class RequestOp : uint8_t {
@@ -157,7 +157,7 @@ struct TransferStatus {
   static constexpr size_t FILE_LABEL_LEN = 40;
 
   RequestState state{RequestState::FREE};
-  storage::StorageError result{storage::StorageError::OK};
+  storage::StorageError result{storage::StorageError::STORAGE_ERROR_OK};
   uint64_t bytes_done{0};
   uint64_t bytes_total{0};  // 0 = unknown (indeterminate progress)
   // Coarse phase of a raw write/verify job (erase/write/verify), plus how far a multi-pass
@@ -226,7 +226,7 @@ struct TransferRequest {
   char dst_path[STORAGE_WORKER_MAX_PATH]{};
 
   CompletionCallback callback;
-  storage::StorageError result{storage::StorageError::OK};
+  storage::StorageError result{storage::StorageError::STORAGE_ERROR_OK};
 
   // Transfer progress, kept here so the loop-sliced engine can resume across loop()
   // iterations and so the same fields serve the worker task path unchanged.
@@ -269,7 +269,7 @@ struct TransferRequest {
   // request -- everyone else (hotplug drain, stall watchdog) marks it CANCELLED and lets the
   // owning engine's next run_chunk_() pass close handles and set DONE. This field carries
   // WHY it was cancelled: NOT_READY for hotplug, TIMEOUT for the stall watchdog.
-  storage::StorageError cancel_result{storage::StorageError::NOT_READY};
+  storage::StorageError cancel_result{storage::StorageError::STORAGE_ERROR_NOT_READY};
   // Raw ops only. raw_address is the device offset of the transfer window; the erase cursor
   // walks [raw_erase_pos, raw_erase_end) one geometry-sized step per pass before any bytes
   // move. The file side lives in src/dst_storage + src/dst_path as usual; the device side is
@@ -390,7 +390,7 @@ struct StreamRequest {
   bool is_fs{false};
 
   CompletionCallback callback;  // set per-call (open/chunk/close); invoked once, then cleared
-  storage::StorageError result{storage::StorageError::OK};
+  storage::StorageError result{storage::StorageError::STORAGE_ERROR_OK};
 
   storage::FileHandle *handle{nullptr};  // FilesystemStorage only; unused for NetworkStorage
   uint64_t offset{0};                    // NetworkStorage read_chunk()/write_chunk() position
@@ -407,7 +407,7 @@ struct StreamRequest {
 
   // seek()/tell(): target + mode for a SEEKING step; tell() writes the position here.
   int64_t seek_target{0};
-  storage::SeekMode seek_mode{storage::SeekMode::SET};
+  storage::SeekMode seek_mode{storage::SeekMode::SEEK_MODE_SET};
   uint64_t *tell_out{nullptr};
 
   // Bumped on every slot claim so a StreamHandle from a finished stream stops matching once
@@ -565,16 +565,16 @@ class StorageWorker : public PollingComponent {
   // serialization prevents. Always false without the task.
   bool has_active_task_io(const storage::Storage *storage) const;
 
-  // Opens `path` for writing (create/truncate, like OpenMode::WRITE) and returns a handle
-  // immediately if a slot was available -- StorageError::NOT_READY (pool full) or
-  // StorageError::INVALID_ARGS (path too long) otherwise, in which case on_open is NOT
+  // Opens `path` for writing (create/truncate, like OpenMode::OPEN_MODE_WRITE) and returns a handle
+  // immediately if a slot was available -- StorageError::STORAGE_ERROR_NOT_READY (pool full) or
+  // StorageError::STORAGE_ERROR_INVALID_ARGS (path too long) otherwise, in which case on_open is NOT
   // invoked. on_open fires once, later, always on the main loop, once the underlying open()
   // has actually completed (task-safe storages: on the worker task's turn; else: next loop()).
   storage::StorageError begin_write(storage::PathStorage *storage, const char *path, StreamHandle *out_handle,
                                     CompletionCallback &&on_open);
   // Pushes exactly one chunk. `data` must remain valid until on_written fires -- the worker
   // does not copy it (streams are expected to be large/frequent; copying would defeat the
-  // point). Returns StorageError::OK once queued or an immediate error (handle unknown, not
+  // point). Returns StorageError::STORAGE_ERROR_OK once queued or an immediate error (handle unknown, not
   // IDLE, or the previous step's completion has not been delivered yet) in which case
   // on_written is NOT invoked. This applies to every per-chunk call below (read_chunk, end_*,
   // seek, tell): stream calls are sequenced by their completions -- wait for the callback
