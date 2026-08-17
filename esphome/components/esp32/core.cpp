@@ -32,9 +32,9 @@ void loop_task(void *pv_params) {
 extern "C" void app_main() {
   // Apply the custom eFuse MAC (if burned and valid) as the base MAC before any
   // interface (Wi-Fi, Ethernet, Bluetooth, 802.15.4) derives its address from it.
-  if (has_custom_mac_address()) {
-    uint8_t mac[MAC_ADDRESS_SIZE];
-    get_mac_address_raw(mac);
+  // The logger does not exist yet, so only log-free helpers may be used here.
+  uint8_t mac[MAC_ADDRESS_SIZE];
+  if (get_custom_mac_address(mac)) {
     set_mac_address(mac);
   }
   initArduino();
