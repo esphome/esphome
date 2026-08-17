@@ -18,23 +18,23 @@ namespace esphome::storage {
 // toolchain-specific, and nothing here persists or transmits them (error_to_string() is what
 // leaves the device).
 enum class StorageError : uint8_t {
-  OK = 0,
-  NOT_FOUND,            // ENOENT
-  READ_ERROR,           // EIO
-  PERMISSION_DENIED,    // EACCES
-  ALREADY_EXISTS,       // EEXIST
-  NOT_READY,            // ENODEV
-  INVALID_ARGS,         // EINVAL
-  TOO_MANY_OPEN_FILES,  // EMFILE
-  NO_SPACE,             // ENOSPC
-  NOT_EMPTY,            // ENOTEMPTY
-  CORRUPT,              // EILSEQ (illegal byte sequence)
-  NOT_SUPPORTED,        // ENOTSUP
-  TIMEOUT,              // ETIMEDOUT
+  STORAGE_ERROR_OK = 0,
+  STORAGE_ERROR_NOT_FOUND,            // ENOENT
+  STORAGE_ERROR_READ_ERROR,           // EIO
+  STORAGE_ERROR_PERMISSION_DENIED,    // EACCES
+  STORAGE_ERROR_ALREADY_EXISTS,       // EEXIST
+  STORAGE_ERROR_NOT_READY,            // ENODEV
+  STORAGE_ERROR_INVALID_ARGS,         // EINVAL
+  STORAGE_ERROR_TOO_MANY_OPEN_FILES,  // EMFILE
+  STORAGE_ERROR_NO_SPACE,             // ENOSPC
+  STORAGE_ERROR_NOT_EMPTY,            // ENOTEMPTY
+  STORAGE_ERROR_CORRUPT,              // EILSEQ (illegal byte sequence)
+  STORAGE_ERROR_NOT_SUPPORTED,        // ENOTSUP
+  STORAGE_ERROR_TIMEOUT,              // ETIMEDOUT
   // No distinct POSIX errno for a write-direction I/O error -- EIO is used by READ_ERROR above.
-  WRITE_ERROR,
-  TRANSFER_TOO_LARGE,  // no POSIX equivalent: transfer rejected by max_blocking_transfer_size
-  VERIFY_MISMATCH,     // no POSIX equivalent: post-write read-back did not match the source
+  STORAGE_ERROR_WRITE_ERROR,
+  STORAGE_ERROR_TRANSFER_TOO_LARGE,  // no POSIX equivalent: transfer rejected by max_blocking_transfer_size
+  STORAGE_ERROR_VERIFY_MISMATCH,     // no POSIX equivalent: post-write read-back did not match the source
 };
 
 // fopen()-equivalent semantics -- drivers must match these exactly:
@@ -43,26 +43,26 @@ enum class StorageError : uint8_t {
 //   APPEND     "a"   Create file if it doesn't exist; writes always go to the end.
 //   READ_WRITE "r+"  Open existing file for reading and writing. Fails if it doesn't exist.
 enum class OpenMode : uint8_t {
-  READ = 0,
-  WRITE,
-  APPEND,
-  READ_WRITE,
+  OPEN_MODE_READ = 0,
+  OPEN_MODE_WRITE,
+  OPEN_MODE_APPEND,
+  OPEN_MODE_READ_WRITE,
 };
 
 enum class SeekMode : uint8_t {
-  SET = 0,  // absolute offset from start of file
-  CUR,      // relative to current position
-  END,      // relative to end of file
+  SEEK_MODE_SET = 0,  // absolute offset from start of file
+  SEEK_MODE_CUR,      // relative to current position
+  SEEK_MODE_END,      // relative to end of file
 };
 
 // Identifies the concrete subtype of a Storage pointer without Run Time Type Information.
 // Used by StorageRegistry::for_each_filesystem/raw/network() to safely
 // static_cast without dynamic_cast (Run Time Type Information is disabled on ESP32).
 enum class StorageType : uint8_t {
-  RAW = 0,
-  FILESYSTEM,
-  NETWORK,
-  KEY_VALUE,
+  STORAGE_TYPE_RAW = 0,
+  STORAGE_TYPE_FILESYSTEM,
+  STORAGE_TYPE_NETWORK,
+  STORAGE_TYPE_KEY_VALUE,
 };
 
 struct StorageInfo {
@@ -196,7 +196,7 @@ class Storage : public Component {
   // KeyValueStorage and FilesystemStorage override this. NetworkStorage (and anything that models
   // no on-device format) inherits NOT_SUPPORTED, so a format target can be resolved through the
   // common base and still be rejected -- at YAML time by the actions, at runtime here as a backstop.
-  virtual StorageError format() { return StorageError::NOT_SUPPORTED; }
+  virtual StorageError format() { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
 };
 
 // What a raw medium's erase() accepts -- NOT how it does it: which opcode (chip/block/sector)
@@ -230,10 +230,10 @@ struct RawGeometry {
 // raw device. Contention still applies: two operations on one chip must not overlap.
 class RawStorage : public Storage {
  public:
-  StorageType get_storage_type() const override { return StorageType::RAW; }
+  StorageType get_storage_type() const override { return StorageType::STORAGE_TYPE_RAW; }
 
   // Partial-read contract (applies to every read()/read_chunk() in this file): returning
-  // StorageError::OK with *bytes_transferred < len means EOF was reached partway through --
+  // StorageError::STORAGE_ERROR_OK with *bytes_transferred < len means EOF was reached partway through --
   // this is not an error. A non-OK return means an actual I/O failure; *bytes_transferred is
   // unspecified in that case. Callers loop until *bytes_transferred == 0 or an error.
   virtual StorageError read(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
@@ -273,7 +273,7 @@ class RawStorage : public Storage {
 // from a semantic id is the consumer's job.
 class KeyValueStorage : public Storage {
  public:
-  StorageType get_storage_type() const override { return StorageType::KEY_VALUE; }
+  StorageType get_storage_type() const override { return StorageType::STORAGE_TYPE_KEY_VALUE; }
 
   // Read the value for `key` into `buf` (capacity `len`); on success *got holds the byte count.
   // NOT_FOUND if the key is absent; INVALID_ARGS if the stored value is larger than `len` (query
@@ -294,7 +294,7 @@ class KeyValueStorage : public Storage {
 
   // Enumerate every stored key, invoking `callback` once per key with its value's byte length.
   // Return false from the callback to stop the walk early (mirrors list_dir()); list_keys() itself
-  // still returns StorageError::OK in that case. The value is not read here -- a consumer that wants
+  // still returns StorageError::STORAGE_ERROR_OK in that case. The value is not read here -- a consumer that wants
   // it calls get() with the reported size. Iteration order is backend-defined and not stable across
   // writes; a key rewritten in place is reported once, with its current length.
   virtual StorageError list_keys(bool (*callback)(uint32_t key, size_t size, void *ctx), void *ctx) = 0;
@@ -352,7 +352,7 @@ class PathStorage : public Storage {
   // enumeration early -- not an error, list_dir() still returns OK.
   virtual StorageError list_dir(const char *path, bool (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
   virtual StorageError mkdir(const char *path) = 0;
-  // Non-recursive: must fail with StorageError::NOT_EMPTY if the directory has contents.
+  // Non-recursive: must fail with StorageError::STORAGE_ERROR_NOT_EMPTY if the directory has contents.
   // For recursive delete, use the free remove_recursive() helper below.
   virtual StorageError rmdir(const char *path) = 0;
   virtual StorageError remove(const char *path) = 0;
@@ -375,7 +375,7 @@ class PathStorage : public Storage {
 // stateless only.
 class FilesystemStorage : public PathStorage {
  public:
-  StorageType get_storage_type() const override { return StorageType::FILESYSTEM; }
+  StorageType get_storage_type() const override { return StorageType::STORAGE_TYPE_FILESYSTEM; }
   FilesystemStorage *as_filesystem() override { return this; }
 
   virtual StorageError mount() = 0;
@@ -387,7 +387,7 @@ class FilesystemStorage : public PathStorage {
   virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError seek(FileHandle *handle, int64_t offset, SeekMode mode) = 0;
-  StorageError seek(FileHandle *handle, int64_t offset) { return seek(handle, offset, SeekMode::SET); }
+  StorageError seek(FileHandle *handle, int64_t offset) { return seek(handle, offset, SeekMode::SEEK_MODE_SET); }
   virtual StorageError tell(FileHandle *handle, uint64_t *position) = 0;
 };
 
@@ -395,7 +395,7 @@ class FilesystemStorage : public PathStorage {
 // connection-held locks. Stateful protocols (SMB) belong under FilesystemStorage, not here.
 class NetworkStorage : public PathStorage {
  public:
-  StorageType get_storage_type() const override { return StorageType::NETWORK; }
+  StorageType get_storage_type() const override { return StorageType::STORAGE_TYPE_NETWORK; }
 
   virtual StorageError connect() = 0;
   virtual StorageError disconnect() = 0;
@@ -408,7 +408,7 @@ class NetworkStorage : public PathStorage {
   // shrinking discards the tail.
   //
   // Needed because write_chunk() is offset-addressed and never shortens: a short file written over
-  // a longer one leaves the old tail in place. FilesystemStorage gets this from OpenMode::WRITE; a
+  // a longer one leaves the old tail in place. FilesystemStorage gets this from OpenMode::OPEN_MODE_WRITE; a
   // stateless protocol has no open() to carry it. copy() calls it with 0 before the first chunk of
   // a file whose destination is a NetworkStorage.
   virtual StorageError truncate(const char *path, uint64_t size) = 0;
@@ -624,14 +624,14 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
 StorageError read_file(PathStorage *storage, const char *path, RamBuffer &out, size_t *size);
 
 // Writes an entire buffer to a file in one call (create/truncate semantics, like
-// OpenMode::WRITE).
+// OpenMode::OPEN_MODE_WRITE).
 StorageError write_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size);
 StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size);
 // PathStorage overload -- see read_file(PathStorage *, ...) above.
 StorageError write_file(PathStorage *storage, const char *path, const uint8_t *data, size_t size);
 
 // Appends a buffer to a file in one call, creating it if absent. Filesystem storages use a native
-// OpenMode::APPEND; network storages stat for the current size and write_chunk() at that offset
+// OpenMode::OPEN_MODE_APPEND; network storages stat for the current size and write_chunk() at that offset
 // (O(1) RAM, no read-modify-write -- the stat->write window is not atomic against other writers,
 // acceptable for a single node appending its own logs). Same blocking-size limit and short-write
 // contract as write_file().

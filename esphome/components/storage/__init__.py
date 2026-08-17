@@ -832,7 +832,7 @@ async def _build_write_action(
         # str_snprintf (both are flagged for removal, and every migrated component -- plus
         # logger.log, the model this copies -- formats into a fixed buffer instead). format:/args:
         # is a bounded line: content that does not fit the buffer, or that snprintf cannot encode,
-        # returns std::nullopt so play() aborts before opening the target (OpenMode::WRITE would
+        # returns std::nullopt so play() aborts before opening the target (OpenMode::OPEN_MODE_WRITE would
         # truncate it to empty) and reports the failure instead of a silent zero-byte success.
         # Authors who need arbitrary length use content: with a lambda (no cap).
         lambda_body = (
