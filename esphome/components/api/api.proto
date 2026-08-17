@@ -2816,9 +2816,9 @@ message SerialProxyRequest {
   SerialProxyRequestType type = 2;      // Request type
 }
 
-// Acknowledges a serial proxy operation (subscribe, unsubscribe, flush,
-// configure, or modem pin change). Sent since API 1.16; the type field
-// identifies which operation is being acknowledged.
+// Acknowledges a serial proxy operation; the type field identifies which
+// operation is being acknowledged. Flush has been acknowledged since the
+// message was introduced; all other acknowledgements are sent since API 1.16.
 message SerialProxyRequestResponse {
   option (id) = 147;
   option (source) = SOURCE_SERVER;

@@ -1632,6 +1632,11 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   resp.instance = msg.instance;
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    // Pre-1.16 clients do not read the status field and would take this error
+    // for a successful "both pins deasserted" answer; let them time out as before
+    if (!this->client_supports_api_version(1, 16)) {
+      return;
+    }
     resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
   } else {
     resp.line_states = proxies[msg.instance]->get_modem_pins();

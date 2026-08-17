@@ -13,15 +13,6 @@ namespace api {
 class APIConnection;
 }  // namespace api
 
-namespace uart {
-enum class UARTFlushResult : uint8_t {
-  UART_FLUSH_RESULT_SUCCESS,
-  UART_FLUSH_RESULT_ASSUMED_SUCCESS,
-  UART_FLUSH_RESULT_TIMEOUT,
-  UART_FLUSH_RESULT_FAILED,
-};
-}  // namespace uart
-
 namespace serial_proxy {
 
 enum class SerialProxyResult : uint8_t {
