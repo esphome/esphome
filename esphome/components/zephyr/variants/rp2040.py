@@ -64,6 +64,9 @@ VARIANT = ZephyrVariant(
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
     pwm_node_labels=["pwm"],
+    # wdt_rpi_pico.c: RPI_PICO_MAX_WDT_TIME = 0xFFFFFF us, halved on RP2040 by errata
+    # RP2040-E1 -- real ceiling ~8.39s, below the generic 10s default.
+    watchdog_max_timeout_ms=8000,
 )
 
 

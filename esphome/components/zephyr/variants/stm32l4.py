@@ -59,6 +59,10 @@ VARIANT = ZephyrVariant(
     # clear error, the same class of failure an out-of-range pin already produces.
     gpio_port_width=16,
     gpio_port_labels=("a", "b", "c", "d", "e", "f", "g", "h"),
+    # wdt_iwdg_stm32.c's IWDG_PRESCALER_MAX is 256 on L4 (stm32l4xx_ll_iwdg.h has no
+    # LL_IWDG_PRESCALER_1024), reload max 4095, LSI 32kHz (dts/arm/st/l4/stm32l4.dtsi):
+    # 4095 x 256 / 32000 =~ 32.76s real ceiling, below the generic 60s schema max.
+    watchdog_max_timeout_ms=32000,
 )
 
 
