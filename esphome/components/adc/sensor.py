@@ -501,6 +501,58 @@ async def to_code(config):
                 }};
             """
         )
+    elif CORE.using_zephyr and zephyr_variant_family() == "renesas":
+        # RA4M1's ADC12 driver rejects any gain/acquisition-time other than
+        # ADC_GAIN_1/ADC_ACQ_TIME_DEFAULT. Each channel also needs its own pinctrl
+        # group added to adc0_default (only P000/AN000 is wired there by default) --
+        # the RA pinctrl driver walks all of adc0_default's child nodes, so a new,
+        # uniquely named groupN is picked up automatically.
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        variant_info = VARIANTS[variant]
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = variant_info.adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        channel_reg = int(ain_map[pin_num][2:])
+        port, pin = divmod(pin_num, variant_info.gpio_port_width)
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc0 {channel_reg}>")
+        zephyr_add_overlay(
+            f"""
+                &adc0_default {{
+                    group{channel_id + 2} {{
+                        psels = <RA_PSEL(RA_PSEL_ADC, {port}, {pin})>;
+                        renesas,analog-enable;
+                    }};
+                }};
+
+                &adc0 {{
+                    status = "okay";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_reg} {{
+                        reg = <{channel_reg}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,resolution = <12>;
+                        zephyr,vref-mv = <3300>;
+                    }};
+                }};
+            """
+        )
     elif CORE.using_zephyr:
         raise EsphomeError(
             f"ADC is not yet implemented for Zephyr variant '{zephyr_variant()}'"

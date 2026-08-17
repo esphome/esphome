@@ -27,7 +27,12 @@ namespace esphome {
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
-#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER)
+// Renesas RA's WDT driver rejects a timeout config that combines a callback with a
+// reset flag (WDT_FLAG_RESET_SOC) -- wdt_install_timeout() returns -ENOTSUP, and the
+// watchdog never gets armed at all. That chip's single-channel watchdog only supports
+// callback (NMI mode) or hardware reset, not both -- unlike ESP32/nRF52's multi-stage
+// watchdogs, which this warning callback was originally written against.
+#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 #ifdef USE_ZEPHYR_ARCH_STACKWALK
 static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
   char msg[48];
@@ -71,7 +76,7 @@ void arch_init() {
     // a platform #ifdef here -- nrf52/__init__.py sets a longer one for zigbee.
 #ifdef USE_ZEPHYR_WATCHDOG_TIMEOUT_MS
     wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
-#ifdef USE_LOGGER
+#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
     wdt_config.callback = wdt_warning_cb;
 #endif
 #else

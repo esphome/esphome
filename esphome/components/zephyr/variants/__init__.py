@@ -121,6 +121,24 @@ class ZephyrVariant:
     # _PORT_BANKED_FAMILIES in gpio.py). A lettered family also gets its display
     # prefix from this (e.g. "PA"), independently of Nordic's numeric "P0." style.
     gpio_port_labels: tuple[str, ...] | None = None
+    # Devicetree node-label prefix for this variant's GPIO port nodes. Defaults to
+    # "gpio", which happens to be right for every variant wired up so far (Nordic,
+    # Espressif, Silicon Labs, STM32, RP2040) -- but that's a coincidence, not a Zephyr
+    # convention: a scan of the whole Zephyr dts/ tree turns up plenty of vendors that
+    # name their GPIO port nodes something else entirely (Renesas RA: ioport0/ioport1;
+    # Renesas RX and RA6, Microchip SAM, NXP MCX: porta/portb; TI: main_gpio; Xilinx
+    # Zynq: psgpio_bank; Infineon: gpio_prt; several RISC-V vendors: pioa/piob). Even
+    # different Renesas families disagree with each other (RA4M1 vs RA6 above).
+    #
+    # DO NOT assume "gpio" is safe for a new variant just because it's the default here
+    # and every existing variant uses it. Before adding a new ZephyrVariant, grep that
+    # SoC's actual .dtsi under the Zephyr SDK for "gpio-controller;" and read the node
+    # label a few lines above it -- then set this field to match. Getting it wrong is
+    # silent at compile time: DEVICE_DT_GET_OR_NULL() on a nonexistent node just resolves
+    # to nullptr, so every GPIO pin on the new variant fails at runtime with
+    # "gpio %u is not ready." instead of a build error (see the RA4M1 bug this comment
+    # is here because of).
+    gpio_node_prefix: str = "gpio"
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need
     # 802.15.4, but esp32-family only has the former ported (ZBOSS is Nordic-only).
@@ -472,6 +490,7 @@ _VARIANT_MODULES = [
     "stm32l4",
     "rp2040",
     "rp2350",
+    "ra4m1",
 ]
 
 

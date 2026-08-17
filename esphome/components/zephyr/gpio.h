@@ -18,10 +18,14 @@ class ZephyrGPIOPin final : public InternalGPIOPin {
  public:
   // pin_name_prefix: secondary display label for chips with real GPIO port banks
   // (e.g. Nordic's "P0."/"P1."). Null/empty = flat numbering only.
-  ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix = nullptr) {
+  // zero_pad_pin: pad the pin-within-port number to 2 digits when printing it after
+  // pin_name_prefix (Renesas RA's own "P106" notation, not "P16"). False for every
+  // other scheme (lettered/dotted), which don't zero-pad.
+  ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix = nullptr, bool zero_pad_pin = false) {
     this->gpio_ = gpio;
     this->gpio_size_ = gpio_size;
     this->pin_name_prefix_ = pin_name_prefix;
+    this->zero_pad_pin_ = zero_pad_pin;
   }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
@@ -45,6 +49,7 @@ class ZephyrGPIOPin final : public InternalGPIOPin {
   gpio::Flags flags_{};
   uint8_t pin_;
   uint8_t gpio_size_{};
+  bool zero_pad_pin_{};
   bool inverted_{};
   bool value_{false};
 

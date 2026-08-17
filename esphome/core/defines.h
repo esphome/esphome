@@ -21,7 +21,8 @@
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
 //   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 /
 //   USE_ZEPHYR_VARIANT_FAMILY_NORDIC / USE_ZEPHYR_VARIANT_FAMILY_SILABS /
-//   USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO / USE_ZEPHYR_VARIANT_FAMILY_STM32 → SINGLE
+//   USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO / USE_ZEPHYR_VARIANT_FAMILY_STM32 /
+//   USE_ZEPHYR_VARIANT_FAMILY_RENESAS → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
 //   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
 //   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
@@ -31,7 +32,8 @@
 // real build.
 #if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
     defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -548,7 +550,8 @@
 // variants get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
 // gets a hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
 #if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_NRF52)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) || defined(USE_NRF52)
 #define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
 #endif
 

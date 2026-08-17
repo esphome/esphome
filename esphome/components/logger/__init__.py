@@ -209,7 +209,7 @@ def uart_selection(value):
         ):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
         family = zephyr_variant_family()
-        if family in {"nordic", "rpi_pico"}:
+        if family in {"nordic", "rpi_pico", "renesas"}:
             return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
@@ -342,6 +342,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_nrf52=USB_CDC,
                 zephyr_rp2040=USB_CDC,
                 zephyr_rp2350=USB_CDC,
+                zephyr_ra4m1=UART1,
             ): cv.All(
                 cv.only_on(
                     [
