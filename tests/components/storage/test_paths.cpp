@@ -32,10 +32,16 @@ class DummyPathStorage : public FilesystemStorage {
   StorageError unmount() override { return StorageError::STORAGE_ERROR_OK; }
   StorageError format() override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
   StorageError sync() override { return StorageError::STORAGE_ERROR_OK; }
-  StorageError open(const char *, FileHandle *&, OpenMode) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError open(const char *, FileHandle *&, OpenMode) override {
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
+  }
   StorageError close(FileHandle *) override { return StorageError::STORAGE_ERROR_OK; }
-  StorageError read(FileHandle *, uint8_t *, size_t, size_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
-  StorageError write(FileHandle *, const uint8_t *, size_t, size_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
+  StorageError read(FileHandle *, uint8_t *, size_t, size_t *) override {
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
+  }
+  StorageError write(FileHandle *, const uint8_t *, size_t, size_t *) override {
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
+  }
   StorageError seek(FileHandle *, int64_t, SeekMode) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
   StorageError tell(FileHandle *, uint64_t *) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }
 };
