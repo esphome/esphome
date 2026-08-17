@@ -2,11 +2,9 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE,
     CONF_ID,
     CONF_LAMBDA,
     CONF_TYPE,
-    CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -37,9 +35,11 @@ from .const import (
     REPORT,
 )
 from .const_esp32 import (
+    ALLOWED_UNITS,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONNECT,
     DEVICE_TYPE,
     KEY_ZIGBEE_EP,
     KEY_ZIGBEE_EP_NO_NUM,
@@ -48,111 +48,97 @@ from .const_esp32 import (
 )
 
 # endpoint configs:
-ep_configs: dict[str, dict[str, Any]] = {
-    "binary_input": {
-        DEVICE_TYPE: "SIMPLE_SENSOR",
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "BINARY_INPUT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x55,
-                        CONF_TYPE: "BOOL",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x51,
-                        CONF_TYPE: "BOOL",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x6F,
-                        CONF_TYPE: "MAP8",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x1C,
-                        CONF_TYPE: "STRING",
-                    },
-                ],
-            },
-        ],
-    },
-    "analog_input": {
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "ANALOG_INPUT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x55,
-                        CONF_TYPE: "SINGLE",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x51,
-                        CONF_TYPE: "BOOL",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x6F,
-                        CONF_TYPE: "MAP8",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x1C,
-                        CONF_TYPE: "STRING",
-                    },
-                ],
-            },
-        ],
-    },
-    "binary_output": {
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "BINARY_OUTPUT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x55,
-                        CONF_TYPE: "BOOL",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x51,
-                        CONF_TYPE: "BOOL",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x6F,
-                        CONF_TYPE: "MAP8",
-                    },
-                    {
-                        CONF_ATTRIBUTE_ID: 0x1C,
-                        CONF_TYPE: "STRING",
-                    },
-                ],
-            },
-        ],
-    },
-    "on_off": {
-        DEVICE_TYPE: "ON_OFF_OUTPUT",
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "ON_OFF",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x0,
-                        CONF_TYPE: "BOOL",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
-                    },
-                ],
-            },
-        ],
-    },
+ANALOG_INPUT_EP = {
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "ANALOG_INPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "SINGLE",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
+BINARY_INPUT_EP = {
+    DEVICE_TYPE: "SIMPLE_SENSOR",
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "BINARY_INPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "BOOL",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
+BINARY_OUTPUT_EP = {
+    CONF_CLUSTERS: [
+        {
+            CONF_ID: "BINARY_OUTPUT",
+            ROLE: "SERVER",
+            CONF_ATTRIBUTES: [
+                {
+                    CONF_ATTRIBUTE_ID: 0x55,
+                    CONF_TYPE: "BOOL",
+                    CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                    CONNECT: True,
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x51,
+                    CONF_TYPE: "BOOL",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x6F,
+                    CONF_TYPE: "MAP8",
+                },
+                {
+                    CONF_ATTRIBUTE_ID: 0x1C,
+                    CONF_TYPE: "STRING",
+                },
+            ],
+        },
+    ],
+}
+
+SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
     DEVICE_CLASS_TEMPERATURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_CELSIUS],
+        ALLOWED_UNITS: [UNIT_CELSIUS],
         DEVICE_TYPE: "TEMPERATURE_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -164,14 +150,14 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         SCALE: 100,
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_HUMIDITY: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_PERCENT],
+        ALLOWED_UNITS: [UNIT_PERCENT],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "REL_HUMIDITY_MEASUREMENT",
@@ -182,14 +168,14 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         SCALE: 100,
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
+        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PRESSURE_MEASUREMENT",
@@ -199,7 +185,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_HECTOPASCAL: 1,
                             UNIT_PASCAL: 0.01,
@@ -210,8 +196,8 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_PRESSURE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_HECTOPASCAL, UNIT_PASCAL],
-        DEVICE_TYPE: "PRESSURE_SENSOR",
+        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
+        DEVICE_TYPE: "PRESSURE_SENSOR",  # Sensor that measures pressure of liquids like water
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PRESSURE_MEASUREMENT",
@@ -221,7 +207,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "INT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_HECTOPASCAL: 1,
                             UNIT_PASCAL: 0.01,
@@ -232,7 +218,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_VOLUME_FLOW_RATE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
+        ALLOWED_UNITS: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
         DEVICE_TYPE: "FLOW_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -243,7 +229,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "UINT16",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: {
                             UNIT_LITRE_PER_HOUR: 0.01,
                             UNIT_CUBIC_METER_PER_HOUR: 10,
@@ -254,7 +240,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         ],
     },
     DEVICE_CLASS_ILLUMINANCE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_LUX],
+        ALLOWED_UNITS: [UNIT_LUX],
         DEVICE_TYPE: "LIGHT_SENSOR",
         CONF_CLUSTERS: [
             {
@@ -267,19 +253,20 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_LAMBDA: cv.lambda_(
                             Lambda(
-                                "if (x < 0.0f || isnan(x)) return 0xFFFF;"  # NaN
+                                "if (x < 0.0f || std::isnan(x)) return 0xFFFF;"  # NaN
                                 " if (x < 1.0f) return 0;"  # too small to measure
-                                " return (uint16_t)(log10(x)*10000 + 1);"
+                                " const float v = log10(x)*10000 + 1;"
+                                " return v > 65534.0f ? 0xFFFE : (uint16_t) lroundf(v);"  # clamp to 0xFFFE if too large
                             )
                         ),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_PM25: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_MICROGRAMS_PER_CUBIC_METER],
+        ALLOWED_UNITS: [UNIT_MICROGRAMS_PER_CUBIC_METER],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "PM2_5_MEASUREMENT",
@@ -289,19 +276,19 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "SINGLE",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                     {
-                        CONF_ATTRIBUTE_ID: 0x2,  # maximum value is needed!
+                        CONF_ATTRIBUTE_ID: 0x2,
                         CONF_TYPE: "SINGLE",
-                        CONF_VALUE: 9999,
+                        CONF_VALUE: 9999,  # overwrite default 1.0
                     },
                 ],
             },
         ],
     },
     DEVICE_CLASS_CARBON_DIOXIDE: {
-        CONF_UNIT_OF_MEASUREMENT: [UNIT_PARTS_PER_MILLION],
+        ALLOWED_UNITS: [UNIT_PARTS_PER_MILLION],
         CONF_CLUSTERS: [
             {
                 CONF_ID: "CARBON_DIOXIDE_MEASUREMENT",
@@ -311,7 +298,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0000,
                         CONF_TYPE: "SINGLE",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                         SCALE: 0.000001,
                     },
                     {CONF_ATTRIBUTE_ID: 0x0001, CONF_TYPE: "SINGLE", CONF_VALUE: 0.0},
@@ -320,6 +307,9 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
+}
+
+BINARY_SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
     DEVICE_CLASS_OCCUPANCY: {
         DEVICE_TYPE: "OCCUPANCY_SENSOR",
         CONF_CLUSTERS: [
@@ -331,7 +321,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                         CONF_ATTRIBUTE_ID: 0x0,
                         CONF_TYPE: "MAP8",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONF_DEVICE: None,
+                        CONNECT: True,
                     },
                     {
                         CONF_ATTRIBUTE_ID: 0x1,
@@ -349,8 +339,28 @@ ep_configs: dict[str, dict[str, Any]] = {
     },
 }
 
+SWITCH_EP_CONFIGS: dict[str, dict[str, Any]] = {
+    "on_off": {
+        DEVICE_TYPE: "ON_OFF_OUTPUT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONNECT: True,
+                    },
+                ],
+            },
+        ],
+    },
+}
 
-def get_next_ep_num(eps: list[int]) -> int:
+
+def _get_next_ep_num(eps: list[int]) -> int:
     try:
         ep_num = [i for i in range(1, CONF_MAX_EP_NUMBER + 1) if i not in eps][0]
         eps.append(ep_num)
@@ -361,7 +371,7 @@ def get_next_ep_num(eps: list[int]) -> int:
     return ep_num
 
 
-def compare_clusters(
+def _compare_clusters(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
 ) -> tuple[str | int, str] | None:
@@ -372,12 +382,12 @@ def compare_clusters(
     return None
 
 
-def merge_endpoints(
+def _merge_endpoints(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
     use_type: bool | None,
 ) -> bool:
-    if compare_clusters(existing_ep, ep):
+    if _compare_clusters(existing_ep, ep):
         return False
     if (
         ep.get(DEVICE_TYPE)
@@ -401,7 +411,12 @@ def merge_endpoints(
     return True
 
 
-def validate_endpoints(ep_dict: dict[int, dict]) -> None:
+def _validate_endpoints(ep_dict: dict[int, dict]) -> None:
+    """Validate endpoint device type selection before endpoint creation.
+
+    This resolves any deferred device type selections stored in CONF_USE_DEVICE_TYPE,
+    ensuring each endpoint has at most one active device type.
+    """
     for num, ep in ep_dict.items():
         types_dict = ep.get(CONF_USE_DEVICE_TYPE)
         if not types_dict:
@@ -424,10 +439,18 @@ def validate_endpoints(ep_dict: dict[int, dict]) -> None:
 
 
 def create_ep(router: bool) -> None:
+    """Finalize Zigbee endpoint creation and normalize endpoint storage.
+
+    Validate endpoints, merge endpoints, and assign numbers to endpoints without an explicit number.
+    This is called from final_validate.
+
+    Args:
+        router: Whether the device is acting as a Zigbee router.
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
     ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
-    validate_endpoints(ep_dict)
+    _validate_endpoints(ep_dict)
     # create dummy endpoint if list is empty
     if not ep_dict and not ep_list:
         ep_type = "CUSTOM_ATTR"
@@ -440,7 +463,7 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             for existing_ep in ep_list_new:
-                if merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
+                if _merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
                     added = True
                     break
             if not added:
@@ -449,7 +472,7 @@ def create_ep(router: bool) -> None:
         # Add endpoints with no number to the endpoint dict with a new number
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
-            ep_num = get_next_ep_num(eps)
+            ep_num = _get_next_ep_num(eps)
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
@@ -462,6 +485,14 @@ def create_ep(router: bool) -> None:
 
 
 def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> None:
+    """Add a Zigbee endpoint configuration to CORE.data.
+
+    Args:
+        ep: Endpoint configuration dictionary.
+        ep_num: Optional explicit endpoint number.
+        use_type: Optional boolean indicating whether this component's device type should be
+        used for the endpoint (True claims it, False drops it, None leaves it as a candidate).
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if use_type is False:
         ep.pop(DEVICE_TYPE, None)
@@ -475,7 +506,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            if cl := compare_clusters(
+            if cl := _compare_clusters(
                 existing_ep,
                 ep,
             ):

@@ -13,7 +13,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME, CONF_ON_START
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -115,6 +115,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
+            cv.Optional(CONF_ON_START): automation.validate_automation({}),
             cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
                 cv.Any(
                     cv.boolean,
@@ -182,6 +183,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 _CALLBACK_AUTOMATIONS = [
     automation.CallbackAutomation(CONF_ON_JOIN, "add_on_join_callback", [(bool, "x")]),
+    automation.CallbackAutomation(CONF_ON_START, "add_on_start_callback", []),
 ]
 
 
@@ -202,7 +204,7 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
@@ -214,14 +216,14 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
         if not config.get(CONF_ZIGBEE_ID):
             return
         from .zigbee_zephyr import add_sensor
     else:
-        from .zigbee_esp32 import add_sensor
+        from .zigbee_esp32 import add_component as add_sensor
     CORE.add_job(add_sensor, entity, config)
 
 

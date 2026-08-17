@@ -1,12 +1,13 @@
 import esphome.codegen as cg
 
+ALLOWED_UNITS = "allowed_units"
 DEVICE_TYPE = "device_type"
 ROLE = "role"
-CONF_CLUSTER = "cluster"
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
 CONF_ATTRIBUTE_ID = "attribute_id"
-KEY_ZIGBEE_ATTR_DICT = "zigbee_attr_dict"
+KEY_ZIGBEE_ATTRIBUTES = "zigbee_attributes"
+CONNECT = "connect"
 SCALE = "scale"
 KEY_ZIGBEE_EP = "zigbee_ep"
 KEY_ZIGBEE_EP_NO_NUM = "zigbee_ep_no_num"
