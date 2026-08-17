@@ -257,7 +257,7 @@ TEST(Base64, DecodeBase64UrlMatchesStandard) {
 
 // RFC 4648 vectors cover both padding cases (len % 3 == 1 and len % 3 == 2)
 TEST(Base64, Rfc4648Vectors) {
-  static const struct {
+  const struct {
     const char *plain;
     const char *encoded;
   } vectors[] = {
