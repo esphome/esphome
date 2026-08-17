@@ -105,229 +105,28 @@ def get_flash_runner(build_dir: Path) -> str | None:
     return (runners_yaml or {}).get("flash-runner")
 
 
-def count_dfu_devices_for(dfu_util_path: str, vid_pid: str, alt: str) -> int | None:
-    """Count how many attached USB devices match a dfu-util VID:PID and
-    alt-setting, by parsing `dfu-util -l` output.
-
-    West's own dfu-util runner (scripts/west_commands/runners/dfu.py) only
-    checks whether at least one matching device is present before flashing --
-    it never counts matches, so two boards sharing the same VID:PID (e.g. two
-    Arduino Nano R4s, or any other board using the same bootloader) both
-    sitting in DFU mode at once is silently ambiguous: which one gets flashed
-    is up to dfu-util's own handling of multiple matches, not something a
-    runner controls.
-
-    Returns None if dfu-util can't be run -- callers should treat that as
-    "unknown, proceed" rather than block flashing on an unrelated failure.
-    0 means no matching device is currently visible (e.g. not reset into DFU
-    mode yet).
+def log_available_runners(build_dir: Path) -> None:
+    """Log the board's available west flash runners and which one is the
+    default, read from runners.yaml (see get_flash_runner() for the same
+    file used to drive actual flashing decisions).
     """
-    import re
-
-    try:
-        result = subprocess.run(
-            [dfu_util_path, "-l", "-d", vid_pid],
-            capture_output=True,
-            timeout=10,
-            check=False,
-            text=True,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    # Mirrors dfu.py's own list_pattern: numeric alt matches by index, non-numeric
-    # by name -- same distinction west's own runner makes when finding a device.
-    if alt.isdigit():
-        pattern = rf", alt={re.escape(alt)},"
-    else:
-        pattern = rf', name="{re.escape(alt)}",'
-    return len(re.findall(pattern, result.stdout))
-
-
-def count_dfu_devices(build_dir: Path) -> int | None:
-    """count_dfu_devices_for(), sourcing the VID:PID/alt from this build's own
-    runners.yaml (written by the CMake configure step) instead of taking them
-    directly -- see count_dfu_devices_for() for what's actually being counted
-    and why.
-
-    Returns None if dfu-util isn't installed, runners.yaml can't be read, or
-    the dfu-util args can't be parsed.
-    """
-    import shutil
-
-    dfu_util = shutil.which("dfu-util")
-    if dfu_util is None:
-        return None
-
     runners_yaml_path = _find_runners_yaml(build_dir)
     try:
         with runners_yaml_path.open(encoding="utf-8") as f:
-            runners_yaml = yaml.safe_load(f) or {}
+            runners_yaml = yaml.safe_load(f)
     except (OSError, yaml.YAMLError) as e:
         _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
-        return None
-
-    dfu_args = (runners_yaml.get("args") or {}).get("dfu-util") or []
-    vid_pid = None
-    alt = "0"
-    for arg in dfu_args:
-        if arg.startswith("--pid="):
-            vid_pid = arg.removeprefix("--pid=")
-        elif arg.startswith("--alt="):
-            alt = arg.removeprefix("--alt=")
-    if vid_pid is None:
-        return None
-
-    return count_dfu_devices_for(dfu_util, vid_pid, alt)
-
-
-def run_arduino_dfu_flash(build_dir: Path, app_pid: str, dfu_pid: str) -> bool:
-    """Flash a board using Arduino's own patched dfu-util fork instead of
-    west's generic dfu-util runner.
-
-    Arduino's fork (bundled with the Arduino IDE/arduino-cli Renesas core,
-    reports itself as e.g. "dfu-util 0.11-arduinoN") adds a `-Q` quirks flag
-    (confirmed via `strings`: quirks.c/get_quirks) that stock dfu-util has no
-    equivalent for -- testing showed the board never leaves DFU mode with the
-    generic west runner + stock dfu-util + address-padded image, but does
-    with this exact tool and invocation shape (dual-VID:PID auto-detach, raw
-    unpadded image, no manual DFU-mode entry required). Not something to
-    silently fall back from: a plain-dfu-util attempt already reproducibly
-    leaves the board looking bricked, so this requires the real tool rather
-    than degrading to the known-broken path.
-    """
-    import shutil
-
-    dfu_util = shutil.which("dfu-util")
-    found = "no dfu-util found on PATH"
-    version_ok = False
-    if dfu_util is not None:
-        try:
-            result = subprocess.run(
-                [dfu_util, "--version"],
-                capture_output=True,
-                timeout=10,
-                check=False,
-                text=True,
-            )
-            version_ok = "-arduino" in result.stdout
-            stdout = result.stdout.strip()
-            version_line = stdout.splitlines()[0] if stdout else ""
-            found = f"found {version_line!r}"
-        except (OSError, subprocess.TimeoutExpired):
-            found = f"could not run {dfu_util!r}"
-    if dfu_util is None or not version_ok:
-        raise EsphomeError(
-            "This board needs Arduino's patched dfu-util (adds device-specific "
-            f"quirk handling stock dfu-util lacks) -- {found}. Install the "
-            "Arduino Renesas core via the Arduino IDE or arduino-cli, which "
-            "bundles a compatible build, and put its dfu-util on PATH instead."
-        )
-
-    device_count = count_dfu_devices_for(dfu_util, dfu_pid, "0")
-    if device_count is not None and device_count > 1:
-        raise EsphomeError(
-            f"Found {device_count} devices in DFU mode matching this board's "
-            "bootloader. Disconnect all but the target device before "
-            "uploading, or dfu-util may flash the wrong one."
-        )
-
-    domain_build_dir = _find_domain_build_dir(build_dir)
-    bin_path = domain_build_dir / "zephyr" / "zephyr.bin"
-    # No -R/--reset: this fork's -R unexpectedly requires an argument (differs from
-    # stock dfu-util's boolean -R), breaking the invocation -- matches the exact
-    # command confirmed working by hand, manual reset still needed after flashing.
-    return run_command_ok(
-        [
-            dfu_util,
-            "--device",
-            f"{app_pid},{dfu_pid}",
-            "-D",
-            str(bin_path),
-            "-a0",
-            "-Q",
-        ],
-        stream_output=True,
+        return
+    runners_yaml = runners_yaml or {}
+    runners = runners_yaml.get("runners")
+    flash_runner = runners_yaml.get("flash-runner")
+    if not runners:
+        return
+    _LOGGER.info(
+        "Available flash runners: %s (default: %s)",
+        ", ".join(runners),
+        flash_runner or "none",
     )
-
-
-def _flash_load_address(
-    python_executable: Path, framework_path: Path, domain_build_dir: Path
-) -> int | None:
-    """Ask the pinned SDK's own west runner framework for the real flash
-    address this build's image is linked to run from (normally the
-    `zephyr,code-partition` devicetree node's address), the same way
-    `--dfuse`/pyocd/jlink derive it via
-    ZephyrBinaryRunner.flash_address_from_build_conf(). None if it can't be
-    determined (build not configured, query fails, etc.).
-
-    Needed for boards whose default flash runner writes a flat image starting
-    at a fixed interface base address with no address-tagging support of its
-    own (see pad_image_to_flash_address()) -- everywhere else, the runner
-    resolves this internally and no separate lookup is needed.
-    """
-    runners_dir = framework_path / "zephyr" / "scripts" / "west_commands"
-    script = (
-        "import sys\n"
-        f"sys.path.insert(0, {str(runners_dir)!r})\n"
-        "try:\n"
-        "    from runners.core import BuildConfiguration, ZephyrBinaryRunner\n"
-        f"    build_conf = BuildConfiguration({str(domain_build_dir)!r})\n"
-        "    print(ZephyrBinaryRunner.flash_address_from_build_conf(build_conf))\n"
-        "except Exception:\n"
-        "    print('')\n"
-    )
-    try:
-        result = subprocess.run(
-            [str(python_executable), "-c", script],
-            capture_output=True,
-            timeout=10,
-            check=False,
-            text=True,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    output = result.stdout.strip()
-    return int(output) if output else None
-
-
-def pad_image_to_flash_address(
-    python_executable: Path, framework_path: Path, build_dir: Path
-) -> Path | None:
-    """Prepend 0xFF padding to the board's built .bin so that flashing it with
-    a flat, address-oblivious tool (starting at device offset 0) lands the
-    real image at its actual linked flash address instead of at 0.
-
-    Only needed for a flash runner that can't be told the target address
-    itself (see board.cmake comment on the Nano R4's dfu-util args for why
-    --dfuse isn't usable there). Returns the padded file's path, or None if
-    the real .bin/flash address can't be found -- callers should fall back to
-    flashing the original image unpadded (index-0, matching pre-fix behavior)
-    rather than fail outright.
-    """
-    domain_build_dir = _find_domain_build_dir(build_dir)
-    runners_yaml_path = domain_build_dir / "zephyr" / "runners.yaml"
-    try:
-        with runners_yaml_path.open(encoding="utf-8") as f:
-            runners_yaml = yaml.safe_load(f)
-        bin_file = runners_yaml["config"]["bin_file"]
-    except (OSError, yaml.YAMLError, KeyError, TypeError) as e:
-        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
-        return None
-
-    bin_path = domain_build_dir / "zephyr" / bin_file
-    address = _flash_load_address(python_executable, framework_path, domain_build_dir)
-    if address is None or not bin_path.is_file():
-        return None
-
-    try:
-        image = bin_path.read_bytes()
-    except OSError as e:
-        _LOGGER.debug("Could not read %s: %s", bin_path, e)
-        return None
-
-    padded_path = domain_build_dir / "zephyr" / "zephyr.dfu-util-padded.bin"
-    padded_path.write_bytes(b"\xff" * address + image)
-    return padded_path
 
 
 def resolve_dev_id(
@@ -513,6 +312,7 @@ def run_west_build(
         cwd=str(framework_path),
     ):
         raise EsphomeError("Zephyr native build failed")
+    log_available_runners(build_dir)
 
 
 def run_west_flash(
@@ -559,7 +359,6 @@ def run_west_flash_generic(
     env: dict,
     build_dir: Path,
     dev_id: str | None = None,
-    img: Path | None = None,
 ) -> bool:
     """Flash a Zephyr target using the board's default west runner.
 
@@ -570,10 +369,6 @@ def run_west_flash_generic(
     to tell the runner which attached probe to use -- without it, the runner
     picks whichever probe it finds, which is ambiguous when more than one
     debug-probe board is attached at once.
-
-    `img`, when given, is forwarded as `--img` (after `--`, so it reaches the
-    runner's own argparse rather than west's) to flash a specific file instead
-    of the runner's default build output -- see pad_image_to_flash_address().
     """
     west_cmd = [
         str(python_executable),
@@ -587,8 +382,6 @@ def run_west_flash_generic(
     ]
     if dev_id:
         west_cmd += ["-i", dev_id]
-    if img:
-        west_cmd += ["--", "--img", str(img)]
     return run_command_ok(
         west_cmd,
         env=env,

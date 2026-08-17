@@ -373,19 +373,6 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
-    # Add a DFU device option for Zephyr boards whose default west runner is
-    # dfu-util (e.g. Arduino's own USB bootloader) -- generic, keyed off the
-    # board's actual configured runner rather than a hardcoded board list, so
-    # any future dfu-util board picks this up for free. No pre-flight USB
-    # detection needed: west's own dfu-util runner already prints its own
-    # "reset your board" prompt and polls for the device once selected.
-    if purpose == Purpose.UPLOADING and CORE.is_zephyr:
-        from esphome.components.zephyr.build_zephyr import get_flash_runner
-
-        build_dir = CORE.relative_build_path(".west_build")
-        if get_flash_runner(build_dir) == "dfu-util":
-            options.append(("DFU bootloader (via dfu-util)", "DFU"))
-
     # Annotate the OTA chooser entry only in the non-default case: when the
     # config has web_server OTA but no native API OTA, the upload will fall
     # through to the HTTP path and the user benefits from seeing that
@@ -1184,10 +1171,10 @@ def upload_program(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
-        # BOOTSEL/DFU aren't real serial ports -- report None so command_run() waits
-        # for the new port to enumerate instead of trying to use "BOOTSEL"/"DFU" for
+        # BOOTSEL isn't a real serial port -- report None so command_run() waits
+        # for the new port to enumerate instead of trying to use "BOOTSEL" for
         # logging.
-        return 0, None if port_type in (PortType.BOOTSEL, PortType.DFU) else host
+        return 0, None if port_type == PortType.BOOTSEL else host
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1711,14 +1698,11 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if args.no_logs:
         return 0
 
-    # After a BOOTSEL/DFU upload, wait for a new serial port to appear
+    # After a BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
     if successful_device is None and (
         CORE.is_rp2
-        or (
-            CORE.is_zephyr
-            and CORE.data.get("zephyr", {}).get("family") in ("rpi_pico", "renesas")
-        )
+        or (CORE.is_zephyr and CORE.data.get("zephyr", {}).get("family") == "rpi_pico")
     ):
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly

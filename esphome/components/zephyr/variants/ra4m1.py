@@ -103,20 +103,6 @@ VARIANT = ZephyrVariant(
     pwm_node_labels=["pwm1"],
 )
 
-# Board -> (app-mode VID:PID, DFU-mode VID:PID), for boards flashed via
-# Arduino's own dfu-util fork (adds a -Q quirks flag stock dfu-util doesn't
-# have) using its dual-VID:PID auto-detach form, rather than west's generic
-# single-VID:PID dfu-util runner. Confirmed against Arduino's own boards.txt
-# (nanor4.upload_port.0/.1) -- not derivable from board.cmake/runners.yaml,
-# which only knows the DFU-mode PID.
-_ARDUINO_DFU_BOARDS = {
-    "arduino_nano_r4": ("0x2341:0x0074", ":0x0374"),
-}
-
-
-def arduino_dfu_pids(board: str) -> tuple[str, str] | None:
-    return _ARDUINO_DFU_BOARDS.get(board)
-
 
 def config_schema(config: ConfigType) -> ConfigType:
     config = dict(config)
