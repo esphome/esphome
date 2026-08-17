@@ -541,9 +541,10 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
   // CONT and SYS are cooperative on ESP8266; without this, inbound segments
   // can sit unprocessed for seconds during API connection setup while the
   // main loop polls a socket that lwip has not been given time to fill.
-  // Reads with data already buffered skip the yield entirely, and
-  // optimistic_yield itself rate-limits to one yield per millisecond.
-  if (this->rx_buf_ == nullptr) {
+  // Reads with data already buffered skip the yield entirely, as do closed
+  // or reset sockets where yielding cannot help; optimistic_yield itself
+  // rate-limits to one yield per millisecond.
+  if (this->waiting_for_data_()) {
     optimistic_yield(1000UL);
   }
 #endif
@@ -557,6 +558,9 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  // No would-block yield here: the ESP8266 SYS yield lives in read() because
+  // that is the only path the API frame helpers use. If a consumer switches
+  // to scatter-gather reads, mirror the waiting_for_data_() yield from read().
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -621,14 +625,6 @@ int LWIPRawImpl::internal_output_() {
   }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
-#ifdef USE_ESP8266
-  // Data was written and flushed: yield to the SYS context so the segments
-  // queued by tcp_output actually reach the WiFi driver; otherwise a written
-  // frame can sit untransmitted until an unrelated SYS slot, delaying the
-  // noise handshake by seconds. Callers only invoke this after a successful
-  // tcp_write, so the yield never runs on idle paths.
-  optimistic_yield(1000UL);
-#endif
   if (err == ERR_ABRT) {
     // sometimes lwip returns ERR_ABRT for no apparent reason
     // the connection works fine afterwards, and back with ESPAsyncTCP we
@@ -642,6 +638,14 @@ int LWIPRawImpl::internal_output_() {
     errno = ECONNRESET;
     return -1;
   }
+#ifdef USE_ESP8266
+  // Data was written and flushed: yield to the SYS context so the segments
+  // queued by tcp_output actually reach the WiFi driver; otherwise a written
+  // frame can sit untransmitted until an unrelated SYS slot, delaying the
+  // noise handshake by seconds. Callers only invoke this after a successful
+  // tcp_write, so the yield never runs on idle or failed paths.
+  optimistic_yield(1000UL);
+#endif
   return 0;
 }
 
