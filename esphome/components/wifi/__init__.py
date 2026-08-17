@@ -336,7 +336,8 @@ def validate_variant(_):
                 f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
             )
     if CORE.is_zephyr:
-        from esphome.components.zephyr import zephyr_variant
+        from esphome.components.zephyr import zephyr_data, zephyr_variant
+        from esphome.components.zephyr.const import KEY_BOARD
         from esphome.components.zephyr.variants import VARIANTS
 
         variant_name = zephyr_variant()
@@ -344,6 +345,14 @@ def validate_variant(_):
         if variant is None or "wifi" not in variant.transports:
             raise cv.Invalid(
                 f"wifi is not supported on Zephyr variant '{variant_name}'"
+            )
+        board = zephyr_data()[KEY_BOARD]
+        # "w" is a qualifier segment, not necessarily the last one -- e.g.
+        # 'rpi_pico/rp2040/w/mcuboot' is still wifi-capable.
+        if variant.family == "rpi_pico" and "w" not in board.split("/"):
+            raise cv.Invalid(
+                f"board '{board}' has no CYW43 wireless chip -- use a "
+                "wireless-qualified board (e.g. 'rpi_pico/rp2040/w')"
             )
 
 
@@ -728,6 +737,7 @@ async def to_code(config):
         cg.add_library("WiFi", None)
     elif CORE.is_zephyr:
         from esphome.components.zephyr import (
+            zephyr_add_blobs,
             zephyr_add_overlay,
             zephyr_add_prj_conf,
             zephyr_variant,
@@ -739,7 +749,8 @@ async def to_code(config):
         # Pin single-threaded net_mgmt dispatch -- the event queue in
         # wifi_component_zephyr.cpp is single-producer only.
         zephyr_add_prj_conf("NET_MGMT_EVENT_THREAD", True)
-        transport_driver = VARIANTS[zephyr_variant()].transport_drivers.get("wifi")
+        variant = VARIANTS[zephyr_variant()]
+        transport_driver = variant.transport_drivers.get("wifi")
         if transport_driver is None:
             raise EsphomeError(
                 f"Zephyr variant '{zephyr_variant()}' declares wifi support but has "
@@ -748,6 +759,8 @@ async def to_code(config):
         kconfig, dt_label = transport_driver
         zephyr_add_prj_conf(kconfig, True)
         zephyr_add_overlay(f'&{dt_label} {{ status = "okay"; }};')
+        if blob_spec := variant.transport_blobs.get("wifi"):
+            zephyr_add_blobs(*blob_spec)
         zephyr_add_prj_conf("NET_DHCPV4", True)
         if CONF_AP in config:
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
