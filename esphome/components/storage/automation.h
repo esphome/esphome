@@ -219,7 +219,8 @@ template<typename... Ts> class FileWriteAction : public Action<Ts...> {
       return;
     }
     StorageError err = perform_file_write(this->path_.value(x...), std::move(*content), this->append_, this->newline_);
-    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                          : std::string(error_to_string(err)));
   }
 
  protected:
@@ -415,12 +416,14 @@ template<typename... Ts> class RawWriteAction : public Action<Ts...> {
     if (this->len_ >= 0) {
       StorageError err = perform_raw_write(this->device_, address, this->code_.data, static_cast<size_t>(this->len_),
                                            this->erase_first_);
-      this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+      this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                            : std::string(error_to_string(err)));
       return;
     }
     std::vector<uint8_t> data = (*this->code_.func)(x...);
     StorageError err = perform_raw_write(this->device_, address, data.data(), data.size(), this->erase_first_);
-    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                          : std::string(error_to_string(err)));
   }
 
  protected:
@@ -476,7 +479,8 @@ template<typename... Ts> class FileDeleteAction : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     StorageError err = perform_file_delete(this->path_.value(x...), this->recursive_);
-    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(err)));
+    this->complete_trigger_.trigger(err == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                          : std::string(error_to_string(err)));
   }
 
  protected:

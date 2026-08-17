@@ -320,8 +320,9 @@ storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, int64_t o
     default:
       return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
   }
-  return fseek(handle->file, static_cast<int32_t>(offset), whence) == 0 ? storage::StorageError::STORAGE_ERROR_OK
-                                                                        : storage::StorageError::STORAGE_ERROR_READ_ERROR;
+  return fseek(handle->file, static_cast<int32_t>(offset), whence) == 0
+             ? storage::StorageError::STORAGE_ERROR_OK
+             : storage::StorageError::STORAGE_ERROR_READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, uint64_t *position) {
@@ -470,7 +471,8 @@ storage::StorageError SdStorageBase::remove(const char *path) {
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
-  return ::remove(full) == 0 ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return ::remove(full) == 0 ? storage::StorageError::STORAGE_ERROR_OK
+                             : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError SdStorageBase::rename(const char *old_path, const char *new_path) {
