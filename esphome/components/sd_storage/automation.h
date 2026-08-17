@@ -74,7 +74,7 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
   void play(Ts... x) override {
     const char *path = this->path_.value(x...);
     if (path == nullptr || path[0] == '\0')
-      path = this->parent_->get_mount_path();
+      path = "/";  // FAT root; get_mount_path() is the absolute VFS path, wrong for list_dir()
 
     this->parent_->log_list_dir_start_(path);
     this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);

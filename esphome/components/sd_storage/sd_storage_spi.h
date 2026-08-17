@@ -19,8 +19,6 @@
 
 namespace esphome::sd_storage {
 
-static const char *const TAG_SPI = "sd_storage.spi";
-
 class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_10MHZ>,
               public SdStorageBase {
@@ -30,8 +28,8 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
 #endif
   enum class ErrorCode : uint8_t {
-    ERR_MOUNT,
-    ERR_NO_CARD,
+    ERROR_CODE_MOUNT,
+    ERROR_CODE_NO_CARD,
   };
 
   void setup() override;
@@ -75,7 +73,7 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   GPIOPin *data1_pin_{nullptr};
   GPIOPin *data2_pin_{nullptr};
   bool assume_exclusive_bus_{false};  // opt-in: card is alone on its SPI bus -> task-safe I/O
-  ErrorCode init_error_{ErrorCode::ERR_MOUNT};
+  ErrorCode init_error_{ErrorCode::ERROR_CODE_MOUNT};
 
 #ifdef USE_ESP_IDF
   sdmmc_card_t *card_{nullptr};

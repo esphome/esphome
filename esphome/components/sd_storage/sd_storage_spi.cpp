@@ -31,6 +31,8 @@ using storage::OpenMode;
 using storage::StorageError;
 using storage::StorageInfo;
 
+static const char *const TAG_SPI = "sd_storage.spi";
+
 void SdSpi::setup() {
   ESP_LOGD(TAG_SPI, "Initializing SD card in SPI mode");
 
@@ -99,9 +101,9 @@ void SdSpi::dump_config() {
 
 const char *SdSpi::error_code_to_str(ErrorCode code) {
   switch (code) {
-    case ErrorCode::ERR_MOUNT:
+    case ErrorCode::ERROR_CODE_MOUNT:
       return "Failed to mount card";
-    case ErrorCode::ERR_NO_CARD:
+    case ErrorCode::ERROR_CODE_NO_CARD:
       return "No card found";
     default:
       return "Unknown error";
@@ -215,7 +217,7 @@ StorageError SdSpi::mount() {
   const auto init_err = sdspi_host_init();
   if (init_err != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to init sdspi host: %s", esp_err_to_name(init_err));
-    this->init_error_ = ErrorCode::ERR_MOUNT;
+    this->init_error_ = ErrorCode::ERROR_CODE_MOUNT;
     return StorageError::NOT_READY;
   }
 
@@ -258,16 +260,16 @@ StorageError SdSpi::mount() {
   if (mount_error != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
     this->init_error_ =
-        (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERR_MOUNT : ErrorCode::ERR_NO_CARD;
+        (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT : ErrorCode::ERROR_CODE_NO_CARD;
     return StorageError::NOT_READY;
   }
 
   if (this->card_->is_mmc) {
-    this->card_type_ = CardType::MMC;
+    this->card_type_ = CardType::CARD_TYPE_MMC;
   } else if (this->card_->is_sdio) {
-    this->card_type_ = CardType::SDIO;
+    this->card_type_ = CardType::CARD_TYPE_SDIO;
   } else {
-    this->card_type_ = (this->card_->ocr & SD_OCR_SDHC_CAP) ? CardType::SDHC : CardType::SDSC;
+    this->card_type_ = (this->card_->ocr & SD_OCR_SDHC_CAP) ? CardType::CARD_TYPE_SDHC : CardType::CARD_TYPE_SDSC;
   }
 
   this->is_mounted_ = true;
@@ -340,15 +342,9 @@ bool SdSpi::update_card_info() {
 
   this->total_bytes_ = (uint64_t) this->card_->csd.capacity * this->card_->csd.sector_size;
 
-  FATFS *fs;
-  DWORD fre_clust;
-  char path_buf[8];
-  snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
-  if (f_getfree(path_buf, &fre_clust, &fs) == FR_OK) {
-    uint64_t total = (uint64_t) ((fs->n_fatent - 2) * fs->csize) * fs->ssize;
-    uint64_t free_b = (uint64_t) (fre_clust * fs->csize) * fs->ssize;
-    this->used_bytes_ = total - free_b;
-  }
+  uint64_t total_bytes = 0, free_bytes = 0;
+  if (esp_vfs_fat_info(this->mount_path_, &total_bytes, &free_bytes) == ESP_OK)
+    this->used_bytes_ = total_bytes - free_bytes;
   return true;
 }
 
@@ -356,13 +352,10 @@ uint64_t SdSpi::get_free_bytes_impl() const {
   if (!this->is_mounted_)
     return 0;
 
-  FATFS *fs;
-  DWORD fre_clust;
-  char path_buf[8];
-  snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
-  if (f_getfree(path_buf, &fre_clust, &fs) != FR_OK)
+  uint64_t total_bytes = 0, free_bytes = 0;
+  if (esp_vfs_fat_info(this->mount_path_, &total_bytes, &free_bytes) != ESP_OK)
     return 0;
-  return (uint64_t) (fre_clust * fs->csize) * fs->ssize;
+  return free_bytes;
 }
 
 uint32_t SdSpi::get_block_size_impl() const { return (this->card_ != nullptr) ? this->card_->csd.sector_size : 512; }

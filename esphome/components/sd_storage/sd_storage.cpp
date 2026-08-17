@@ -235,11 +235,11 @@ storage::StorageError SdMmc::mount() {
   }
 
   if (this->card_->is_mmc) {
-    this->card_type_ = CardType::MMC;
+    this->card_type_ = CardType::CARD_TYPE_MMC;
   } else if (this->card_->is_sdio) {
-    this->card_type_ = CardType::SDIO;
+    this->card_type_ = CardType::CARD_TYPE_SDIO;
   } else {
-    this->card_type_ = (this->card_->ocr & (1 << 30)) ? CardType::SDHC : CardType::SDSC;
+    this->card_type_ = (this->card_->ocr & SD_OCR_SDHC_CAP) ? CardType::CARD_TYPE_SDHC : CardType::CARD_TYPE_SDSC;
   }
   this->block_size_ = this->card_->csd.sector_size;
   this->is_mounted_ = true;
@@ -310,15 +310,9 @@ bool SdMmc::update_card_info() {
 
   this->total_bytes_ = (uint64_t) this->card_->csd.capacity * this->card_->csd.sector_size;
 
-  FATFS *fs;
-  DWORD fre_clust;
-  char path_buf[8];
-  snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
-  if (f_getfree(path_buf, &fre_clust, &fs) == FR_OK) {
-    uint64_t total = (uint64_t) ((fs->n_fatent - 2) * fs->csize) * fs->ssize;
-    uint64_t free_b = (uint64_t) (fre_clust * fs->csize) * fs->ssize;
-    this->used_bytes_ = total - free_b;
-  }
+  uint64_t total_bytes = 0, free_bytes = 0;
+  if (esp_vfs_fat_info(this->mount_path_, &total_bytes, &free_bytes) == ESP_OK)
+    this->used_bytes_ = total_bytes - free_bytes;
   return true;
 }
 
@@ -326,13 +320,10 @@ uint64_t SdMmc::get_free_bytes_impl() const {
   if (!this->is_mounted_)
     return 0;
 
-  FATFS *fs;
-  DWORD fre_clust;
-  char path_buf[8];
-  snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
-  if (f_getfree(path_buf, &fre_clust, &fs) != FR_OK)
+  uint64_t total_bytes = 0, free_bytes = 0;
+  if (esp_vfs_fat_info(this->mount_path_, &total_bytes, &free_bytes) != ESP_OK)
     return 0;
-  return (uint64_t) (fre_clust * fs->csize) * fs->ssize;
+  return free_bytes;
 }
 
 }  // namespace esphome::sd_storage

@@ -18,11 +18,11 @@ namespace esphome::sd_storage {
 // actual reported capacity. No driver currently assigns SDXC, so it's omitted here rather than
 // kept as a value nothing ever produces.
 enum class CardType : uint8_t {
-  UNKNOWN = 0,
-  SDIO = 1,
-  MMC = 2,
-  SDHC = 3,
-  SDSC = 4,
+  CARD_TYPE_UNKNOWN = 0,
+  CARD_TYPE_SDIO = 1,
+  CARD_TYPE_MMC = 2,
+  CARD_TYPE_SDHC = 3,
+  CARD_TYPE_SDSC = 4,
 };
 
 struct SdFileHandle : public storage::FileHandle {
@@ -140,7 +140,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
   static const char *card_type_to_string(CardType type);
 
-  CardType card_type_{CardType::UNKNOWN};
+  CardType card_type_{CardType::CARD_TYPE_UNKNOWN};
   bool is_mounted_{false};
   uint64_t total_bytes_{0};
   uint64_t used_bytes_{0};
