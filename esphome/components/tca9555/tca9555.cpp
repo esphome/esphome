@@ -26,7 +26,11 @@ void TCA9555Component::setup() {
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&TCA9555Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // INT is asserted by driving the line physically LOW; digital_read() and edge selection are
+    // logical, so account for an inverted pin config to keep the ISR on the physical falling edge
+    this->interrupt_pin_->attach_interrupt(
+        &TCA9555Component::gpio_intr, this,
+        this->interrupt_pin_->is_inverted() ? gpio::INTERRUPT_RISING_EDGE : gpio::INTERRUPT_FALLING_EDGE);
     this->set_invalidate_on_read_(false);
   }
   this->disable_loop();
@@ -56,10 +60,11 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 }
 void TCA9555Component::loop() {
   this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
+  // Only disable the loop once INT has actually gone physically HIGH. Input transitions that
+  // straddle the I2C read leave INT asserted without re-firing a falling edge, which would strand
+  // us with stale state forever; keep looping until the line is released so we self-heal.
+  // digital_read() is logical, so compare against the inverted flag to get the physical level.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read() != this->interrupt_pin_->is_inverted()) {
     this->disable_loop();
   }
 }
