@@ -43,8 +43,31 @@ const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
  * heat 30 swing vert  00101000 11000110 00000000 00001000  00001000 01111111 10010000 00001100  00000111 00100000 00101000 00000000  00000000 00000000 00000100 00011101
  * heat 30 noswing     00101000 11000110 00000000 00001000  00001000 01111111 10010000 00001100  00000111 00100000 00100000 00000000  00000000 00000000 00000100 00010011
  * ```
+ *
+ * The markers above the columns record which bits varied across these captures, not how wide each
+ * field is. Swing is marked with a single bit but is two bits wide, and the weight eight slot over
+ * the mode is blank only because no capture was taken with the feature that bit belongs to active.
+ * The field widths come from the protocol, not from this table.
  */
 // clang-format on
+
+// A byte's bits are reversed for Fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, and so on: an
+// odd index is a byte's low half and an even one its high half.
+constexpr uint8_t get_nibble(const uint8_t *message, uint8_t nibble) {
+  return (message[nibble / 2] >> ((nibble % 2) ? 0 : 4)) & 0b00001111;
+}
+
+/// Write a nibble into a zero-initialised frame.
+inline void set_nibble(uint8_t *message, uint8_t nibble, uint8_t value) {
+  message[nibble / 2] |= (value & 0b00001111) << ((nibble % 2) ? 0 : 4);
+}
+
+// Where each field of a state frame lives, as nibble indices into the frame above.
+const uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
+const uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
+const uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
+const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
+const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
 
 /// Turn the mode field of a received frame into a climate mode.
 ///

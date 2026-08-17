@@ -2,12 +2,6 @@
 
 namespace esphome::fujitsu_general {
 
-// bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
-
-#define SET_NIBBLE(message, nibble, value) \
-  ((message)[(nibble) / 2] |= ((value) &0b00001111) << (((nibble) % 2) ? 0 : 4))
-#define GET_NIBBLE(message, nibble) (((message)[(nibble) / 2] >> (((nibble) % 2) ? 0 : 4)) & 0b00001111)
-
 static const char *const TAG = "fujitsu_general.climate";
 
 // Common header
@@ -36,16 +30,11 @@ const uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE1 = 0x30;
 // State footer
 const uint8_t FUJITSU_GENERAL_STATE_FOOTER_BYTE0 = 0x20;
 
-// Temperature
-const uint8_t FUJITSU_GENERAL_TEMPERATURE_NIBBLE = 16;
-
 // Power on
-const uint8_t FUJITSU_GENERAL_POWER_ON_NIBBLE = 17;
 const uint8_t FUJITSU_GENERAL_POWER_OFF = 0x00;
 const uint8_t FUJITSU_GENERAL_POWER_ON = 0x01;
 
 // Mode
-const uint8_t FUJITSU_GENERAL_MODE_NIBBLE = 19;
 // The mode occupies only the low three bits of this nibble, see the frame documentation in the
 // header. The fourth bit belongs to the clean feature, which doubles as 10 degree heat on the
 // ARRAH2E and ARREW4E remotes.
@@ -58,7 +47,6 @@ const uint8_t FUJITSU_GENERAL_MODE_FAN = 0x03;
 const uint8_t FUJITSU_GENERAL_MODE_HEAT = 0x04;
 
 // Swing
-const uint8_t FUJITSU_GENERAL_SWING_NIBBLE = 20;
 const uint8_t FUJITSU_GENERAL_SWING_MASK = 0b0011;
 const uint8_t FUJITSU_GENERAL_SWING_NONE = 0x00;
 const uint8_t FUJITSU_GENERAL_SWING_VERTICAL = 0x01;
@@ -66,7 +54,6 @@ const uint8_t FUJITSU_GENERAL_SWING_HORIZONTAL = 0x02;
 const uint8_t FUJITSU_GENERAL_SWING_BOTH = 0x03;
 
 // Fan
-const uint8_t FUJITSU_GENERAL_FAN_NIBBLE = 21;
 // Like the mode, the fan speed occupies only the low three bits of its nibble. The fourth bit is
 // not assigned by the protocol.
 const uint8_t FUJITSU_GENERAL_FAN_MASK = 0b0111;
@@ -119,67 +106,67 @@ void FujitsuGeneralClimate::transmit_state() {
   uint8_t temperature_clamped =
       (uint8_t) roundf(clamp<float>(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   uint8_t temperature_offset = temperature_clamped - FUJITSU_GENERAL_TEMP_MIN;
-  SET_NIBBLE(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
+  set_nibble(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
 
   // Set power on
   if (!this->power_) {
-    SET_NIBBLE(remote_state, FUJITSU_GENERAL_POWER_ON_NIBBLE, FUJITSU_GENERAL_POWER_ON);
+    set_nibble(remote_state, FUJITSU_GENERAL_POWER_ON_NIBBLE, FUJITSU_GENERAL_POWER_ON);
   }
 
   // Set mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_COOL);
+      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_COOL);
       break;
     case climate::CLIMATE_MODE_HEAT:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_HEAT);
+      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_HEAT);
       break;
     case climate::CLIMATE_MODE_DRY:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_DRY);
+      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_DRY);
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
+      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_FAN);
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
     default:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
+      set_nibble(remote_state, FUJITSU_GENERAL_MODE_NIBBLE, FUJITSU_GENERAL_MODE_AUTO);
       break;
   }
 
   // Set fan
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
+      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_HIGH);
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_MEDIUM);
+      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_MEDIUM);
       break;
     case climate::CLIMATE_FAN_LOW:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_LOW);
+      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_LOW);
       break;
     case climate::CLIMATE_FAN_QUIET:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_SILENT);
+      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_SILENT);
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_AUTO);
+      set_nibble(remote_state, FUJITSU_GENERAL_FAN_NIBBLE, FUJITSU_GENERAL_FAN_AUTO);
       break;
   }
 
   // Set swing
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_VERTICAL);
+      set_nibble(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_VERTICAL);
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_HORIZONTAL);
+      set_nibble(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_HORIZONTAL);
       break;
     case climate::CLIMATE_SWING_BOTH:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_BOTH);
+      set_nibble(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_BOTH);
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
-      SET_NIBBLE(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_NONE);
+      set_nibble(remote_state, FUJITSU_GENERAL_SWING_NIBBLE, FUJITSU_GENERAL_SWING_NONE);
       break;
   }
 
@@ -378,23 +365,23 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   if (recv_message_type == FUJITSU_GENERAL_MESSAGE_TYPE_STATE) {
-    const uint8_t recv_tempertature = GET_NIBBLE(recv_message, FUJITSU_GENERAL_TEMPERATURE_NIBBLE);
+    const uint8_t recv_tempertature = get_nibble(recv_message, FUJITSU_GENERAL_TEMPERATURE_NIBBLE);
     const uint8_t offset_temperature = recv_tempertature + FUJITSU_GENERAL_TEMP_MIN;
     this->target_temperature = offset_temperature;
     ESP_LOGV(TAG, "Received temperature %d", offset_temperature);
 
-    const uint8_t recv_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_MODE_NIBBLE);
+    const uint8_t recv_mode = get_nibble(recv_message, FUJITSU_GENERAL_MODE_NIBBLE);
     ESP_LOGV(TAG, "Received mode %X", recv_mode);
     if ((recv_mode & FUJITSU_GENERAL_CLEAN_BIT) != 0) {
       ESP_LOGW(TAG, "Received a frame with the clean / 10 degree heat bit set, which is not supported");
     }
     this->mode = decode_mode(recv_mode, this->mode);
 
-    const uint8_t recv_fan_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_FAN_NIBBLE);
+    const uint8_t recv_fan_mode = get_nibble(recv_message, FUJITSU_GENERAL_FAN_NIBBLE);
     ESP_LOGV(TAG, "Received fan mode %X", recv_fan_mode);
     this->fan_mode = decode_fan_mode(recv_fan_mode, this->fan_mode);
 
-    const uint8_t recv_swing_mode = GET_NIBBLE(recv_message, FUJITSU_GENERAL_SWING_NIBBLE);
+    const uint8_t recv_swing_mode = get_nibble(recv_message, FUJITSU_GENERAL_SWING_NIBBLE);
     ESP_LOGV(TAG, "Received swing mode %X", recv_swing_mode);
     this->swing_mode = decode_swing_mode(recv_swing_mode);
 

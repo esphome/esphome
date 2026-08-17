@@ -85,7 +85,7 @@ TEST(FujitsuGeneralDecodeSwingModeTest, IgnoresTheReservedBits) {
   const climate::ClimateSwingMode expected[] = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                                 climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
   for (uint8_t field = 0x04; field <= 0x0F; field++) {
-    SCOPED_TRACE(field);
+    SCOPED_TRACE(static_cast<int>(field));
     EXPECT_EQ(decode_swing_mode(field), expected[field & 0b0011]);
   }
 }
@@ -187,18 +187,17 @@ constexpr CapturedFrame CAPTURED_FRAMES[] = {
      climate::CLIMATE_SWING_OFF},
 };
 
-// Same nibble order as the component: an odd index is a byte's low half, an even one its high half.
-uint8_t nibble(const uint8_t *frame, uint8_t index) { return (frame[index / 2] >> ((index % 2) ? 0 : 4)) & 0x0F; }
-
 }  // namespace
 
 TEST(FujitsuGeneralCaptureTest, DecodesEveryCapturedFrame) {
   for (const auto &frame : CAPTURED_FRAMES) {
     SCOPED_TRACE(frame.label);
-    // Nibble 19 is the mode, 21 the fan speed and 20 the swing, per the annotation.
-    EXPECT_EQ(decode_mode(nibble(frame.bytes, 19), climate::CLIMATE_MODE_OFF), frame.mode);
-    EXPECT_EQ(decode_fan_mode(nibble(frame.bytes, 21), climate::CLIMATE_FAN_ON), frame.fan_mode);
-    EXPECT_EQ(decode_swing_mode(nibble(frame.bytes, 20)), frame.swing_mode);
+    // Read through the component's own nibble helper and field indices, so this also fails if the
+    // frame layout the header records ever stops matching what on_receive() reads.
+    EXPECT_EQ(decode_mode(get_nibble(frame.bytes, FUJITSU_GENERAL_MODE_NIBBLE), climate::CLIMATE_MODE_OFF), frame.mode);
+    EXPECT_EQ(decode_fan_mode(get_nibble(frame.bytes, FUJITSU_GENERAL_FAN_NIBBLE), climate::CLIMATE_FAN_ON),
+              frame.fan_mode);
+    EXPECT_EQ(decode_swing_mode(get_nibble(frame.bytes, FUJITSU_GENERAL_SWING_NIBBLE)), frame.swing_mode);
   }
 }
 
