@@ -8,7 +8,7 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields) {
+void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -30,15 +30,15 @@ void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32
       }
     }
     this->flags_.has_own_name = false;
-    // Dynamic name - must calculate key at runtime
-    this->calc_entity_key_();
+    // Dynamic name - must calculate hash at runtime
+    this->calc_object_id_();
   } else {
     this->flags_.has_own_name = true;
-    // Static name - use pre-computed key if provided
-    if (entity_key != 0) {
-      this->entity_key_ = entity_key;
+    // Static name - use pre-computed hash if provided
+    if (object_id_hash != 0) {
+      this->object_id_hash_ = object_id_hash;
     } else {
-      this->calc_entity_key_();
+      this->calc_object_id_();
     }
   }
   // Unpack entity string table indices and flags from entity_fields.
@@ -147,15 +147,9 @@ std::string EntityBase::get_icon() const {
 }
 #endif  // !USE_ESP8266
 
-// Calculate the entity key directly from the raw name (no transformations)
-void EntityBase::calc_entity_key_() { this->entity_key_ = fnv1_hash_bytes(this->name_.c_str(), this->name_.size()); }
-
-// Reconstruct the OLD (pre-2026.8.0) object_id-based hash for preference key compatibility.
-// Named entities historically used the hash pre-computed by Python code generation, which
-// sanitized per UTF-8 code point; entities without their own name computed the hash at
-// runtime per byte. See https://github.com/esphome/backlog/issues/85
-uint32_t EntityBase::calc_old_object_id_hash_() const {
-  return fnv1_hash_object_id(this->name_.c_str(), this->name_.size(), this->flags_.has_own_name);
+// Calculate Object ID Hash directly from name using snake_case + sanitize
+void EntityBase::calc_object_id_() {
+  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
@@ -173,22 +167,16 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
 }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  // The old key hashed the sanitized object_id, so multiple entity names could collide on
-  // one key and overwrite each other's stored preferences; the new key hashes the raw name.
-  // See: https://github.com/esphome/backlog/issues/85
-  uint32_t old_key = this->old_preference_key_base_() ^ version;
-#ifdef USE_PREFERENCE_KEY_LOOKUP
-  uint32_t new_key = this->preference_key_base_() ^ version;
-  auto pref = global_preferences->make_preference(size, new_key);
-  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
-  SmallBufferWithHeapFallback<64> buffer(size);
-  migrate_preference(pref, buffer.get(), size, old_key, new_key);
-  return pref;
-#else
-  // Slot-based backends keep the old key: it is only a validity tag on a positional slot,
-  // so collisions cannot corrupt data there and keeping it preserves stored state.
-  return global_preferences->make_preference(size, old_key);
-#endif
+  // The key hashes the sanitized object_id, so multiple entity names can collide on one
+  // key and overwrite each other's stored preferences ("Living Room" and "living_room",
+  // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
+  // fix this, but they change the entity key API clients track, which the Home Assistant
+  // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  uint32_t key = this->get_preference_hash() ^ version;
+#pragma GCC diagnostic pop
+  return global_preferences->make_preference(size, key);
 }
 
 #ifdef USE_ENTITY_ICON
