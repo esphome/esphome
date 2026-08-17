@@ -593,7 +593,8 @@ static void raw_fire(Trigger<std::string> *on_complete, const char *op, StorageE
     ESP_LOGI(TAG, "Transfer done: raw %s", op);
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
 }
 // Report a pre-submission failure and fire the trigger once so it always fires exactly once.
 static void raw_fail(Trigger<std::string> *on_complete, const char *op, const std::string &msg) {
@@ -821,7 +822,8 @@ void perform_file_copy_async(const std::string &from, const std::string &to, boo
         ESP_LOGI(TAG, "Transfer done: %s", op);
       }
       if (on_complete != nullptr)
-        on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+        on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                      : std::string(error_to_string(result)));
     };
     StorageError err = is_move ? global_storage_worker->async_move(src, src_rel, dst, dst_rel, std::move(on_done),
                                                                    nullptr, /*overwrite=*/true)
@@ -899,7 +901,8 @@ static void mount_fire(bool mount, StorageError result, Trigger<std::string> *on
     ESP_LOGE(TAG, "%s failed (%s)", mount ? "mount" : "unmount", error_to_string(result));
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
 }
 
 void perform_mount(PathStorage *target, bool mount, Trigger<std::string> *on_complete) {
@@ -948,7 +951,8 @@ static void format_fire(Trigger<std::string> *on_complete, StorageError result) 
     ESP_LOGI(TAG, "filesystem formatted");
   }
   if (on_complete != nullptr)
-    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string() : std::string(error_to_string(result)));
+    on_complete->trigger(result == StorageError::STORAGE_ERROR_OK ? std::string()
+                                                                  : std::string(error_to_string(result)));
 }
 
 void perform_format_async(Storage *target, Trigger<std::string> *on_complete) {
