@@ -1,0 +1,128 @@
+esphome:
+  name: uart-mock-ld2420-giveup-test
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Exercises the sequence retry and give-up path: the module streams energy
+# frames and answers every command except the firmware version read. The
+# startup handshake must retry the whole sequence, eventually give up with a
+# warning instead of marking the component failed, and keep parsing the
+# stream afterwards. Runs for roughly 16 seconds of retry cadence.
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: true
+
+  # Module streams a valid energy frame (presence=1, distance=100) continuously
+  periodic_rx:
+    - interval: 250ms
+      data:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+  injections:
+    # Post-give-up parser probe (t=22s): 50 bytes of 0xFF overflow the frame
+    # buffer, which the parser answers with a "Max command length exceeded"
+    # warning. The give-up happens around t=16s, so seeing that warning after
+    # the give-up proves the stream parser is still running in the degraded
+    # state. (A distinct sensor value cannot serve as the probe: the 1s
+    # publish throttle races the constant periodic stream, and the API
+    # deduplicates repeated identical states.)
+    - delay: 22000ms
+      inject_rx:
+        [
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]
+
+  responses:
+    # Version read: matched so the catch-all cannot answer it, but never
+    # replied to; this is the command the handshake gives up on
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx: []
+
+    # Config mode enable: CMD_ENABLE_CONF (0x00FF)
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x02, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Config mode disable: CMD_DISABLE_CONF (0x00FE), sent blind before each
+    # sequence retry and on the final give-up
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFE, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Catch-all for the CMD_READ_ABD_PARAM (0x0008) reads
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x10, 0x00,
+          0x08, 0x01,
+          0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms

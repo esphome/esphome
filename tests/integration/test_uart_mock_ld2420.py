@@ -35,6 +35,16 @@ test_uart_mock_ld2420_restart_button (module restart action):
   boots. The component must not treat the tail bytes as proof the module is
   up and must only re-run its handshake after the module's first post-boot
   frame; transmitting into the boot window locks up real hardware.
+
+test_uart_mock_ld2420_cmd_retry (per-command resend):
+  The module ignores the first config mode enable command and only answers
+  the resend. The handshake must time out once, resend, and complete.
+
+test_uart_mock_ld2420_give_up (sequence retry and give-up):
+  The module streams and answers everything except the firmware version
+  read. The handshake must retry the whole sequence, eventually give up with
+  a warning instead of marking the component failed, and keep publishing
+  sensor data from the stream afterwards.
 """
 
 from __future__ import annotations
@@ -314,6 +324,173 @@ async def test_uart_mock_ld2420_delayed_boot(
     await _run_listen_first_test(
         yaml_config, run_compiled, api_client_connected, post_setup_distance=50.0
     )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2420_cmd_retry(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """First config command gets no reply; the resend must recover."""
+    loop = asyncio.get_running_loop()
+
+    setup_complete = loop.create_future()
+    resend_seen = loop.create_future()
+    failure_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "No reply to startup command" in line and not resend_seen.done():
+            resend_seen.set_result(True)
+        if (
+            "Module setup complete; firmware v2.0.0" in line
+            and not setup_complete.done()
+        ):
+            setup_complete.set_result(True)
+        if (
+            "marked FAILED" in line
+            or "Communication failed" in line
+            or "Module setup attempt" in line
+        ):
+            failure_lines.append(line)
+
+    collector = SensorStateCollector(
+        sensor_names=["moving_distance"],
+        binary_sensor_names=["has_target"],
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        collector.build_key_mapping(entities)
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # The first enable command is ignored, so a resend must happen
+        try:
+            await asyncio.wait_for(resend_seen, timeout=10.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the startup command resend log line")
+
+        # The resend gets an ack and the handshake completes normally
+        try:
+            await asyncio.wait_for(setup_complete, timeout=10.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for 'Module setup complete' after the resend")
+
+        try:
+            await collector.wait_for_all(timeout=5.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for sensor data. Received:\n"
+                f"  sensor_states: {collector.sensor_states}"
+            )
+
+        assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
+
+        # A single command resend must not burn a whole sequence retry or
+        # produce any failure log line
+        assert not failure_lines, f"Unexpected failure log lines: {failure_lines}"
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2420_give_up(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Version read never answers; retries then give-up, stream keeps working."""
+    loop = asyncio.get_running_loop()
+
+    sequence_retry_seen = loop.create_future()
+    give_up_seen = loop.create_future()
+    parser_alive_after_give_up = loop.create_future()
+    marked_failed_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "Module setup attempt 1 failed; retrying" in line and (
+            not sequence_retry_seen.done()
+        ):
+            sequence_retry_seen.set_result(True)
+        if "Firmware version and operating mode were never read" in line and (
+            not give_up_seen.done()
+        ):
+            give_up_seen.set_result(True)
+        # The overflow probe injected at t=22s (after the give-up) makes the
+        # parser log this warning only if it is still running
+        if (
+            "Max command length exceeded" in line
+            and give_up_seen.done()
+            and not parser_alive_after_give_up.done()
+        ):
+            parser_alive_after_give_up.set_result(True)
+        if "marked FAILED" in line:
+            marked_failed_lines.append(line)
+
+    collector = SensorStateCollector(
+        sensor_names=["moving_distance"],
+        binary_sensor_names=["has_target"],
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        collector.build_key_mapping(entities)
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # The version read times out three times, then the sequence retries
+        try:
+            await asyncio.wait_for(sequence_retry_seen, timeout=15.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the sequence retry log line")
+
+        # After all sequence retries the component gives up with a warning
+        try:
+            await asyncio.wait_for(give_up_seen, timeout=30.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the give-up log line")
+
+        # The stream must still be parsed after giving up; the overflow probe
+        # injected at t=22s only produces its warning if the parser runs
+        try:
+            await asyncio.wait_for(parser_alive_after_give_up, timeout=20.0)
+        except TimeoutError:
+            pytest.fail(
+                "No parser activity after the give-up; the stream parser "
+                "must keep running in the degraded state"
+            )
+
+        # The stream published sensor data while the handshake was failing
+        assert pytest.approx(100.0) in collector.sensor_states["moving_distance"], (
+            f"Expected the stream to publish distance=100, "
+            f"got: {collector.sensor_states['moving_distance']}"
+        )
+
+        # The whole point of the degraded state: the component keeps running
+        assert not marked_failed_lines, (
+            f"Component was marked failed: {marked_failed_lines}"
+        )
 
 
 @pytest.mark.asyncio

@@ -197,10 +197,13 @@ static int32_t get_firmware_int(const char *version_string) {
 }
 
 void LD2420Component::dump_config() {
+  // Setup no longer blocks, so the config dump usually runs before the
+  // version is read; do not present the "v0.0.0" placeholder as real
+  const int32_t firmware = ld2420::get_firmware_int(this->firmware_ver_);
   ESP_LOGCONFIG(TAG,
                 "LD2420:\n"
                 "  Firmware version: %7s",
-                this->firmware_ver_);
+                firmware > 0 ? this->firmware_ver_ : "unknown");
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Number:");
   LOG_NUMBER("  ", "Gate Timeout:", this->gate_timeout_number_);
@@ -222,7 +225,6 @@ void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
 #endif
-  const int32_t firmware = ld2420::get_firmware_int(this->firmware_ver_);
   if (firmware > 0 && firmware < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   }
@@ -240,6 +242,7 @@ void LD2420Component::begin_startup_() {
 
 void LD2420Component::begin_listen_() {
   this->rx_seen_ = false;
+  this->listen_drained_ = false;
   this->buffer_pos_ = 0;
   this->phase_start_ms_ = millis();
   this->startup_state_ = StartupState::STARTUP_STATE_LISTEN;
@@ -293,6 +296,9 @@ void LD2420Component::send_startup_cmd_() {
   this->startup_cmd_ = (uint8_t) frame.command;
   this->cmd_reply_.ack = false;
   this->cmd_reply_.error = 0;
+  // A short reply acks without filling every data word; zero them so stale
+  // values from the previous command cannot be stored as this command's data
+  memset(this->cmd_reply_.data, 0, sizeof(this->cmd_reply_.data));
   this->write_cmd_frame_(frame);
   this->phase_start_ms_ = millis();
 }
@@ -342,6 +348,11 @@ bool LD2420Component::startup_ack_check_() {
     // will not publish sensor data either.
     ESP_LOGE(TAG, "Firmware version and operating mode were never read");
   }
+#ifdef USE_NUMBER
+  // Publish whatever was read before giving up so the number entities show
+  // values next to the warning status instead of staying unknown forever
+  this->init_gate_config_numbers();
+#endif
   this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
   this->startup_state_ = StartupState::STARTUP_STATE_RUNNING;
   return false;
@@ -368,13 +379,17 @@ void LD2420Component::loop_startup_() {
       // stale data buffered before setup, or the ack to the blind config mode
       // exit. Ignore reception during a short settle window (clearing the rx
       // flag and the frame parser) so only data the module sends afterwards
-      // counts as proof that it is up and streaming. (A full-frame check
+      // counts as proof that it is up and streaming. The listen_drained_ flag
+      // guarantees at least one such drain pass even when the main loop
+      // stalls past the whole window, so bytes that arrived before the listen
+      // phase can never be mistaken for fresh data. (A full-frame check
       // cannot serve as that proof here: old-firmware text frames are only
       // recognized once the operating mode is known, which requires the very
       // handshake this phase gates.)
-      if (elapsed < STARTUP_LISTEN_SETTLE_MS) {
+      if (elapsed < STARTUP_LISTEN_SETTLE_MS || !this->listen_drained_) {
         this->drain_rx_();
         this->rx_seen_ = false;
+        this->listen_drained_ = true;
         return;
       }
       // The module locks up until power cycled if it receives data before it
@@ -485,6 +500,12 @@ void LD2420Component::apply_config_action() {
     ESP_LOGW(TAG, "Module is still starting up; ignoring");
     return;
   }
+  if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
+    // Setup gave up before the configuration was ever read; writing the
+    // unread config to the module's NVM would wipe its stored thresholds
+    ESP_LOGW(TAG, "Module configuration was never read; ignoring");
+    return;
+  }
   const uint8_t checksum = calc_checksum(&this->new_config, sizeof(this->new_config));
   if (checksum == calc_checksum(&this->current_config, sizeof(this->current_config))) {
     ESP_LOGD(TAG, "No configuration change detected");
@@ -506,14 +527,24 @@ void LD2420Component::apply_config_action() {
   this->init_gate_config_numbers();
 #endif
   this->set_system_mode(this->system_mode_);
-  this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
+  // Disable config mode to save new values in LD2420 nvm. The individual
+  // write commands do not report errors, so use the final ack as the best
+  // available signal before reporting the reconfiguration as healthy.
+  if (this->set_config_mode(false) == LD2420_ERROR_NONE) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+  }
   this->set_operating_mode(OP_NORMAL_MODE_STRING);
-  this->status_clear_warning();
 }
 
 void LD2420Component::factory_reset_action() {
   if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
     ESP_LOGW(TAG, "Module is still starting up; ignoring");
+    return;
+  }
+  if (ld2420::get_firmware_int(this->firmware_ver_) == 0) {
+    ESP_LOGW(TAG, "Module configuration was never read; ignoring");
     return;
   }
   ESP_LOGD(TAG, "Setting factory defaults");
@@ -536,12 +567,15 @@ void LD2420Component::factory_reset_action() {
   }
   memcpy(&this->current_config, &this->new_config, sizeof(this->new_config));
   this->set_system_mode(this->system_mode_);
-  this->set_config_mode(false);
+  if (this->set_config_mode(false) == LD2420_ERROR_NONE) {
+    this->status_clear_warning();
+  } else {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+  }
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
   this->refresh_gate_config_numbers();
 #endif
-  this->status_clear_warning();
 }
 
 void LD2420Component::restart_module_action() {
@@ -558,6 +592,10 @@ void LD2420Component::restart_module_action() {
 }
 
 void LD2420Component::revert_config_action() {
+  if (this->startup_state_ != StartupState::STARTUP_STATE_RUNNING) {
+    ESP_LOGW(TAG, "Module is still starting up; ignoring");
+    return;
+  }
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();

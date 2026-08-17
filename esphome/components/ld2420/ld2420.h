@@ -51,8 +51,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   };
 
   struct RegConfigT {
-    uint32_t move_thresh[TOTAL_GATES];
-    uint32_t still_thresh[TOTAL_GATES];
+    uint32_t move_thresh[TOTAL_GATES]{};
+    uint32_t still_thresh[TOTAL_GATES]{};
     uint16_t min_gate{0};
     uint16_t max_gate{0};
     uint16_t timeout{0};
@@ -218,6 +218,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   uint8_t startup_sequence_retries_{0};
   uint8_t startup_gate_{0};
   bool rx_seen_{false};
+  bool listen_drained_{false};
   uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   char firmware_ver_[8]{"v0.0.0"};
