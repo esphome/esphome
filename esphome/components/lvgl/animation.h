@@ -175,7 +175,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     this->update_callback_(data);
   }
 
-  float get_setup_priority() const override { return setup_priority::PROCESSOR - 20.0; }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR - 20.0f; }
   void set_duration(uint32_t duration) { this->duration_ = duration; }
   void set_start_delay(uint32_t start_delay) { this->start_delay_ = start_delay; }
   void add_timing(LvAnimationTiming *timing) { this->timings_.push_back(timing); }
