@@ -631,15 +631,18 @@ int LWIPRawImpl::internal_output_() {
   }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
-  if (err != ERR_OK && err != ERR_ABRT) {
+  if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = ECONNRESET;
-    return -1;
+    // ERR_ABRT: sometimes lwip returns it for no apparent reason; the
+    // connection works fine afterwards, and back with ESPAsyncTCP we
+    // indirectly also ignored this error, so treat it as success for
+    // flush purposes too.
+    // FIXME: figure out where this is returned and what it means in this context
+    if (err != ERR_ABRT) {
+      errno = ECONNRESET;
+      return -1;
+    }
   }
-  // ERR_ABRT: sometimes lwip returns it for no apparent reason; the connection
-  // works fine afterwards, and back with ESPAsyncTCP we indirectly also
-  // ignored this error, so treat it as success for flush purposes too.
-  // FIXME: figure out where this is returned and what it means in this context
 #ifdef USE_ESP8266
   // Data was written and flushed: yield to the SYS context so the segments
   // queued by tcp_output actually reach the WiFi driver; otherwise a written
