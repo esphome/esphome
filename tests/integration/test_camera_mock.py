@@ -63,8 +63,11 @@ async def test_camera_mock(
         client.request_image_stream()
         await asyncio.wait_for(stream_done, timeout=10)
 
-        # Frames are distinct and sequential per the mock's counter
+        # Frames are distinct, ordered, and fresh per the mock's counter.
+        # Not exactly consecutive: the API drops frames by design while the
+        # previous image is still being sent, so allow small gaps.
         counters = [_verify_frame(img) for img in images[:STREAM_FRAMES]]
         for prev, cur in zip(counters, counters[1:], strict=False):
-            assert cur == (prev + 1) & 0xFF, f"non-sequential frames: {counters}"
+            assert cur != prev, f"duplicate frames: {counters}"
+            assert ((cur - prev) & 0xFF) < 16, f"frames out of order: {counters}"
         assert counters[0] != first_counter, "stream should produce new frames"
