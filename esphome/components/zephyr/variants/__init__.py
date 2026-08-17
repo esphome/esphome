@@ -248,6 +248,16 @@ class ZephyrVariant:
     # series numbers peripheral instances instead (pwm20-pwm22), same convention as
     # uart_node_labels above. Empty = no PWM support wired up.
     pwm_node_labels: list[str] = field(default_factory=list)
+    # Largest `zephyr: watchdog_timeout:` this variant's WDT hardware can actually
+    # arm, in milliseconds. None = trust the generic 5-60s schema range (true for
+    # every variant whose WDT clock gives it a multi-minute+ ceiling). Some
+    # variants' watchdog peripheral is clocked too fast, or has too small a
+    # counter, for that range -- the driver just silently substitutes a shorter
+    # real timeout with no error when asked for more than it can give. Set this so
+    # config validation can catch that instead of a silent boot-loop on real
+    # hardware. Value should leave headroom below the real computed ceiling for
+    # rounding-table granularity, not sit exactly on it.
+    watchdog_max_timeout_ms: int | None = None
 
 
 def resolve_sdk(
