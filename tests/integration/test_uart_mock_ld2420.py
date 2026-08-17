@@ -27,6 +27,14 @@ test_uart_mock_ld2420_delayed_boot (module boots slower than the ESP):
   locks up until power cycled if it receives data before sending its first
   frame, so the component must stay quiet until the module talks, then
   complete setup and keep parsing the stream.
+
+test_uart_mock_ld2420_restart_button (module restart action):
+  Presses the restart button after setup. The restart hits the module mid
+  transmission, so a few tail bytes of the in-flight frame arrive right after
+  the restart command, then the module is silent for 2 seconds while it
+  boots. The component must not treat the tail bytes as proof the module is
+  up and must only re-run its handshake after the module's first post-boot
+  frame; transmitting into the boot window locks up real hardware.
 """
 
 from __future__ import annotations
@@ -306,6 +314,94 @@ async def test_uart_mock_ld2420_delayed_boot(
     await _run_listen_first_test(
         yaml_config, run_compiled, api_client_connected, post_setup_distance=50.0
     )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2420_restart_button(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Restart action must not transmit into the module's boot window."""
+    loop = asyncio.get_running_loop()
+
+    setup_complete_count = 0
+    first_setup_complete = loop.create_future()
+    second_setup_complete = loop.create_future()
+    restart_seen = False
+    module_frame_after_restart_seen = False
+    tx_into_boot_window = False
+    failure_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        nonlocal setup_complete_count, restart_seen, module_frame_after_restart_seen
+        nonlocal tx_into_boot_window
+        if "Module setup complete; firmware v2.0.0" in line:
+            setup_complete_count += 1
+            if setup_complete_count == 1 and not first_setup_complete.done():
+                first_setup_complete.set_result(True)
+            elif setup_complete_count == 2 and not second_setup_complete.done():
+                second_setup_complete.set_result(True)
+        if "[ld2420" in line and "Restarting" in line:
+            restart_seen = True
+        if restart_seen and "RX inject 45 bytes" in line:
+            # The module's first frame after its simulated 2 s boot
+            module_frame_after_restart_seen = True
+        if (
+            restart_seen
+            and not module_frame_after_restart_seen
+            and "uart_mock" in line
+            and "TX " in line
+            and "FF:00:02:00" in line
+        ):
+            # Config mode enable transmitted before the module's first
+            # post-boot frame; on real hardware this locks the module up
+            tx_into_boot_window = True
+        if "marked FAILED" in line or "Communication failed" in line:
+            failure_lines.append(line)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda s: None))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # Wait for the initial startup handshake to finish
+        try:
+            await asyncio.wait_for(first_setup_complete, timeout=10.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for the initial 'Module setup complete'")
+
+        # Restart the module; the button automation also injects the in-flight
+        # frame tail immediately and the module's first frame 2 s later
+        restart_btn = find_entity(entities, "restart_module", ButtonInfo)
+        assert restart_btn is not None, "Restart Module button not found"
+        client.button_command(restart_btn.key)
+
+        # The handshake must complete again after the module comes back
+        try:
+            await asyncio.wait_for(second_setup_complete, timeout=15.0)
+        except TimeoutError:
+            pytest.fail(
+                "Timeout waiting for 'Module setup complete' after the restart. "
+                "The component did not recover from the module restart."
+            )
+
+        assert not tx_into_boot_window, (
+            "Component transmitted the config handshake into the module's "
+            "boot window after a restart; the in-flight frame tail bytes must "
+            "not count as proof the module is up"
+        )
+
+        assert not failure_lines, f"Unexpected failure log lines: {failure_lines}"
 
 
 @pytest.mark.asyncio
