@@ -725,12 +725,13 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico"):
+            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico", "stm32"):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
                 # so it doesn't need this and setting it there would just warn.
-                # silabs (EFR32MG24, Cortex-M33) needs the same treatment as nordic.
+                # silabs (EFR32MG24, Cortex-M33) and stm32 (STM32L4, Cortex-M4) need
+                # the same treatment as nordic.
                 zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
