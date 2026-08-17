@@ -83,7 +83,9 @@ storage::StorageError SPIMRAM::write_physical(uint64_t offset, const uint8_t *bu
   return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
-storage::StorageError SPIMRAM::erase_physical(uint64_t offset, size_t len) { return storage::StorageError::STORAGE_ERROR_OK; }
+storage::StorageError SPIMRAM::erase_physical(uint64_t offset, size_t len) {
+  return storage::StorageError::STORAGE_ERROR_OK;
+}
 
 storage::StorageError SPIMRAM::format() { return this->BinaryStorage::format(); }
 

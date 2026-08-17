@@ -492,7 +492,8 @@ storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
 
   // Whole device: one chip erase instead of thousands of sector commands.
   if (offset == 0 && len == capacity)
-    return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+    return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK
+                              : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   // The block opcodes are only usable when the configured sector size tiles them evenly --
   // with an exotic sector_size_ the sector opcode stays the only safe choice.
@@ -521,7 +522,8 @@ storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
 }
 
 storage::StorageError SPIFlash::format() {
-  return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK
+                            : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {

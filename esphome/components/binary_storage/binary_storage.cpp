@@ -75,7 +75,8 @@ storage::StorageError BinaryStorage::format() {
   // filesystem region below it -- fill() goes through the window wrappers, so it cannot.
   uint64_t raw_cap = this->get_raw_capacity();
   uint32_t written = this->fill(0xFF);
-  return (written == raw_cap) ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return (written == raw_cap) ? storage::StorageError::STORAGE_ERROR_OK
+                              : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 // ===========================================================================================
@@ -180,7 +181,8 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
   }
 
   // Physical, deliberately: the FS region sits below the raw window, which would refuse it.
-  return (this->read_physical(address, static_cast<uint8_t *>(buffer), size, nullptr) == storage::StorageError::STORAGE_ERROR_OK)
+  return (this->read_physical(address, static_cast<uint8_t *>(buffer), size, nullptr) ==
+          storage::StorageError::STORAGE_ERROR_OK)
              ? 0
              : -1;
 }

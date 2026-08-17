@@ -47,7 +47,9 @@ class FakeByteMedium : public storage::RawStorage {
     *put = len;
     return StorageError::STORAGE_ERROR_OK;
   }
-  StorageError erase(uint64_t, size_t) override { return StorageError::STORAGE_ERROR_NOT_SUPPORTED; }  // in-place: no erase
+  StorageError erase(uint64_t, size_t) override {
+    return StorageError::STORAGE_ERROR_NOT_SUPPORTED;
+  }  // in-place: no erase
   StorageError format() override {
     std::fill(this->data_.begin(), this->data_.end(), 0xCC);
     return StorageError::STORAGE_ERROR_OK;

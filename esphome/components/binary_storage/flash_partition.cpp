@@ -188,7 +188,8 @@ storage::StorageError FlashPartition::unmount() {
 }
 
 storage::StorageError FlashPartition::format() {
-  return this->format_lfs_() ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  return this->format_lfs_() ? storage::StorageError::STORAGE_ERROR_OK
+                             : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 }
 
 storage::StorageError FlashPartition::sync() {
@@ -395,7 +396,8 @@ storage::StorageError FlashPartition::mkdir(const char *path) {
   this->build_path_(full_path, sizeof(full_path), path);
 
   if (::mkdir(full_path, 0755) != 0)
-    return errno == EEXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+    return errno == EEXIST ? storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS
+                           : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   return storage::StorageError::STORAGE_ERROR_OK;
 }
@@ -412,7 +414,8 @@ storage::StorageError FlashPartition::rmdir(const char *path) {
   // Non-recursive by contract -- a populated directory must fail with NOT_EMPTY
   // (recursive delete is provided by the free storage::remove_recursive() helper).
   if (::rmdir(full_path) != 0)
-    return errno == ENOTEMPTY ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+    return errno == ENOTEMPTY ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY
+                              : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
 
   return storage::StorageError::STORAGE_ERROR_OK;
 }
