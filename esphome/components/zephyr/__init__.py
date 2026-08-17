@@ -7,6 +7,8 @@ import subprocess
 import textwrap
 from typing import TypedDict
 
+import yaml
+
 from esphome import git
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -86,6 +88,7 @@ from .const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
     ZEPHYR_VARIANT_STM32L4,
@@ -697,6 +700,13 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
+    elif zephyr_variant_family() == "renesas":
+        # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
+        # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every renesas-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RENESAS")
     elif zephyr_variant_family() == "rpi_pico":
         # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
         # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
@@ -826,13 +836,19 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico", "stm32"):
+            if zephyr_variant_family() in (
+                "nordic",
+                "silabs",
+                "rpi_pico",
+                "stm32",
+                "renesas",
+            ):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
                 # so it doesn't need this and setting it there would just warn.
-                # silabs (EFR32MG24, Cortex-M33) and stm32 (STM32L4, Cortex-M4) need
-                # the same treatment as nordic.
+                # silabs (EFR32MG24, Cortex-M33), stm32 (STM32L4, Cortex-M4), and
+                # renesas (RA4M1, Cortex-M4) need the same treatment as nordic.
                 zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
@@ -1351,10 +1367,25 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     else:
         raise NotImplementedError
 
-    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully
-    # qualified and/or carries an "@<revision>" suffix.
+    # board.yml usually lives under boards/<vendor>/<bare name>/, even if `board:` is
+    # fully qualified and/or carries an "@<revision>" suffix -- but "bare name" isn't
+    # universal: most vendors (Renesas, Nordic, Raspberry Pi, ...) name the directory
+    # identically to board.yml's own `name:`, but some (e.g. Arduino's `uno_r4`, whose
+    # board.yml declares `name: arduino_uno_r4`) drop the vendor prefix from the
+    # directory instead. Try the fast, common-case glob first; fall back to scanning
+    # every board.yml under boards/ for a matching `name:` field, same fallback
+    # dts_lookup.py's own _find_board_dir() already relies on for this reason.
     parts = parse_board_string(board)
     board_yml_matches = list(root.glob(f"boards/*/{parts.name}/board.yml"))
+    if not board_yml_matches:
+        for board_yml in root.glob("boards/*/**/board.yml"):
+            try:
+                doc = yaml.safe_load(board_yml.read_text())
+            except (OSError, yaml.YAMLError):
+                continue
+            if isinstance(doc, dict) and doc.get("board", {}).get("name") == parts.name:
+                board_yml_matches = [board_yml]
+                break
     if not board_yml_matches:
         raise cv.Invalid(
             f"Could not find boards/*/{parts.name}/board.yml under this board_source. "
@@ -1508,8 +1539,8 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
             )
     else:
         max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
-        # A variant whose ceiling sits below the normal 5s floor can't reach 5s
-        # either -- push the floor down to match.
+        # A variant whose ceiling sits below the normal 5s floor (e.g. RA4M1's
+        # 5000ms) can't reach 5s either -- push the floor down to match.
         min_timeout_ms = 5000
         if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
             min_timeout_ms = max_timeout_ms
@@ -1616,6 +1647,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RA4M1:
+        from .variants.ra4m1 import config_schema as _ra4m1_config_schema
+
+        config = _ra4m1_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import config_schema as _rp2040_config_schema
 
@@ -1752,6 +1787,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.stm32l4 import to_code as _stm32_to_code
 
         await _stm32_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_RA4M1:
+        from .variants.ra4m1 import to_code as _ra4m1_to_code
+
+        await _ra4m1_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import to_code as _rp2040_to_code

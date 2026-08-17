@@ -21,6 +21,10 @@ _PORT_BANKED_FAMILIES = {"nordic"}
 
 _LETTERED_PIN_RE = re.compile(r"P([A-Za-z])(\d+)")
 _DOTTED_PIN_RE = re.compile(r"P(\d+)\.(\d+)")
+# Renesas RA's own notation: port digit + 2-digit zero-padded pin, no separator
+# (e.g. "P106" = port 1 pin 06).
+_CONCAT_PIN_RE = re.compile(r"P(\d)(\d{2})")
+_CONCAT_PORT_FAMILIES = {"renesas"}
 
 
 def _validate_gpio_pin(value):
@@ -75,6 +79,23 @@ def _validate_gpio_pin(value):
                     f"0-{variant_info.gpio_port_width - 1}."
                 )
             return port * variant_info.gpio_port_width + pin
+        if (m := _CONCAT_PIN_RE.fullmatch(value)) is not None:
+            from . import zephyr_data
+            from .variants import VARIANTS
+
+            variant_info = VARIANTS.get(zephyr_data().get("variant"))
+            if variant_info is None or variant_info.family not in _CONCAT_PORT_FAMILIES:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: this variant does not use "
+                    f"'P<port><pin>' notation."
+                )
+            port, pin = int(m.group(1)), int(m.group(2))
+            if pin >= variant_info.gpio_port_width:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: port {port} only has pins "
+                    f"0-{variant_info.gpio_port_width - 1}."
+                )
+            return port * variant_info.gpio_port_width + pin
         try:
             return int(value)
         except ValueError:
@@ -102,7 +123,9 @@ async def zephyr_pin_to_code(config):
     node_suffix = port_labels[port] if port_labels is not None else str(port)
     args = [
         config[CONF_ID],
-        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{node_suffix}))"),
+        cg.RawExpression(
+            f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({variant_info.gpio_node_prefix}{node_suffix}))"
+        ),
         gpio_port_width,
     ]
     if port_labels is not None:
@@ -111,6 +134,11 @@ async def zephyr_pin_to_code(config):
         args.append(f"P{node_suffix.upper()}")
     elif variant_info.family in _PORT_BANKED_FAMILIES:
         args.append(f"P{port}.")
+    elif variant_info.family in _CONCAT_PORT_FAMILIES:
+        # Renesas RA's own notation always zero-pads the pin to 2 digits (P106, not
+        # P16) -- the trailing `True` tells dump_summary() to format accordingly.
+        args.append(f"P{port}")
+        args.append(True)
     var = cg.new_Pvariable(*args)
     cg.add(var.set_pin(num))
     # Only set if true to avoid bloating setup() function
