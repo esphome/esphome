@@ -1573,9 +1573,9 @@ static enums::SerialProxyStatus serial_proxy_result_to_status(serial_proxy::Seri
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED:
       return enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
     case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ERROR:
-    default:
       return enums::SERIAL_PROXY_STATUS_ERROR;
   }
+  return enums::SERIAL_PROXY_STATUS_ERROR;  // Unreachable; all enum values handled above
 }
 
 static void send_serial_proxy_ack(APIConnection *conn, uint32_t instance, enums::SerialProxyRequestType type,
