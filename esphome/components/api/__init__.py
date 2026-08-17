@@ -502,12 +502,17 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        # Both libraries build themselves as ESP-IDF components, so on ESP-IDF
+        # Both libraries build themselves as ESP-IDF components, so on ESP32
         # they are pulled straight from the component registry instead of going
-        # through ESPHome's PlatformIO-library converter. Not on the Arduino
-        # framework: arduino-esp32 brings its own espressif/libsodium (on IDF
-        # < 6.0), and IDF refuses to build with two managed components whose
-        # names differ only by namespace.
+        # through ESPHome's PlatformIO-library converter. Deliberately not
+        # conditional on the toolchain: wireguard splits on the same condition,
+        # and if the two disagree one of them converts a second libsodium next
+        # to the managed one.
+        #
+        # Not on the Arduino framework though: arduino-esp32 depends on
+        # espressif/libsodium of its own (on IDF < 6.0), so the component
+        # manager would see two managed components whose names match once the
+        # namespace is stripped, and refuse to pick between them.
         if CORE.is_esp32 and not CORE.using_arduino:
             from esphome.components.esp32 import add_idf_component
 
