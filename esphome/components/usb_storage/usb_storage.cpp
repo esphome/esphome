@@ -36,7 +36,8 @@ storage::StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool
     case FR_EXIST:
       return storage::StorageError::STORAGE_ERROR_ALREADY_EXISTS;
     case FR_DENIED:
-      return for_rmdir ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY : storage::StorageError::STORAGE_ERROR_PERMISSION_DENIED;
+      return for_rmdir ? storage::StorageError::STORAGE_ERROR_NOT_EMPTY
+                       : storage::StorageError::STORAGE_ERROR_PERMISSION_DENIED;
     case FR_INVALID_NAME:
       return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
     case FR_NOT_READY:
@@ -44,7 +45,8 @@ storage::StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool
     case FR_WRITE_PROTECTED:
       return storage::StorageError::STORAGE_ERROR_PERMISSION_DENIED;
     default:
-      return is_write ? storage::StorageError::STORAGE_ERROR_WRITE_ERROR : storage::StorageError::STORAGE_ERROR_READ_ERROR;
+      return is_write ? storage::StorageError::STORAGE_ERROR_WRITE_ERROR
+                      : storage::StorageError::STORAGE_ERROR_READ_ERROR;
   }
 }
 
@@ -721,7 +723,8 @@ storage::StorageError USBStorageDevice::open(const char *path, storage::FileHand
       case ENFILE:
         return storage::StorageError::STORAGE_ERROR_TOO_MANY_OPEN_FILES;
       default:
-        return mode == storage::OpenMode::OPEN_MODE_READ ? storage::StorageError::STORAGE_ERROR_READ_ERROR : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+        return mode == storage::OpenMode::OPEN_MODE_READ ? storage::StorageError::STORAGE_ERROR_READ_ERROR
+                                                         : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
     }
   }
 
