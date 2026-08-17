@@ -18,37 +18,54 @@ from .const import ZEPHYR_VARIANT_NATIVE_SIM
 _LOGGER = logging.getLogger(__name__)
 
 
-def _find_domain_build_dir(build_dir: Path) -> Path:
-    """Locate the default image domain's own build directory.
+def _find_runners_yaml(build_dir: Path) -> Path:
+    """Locate the runners.yaml describing the board's default flash runner.
 
     run_west_build() always passes --sysbuild, which fans a single `west build`
     out into one build directory per image domain (mcuboot, app, ...), each with
-    its own `zephyr/` subdir (runners.yaml, .config, edt.pickle, ...), plus a
-    top-level `domains.yaml` naming which domain is the default. Every domain
-    targets the same physical board, so the default domain's build dir is a
-    faithful stand-in for the whole build.
+    its own `zephyr/runners.yaml`, plus a top-level `domains.yaml` naming which
+    domain is the default. Every domain targets the same physical board, so the
+    default domain's runners.yaml is a faithful stand-in for the whole build.
     """
     domains_yaml_path = Path(build_dir) / "domains.yaml"
     try:
         with domains_yaml_path.open(encoding="utf-8") as f:
             domains_yaml = yaml.safe_load(f)
         default_domain = domains_yaml["default"]
-        return Path(
-            next(
-                d["build_dir"]
-                for d in domains_yaml["domains"]
-                if d["name"] == default_domain
-            )
+        domain_build_dir = next(
+            d["build_dir"]
+            for d in domains_yaml["domains"]
+            if d["name"] == default_domain
         )
+        return Path(domain_build_dir) / "zephyr" / "runners.yaml"
     except (OSError, yaml.YAMLError, KeyError, TypeError, StopIteration):
-        # Not a sysbuild (multi-domain) build -- everything lives directly
+        # Not a sysbuild (multi-domain) build -- runners.yaml lives directly
         # under build_dir.
-        return Path(build_dir)
+        return Path(build_dir) / "zephyr" / "runners.yaml"
 
 
-def _find_runners_yaml(build_dir: Path) -> Path:
-    """Locate the runners.yaml describing the board's default flash runner."""
-    return _find_domain_build_dir(build_dir) / "zephyr" / "runners.yaml"
+def log_available_runners(build_dir: Path) -> None:
+    """Log the board's available west flash runners and which one is the
+    default, read from runners.yaml (see resolve_dev_id() for another
+    consumer of the same file).
+    """
+    runners_yaml_path = _find_runners_yaml(build_dir)
+    try:
+        with runners_yaml_path.open(encoding="utf-8") as f:
+            runners_yaml = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as e:
+        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
+        return
+    runners_yaml = runners_yaml or {}
+    runners = runners_yaml.get("runners")
+    flash_runner = runners_yaml.get("flash-runner")
+    if not runners:
+        return
+    _LOGGER.info(
+        "Available flash runners: %s (default: %s)",
+        ", ".join(runners),
+        flash_runner or "none",
+    )
 
 
 def _runner_supports_dev_id(
@@ -89,11 +106,19 @@ def _runner_supports_dev_id(
     return result.stdout.strip() == "True"
 
 
-def get_flash_runner(build_dir: Path) -> str | None:
-    """Return the board's default west flash runner name (e.g. "dfu-util",
-    "pyocd", "jlink"), read from runners.yaml (written by the CMake configure
-    step, see _find_runners_yaml() for the sysbuild wrinkle). None if it can't
-    be determined (build not yet configured, unreadable file, etc.).
+def resolve_dev_id(
+    python_executable: Path, framework_path: Path, build_dir: Path, port: str
+) -> str | None:
+    """Resolve a `-i/--dev-id` value to disambiguate which probe `west flash` uses.
+
+    Reads the board's default flash runner from runners.yaml (written by the
+    CMake configure step, see _find_runners_yaml() for the sysbuild wrinkle) and,
+    only when that runner is known to support device IDs (see
+    _runner_supports_dev_id()), looks up the USB serial number backing the
+    selected serial `port`. Returns None whenever the runner is unknown/unsupported
+    or the serial number can't be determined -- callers should treat None as
+    "don't pass -i", which reproduces today's single-probe auto-detect behavior
+    exactly.
     """
     runners_yaml_path = _find_runners_yaml(build_dir)
     try:
@@ -102,47 +127,8 @@ def get_flash_runner(build_dir: Path) -> str | None:
     except (OSError, yaml.YAMLError) as e:
         _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
         return None
-    return (runners_yaml or {}).get("flash-runner")
 
-
-def log_available_runners(build_dir: Path) -> None:
-    """Log the board's available west flash runners and which one is the
-    default, read from runners.yaml (see get_flash_runner() for the same
-    file used to drive actual flashing decisions).
-    """
-    runners_yaml_path = _find_runners_yaml(build_dir)
-    try:
-        with runners_yaml_path.open(encoding="utf-8") as f:
-            runners_yaml = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
-        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
-        return
-    runners_yaml = runners_yaml or {}
-    runners = runners_yaml.get("runners")
-    flash_runner = runners_yaml.get("flash-runner")
-    if not runners:
-        return
-    _LOGGER.info(
-        "Available flash runners: %s (default: %s)",
-        ", ".join(runners),
-        flash_runner or "none",
-    )
-
-
-def resolve_dev_id(
-    python_executable: Path, framework_path: Path, build_dir: Path, port: str
-) -> str | None:
-    """Resolve a `-i/--dev-id` value to disambiguate which probe `west flash` uses.
-
-    Reads the board's default flash runner (see get_flash_runner()) and, only
-    when that runner is known to support device IDs (see
-    _runner_supports_dev_id()), looks up the USB serial number backing the
-    selected serial `port`. Returns None whenever the runner is unknown/unsupported
-    or the serial number can't be determined -- callers should treat None as
-    "don't pass -i", which reproduces today's single-probe auto-detect behavior
-    exactly.
-    """
-    flash_runner = get_flash_runner(build_dir)
+    flash_runner = (runners_yaml or {}).get("flash-runner")
     if flash_runner is None or not _runner_supports_dev_id(
         python_executable, framework_path, flash_runner
     ):
