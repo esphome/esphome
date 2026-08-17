@@ -82,10 +82,16 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     synchronous=True,
 )
 @automation.register_action(
-    "cm1106.abc_enable", CM1106ABCEnableAction, CALIBRATION_ACTION_SCHEMA
+    "cm1106.abc_enable",
+    CM1106ABCEnableAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "cm1106.abc_disable", CM1106ABCDisableAction, CALIBRATION_ACTION_SCHEMA
+    "cm1106.abc_disable",
+    CM1106ABCDisableAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def cm1106_calibration_to_code(config, action_id, template_arg, args) -> None:
     """Service code generation entry point."""
