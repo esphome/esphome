@@ -126,6 +126,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
   if (uart_is_driver_installed(this->uart_num_)) {
+    this->driver_installed_ = false;
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
@@ -146,6 +147,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->driver_installed_ = true;
 
   // uart_param_config must be called after uart_driver_install and before any
   // other uart_set_*() calls. The driver installation resets the UART peripheral
@@ -301,12 +303,19 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
-  if (!this->is_ready()) {
-    // Another component used the bus before setup() installed the driver, or
-    // after the bus failed. Calling the driver would fail and mark this
-    // component failed, which would then skip the driver installation entirely
-    // and permanently disable the bus, so drop the data instead.
-    ESP_LOGW(TAG, "write_array called while the bus is not ready; dropping %zu bytes", len);
+  if (!this->driver_installed_) {
+    // Another component used the bus before setup() installed the driver.
+    // Calling the driver would fail and mark this component failed, which
+    // would then skip the driver installation entirely and permanently
+    // disable the bus, so drop the data instead. Warn only once: consumers
+    // writing from loop() can hit this on every iteration of the setup
+    // phase's wait loops, which would flood the log.
+    if (!this->warned_not_ready_) {
+      this->warned_not_ready_ = true;
+      ESP_LOGW(TAG, "write_array called before the driver was installed; dropping %zu bytes", len);
+    } else {
+      ESP_LOGV(TAG, "write_array called before the driver was installed; dropping %zu bytes", len);
+    }
     return;
   }
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
@@ -322,7 +331,7 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
 }
 
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
-  if (!this->is_ready()) {
+  if (!this->driver_installed_) {
     return false;
   }
   if (!this->check_read_timeout_())
@@ -342,7 +351,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
-  if (len == 0 || !this->is_ready()) {
+  if (len == 0 || !this->driver_installed_) {
     return false;
   }
   size_t length_to_read = len;
@@ -368,12 +377,12 @@ size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
-  if (!this->is_ready()) {
-    // The driver is not installed yet (or the bus failed); asking the driver
-    // would fail and mark the whole bus failed, so report no data instead.
-    // A stale peeked byte must not be counted either: the read paths refuse
-    // to deliver it while the bus is not ready, so advertising it would make
-    // the common `while (available()) read()` pattern spin forever.
+  if (!this->driver_installed_) {
+    // The driver is not installed yet; asking the driver would fail and mark
+    // the whole bus failed, so report no data instead. A stale peeked byte
+    // must not be counted either: the read paths refuse to deliver it while
+    // the driver is missing, so advertising it would make the common
+    // `while (available()) read()` pattern spin forever.
     return 0;
   }
 
@@ -390,7 +399,7 @@ size_t IDFUARTComponent::available() {
 }
 
 UARTFlushResult IDFUARTComponent::flush() {
-  if (!this->is_ready()) {
+  if (!this->driver_installed_) {
     // Nothing can be pending before the driver is installed
     return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
