@@ -227,7 +227,8 @@ TEST(Base64, EncodeProducesCanonicalAlphabet) {
     bytes[n++] = ((i + 1) & 0x0F) << 4 | ((i + 2) >> 2);
     bytes[n++] = ((i + 2) & 0x03) << 6 | (i + 3);
   }
-  EXPECT_EQ(base64_encode(bytes, sizeof(bytes)), BASE64_ALPHABET);  // NOLINT
+  std::string encoded = base64_encode(bytes, sizeof(bytes));  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(encoded, BASE64_ALPHABET);
 }
 
 // Decode the alphabet then re-encode: locks the encode and decode mappings together
@@ -235,7 +236,8 @@ TEST(Base64, DecodeCanonicalAlphabetRoundTrip) {
   uint8_t buf[48];
   size_t len = base64_decode(std::string(BASE64_ALPHABET), buf, sizeof(buf));
   EXPECT_EQ(len, 48u);
-  EXPECT_EQ(base64_encode(buf, len), BASE64_ALPHABET);  // NOLINT
+  std::string reencoded = base64_encode(buf, len);  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(reencoded, BASE64_ALPHABET);
 }
 
 TEST(Base64, DecodeBase64UrlMatchesStandard) {
@@ -268,7 +270,9 @@ TEST(Base64, Rfc4648Vectors) {
       {"foobar", "Zm9vYmFy"},
   };
   for (const auto &v : vectors) {
-    EXPECT_EQ(base64_encode(reinterpret_cast<const uint8_t *>(v.plain), strlen(v.plain)), v.encoded);  // NOLINT
+    const auto *plain = reinterpret_cast<const uint8_t *>(v.plain);
+    std::string encoded = base64_encode(plain, strlen(v.plain));  // NOLINT(esphome-heap-allocation) - host test
+    EXPECT_EQ(encoded, v.encoded);
     uint8_t buf[8];
     size_t len = base64_decode(reinterpret_cast<const uint8_t *>(v.encoded), strlen(v.encoded), buf, sizeof(buf));
     EXPECT_EQ(len, strlen(v.plain));
