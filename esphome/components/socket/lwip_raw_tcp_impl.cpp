@@ -535,6 +535,14 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+#ifdef USE_ESP8266
+  // Yield to the SYS context so queued WiFi RX reaches lwip before we read.
+  // CONT and SYS are cooperative on ESP8266; without this, inbound segments
+  // can sit unprocessed for seconds during API connection setup while the
+  // main loop polls a socket that lwip has not been given time to fill.
+  // Rate-limited: yields only if 1ms has passed since the last yield.
+  optimistic_yield(1000UL);
+#endif
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -602,6 +610,12 @@ ssize_t LWIPRawImpl::internal_write_(const void *buf, size_t len) {
 }
 
 int LWIPRawImpl::internal_output_() {
+#ifdef USE_ESP8266
+  // Yield to the SYS context so the segments queued by tcp_output actually
+  // reach the WiFi driver; otherwise a written frame can sit untransmitted
+  // until an unrelated SYS slot, delaying the noise handshake by seconds.
+  optimistic_yield(1000UL);
+#endif
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
