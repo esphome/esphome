@@ -165,6 +165,8 @@ SD_MMC_SCHEMA = cv.Schema(
 SD_SPI_SCHEMA = (
     cv.Schema(
         {
+            # Only exists together with esp32 enable_exfat -- see storage/__init__.py.
+            FILE_SYSTEM_SCHEMA_ENTRY: validate_file_system_value,
             cv.GenerateID(): cv.declare_id(SdSpi),
             cv.Optional(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_CMD_PIN): pins.internal_gpio_output_pin_number,

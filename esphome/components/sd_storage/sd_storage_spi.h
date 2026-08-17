@@ -10,9 +10,6 @@
 
 #ifdef USE_ESP_IDF
 #include "sdmmc_cmd.h"
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-#include "driver/sdspi_host.h"
-#endif
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
 #endif

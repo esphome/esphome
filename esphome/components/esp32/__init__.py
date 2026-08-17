@@ -2311,7 +2311,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             get_esp32_variant(),
         )
     elif enable_exfat:
-        raise cv.Invalid(
+        raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
@@ -2974,6 +2974,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
+    from esphome.espidf import variant_to_idf_target
     from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
 
     dest = Path(CORE.build_path) / "components" / "fatfs"
@@ -2990,9 +2991,9 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     if not src.is_dir():
         # First-ever build: the toolchain would install the IDF minutes from now anyway --
         # front-load it so the copy source exists.
-        check_esp_idf_install(idf_ver, targets=[variant])
+        check_esp_idf_install(idf_ver, targets=[variant_to_idf_target(variant)])
     if not src.is_dir():
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: cannot locate the ESP-IDF fatfs component to patch "
             f"(looked in {src})"
         )
@@ -3006,7 +3007,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             rf"#define[ \t]+{key}[ \t]+\S+", f"#define {key} {value}", text
         )
         if n != 1:
-            raise cv.Invalid(
+            raise EsphomeError(
                 f"enable_exfat: patching {key} in the IDF's ffconf.h failed -- "
                 f"unexpected FatFs layout in IDF {idf_ver}"
             )
@@ -3028,7 +3029,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     guards = "".join(f"#ifndef {sym}\n#define {sym} 0\n#endif\n" for sym in symbols)
     include_line = '#include "sdkconfig.h"\n'
     if include_line not in text:
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: unexpected ffconf.h layout -- no sdkconfig.h include to anchor on"
         )
     text = text.replace(
