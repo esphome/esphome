@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_BUFFER_DURATION,
     CONF_CHANNEL,
     CONF_ID,
-    CONF_MODE,
     CONF_NEVER,
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
@@ -54,28 +53,18 @@ I2SCommFmt = i2s_audio_ns.enum("I2SCommFmt", is_class=True)
 
 I2SCommFmt = i2s_audio_ns.enum("I2SCommFmt", is_class=True)
 
-i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
-INTERNAL_DAC_OPTIONS = {
-    CONF_LEFT: i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
-    CONF_RIGHT: i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
-    CONF_STEREO: i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
-}
-
 i2s_comm_format_t = cg.global_ns.enum("i2s_comm_format_t")
 I2C_COMM_FMT_OPTIONS = {
     "stand_i2s": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_I2S,
     "stand_msb": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MSB,
     "stand_pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_SHORT,
     "stand_pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_PCM_LONG,
-    "stand_max": i2s_comm_format_t.I2S_COMM_FORMAT_STAND_MAX,
     "i2s_msb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_MSB,
     "i2s_lsb": i2s_comm_format_t.I2S_COMM_FORMAT_I2S_LSB,
     "pcm": i2s_comm_format_t.I2S_COMM_FORMAT_PCM,
     "pcm_short": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_SHORT,
     "pcm_long": i2s_comm_format_t.I2S_COMM_FORMAT_PCM_LONG,
 }
-
-INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
 def _set_num_channels_from_config(config):
@@ -142,10 +131,7 @@ def _select_speaker_class(config):
 
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
-    if config[CONF_DAC_TYPE] == "internal":
-        if variant not in INTERNAL_DAC_VARIANTS:
-            raise cv.Invalid(f"{variant} does not have an internal DAC")
-    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
+    if variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
         # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an
         # 8-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it
         # at config time rather than emitting corrupted output at runtime.
@@ -180,11 +166,6 @@ BASE_SCHEMA = (
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": BASE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_MODE): cv.enum(INTERNAL_DAC_OPTIONS, lower=True),
-                }
-            ),
             "external": BASE_SCHEMA.extend(
                 {
                     cv.Required(
@@ -208,13 +189,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    if config[CONF_DAC_TYPE] == "internal":
-        raise cv.Invalid(
-            "Internal DAC is no longer supported. Use an external I2S DAC instead."
-        )
-    if config[CONF_I2S_COMM_FMT] == "stand_max":
-        raise cv.Invalid("I2S standard max format is no longer supported.")
-
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode specific validations
         if config[CONF_SAMPLE_RATE] not in [44100, 48000]:

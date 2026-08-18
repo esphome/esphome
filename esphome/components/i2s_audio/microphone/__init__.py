@@ -1,7 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, microphone
-from esphome.components.adc import validate_adc_pin
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -29,14 +28,12 @@ from .. import (
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
-CONF_ADC_PIN = "adc_pin"
 CONF_CORRECT_DC_OFFSET = "correct_dc_offset"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
 
-INTERNAL_ADC_VARIANTS = [esp32.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3, esp32.VARIANT_ESP32P4]
 
 i2s_pdm_dsr_t = cg.global_ns.enum("i2s_pdm_dsr_t")
@@ -48,21 +45,15 @@ I2S_PDM_DSR = {
 
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
-    if config[CONF_ADC_TYPE] == "external":
-        if config[CONF_PDM] and variant not in PDM_VARIANTS:
-            raise cv.Invalid(f"{variant} does not support PDM")
-        if (
-            variant == esp32.VARIANT_ESP32
-            and config.get(CONF_BITS_PER_SAMPLE) == 8
-            and config.get(CONF_CHANNEL) in (CONF_LEFT, CONF_RIGHT)
-        ):
-            raise cv.Invalid("8-bit mono mode is not supported on ESP32")
-        return config
-    if config[CONF_ADC_TYPE] == "internal":
-        if variant not in INTERNAL_ADC_VARIANTS:
-            raise cv.Invalid(f"{variant} does not have an internal ADC")
-        return config
-    raise NotImplementedError
+    if config[CONF_PDM] and variant not in PDM_VARIANTS:
+        raise cv.Invalid(f"{variant} does not support PDM")
+    if (
+        variant == esp32.VARIANT_ESP32
+        and config.get(CONF_BITS_PER_SAMPLE) == 8
+        and config.get(CONF_CHANNEL) in (CONF_LEFT, CONF_RIGHT)
+    ):
+        raise cv.Invalid("8-bit mono mode is not supported on ESP32")
+    return config
 
 
 def _validate_channel(config):
@@ -109,11 +100,6 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
-            "internal": BASE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_ADC_PIN): validate_adc_pin,
-                }
-            ),
             "external": BASE_SCHEMA.extend(
                 {
                     cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
@@ -132,16 +118,6 @@ CONFIG_SCHEMA = cv.All(
     _set_stream_limits,
     validate_mclk_divisible_by_3,
 )
-
-
-def _final_validate(config):
-    if config[CONF_ADC_TYPE] == "internal":
-        raise cv.Invalid(
-            "Internal ADC is no longer supported. Use an external I2S microphone instead."
-        )
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
