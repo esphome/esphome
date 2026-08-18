@@ -73,7 +73,7 @@ class SdMmc : public SdStorageBase {
   // window between diskio registration and f_mount so a requested filesystem can be
   // enforced BEFORE the one mount that happens. Wrapper-based builds are untouched.
   esp_err_t mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_config);
-  void unmount_manual_();
+  storage::StorageError unmount_manual_();
 #endif
 
   SdFileHandle handle_pool_[MAX_OPEN_FILES]{};

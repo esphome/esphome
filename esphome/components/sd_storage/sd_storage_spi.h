@@ -80,7 +80,7 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   // Manual mirror of esp_vfs_fat_sdspi_mount -- same public-API steps, with the probe
   // window between diskio registration and f_mount (see SdMmc::mount_manual_).
   esp_err_t mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_config, uint32_t max_freq_khz);
-  void unmount_manual_();
+  storage::StorageError unmount_manual_();
 #endif
 #endif
 
