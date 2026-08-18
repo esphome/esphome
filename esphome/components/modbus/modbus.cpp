@@ -225,7 +225,7 @@ uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
   // If a CRC match is never found, the buffer will eventually overflow and be cleared.
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
-  const size_t max_len = std::min(size, size_t(MAX_FRAME_SIZE));
+  const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
   if (min_length > max_len)
     return 0;
   // The Modbus CRC (poly 0xa001, refin/refout false) keeps its running state in the returned value,
