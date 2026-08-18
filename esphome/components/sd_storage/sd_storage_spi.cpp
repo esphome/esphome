@@ -195,9 +195,10 @@ storage::StorageError SdSpi::unmount_manual_() {
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
   if (pdrv != FF_DRV_NOT_USED) {
     char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
-    if (f_mount(nullptr, drv, 0) != FR_OK) {
-      ESP_LOGW(TAG_SPI, "f_mount(unmount) failed");
-      err = StorageError::STORAGE_ERROR_NOT_READY;
+    FRESULT res = f_mount(nullptr, drv, 0);
+    if (res != FR_OK) {
+      ESP_LOGW(TAG_SPI, "f_mount(unmount) failed (FRESULT %d)", res);
+      err = fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
     }
     ff_diskio_register(pdrv, nullptr);
   } else {
