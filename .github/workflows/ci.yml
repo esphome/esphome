@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -368,7 +368,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -475,10 +475,21 @@ jobs:
       - name: Build benchmarks
         id: build
         run: |
+          # pipefail: without it a failed build is masked by the grep/cut
+          # pipeline below, leaving BINARY empty and silently dropping every
+          # C++ benchmark from the run while the job still reports success.
+          set -o pipefail
           . venv/bin/activate
-          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
-          # --build-only prints BUILD_BINARY=<path> to stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
+          BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          export BENCHMARK_LIB_CONFIG
+          # --build-only prints BUILD_BINARY=<path> to stdout; the grep is
+          # non-fatal so a missing marker reaches the check below instead of
+          # tripping errexit at this assignment
+          BINARY=$(script/cpp_benchmark.py --all --build-only | { grep '^BUILD_BINARY=' || true; } | tail -1 | cut -d= -f2-)
+          if [ -z "$BINARY" ]; then
+            echo "::error::Benchmark build did not report a binary path"
+            exit 1
+          fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
@@ -1106,7 +1117,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
