@@ -118,6 +118,12 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   template<typename... Ts> friend class ResetEnergyAction;
 
   void publish_values_(std::span<const uint8_t> data);
+  void read_finished_();
+
+  // Register reads accepted by the hub but not yet resolved by a terminal callback. Lets update()
+  // tell a genuine queue refusal (no answer is coming) from a duplicate absorbed into a read that is
+  // already in flight (an answer is still owed).
+  uint8_t reads_outstanding_{0};
 
   // Per-phase sensors
   sensor::Sensor *voltage_a_{nullptr};

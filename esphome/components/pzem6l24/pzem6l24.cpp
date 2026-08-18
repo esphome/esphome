@@ -101,11 +101,11 @@ enum RegType : uint8_t {
   REG_I32,  // two registers, signed, low word first
 };
 
-// One decodable quantity: where it lives in the payload, how to read it, which sensor it feeds and
-// what to call it in the debug log.
+// One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds.
+// Deliberately no name column: 35 string literals would land in DRAM on ESP8266, and dump_config()
+// already names every sensor from flash.
 struct SensorEntry {
   sensor::Sensor *PZEM6L24::*member;
-  const char *name;
   uint8_t offset;
   RegType type;
   float scale;
@@ -121,6 +121,7 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
   if (!is_register_read(request_pdu)) {
     return;
   }
+  this->read_finished_();
 
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < PZEM_PAYLOAD_SIZE) {
@@ -138,12 +139,14 @@ void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionC
     ESP_LOGW(TAG, "PZEM-6L24 rejected the energy reset with exception 0x%02X", static_cast<uint8_t>(exception_code));
     return;
   }
+  this->read_finished_();
   ESP_LOGW(TAG, "PZEM-6L24 returned exception 0x%02X to the register read", static_cast<uint8_t>(exception_code));
   this->publish_values_({});
 }
 
 bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
   if (is_register_read(request_pdu)) {
+    this->read_finished_();
     ESP_LOGW(TAG, "PZEM-6L24 did not respond to the register read");
     this->publish_values_({});
   } else {
@@ -155,6 +158,7 @@ bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
 // An accepted request that was dropped before it reached the wire (clear_tx_queue_for_address()).
 void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
   if (is_register_read(request_pdu)) {
+    this->read_finished_();
     ESP_LOGW(TAG, "Register read was dropped before it was sent");
     this->publish_values_({});
   } else {
@@ -162,11 +166,12 @@ void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
   }
 }
 
-// Publishes every configured sensor from `data`, the 128-byte register payload. An empty span means the
-// meter could not be read, and publishes NAN instead so the entities go unavailable rather than holding
-// a stale reading.
+// Publishes every configured sensor from `data`, the 128-byte register payload. Anything shorter means
+// the meter could not be read, and publishes NAN instead so the entities go unavailable rather than
+// holding a stale reading. The length is checked here, next to the offsets that depend on it, so no
+// caller can decode past the end of a short span.
 void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
-  const bool available = !data.empty();
+  const bool available = data.size() >= PZEM_PAYLOAD_SIZE;
 
   // Helper: decode a little-endian 16-bit value at byte offset i.
   auto get_u16 = [&](size_t i) -> uint16_t { return (uint16_t(data[i + 1]) << 8) | uint16_t(data[i]); };
@@ -185,52 +190,52 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
   // same grid frequency, so phase A's register is reported as the representative value.
   static constexpr SensorEntry SENSORS[] = {
       // Voltages (×0.1 V)
-      {&PZEM6L24::voltage_a_, "Voltage A", 0, REG_U16, 0.1f},
-      {&PZEM6L24::voltage_b_, "Voltage B", 2, REG_U16, 0.1f},
-      {&PZEM6L24::voltage_c_, "Voltage C", 4, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_a_, 0, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_b_, 2, REG_U16, 0.1f},
+      {&PZEM6L24::voltage_c_, 4, REG_U16, 0.1f},
       // Currents (×0.01 A)
-      {&PZEM6L24::current_a_, "Current A", 6, REG_U16, 0.01f},
-      {&PZEM6L24::current_b_, "Current B", 8, REG_U16, 0.01f},
-      {&PZEM6L24::current_c_, "Current C", 10, REG_U16, 0.01f},
+      {&PZEM6L24::current_a_, 6, REG_U16, 0.01f},
+      {&PZEM6L24::current_b_, 8, REG_U16, 0.01f},
+      {&PZEM6L24::current_c_, 10, REG_U16, 0.01f},
       // Frequency (×0.01 Hz)
-      {&PZEM6L24::frequency_, "Frequency", 12, REG_U16, 0.01f},
+      {&PZEM6L24::frequency_, 12, REG_U16, 0.01f},
       // Active powers (×0.1 W, signed)
-      {&PZEM6L24::active_power_a_, "Active Power A", 28, REG_I32, 0.1f},
-      {&PZEM6L24::active_power_b_, "Active Power B", 32, REG_I32, 0.1f},
-      {&PZEM6L24::active_power_c_, "Active Power C", 36, REG_I32, 0.1f},
-      {&PZEM6L24::total_active_power_, "Total Active Power", 64, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_a_, 28, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_b_, 32, REG_I32, 0.1f},
+      {&PZEM6L24::active_power_c_, 36, REG_I32, 0.1f},
+      {&PZEM6L24::total_active_power_, 64, REG_I32, 0.1f},
       // Reactive powers (×0.1 var, signed)
-      {&PZEM6L24::reactive_power_a_, "Reactive Power A", 40, REG_I32, 0.1f},
-      {&PZEM6L24::reactive_power_b_, "Reactive Power B", 44, REG_I32, 0.1f},
-      {&PZEM6L24::reactive_power_c_, "Reactive Power C", 48, REG_I32, 0.1f},
-      {&PZEM6L24::total_reactive_power_, "Total Reactive Power", 68, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_a_, 40, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_b_, 44, REG_I32, 0.1f},
+      {&PZEM6L24::reactive_power_c_, 48, REG_I32, 0.1f},
+      {&PZEM6L24::total_reactive_power_, 68, REG_I32, 0.1f},
       // Apparent powers (×0.1 VA, signed)
-      {&PZEM6L24::apparent_power_a_, "Apparent Power A", 52, REG_I32, 0.1f},
-      {&PZEM6L24::apparent_power_b_, "Apparent Power B", 56, REG_I32, 0.1f},
-      {&PZEM6L24::apparent_power_c_, "Apparent Power C", 60, REG_I32, 0.1f},
-      {&PZEM6L24::total_apparent_power_, "Total Apparent Power", 72, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_a_, 52, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_b_, 56, REG_I32, 0.1f},
+      {&PZEM6L24::apparent_power_c_, 60, REG_I32, 0.1f},
+      {&PZEM6L24::total_apparent_power_, 72, REG_I32, 0.1f},
       // Power factors (×0.01), packed two per register:
       //   register 0x0026 (bytes 76/77): lo-byte = phase B, hi-byte = phase A
       //   register 0x0027 (bytes 78/79): lo-byte = combined, hi-byte = phase C
-      {&PZEM6L24::power_factor_a_, "Power Factor A", 77, REG_U8, 0.01f},
-      {&PZEM6L24::power_factor_b_, "Power Factor B", 76, REG_U8, 0.01f},
-      {&PZEM6L24::power_factor_c_, "Power Factor C", 79, REG_U8, 0.01f},
-      {&PZEM6L24::total_power_factor_, "Total Power Factor", 78, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_a_, 77, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_b_, 76, REG_U8, 0.01f},
+      {&PZEM6L24::power_factor_c_, 79, REG_U8, 0.01f},
+      {&PZEM6L24::total_power_factor_, 78, REG_U8, 0.01f},
       // Active energies (×0.1 kWh, unsigned)
-      {&PZEM6L24::active_energy_a_, "Active Energy A", 80, REG_U32, 0.1f},
-      {&PZEM6L24::active_energy_b_, "Active Energy B", 84, REG_U32, 0.1f},
-      {&PZEM6L24::active_energy_c_, "Active Energy C", 88, REG_U32, 0.1f},
-      {&PZEM6L24::total_active_energy_, "Total Active Energy", 116, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_a_, 80, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_b_, 84, REG_U32, 0.1f},
+      {&PZEM6L24::active_energy_c_, 88, REG_U32, 0.1f},
+      {&PZEM6L24::total_active_energy_, 116, REG_U32, 0.1f},
       // Reactive energies (×0.1 kvarh, unsigned)
-      {&PZEM6L24::reactive_energy_a_, "Reactive Energy A", 92, REG_U32, 0.1f},
-      {&PZEM6L24::reactive_energy_b_, "Reactive Energy B", 96, REG_U32, 0.1f},
-      {&PZEM6L24::reactive_energy_c_, "Reactive Energy C", 100, REG_U32, 0.1f},
-      {&PZEM6L24::total_reactive_energy_, "Total Reactive Energy", 120, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_a_, 92, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_b_, 96, REG_U32, 0.1f},
+      {&PZEM6L24::reactive_energy_c_, 100, REG_U32, 0.1f},
+      {&PZEM6L24::total_reactive_energy_, 120, REG_U32, 0.1f},
       // Apparent energies (×0.1 kVAh, unsigned)
-      {&PZEM6L24::apparent_energy_a_, "Apparent Energy A", 104, REG_U32, 0.1f},
-      {&PZEM6L24::apparent_energy_b_, "Apparent Energy B", 108, REG_U32, 0.1f},
-      {&PZEM6L24::apparent_energy_c_, "Apparent Energy C", 112, REG_U32, 0.1f},
-      {&PZEM6L24::total_apparent_energy_, "Total Apparent Energy", 124, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_a_, 104, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_b_, 108, REG_U32, 0.1f},
+      {&PZEM6L24::apparent_energy_c_, 112, REG_U32, 0.1f},
+      {&PZEM6L24::total_apparent_energy_, 124, REG_U32, 0.1f},
   };
 
   for (const auto &entry : SENSORS) {
@@ -241,7 +246,9 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
       sens->publish_state(NAN);
       continue;
     }
-    float raw;
+    // No default: every RegType is handled, so a width added later fails to compile rather than
+    // decoding as something plausible but wrong.
+    float raw = 0.0f;
     switch (entry.type) {
       case REG_U8:
         raw = data[entry.offset];
@@ -253,23 +260,29 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
         raw = get_u32(entry.offset);
         break;
       case REG_I32:
-      default:
         raw = get_i32(entry.offset);
         break;
     }
-    const float value = raw * entry.scale;
-    ESP_LOGD(TAG, "%s: %.2f", entry.name, value);
-    sens->publish_state(value);
+    sens->publish_state(raw * entry.scale);
   }
 }
 
 void PZEM6L24::update() {
-  // A refused request gets no callback at all, so the entities have to be blanked here or they would
-  // keep showing the previous poll's readings indefinitely.
-  if (!this->read_input_registers(0x0000, PZEM_REGISTER_COUNT)) {
-    ESP_LOGW(TAG, "Register read was not queued");
-    this->publish_values_({});
+  if (this->read_input_registers(0x0000, PZEM_REGISTER_COUNT)) {
+    this->reads_outstanding_++;
+    return;
   }
+  // queue_pdu() refused. That is either a genuine refusal - nothing was accepted and no callback of any
+  // kind will follow - or this poll being absorbed as an over-cap duplicate of a read already in flight,
+  // which still resolves in its own terminal. Only the first leaves the entities without an answer, so
+  // only the first blanks them; blanking on a congested bus would flap every entity to unavailable while
+  // the meter is answering fine.
+  if (this->reads_outstanding_ > 0) {
+    ESP_LOGD(TAG, "Register read merged into one already in flight; the bus is running behind");
+    return;
+  }
+  ESP_LOGW(TAG, "Register read was not queued");
+  this->publish_values_({});
 }
 
 void PZEM6L24::dump_config() {
@@ -277,6 +290,7 @@ void PZEM6L24::dump_config() {
                 "PZEM-6L24:\n"
                 "  Address: 0x%02X",
                 this->address_);
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->voltage_a_);
   LOG_SENSOR("  ", "Voltage B", this->voltage_b_);
   LOG_SENSOR("  ", "Voltage C", this->voltage_c_);
@@ -312,6 +326,13 @@ void PZEM6L24::dump_config() {
   LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_);
   LOG_SENSOR("  ", "Total Reactive Energy", this->total_reactive_energy_);
   LOG_SENSOR("  ", "Total Apparent Energy", this->total_apparent_energy_);
+}
+
+// One terminal has arrived for a register read, so that read is no longer in flight.
+void PZEM6L24::read_finished_() {
+  if (this->reads_outstanding_ > 0) {
+    this->reads_outstanding_--;
+  }
 }
 
 void PZEM6L24::reset_energy_(ResetPhase phase_option) {
