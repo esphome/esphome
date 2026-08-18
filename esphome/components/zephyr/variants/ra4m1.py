@@ -71,6 +71,19 @@ _ADC_AIN_MAP = {
     1285: "AN025",
 }
 
+# GPIO -> (index into pwm_node_labels, local channel A=0/B=1) for RA4M1's GPT-based
+# PWM hardware. Only GTIOC1A/GTIOC1B -- port4 pin5 and port4 pin6, i.e. flat pin
+# numbers 4*16+5=69 and 4*16+6=70 under this variant's gpio_port_width=16 encoding
+# -- are wired to pwm1, the only PWM instance this codebase enables (see
+# pwm_node_labels below). Matches ek_ra4m1's own default pinctrl
+# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)); Zephyr's own
+# pinctrl-ra.h only defines RA_PSEL_GPT0/GPT1 in this SDK version, so no other GPT
+# channel is routable yet regardless of pin.
+_PWM_PIN_MAP = {
+    69: (0, 0),
+    70: (0, 1),
+}
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_RA4M1
 VARIANT = ZephyrVariant(
@@ -101,6 +114,8 @@ VARIANT = ZephyrVariant(
     adc_ain_map=_ADC_AIN_MAP,
     # Only pwm1 is enabled in ek_ra4m1.dts.
     pwm_node_labels=["pwm1"],
+    pwm_channels_per_block=2,
+    pwm_pin_map=_PWM_PIN_MAP,
 )
 
 
