@@ -237,19 +237,23 @@ bool OpenThreadComponent::teardown() {
       // If the lock can't be acquired here, the OT task is likely wedged, so give up on
       // teardown entirely rather than forcing the stop stage without the lock -- we're
       // already shutting down, so this is an accepted low-risk failure mode.
-      auto lock = InstanceLock::try_acquire(100);
-      if (!lock) {
-        ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
-        return true;
-      }
-      otInstance *instance = lock.get_instance();
-      otSrpClientClearHostAndServices(instance);
-      otSrpClientBuffersFreeAllServices(instance);
-      if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Failed to disable Thread during teardown");
-      }
-      if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
-        ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+      {
+        auto lock = InstanceLock::try_acquire(100);
+        if (!lock) {
+          ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+          return true;
+        }
+        otInstance *instance = lock.get_instance();
+        otSrpClientClearHostAndServices(instance);
+        otSrpClientBuffersFreeAllServices(instance);
+        if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+        }
+        if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+        }
+        // Release the lock before stopping -- openthread_stop_() (esp_openthread_stop() on
+        // ESP32) acquires it internally, and the lock is not recursive.
       }
       // stop openthread
       global_openthread_component = nullptr;
