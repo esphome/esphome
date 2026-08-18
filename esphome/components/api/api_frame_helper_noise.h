@@ -14,7 +14,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Pos 1-2: encrypted payload size (16-bit big-endian)
   // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
   // Pos 7+: actual payload data
-  static constexpr uint8_t HEADER_PADDING = 1 + 2 + 2 + 2;  // indicator + size + type + data_len
+  static constexpr uint8_t HEADER_PADDING = noise::FRAME_HEADER_SIZE + 2 + 2;  // frame header + type + data_len
 
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
       : APIFrameHelper(std::move(socket)), ctx_(ctx) {
@@ -67,7 +67,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Fixed-size header buffer for noise protocol:
   // 1 byte for indicator + 2 bytes for message size (16-bit value, not varint)
   // Note: Maximum message size is UINT16_MAX (65535), with a limit of 128 bytes during handshake phase
-  uint8_t rx_header_buf_[3];
+  uint8_t rx_header_buf_[noise::FRAME_HEADER_SIZE];
   uint8_t rx_header_buf_len_ = 0;
   // 4 bytes total, no padding
 };

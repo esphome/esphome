@@ -38,5 +38,31 @@ class NoiseContext {
 /// Convert a noise error code to a readable error
 const LogString *noise_err_to_logstr(int err);
 
+// Shared wire format for the noise transports (api and ota): every frame is
+// FRAME_INDICATOR, a 16-bit big-endian payload length, then the payload.
+// Handshake payloads start with a status byte; transport payloads end with
+// the ChaCha20-Poly1305 MAC.
+static constexpr uint8_t FRAME_INDICATOR = 0x01;
+static constexpr size_t FRAME_HEADER_SIZE = 3;
+static constexpr size_t MAC_SIZE = 16;
+static constexpr size_t MAX_HANDSHAKE_SIZE = 128;
+static constexpr uint8_t HANDSHAKE_STATUS_OK = 0x00;
+static constexpr uint8_t HANDSHAKE_STATUS_REJECT = 0x01;
+
+inline void write_frame_header(uint8_t *buf, uint16_t payload_len) {
+  buf[0] = FRAME_INDICATOR;
+  buf[1] = (uint8_t) (payload_len >> 8);
+  buf[2] = (uint8_t) payload_len;
+}
+
+/// Fill buf with a handshake reject payload (status byte plus the reason
+/// text, PROGMEM aware); returns the payload length. buf needs capacity for
+/// the status byte plus the truncated reason.
+size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *reason);
+
+/// Reject reason for a failed handshake read. The MAC failure string is a
+/// wire contract: clients match it to report a wrong key.
+const LogString *reject_reason_for(int err);
+
 }  // namespace esphome::noise
 #endif  // USE_NOISE

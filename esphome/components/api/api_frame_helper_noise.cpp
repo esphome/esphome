@@ -20,6 +20,12 @@ namespace esphome::api {
 
 using noise::noise_err_to_logstr;
 
+// api_frame_helper.h keeps its own MAX_HANDSHAKE_SIZE because that header is
+// also compiled in plaintext-only builds without the noise component; keep
+// the two definitions from drifting apart.
+static_assert(MAX_HANDSHAKE_SIZE == noise::MAX_HANDSHAKE_SIZE,
+              "api and noise component handshake size limits must match");
+
 static const char *const TAG = "api.noise";
 #ifdef USE_ESP8266
 static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
@@ -158,9 +164,9 @@ APIError APINoiseFrameHelper::loop() {
  */
 APIError APINoiseFrameHelper::try_read_frame_() {
   // read header
-  if (rx_header_buf_len_ < 3) {
+  if (rx_header_buf_len_ < noise::FRAME_HEADER_SIZE) {
     // no header information yet
-    uint8_t to_read = 3 - rx_header_buf_len_;
+    uint8_t to_read = static_cast<uint8_t>(noise::FRAME_HEADER_SIZE) - rx_header_buf_len_;
     ssize_t received = this->socket_->read(&rx_header_buf_[rx_header_buf_len_], to_read);
     APIError err = handle_socket_read_result_(received);
     if (err != APIError::OK) {
@@ -172,7 +178,7 @@ APIError APINoiseFrameHelper::try_read_frame_() {
       return APIError::WOULD_BLOCK;
     }
 
-    if (rx_header_buf_[0] != 0x01) {
+    if (rx_header_buf_[0] != noise::FRAME_INDICATOR) {
       state_ = State::FAILED;
       HELPER_LOG("Bad indicator byte %u", rx_header_buf_[0]);
       return APIError::BAD_INDICATOR;
@@ -332,7 +338,7 @@ APIError APINoiseFrameHelper::state_action_handshake_read_() {
   if (this->rx_buf_.empty()) {
     this->send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-  } else if (this->rx_buf_[0] != 0x00) {
+  } else if (this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
     HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
     this->send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
@@ -373,27 +379,7 @@ APIError APINoiseFrameHelper::state_action_handshake_write_() {
 void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reason) {
   // Max reject message: "Bad handshake packet len" (24) + 1 (failure byte) = 25 bytes
   uint8_t data[32];
-  data[0] = 0x01;  // failure
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
-  size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  reason_len = std::min(reason_len, sizeof(data) - 1);
-  if (reason_len > 0) {
-    memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
-  }
-#else
-  // Normal memory access
-  const char *reason_str = LOG_STR_ARG(reason);
-  size_t reason_len = strlen(reason_str);
-  reason_len = std::min(reason_len, sizeof(data) - 1);
-  if (reason_len > 0) {
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
-    std::memcpy(data + 1, reason_str, reason_len);
-  }
-#endif
-
-  size_t data_size = reason_len + 1;
+  size_t data_size = noise::format_reject_payload(data, sizeof(data), reason);
 
   // temporarily remove failed state
   auto orig_state = state_;
@@ -456,12 +442,10 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 // Returns APIError::OK on success.
 APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
                                                      uint16_t &encrypted_len_out) {
-  // Write noise header
-  buf_start[0] = 0x01;  // indicator
-  // buf_start[1], buf_start[2] to be set after encryption
+  // The noise frame header is written after encryption, when the size is known
 
   // Write message header (to be encrypted)
-  constexpr uint8_t msg_offset = 3;
+  constexpr uint8_t msg_offset = noise::FRAME_HEADER_SIZE;
   buf_start[msg_offset] = static_cast<uint8_t>(message_type >> 8);      // type high byte
   buf_start[msg_offset + 1] = static_cast<uint8_t>(message_type);       // type low byte
   buf_start[msg_offset + 2] = static_cast<uint8_t>(payload_size >> 8);  // data_len high byte
@@ -479,11 +463,10 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_
   if (aerr != APIError::OK)
     return aerr;
 
-  // Fill in the encrypted size
-  buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
-  buf_start[2] = static_cast<uint8_t>(mbuf.size);
+  // Fill in the frame header now that the encrypted size is known
+  noise::write_frame_header(buf_start, static_cast<uint16_t>(mbuf.size));
 
-  encrypted_len_out = static_cast<uint16_t>(3 + mbuf.size);  // indicator + size + encrypted data
+  encrypted_len_out = static_cast<uint16_t>(noise::FRAME_HEADER_SIZE + mbuf.size);
   return APIError::OK;
 }
 
@@ -533,9 +516,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   uint8_t header[3];
-  header[0] = 0x01;  // indicator
-  header[1] = (uint8_t) (len >> 8);
-  header[2] = (uint8_t) len;
+  noise::write_frame_header(header, len);
 
   if (len == 0) {
     return this->write_raw_buf_(header, 3);
