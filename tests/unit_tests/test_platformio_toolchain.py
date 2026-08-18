@@ -536,8 +536,8 @@ def test_ccache_env_strips_win_long_path_prefix(setup_core: Path) -> None:
 
     assert env["ESPHOME_CCACHE_ENABLE"] == "1"
     assert env["ESPHOME_CCACHE_PATH"] == stripped
-    # The probe itself may use the path as found; CreateProcess accepts it.
-    assert mock_probe.call_args[0][0] == [prefixed, "--version"]
+    # The probe validates the exact string the build will execute.
+    assert mock_probe.call_args[0][0] == [stripped, "--version"]
 
 
 def test_ccache_env_opt_out(setup_core: Path) -> None:
@@ -782,11 +782,13 @@ _WINDOWS_ONLY = pytest.mark.skipif(
 
 
 @_WINDOWS_ONLY
-def test_ccache_env_probe_accepts_verbatim_path(setup_core: Path) -> None:
-    r"""The real probe runs a ``\\?\`` binary, so it alone cannot catch #18399.
+def test_ccache_env_real_probe_runs_stripped_path(setup_core: Path) -> None:
+    r"""With a ``\\?\`` which result, the real probe runs the stripped binary.
 
-    ``CreateProcess`` accepts extended-length paths; only ``cmd.exe`` rejects
-    them, which is why the exported path must be stripped.
+    The probe therefore validates the exact string the build will execute
+    through ``cmd.exe``; probing the verbatim path instead would pass even
+    when the stripped path is unusable (``CreateProcess`` accepts
+    extended-length paths, ``cmd.exe`` does not).
     """
     CORE.build_path = setup_core / "build" / "test"
     assert not sys.executable.startswith("\\\\?\\")

@@ -279,10 +279,12 @@ def _ccache_env() -> dict[str, str]:
     The path is exported rather than looked up again inside SCons because
     ``shutil.which`` can return a Windows extended-length ``\\?\`` path
     (ESPHome Desktop puts its bundled ccache on PATH that way). Such a path
-    runs fine through ``CreateProcess``, which is how the probe and ESP-IDF
-    invoke it, but SCons runs every compile through ``cmd.exe``, which fails
-    on it with "The system cannot find the path specified." (#18399), so the
-    prefix is stripped here with ``_strip_win_long_path_prefix()``.
+    runs fine through ``CreateProcess``, which is how ESP-IDF invokes it,
+    but SCons runs every compile through ``cmd.exe``, which fails on it with
+    "The system cannot find the path specified." (#18399), so the prefix is
+    stripped here with ``_strip_win_long_path_prefix()`` before the
+    runnability probe, which therefore validates the exact string the build
+    will execute.
     ``ESPHOME_CCACHE_PATH`` is an internal channel, not a user setting: the
     script only honours it together with ``ESPHOME_CCACHE_ENABLE=1``, and this
     function always sets both or neither.
@@ -310,12 +312,17 @@ def _ccache_env() -> dict[str, str]:
     if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
         return {"ESPHOME_CCACHE_ENABLE": "0"}
     ccache_path = shutil.which("ccache")
+    if ccache_path is None:
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    # Strip before probing so the probe validates (and the failure warning
+    # names) the exact string the build will execute through cmd.exe.
+    ccache_path = _strip_win_long_path_prefix(ccache_path)
     # An explicit opt-in skips the runnability probe.
-    if ccache_path is None or (not explicit and not _ccache_runs(ccache_path)):
+    if not explicit and not _ccache_runs(ccache_path):
         return {"ESPHOME_CCACHE_ENABLE": "0"}
     env = {
         "ESPHOME_CCACHE_ENABLE": "1",
-        "ESPHOME_CCACHE_PATH": _strip_win_long_path_prefix(ccache_path),
+        "ESPHOME_CCACHE_PATH": ccache_path,
     }
     # build_path is set during preload for every config-loading command, so it
     # being unset means a caller built the environment too early; fail loudly
