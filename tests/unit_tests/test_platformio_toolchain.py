@@ -748,15 +748,11 @@ def _scons_win32_spawn(
 ) -> int:
     r"""Mirror of ``SCons.Platform.win32.spawn``: every command runs via ``cmd.exe /C``.
 
-    SCons is not importable in the test environment (PlatformIO fetches it as
-    a package at build time), so the few lines that matter are mirrored here;
-    they are what turns a ``\\?\`` program path into a failed compile step.
-    SCons calls ``os.spawnve`` with ``[sh, "/C", escaped]``, which the C
-    runtime joins with spaces into the ``CreateProcess`` command line; the
-    same command line is handed to ``CreateProcess`` here through
-    ``subprocess`` (a string is passed through untouched on Windows), which
-    avoids the C runtime's ``spawnve``, known to be fragile inside a larger
-    process.
+    SCons is not importable in the test environment (PlatformIO fetches it at
+    build time), so the lines that matter are mirrored here. The command line
+    SCons hands ``os.spawnve`` goes to ``CreateProcess`` via ``subprocess``
+    instead (identical on Windows, where a string passes through untouched);
+    ``spawnve`` itself crashes inside pytest.
     """
     return subprocess.run(
         " ".join([sh, "/C", escape(" ".join(args))]), env=env, check=False
