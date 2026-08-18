@@ -188,6 +188,24 @@ def test_run_command_passes_env(mock_subprocess_run: Mock) -> None:
     assert mock_subprocess_run.call_args[1]["env"]["MY_VAR"] == "42"
 
 
+def test_run_command_pops_inherited_pythonpath(mock_subprocess_run: Mock) -> None:
+    """A PYTHONPATH from the parent environment must not leak into subprocesses."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    with patch.dict(os.environ, {"PYTHONPATH": "/outside/site-packages"}):
+        run_command(["cmd"])
+    assert "PYTHONPATH" not in mock_subprocess_run.call_args[1]["env"]
+
+
+def test_run_command_env_pythonpath_preferred_over_pop(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A PYTHONPATH set explicitly via ``env`` is passed through."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    with patch.dict(os.environ, {"PYTHONPATH": "/outside/site-packages"}):
+        run_command(["cmd"], env={"PYTHONPATH": "/idf/tools"})
+    assert mock_subprocess_run.call_args[1]["env"]["PYTHONPATH"] == "/idf/tools"
+
+
 def test_run_command_passes_cwd(mock_subprocess_run: Mock, tmp_path: Path) -> None:
     mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
     run_command(["cmd"], cwd=str(tmp_path))

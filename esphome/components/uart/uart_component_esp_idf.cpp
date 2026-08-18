@@ -21,7 +21,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.idf";
+static const char *const TAG = "uart";
 
 /// Check if a pin number matches one of the default UART0 GPIO pins.
 /// These pins may have residual IOMUX state from the ROM bootloader that

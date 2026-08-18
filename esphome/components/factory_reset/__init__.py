@@ -68,7 +68,6 @@ def _final_validate(config: ConfigType) -> None:
             raise cv.Invalid(
                 "'resets_required' needs 'restore_from_flash' to be enabled in the  'esp8266' configuration"
             )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

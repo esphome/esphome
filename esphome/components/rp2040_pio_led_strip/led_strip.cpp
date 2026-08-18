@@ -107,10 +107,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
                           pio_get_dreq(this->pio_, this->sm_, true));  // set the DREQ to the state machine's TX FIFO
 
   dma_channel_configure(this->dma_chan_, &this->dma_config_,
-                        &this->pio_->txf[this->sm_],                     // write to the state machine's TX FIFO
-                        this->buf_,                                      // read from memory
-                        this->is_rgbw_ ? num_leds_ * 4 : num_leds_ * 3,  // number of bytes to transfer
-                        false                                            // don't start yet
+                        &this->pio_->txf[this->sm_],  // write to the state machine's TX FIFO
+                        this->buf_,                   // read from memory
+                        this->get_buffer_size_(),     // number of bytes to transfer
+                        false                         // don't start yet
   );
 
   // Initialize the semaphore for this DMA channel
@@ -142,58 +142,25 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
-  int32_t r = 0, g = 0, b = 0;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      r = 0;
-      g = 1;
-      b = 2;
-      break;
-    case ORDER_RBG:
-      r = 0;
-      g = 2;
-      b = 1;
-      break;
-    case ORDER_GRB:
-      r = 1;
-      g = 0;
-      b = 2;
-      break;
-    case ORDER_GBR:
-      r = 2;
-      g = 0;
-      b = 1;
-      break;
-    case ORDER_BGR:
-      r = 2;
-      g = 1;
-      b = 0;
-      break;
-    case ORDER_BRG:
-      r = 1;
-      g = 2;
-      b = 0;
-      break;
-  }
-  uint8_t multiplier = this->is_rgbw_ ? 4 : 3;
-  return {this->buf_ + (index * multiplier) + r,
-          this->buf_ + (index * multiplier) + g,
-          this->buf_ + (index * multiplier) + b,
-          this->is_rgbw_ ? this->buf_ + (index * multiplier) + 3 : nullptr,
+  const light::ChannelColors &colors = this->channel_colors_;
+  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
+  return {led + colors.r,
+          led + colors.g,
+          led + colors.b,
+          colors.has_white() ? led + colors.w : nullptr,
           &this->effect_data_[index],
           &this->correction_};
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
+  char channel_colors[5];
   ESP_LOGCONFIG(TAG,
                 "RP2040 PIO LED Strip Light Output:\n"
                 "  Pin: GPIO%d\n"
                 "  Number of LEDs: %d\n"
-                "  RGBW: %s\n"
-                "  RGB Order: %s\n"
+                "  Channel colors: %s\n"
                 "  Max Refresh Rate: %f Hz",
-                this->pin_, this->num_leds_, YESNO(this->is_rgbw_), rgb_order_to_string(this->rgb_order_),
-                this->max_refresh_rate_);
+                this->pin_, this->num_leds_, this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_);
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

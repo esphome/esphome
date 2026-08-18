@@ -73,17 +73,8 @@ class EntityBase {
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
 
-  // Get the unique key of this Entity: FNV-1 hash of the raw entity name.
-  // This is the key sent to API clients and used to route entity state.
-  uint32_t get_entity_key() const { return this->entity_key_; }
-
-  /// Returns the LEGACY object_id hash, unchanged from previous releases, so existing
-  /// callers keep getting stable values (for example preference keys). This is no longer
-  /// the key sent to API clients; that is get_entity_key().
-  ESPDEPRECATED("Use get_entity_key() for the entity key sent to API clients, or "
-                "make_entity_preference<T>() for preference storage. Will be removed in 2027.1.0.",
-                "2026.8.0")
-  uint32_t get_object_id_hash() const { return this->calc_old_object_id_hash_(); }
+  // Get the unique Object ID of this Entity
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
@@ -190,23 +181,39 @@ class EntityBase {
   // Set has_state - for components that need to manually set this
   void set_has_state(bool state) { this->flags_.has_state = state; }
 
-  /// Get this entity's device id, or 0 when devices are not compiled in (main device).
-  uint32_t get_device_id_or_zero() const {
-#ifdef USE_DEVICES
-    return this->get_device_id();
-#else
-    return 0;
-#endif
-  }
-
-  /// Get the LEGACY preference key: FNV-1 hash of the sanitized object_id, XOR device_id.
-  /// Intentionally keeps the old algorithm so external callers that store preferences under
-  /// this key keep stable keys; make_entity_preference() migrates to the new raw-name key,
-  /// this method never will.
+  /**
+   * @brief Get a unique hash for storing preferences/settings for this entity.
+   *
+   * This method returns a hash that uniquely identifies the entity for the purpose of
+   * storing preferences (such as calibration, state, etc.). Unlike get_object_id_hash(),
+   * this hash also incorporates the device_id (if devices are enabled), ensuring uniqueness
+   * across multiple devices that may have entities with the same object_id.
+   *
+   * Use this method when storing or retrieving preferences/settings that should be unique
+   * per device-entity pair. Use get_object_id_hash() when you need a hash that identifies
+   * the entity regardless of the device it belongs to.
+   *
+   * For backward compatibility, if device_id is 0 (the main device), the hash is unchanged
+   * from previous versions, so existing single-device configurations will continue to work.
+   *
+   * @return uint32_t The unique hash for preferences, including device_id if available.
+   * @deprecated Use make_entity_preference<T>() instead, or preferences won't be migrated.
+   * See https://github.com/esphome/backlog/issues/85
+   */
   ESPDEPRECATED("Use make_entity_preference<T>() instead, or preferences won't be migrated. "
                 "See https://github.com/esphome/backlog/issues/85. Will be removed in 2027.1.0.",
-                "2026.8.0")
-  uint32_t get_preference_hash() { return this->old_preference_key_base_(); }
+                "2026.7.0")
+  uint32_t get_preference_hash() {
+#ifdef USE_DEVICES
+    // Combine object_id_hash with device_id to ensure uniqueness across devices
+    // Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash
+    // This ensures backward compatibility for existing single-device configurations
+    return this->get_object_id_hash() ^ this->get_device_id();
+#else
+    // Without devices, just use object_id_hash as before
+    return this->get_object_id_hash();
+#endif
+  }
 
   /// Create a preference object for storing this entity's state/settings.
   /// @tparam T The type of data to store (must be trivially copyable)
@@ -223,9 +230,9 @@ class EntityBase {
   // before push_back, so codegen can emit a single combined call per entity.
   friend class Application;
 
-  /// Combined entity setup from codegen: set name, entity key, entity string indices, and flags.
+  /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
   /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
-  void configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields);
+  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
 
 #ifdef USE_DEVICES
   // Codegen-only setter — only accessible from setup() via friend declaration.
@@ -233,24 +240,13 @@ class EntityBase {
 #endif
 
   /// Non-template helper for make_entity_preference() to avoid code bloat.
-  /// Migrates preferences from the old sanitized-object_id key to the raw-name key
-  /// on key-lookup platforms. See: https://github.com/esphome/backlog/issues/85
+  /// When the preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
-  void calc_entity_key_();
-
-  /// Reconstruct the OLD (pre-2026.8.0) sanitized-object_id hash for preference keys.
-  uint32_t calc_old_object_id_hash_() const;
-
-  /// Preference key base for this entity: raw-name entity key XOR device_id.
-  uint32_t preference_key_base_() const { return this->entity_key_ ^ this->get_device_id_or_zero(); }
-
-  /// Legacy preference key base: sanitized-object_id hash XOR device_id.
-  /// Note: device_id is 0 for the main device, so XORing with 0 preserves the original hash.
-  uint32_t old_preference_key_base_() const { return this->calc_old_object_id_hash_() ^ this->get_device_id_or_zero(); }
+  void calc_object_id_();
 
   StringRef name_;
-  uint32_t entity_key_{};
+  uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
 #endif
