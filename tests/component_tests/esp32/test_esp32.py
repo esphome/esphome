@@ -123,9 +123,35 @@ def test_esp32_p4_variant_only_board_matches_silicon_revision(
     config = CONFIG_SCHEMA(config)
 
     assert config["board"] == expected_board
+    assert config["engineering_sample"] == bool(engineering_sample)
     assert BOARDS[expected_board].get("engineering_sample", False) == bool(
         engineering_sample
     )
+
+
+@pytest.mark.parametrize(
+    ("board", "expected_engineering_sample"),
+    [
+        ("esp32-p4-evboard", True),
+        ("esp32-p4_r3-evboard", False),
+    ],
+)
+def test_esp32_p4_explicit_board_normalizes_engineering_sample(
+    set_core_config: SetCoreConfigCallable,
+    board: str,
+    expected_engineering_sample: bool,
+) -> None:
+    """An explicit P4 board fills in the engineering_sample option from the
+    board's silicon revision, so code generation never needs to consult the
+    board table."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = None
+    config = CONFIG_SCHEMA({"board": board})
+
+    assert config["engineering_sample"] is expected_engineering_sample
 
 
 def test_esp32_p4_variant_only_native_idf_targets_rev3_sdkconfig(

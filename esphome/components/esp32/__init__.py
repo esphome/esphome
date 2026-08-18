@@ -1086,6 +1086,17 @@ _P4_NO_BOARD_WARNING = (
 )
 
 
+def _normalize_p4_engineering_sample(value):
+    """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
+    silicon (rev3) is assumed. Returns the normalized flag."""
+    engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
+    if engineering_sample is None:
+        _LOGGER.warning(_P4_NO_BOARD_WARNING)
+        engineering_sample = False
+        value[CONF_ENGINEERING_SAMPLE] = engineering_sample
+    return engineering_sample
+
+
 def _detect_variant(value):
     board = value.get(CONF_BOARD)
     variant = value.get(CONF_VARIANT)
@@ -1096,17 +1107,18 @@ def _detect_variant(value):
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
         # name rather than carrying a PIO board name through the IDF build.
-        # ESP32-P4 is the exception on both toolchains: the board name must
-        # reflect the chip revision because BOARDS[board]["engineering_sample"]
-        # selects the pre-v3 or rev3 (v3.0+) binary layout via
-        # CONFIG_ESP32P4_SELECTS_REV_LESS_V3, and the two are not compatible.
+        # ESP32-P4 boards must be picked per chip revision on both toolchains:
+        # pre-v3 and rev3 (v3.0+) silicon are not binary compatible, and
+        # downstream code derives CONFIG_ESP32P4_SELECTS_REV_LESS_V3 and the
+        # default CPU frequency from CONF_ENGINEERING_SAMPLE, normalized here.
         if CORE.using_toolchain_esp_idf:
             value = value.copy()
             if variant == VARIANT_ESP32P4:
-                engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-                if engineering_sample is None:
-                    _LOGGER.warning(_P4_NO_BOARD_WARNING)
-                value[CONF_BOARD] = "esp32-p4" if engineering_sample else "esp32-p4_r3"
+                value[CONF_BOARD] = (
+                    "esp32-p4"
+                    if _normalize_p4_engineering_sample(value)
+                    else "esp32-p4_r3"
+                )
             else:
                 value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
             return value
@@ -1118,12 +1130,8 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
-        if variant == VARIANT_ESP32P4:
-            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-            if engineering_sample is None:
-                _LOGGER.warning(_P4_NO_BOARD_WARNING)
-            elif engineering_sample:
-                value[CONF_BOARD] = "esp32-p4-evboard"
+        if variant == VARIANT_ESP32P4 and _normalize_p4_engineering_sample(value):
+            value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -1133,6 +1141,11 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_VARIANT] = variant
+        if variant == VARIANT_ESP32P4:
+            value.setdefault(
+                CONF_ENGINEERING_SAMPLE,
+                BOARDS[board].get("engineering_sample", False),
+            )
     elif not variant:
         raise cv.Invalid(
             "This board is unknown, if you are sure you want to compile with this board selection, "
@@ -1144,6 +1157,9 @@ def _detect_variant(value):
             "This board is unknown; the specified variant '%s' will be used but this may not work as expected.",
             variant,
         )
+        if variant == VARIANT_ESP32P4:
+            value = value.copy()
+            value.setdefault(CONF_ENGINEERING_SAMPLE, False)
     return value
 
 
@@ -2531,15 +2547,14 @@ async def to_code(config):
             f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
         )
 
-    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
-    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
-    # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the board's chip revision.
+    # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible.
+    # CONFIG_ESP32P4_SELECTS_REV_LESS_V3 selects which layout ESP-IDF links;
+    # validation normalizes CONF_ENGINEERING_SAMPLE from the board when unset.
     if variant == VARIANT_ESP32P4:
-        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
+            config.get(CONF_ENGINEERING_SAMPLE, False),
         )
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
