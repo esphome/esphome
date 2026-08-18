@@ -509,23 +509,23 @@ void SdStorageBase::log_mount_result_(storage::StorageError err) const {
   if (err == storage::STORAGE_ERROR_OK) {
     ESP_LOGI(TAG_BASE, "Card mounted via automation");
   } else {
-    ESP_LOGE(TAG_BASE, storage::error_from_errno(err));
+    ESP_LOGE(TAG_BASE, storage::error_from_errno((uint8_t)err));
   }
 }
 
 void SdStorageBase::log_unmount_(storage::StorageError err) const {
-  if (err == storage::STORAGE_ERROR_OK) {
+  if (err == storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGI(TAG_BASE, "Card unmounted via automation");
   } else {
-    ESP_LOGE(TAG_BASE, storage::error_from_errno(err));
+    ESP_LOGE(TAG_BASE, storage::error_from_errno((uint8_t)err));
   }
 }
 
 void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGD(TAG_BASE, "Listing files in: %s", path); }
 
 void SdStorageBase::log_list_dir_result_(storage::StorageError err) const {
-  if (err != storage::STORAGE_ERROR_OK) {
-    ESP_LOGW(TAG_BASE, storage::error_from_errno(err));
+  if (err != storage::StorageError::STORAGE_ERROR_OK) {
+    ESP_LOGW(TAG_BASE, storage::error_from_errno((uint8_t)err));
   }
 }
 
