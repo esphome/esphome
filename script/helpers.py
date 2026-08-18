@@ -558,8 +558,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
