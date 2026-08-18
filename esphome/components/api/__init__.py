@@ -1,4 +1,3 @@
-import base64
 import logging
 from typing import Any
 
@@ -6,6 +5,15 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
+
+# ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
+# components and downstream consumers that import them from api
+from esphome.components.noise import (  # noqa: F401
+    ENCRYPTION_SCHEMA,
+    decode_encryption_key,
+    encryption_schema,
+    validate_encryption_key,
+)
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -37,6 +45,10 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
+
+# Compat alias: downstream consumers (e.g. device-builder) referenced the
+# schema by its old private name before it moved to the noise component
+_encryption_schema = encryption_schema
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,20 +146,6 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
         if CONF_KEY in encryption:
             provisioning.report_hardcoded_credentials("api")
     return config
-
-
-def validate_encryption_key(value: Any) -> str:
-    value = cv.string_strict(value)
-    try:
-        decoded = base64.b64decode(value, validate=True)
-    except ValueError as err:
-        raise cv.Invalid("Invalid key format, please check it's using base64") from err
-
-    if len(decoded) != 32:
-        raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
-
-    # Return original data for roundtrip conversion
-    return value
 
 
 CONF_SUPPORTS_RESPONSE = "supports_response"
@@ -256,18 +254,6 @@ ACTIONS_SCHEMA = automation.validate_automation(
     ),
 )
 
-ENCRYPTION_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
-    }
-)
-
-
-def _encryption_schema(config: ConfigType | None) -> ConfigType:
-    if config is None:
-        config = {}
-    return ENCRYPTION_SCHEMA(config)
-
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
@@ -303,7 +289,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
-            cv.Optional(CONF_ENCRYPTION): _encryption_schema,
+            cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -490,7 +476,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            decoded = base64.b64decode(key)
+            decoded = decode_encryption_key(key)
             cg.add(var.set_noise_psk(list(decoded)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
