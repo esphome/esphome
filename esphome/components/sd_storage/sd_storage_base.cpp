@@ -523,7 +523,7 @@ void SdStorageBase::log_unmount_(storage::StorageError err) const {
 
 void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGD(TAG_BASE, "Listing files in: %s", path); }
 
-void SdStorageBase::log_dir_list_result_(storage::StorageError err) const {
+void SdStorageBase::log_list_dir_result_(storage::StorageError err) const {
   if (err != storage::STORAGE_ERROR_OK) {
     ESP_LOGW(TAG_BASE, storage::error_from_errno(err));
   }
