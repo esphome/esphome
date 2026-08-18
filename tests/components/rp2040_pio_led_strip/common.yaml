@@ -4,14 +4,14 @@ light:
     pin: 4
     num_leds: 60
     pio: 0
-    rgb_order: GRB
+    channel_colors: GRB
     chipset: WS2812
   - platform: rp2040_pio_led_strip
     id: led_strip_custom_timings
     pin: 5
     num_leds: 60
     pio: 1
-    rgb_order: GRB
+    channel_colors: GRB
     bit0_high: .1us
     bit0_low: 1.2us
     bit1_high: .69us
