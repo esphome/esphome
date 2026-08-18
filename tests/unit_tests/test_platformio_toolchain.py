@@ -447,12 +447,21 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     assert "ESPHOME_CCACHE_ENABLE" not in os.environ
 
 
-def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
-    """Ccache stays off when the binary is not on PATH."""
+@pytest.mark.parametrize(
+    "env_vars",
+    [
+        pytest.param({}, id="default"),
+        pytest.param({"ESPHOME_CCACHE_ENABLE": "1"}, id="forced-on"),
+    ],
+)
+def test_ccache_env_disabled_without_binary(
+    setup_core: Path, env_vars: dict[str, str]
+) -> None:
+    """Ccache stays off when the binary is not on PATH, even when forced on."""
     CORE.build_path = setup_core / "build" / "test"
 
     with (
-        patch.dict(os.environ, {}, clear=True),
+        patch.dict(os.environ, env_vars, clear=True),
         patch.object(toolchain.shutil, "which", return_value=None),
     ):
         env = toolchain._ccache_env()
@@ -501,30 +510,10 @@ def test_ccache_env_forced_on_skips_probe(setup_core: Path) -> None:
     mock_probe.assert_not_called()
 
 
-def test_ccache_env_forced_on_without_binary_exports_no_path(
-    setup_core: Path,
-) -> None:
-    """Forcing ccache on without a binary keeps the flag but exports no path."""
-    CORE.build_path = setup_core / "build" / "test"
-
-    with (
-        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value=None),
-    ):
-        env = toolchain._ccache_env()
-
-    assert env["ESPHOME_CCACHE_ENABLE"] == "1"
-    assert "ESPHOME_CCACHE_PATH" not in env
-
-
 def test_ccache_env_strips_win_long_path_prefix(setup_core: Path) -> None:
     r"""A ``\\?\`` ccache path from PATH is exported without the prefix.
 
-    ESPHome Desktop puts its bundled ccache on PATH under an extended-length
-    directory, so ``shutil.which`` returns a ``\\?\C:\...`` path. The probe
-    (CreateProcess) runs it fine, but SCons launches every compile through
-    ``cmd.exe``, which cannot run such a path and fails each step with
-    "The system cannot find the path specified." (#18399).
+    That is the shape ESPHome Desktop puts on PATH (#18399); see ``_ccache_env``.
     """
     CORE.build_path = setup_core / "build" / "test"
     prefixed = (
@@ -570,7 +559,7 @@ def test_ccache_env_normalizes_enable_value(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "yes"}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value=None),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
     ):
         env = toolchain._ccache_env()
 
@@ -692,8 +681,11 @@ def _load_ccache_script(
     return scons_env, original_spawn
 
 
-def _quote(arg: str) -> str:
-    return f'"{arg}"'
+def _scons_win32_escape(x: str) -> str:
+    """Copy of ``SCons.Platform.win32.escape``: quote, guarding a trailing backslash."""
+    if x[-1] == "\\":
+        x = x + "\\"
+    return '"' + x + '"'
 
 
 def test_ccache_script_wraps_compiles_with_exported_path() -> None:
@@ -708,21 +700,21 @@ def test_ccache_script_wraps_compiles_with_exported_path() -> None:
     # A compile step is routed through ccache, with the same path used for
     # the program and (escaped) as the first argument.
     compile_args = ["xtensa-lx106-elf-g++", "-o", "main.o", "-c", "main.cpp"]
-    spawn("cmd.exe", _quote, "xtensa-lx106-elf-g++", list(compile_args), {})
+    spawn("cmd.exe", _scons_win32_escape, "xtensa-lx106-elf-g++", compile_args, {})
     original_spawn.assert_called_once_with(
         "cmd.exe",
-        _quote,
+        _scons_win32_escape,
         ccache_path,
-        [_quote(ccache_path), *compile_args],
+        [_scons_win32_escape(ccache_path), *compile_args],
         {},
     )
 
     # Link steps pass through untouched.
     original_spawn.reset_mock()
     link_args = ["xtensa-lx106-elf-g++", "-o", "firmware.elf", "main.o"]
-    spawn("cmd.exe", _quote, "xtensa-lx106-elf-g++", list(link_args), {})
+    spawn("cmd.exe", _scons_win32_escape, "xtensa-lx106-elf-g++", link_args, {})
     original_spawn.assert_called_once_with(
-        "cmd.exe", _quote, "xtensa-lx106-elf-g++", link_args, {}
+        "cmd.exe", _scons_win32_escape, "xtensa-lx106-elf-g++", link_args, {}
     )
 
 
@@ -740,13 +732,6 @@ def test_ccache_script_leaves_spawn_alone_without_path(
     """Without both the enable flag and a path, SPAWN is not replaced."""
     scons_env, original_spawn = _load_ccache_script(env_vars)
     assert scons_env["SPAWN"] is original_spawn
-
-
-def _scons_win32_escape(x: str) -> str:
-    """Copy of ``SCons.Platform.win32.escape``: quote, guarding a trailing backslash."""
-    if x[-1] == "\\":
-        x = x + "\\"
-    return '"' + x + '"'
 
 
 def _scons_win32_spawn(
@@ -783,65 +768,64 @@ def _spawn_fake_compile_via_cmd_exe(scons_env: _FakeSConsEnv, marker: Path) -> i
     )
 
 
-@pytest.mark.skipif(
+_WINDOWS_ONLY = pytest.mark.skipif(
     sys.platform != "win32", reason="drives cmd.exe, which SCons uses only on Windows"
 )
-def test_ccache_wrapper_compiles_through_cmd_exe_with_verbatim_ccache_path(
-    setup_core: Path, tmp_path: Path
-) -> None:
-    r"""End to end on Windows: a ``\?\`` ccache on PATH still lets SCons compile.
 
-    Reproduces the shape of #18399: ESPHome Desktop puts its bundled ccache on
-    PATH under an extended-length directory, so ``shutil.which`` hands back a
-    ``\?\C:\...`` path. Only the PATH lookup is simulated (the interpreter
-    stands in for ccache); the runnability probe and the ``cmd.exe`` spawn are
-    real, so this fails if the exported path is not usable from ``cmd.exe``.
+
+@_WINDOWS_ONLY
+def test_ccache_env_probe_accepts_verbatim_path(setup_core: Path) -> None:
+    r"""The real probe runs a ``\\?\`` binary, so it alone cannot catch #18399.
+
+    ``CreateProcess`` accepts extended-length paths; only ``cmd.exe`` rejects
+    them, which is why the exported path must be stripped.
     """
     CORE.build_path = setup_core / "build" / "test"
     assert not sys.executable.startswith("\\\\?\\")
-    verbatim_exe = "\\\\?\\" + sys.executable
-    marker = tmp_path / "compiled.txt"
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch.object(toolchain.shutil, "which", return_value=verbatim_exe),
+        patch.object(
+            toolchain.shutil, "which", return_value="\\\\?\\" + sys.executable
+        ),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
-        # Real probe: CreateProcess accepts the extended-length path, so this
-        # alone would not have caught the bug.
         env = toolchain._ccache_env()
 
     assert env["ESPHOME_CCACHE_ENABLE"] == "1"
     assert env["ESPHOME_CCACHE_PATH"] == sys.executable
 
-    scons_env, _ = _load_ccache_script(env, original_spawn=_scons_win32_spawn)
-    assert scons_env["SPAWN"] is not _scons_win32_spawn
 
-    assert _spawn_fake_compile_via_cmd_exe(scons_env, marker) == 0
-    assert marker.read_text() == "compiled"
-
-
-@pytest.mark.skipif(
-    sys.platform != "win32", reason="drives cmd.exe, which SCons uses only on Windows"
+@_WINDOWS_ONLY
+@pytest.mark.parametrize(
+    ("prefix", "expect_ok"),
+    [
+        pytest.param("", True, id="stripped-path-compiles"),
+        pytest.param("\\\\?\\", False, id="verbatim-path-fails"),
+    ],
 )
-def test_ccache_wrapper_verbatim_path_fails_under_cmd_exe(tmp_path: Path) -> None:
-    r"""Control for the test above: an unstripped ``\?\`` path breaks the compile.
+def test_ccache_wrapper_through_cmd_exe(
+    tmp_path: Path, prefix: str, expect_ok: bool
+) -> None:
+    r"""End to end through ``cmd.exe``: the exported path works, a ``\\?\`` one does not.
 
-    This is the failing mechanism behind #18399 ("The system cannot find the
-    path specified." on every compile step). Should this ever start passing,
+    The interpreter stands in for ccache; the spawn mirrors SCons on Windows.
+    The failing case is the mechanism behind #18399 ("The system cannot find
+    the path specified." on every compile step); should it ever start passing,
     ``cmd.exe`` learned extended-length paths and the strip is no longer needed.
     """
     marker = tmp_path / "compiled.txt"
     scons_env, _ = _load_ccache_script(
-        {
-            "ESPHOME_CCACHE_ENABLE": "1",
-            "ESPHOME_CCACHE_PATH": "\\\\?\\" + sys.executable,
-        },
+        {"ESPHOME_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_PATH": prefix + sys.executable},
         original_spawn=_scons_win32_spawn,
     )
+    assert scons_env["SPAWN"] is not _scons_win32_spawn
 
-    assert _spawn_fake_compile_via_cmd_exe(scons_env, marker) != 0
-    assert not marker.exists()
+    rc = _spawn_fake_compile_via_cmd_exe(scons_env, marker)
+    assert (rc == 0) is expect_ok
+    assert marker.exists() is expect_ok
+    if expect_ok:
+        assert marker.read_text() == "compiled"
 
 
 @pytest.mark.parametrize(

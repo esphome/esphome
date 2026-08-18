@@ -8,11 +8,8 @@ Import("env")  # noqa
 # esphome/platformio/toolchain.py); this script only supplies the SCons-level
 # mechanism.
 #
-# The ccache binary comes pre-resolved in ESPHOME_CCACHE_PATH instead of being
-# looked up here: on Windows shutil.which() can return an extended-length
-# \\?\ path (that is how ESPHome Desktop puts its bundled ccache on PATH),
-# which SCons' cmd.exe based spawn cannot run. _ccache_env() strips the prefix
-# before exporting the path.
+# The binary comes pre-resolved in ESPHOME_CCACHE_PATH; _ccache_env() has
+# already stripped the Windows \\?\ prefix that cmd.exe cannot run.
 #
 # This is a "pre" script, so the platform's builder (which sets CC/CXX and
 # clones the construction environment for framework and library builds) runs
