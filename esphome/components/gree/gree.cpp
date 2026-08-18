@@ -99,7 +99,7 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
   state[0] =
       GreeClimateCodec::encode_fan_mode(model, data.fan_mode) | GreeClimateCodec::encode_operation_mode(data.mode);
   const uint8_t target_temperature = clamp<uint8_t>(data.target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX);
-  state[1] = model == GREE_YX1FF ? target_temperature - GREE_TEMP_MIN : target_temperature;
+  state[1] = target_temperature - GREE_TEMP_MIN;
 
   if (model == GREE_YAN) {
     state[2] = 0x20;
@@ -108,7 +108,9 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
   }
 
   if (model == GREE_YX1FF) {
-    state[2] = data.mode == climate::CLIMATE_MODE_OFF ? 0x20 : 0x60;
+    state[2] = GREE_LIGHT_BIT;
+    if (data.mode != climate::CLIMATE_MODE_OFF)
+      state[2] |= GREE_MODEL_A_BIT;
     state[3] = 0x50;
 
     if (data.fan_mode == climate::CLIMATE_FAN_HIGH)
@@ -250,11 +252,13 @@ optional<GreeClimateData> GreeClimateCodec::decode_yx1ff(const GreeState &state)
   const uint8_t fan = state[0] & GREE_FAN_MASK;
   const bool swing = state[0] & GREE_SWING_AUTO_MASK;
   const bool turbo = state[2] & GREE_FAN_TURBO_BIT;
+  // Light and X-Fan are independent features that are not represented by Climate.
+  const uint8_t byte2_validation_mask = static_cast<uint8_t>(~(GREE_LIGHT_BIT | GREE_XFAN_BIT));
+  const uint8_t expected_byte2 = (power ? GREE_MODEL_A_BIT : 0x00) | (turbo ? GREE_FAN_TURBO_BIT : 0x00);
 
   if (mode > GREE_MODE_HEAT || state[1] > GREE_TEMP_MAX - GREE_TEMP_MIN ||
-      state[2] != ((power ? 0x60 : 0x20) | (turbo ? GREE_FAN_TURBO_BIT : 0x00)) || state[3] != 0x50 ||
-      state[4] != (swing ? 0x11 : 0x00) || state[5] != 0x20 || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 ||
-      (turbo && fan != GREE_FAN_3)) {
+      (state[2] & byte2_validation_mask) != expected_byte2 || state[3] != 0x50 || state[4] != (swing ? 0x11 : 0x00) ||
+      state[5] != 0x20 || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 || (turbo && fan != GREE_FAN_3)) {
     return {};
   }
 

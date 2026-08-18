@@ -70,10 +70,14 @@ static constexpr uint8_t GREE_HDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
-// Only available on YX1FF
-// Turbo (high) fan mode + sleep preset mode
-static constexpr uint8_t GREE_FAN_TURBO = 0x80;
+// Byte 2 feature bits
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
+static constexpr uint8_t GREE_LIGHT_BIT = 0x20;
+static constexpr uint8_t GREE_MODEL_A_BIT = 0x40;
+static constexpr uint8_t GREE_XFAN_BIT = 0x80;
+
+// Only available on YX1FF
+// Sleep preset mode
 static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
