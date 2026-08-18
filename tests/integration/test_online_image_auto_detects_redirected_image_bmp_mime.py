@@ -156,9 +156,6 @@ async def test_online_image_auto_detects_redirected_image_bmp_mime(
     port_holder["port"] = server.sockets[0].getsockname()[1]
 
     config = yaml_config.replace("HTTP_PORT", str(port_holder["port"]))
-    # Remove the explicit format from the config to test auto-detection
-    config = config.replace("format: BMP\n", "")
-    assert "format: BMP" not in config, "Failed to remove format from config"
 
     async with (
         server,

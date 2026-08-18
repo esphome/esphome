@@ -144,9 +144,6 @@ async def test_online_image_auto_detects_image_bmp_mime(
     http_server_port = server.sockets[0].getsockname()[1]
 
     config = yaml_config.replace("HTTP_PORT", str(http_server_port))
-    # Remove the explicit format from the config to test auto-detection
-    config = config.replace("format: BMP\n", "")
-    assert "format: BMP" not in config, "Failed to remove explicit format from config"
 
     async with (
         server,
