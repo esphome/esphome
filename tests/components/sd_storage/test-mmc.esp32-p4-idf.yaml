@@ -1,2 +1,10 @@
+esp32:
+  framework:
+    advanced:
+      enable_exfat: true
+
 packages:
   sd_storage: !include common-mmc.yaml
+
+sd_storage:
+  file_system: exfat
