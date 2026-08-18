@@ -1,0 +1,16 @@
+esphome:
+  name: poolwrap-rp2-two
+
+rp2:
+  board: rpipicow
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+rp2_ble_tracker:
+
+bluetooth_proxy:
+  connection_slots: 2
