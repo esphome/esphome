@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0", "wheel>=0.43,<0.48"]
+requires = ["setuptools==84.0.0", "wheel>=0.43,<0.48"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -56,6 +56,9 @@ include = ["esphome*"]
 testpaths = [
   "tests",
 ]
+# Prepend the repo root so in-process esphome imports resolve to THIS tree,
+# not wherever the venv's editable install points (e.g. another git worktree).
+pythonpath = ["."]
 addopts = [
   "--cov=esphome",
   "--cov-branch",

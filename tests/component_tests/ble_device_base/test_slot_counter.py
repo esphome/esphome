@@ -109,6 +109,8 @@ def test_esp32_bluetooth_proxy_requests_client_slots_only(
     generate_main(component_config_path("esp32_bluetooth_proxy.yaml"))
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT") is None
     assert get_define_value("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT") == "3"
+    # One neutral GATT backend slot per connection (the hub-model flip).
+    assert get_define_value("ESPHOME_BLE_GATT_CLIENT_COUNT") == "3"
 
 
 def test_counts_reset_between_compiles(
