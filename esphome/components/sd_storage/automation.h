@@ -74,7 +74,7 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
       path = "/";  // FAT root; get_mount_path() is the absolute VFS path, wrong for list_dir()
 
     this->parent_->log_list_dir_start_(path);
-    this->parent_->log_list_dir_result(this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr));
+    this->parent_->log_list_dir_result_(this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr));
   }
 
  protected:
