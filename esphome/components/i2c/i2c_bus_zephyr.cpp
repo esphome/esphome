@@ -10,7 +10,7 @@
 
 namespace esphome::i2c {
 
-static const char *const TAG = "i2c.zephyr";
+static const char *const TAG = "i2c";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const char *get_speed(uint32_t dev_config) {

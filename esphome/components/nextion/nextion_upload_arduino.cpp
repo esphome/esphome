@@ -13,7 +13,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion.upload.arduino";
+static const char *const TAG = "nextion.upload";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
 // Timeout for display acknowledgment during TFT upload (ms).
