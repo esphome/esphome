@@ -313,8 +313,11 @@ StorageError SdSpi::unmount() {
   ESP_LOGD(TAG_SPI, "Syncing filesystem before unmount");
   // Closes any handles still open from user/lambda code, while the VFS is still mounted to
   // receive the flush/close calls.
-  this->flush_open_handles_();
-  ESP_LOGD(TAG_SPI, "All data flushed");
+  StorageError flush_err = this->flush_open_handles_();
+  if (flush_err == StorageError::STORAGE_ERROR_OK)
+    ESP_LOGD(TAG_SPI, "All data flushed");
+  else
+    ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
 
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
   this->unmount_manual_();
@@ -330,9 +333,14 @@ StorageError SdSpi::unmount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  sdspi_host_deinit();
-  ESP_LOGI(TAG_SPI, "SD card unmounted safely");
+  if (sdspi_host_deinit() != ESP_OK)
+    ESP_LOGW(TAG_SPI, "sdspi_host_deinit() failed");
 
+  // Report the flush result so an unmount that lost data does not look clean.
+  if (flush_err != StorageError::STORAGE_ERROR_OK)
+    return flush_err;
+
+  ESP_LOGI(TAG_SPI, "SD card unmounted safely");
   return StorageError::STORAGE_ERROR_OK;
 }
 
