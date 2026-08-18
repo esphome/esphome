@@ -164,6 +164,7 @@ MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
                 cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
             )
         ),
+        **modbus.command_options_schema(direction="read", templatable=True),
         cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
     }
 )
@@ -248,6 +249,9 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
+    await modbus.register_templatable_command_options(
+        var, config, args, direction="read"
+    )
     return await register_client_action(
         var,
         config,
@@ -318,6 +322,7 @@ def _read_schema(max_count: int) -> cv.All:
                 cv.Optional(CONF_COUNT, default=1): cv.templatable(
                     cv.int_range(min=1, max=max_count)
                 ),
+                **modbus.command_options_schema(direction="read", templatable=True),
             }
         ),
         _no_address_overflow(CONF_COUNT),
@@ -353,6 +358,9 @@ _WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
 async def _read_registers_to_code(config, action_id, template_arg, args, holding):
     var = cg.new_Pvariable(action_id, template_arg, holding)
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
+    await modbus.register_templatable_command_options(
+        var, config, args, direction="read"
+    )
     return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])
 
 
@@ -409,6 +417,9 @@ _READ_DISCRETE_INPUTS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO
 async def _read_bits_to_code(config, action_id, template_arg, args, coils):
     var = cg.new_Pvariable(action_id, template_arg, coils)
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
+    await modbus.register_templatable_command_options(
+        var, config, args, direction="read"
+    )
     return await register_client_action(var, config, args, [(PackedBits, "bits")])
 
 

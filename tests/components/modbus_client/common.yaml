@@ -91,6 +91,7 @@ button:
           address: !lambda "return 1;"
           start_address: 0x10
           count: 2
+          continuous: true
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
@@ -98,6 +99,7 @@ button:
             then:
               - logger.log: "typed read timeout"
       - modbus_client.read_input_registers:
+          continuous: !lambda "return false;"
           address: 0x01
           start_address: 0x20
           on_custom_response:
