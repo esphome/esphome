@@ -64,5 +64,11 @@ size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *rea
 /// wire contract: clients match it to report a wrong key.
 const LogString *reject_reason_for(int err);
 
+/// Payload size of the MAC failure reject, the one reason string that is a
+/// wire contract (sizeof's NUL stands in for the status byte). static_assert
+/// reject buffers against this so a wrong key report can never truncate;
+/// longer caller-supplied reasons are informational and sized by the caller.
+static constexpr size_t MAC_FAILURE_PAYLOAD_SIZE = sizeof("Handshake MAC failure");
+
 }  // namespace esphome::noise
 #endif  // USE_NOISE

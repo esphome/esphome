@@ -3,7 +3,7 @@
 #ifdef USE_API
 #ifdef USE_API_NOISE
 #include "noise/protocol.h"
-#include "api_noise_context.h"
+#include "esphome/components/noise/noise_handshake.h"
 
 namespace esphome::api {
 
@@ -16,7 +16,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Pos 7+: actual payload data
   static constexpr uint8_t HEADER_PADDING = noise::FRAME_HEADER_SIZE + 2 + 2;  // frame header + type + data_len
 
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
+  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, noise::NoiseContext &ctx)
       : APIFrameHelper(std::move(socket)), ctx_(ctx) {
     frame_header_padding_ = HEADER_PADDING;
   }
@@ -52,13 +52,13 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError handle_handshake_frame_error_(APIError aerr);
   APIError handle_noise_error_(int err, const LogString *func_name, APIError api_err);
 
-  // Pointers first (4 bytes each)
-  NoiseHandshakeState *handshake_{nullptr};
+  // Pointers first (4 bytes each; the handshake wrapper holds one pointer)
+  noise::NoiseResponderHandshake handshake_;
   NoiseCipherState *send_cipher_{nullptr};
   NoiseCipherState *recv_cipher_{nullptr};
 
   // Reference to noise context (4 bytes on 32-bit)
-  APINoiseContext &ctx_;
+  noise::NoiseContext &ctx_;
 
   // Buffer for noise handshake prologue (released after handshake)
   APIBuffer prologue_;

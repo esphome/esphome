@@ -1,7 +1,5 @@
 #include "noise.h"
 #ifdef USE_NOISE
-#include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -61,6 +59,9 @@ const LogString *reject_reason_for(int err) {
 
 size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *reason) {
   if (capacity == 0) {
+    // A caller bug; the MAC_FAILURE_PAYLOAD_SIZE static_asserts at the call
+    // sites make this unreachable, kept as cheap memory safety
+    ESP_LOGVV(TAG, "Reject buffer has no capacity");
     return 0;
   }
   buf[0] = HANDSHAKE_STATUS_REJECT;
@@ -81,16 +82,6 @@ size_t format_reject_payload(uint8_t *buf, size_t capacity, const LogString *rea
   }
 #endif
   return reason_len + 1;
-}
-
-extern "C" {
-// declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) {
-  if (!esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len)) {
-    ESP_LOGE(TAG, "Acquiring random bytes failed; rebooting");
-    arch_restart();
-  }
-}
 }
 
 }  // namespace esphome::noise
