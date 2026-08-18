@@ -14,7 +14,6 @@ namespace esphome::binary_storage {
 // is 15). Derived so it cannot drift from what the API hands down.
 static constexpr size_t STORAGE_MAX_PATH_LEN = storage::STORAGE_PATH_MAX + 32;
 
-
 // Abstract base for all binary storage devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire EEPROM).
 // Extends RawStorage -- provides offset-based byte access.
 class BinaryStorage : public storage::RawStorage {
@@ -82,7 +81,6 @@ class BinaryStorage : public storage::RawStorage {
 
   // Fill entire device with a value. Returns bytes written.
   virtual uint32_t fill(uint8_t value);
-
 
   //========================================================================
   // Configuration setters (called by Python codegen)
