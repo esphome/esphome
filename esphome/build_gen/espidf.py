@@ -7,6 +7,7 @@ from esphome.components.esp32 import get_esp32_variant, idf_version
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.framework_helpers import (
+    get_project_cmake_args,
     get_project_compile_flags,
     get_project_cxx_compile_flags,
     get_project_link_flags,
@@ -109,6 +110,11 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else ""
     )
 
+    cmake_args = "\n".join(
+        f'set({name} "{value.replace("\\", "\\\\").replace('"', '\\"')}")'
+        for name, value in get_project_cmake_args()
+    )
+
     # Per-project list exposed as a CMake variable so converted PIO libs
     # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
     # project-specific names into their cached CMakeLists.
@@ -162,6 +168,8 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
+
+{cmake_args}
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 

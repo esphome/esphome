@@ -2127,9 +2127,7 @@ async def _write_exclude_components() -> None:
     excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
     if excluded:
         exclude_list = ";".join(sorted(excluded))
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
-        )
+        cg.add_cmake_arg("EXCLUDE_COMPONENTS", exclude_list)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

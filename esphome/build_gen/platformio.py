@@ -63,6 +63,13 @@ def get_ini_content():
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
 
+    # Add CMake args
+    if CORE.cmake_args:
+        cmake_extra_args = " ".join(
+            f"-D{name}={value}" for name, value in sorted(CORE.cmake_args.items())
+        )
+        CORE.add_platformio_option("board_build.cmake_extra_args", cmake_extra_args)
+
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 

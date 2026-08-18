@@ -641,6 +641,8 @@ class EsphomeCore:
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A map of CMake args to apply to build systems that use CMake.
+        self.cmake_args: dict[str, str] = {}
         # A set of build flags that apply to C++ compiles only (CXXFLAGS /
         # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
         self.cxx_build_flags: set[str] = set()
@@ -704,6 +706,7 @@ class EsphomeCore:
         self.global_statements = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cmake_args = {}
         self.cxx_build_flags = set()
         self.build_unflags = set()
         self.cpp_standard = None
@@ -1061,6 +1064,10 @@ class EsphomeCore:
         self.build_flags.add(build_flag)
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
+
+    def add_cmake_arg(self, name: str, value: str) -> None:
+        self.cmake_args[name] = str(value)
+        _LOGGER.debug("Adding CMake arg: %s=%s", name, value)
 
     def add_cxx_build_flag(self, build_flag: str) -> str:
         self.cxx_build_flags.add(build_flag)

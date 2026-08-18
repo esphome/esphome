@@ -136,6 +136,20 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     assert "JPEGDEC APPEND" not in content
 
 
+def test_get_project_cmakelists_emits_cmake_args() -> None:
+    CORE.add_cmake_arg("EXECUTABLE_COMPONENT_NAME", "src")
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert 'set(EXECUTABLE_COMPONENT_NAME "src")' in content
+
+
 def test_get_component_cmakelists_no_link_flags() -> None:
     """With no -Wl, flags the target_link_options block is emitted with an empty body."""
     CORE.build_flags = set()

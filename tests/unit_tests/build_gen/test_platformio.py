@@ -169,6 +169,7 @@ def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(CORE, "platformio_libraries", {})
     monkeypatch.setattr(CORE, "build_flags", set())
     monkeypatch.setattr(CORE, "build_unflags", set())
+    monkeypatch.setattr(CORE, "cmake_args", {})
 
 
 def test_get_ini_content_pins_cpp_standard(
@@ -200,6 +201,16 @@ def test_get_ini_content_no_cpp_standard(
     content = platformio.get_ini_content()
 
     assert "-std=" not in content
+
+
+def test_get_ini_content_emits_cmake_args(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(CORE, "cmake_args", {"EXECUTABLE_COMPONENT_NAME": "src"})
+
+    content = platformio.get_ini_content()
+
+    assert "-DEXECUTABLE_COMPONENT_NAME=src" in content
 
 
 def test_write_cxx_flags_script_emits_registered_flags(

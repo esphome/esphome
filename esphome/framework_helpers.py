@@ -40,6 +40,13 @@ def get_project_link_flags() -> list[str]:
     return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
 
 
+def get_project_cmake_args() -> list[tuple[str, str]]:
+    """Return sorted CMake args registered by components."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(CORE.cmake_args.items())
+
+
 def get_project_compile_flags() -> list[str]:
     """Return the sorted -D and -W (non-linker) flags from the current build."""
     from esphome.core import CORE  # local import to avoid circular dependency
