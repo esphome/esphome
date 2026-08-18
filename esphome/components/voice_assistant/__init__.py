@@ -2,6 +2,7 @@ from esphome import automation
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
+from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -14,8 +15,18 @@ from esphome.const import (
     CONF_ON_START,
     CONF_SPEAKER,
 )
+from esphome.types import ConfigType
 
-AUTO_LOAD = ["audio", "ring_buffer", "socket"]
+
+def AUTO_LOAD(config: ConfigType) -> list[str]:
+    """Auto-load the components needed to download runtime wake word models over HTTP."""
+    base = ["audio", "ring_buffer", "socket"]
+    # Runtime model loading verifies downloads (sha256) and parses manifests (json).
+    if config and CONF_HTTP_REQUEST_ID in config:
+        return base + ["sha256", "json"]
+    return base
+
+
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
@@ -88,6 +99,15 @@ def tts_stream_validate(config):
     return config
 
 
+def _runtime_model_validate(config):
+    # Downloading wake word models is only useful alongside micro_wake_word, which runs them.
+    if CONF_HTTP_REQUEST_ID in config and CONF_MICRO_WAKE_WORD not in config:
+        raise cv.Invalid(
+            f"'{CONF_HTTP_REQUEST_ID}' requires '{CONF_MICRO_WAKE_WORD}' to be configured on the voice assistant"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -113,6 +133,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
+            cv.Optional(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
                 "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
@@ -183,6 +204,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     tts_stream_validate,
+    _runtime_model_validate,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -214,6 +236,11 @@ async def to_code(config):
     if CONF_MICRO_WAKE_WORD in config:
         mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
         cg.add(var.set_micro_wake_word(mww))
+
+    if (http_request_id := config.get(CONF_HTTP_REQUEST_ID)) is not None:
+        http_req = await cg.get_variable(http_request_id)
+        cg.add(var.set_http_request(http_req))
+        cg.add_define("USE_VOICE_ASSISTANT_RUNTIME_MODEL")
 
     if CONF_MEDIA_PLAYER in config:
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
