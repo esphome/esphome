@@ -221,15 +221,23 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
       break;
 
-    case modem_mode::UNDEF:
+    case modem_mode::UNDEF: {
       ESP_LOGD(TAG, "Trying other baud rate");
+      bool responded = false;
       for (int b : bauds) {
         if (try_autobaud(b)) {
           ESP_LOGD(TAG, "Modem responded at baud %d", b);
-          break;  // Exit loop and fall through to COMMAND_MODE
+          responded = true;
+          break;
         }
       }
-      [[fallthrough]];
+      if (!responded) {
+        ESP_LOGW(TAG, "Modem not responding. Check power, PWRKEY and TX/RX wiring.");
+        this->loop_delay_(1000);
+        return ModemComponentState::MODEM_ENABLING;
+      }
+      break;
+    }
 
     case modem_mode::COMMAND_MODE:
       ESP_LOGD(TAG, "OK: Modem in COMMAND mode.");
