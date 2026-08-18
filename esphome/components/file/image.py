@@ -226,7 +226,7 @@ def image_schema(class_: MockObjClass = Image_) -> cv.Schema:
     )
 
 
-def validate_image_final(config: ConfigType) -> ConfigType:
+def validate_image_final(config: ConfigType) -> None:
     """Per-entry final validation, shared by file-backed image platforms.
 
     For LVGL 9 the default byte order for RGB565 images is little-endian, so
@@ -241,7 +241,6 @@ def validate_image_final(config: ConfigType) -> ConfigType:
             )
     else:
         config[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
-    return config
 
 
 async def new_image(config: ConfigType) -> MockObj:
