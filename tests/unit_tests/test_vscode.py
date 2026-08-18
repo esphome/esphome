@@ -129,11 +129,11 @@ packages:
     assert range["end_col"] == 7
 
 
-def _explode(*_args, **_kwargs):
+def _explode(*_args: object, **_kwargs: object) -> None:
     raise AttributeError("'NoneType' object has no attribute 'get'")
 
 
-def test_unexpected_error_reports_origin():
+def test_unexpected_error_reports_origin() -> None:
     source_path = str(Path("dir_path", "x.yaml"))
     with patch("esphome.vscode.validate_config", _explode):
         output_lines = _run_repl_test(
@@ -156,7 +156,7 @@ def test_unexpected_error_reports_origin():
     assert error["message"].endswith(" in _explode)")
 
 
-def test_esphome_error_stays_plain():
+def test_esphome_error_stays_plain() -> None:
     source_path = str(Path("dir_path", "x.yaml"))
     with patch("esphome.vscode.validate_config", side_effect=EsphomeError("boom")):
         output_lines = _run_repl_test(
