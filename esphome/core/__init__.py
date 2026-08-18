@@ -322,14 +322,18 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
-        from esphome.cpp_generator import Expression, statement
-
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
-        elif isinstance(value, Expression):
-            self._value = str(statement(value))
+        elif isinstance(value, str):
+            # The validated-config cache revives Lambdas from strings on the
+            # upload/logs fast path; keep codegen off that path.
+            self._value = value
         else:
+            from esphome.cpp_generator import Expression, statement
+
+            if isinstance(value, Expression):
+                value = str(statement(value))
             self._value = value
         self._parts = None
         self._requires_ids = None
@@ -899,6 +903,11 @@ class EsphomeCore:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
+
+    @property
+    def is_configured(self) -> bool:
+        """Whether anything has set this CORE up for a target."""
+        return KEY_CORE in self.data
 
     @property
     def target_platform(self):

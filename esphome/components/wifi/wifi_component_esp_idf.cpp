@@ -140,7 +140,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   if (has_custom_mac_address()) {
     get_mac_address_raw(mac);
     set_mac_address(mac);
@@ -620,6 +620,8 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   return true;
 }
 
+esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
+
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
@@ -825,6 +827,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
+    if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+      // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
+      // so the state machine never left STA_CONNECTED.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+      char roam_bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, roam_bssid_s);
+      ESP_LOGI(TAG, "Roamed ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u", it.ssid_len, (const char *) it.ssid,
+               roam_bssid_s, it.channel);
+#endif
+      bssid_t roam_bssid;
+      std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
+      this->handle_driver_roam_(roam_bssid, it.channel);
+    }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations
@@ -847,7 +862,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     } else {
-      char bssid_s[18];
+      char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));

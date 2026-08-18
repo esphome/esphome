@@ -27,7 +27,7 @@ namespace esphome::ota {
 
 namespace {
 
-const char *const TAG = "ota.host";
+const char *const TAG = "ota";
 
 constexpr size_t MAX_OTA_SIZE = 256u * 1024u * 1024u;  // 256 MiB
 constexpr size_t HEADER_PEEK_SIZE = 64;
