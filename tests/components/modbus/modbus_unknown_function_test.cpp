@@ -71,6 +71,22 @@ TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
       EXPECT_TRUE(helpers::is_function_code_unknown_length(fc)) << "fc 0x" << std::hex << fc;
   }
   EXPECT_FALSE(helpers::is_function_code_custom(0x49));
+
+  // Derived contract check: the helper must say "unknown" exactly when both length parsers fall
+  // through to default. With a zero-filled max-size PDU every explicit case returns at least 2
+  // (file records bottom out at 2, FIFO at 3) and only default returns MIN_PDU_SIZE, so comparing
+  // against MIN_PDU_SIZE detects a case added to either switch without updating the helper. The
+  // loop stops at 0x7F: above it the helper masks the exception flag off while client_pdu_length()
+  // switches on the unmasked byte and server_pdu_length() early-returns the exception length.
+  for (int fc = 0; fc <= 0x7F; fc++) {
+    const uint8_t pdu[MAX_PDU_SIZE] = {static_cast<uint8_t>(fc)};  // zero header fields
+    EXPECT_EQ(helpers::is_function_code_unknown_length(fc),
+              helpers::client_pdu_length(pdu, sizeof(pdu)) == MIN_PDU_SIZE)
+        << "client_pdu_length disagrees for fc 0x" << std::hex << fc;
+    EXPECT_EQ(helpers::is_function_code_unknown_length(fc),
+              helpers::server_pdu_length(pdu, sizeof(pdu)) == MIN_PDU_SIZE)
+        << "server_pdu_length disagrees for fc 0x" << std::hex << fc;
+  }
 }
 
 // A response with a function code outside the user-defined ranges (0x49) has no length case in
