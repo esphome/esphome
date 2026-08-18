@@ -82,6 +82,65 @@ def test_esp32_config(
 
 
 @pytest.mark.parametrize(
+    ("config_toolchain", "engineering_sample", "expected_board"),
+    [
+        # Native IDF: the synthesized board name must reflect the P4 silicon
+        # revision. BOARDS[board]["engineering_sample"] drives
+        # CONFIG_ESP32P4_SELECTS_REV_LESS_V3, which selects the pre-v3 or
+        # rev3 (v3.0+) binary layout -- the two are not compatible, so a
+        # wrong board name bricks the boot (silent bootloader WDT loop).
+        (Toolchain.ESP_IDF, None, "esp32-p4_r3"),
+        (Toolchain.ESP_IDF, False, "esp32-p4_r3"),
+        (Toolchain.ESP_IDF, True, "esp32-p4"),
+        # PlatformIO: the real pioarduino board files carry the same split.
+        (Toolchain.PLATFORMIO, None, "esp32-p4_r3-evboard"),
+        (Toolchain.PLATFORMIO, False, "esp32-p4_r3-evboard"),
+        (Toolchain.PLATFORMIO, True, "esp32-p4-evboard"),
+    ],
+)
+def test_esp32_p4_variant_only_board_matches_silicon_revision(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: Toolchain,
+    engineering_sample: bool | None,
+    expected_board: str,
+) -> None:
+    """A variant-only ESP32-P4 config must resolve to a board whose
+    engineering_sample flag matches the configured silicon revision on both
+    toolchains."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+    from esphome.components.esp32.boards import BOARDS
+
+    CORE.toolchain = None
+    config: dict[str, Any] = {
+        "variant": "esp32p4",
+        "toolchain": config_toolchain.value,
+    }
+    if engineering_sample is not None:
+        config["engineering_sample"] = engineering_sample
+
+    config = CONFIG_SCHEMA(config)
+
+    assert config["board"] == expected_board
+    assert BOARDS[expected_board].get("engineering_sample", False) == bool(
+        engineering_sample
+    )
+
+
+def test_esp32_p4_variant_only_native_idf_targets_rev3_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end on the native IDF toolchain: a variant-only P4 config must
+    not set CONFIG_ESP32P4_SELECTS_REV_LESS_V3, so the bootloader links the
+    rev3 layout that production (v3.0+) chips require."""
+    generate_main(component_config_path("p4_variant_only.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESP32P4_SELECTS_REV_LESS_V3") is False
+
+
+@pytest.mark.parametrize(
     ("config_toolchain", "expected"),
     [
         # No `toolchain:` set -> the new default for esp32.
