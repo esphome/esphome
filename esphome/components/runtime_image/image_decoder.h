@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
+#include "runtime_image.h"
 
 namespace esphome::runtime_image {
 
@@ -41,12 +42,20 @@ class ImageDecoder {
   virtual ~ImageDecoder() = default;
 
   /**
+   * @brief Get the image format handled by this decoder.
+   *
+   * @return The image format represented by the concrete decoder implementation.
+   */
+  virtual ImageFormat get_format() const = 0;
+
+  /**
    * @brief Initialize the decoder.
    *
    * @param expected_size Hint about the expected data size (0 if unknown).
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
   virtual int prepare(size_t expected_size) {
+    this->decoded_bytes_ = 0;
     this->expected_size_ = expected_size;
     return 0;
   }

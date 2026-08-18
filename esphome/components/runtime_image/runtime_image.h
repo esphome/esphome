@@ -99,7 +99,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if decoding is currently in progress.
    */
-  bool is_decoding() const { return this->decoder_ != nullptr; }
+  bool is_decoding() const { return this->decoder_ != nullptr && this->is_decoder_active_; }
 
   /**
    * @brief Check if the decoder has finished processing all data.
@@ -203,6 +203,7 @@ class RuntimeImage : public image::Image {
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
+  bool is_decoder_active_{false};
   /** The image format this RuntimeImage is configured to decode. */
   const ImageFormat format_;
 

@@ -23,6 +23,8 @@ class BmpDecoder : public ImageDecoder {
    */
   BmpDecoder(RuntimeImage *image) : ImageDecoder(image) {}
 
+  ImageFormat get_format() const override { return BMP; }
+
   int HOT decode(uint8_t *buffer, size_t size) override;
 
   bool is_finished() const override {

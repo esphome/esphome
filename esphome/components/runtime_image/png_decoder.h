@@ -22,6 +22,8 @@ class PngDecoder : public ImageDecoder {
   PngDecoder(RuntimeImage *image);
   ~PngDecoder() override;
 
+  ImageFormat get_format() const override { return PNG; }
+
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 

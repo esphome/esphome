@@ -21,6 +21,8 @@ class JpegDecoder : public ImageDecoder {
   JpegDecoder(RuntimeImage *image) : ImageDecoder(image) {}
   ~JpegDecoder() override {}
 
+  ImageFormat get_format() const override { return JPEG; }
+
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
