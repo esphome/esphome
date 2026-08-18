@@ -55,6 +55,38 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
+/// True for any function code whose frame length the parsers cannot predict - everything the
+/// server_pdu_length()/client_pdu_length() switches fall through to `default` on (keep the case list
+/// in step with those switches). Deliberately wider than is_function_code_custom(): the user-defined
+/// ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
+/// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
+/// The 0x80 exception flag is masked off first, so a frame with it set classifies by its base code -
+/// even though a spec exception reply has a known 2-byte PDU. That is deliberate, matching what
+/// is_function_code_custom() has always done: some vendors use codes with the 0x80 bit set as ordinary
+/// codes with longer payloads, so the response parser CRC-scans these rather than assuming the spec
+/// length. For an intact spec exception the scan matches at its first candidate, so only a corrupt one
+/// pays (recovery by timeout instead of an immediate CRC failure).
+inline bool is_function_code_unknown_length(uint8_t function_code) {
+  switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FILE_RECORD:
+    case FunctionCode::WRITE_FILE_RECORD:
+    case FunctionCode::MASK_WRITE_REGISTER:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FIFO_QUEUE:
+      return false;
+    default:
+      return true;
+  }
+}
+
 // Returns the expected length of a server response PDU based on the function code.
 // If too few bytes have arrived to determine the length, returns the minimum length. `size` is the
 // number of bytes available so far, which may exceed the eventual PDU (e.g. include the frame's CRC
