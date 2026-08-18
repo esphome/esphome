@@ -219,7 +219,7 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
-uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
+uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
   // Unknown-length functions (user-defined codes, unimplemented management codes, unassigned values)
   // could be any length - we have to rely on the CRC to determine completeness.
   // If a CRC match is never found, the buffer will eventually overflow and be cleared.
@@ -253,7 +253,7 @@ bool Modbus::parse_modbus_server_frame_() {
   uint8_t function_code = this->rx_buffer_[1];
 
   if (helpers::is_function_code_unknown_length(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
     ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
@@ -284,7 +284,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   uint8_t function_code = this->rx_buffer_[1];
 
   if (helpers::is_function_code_unknown_length(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
     ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
