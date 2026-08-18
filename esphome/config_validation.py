@@ -99,6 +99,10 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
+
+# Deprecated re-export for external components; remove before 2027.2.0
+# pylint: disable-next=unused-import
+from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 

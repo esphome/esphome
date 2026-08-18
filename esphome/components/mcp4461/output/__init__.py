@@ -37,7 +37,7 @@ CONF_NONVOLATILE_WRITE_DELAY = "nonvolatile_write_delay"
 VOLATILE_CHANNELS = ("A", "B", "C", "D")
 
 
-def _validate_nonvolatile(config: ConfigType) -> ConfigType:
+def _validate_nonvolatile(config: ConfigType) -> None:
     channel = str(config[CONF_CHANNEL])
 
     # Channels E-H address the nonvolatile registers directly — the mirroring options only
@@ -52,7 +52,7 @@ def _validate_nonvolatile(config: ConfigType) -> ConfigType:
                 f"enabling '{CONF_NONVOLATILE}' or setting '{CONF_NONVOLATILE_WRITE_DELAY}' is only valid for the "
                 f"volatile channels A-D; channels E-H are the nonvolatile registers themselves"
             )
-        return config
+        return
 
     config.setdefault(CONF_NONVOLATILE, True)
     if config[CONF_NONVOLATILE]:
@@ -65,7 +65,6 @@ def _validate_nonvolatile(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"'{CONF_NONVOLATILE_WRITE_DELAY}' requires '{CONF_NONVOLATILE}: true'"
         )
-    return config
 
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
