@@ -2299,6 +2299,12 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     user_picked_lfn = any(k in opts for k in lfn_keys)
     fatfs_required = CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False)
     if fatfs_required:
+        if enable_exfat and opts.get("CONFIG_FATFS_LFN_NONE"):
+            raise EsphomeError(
+                f"'{CONF_ENABLE_EXFAT}' needs long filename support, but 'CONFIG_FATFS_LFN_NONE' "
+                "is set in the esp32 framework sdkconfig_options -- exFAT cannot be built with "
+                "FF_USE_LFN == 0. Remove CONFIG_FATFS_LFN_NONE, or unset enable_exfat."
+            )
         if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
