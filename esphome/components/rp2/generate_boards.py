@@ -34,11 +34,27 @@ CYW43_GPIO_COUNT = 3
 # Max GPIO pin per MCU (hardware specs from datasheets)
 MCU_MAX_PIN = {
     "rp2040": 29,  # GPIO 0-29
-    "rp2350": 47,  # GPIO 0-47 (RP2350A)
+    "rp2350": 47,  # GPIO 0-47 (RP2350B; A-die boards are narrowed to 29 below)
 }
 DEFAULT_MAX_PIN = 29
+# The RP2350 currently comes in two die variants: RP2350A exposes GPIO 0-29,
+# RP2350B GPIO 0-47. Variant headers declare the die via PICO_RP2350A
+# (1 = A, 0 = B).
+RP2350_DIE_A = "A"
+RP2350_DIE_B = "B"
+RP2350A_MAX_PIN = 29
+# Key recording the die letter on RP2350 board entries. Holds a letter rather
+# than a bool so a future die can be named instead of forced into "not A".
+RP2350_DIE_KEY = "die"
 
 PIN_DEFINE_RE = re.compile(r"#define\s+PIN_(\w+)\s+\((\d+)u\)")
+# Accepts the literal forms seen in these headers: 1, (1), 1u, (1u)
+RP2350A_DEFINE_RE = re.compile(r"#define\s+PICO_RP2350A\s+(\S+)")
+# Only PICO_RP2350A exists today. A define for any other die letter means the
+# A/B assumption below no longer holds. The trailing \b keeps this from
+# matching unrelated names such as PICO_RP2350_A2_SUPPORTED.
+OTHER_DIE_DEFINE_RE = re.compile(r"#define\s+PICO_RP2350(?!A\b)([B-Z])\b")
+RP2350A_MENU_PLACEHOLDER = "__PICO_RP2350A"
 
 
 def parse_variant_pins(variant_dir: Path) -> dict[str, int]:
@@ -56,6 +72,47 @@ def parse_variant_pins(variant_dir: Path) -> dict[str, int]:
     return pins
 
 
+def parse_variant_rp2350_die(variant_dir: Path) -> str | None:
+    """Return the RP2350 die letter the variant declares, or None if unknown.
+
+    Generic boards leave the die a build-time menu choice (PICO_RP2350A is set
+    to a __PICO_RP2350A placeholder rather than a literal); those return None,
+    meaning the die is genuinely unknown at code generation time. They keep the
+    permissive B-die pin range, but that is a fallback and must not be recorded
+    as a known die.
+
+    A missing or unrecognized define raises: silently treating it as B-die
+    would widen pin validation back to GPIO 47 on A-die boards, so a framework
+    bump that changes the header format must fail loudly here instead. The same
+    goes for a die beyond A and B: PICO_RP2350A is a yes/no answer about the A
+    die, so "not A" can only be read as B while A and B are the whole family.
+    """
+    header = variant_dir / "pins_arduino.h"
+    text = header.read_text(encoding="utf-8") if header.exists() else ""
+    if other_die := OTHER_DIE_DEFINE_RE.search(text):
+        raise ValueError(
+            f"{header}: found a PICO_RP2350{other_die.group(1)} define; the "
+            "RP2350 gained a die beyond A and B, so PICO_RP2350A being 0 no "
+            "longer means the B die"
+        )
+    match = RP2350A_DEFINE_RE.search(text)
+    if match is None:
+        raise ValueError(
+            f"{header}: no PICO_RP2350A define found; cannot classify the "
+            "RP2350 die (A exposes GPIO 0-29, B exposes GPIO 0-47)"
+        )
+    value = match.group(1)
+    if value == RP2350A_MENU_PLACEHOLDER:
+        return None
+    literal = value.strip("()u")
+    if not literal.isdigit():
+        raise ValueError(
+            f"{header}: unrecognized PICO_RP2350A value {value!r}; cannot "
+            "classify the RP2350 die (A exposes GPIO 0-29, B exposes GPIO 0-47)"
+        )
+    return RP2350_DIE_A if int(literal) == 1 else RP2350_DIE_B
+
+
 def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
     """Load all board definitions and return (board_pins, boards) dicts."""
     json_dir = arduino_pico_path / "tools" / "json"
@@ -64,6 +121,7 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
     board_pins = {}
     boards = {}
     variant_pins_cache: dict[str, dict[str, int]] = {}
+    variant_die_cache: dict[str, str | None] = {}
 
     for json_file in sorted(json_dir.glob("*.json")):
         board_name = json_file.stem
@@ -81,11 +139,26 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
         extra_flags = build.get("extra_flags", "")
         has_wifi = "PICO_CYW43_SUPPORTED=1" in extra_flags
 
+        max_pin = MCU_MAX_PIN.get(mcu, DEFAULT_MAX_PIN)
+        die: str | None = None
+        if mcu == "rp2350":
+            if variant not in variant_die_cache:
+                variant_die_cache[variant] = parse_variant_rp2350_die(
+                    variants_dir / variant
+                )
+            die = variant_die_cache[variant]
+            if die == RP2350_DIE_A:
+                max_pin = RP2350A_MAX_PIN
+
         board_entry: dict = {
             "name": display_name,
             "mcu": mcu,
-            "max_pin": MCU_MAX_PIN.get(mcu, DEFAULT_MAX_PIN),
+            "max_pin": max_pin,
         }
+        if mcu == "rp2350":
+            # Recorded explicitly because max_pin cannot express the die:
+            # 29 also means RP2040, and 47 also means "die not known yet".
+            board_entry[RP2350_DIE_KEY] = die
         if has_wifi:
             board_entry["wifi"] = True
         boards[board_name] = board_entry
@@ -168,6 +241,7 @@ def generate(arduino_pico_path: Path) -> str:
         cyw43_gpio_offset=CYW43_GPIO_OFFSET,
         cyw43_max_gpio=CYW43_GPIO_OFFSET + CYW43_GPIO_COUNT - 1,
         default_max_pin=DEFAULT_MAX_PIN,
+        rp2350_die_key=RP2350_DIE_KEY,
         board_pins=sorted(board_pins.items()),
         boards=sorted(boards.items()),
     )

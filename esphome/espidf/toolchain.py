@@ -9,14 +9,18 @@ import re
 import shutil
 import subprocess
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_SOURCE,
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory
@@ -56,6 +60,27 @@ def _get_framework_source_override() -> str | None:
     return CORE.config.get(KEY_ESP32, {}).get(CONF_FRAMEWORK, {}).get(CONF_SOURCE)
 
 
+def _get_configured_targets() -> list[str] | None:
+    """Return the IDF install target for the configured variant, if known.
+
+    Limiting the toolchain install to the variant being built skips the other
+    architecture's compiler entirely (several hundred MB of download and 1-2GB
+    of disk). idf_tools.py accumulates targets across runs, so building a
+    second variant later installs just its toolchain incrementally. None (no
+    variant stored, e.g. tooling outside a build) falls back to the default
+    inside check_esp_idf_install.
+
+    CI always installs every target (None falls through to the "all"
+    default): runners share one toolchain cache across jobs that build
+    different variants, so a full install keeps the cached tree identical
+    everywhere instead of per-variant supersets invalidating each other.
+    """
+    if os.environ.get("CI"):
+        return None
+    variant = CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT)
+    return [variant_to_idf_target(variant)] if variant else None
+
+
 def _get_esphome_esp_idf_paths(
     version: str | None = None,
 ) -> tuple[os.PathLike, os.PathLike]:
@@ -63,7 +88,9 @@ def _get_esphome_esp_idf_paths(
     paths = _cache().paths
     if version not in paths:
         paths[version] = check_esp_idf_install(
-            version, source_url=_get_framework_source_override()
+            version,
+            targets=_get_configured_targets(),
+            source_url=_get_framework_source_override(),
         )
     return paths[version]
 
@@ -82,6 +109,8 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
     env_cache = _cache().env
     if version not in env_cache:
         env_cache[version] = os.environ.copy()
+        # Do not leak PYTHONPATH into child env
+        env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
         if "IDF_PATH" not in os.environ:

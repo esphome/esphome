@@ -175,7 +175,7 @@ def _config_schema(config):
     return config
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -183,7 +183,6 @@ def _final_validate(config):
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
-    return config
 
 
 CONFIG_SCHEMA = _config_schema

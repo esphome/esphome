@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
@@ -55,7 +56,7 @@ def test_get_esphome_esp_idf_paths_forwards_source_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=url)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=url)
 
 
 def test_get_esphome_esp_idf_paths_no_override():
@@ -66,7 +67,28 @@ def test_get_esphome_esp_idf_paths_no_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=None)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
+
+
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
+    """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() == ["esp32s3"]
+
+
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
+    """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() is None
 
 
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
@@ -241,6 +263,21 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
         env = toolchain._get_idf_env(version="5.5.4")
     assert CORE.config_dir == setup_core
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
+def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
+    """A PYTHONPATH from the parent environment must not reach idf.py.
+
+    It would override the IDF venv's isolation, shadowing its pinned
+    packages and failing idf.py's dependency check.
+    """
+    toolchain._cache().env.clear()
+    with patch.dict(
+        os.environ,
+        {"IDF_PATH": str(setup_core), "PYTHONPATH": "/outside/site-packages"},
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "PYTHONPATH" not in env
 
 
 def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
