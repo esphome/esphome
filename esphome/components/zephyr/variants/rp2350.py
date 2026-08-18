@@ -51,12 +51,22 @@ VARIANT = ZephyrVariant(
     family="rpi_pico",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    transports=frozenset(),
+    transports=frozenset({"wifi"}),
+    transport_drivers={
+        "wifi": ("CYW43439", "{/soc/pio@50200000/pio0_spi0/airoc-wifi@0}")
+    },
+    transport_blobs={
+        "wifi": ("hal_infineon", ".*43439.*", ".blobs_hal_infineon_ready")
+    },
     soc="rp2350a",
     qualifier="m33",
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
     pwm_node_labels=["pwm"],
+    # wdt_rpi_pico.c: RPI_PICO_MAX_WDT_TIME = 0xFFFFFF us (no errata halving on
+    # RP2350) -- real ceiling ~16.78s, above the 10s default but below the generic
+    # 60s schema max.
+    watchdog_max_timeout_ms=16000,
 )
 
 

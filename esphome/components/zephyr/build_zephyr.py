@@ -44,6 +44,30 @@ def _find_runners_yaml(build_dir: Path) -> Path:
         return Path(build_dir) / "zephyr" / "runners.yaml"
 
 
+def log_available_runners(build_dir: Path) -> None:
+    """Log the board's available west flash runners and which one is the
+    default, read from runners.yaml (see resolve_dev_id() for another
+    consumer of the same file).
+    """
+    runners_yaml_path = _find_runners_yaml(build_dir)
+    try:
+        with runners_yaml_path.open(encoding="utf-8") as f:
+            runners_yaml = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError) as e:
+        _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
+        return
+    runners_yaml = runners_yaml or {}
+    runners = runners_yaml.get("runners")
+    flash_runner = runners_yaml.get("flash-runner")
+    if not runners:
+        return
+    _LOGGER.info(
+        "Available flash runners: %s (default: %s)",
+        ", ".join(runners),
+        flash_runner or "none",
+    )
+
+
 def _runner_supports_dev_id(
     python_executable: Path, framework_path: Path, runner: str
 ) -> bool:
@@ -282,6 +306,7 @@ def run_west_build(
         cwd=str(framework_path),
     ):
         raise EsphomeError("Zephyr native build failed")
+    log_available_runners(build_dir)
 
 
 def run_west_flash(

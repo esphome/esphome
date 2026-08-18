@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import threading
 from types import SimpleNamespace
@@ -16,9 +17,10 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
 from esphome.platformio import runner, toolchain
-from esphome.util import FlashImage
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -328,6 +330,66 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
         _ = toolchain.IDEData({"extra": None}).extra_flash_images
 
 
+@pytest.mark.parametrize(
+    ("platform", "framework", "expected"),
+    [
+        ("esp32", "arduino", "1"),
+        ("esp32", "esp-idf", None),
+        ("esp8266", "arduino", None),
+    ],
+)
+def test_run_platformio_cli_flags_an_esp32_arduino_build(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    framework: str,
+    expected: str | None,
+) -> None:
+    """Only an ESP32 Arduino build is flagged, and an inherited one is cleared."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: framework,
+    }
+
+    with patch.dict(os.environ, {ESP32_ARDUINO_ENV: "1"}, clear=False):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert env.get(ESP32_ARDUINO_ENV) == expected
+        # Only the subprocess env is touched; ours is left as it was.
+        assert os.environ[ESP32_ARDUINO_ENV] == "1"
+
+
+def test_run_platformio_cli_ignores_an_inherited_flag_without_core(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """An inherited flag must not end up answering for CORE."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data.pop(KEY_CORE, None)
+
+    with patch.dict(os.environ, {ESP32_ARDUINO_ENV: "1"}, clear=False):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+        env = mock_run_external_process.call_args[1]["env"]
+        assert ESP32_ARDUINO_ENV not in env
+
+
+def test_run_platformio_cli_raises_on_a_half_filled_core(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """A CORE set up but left incomplete must surface, not fall back."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {}
+
+    with patch.dict(os.environ, {}, clear=False):
+        mock_run_external_process.return_value = 0
+        with pytest.raises(KeyError):
+            toolchain.run_platformio_cli("test", "arg")
+
+
 def test_run_platformio_cli_sets_environment_variables(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
@@ -370,6 +432,7 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         env = toolchain._ccache_env()
 
@@ -394,6 +457,44 @@ def test_ccache_env_disabled_without_binary(setup_core: Path) -> None:
         env = toolchain._ccache_env()
 
     assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
+
+
+@pytest.mark.parametrize(
+    "probe_error",
+    [
+        pytest.param(OSError("not runnable"), id="oserror"),
+        pytest.param(subprocess.CalledProcessError(1, "ccache"), id="nonzero-exit"),
+        pytest.param(subprocess.TimeoutExpired("ccache", 15), id="timeout"),
+    ],
+)
+def test_ccache_env_disabled_when_probe_fails(
+    setup_core: Path, probe_error: Exception
+) -> None:
+    """A ccache that resolves on PATH but fails to run stays disabled."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run", side_effect=probe_error),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
+
+
+def test_ccache_env_forced_on_skips_probe(setup_core: Path) -> None:
+    """An explicit ESPHOME_CCACHE_ENABLE=1 does not probe the binary."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    with (
+        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
+        patch.object(toolchain.subprocess, "run") as mock_probe,
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["ESPHOME_CCACHE_ENABLE"] == "1"
+    mock_probe.assert_not_called()
 
 
 def test_ccache_env_opt_out(setup_core: Path) -> None:
@@ -435,6 +536,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     with (
         patch.dict(os.environ, user_env, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         env = toolchain._ccache_env()
 
@@ -453,6 +555,7 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
     with (
         patch.dict(os.environ, {}, clear=False),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         mock_run_external_process.return_value = 0
@@ -472,6 +575,7 @@ def test_ccache_env_requires_build_path(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
         pytest.raises(ValueError, match="CORE.build_path must be set"),
     ):
         toolchain._ccache_env()
@@ -483,7 +587,10 @@ def test_run_platformio_cli_merges_caller_env(
     """A caller-supplied env is the base and gains the ccache settings."""
     CORE.build_path = str(setup_core / "build" / "test")
 
-    with patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"):
+    with (
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch.object(toolchain.subprocess, "run"),
+    ):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli(
             "test", env={"CUSTOM_VAR": "1", "ESPHOME_CCACHE_ENABLE": "0"}

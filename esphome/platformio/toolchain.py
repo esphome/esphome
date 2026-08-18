@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -19,7 +20,7 @@ from esphome.helpers import (
     rmtree,
     write_file,
 )
-from esphome.util import FlashImage, run_external_process
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage, run_external_process
 
 if TYPE_CHECKING:
     from platformio.project.config import ProjectConfig
@@ -234,6 +235,35 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
+def _ccache_usable() -> bool:
+    """Return True when the ``ccache`` on PATH actually runs.
+
+    ``shutil.which`` proves existence, not runnability: on Windows it also
+    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
+    target is gone. Wrapping compiles around such a find fails every compile
+    step with an opaque OS error, so probe once and fall back to compiling
+    without ccache when the probe fails.
+    """
+    ccache = shutil.which("ccache")
+    if ccache is None:
+        return False
+    try:
+        subprocess.run(
+            [ccache, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.warning(
+            "Ignoring ccache at %s because it failed to run; compiling without ccache",
+            ccache,
+        )
+        return False
+    return True
+
+
 def _ccache_env() -> dict[str, str]:
     """Return ccache settings for PlatformIO builds.
 
@@ -266,7 +296,7 @@ def _ccache_env() -> dict[str, str]:
     if "ESPHOME_CCACHE_ENABLE" in os.environ:
         enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
     else:
-        enabled = shutil.which("ccache") is not None
+        enabled = _ccache_usable()
     env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
     if not enabled:
         return env
@@ -342,6 +372,13 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     base_env = kwargs.pop("env", None)
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
+    # The runner offers the out-of-flash tip but has no configured CORE, so
+    # tell it. Ask CORE, not is_esp32_arduino_build(), which reads this same
+    # variable; clear an inherited one so it cannot reach the wrong build.
+    if CORE.is_configured and CORE.is_esp32 and CORE.using_arduino:
+        env[ESP32_ARDUINO_ENV] = "1"
+    else:
+        env.pop(ESP32_ARDUINO_ENV, None)
 
     return run_external_process(*cmd, env=env, **kwargs)
 

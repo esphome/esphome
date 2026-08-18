@@ -7,11 +7,15 @@ from pathlib import Path
 import time
 from unittest.mock import patch
 
+import yaml
+
 from esphome.components.zephyr.framework_west import (
     _effective_requirements,
+    _generate_synthetic_manifest,
+    _source_cache_key,
     check_and_install,
 )
-from esphome.components.zephyr.variants import ZephyrSDK
+from esphome.components.zephyr.variants import ZephyrModule, ZephyrSDK
 from esphome.core import TimePeriodSeconds
 from esphome.framework_helpers import get_python_env_executable_path
 
@@ -117,3 +121,97 @@ def test_git_source_skips_manifest_refresh_within_window(tmp_path: Path) -> None
 
     assert not any(c[:2] == ["git", "fetch"] for c, _cwd in calls)
     assert not mock_subprocess_run.called
+
+
+# ---------------------------------------------------------------------------
+# _source_cache_key -- module set identity
+# ---------------------------------------------------------------------------
+
+
+def test_source_cache_key_differs_when_module_url_changes_but_name_and_rev_match() -> (
+    None
+):
+    # Same name+revision, different manifest_url (e.g. repointed at a fork on the
+    # same branch name) -- must not collide, or a source change would silently
+    # reuse a stale cached workspace.
+    module_a = [ZephyrModule(name="mod", manifest_url="http://a", revision="main")]
+    module_b = [ZephyrModule(name="mod", manifest_url="http://b", revision="main")]
+
+    assert _source_cache_key("v1.0.0", None, module_a) != _source_cache_key(
+        "v1.0.0", None, module_b
+    )
+
+
+def test_source_cache_key_matches_for_identical_module_set() -> None:
+    modules = [ZephyrModule(name="mod", manifest_url="http://a", revision="main")]
+
+    assert _source_cache_key("v1.0.0", None, modules) == _source_cache_key(
+        "v1.0.0", None, modules
+    )
+
+
+# ---------------------------------------------------------------------------
+# _generate_synthetic_manifest -- ref-less root source
+# ---------------------------------------------------------------------------
+
+
+def test_generate_synthetic_manifest_omits_null_revision(tmp_path: Path) -> None:
+    # manifest_rev=None (a ref-less sdk_source: git:) must not become a literal
+    # `revision: null` in the generated west.yml -- omitted means "track the
+    # source's default branch," matching the plain `west init -m` path's own
+    # `if manifest_rev: cmd += ["--mr", manifest_rev]` handling.
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path, "https://example.invalid/root.git", None, []
+        )
+
+    manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
+    root_project = manifest["manifest"]["projects"][0]
+    assert "revision" not in root_project
+
+
+def test_generate_synthetic_manifest_keeps_revision_when_given(tmp_path: Path) -> None:
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path, "https://example.invalid/root.git", "v1.2.3", []
+        )
+
+    manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
+    assert manifest["manifest"]["projects"][0]["revision"] == "v1.2.3"
+
+
+def test_generate_synthetic_manifest_root_name_defaults_to_url_basename(
+    tmp_path: Path,
+) -> None:
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path, "https://github.com/nrfconnect/sdk-nrf", "v3.4.0", []
+        )
+
+    manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
+    assert manifest["manifest"]["projects"][0]["name"] == "sdk-nrf"
+
+
+def test_generate_synthetic_manifest_root_name_override(tmp_path: Path) -> None:
+    # NCS's own sysbuild/Kconfig scripts hardcode "nrf" as the project name --
+    # regression coverage for the real bug this fixes (a mismatched name leaves
+    # e.g. SYSBUILD_NRF_KCONFIG unset and breaks sysbuild's Kconfig configure step).
+    with patch(
+        "esphome.components.zephyr.framework_west.run_command_ok", return_value=True
+    ):
+        manifest_dir = _generate_synthetic_manifest(
+            tmp_path,
+            "https://github.com/nrfconnect/sdk-nrf",
+            "v3.4.0",
+            [],
+            west_project_name="nrf",
+        )
+
+    manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
+    assert manifest["manifest"]["projects"][0]["name"] == "nrf"

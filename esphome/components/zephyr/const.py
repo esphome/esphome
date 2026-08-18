@@ -5,7 +5,8 @@ import esphome.codegen as cg
 BOOTLOADER_MCUBOOT = "mcuboot"
 
 # advanced: bootloader: -- shared by every variant whose default board can boot
-# without MCUboot (rp2040, rp2350), so MCUboot is opt-in rather than assumed.
+# without MCUboot (rp2040, rp2350, ra4m1, stm32l4), so MCUboot is opt-in rather than
+# assumed.
 CONF_BOOTLOADER = "bootloader"
 BOOTLOADER_NONE = "none"
 
@@ -22,6 +23,8 @@ KEY_BOARD: Final = "board"
 KEY_BOARD_ROOT: Final = "board_root"
 KEY_USER: Final = "user"
 KEY_FRAMEWORK_TYPE: Final = "framework_type"
+KEY_MODULE_REQUESTS: Final = "module_requests"
+KEY_MODULE_OVERRIDES: Final = "module_overrides"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
@@ -41,6 +44,7 @@ KEY_SHIELDS: Final = "shields"
 KEY_SHIELD_ROOT: Final = "shield_root"
 CONF_SNIPPET_SOURCE = "snippet_source"
 KEY_SNIPPET_ROOT: Final = "snippet_root"
+CONF_MODULES = "modules"
 
 # zephyr: version: "recommended" -- explicit alias for the variant's default_version,
 # same as omitting `version:` entirely.
@@ -59,6 +63,7 @@ ZEPHYR_VARIANT_EFR32MG24 = "EFR32MG24"
 ZEPHYR_VARIANT_STM32L4 = "STM32L4"
 ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
+ZEPHYR_VARIANT_RA4M1 = "RA4M1"
 
 ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
 

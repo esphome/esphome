@@ -20,7 +20,7 @@ from esphome.const import (
     TYPE_GIT,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 from ..const import (
@@ -63,17 +63,93 @@ class ZephyrSDK:
     # silently break on some past or future NCS release. Reading the real manifest is the
     # only correct way to know it.
     resolve_boards_ref_via_manifest: bool = False
-    # Repo whose own west.yml is read for resolve_boards_ref_via_manifest's project-revision
-    # lookup, when it differs from manifest_url. None = manifest_url. Needed when a manifest
-    # only imports its real SDK indirectly (e.g. ncs-zigbee -> sdk-nrf).
-    boards_manifest_url: str | None = None
-    # Hardcoded version to assume when source: ref: isn't a "vX.Y.Z" tag, for a repo with
-    # no top-level VERSION file (e.g. ncs-zigbee). None = read VERSION directly from
-    # source. A tag ref is still used directly regardless of this value.
-    unversioned_ref_fallback: str | None = None
     # Set when this SDK has no tagged release usable as a default -- framework: source: is
     # then mandatory; explains why in the raised error.
     requires_source_reason: str | None = None
+    # capability -> module. A module is additive to this SDK (fetched by `west update`
+    # alongside it, no boards/toolchain/version of its own) -- distinct from alt_sdks,
+    # which are competing SDK roots. See ZephyrModuleTemplate.
+    modules: dict[str, "ZephyrModuleTemplate"] = field(default_factory=dict)
+    # West project name to use for this SDK when it's imported as a sibling project
+    # rather than the manifest root (i.e. whenever modules is non-empty -- see
+    # _generate_synthetic_manifest). None = derive from manifest_url's basename.
+    # NCS needs this pinned to "nrf": its own bundled sysbuild/Kconfig scripts
+    # hardcode that exact west project name (matching Nordic's own official
+    # manifests, confirmed against ncs-zigbee's real west.yml) to generate
+    # `SYSBUILD_NRF_KCONFIG`-style variables -- naming the project anything else
+    # (e.g. "sdk-nrf", the URL's basename) leaves that variable unset and breaks
+    # sysbuild's Kconfig configure step. Found via a real `esphome compile` (variant:
+    # nrf52 + zigbee:), not just by reading Nordic's manifest -- the failure only
+    # surfaces at CMake's Kconfig-configure step, not at `west update`.
+    west_project_name: str | None = None
+
+
+# A fully resolved, ready-to-fetch additive west module -- identical shape whether it
+# came from a component's capability request or a user's own `zephyr: modules:` entry.
+@dataclass
+class ZephyrModule:
+    name: str  # west project/module name
+    manifest_url: str | None = None  # git remote; None when local_path is set
+    local_path: Path | None = None  # user's `type: local` module
+    revision: str = "main"  # concrete ref/tag/branch to check out
+    # (west_module, allow_regex, sentinel_name) -- same shape as ZephyrVariant.blobs.
+    blobs: tuple[str, str, str] | None = None
+
+
+# Owned by the ZephyrSDK that can provide a capability; resolves to a concrete
+# ZephyrModule given the active root SDK's version.
+@dataclass
+class ZephyrModuleTemplate:
+    name: str
+    manifest_url: str
+    # root SDK's (major, minor) -> this module's matching version. Nordic pairs
+    # sdk-nrf and ncs-zigbee releases but the two use unrelated numbering schemes
+    # (3.4.x vs 1.4.x) -- no formula, each pairing is a real entry, added as Nordic
+    # ships new paired releases.
+    default_versions: dict[tuple[int, int], str] = field(default_factory=dict)
+    blobs: tuple[str, str, str] | None = None
+    # Lowest version this module is known to work at all -- independent of
+    # default_versions' per-root-version pairing, this just rejects an obviously
+    # too-old zephyr: modules: override at config time instead of failing much later
+    # inside `west update`. None = not enforced (e.g. a module with no numbered
+    # releases at all).
+    min_version: cv.Version | None = None
+
+    def resolve(
+        self, root_version: cv.Version, explicit_version: str | None = None
+    ) -> ZephyrModule:
+        version = explicit_version or self.default_versions.get(
+            (root_version.major, root_version.minor)
+        )
+        if version is None:
+            raise EsphomeError(
+                f"Module '{self.name}' has no known compatible version for "
+                f"framework version {root_version.major}.{root_version.minor} -- "
+                "specify it explicitly under zephyr: modules:."
+            )
+        tag = version
+        try:
+            parsed_version = cv.Version.parse(version)
+        except ValueError:
+            pass  # a git ref/branch (e.g. "main"), not a semver -- used as-is, no "v"
+        else:
+            if self.min_version is not None and parsed_version < self.min_version:
+                raise EsphomeError(
+                    f"Module '{self.name}' requires version >= {self.min_version}. "
+                    f"Got {version}."
+                )
+            # default_versions/explicit_version are bare "X.Y.Z" (for the comparison
+            # above and for a user typing zephyr: modules: version: without having to
+            # know the tag scheme), but the actual git tag needs the "v" -- same
+            # normalization the root SDK's own ver_tag already does.
+            if not tag.startswith("v"):
+                tag = f"v{tag}"
+        return ZephyrModule(
+            name=self.name,
+            manifest_url=self.manifest_url,
+            revision=tag,
+            blobs=self.blobs,
+        )
 
 
 @dataclass
@@ -121,6 +197,24 @@ class ZephyrVariant:
     # _PORT_BANKED_FAMILIES in gpio.py). A lettered family also gets its display
     # prefix from this (e.g. "PA"), independently of Nordic's numeric "P0." style.
     gpio_port_labels: tuple[str, ...] | None = None
+    # Devicetree node-label prefix for this variant's GPIO port nodes. Defaults to
+    # "gpio", which happens to be right for every variant wired up so far (Nordic,
+    # Espressif, Silicon Labs, STM32, RP2040) -- but that's a coincidence, not a Zephyr
+    # convention: a scan of the whole Zephyr dts/ tree turns up plenty of vendors that
+    # name their GPIO port nodes something else entirely (Renesas RA: ioport0/ioport1;
+    # Renesas RX and RA6, Microchip SAM, NXP MCX: porta/portb; TI: main_gpio; Xilinx
+    # Zynq: psgpio_bank; Infineon: gpio_prt; several RISC-V vendors: pioa/piob). Even
+    # different Renesas families disagree with each other (RA4M1 vs RA6 above).
+    #
+    # DO NOT assume "gpio" is safe for a new variant just because it's the default here
+    # and every existing variant uses it. Before adding a new ZephyrVariant, grep that
+    # SoC's actual .dtsi under the Zephyr SDK for "gpio-controller;" and read the node
+    # label a few lines above it -- then set this field to match. Getting it wrong is
+    # silent at compile time: DEVICE_DT_GET_OR_NULL() on a nonexistent node just resolves
+    # to nullptr, so every GPIO pin on the new variant fails at runtime with
+    # "gpio %u is not ready." instead of a build error (see the RA4M1 bug this comment
+    # is here because of).
+    gpio_node_prefix: str = "gpio"
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need
     # 802.15.4, but esp32-family only has the former ported (ZBOSS is Nordic-only).
@@ -132,6 +226,12 @@ class ZephyrVariant:
     # "enable one Kconfig + one DT node" shape use it -- openthread/zigbee configure
     # their own Kconfig directly instead.
     transport_drivers: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # Per-transport binary blobs, keyed by transport name -- same (west_module,
+    # allow_regex, sentinel_name) shape as `blobs` above, but only fetched when that
+    # transport is actually configured (unlike `blobs`, which always runs for the
+    # variant). Use this when the blobs are for hardware not every board of the variant
+    # has (e.g. rp2040's CYW43439 wifi chip, only present on `/w`-qualified boards).
+    transport_blobs: dict[str, tuple[str, str, str]] = field(default_factory=dict)
     # Per-variant override of the SDK's default version window (see ZephyrSDK); None uses
     # the SDK's value unchanged.
     default_version_override: str | None = None
@@ -172,6 +272,16 @@ class ZephyrVariant:
     # series numbers peripheral instances instead (pwm20-pwm22), same convention as
     # uart_node_labels above. Empty = no PWM support wired up.
     pwm_node_labels: list[str] = field(default_factory=list)
+    # Largest `zephyr: watchdog_timeout:` this variant's WDT hardware can actually
+    # arm, in milliseconds. None = trust the generic 5-60s schema range (true for
+    # every variant whose WDT clock gives it a multi-minute+ ceiling). Some
+    # variants' watchdog peripheral is clocked too fast, or has too small a
+    # counter, for that range -- the driver just silently substitutes a shorter
+    # real timeout with no error when asked for more than it can give. Set this so
+    # config validation can catch that instead of a silent boot-loop on real
+    # hardware. Value should leave headroom below the real computed ceiling for
+    # rounding-table granularity, not sit exactly on it.
+    watchdog_max_timeout_ms: int | None = None
 
 
 def resolve_sdk(
@@ -268,21 +378,13 @@ def resolve_framework_version(
 
     if source is not None:
         from ..dts_fetch import (  # deferred: avoid import cycle (dts_fetch imports VARIANTS)
-            resolve_ncs_zigbee_source_version,
             resolve_sdk_source_version,
         )
 
         if source[CONF_TYPE] == TYPE_GIT and CONF_URL not in source:
             source[CONF_URL] = sdk.manifest_url
         with cv.prepend_path([CONF_FRAMEWORK, CONF_SOURCE]):
-            if sdk.unversioned_ref_fallback is not None:
-                version_str = resolve_ncs_zigbee_source_version(
-                    source, sdk.unversioned_ref_fallback
-                )
-            else:
-                version_str = resolve_sdk_source_version(
-                    source, framework[CONF_REFRESH]
-                )
+            version_str = resolve_sdk_source_version(source, framework[CONF_REFRESH])
     else:
         version_str = str(framework.get(CONF_VERSION, default_version))
         if version_str == VERSION_RECOMMENDED:
@@ -383,12 +485,28 @@ def set_core_data(
         shields=shields if shields is not None else [],
         shield_root=shield_root,
         snippet_root=snippet_root,
+        module_requests={},
+        module_overrides={},
+        blobs=[],
     )
 
 
 MAINLINE: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/zephyrproject-rtos/zephyr",
     tools_subdir="sdk-zephyr",
+)
+
+# Nordic's ZBOSS Zigbee stack, split out of sdk-nrf into this separate add-on repo as of
+# NCS 3.4.0; see https://github.com/esphomeplatformzephyr/esphome/issues/31. Additive to
+# NCS (fetched alongside sdk-nrf, no boards/toolchain/version of its own) -- not a
+# competing SDK root, so it's a module, not an alt_sdks entry. sdk-nrf and ncs-zigbee are
+# versioned independently by Nordic (3.4.x vs 1.4.x, no formula between the two), hence
+# the explicit per-pairing table rather than a single default_version.
+NCS_ZIGBEE_TEMPLATE: ZephyrModuleTemplate = ZephyrModuleTemplate(
+    name="ncs-zigbee",
+    manifest_url="https://github.com/nrfconnect/ncs-zigbee",
+    default_versions={(3, 4): "1.4.0"},
+    min_version=cv.Version(1, 4, 0),
 )
 
 # nRF Connect SDK (NCS) -- Nordic's own vendor SDK, a manifest-of-manifests around a
@@ -406,23 +524,8 @@ NCS: ZephyrSDK = ZephyrSDK(
     default_version="3.4.0",
     min_version=cv.Version(3, 4, 0),
     resolve_boards_ref_via_manifest=True,
-)
-
-# Nordic's ZBOSS Zigbee stack, split out of sdk-nrf into this separate add-on repo as of
-# NCS 3.4.0; see https://github.com/esphomeplatformzephyr/esphome/issues/31.
-# boards_manifest_url points at sdk-nrf since ncs-zigbee's own west.yml only imports it.
-# default_version/min_version are ncs-zigbee's own version scheme, unrelated to sdk-nrf's.
-NCS_ZIGBEE: ZephyrSDK = ZephyrSDK(
-    manifest_url="https://github.com/nrfconnect/ncs-zigbee",
-    boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
-    boards_manifest_url="https://github.com/nrfconnect/sdk-nrf",
-    # main currently reports 1.4.99 (samples/light_bulb/VERSION) -- review on every new
-    # ncs-zigbee release.
-    unversioned_ref_fallback="1.4.99",
-    tools_subdir="sdk-nrf-zigbee",
-    default_version="1.4.0",
-    min_version=cv.Version(1, 4, 0),
-    resolve_boards_ref_via_manifest=True,
+    modules={"zigbee": NCS_ZIGBEE_TEMPLATE},
+    west_project_name="nrf",
 )
 
 # Silicon Labs' "Simplicity SDK for Zephyr" -- same manifest-of-manifests shape as NCS:
@@ -456,6 +559,7 @@ _VARIANT_MODULES = [
     "stm32l4",
     "rp2040",
     "rp2350",
+    "ra4m1",
 ]
 
 

@@ -3,11 +3,12 @@ import random
 
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    request_zephyr_module,
     zephyr_add_prj_conf,
     zephyr_framework_type,
     zephyr_variant,
 )
-from esphome.components.zephyr.variants import VARIANTS
+from esphome.components.zephyr.variants import VARIANTS, resolve_sdk
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -65,19 +66,22 @@ ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 def zigbee_zephyr_supported() -> bool:
     """True on platform: nrf52, or on platform: zephyr when the active variant has
-    zigbee radio support and framework: type: zigbee is selected. ncs-zigbee (ZBOSS) is
-    Nordic-proprietary; as of NCS 3.4.0 it lives only in the separate ncs-zigbee add-on
-    repo (type: zigbee), not in plain type: ncs anymore."""
+    zigbee radio support and the active root SDK actually offers a "zigbee" module.
+    ncs-zigbee (ZBOSS) is Nordic-proprietary; as of NCS 3.4.0 it lives only in the
+    separate ncs-zigbee add-on module, not in plain framework: type: ncs anymore --
+    see variants.NCS_ZIGBEE_TEMPLATE / NCS.modules. A structural check only (resolvable
+    at config_schema() time, before any to_code() has run) -- not "was the module
+    already requested," since this is called from config validators that run first.
+    """
     if "nrf52" in CORE.loaded_integrations:
         return True
     if not CORE.is_zephyr:
         return False
     variant = VARIANTS.get(zephyr_variant())
-    return (
-        variant is not None
-        and "zigbee" in variant.transports
-        and zephyr_framework_type() == "zigbee"
-    )
+    if variant is None or "zigbee" not in variant.transports:
+        return False
+    _, sdk = resolve_sdk(variant, zephyr_framework_type())
+    return "zigbee" in sdk.modules
 
 
 def requires_zigbee_zephyr_supported(value):
@@ -85,7 +89,7 @@ def requires_zigbee_zephyr_supported(value):
     if not zigbee_zephyr_supported():
         raise cv.Invalid(
             "This option requires platform: nrf52, or platform: zephyr with a "
-            "zigbee-capable variant on framework: type: zigbee"
+            "zigbee-capable variant"
         )
     return value
 
@@ -125,10 +129,17 @@ zephyr_number = cv.Schema(
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
-    # Top-level Zigbee-stack-enable Kconfig symbol: "ZIGBEE" for the legacy inline
-    # stack (type: ncs), "ZIGBEE_ADD_ON" for the separate ncs-zigbee repo (type: zigbee).
+    if CORE.is_zephyr:
+        # zigbee_zephyr_supported() already confirmed the active SDK offers a
+        # "zigbee" module (see there) -- this can't fail.
+        request_zephyr_module("zigbee")
+        cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
+
+    # Top-level Zigbee-stack-enable Kconfig symbol: "ZIGBEE" for platform: nrf52's
+    # legacy inline stack, "ZIGBEE_ADD_ON" for the separate ncs-zigbee module (the
+    # only option on platform: zephyr -- see zigbee_zephyr_supported()).
     zigbee_enable_symbol = (
-        "ZIGBEE_ADD_ON" if zephyr_framework_type() == "zigbee" else "ZIGBEE"
+        "ZIGBEE" if "nrf52" in CORE.loaded_integrations else "ZIGBEE_ADD_ON"
     )
     zephyr_add_prj_conf(zigbee_enable_symbol, True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)

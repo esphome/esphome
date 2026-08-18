@@ -7,6 +7,8 @@ import subprocess
 import textwrap
 from typing import TypedDict
 
+import yaml
+
 from esphome import git
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -16,6 +18,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_LOG_LEVEL,
     CONF_MAC_ADDRESS,
+    CONF_NAME,
     CONF_PASSWORD,
     CONF_PATH,
     CONF_REF,
@@ -46,6 +49,7 @@ from .const import (
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
+    CONF_MODULES,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
     CONF_SHIELD_SOURCE,
@@ -60,6 +64,8 @@ from .const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_FRAMEWORK_TYPE,
     KEY_KCONFIG,
+    KEY_MODULE_OVERRIDES,
+    KEY_MODULE_REQUESTS,
     KEY_OVERLAY,
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
@@ -82,13 +88,14 @@ from .const import (
     ZEPHYR_VARIANT_NRF52,
     ZEPHYR_VARIANT_NRF54L15,
     ZEPHYR_VARIANT_NRF54LM20A,
+    ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
     ZEPHYR_VARIANT_STM32L4,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
-from .variants import VARIANTS, resolve_sdk
+from .variants import VARIANTS, ZephyrModule, ZephyrModuleTemplate, resolve_sdk
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -208,6 +215,17 @@ class ZephyrData(TypedDict):
     snippet_root: (
         Path | None
     )  # resolved zephyr: snippet_source: dir, or board_root, or None
+    # capability -> template, requested via request_zephyr_module(). Not yet resolved
+    # to a version -- a zephyr: modules: override (module_overrides) may still apply
+    # before final resolution in run_compile(), so resolving eagerly here could raise
+    # for a version gap the user's own override was going to fill.
+    module_requests: dict[str, ZephyrModuleTemplate]
+    # module name -> a full user-authored ZephyrModule (zephyr: modules: with source:),
+    # or a plain version string overriding a component-requested module's default.
+    module_overrides: dict[str, ZephyrModule | str]
+    # (west_module, allow_regex, sentinel_name) entries added via zephyr_add_blobs() --
+    # transport-conditional blob fetches, on top of the variant's own static `blobs`.
+    blobs: list[tuple[str, str, str]]
 
 
 # platform: nrf52 use only
@@ -247,6 +265,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         shields=[],
         shield_root=None,
         snippet_root=None,
+        module_requests={},
+        module_overrides={},
+        blobs=[],
     )
 
 
@@ -463,6 +484,76 @@ def zephyr_set_prj_conf_override(
     zephyr_data()[KEY_PRJ_CONF][image][name] = (value, True)
 
 
+def request_zephyr_module(capability: str) -> None:
+    """Component-facing: record that `capability` (e.g. "zigbee") is needed as an
+    additive west module. Not resolved to a concrete version here -- a user's
+    `zephyr: modules:` override may still apply, so failing on a missing default
+    version has to wait until resolve_zephyr_modules() (see there for why)."""
+    _, sdk = resolve_sdk(VARIANTS[zephyr_variant()], zephyr_framework_type())
+    template = sdk.modules.get(capability)
+    if template is None:
+        raise EsphomeError(
+            f"The '{capability}' module isn't available for "
+            f"framework: type: {zephyr_framework_type()}."
+        )
+    requests = zephyr_data()[KEY_MODULE_REQUESTS]
+    if (existing := requests.get(capability)) is not None and existing != template:
+        raise EsphomeError(
+            f"The '{capability}' module was already requested with a different source"
+        )
+    requests[capability] = template
+
+
+def zephyr_set_module_override(name: str, override: ZephyrModule | str) -> None:
+    """Unconditionally record a `zephyr: modules:` override, replacing anything a
+    component requested. `override` is a full ZephyrModule (source: given -- a
+    brand-new or replaced module) or a plain version string (version-only tweak of a
+    component-requested module). Always wins -- same precedent as
+    zephyr_set_prj_conf_override for kconfig_options:.
+    """
+    zephyr_data()[KEY_MODULE_OVERRIDES][name] = override
+
+
+def resolve_zephyr_modules() -> list[ZephyrModule]:
+    """Combine module_requests with any module_overrides into the final set of
+    modules to fetch. Called once, from run_compile() -- by then every component's
+    to_code() and the zephyr: modules: override job have both already run, so an
+    override is guaranteed visible before a request's version gets resolved."""
+    root_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    overrides = dict(zephyr_data()[KEY_MODULE_OVERRIDES])
+    resolved: dict[str, ZephyrModule] = {}
+    seen_templates: dict[str, ZephyrModuleTemplate] = {}
+    for capability, template in zephyr_data()[KEY_MODULE_REQUESTS].items():
+        if (
+            existing := seen_templates.get(template.name)
+        ) is not None and existing != template:
+            raise EsphomeError(
+                f"Two different module requests both resolve to '{template.name}' "
+                f"(most recently '{capability}') -- capabilities must map to "
+                "distinct modules"
+            )
+        seen_templates[template.name] = template
+        override = overrides.pop(template.name, None)
+        if isinstance(override, ZephyrModule):
+            resolved[template.name] = override
+        else:
+            resolved[template.name] = template.resolve(root_version, override)
+    for name, override in overrides.items():
+        if not isinstance(override, ZephyrModule):
+            hint = ""
+            if requested_names := sorted(t.name for t in seen_templates.values()):
+                hint = (
+                    " -- note this must be the module's own name, not a component's "
+                    f"capability name (currently requested: {', '.join(requested_names)})"
+                )
+            raise EsphomeError(
+                f"zephyr: modules: '{name}' has no source and wasn't requested by "
+                f"any component{hint}"
+            )
+        resolved[name] = override
+    return list(resolved.values())
+
+
 def zephyr_configure_net_contexts() -> None:
     """Size NET_MAX_CONTEXTS from real socket demand. Mirrors esp32's
     _configure_lwip_max_sockets()/LWIP_MAX_SOCKETS."""
@@ -510,7 +601,19 @@ def zephyr_add_overlay(content: str, image: str = "") -> None:
     data = zephyr_data()
     if image not in data[KEY_OVERLAY]:
         data[KEY_OVERLAY][image] = ""
+    else:
+        # A chunk without a trailing newline (e.g. a bare #include line) would
+        # otherwise merge onto the same line as the next chunk.
+        data[KEY_OVERLAY][image] += "\n"
     data[KEY_OVERLAY][image] += textwrap.dedent(content)
+
+
+def zephyr_add_blobs(module: str, allow_regex: str, sentinel_name: str) -> None:
+    """Request a `west blobs fetch`, gated on a transport actually being configured
+    (unlike a variant's static `blobs`, which always runs)."""
+    spec = (module, allow_regex, sentinel_name)
+    if spec not in zephyr_data()["blobs"]:
+        zephyr_data()["blobs"].append(spec)
 
 
 def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
@@ -559,15 +662,16 @@ def zephyr_to_code(config: ConfigType) -> None:
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
-    if zephyr_variant() is not None:
-        # platform: nrf52 has no user-facing `framework: type:` -- its internal
-        # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned
-        # into a C++ define here; all C++ code keys off USE_NRF52 instead.
-        # USE_ZEPHYR_FRAMEWORK_ZEPHYR not defined, no need in code so far.
-        if zephyr_framework_type() == "ncs":
-            cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
-        elif zephyr_framework_type() == "zigbee":
-            cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
+    # platform: nrf52 has no user-facing `framework: type:` -- its internal
+    # framework_type="ncs" (see zephyr_set_core_data) is Python-only, never turned into
+    # a C++ define here; all C++ code keys off USE_NRF52 instead.
+    # USE_ZEPHYR_FRAMEWORK_ZEPHYR not defined, no need in code so far.
+    # USE_ZEPHYR_FRAMEWORK_ZIGBEE is set by zigbee_zephyr.py itself, alongside its
+    # request_zephyr_module("zigbee") call -- zephyr_to_code() here runs before
+    # zigbee:'s own to_code() in the normal dependency order, so the module request
+    # wouldn't be visible yet if it were decided here instead.
+    if zephyr_variant() is not None and zephyr_framework_type() == "ncs":
+        cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
     if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
         # native_sim: use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
         zephyr_add_prj_conf("EXTERNAL_LIBC", True)
@@ -598,6 +702,13 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_STM32")
+    elif zephyr_variant_family() == "renesas":
+        # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
+        # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every renesas-family variant (core.cpp, etc.).
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RENESAS")
     elif zephyr_variant_family() == "rpi_pico":
         # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
         # has no STL, which ESPHome's C++ core requires regardless of chip vendor.
@@ -678,25 +789,32 @@ def zephyr_to_code(config: ConfigType) -> None:
     # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
     # setup separately (nrf52/__init__.py) but defines the same consumer macro.
     # native_sim has no real watchdog hardware.
-    # STM32L4's iwdg devicetree node ships status = "disabled" by default
-    # (dts/arm/st/l4/stm32l4.dtsi) -- CONFIG_WATCHDOG alone doesn't enable it, an
-    # overlay setting `&iwdg { status = "okay"; };` is also needed. Skipped here
-    # until that overlay is added and verified on real hardware.
-    if zephyr_variant() is not None and zephyr_variant() not in (
-        ZEPHYR_VARIANT_NATIVE_SIM,
-        ZEPHYR_VARIANT_STM32L4,
-    ):
-        zephyr_add_prj_conf("WATCHDOG", True)
-        zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
-        cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
-        # Identifies the stalled thread on the console from the watchdog callback (see
-        # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
-        zephyr_add_prj_conf("THREAD_NAME", True)
-        # arch_stack_walk() isn't implemented for Xtensa (original ESP32); the call
-        # would silently do nothing there.
-        if zephyr_variant() != ZEPHYR_VARIANT_ESP32:
-            cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
+        # 0 disables the watchdog: leave CONFIG_WATCHDOG unset so hal.cpp's #ifdef
+        # compiles it out entirely, rather than requesting a timeout of zero.
+        if timeout_ms != 0:
+            zephyr_add_prj_conf("WATCHDOG", True)
+            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
+            # Every STM32 family member's iwdg node (dts/arm/st/*/stm32*.dtsi, "st,stm32-watchdog")
+            # ships status = "disabled" -- CONFIG_WATCHDOG alone doesn't enable it. hal.cpp
+            # resolves the watchdog device via DT_ALIAS(watchdog0), same as every other
+            # family's stock board -- but unlike nrf52/esp32 boards, STM32 boards don't
+            # define that alias themselves (watchdog wasn't previously used on this family),
+            # so it has to be added here too, not just the node's status.
+            if zephyr_variant_family() == "stm32":
+                zephyr_add_overlay(
+                    '&iwdg { status = "okay"; };\n'
+                    "/ { aliases { watchdog0 = &iwdg; }; };"
+                )
+            # Identifies the stalled thread on the console from the watchdog callback (see
+            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
+            zephyr_add_prj_conf("THREAD_NAME", True)
+            # arch_stack_walk() isn't implemented for Xtensa (original ESP32); the call
+            # would silently do nothing there.
+            if zephyr_variant() != ZEPHYR_VARIANT_ESP32:
+                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
 
     # .get(): nrf52's config dict has no log_level key yet, falls back to the same
     # default as a genuine platform: zephyr block.
@@ -720,18 +838,54 @@ def zephyr_to_code(config: ConfigType) -> None:
             ZEPHYR_VARIANT_ESP32,
             ZEPHYR_VARIANT_NATIVE_SIM,
         ):
-            if zephyr_variant_family() in ("nordic", "silabs", "rpi_pico"):
+            if zephyr_variant_family() in (
+                "nordic",
+                "silabs",
+                "rpi_pico",
+                "stm32",
+                "renesas",
+            ):
                 # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
                 # so it doesn't need this and setting it there would just warn.
-                # silabs (EFR32MG24, Cortex-M33) needs the same treatment as nordic.
+                # silabs (EFR32MG24, Cortex-M33), stm32 (STM32L4, Cortex-M4), and
+                # renesas (RA4M1, Cortex-M4) need the same treatment as nordic.
                 zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
     CORE.add_job(_kconfig_options_to_code, config)
+    CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _modules_to_code(config: ConfigType) -> None:
+    # .get(): nrf52's config dict has no modules key.
+    #
+    # Runs at the lowest priority so every component has already requested its own
+    # modules -- a user-supplied zephyr: modules: entry must always win, and a
+    # version-only override needs every request already recorded to have something to
+    # attach to (final resolution happens later still, in resolve_zephyr_modules()).
+    for module_conf in config.get(CONF_MODULES, []):
+        name = module_conf[CONF_NAME]
+        source = module_conf.get(CONF_SOURCE)
+        if source is None:
+            zephyr_set_module_override(name, module_conf[CONF_VERSION])
+        elif source[CONF_TYPE] == TYPE_LOCAL:
+            # cv.LOCAL_SCHEMA's path: already went through cv.directory -- an
+            # already-resolved absolute Path, not a raw string to resolve again.
+            zephyr_set_module_override(
+                name, ZephyrModule(name=name, local_path=source[CONF_PATH])
+            )
+        else:
+            zephyr_set_module_override(
+                name,
+                ZephyrModule(
+                    name=name, manifest_url=source[CONF_URL], revision=source[CONF_REF]
+                ),
+            )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -917,6 +1071,19 @@ def copy_files() -> None:
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
             path = CORE.relative_build_path(f"zephyr/sysbuild/{image}.overlay")
+            if (
+                image == "mcuboot"
+                and zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+            ):
+                # Writing any overlay file for the mcuboot sysbuild image replaces its
+                # normal auto-detected overlay chain (Zephyr sysbuild convention),
+                # which silently drops MCUboot's own
+                # zephyr,code-partition = &boot_partition; setting -- restate it here,
+                # once, for every caller that writes to this image's overlay, rather
+                # than relying on each one to remember to.
+                content += (
+                    "\n/ { chosen { zephyr,code-partition = &boot_partition; }; };\n"
+                )
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
         changed |= write_file_if_changed(path, content)
@@ -966,11 +1133,23 @@ def copy_files() -> None:
 
 
 # Watchdog range mirrors esp32's own CONF_WATCHDOG_TIMEOUT validator (esp32/__init__.py) --
-# confirmed working on real ESP32-H2 hardware under Zephyr.
-_WATCHDOG_TIMEOUT_VALIDATOR = cv.All(
-    cv.positive_time_period_seconds,
-    cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
-)
+# confirmed working on real ESP32-H2 hardware under Zephyr. 0 is a special case, not part of
+# that shared range: it disables the watchdog entirely (no CONFIG_WATCHDOG, no wdt_setup()
+# call at all -- see the zephyr_variant() watchdog codegen block below), rather than
+# requesting an unusably short real timeout.
+def _validate_watchdog_timeout(value):
+    # Bare 0 has no unit, so it wouldn't parse as a normal TimePeriod otherwise.
+    # Only the 60s ceiling is checked here; the 5s floor is variant-aware (some
+    # variants can't reach it) and enforced later once VARIANTS[variant] is known.
+    if isinstance(value, (int, float)) and value == 0:
+        return cv.TimePeriod(seconds=0)
+    period = cv.positive_time_period_seconds(value)
+    if period == cv.TimePeriod(seconds=0):
+        return period
+    return cv.Range(max=cv.TimePeriod(seconds=60))(period)
+
+
+_WATCHDOG_TIMEOUT_VALIDATOR = _validate_watchdog_timeout
 
 # Like cv.SOURCE_SCHEMA's git shape, but `url` is optional: `framework: source: {ref: ...}`
 # alone is enough to pin an alpha/pre-release branch of the selected framework's own
@@ -1070,6 +1249,35 @@ _SNIPPET_SOURCE_SCHEMA = cv.Any(
     ),
 )
 
+# A user-authored additive west module -- no username:/password:/refresh: (unlike
+# board_source:/shield_source:/snippet_source:, these are fetched via `west update`
+# as part of the generated manifest, not ESPHome's own git.clone_or_update cache).
+_MODULE_GIT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_URL): cv.url,
+        cv.Optional(CONF_REF, default="main"): cv.git_ref,
+    }
+)
+_MODULE_SOURCE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_GIT: _MODULE_GIT_SCHEMA,
+        TYPE_LOCAL: cv.LOCAL_SCHEMA,
+    }
+)
+# source: defines a brand-new (or replaced) module; version: alone is a version-only
+# tweak of a module a component already requested -- see resolve_zephyr_modules(). At
+# least one of the two is required, or the entry does nothing.
+_MODULE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_NAME): cv.string_strict,
+            cv.Optional(CONF_SOURCE): _MODULE_SOURCE_SCHEMA,
+            cv.Optional(CONF_VERSION): cv.string_strict,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_SOURCE, CONF_VERSION),
+)
+
 # Not applied when zephyr is auto-loaded as a shared dependency (e.g. by nrf52) --
 # see _variant_config_schema.
 _ZEPHYR_SCHEMA = cv.Schema(
@@ -1133,6 +1341,10 @@ _ZEPHYR_SCHEMA = cv.Schema(
                 cv.Optional("mcuboot"): cv.string,
             }
         ),
+        # Additive west modules -- either a user's own out-of-tree module (source:),
+        # or a version-only override of a module a component already requested (e.g.
+        # zigbee:'s ncs-zigbee) -- see resolve_zephyr_modules().
+        cv.Optional(CONF_MODULES, default=[]): cv.ensure_list(_MODULE_SCHEMA),
     }
 )
 
@@ -1157,10 +1369,25 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
     else:
         raise NotImplementedError
 
-    # board.yml lives under boards/<vendor>/<bare name>/, even if `board:` is fully
-    # qualified and/or carries an "@<revision>" suffix.
+    # board.yml usually lives under boards/<vendor>/<bare name>/, even if `board:` is
+    # fully qualified and/or carries an "@<revision>" suffix -- but "bare name" isn't
+    # universal: most vendors (Renesas, Nordic, Raspberry Pi, ...) name the directory
+    # identically to board.yml's own `name:`, but some (e.g. Arduino's `uno_r4`, whose
+    # board.yml declares `name: arduino_uno_r4`) drop the vendor prefix from the
+    # directory instead. Try the fast, common-case glob first; fall back to scanning
+    # every board.yml under boards/ for a matching `name:` field, same fallback
+    # dts_lookup.py's own _find_board_dir() already relies on for this reason.
     parts = parse_board_string(board)
     board_yml_matches = list(root.glob(f"boards/*/{parts.name}/board.yml"))
+    if not board_yml_matches:
+        for board_yml in root.glob("boards/*/**/board.yml"):
+            try:
+                doc = yaml.safe_load(board_yml.read_text())
+            except (OSError, yaml.YAMLError):
+                continue
+            if isinstance(doc, dict) and doc.get("board", {}).get("name") == parts.name:
+                board_yml_matches = [board_yml]
+                break
     if not board_yml_matches:
         raise cv.Invalid(
             f"Could not find boards/*/{parts.name}/board.yml under this board_source. "
@@ -1313,10 +1540,36 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
                 [CONF_WATCHDOG_TIMEOUT],
             )
     else:
+        max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
+        # A variant whose ceiling sits below the normal 5s floor (e.g. RA4M1's
+        # 5000ms) can't reach 5s either -- push the floor down to match.
+        min_timeout_ms = 5000
+        if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
+            min_timeout_ms = max_timeout_ms
+        explicit_timeout = config.get(CONF_WATCHDOG_TIMEOUT)
+        if explicit_timeout is not None and explicit_timeout.total_milliseconds != 0:
+            explicit_ms = explicit_timeout.total_milliseconds
+            if explicit_ms < min_timeout_ms or (
+                max_timeout_ms is not None and explicit_ms > max_timeout_ms
+            ):
+                raise cv.Invalid(
+                    f"'{CONF_WATCHDOG_TIMEOUT}' of {explicit_timeout} is outside what "
+                    f"variant '{variant}' can actually arm ({min_timeout_ms}-"
+                    f"{max_timeout_ms if max_timeout_ms is not None else 60000} ms) -- "
+                    "use 0 to disable the watchdog instead, or a value in that range",
+                    [CONF_WATCHDOG_TIMEOUT],
+                )
         # 10s: covers ZBOSS's heavy CPU usage during zigbee startup without needing a
         # separate zigbee-conditional bump (platform: nrf52's own equivalent) -- the
-        # plain default was arbitrary anyway.
-        config.setdefault(CONF_WATCHDOG_TIMEOUT, cv.TimePeriod(seconds=10))
+        # plain default was arbitrary anyway. Clamped down to the variant's own
+        # achievable ceiling when that's lower (see watchdog_max_timeout_ms).
+        default_timeout = cv.TimePeriod(seconds=10)
+        if (
+            max_timeout_ms is not None
+            and max_timeout_ms < default_timeout.total_milliseconds
+        ):
+            default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
+        config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:
@@ -1396,6 +1649,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_RA4M1:
+        from .variants.ra4m1 import config_schema as _ra4m1_config_schema
+
+        config = _ra4m1_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import config_schema as _rp2040_config_schema
 
@@ -1533,6 +1790,11 @@ async def to_code(config: ConfigType) -> None:
 
         await _stm32_to_code(config)
         return
+    if variant == ZEPHYR_VARIANT_RA4M1:
+        from .variants.ra4m1 import to_code as _ra4m1_to_code
+
+        await _ra4m1_to_code(config)
+        return
     if variant == ZEPHYR_VARIANT_RP2040:
         from .variants.rp2040 import to_code as _rp2040_to_code
 
@@ -1592,7 +1854,7 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
 
     import serial
 
-    from esphome.util import detect_rp2040_bootsel, get_serial_ports
+    from esphome.util import get_serial_ports
 
     picotool = _find_picotool()
     if picotool is None:
@@ -1601,14 +1863,12 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
     # Once triggered, BOOTSEL mode is anonymous -- picotool can't tell devices apart
     # (no serial number/bus-address selection is used anywhere in this upload path), so
     # there's no way to prove after the fact that whatever appears in BOOTSEL is really
-    # the board we touched, versus some other RP-family device on the system. The only
-    # way to make this safe is to refuse up front whenever more than one candidate
-    # device could possibly be involved -- counting every serial port present (which
-    # includes the target's own port) plus every device already in BOOTSEL.
-    total_devices = (
-        len(get_serial_ports()) + detect_rp2040_bootsel(str(picotool)).device_count
-    )
-    if total_devices > 1:
+    # the board we touched, versus some other RP-family device on the system. The best
+    # available guard is refusing up front whenever more than one serial-capable
+    # candidate is present -- a device already sitting in raw BOOTSEL can't be counted
+    # here too, since detecting it requires `picotool info -d`, which is not reliable
+    # enough to depend on for a safety check (see _upload_using_picotool()).
+    if len(get_serial_ports()) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
             "but the target device before uploading, or put the target into BOOTSEL "
@@ -1623,9 +1883,12 @@ def _touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
         _LOGGER.warning("Could not open %s at 1200 baud: %s", port, err)
         return False
 
+    # `picotool info -d` isn't reliable enough to poll for BOOTSEL re-enumeration (see
+    # _upload_using_picotool()) -- instead, wait for the touched port itself to
+    # disappear, which is what actually happens when the device reboots out of CDC-ACM.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if detect_rp2040_bootsel(str(picotool)).device_count > 0:
+        if port not in (p.path for p in get_serial_ports()):
             return True
         time.sleep(0.5)
     return False
@@ -1635,7 +1898,7 @@ def _upload_using_picotool() -> bool:
     """Upload Zephyr firmware to an RP2040/RP2350 device in BOOTSEL mode using picotool."""
     import sys
 
-    from esphome.util import detect_rp2040_bootsel, is_picotool_usb_permission_error
+    from esphome.util import is_picotool_usb_permission_error
 
     picotool = _find_picotool()
     if picotool is None:
@@ -1685,21 +1948,6 @@ def _upload_using_picotool() -> bool:
             _LOGGER.error("Zephyr firmware ELF not found. Compile first.")
             return False
         loads = [(elf, None, True)]
-
-    bootsel = detect_rp2040_bootsel(str(picotool))
-    if bootsel.device_count == 0:
-        if bootsel.permission_error:
-            _LOGGER.error(
-                "A device in BOOTSEL mode was detected but could not be accessed "
-                "due to USB permissions."
-            )
-            if sys.platform.startswith("linux"):
-                from esphome.__main__ import _RP2040_UDEV_HINT
-
-                _LOGGER.error(_RP2040_UDEV_HINT)
-        else:
-            _LOGGER.error("No RP2040/RP2350 device in BOOTSEL mode found.")
-        return False
 
     for file_path, offset, execute in loads:
         _LOGGER.info("Uploading %s via picotool...", file_path.name)
@@ -1773,6 +2021,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+            modules=resolve_zephyr_modules(),
         )
         build_dir = CORE.relative_build_path(".west_build")
         if not run_west_flash_pyocd(python_bin, framework_path, west_env, build_dir):
@@ -1821,6 +2070,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
             config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+            modules=resolve_zephyr_modules(),
         )
 
         build_dir = CORE.relative_build_path(".west_build")
@@ -1853,6 +2103,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        modules=resolve_zephyr_modules(),
     )
     build_dir = CORE.relative_build_path(".west_build")
     # Disambiguate which attached probe to flash when the board's default
@@ -1884,6 +2135,12 @@ def run_compile(args, config: ConfigType) -> bool:
     variant_data = VARIANTS[variant]
     sdk_name, sdk = resolve_sdk(variant_data, zephyr_data().get(KEY_FRAMEWORK_TYPE))
     version = str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    modules = resolve_zephyr_modules()
+    # A local_path module isn't a west project (west_install() only handles the
+    # git-sourced ones) -- it's an already-on-disk directory, wired in the same way a
+    # converted PlatformIO library is: EXTRA_ZEPHYR_MODULES, no west/manifest
+    # involvement at all.
+    extra_modules.extend(m.local_path for m in modules if m.local_path is not None)
     python_bin, framework_path, west_env = west_install(
         sdk,
         version,
@@ -1891,6 +2148,7 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
+        modules=modules,
     )
     if sdk_name == "silabs":
         from .commander_setup import check_and_install as commander_install
@@ -1904,10 +2162,24 @@ def run_compile(args, config: ConfigType) -> bool:
         west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
     cross_toolchain = variant_data.toolchain
     sdk_dir = sdk_install(framework_path, toolchain=cross_toolchain)
-    if blob_spec := variant_data.blobs:
-        module, allow_regex, sentinel_name = blob_spec
+    blob_specs = list(zephyr_data()["blobs"])
+    if variant_data.blobs:
+        blob_specs.append(variant_data.blobs)
+    for module, allow_regex, sentinel_name in blob_specs:
         run_west_blobs_fetch(
             python_bin, framework_path, west_env, module, allow_regex, sentinel_name
+        )
+    for zmodule in modules:
+        if zmodule.blobs is None:
+            continue
+        blob_module, allow_regex, sentinel_name = zmodule.blobs
+        run_west_blobs_fetch(
+            python_bin,
+            framework_path,
+            west_env,
+            blob_module,
+            allow_regex,
+            sentinel_name,
         )
     cmake_lists_changed = generate_cmake_lists(mode=variant)
     board = zephyr_data()[KEY_BOARD]
