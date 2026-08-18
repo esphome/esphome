@@ -15,7 +15,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection.rp2";
+static const char *const TAG = "bluetooth_connection";
 
 using ble_device_base::ESPBTUUID;
 using ble_device_base::GATT_ERR_NOT_CONNECTED;
@@ -542,7 +542,7 @@ void RP2GattClient::handle_event_(const RP2GattEvent &event) {
     case RP2GattEvent::MTU_EXCHANGED:
       if (this->state_ == EngineState::MTU_EXCHANGE) {
         this->mtu_ = event.value;
-        ESP_LOGD(TAG, "[%u] MTU %u", this->engine_index_, this->mtu_);
+        ESP_LOGV(TAG, "[%u] MTU %u", this->engine_index_, this->mtu_);
         this->state_ = EngineState::READY;
         // Scanning resumes and runs alongside the established connection.
         this->release_scan_inhibit_();
@@ -614,7 +614,7 @@ void RP2GattClient::handle_connected_(uint8_t status, uint16_t con_handle) {
   }
   this->con_handle_ = con_handle;
   this->state_ = EngineState::MTU_EXCHANGE;
-  ESP_LOGD(TAG, "[%u] Link up, handle=0x%04x, negotiating MTU", this->engine_index_, con_handle);
+  ESP_LOGV(TAG, "[%u] Link up, handle=0x%04x, negotiating MTU", this->engine_index_, con_handle);
   BluetoothLock lock;
   // One wildcard listener covers notifications/indications for every
   // characteristic on this connection; the CCCD writes come from the API
@@ -694,7 +694,7 @@ void RP2GattClient::handle_disconnected_(uint8_t reason) {
   if (this->state_ == EngineState::IDLE) {
     return;
   }
-  ESP_LOGD(TAG, "[%u] Disconnected, reason=0x%02x", this->engine_index_, reason);
+  ESP_LOGV(TAG, "[%u] Disconnected, reason=0x%02x", this->engine_index_, reason);
   this->fail_connection_(reason);
 }
 
@@ -858,7 +858,7 @@ void RP2GattClient::advance_discovery_(uint8_t att_status) {
 
 void RP2GattClient::finish_discovery_(int error) {
   this->discovery_phase_ = DiscoveryPhase::NONE;
-  ESP_LOGD(TAG, "[%u] Discovery done (err=%d): %u services, %u characteristics, %u descriptors", this->engine_index_,
+  ESP_LOGV(TAG, "[%u] Discovery done (err=%d): %u services, %u characteristics, %u descriptors", this->engine_index_,
            error, this->service_count_, this->char_count_, this->desc_count_);
   if (error == 0 && this->truncated_) {
     // A partial table must not stream: V3 clients cache the database

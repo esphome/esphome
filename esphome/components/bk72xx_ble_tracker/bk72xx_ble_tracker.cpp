@@ -364,7 +364,8 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
   if (this->scan_active_ == active)
     return true;
   this->scan_active_ = active;
-  ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
+  // V: the proxy's "Setting scanner mode" line already narrates this at D.
+  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
   // The controller reconciler restarts a running scan itself; the scan stays
   // logically running. An idle scanner picks the mode up on its next start.
   if (this->scan_running_)

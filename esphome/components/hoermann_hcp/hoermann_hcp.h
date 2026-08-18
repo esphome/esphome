@@ -22,11 +22,15 @@ enum class DoorState : uint8_t {
 };
 
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
-// short delay the released value. The second command register remains zero.
+// short delay the released value. Each half also carries a second register, which only the lamp command uses.
 struct HoermannHcpCommand {
   const char *name;
   uint16_t pressed_value;
   uint16_t released_value;
+  uint16_t pressed_value_2{0x0000};
+  uint16_t released_value_2{0x0000};
+  // A door command supersedes a half-open target; the lamp has no bearing on where the door is going.
+  bool clears_target{true};
 };
 
 class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
@@ -52,19 +56,41 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool impulse_door();
   bool stop_door();
   bool set_position(float position);
+  bool toggle_light();
 
   DoorState get_door_state() const { return this->door_state_; }
   float get_current_position() const { return this->current_position_; }
   bool is_valid() const { return this->valid_; }
+  bool is_light_on() const { return this->light_on_; }
+  // False until a broadcast has actually carried the lamp register. Bus traffic alone makes the connection
+  // valid without saying anything about the lamp, so is_light_on() would still be its default.
+  bool is_light_known() const { return this->light_seen_; }
+  // Where the lamp ends up once every toggle on its way has landed, each of which inverts it. Until then the
+  // lamp still reads as its old self, so this is what a request has to be judged against.
+  bool is_light_heading_on() const { return this->light_on_ != (this->light_toggles_in_flight_ % 2 != 0); }
+  // Drops a lamp toggle the controller has not started reading, so a reversing request cancels it outright
+  // instead of fighting it. Returns false if there is nothing to cancel.
+  bool cancel_light_toggle();
 
  protected:
+  // True while a lamp toggle is queued but not yet fetched, so the lamp is about to invert.
+  bool is_light_toggle_pending_() const;
+  // Toggles the door has not been shown yet, which is at most the one still waiting in the command slot.
+  uint8_t unsent_light_toggles_() const;
   void record_response_();
   // Returns false when the bus controller has not fetched the previous command yet.
   bool queue_command_(const HoermannHcpCommand &command);
+  // Throws away the pending command, taking any armed target with it unless the command was the lamp toggle.
+  void drop_command_();
+  // One outstanding toggle reached the lamp, was withdrawn, or was thrown away.
+  void light_toggle_settled_();
+  // Stops expecting the toggles the door has already been shown to reach the lamp.
+  void forget_light_toggles_();
   // Appends the two key-press registers and advances the pending command's press/release state.
   void push_command_registers_(modbus::RegisterValues &registers);
   void on_position_reg_(uint16_t value);
   void on_state_reg_(uint16_t value);
+  void on_light_reg_(uint16_t value);
 
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
@@ -72,6 +98,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void update_current_position_();
   bool has_target_() const { return this->target_position_ != 0.0f; }
   void clear_target_();
+  void set_light_on_(bool on);
+  void set_light_seen_(bool seen);
 
   CallbackManager<void()> state_callback_;
 
@@ -82,8 +110,13 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Pending command / key-press state machine.
   const HoermannHcpCommand *next_command_{nullptr};
   uint32_t command_queued_at_{0};
+  // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
+  uint32_t target_queued_at_{0};
   uint32_t command_written_at_{0};
   uint32_t last_response_{0};
+  // When the door was last handed a lamp key press. It reports the lamp a moment later, so this bounds the
+  // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
+  uint32_t light_toggle_released_at_{0};
 
   // A command is "pressed" for this long before its end value is sent.
   uint16_t key_press_delay_ms_{100};
@@ -102,9 +135,13 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   DoorState target_direction_{DoorState::STOPPED};
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
+  uint8_t light_toggles_in_flight_{0};
   bool target_started_{false};
   bool valid_{false};
   bool changed_{false};
+  bool light_on_{false};
+  bool light_seen_{false};
+  bool short_broadcast_logged_{false};
 };
 
 }  // namespace esphome::hoermann_hcp

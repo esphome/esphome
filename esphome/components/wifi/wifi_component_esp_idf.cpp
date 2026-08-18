@@ -620,6 +620,8 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   return true;
 }
 
+esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
+
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};

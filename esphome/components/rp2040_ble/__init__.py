@@ -71,10 +71,9 @@ def validate_connection_slots() -> None:
         )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     _validate_board(config)
     validate_connection_slots()
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
