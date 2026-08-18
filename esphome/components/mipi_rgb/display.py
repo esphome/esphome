@@ -250,7 +250,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = _config_schema
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -262,7 +262,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
         config = spi.final_validate_device_schema(
             "mipi_rgb", require_miso=False, require_mosi=True
         )(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

@@ -84,7 +84,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
 
@@ -107,8 +107,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                 f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent ld6002b component",
                 path=[CONF_WAKE],
             )
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validate

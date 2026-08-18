@@ -570,6 +570,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -1365,7 +1368,7 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     return config
 
 
-def final_validate(config):
+def final_validate(config) -> None:
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
@@ -1625,8 +1628,6 @@ def final_validate(config):
         )
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
