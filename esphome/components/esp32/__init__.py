@@ -1368,7 +1368,7 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     return config
 
 
-def final_validate(config):
+def final_validate(config) -> None:
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
@@ -1628,8 +1628,6 @@ def final_validate(config):
         )
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"

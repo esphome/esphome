@@ -45,8 +45,8 @@ CODEOWNERS = ["@esphome/core"]
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its idf_component.yml.
-NOISE_C_VERSION = "0.1.18"
-LIBSODIUM_VERSION = "1.10021.2"
+NOISE_C_VERSION = "0.1.19"
+LIBSODIUM_VERSION = "1.10021.3"
 
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:

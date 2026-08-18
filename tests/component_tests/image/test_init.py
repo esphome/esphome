@@ -371,27 +371,28 @@ def test_migrate_returns_none_for_invalid_legacy_shapes(
 
 
 def test_validate_image_final_defaults_to_little_endian() -> None:
-    out = validate_image_final({CONF_FILE: "x.png"})
-    assert out[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
+    config = {CONF_FILE: "x.png"}
+    validate_image_final(config)
+    assert config[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
 
 
 def test_validate_image_final_keeps_little_endian(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    config = {CONF_FILE: "x.png", CONF_BYTE_ORDER: "LITTLE_ENDIAN"}
     with caplog.at_level(logging.WARNING):
-        out = validate_image_final(
-            {CONF_FILE: "x.png", CONF_BYTE_ORDER: "LITTLE_ENDIAN"}
-        )
-    assert out[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
+        validate_image_final(config)
+    assert config[CONF_BYTE_ORDER] == "LITTLE_ENDIAN"
     assert "big-endian" not in caplog.text
 
 
 def test_validate_image_final_warns_on_big_endian(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    config = {CONF_FILE: "x.png", CONF_BYTE_ORDER: "BIG_ENDIAN"}
     with caplog.at_level(logging.WARNING):
-        out = validate_image_final({CONF_FILE: "x.png", CONF_BYTE_ORDER: "BIG_ENDIAN"})
-    assert out[CONF_BYTE_ORDER] == "BIG_ENDIAN"
+        validate_image_final(config)
+    assert config[CONF_BYTE_ORDER] == "BIG_ENDIAN"
     assert "big-endian" in caplog.text
 
 

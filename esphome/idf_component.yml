@@ -110,12 +110,12 @@ dependencies:
   # refuses to build two managed components whose names differ only by
   # namespace. The Arduino envs get noise-c as a PlatformIO library instead.
   esphome/noise-c:
-    version: 0.1.18
+    version: 0.1.19
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   # Declared even though noise-c depends on it, so that the PlatformIO-library
   # converter knows to skip the copy esp_wireguard would otherwise pull in.
   esphome/libsodium:
-    version: 1.10021.2
+    version: 1.10021.3
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
