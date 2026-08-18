@@ -715,7 +715,6 @@ def FILTER_SOURCE_FILES():
 async def to_code(config):
     device_type = config[CONF_TYPE].upper()
 
-
     if device_type == "NVS":
         cg.add_define("USE_BINARY_STORAGE_NVS")
         var = cg.new_Pvariable(config[CONF_ID])
@@ -750,7 +749,6 @@ async def to_code(config):
     regions = config.get(CONF_REGIONS) or [
         {CONF_FORMAT: FORMAT_RAW, "_offset": 0, CONF_SIZE: 0}
     ]
-
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -875,7 +873,6 @@ async def to_code(config):
             if (rname := region.get(CONF_STORAGE_NAME)) is not None:
                 cg.add(var.set_storage_name(rname))
             request_storage_device()
-
 
         elif fmt == FORMAT_KV:
             cg.add_define("USE_BINARY_STORAGE_INPLACE_KV")

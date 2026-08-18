@@ -117,5 +117,4 @@ uint32_t BinaryStorage::fill(uint8_t value) {
   return capacity;
 }
 
-
 }  // namespace esphome::binary_storage
