@@ -3,12 +3,13 @@ from __future__ import annotations
 from io import StringIO
 import json
 from pathlib import Path
+import traceback
 from typing import Any
 
 from esphome.config import Config, _format_vol_invalid, validate_config
 import esphome.config_validation as cv
 from esphome.const import __version__ as ESPHOME_VERSION
-from esphome.core import CORE, DocumentRange
+from esphome.core import CORE, DocumentRange, EsphomeError
 from esphome.yaml_util import parse_yaml
 
 
@@ -97,6 +98,15 @@ def _ace_loader(fname: Path) -> dict[str, Any]:
     return parse_yaml(fname, raw_yaml_stream)
 
 
+def _format_unexpected_error(err: Exception) -> str:
+    """Describe a crash inside validation with the frame it came from."""
+    frame = traceback.extract_tb(err.__traceback__)[-1]
+    return (
+        f"Unexpected error while validating: {type(err).__name__}: {err} "
+        f"({frame.filename}:{frame.lineno} in {frame.name})"
+    )
+
+
 def _print_version():
     """Print ESPHome version."""
     print(
@@ -134,8 +144,10 @@ def read_config(args):
         try:
             config = loader(file_name)
             res = validate_config(config, command_line_substitutions)
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        except (EsphomeError, cv.Invalid) as err:
             vs.add_yaml_error(str(err))
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            vs.add_yaml_error(_format_unexpected_error(err))
         else:
             for err in res.errors:
                 try:
