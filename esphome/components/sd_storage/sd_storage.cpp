@@ -188,7 +188,9 @@ storage::StorageError SdMmc::unmount() {
   else
     ESP_LOGW(TAG, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
 
-  esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
+  esp_err_t unmount_err = esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
+  if (unmount_err != ESP_OK)
+    ESP_LOGW(TAG, "esp_vfs_fat_sdcard_unmount failed: %s", esp_err_to_name(unmount_err));
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
@@ -198,9 +200,11 @@ storage::StorageError SdMmc::unmount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  // Report the flush result so an unmount that lost data does not look clean.
+  // Report the flush and unmount results so a teardown that failed does not look clean.
   if (flush_err != storage::StorageError::STORAGE_ERROR_OK)
     return flush_err;
+  if (unmount_err != ESP_OK)
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
 
   ESP_LOGI(TAG, "SD/MMC card unmounted safely");
   return storage::StorageError::STORAGE_ERROR_OK;
