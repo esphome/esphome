@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from esphome import vscode
+import esphome.config_validation as cv
 from esphome.core import EsphomeError
 
 
@@ -170,3 +171,24 @@ def test_esphome_error_stays_plain() -> None:
 
     result = json.loads(output_lines[-1])
     assert result["yaml_errors"] == [{"message": "boom"}]
+
+
+def test_invalid_stays_plain() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", side_effect=cv.Invalid("bad value")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["yaml_errors"] == [{"message": "bad value"}]
+
+
+def test_format_unexpected_error_without_traceback() -> None:
+    message = vscode._format_unexpected_error(ValueError("boom"))
+    assert message == "Unexpected error while validating: ValueError: boom"

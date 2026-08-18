@@ -3,6 +3,7 @@ from __future__ import annotations
 from io import StringIO
 import json
 from pathlib import Path
+import sys
 import traceback
 from typing import Any
 
@@ -100,11 +101,12 @@ def _ace_loader(fname: Path) -> dict[str, Any]:
 
 def _format_unexpected_error(err: Exception) -> str:
     """Describe a crash inside validation with the frame it came from."""
-    frame = traceback.extract_tb(err.__traceback__)[-1]
-    return (
-        f"Unexpected error while validating: {type(err).__name__}: {err} "
-        f"({frame.filename}:{frame.lineno} in {frame.name})"
-    )
+    message = f"Unexpected error while validating: {type(err).__name__}: {err}"
+    frames = traceback.extract_tb(err.__traceback__)
+    if not frames:
+        return message
+    frame = frames[-1]
+    return f"{message} ({frame.filename}:{frame.lineno} in {frame.name})"
 
 
 def _print_version():
@@ -147,6 +149,8 @@ def read_config(args):
         except (EsphomeError, cv.Invalid) as err:
             vs.add_yaml_error(str(err))
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # stdout carries the JSON protocol; the full chain goes to stderr.
+            traceback.print_exc(file=sys.stderr)
             vs.add_yaml_error(_format_unexpected_error(err))
         else:
             for err in res.errors:
