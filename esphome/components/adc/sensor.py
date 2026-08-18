@@ -3,6 +3,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+from esphome.components.const import CONF_EMULATION
 from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
@@ -51,7 +52,6 @@ AUTO_LOAD = ["voltage_sampler"]
 
 CONF_SAMPLES = "samples"
 CONF_SAMPLING_MODE = "sampling_mode"
-CONF_EMULATION = "emulation"
 
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
