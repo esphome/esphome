@@ -357,7 +357,7 @@ def _validate(config: ConfigType) -> ConfigType:
                     "  clk:\n"
                     "    mode: %s\n"
                     "    pin: %s\n"
-                    "Removal scheduled for 2026.9.0.",
+                    "Removal scheduled for 2026.11.0.",
                     config[CONF_CLK_MODE],
                     mode,
                     pin,
@@ -769,7 +769,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
             raise cv.Invalid(error_msg, path=pin_path)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
     if "wifi" in fv.full_config.get():
@@ -789,7 +789,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

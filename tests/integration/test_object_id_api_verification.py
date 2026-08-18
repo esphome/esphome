@@ -2,8 +2,8 @@
 
 This test verifies a three-way match between:
 1. C++ object_id generation (get_object_id_to using to_sanitized_char/to_snake_case_char)
-2. C++ entity key generation (fnv1_hash of the raw name in helpers.h)
-3. Python computation (sanitize/snake_case and fnv1_hash_name in helpers.py)
+2. C++ hash generation (fnv1_hash_object_id in helpers.h)
+3. Python computation (sanitize/snake_case in helpers.py, fnv1_hash_object_id)
 
 The API response contains C++ computed values, so verifying API == Python
 implicitly verifies C++ == Python == API for both object_id and hash.
@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_name
+from esphome.helpers import fnv1_hash_object_id
 
 from .entity_utils import compute_object_id, verify_all_entities
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -123,7 +123,7 @@ async def test_object_id_api_verification(
             )
 
             # Verify hash can be computed from the name
-            hash_from_name = fnv1_hash_name(entity_name)
+            hash_from_name = fnv1_hash_object_id(entity_name)
             assert hash_from_name == entity.key, (
                 f"Entity '{entity_name}': hash mismatch. "
                 f"Python hash {hash_from_name:#x}, API key {entity.key:#x}"
@@ -164,7 +164,7 @@ async def test_object_id_api_verification(
             )
 
             # Verify hash matches
-            expected_hash = fnv1_hash_name(expected_name)
+            expected_hash = fnv1_hash_object_id(expected_name)
             assert entity.key == expected_hash, (
                 f"Empty-name entity (device_id={entity.device_id}): hash mismatch. "
                 f"API key: {entity.key:#x}, expected: {expected_hash:#x}"

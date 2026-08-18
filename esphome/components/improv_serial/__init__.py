@@ -22,7 +22,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def validate_logger(config):
+def validate_logger(config) -> None:
     logger_conf = fv.full_config.get()[CONF_LOGGER]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
@@ -33,7 +33,6 @@ def validate_logger(config):
         raise cv.Invalid(
             "improv_serial does not support the selected logger hardware_uart"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = validate_logger
