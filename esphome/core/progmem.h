@@ -132,7 +132,8 @@ struct LogString;
 // This is an ugly implementation, but there is no strcasestr equivalent
 // on the RP2/Arduino platform
 #if defined(USE_RP2) || defined(USE_ARDUINO)
-inline const char *esphome_strcasestr_P(const char *haystack, const char *needle) {
+#include <algorithm>
+inline const char *esphome_strcasestr(const char *haystack, const char *needle) {
   std::string haystack_lower = haystack;
   std::transform(haystack_lower.begin(), haystack_lower.end(), haystack_lower.begin(), tolower);
   std::string needle_lower = needle;
@@ -144,9 +145,9 @@ inline const char *esphome_strcasestr_P(const char *haystack, const char *needle
   }
   return haystack + pos;
 }
-#define ESPHOME_strcasestr_P esphome_strcasestr_P
+#define ESPHOME_strcasestr esphome_strcasestr
 #else  // defined(USE_RP2) || defined(USE_ARDUINO)
-#define ESPHOME_strcasestr_P strcasestr
+#define ESPHOME_strcasestr strcasestr
 #endif  // defined(USE_RP2) || defined(USE_ARDUINO)
 
 }  // namespace esphome
