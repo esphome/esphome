@@ -2,12 +2,17 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_packet.h"
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 #include <esp_idf_version.h>
 
@@ -62,7 +67,7 @@ class ESPNowUnknownPeerHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
 /// Handler interface for receiving ESPNow packets
@@ -74,7 +79,7 @@ class ESPNowReceivedPacketHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 /// Handler interface for receiving ESPNow broadcast packets
 /// Components should inherit from this class to handle incoming ESPNow data
@@ -85,10 +90,14 @@ class ESPNowBroadcastHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+class ESPNowComponent final : public Component, public wifi::WiFiConnectStateListener {
+#else
 class ESPNowComponent final : public Component {
+#endif
  public:
   ESPNowComponent();
   void setup() override;
@@ -113,6 +122,11 @@ class ESPNowComponent final : public Component {
   uint8_t get_wifi_channel();
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+  // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
+#endif
 
   void enable();
   void disable();

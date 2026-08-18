@@ -18,9 +18,12 @@ from pathlib import Path
 # Root-relative paths whose contents affect clang-tidy results.
 CLANG_TIDY_GLOBAL_FILES = (
     ".clang-tidy",
+    "script/clang-tidy",
     "platformio.ini",
     "requirements_dev.txt",
     "esphome/idf_component.yml",
+    "esphome/components/esp32/__init__.py",
+    "esphome/components/nrf52/__init__.py",
 )
 
 # sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
