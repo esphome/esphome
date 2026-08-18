@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "espnow_component.h"
 
@@ -38,8 +38,8 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    send_callback_t send_callback = [this, x...](esp_err_t status) {
-      if (status == ESP_OK) {
+    send_callback_t send_callback = [this, x...](espnow_err_t status) {
+      if (status == ESPNOW_OK) {
         if (!this->sent_.empty()) {
           this->sent_.play(x...);
         } else if (this->flags_.wait_for_sent) {
@@ -59,8 +59,8 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
     };
     peer_address_t address = this->address_.value(x...);
     std::vector<uint8_t> data = this->data_.value(x...);
-    esp_err_t err = this->parent_->send(address.data(), data, send_callback);
-    if (err != ESP_OK) {
+    espnow_err_t err = this->parent_->send(address.data(), data, send_callback);
+    if (err != ESPNOW_OK) {
       send_callback(err);
     } else if (!this->flags_.wait_for_sent) {
       this->play_next_(x...);
@@ -173,4 +173,4 @@ class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const ui
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

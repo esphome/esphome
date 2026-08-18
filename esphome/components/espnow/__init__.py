@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
     CONF_WIFI,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
@@ -125,7 +127,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         },
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on_esp32,
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 
 
