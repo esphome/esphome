@@ -737,13 +737,21 @@ def test_ccache_script_leaves_spawn_alone_without_path(
 def _scons_win32_spawn(
     sh: str, escape: Callable[[str], str], cmd: str, args: list[str], env: dict
 ) -> int:
-    r"""Copy of ``SCons.Platform.win32.spawn``: every command runs via ``cmd.exe /C``.
+    r"""Mirror of ``SCons.Platform.win32.spawn``: every command runs via ``cmd.exe /C``.
 
     SCons is not importable in the test environment (PlatformIO fetches it as
     a package at build time), so the few lines that matter are mirrored here;
     they are what turns a ``\\?\`` program path into a failed compile step.
+    SCons calls ``os.spawnve`` with ``[sh, "/C", escaped]``, which the C
+    runtime joins with spaces into the ``CreateProcess`` command line; the
+    same command line is handed to ``CreateProcess`` here through
+    ``subprocess`` (a string is passed through untouched on Windows), which
+    avoids the C runtime's ``spawnve``, known to be fragile inside a larger
+    process.
     """
-    return os.spawnve(os.P_WAIT, sh, [sh, "/C", escape(" ".join(args))], env)
+    return subprocess.run(
+        " ".join([sh, "/C", escape(" ".join(args))]), env=env, check=False
+    ).returncode
 
 
 _MARKER_ENV = "ESPHOME_TEST_CCACHE_MARKER"
