@@ -64,8 +64,6 @@ class OpenThreadComponent final : public Component {
    */
   void apply_linkmode_(otInstance *instance);
 
-  std::atomic<TeardownStage> teardown_stage_{TeardownStage::NOT_STARTED};
-
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
@@ -75,6 +73,7 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
+  std::atomic<TeardownStage> teardown_stage_{TeardownStage::NOT_STARTED};
   bool connected_{false};
 
  private:

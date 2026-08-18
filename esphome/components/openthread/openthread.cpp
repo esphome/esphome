@@ -267,7 +267,7 @@ bool OpenThreadComponent::teardown() {
       ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");
       return true;
   }
-  return false;
+  return this->teardown_stage_ == TeardownStage::COMPLETED;
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
