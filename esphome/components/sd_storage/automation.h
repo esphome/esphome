@@ -3,6 +3,7 @@
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/automation.h"
+#include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 #include "sd_storage_base.h"
 
@@ -15,6 +16,8 @@
 #endif
 
 namespace esphome::sd_storage {
+
+static const char *const TAG = "sd_storage.automation";
 
 // Triggers -- work with both SdMmc and SdSpi via SdStorageBase
 class CardMountedTrigger : public Trigger<const char *> {
@@ -57,8 +60,11 @@ template<typename... Ts> class UnmountCardAction : public Action<Ts...> {
   explicit UnmountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
-    this->parent_->unmount();
-    this->parent_->log_unmount_();
+    storage::StorageError err = this->parent_->unmount();
+    if (err == storage::StorageError::STORAGE_ERROR_OK)
+      this->parent_->log_unmount_();
+    else
+      ESP_LOGW(TAG, "Unmount via automation failed: %s", storage::error_to_string(err));
   }
 
  protected:
@@ -77,7 +83,10 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
       path = "/";  // FAT root; get_mount_path() is the absolute VFS path, wrong for list_dir()
 
     this->parent_->log_list_dir_start_(path);
-    this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
+    storage::StorageError err =
+        this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
+    if (err != storage::StorageError::STORAGE_ERROR_OK)
+      ESP_LOGW(TAG, "list_files failed: %s", storage::error_to_string(err));
   }
 
  protected:
