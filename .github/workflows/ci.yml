@@ -471,8 +471,10 @@ jobs:
           . venv/bin/activate
           BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
           export BENCHMARK_LIB_CONFIG
-          # --build-only prints BUILD_BINARY=<path> to stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
+          # --build-only prints BUILD_BINARY=<path> to stdout; the grep is
+          # non-fatal so a missing marker reaches the check below instead of
+          # tripping errexit at this assignment
+          BINARY=$(script/cpp_benchmark.py --all --build-only | { grep '^BUILD_BINARY=' || true; } | tail -1 | cut -d= -f2-)
           if [ -z "$BINARY" ]; then
             echo "::error::Benchmark build did not report a binary path"
             exit 1
