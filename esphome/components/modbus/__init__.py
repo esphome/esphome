@@ -7,9 +7,16 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_DISABLE_CRC,
+    CONF_FLOW_CONTROL_PIN,
+    CONF_ID,
+)
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +44,7 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
+CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
@@ -45,6 +53,52 @@ CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+
+def command_options_schema(
+    *, direction: Literal["read", "write"], templatable: bool = False
+) -> dict:
+    """Schema fragment for the per-command options a component forwards to the hub
+    (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
+    direction-specific so a schema never offers an option the hub would strip (e.g.
+    continuous on a write); the write side has no options yet.
+
+    With templatable=False the values are static: build the C++ initializer with
+    command_options_expression() using the same direction. With templatable=True the keys
+    also accept lambdas (for actions, where trigger arguments are in scope): the consumer's
+    C++ class declares a TEMPLATABLE_VALUE per option and assembles CommandOptions at play
+    time; register the values with register_templatable_command_options().
+    """
+    options = {}
+    if direction == "read":
+        validator = cv.templatable(cv.boolean) if templatable else cv.boolean
+        options[cv.Optional(CONF_CONTINUOUS, default=False)] = validator
+    return options
+
+
+def command_options_expression(
+    config: ConfigType, *, direction: Literal["read", "write"]
+) -> cg.StructInitializer:
+    """Build the modbus::CommandOptions initializer for a config validated with a static
+    (templatable=False) command_options_schema() of the same direction."""
+    fields = []
+    if direction == "read":
+        fields.append(("continuous", config[CONF_CONTINUOUS]))
+    return cg.StructInitializer(CommandOptions, *fields)
+
+
+async def register_templatable_command_options(
+    var, config: ConfigType, args: list, *, direction: Literal["read", "write"]
+) -> None:
+    """Generate the set_<option>() calls for a config validated with a templatable
+    command_options_schema() of the same direction. The consumer's C++ class declares a
+    matching TEMPLATABLE_VALUE per option (e.g. TEMPLATABLE_VALUE(bool, continuous)) and
+    builds the CommandOptions it sends by evaluating them with the trigger arguments.
+    """
+    if direction == "read":
+        template_ = await cg.templatable(config[CONF_CONTINUOUS], args, bool)
+        cg.add(var.set_continuous(template_))
+
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
