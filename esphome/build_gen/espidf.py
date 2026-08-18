@@ -163,6 +163,16 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
+# The app component ESPHome installs under EXTRA_COMPONENT_DIRS is named
+# `src` (matching the directory name). Managed IDF components that follow
+# the "executable component" convention query this variable to link the
+# application library against — e.g. espressif/esp_matter's top-level
+# CMakeLists calls `idf_component_get_property(main_lib
+# ${{EXECUTABLE_COMPONENT_NAME}} COMPONENT_LIB)` and defaults to `main`
+# when unset, which does not exist here. Declaring it once at project
+# scope avoids each such component reinventing the override.
+set(EXECUTABLE_COMPONENT_NAME src)
+
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}

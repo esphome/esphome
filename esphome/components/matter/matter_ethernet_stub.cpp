@@ -1,0 +1,67 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP_IDF
+#ifdef USE_ETHERNET
+
+// Override for esp-matter's default Ethernet network commissioning driver.
+//
+// esp-matter's own NetworkCommissioningDriver_Ethernet.cpp hardcodes PHY = IP101
+// and calls esp_eth_driver_install() on its own, then esp_netif_attach() and
+// esp_eth_start(). In an ESPHome build the `ethernet:` component already
+// installed the PHY driver (LAN8720 on the classic ESP32 PoCs, W5500 on
+// unicontrol-max), created the netif, and started it — so esp-matter's Init()
+// aborts with ESP_ERR_INVALID_ARG on esp_eth_driver_install(): a second install
+// is not legal, and the PHY types don't match.
+//
+// esp-matter's own comment invites this override:
+//   /* Currently default ethernet board supported is IP101, if you want to
+//    * use other types of ethernet board then you can override this function
+//    * in your application. */
+//
+// On every ESP32 variant, PATCH1 in components/matter/_apply_patches.py
+// overwrites the upstream NetworkCommissioningDriver_Ethernet.cpp with an
+// empty stub before ninja compiles. That leaves ESPEthernetDriver::Init
+// undefined in the esp-matter library — and this TU is its sole provider,
+// compiled whenever ESPHome's ethernet: component is present (USE_ETHERNET).
+// The earlier setup (patch only on non-EMAC variants; rely on link-order
+// on classic ESP32) worked because the upstream TU only exports one
+// symbol, but a future release adding a second external symbol could pull
+// the archive object and blow up multiple-definition on classic ESP32.
+// Uniform patch removes that hazard.
+
+#include <platform/NetworkCommissioning.h>
+#include <platform/ESP32/NetworkCommissioningDriver.h>
+
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace matter {
+
+static const char *const TAG = "matter.eth.stub";
+
+// Emits a one-line log entry when esp-matter's Ethernet NetworkCommissioning
+// driver Init runs — placed in the ESPHome matter namespace so the file
+// carries at least one ESPHome-side symbol (integration convention). Called
+// from the chip:: namespace override below.
+void log_ethernet_driver_stub_init() {
+  ESP_LOGI(TAG, "ESPEthernetDriver::Init override — ESPHome ethernet: owns the PHY, no-op");
+}
+
+}  // namespace matter
+}  // namespace esphome
+
+namespace chip {
+namespace DeviceLayer {
+namespace NetworkCommissioning {
+
+CHIP_ERROR ESPEthernetDriver::Init(NetworkStatusChangeCallback * /*networkStatusChangeCallback*/) {
+  esphome::matter::log_ethernet_driver_stub_init();
+  return CHIP_NO_ERROR;
+}
+
+}  // namespace NetworkCommissioning
+}  // namespace DeviceLayer
+}  // namespace chip
+
+#endif  // USE_ETHERNET
+#endif  // USE_ESP_IDF

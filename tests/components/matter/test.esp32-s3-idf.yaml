@@ -1,0 +1,34 @@
+<<: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  vendor_name: ESPHome
+  product_name: Matter Test
+  node_label: Matter Test Device
+  hardware_version_string: rev-a
+  software_version_string: test-1.0
+
+switch:
+  - platform: template
+    name: Matter Test Switch
+    optimistic: true
+
+binary_sensor:
+  - platform: template
+    name: Matter Test Contact
+    device_class: door
+    lambda: return false;
+
+sensor:
+  - platform: template
+    name: Matter Test Temperature
+    device_class: temperature
+    unit_of_measurement: "°C"
+    lambda: return 22.5;
+
+button:
+  - platform: template
+    name: Matter Test Button

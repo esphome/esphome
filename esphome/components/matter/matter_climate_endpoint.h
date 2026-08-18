@@ -1,0 +1,109 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP_IDF
+#ifdef USE_CLIMATE
+
+#include <cstdint>
+
+namespace esphome {
+namespace climate {
+class Climate;
+class ClimateCall;
+}  // namespace climate
+}  // namespace esphome
+
+namespace esphome {
+namespace matter {
+
+// Wraps one ESPHome climate as a Matter thermostat endpoint (Thermostat cluster).
+//
+// Feature-flag selection is driven by the ESPHome ClimateTraits at setup:
+//   supports_mode(HEAT)         → Heating feature
+//   supports_mode(COOL)         → Cooling feature
+//   supports_mode(HEAT_COOL)    → AutoMode feature (mandates Heating+Cooling)
+// A climate that exposes neither HEAT nor COOL is skipped with a warning:
+// esp-matter would VALIDATE_FEATURES_AT_LEAST_ONE on Thermostat and abort
+// boot, so we cannot register a "no-op" thermostat endpoint even for OFF-only.
+//
+// Attribute mapping (fabric ↔ device):
+//   LocalTemperature (0x0000, nullable int16)   ← climate.current_temperature
+//   OccupiedHeatingSetpoint (0x0012, int16)     ↔ climate.target_temperature (heat)
+//   OccupiedCoolingSetpoint (0x0011, int16)     ↔ climate.target_temperature (cool)
+//   SystemMode (0x001C, enum8)                  ↔ climate.mode (Off/Auto/Cool/Heat)
+//   ControlSequenceOfOperation (0x001B, enum8)  ← derived once from supported modes
+//   Min/MaxHeatSetpointLimit + Cool variants    ← ClimateTraits visual min/max
+//
+// Temperature encoding: Matter uses int16 hundredths of a °C (2500 == 25.00°C),
+// ESPHome uses float degrees C — trivial *100 / /100 conversion, no unit lookup.
+// A ClimateTraits::get_temperature_unit()==FAHRENHEIT device still stores its
+// state as Celsius internally in ESPHome, so no Fahrenheit path needed.
+//
+// Fabric → device: attribute_update_cb dispatches SystemMode / setpoint writes
+// via MatterComponent::handle_climate_*_write, which routes here; we translate
+// to a make_call().set_mode()/set_target_temperature()/perform().
+//
+// Device → fabric: climate state callback fires with no args (climate mirrors
+// the pattern used by fan/switch) — re-read state and update LocalTemperature,
+// setpoints and SystemMode via attribute::update().
+//
+// Loop guards mirror MatterFanEndpoint: applying_matter_write_ suppresses the
+// device→fabric echo while we drive make_call(); applying_report_ suppresses
+// the fabric→device dispatch when attribute::update() re-enters via PRE_UPDATE.
+class MatterClimateEndpoint {
+ public:
+  explicit MatterClimateEndpoint(climate::Climate *climate);
+
+  bool setup();
+
+  // Called by the dispatcher when the fabric writes SystemMode (uint8 enum).
+  void on_matter_system_mode_write(uint8_t system_mode);
+  // Called by the dispatcher when the fabric writes OccupiedHeatingSetpoint or
+  // OccupiedCoolingSetpoint (int16 hundredths of °C).
+  void on_matter_heating_setpoint_write(int16_t hundredths);
+  void on_matter_cooling_setpoint_write(int16_t hundredths);
+
+  void push_initial_state();
+
+  uint16_t endpoint_id() const { return endpoint_id_; }
+  climate::Climate *esphome_climate() const { return climate_; }
+  bool applying_report() const { return applying_report_; }
+
+ protected:
+  void report_state_to_fabric_();
+
+  // Convenience conversions between ESPHome degrees-Celsius floats and the
+  // int16 hundredths-of-Celsius Matter uses on the wire. Keeps the round-trip
+  // in one place so a future Fahrenheit-native ESPHome climate does not
+  // silently double-scale.
+  static int16_t celsius_to_hundredths_(float c);
+  static float hundredths_to_celsius_(int16_t h);
+
+  climate::Climate *climate_;
+  uint16_t endpoint_id_{0};
+
+  // Feature flags decided at setup(), remembered so report_state_to_fabric_
+  // knows which setpoint attributes it is allowed to touch (writing
+  // OccupiedCoolingSetpoint on a heat-only endpoint returns UNSUPPORTED_WRITE).
+  bool supports_heating_{false};
+  bool supports_cooling_{false};
+  bool supports_auto_{false};
+
+  // Probed at setup() by walking the created cluster's attribute list. If a
+  // future esp-matter version stops creating the setpoint attributes for a
+  // given feature (or we accidentally set a feature flag without a matching
+  // config), report_state_to_fabric_ can skip the missing ones instead of
+  // logging a warning every publish.
+  bool has_heating_setpoint_attr_{false};
+  bool has_cooling_setpoint_attr_{false};
+
+  bool applying_matter_write_{false};
+  bool applying_report_{false};
+};
+
+}  // namespace matter
+}  // namespace esphome
+
+#endif  // USE_CLIMATE
+#endif  // USE_ESP_IDF

@@ -1,0 +1,182 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP_IDF
+#ifdef USE_COVER
+
+#include "matter_cover_endpoint.h"
+#include "matter_component.h"
+
+#include "esphome/core/log.h"
+#include "esphome/components/cover/cover.h"
+
+#include <esp_matter.h>
+
+#include <app-common/zap-generated/cluster-objects.h>
+
+#include <algorithm>
+#include <cmath>
+
+namespace esphome {
+namespace matter {
+
+static const char *const TAG = "matter.cover";
+
+namespace {
+
+// Convert ESPHome position (0.0=closed .. 1.0=open) to Matter
+// percent100ths (0=open .. 10000=closed). Inverts direction and clamps
+// to the valid range.
+uint16_t esphome_to_matter_100ths(float esphome_position) {
+  if (std::isnan(esphome_position)) {
+    return 0;
+  }
+  float inverted = 1.0f - std::clamp(esphome_position, 0.0f, 1.0f);
+  int32_t v = static_cast<int32_t>(std::lround(inverted * 10000.0f));
+  // Bounds typed to int32_t explicitly — on the xtensa toolchain int32_t
+  // is long int, so bare 0 / 10000 literals fail template deduction.
+  return static_cast<uint16_t>(std::clamp(v, static_cast<int32_t>(0), static_cast<int32_t>(10000)));
+}
+
+// Convert Matter percent100ths (0=open .. 10000=closed) to ESPHome
+// position (0.0=closed .. 1.0=open). Inverts direction and clamps.
+float matter_100ths_to_esphome(uint16_t percent100ths) {
+  uint16_t clamped = std::min<uint16_t>(percent100ths, 10000);
+  return 1.0f - (static_cast<float>(clamped) / 10000.0f);
+}
+
+}  // namespace
+
+MatterCoverEndpoint::MatterCoverEndpoint(cover::Cover *cover) : cover_(cover) {}
+
+bool MatterCoverEndpoint::setup() {
+  ::esp_matter::node_t *node = ::esp_matter::node::get();
+  if (node == nullptr) {
+    ESP_LOGE(TAG, "no Matter node available for cover '%s'", this->cover_->get_name().c_str());
+    return false;
+  }
+
+  auto traits = this->cover_->get_traits();
+  this->supports_position_ = traits.get_supports_position();
+
+  // Seed the endpoint config with the cover's current position so the
+  // fabric view is coherent from the first attribute read (before
+  // push_initial_state() runs after esp_matter::start).
+  uint16_t initial_100ths = esphome_to_matter_100ths(this->cover_->position);
+
+  ::esp_matter::endpoint::window_covering::config_t config(
+      static_cast<uint8_t>(chip::app::Clusters::WindowCovering::EndProductType::kRollerShade));
+  // "Type" attribute — top-level WindowCovering.Type. kRollerShade is a
+  // safe generic default and matches EndProductType above.
+  config.window_covering.type = static_cast<uint8_t>(chip::app::Clusters::WindowCovering::Type::kRollerShade);
+  // ConfigStatus bits: Operational (device is running) + LiftPositionAware
+  // (we support percent-100ths, which is what the fabric will drive).
+  config.window_covering.config_status =
+      static_cast<uint8_t>(chip::app::Clusters::WindowCovering::ConfigStatus::kOperational) |
+      static_cast<uint8_t>(chip::app::Clusters::WindowCovering::ConfigStatus::kLiftPositionAware);
+  // esp-matter 1.5.1 asserts VALIDATE_FEATURES_AT_LEAST_ONE("Lift,Tilt") on
+  // WindowCovering — without a feature bit the cluster::create() calls
+  // ABORT_CLUSTER_CREATE and the app resets on boot. Lift covers
+  // open/close; PositionAwareLift enables percent-based target writes.
+  config.window_covering.feature_flags =
+      static_cast<uint32_t>(chip::app::Clusters::WindowCovering::Feature::kLift) |
+      static_cast<uint32_t>(chip::app::Clusters::WindowCovering::Feature::kPositionAwareLift);
+  // Seed both current and target so the fabric doesn't see a mismatch
+  // (target != current → OperationalStatus says "moving"). The config uses
+  // esp-matter's own ::nullable<T> template — not chip::DataModel::Nullable —
+  // and implicit-converts a raw uint16 through nullable<T>::nullable(T).
+  config.window_covering.features.position_aware_lift.current_position_lift_percent_100ths = initial_100ths;
+  config.window_covering.features.position_aware_lift.target_position_lift_percent_100ths = initial_100ths;
+
+  ::esp_matter::endpoint_t *endpoint =
+      ::esp_matter::endpoint::window_covering::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
+  if (endpoint == nullptr) {
+    ESP_LOGE(TAG, "failed to create window_covering endpoint for '%s'", this->cover_->get_name().c_str());
+    return false;
+  }
+  this->endpoint_id_ = ::esp_matter::endpoint::get_id(endpoint);
+
+  MatterComponent::instance()->register_endpoint_label(endpoint, this->endpoint_id_, this->cover_->get_name());
+
+  this->cover_->add_on_state_callback([this]() {
+    if (this->applying_matter_write_) {
+      ESP_LOGV(TAG, "device state callback suppressed (matter-driven change) endpoint=%u", this->endpoint_id_);
+      return;
+    }
+    ESP_LOGD(TAG, "device state change → fabric: endpoint=%u position=%.3f op=%d cover='%s'", this->endpoint_id_,
+             this->cover_->position, static_cast<int>(this->cover_->current_operation),
+             this->cover_->get_name().c_str());
+    this->report_state_to_fabric_();
+  });
+
+  ESP_LOGI(TAG, "registered cover '%s' as Matter window_covering endpoint %u (position-aware=%d)",
+           this->cover_->get_name().c_str(), this->endpoint_id_, static_cast<int>(this->supports_position_));
+  return true;
+}
+
+void MatterCoverEndpoint::on_matter_target_write(uint16_t percent100ths) {
+  float target_pos = matter_100ths_to_esphome(percent100ths);
+  ESP_LOGD(TAG, "matter target write endpoint=%u percent100ths=%u → esphome_pos=%.3f cover='%s'", this->endpoint_id_,
+           static_cast<unsigned>(percent100ths), target_pos, this->cover_->get_name().c_str());
+  this->applying_matter_write_ = true;
+  auto call = this->cover_->make_call();
+  if (this->supports_position_) {
+    call.set_position(target_pos);
+  } else {
+    // Binary cover — pick the closer of fully-open / fully-closed. The
+    // 50% threshold matches how Home Assistant maps slider drags to
+    // OPEN/CLOSE for assumed-state covers.
+    if (target_pos >= 0.5f) {
+      call.set_command_open();
+    } else {
+      call.set_command_close();
+    }
+  }
+  call.perform();
+  this->applying_matter_write_ = false;
+
+  // publish_state() from the template cover fired our device→fabric callback
+  // synchronously while applying_matter_write_ was set, so no CurrentPosition
+  // report went out. Push it now — otherwise CHIP's PostAttributeChange sees
+  // Target=X, Current=old and pegs OperationalStatus at Moving forever.
+  this->report_state_to_fabric_();
+}
+
+void MatterCoverEndpoint::push_initial_state() { this->report_state_to_fabric_(); }
+
+void MatterCoverEndpoint::report_state_to_fabric_() {
+  uint16_t current_100ths = esphome_to_matter_100ths(this->cover_->position);
+  ::esp_matter_attr_val_t current_val = ::esp_matter_nullable_uint16(current_100ths);
+
+  this->applying_report_ = true;
+  esp_err_t err = ::esp_matter::attribute::update(
+      this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
+      chip::app::Clusters::WindowCovering::Attributes::CurrentPositionLiftPercent100ths::Id, &current_val);
+  if (err != ESP_OK && err != ESP_ERR_NOT_FINISHED) {
+    // ESP_ERR_NOT_FINISHED means the value didn't change since last write —
+    // benign, esp-matter skips the callback loop but the fabric already has
+    // the value. Anything else is worth logging.
+    ESP_LOGW(TAG, "attribute::update CurrentPositionLift endpoint=%u failed: %s", this->endpoint_id_,
+             esp_err_to_name(err));
+  }
+
+  // When the cover reports idle, align Target with Current so the CHIP
+  // window-covering-server's PostAttributeChange computes OperationalState =
+  // Stall (current==target) and the fabric stops thinking we're moving.
+  if (this->cover_->current_operation == cover::COVER_OPERATION_IDLE) {
+    ::esp_matter_attr_val_t target_val = ::esp_matter_nullable_uint16(current_100ths);
+    esp_err_t terr = ::esp_matter::attribute::update(
+        this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
+        chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id, &target_val);
+    if (terr != ESP_OK && terr != ESP_ERR_NOT_FINISHED) {
+      ESP_LOGW(TAG, "attribute::update TargetPositionLift endpoint=%u failed: %s", this->endpoint_id_,
+               esp_err_to_name(terr));
+    }
+  }
+  this->applying_report_ = false;
+}
+
+}  // namespace matter
+}  // namespace esphome
+
+#endif  // USE_COVER
+#endif  // USE_ESP_IDF
