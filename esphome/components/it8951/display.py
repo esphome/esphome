@@ -336,7 +336,7 @@ def _customise_schema(config):
 CONFIG_SCHEMA = _customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     # IT8951 reads from SPI (DevInfo, VCOM, register reads) so MISO is required.
     spi.final_validate_device_schema("it8951", require_miso=True, require_mosi=True)(
         config
@@ -351,7 +351,6 @@ def _final_validate(config):
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
             config[CONF_SHOW_TEST_CARD] = True
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

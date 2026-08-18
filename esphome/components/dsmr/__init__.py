@@ -88,7 +88,7 @@ async def to_code(config):
     cg.add_library("esphome/dsmr_parser", "1.9.0")
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     for uart_conf in full_config["uart"]:
@@ -101,8 +101,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                     rx_buffer_size,
                 )
             break
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
