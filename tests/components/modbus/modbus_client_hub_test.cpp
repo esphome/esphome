@@ -322,14 +322,14 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
   hub.force_send_next();
 
   // A matching successful response cycles the continuous entry back to READY.
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 
   // An exception response ends the poll.
   hub.force_send_next();
@@ -346,13 +346,13 @@ TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
   hub.force_send_next();
 
   hub.timeout_waiting();  // no response -> device requests retry
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);  // the retried poll stays continuous
+  EXPECT_TRUE(hub.queued(0).options.continuous);  // the retried poll stays continuous
 }
 
 // A one-shot duplicate downgrades a continuous poll to a one-shot (the mirror of a continuous
@@ -363,16 +363,16 @@ TEST(ModbusClientHubPriority, DuplicateSendDowngradesContinuous) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
 
   device.read_holding_registers(0x100, 2);  // one-shot duplicate downgrades the poll
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_FALSE(hub.queued(0).continuous);
+  EXPECT_FALSE(hub.queued(0).options.continuous);
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
   // It runs one more cycle to serve the request, then stops - not re-queued as a poll.
   hub.force_send_next();
-  EXPECT_FALSE(hub.waiting_command().continuous);
+  EXPECT_FALSE(hub.waiting_command().options.continuous);
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   EXPECT_EQ(hub.queued_frames(), 0u);
@@ -407,16 +407,16 @@ TEST(ModbusClientHubPriority, DowngradeAfterTerminalKeepsRequestAlive) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
 
   hub.force_send_next();
   const uint8_t exception_response[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, exception_response);  // exception ends the poll; on_error re-sends
 
-  EXPECT_EQ(device.error_count_, 1);       // one terminal delivered so far
-  ASSERT_EQ(hub.queued_frames(), 1u);      // the re-send survived the sweep instead of being erased
-  EXPECT_FALSE(hub.queued(0).continuous);  // downgraded to a one-shot
-  EXPECT_EQ(hub.queued(0).pending, 1u);    // debt restored so the request runs
+  EXPECT_EQ(device.error_count_, 1);               // one terminal delivered so far
+  ASSERT_EQ(hub.queued_frames(), 1u);              // the re-send survived the sweep instead of being erased
+  EXPECT_FALSE(hub.queued(0).options.continuous);  // downgraded to a one-shot
+  EXPECT_EQ(hub.queued(0).pending, 1u);            // debt restored so the request runs
 
   // And it runs to its own terminal - a good response this time - then the entry is gone.
   hub.force_send_next();
@@ -434,18 +434,18 @@ TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
 
   device.read_holding_registers(0x100, 2);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_FALSE(hub.queued(0).continuous);
+  ASSERT_FALSE(hub.queued(0).options.continuous);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 
   // And it behaves as a poll from here: success cycles it back to READY.
   hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 }
 
 // The transmit order is one key with three levels: writes, then one-shot reads, then continuous
@@ -473,7 +473,7 @@ TEST(ModbusClientHubPriority, WritesThenOneShotReadsThenContinuousPolls) {
   EXPECT_EQ(hub.waiting_command().frame.pdu()[1], 0x02);  // then the one-shot read
   hub.timeout_waiting();
   hub.force_send_next();
-  EXPECT_TRUE(hub.waiting_command().continuous);  // and the poll takes what is left
+  EXPECT_TRUE(hub.waiting_command().options.continuous);  // and the poll takes what is left
 }
 
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
@@ -485,7 +485,7 @@ TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   device.queue_pdu(write_pdu, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
-  EXPECT_FALSE(hub.queued(0).continuous);
+  EXPECT_FALSE(hub.queued(0).options.continuous);
 }
 
 // A queued continuous poll does not count against immediate-send readiness: it ranks below every
@@ -496,7 +496,7 @@ TEST(ModbusClientHubPriority, ContinuousPollDoesNotBlockImmediateSend) {
 
   EXPECT_TRUE(hub.tx_buffer_empty());  // nothing queued
   device.read_holding_registers(0x100, 2, {.continuous = true});
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
   EXPECT_TRUE(hub.tx_buffer_empty());  // a READY continuous poll still leaves room to send now
 
   device.read_holding_registers(0x200, 2);  // a one-shot does count
@@ -1878,8 +1878,8 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
 
-  ASSERT_EQ(hub.queued_frames(), 1u);      // absorbed into the same entry, not a fresh twin
-  EXPECT_FALSE(hub.queued(0).continuous);  // the one-shot re-send downgraded the poll
+  ASSERT_EQ(hub.queued_frames(), 1u);              // absorbed into the same entry, not a fresh twin
+  EXPECT_FALSE(hub.queued(0).options.continuous);  // the one-shot re-send downgraded the poll
 }
 
 // An exception-flagged function code is never silently re-sendable, even though the read check
