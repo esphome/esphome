@@ -2297,19 +2297,13 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         "CONFIG_FATFS_LFN_STACK",
     )
     user_picked_lfn = any(k in opts for k in lfn_keys)
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+    fatfs_required = CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False)
+    if fatfs_required:
         if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
-        # Long filenames are a hard requirement of exFAT and are already set right above;
-        # the FatFs #defines themselves come via a patched project-local component copy.
-        _sync_exfat_fatfs_override(
-            enable_exfat,
-            str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
-            get_esp32_variant(),
-        )
     elif enable_exfat:
         raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
@@ -2320,6 +2314,16 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
+
+    # Reconcile the project-local FatFs override on every run, not only when FATFS is required,
+    # so a stale patched copy is removed once exFAT is no longer active (e.g. the SD component was
+    # dropped from the YAML). _sync_exfat_fatfs_override() early-returns and cleans up when
+    # disabled, so this both installs and tears down.
+    _sync_exfat_fatfs_override(
+        fatfs_required and enable_exfat,
+        str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+        get_esp32_variant(),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -3000,6 +3004,10 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
+    # Claim the copy immediately: if the patching below raises, the cleanup path (which only
+    # removes marked copies) can still remove this one instead of leaving it to shadow the IDF
+    # component forever. Overwritten with the real stamp once patching succeeds.
+    marker.write_text("partial")
     ffconf = dest / "src" / "ffconf.h"
     text = ffconf.read_text()
     for key, value in _EXFAT_PATCHES:
