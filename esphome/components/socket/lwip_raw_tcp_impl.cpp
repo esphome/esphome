@@ -50,6 +50,11 @@ static const char *const TAG = "socket";
 static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
 #endif
 
+#ifdef USE_ESP8266
+// optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.
+static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
+#endif
+
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
 #define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
