@@ -367,6 +367,9 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+    case AUTO:
+      ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
+      return nullptr;
     default:
       ESP_LOGE(TAG, "Unsupported image format: %d", format);
       return nullptr;

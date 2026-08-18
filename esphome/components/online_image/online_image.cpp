@@ -2,6 +2,7 @@
 #include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cstring>
 
 static const char *const TAG = "online_image";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
@@ -124,14 +125,16 @@ void OnlineImage::update() {
     auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     const char *content_type = content_type_header.c_str();
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
-    if (!strcasecmp(content_type, "image/bmp")) {
+    if (strcasestr(content_type, "image/bmp")) {
       format = runtime_image::BMP;
-    } else if (!strcasecmp(content_type, "image/jpeg")) {
+    } else if (strcasestr(content_type, "image/jpeg") or strcasestr(content_type, "image/jpg")) {
       format = runtime_image::JPEG;
-    } else if (!strcasecmp(content_type, "image/png")) {
+    } else if (strcasestr(content_type, "image/png")) {
       format = runtime_image::PNG;
     } else {
-      ESP_LOGE(TAG, "Image format '%s' not supported", content_type);
+      // TODO:: implement auto-detection in runtime_image to try to detect format
+      // from the first few bytes of the image data
+      ESP_LOGE(TAG, "Could not determine image format from Content-Type: '%s'. Set `format:` explicitly", content_type);
       this->end_connection_();
       this->download_error_callback_.call();
       return;
