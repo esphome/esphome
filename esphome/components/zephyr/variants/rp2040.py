@@ -69,7 +69,11 @@ VARIANT = ZephyrVariant(
     soc="rp2040",
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
-    pwm_node_labels=["pwm"],
+    # A single "pwm" controller node covers all 8 slices reachable within the 30
+    # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
+    # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.
+    pwm_node_labels=["pwm"] * 8,
+    pwm_channels_per_block=2,
     # wdt_rpi_pico.c: RPI_PICO_MAX_WDT_TIME = 0xFFFFFF us, halved on RP2040 by errata
     # RP2040-E1 -- real ceiling ~8.39s, below the generic 10s default.
     watchdog_max_timeout_ms=8000,
