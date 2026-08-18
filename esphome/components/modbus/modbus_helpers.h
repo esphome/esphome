@@ -55,6 +55,33 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
+/// True for any function code the frame-length parsers have no explicit case for - everything their
+/// switches fall through to `default` on. Deliberately wider than is_function_code_custom(): the
+/// user-defined ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
+/// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
+/// The exception flag is masked off first, so an exception reply classifies by its base code.
+/// Keep this case list in step with server_pdu_length() and client_pdu_length().
+inline bool is_function_code_unknown_length(uint8_t function_code) {
+  switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FILE_RECORD:
+    case FunctionCode::WRITE_FILE_RECORD:
+    case FunctionCode::MASK_WRITE_REGISTER:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FIFO_QUEUE:
+      return false;
+    default:
+      return true;
+  }
+}
+
 // Returns the expected length of a server response PDU based on the function code.
 // If too few bytes have arrived to determine the length, returns the minimum length. `size` is the
 // number of bytes available so far, which may exceed the eventual PDU (e.g. include the frame's CRC
