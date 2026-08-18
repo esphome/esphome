@@ -20,6 +20,7 @@ changed_files = helpers.changed_files
 filter_changed = helpers.filter_changed
 get_changed_components = helpers.get_changed_components
 _get_changed_files_from_command = helpers._get_changed_files_from_command
+run_gh_command = helpers.run_gh_command
 _get_pr_number_from_github_env = helpers._get_pr_number_from_github_env
 _get_changed_files_github_actions = helpers._get_changed_files_github_actions
 _filter_changed_ci = helpers._filter_changed_ci
@@ -1872,3 +1873,123 @@ def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) ->
 def test_base_python_changed(files: list[str], expected: bool) -> None:
     """Only Python modules directly in esphome/ count as base Python changes."""
     assert helpers.base_python_changed(files) is expected
+
+
+def _gh_error(stderr: str) -> subprocess.CalledProcessError:
+    return subprocess.CalledProcessError(1, ["gh"], output="", stderr=stderr)
+
+
+def _gh_success(stdout: str = "ok\n") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(["gh"], 0, stdout=stdout, stderr="")
+
+
+def test_run_gh_command_success() -> None:
+    """A successful command returns without retrying."""
+    with patch("helpers.subprocess.run", return_value=_gh_success()) as mock_run:
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    mock_run.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "second_error",
+    [
+        (
+            'Post "https://api.github.com/graphql": tls: failed to verify'
+            " certificate: x509: certificate is not valid for any names,"
+            " but wanted to match api.github.com"
+        ),
+        'Post "https://api.github.com/graphql": EOF',
+        (
+            "error connecting to api.github.com\n"
+            "check your internet connection or https://githubstatus.com"
+        ),
+    ],
+)
+def test_run_gh_command_retries_transient_error(second_error: str) -> None:
+    """Transient server errors are retried with 2s/4s backoff."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=[
+                _gh_error("HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)"),
+                _gh_error(second_error),
+                _gh_success(),
+            ],
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+    ):
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    assert mock_run.call_count == 3
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [2, 4]
+
+
+def test_run_gh_command_gives_up_after_max_attempts() -> None:
+    """A persistent transient error raises after the third attempt."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 503: Service Unavailable"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert mock_run.call_count == 3
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "HTTP 404: Not Found (https://api.github.com/repos/x)",
+        "HTTP 401: Bad credentials",
+        "HTTP 403: API rate limit exceeded for installation ID 123.",
+        "diff exceeded the maximum number of changed files (300)",
+        (
+            "GraphQL: Could not resolve to a PullRequest with the number of 999999."
+            " (repository.pullRequest)"
+        ),
+    ],
+)
+def test_run_gh_command_permanent_error_not_retried(stderr: str) -> None:
+    """Permanent failures raise immediately without any retry."""
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_run_gh_command_no_retry_for_non_idempotent_commands() -> None:
+    """retry=False fails on the first error even when it looks transient."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 502: 502 Bad Gateway"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "comment", "123", "--body", "x"], retry=False)
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_get_changed_files_from_command_gh_failure_keeps_stderr() -> None:
+    """Failures from gh surface stderr so callers can detect the 300-file limit."""
+    stderr = "diff exceeded the maximum number of changed files (300)"
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)),
+        pytest.raises(Exception, match="maximum number of changed files"),
+    ):
+        _get_changed_files_from_command(["gh", "pr", "diff", "123", "--name-only"])
