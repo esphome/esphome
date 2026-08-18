@@ -131,6 +131,18 @@ void OnlineImage::update() {
       format = runtime_image::JPEG;
     } else if (strcasestr(content_type, "image/png")) {
       format = runtime_image::PNG;
+    } else if (strcasestr(content_type, "image/")) {
+      ESP_LOGW(TAG, "Unsupported image type: '%s'", content_type);
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    } else if (!strcmp(content_type, "")) {
+      // TODO:: implement auto-detection in runtime_image to try to detect format
+      // from the first few bytes of the image data
+      ESP_LOGW(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     } else {
       // TODO:: implement auto-detection in runtime_image to try to detect format
       // from the first few bytes of the image data

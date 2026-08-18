@@ -64,9 +64,9 @@ class AUTOFormat(Format):
         super().__init__("AUTO", None)
 
     def actions(self) -> None:
-        BMPFormat().actions()
-        JPEGFormat().actions()
-        PNGFormat().actions()
+        for format in IMAGE_FORMATS.values():
+            if format is not self:
+                format.actions()
 
 
 class BMPFormat(Format):
@@ -110,7 +110,9 @@ class PNGFormat(Format):
 
 # Registry of available formats
 IMAGE_FORMATS = {
-    "AUTO": AUTOFormat(),
+    #   AUTO currently needs to be handled by the different platforms directly.
+    #   Uncomment this line once generic auto-detection (by sniffing file headers) is implemented in the runtime_image component.
+    #    "AUTO": AUTOFormat(),
     "BMP": BMPFormat(),
     "JPEG": JPEGFormat(),
     "JPG": JPEGFormat(),  # Alias for JPEG

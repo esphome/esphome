@@ -18,26 +18,31 @@ BMP_IMAGE = b"BM\xf6\x00\x00\x00\x00\x00\x00\x006\x00\x00\x00(\x00\x00\x00\x08\x
 LEN_BMP_IMAGE = len(BMP_IMAGE)
 
 
-def handle_http(http_request_future):
+def handle_http(
+    http_request_future,
+    content_type: str = "text/plain",
+    *,
+    request_path: str = "/foo.bmp",
+):
     async def handler(reader, writer):
         try:
+            # Only read the request line if it hasn't been consumed by a caller
             async with asyncio.timeout(1.0):
                 data = await reader.readuntil(b"\r\n")
 
-            # ensure our request matches the expectation
-            expected_request = b"GET /foo.bmp HTTP/1.1\r\n"
+            expected_request = f"GET {request_path} HTTP/1.1\r\n".encode()
             assert data[: len(expected_request)] == expected_request
 
-            # consume rest of request
             async with asyncio.timeout(1.0):
-                data = await reader.readuntil(b"\r\n\r\n")
+                await reader.readuntil(b"\r\n\r\n")
 
-            http_request_future.set_result(True)
+            if not http_request_future.done():
+                http_request_future.set_result(True)
 
             http_response = [
                 b"HTTP/1.1 200 OK",
                 b"Content-Length: %d" % LEN_BMP_IMAGE,
-                b"Content-Type: text/plain",
+                f"Content-Type: {content_type}".encode(),
                 b"Connection: close",
                 b"",
                 b"",
@@ -58,55 +63,103 @@ def handle_http(http_request_future):
     return handler
 
 
+def handle_http_redirect(
+    http_request_future, final_request_future, server_error_future, port_holder
+):
+    async def handler(reader, writer):
+        try:
+            async with asyncio.timeout(1.0):
+                request = await reader.readuntil(b"\r\n")
+
+            if (
+                request[: len(b"GET /foo.bmp HTTP/1.1\r\n")]
+                == b"GET /foo.bmp HTTP/1.1\r\n"
+            ):
+                if not http_request_future.done():
+                    http_request_future.set_result(True)
+                async with asyncio.timeout(1.0):
+                    await reader.readuntil(b"\r\n\r\n")
+
+                http_response = [
+                    b"HTTP/1.1 302 Found",
+                    f"Location: http://127.0.0.1:{port_holder['port']}/final.bmp".encode(),
+                    b"Content-Type: text/html",
+                    b"Content-Length: 0",
+                    b"Connection: close",
+                    b"",
+                    b"",
+                ]
+                writer.write(b"\r\n".join(http_response))
+                await writer.drain()
+                return
+
+            assert (
+                request[: len(b"GET /final.bmp HTTP/1.1\r\n")]
+                == b"GET /final.bmp HTTP/1.1\r\n"
+            )
+            if not final_request_future.done():
+                final_request_future.set_result(True)
+            await handle_http(
+                final_request_future, "image/bmp", request_path="/final.bmp"
+            )(reader, writer)
+        except Exception as exc:
+            # Route handler failures to the dedicated error future so they're not silently lost
+            if not server_error_future.done():
+                server_error_future.set_exception(exc)
+            if not http_request_future.done():
+                http_request_future.set_exception(exc)
+            if not final_request_future.done():
+                final_request_future.set_exception(exc)
+            raise
+        finally:
+            writer.close()
+
+    return handler
+
+
 @pytest.mark.asyncio
-async def test_online_image_bmp(
+async def test_online_image_auto_detects_image_bmp_mime(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Esphome shouldn't block the main loop when a http response is slow"""
+    """AUTO format detection should honor the final response MIME type without explicit format."""
     loop = asyncio.get_running_loop()
-
-    # Track http request
     http_request_future = loop.create_future()
     download_finished_future = loop.create_future()
     downloaded_bytes_future = loop.create_future()
 
     def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-
-        if match := re.search(r"Image fully downloaded, (\d+) bytes", line):
+        if (
+            match := re.search(r"Image fully downloaded, (\d+) bytes", line)
+            and not downloaded_bytes_future.done()
+        ):
             downloaded_bytes_future.set_result(int(match.group(1)))
-
-        if "download finished" in line:
+        if "download finished" in line and not download_finished_future.done():
             download_finished_future.set_result(True)
 
     server = await asyncio.start_server(
-        handle_http(http_request_future), "127.0.0.1", 0
+        handle_http(http_request_future, "image/bmp"), "127.0.0.1", 0
     )
     http_server_port = server.sockets[0].getsockname()[1]
 
     config = yaml_config.replace("HTTP_PORT", str(http_server_port))
+    # Remove the explicit format from the config to test auto-detection
+    config = config.replace("format: BMP\n", "")
+    assert "format: BMP" not in config, "Failed to remove explicit format from config"
 
-    # Run with log monitoring
     async with (
         server,
         run_compiled(config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        # Verify device info
-
         device_info = await client.device_info()
         assert device_info is not None
         assert device_info.name == "online-image-bmp"
 
-        # List services to find our test service
         _, services = await client.list_entities_services()
-
-        # Find test service
         request_service = next((s for s in services if s.name == "fetch_image"), None)
-
-        assert request_service is not None, "fetch_image service not found"
+        assert request_service is not None
 
         await client.execute_service(request_service, {})
 
