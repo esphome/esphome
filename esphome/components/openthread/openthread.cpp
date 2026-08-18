@@ -240,6 +240,7 @@ bool OpenThreadComponent::teardown() {
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+        this->teardown_stage_ = TeardownStage::COMPLETED;
         return true;
       }
       otInstance *instance = lock.get_instance();
@@ -257,6 +258,7 @@ bool OpenThreadComponent::teardown() {
       int error = this->openthread_stop_();
       if (error != 0) {
         ESP_LOGW(TAG, "Failed attempt to stop openthread %d", error);
+        this->teardown_stage_ = TeardownStage::COMPLETED;
         return true;
       }
     } break;
