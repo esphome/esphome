@@ -1136,10 +1136,9 @@ async def format_action_to_code(
     # it here -- the concrete target type is known once the id is resolved.
     full_id, target = await cg.get_variable_with_full_id(config[CONF_ID])
     if full_id.type is not None and full_id.type.inherits_from(NetworkStorage):
-        raise cv.Invalid(
+        raise EsphomeError(
             "'storage.format' cannot target a network storage -- there is nothing to format on "
-            "the far side.",
-            [CONF_ID],
+            "the far side."
         )
     var = cg.new_Pvariable(action_id, template_arg, target)
     if (on_complete := config.get(CONF_ON_COMPLETE)) is not None:
