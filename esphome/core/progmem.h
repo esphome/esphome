@@ -21,7 +21,6 @@
 #define ESPHOME_snprintf_P snprintf_P
 #define ESPHOME_strcmp_P strcmp_P
 #define ESPHOME_strcasecmp_P strcasecmp_P
-#define ESPHOME_strcasestr_P strcasestr_P
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
@@ -45,7 +44,6 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_snprintf_P snprintf
 #define ESPHOME_strcmp_P strcmp
 #define ESPHOME_strcasecmp_P strcasecmp
-#define ESPHOME_strcasestr_P strcasestr
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
@@ -130,5 +128,24 @@ struct LogString;
       return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
     } \
   }
+
+// This is an ugly implementation, but there is no strcasestr equivalent
+// on the RP2/Arduino platform
+#if defined(USE_RP2) || defined(USE_ARDUINO)
+inline const char *ESPHOME_strcasestr_P(const std::string haystack, const std::string needle) {
+  std::string haystack_lower = haystack;
+  std::transform(haystack.begin(), haystack.end(), haystack_lower.begin(), tolower);
+  std::string needle_lower = needle;
+  std::transform(needle.begin(), needle.end(), needle_lower.begin(), tolower);
+
+  auto pos = haystack_lower.find(needle_lower);
+  if (pos == std::string::npos) {
+    return nullptr;
+  }
+  return haystack.c_str() + pos;
+}
+#else  // defined(USE_RP2) || defined(USE_ARDUINO)
+#define ESPHOME_strcasestr_P strcasestr
+#endif  // defined(USE_RP2) || defined(USE_ARDUINO)
 
 }  // namespace esphome
