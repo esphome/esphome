@@ -20,7 +20,8 @@ class TestClimate : public Climate {
 
 TEST(ClimateRestoreStateTest, RestoresASupportedMode) {
   TestClimate climate;
-  // Value-initialized: ClimateDeviceRestoreState has no default member initializers.
+  // Value-initialized: several members (mode, swing_mode, the temperature union) have no default
+  // member initializer, so leaving the {} off would read indeterminate values.
   ClimateDeviceRestoreState state{};
   state.mode = CLIMATE_MODE_COOL;
 
