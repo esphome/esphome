@@ -509,7 +509,7 @@ void SdStorageBase::log_mount_result_(storage::StorageError err) const {
   if (err == storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGI(TAG_BASE, "Card mounted via automation");
   } else {
-    ESP_LOGE(TAG_BASE, storage::error_to_string(err);
+    ESP_LOGE(TAG_BASE, storage::error_to_string(err));
   }
 }
 
