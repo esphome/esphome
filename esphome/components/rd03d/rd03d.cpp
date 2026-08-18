@@ -4,6 +4,7 @@
 
 #include <cinttypes>
 #include <cmath>
+#include <numbers>
 
 namespace esphome::rd03d {
 
@@ -233,7 +234,7 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
   // Angle is measured from the Y axis (radar forward direction)
   if (target.angle != nullptr) {
     if (valid) {
-      float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / M_PI;
+      float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / std::numbers::pi_v<float>;
       target.angle->publish_state(angle);
     } else {
       target.angle->publish_state(NAN);
