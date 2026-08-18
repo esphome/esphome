@@ -7,18 +7,10 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
 from esphome.components.const import CONF_LABEL
-from esphome.components.esp32 import (
-    add_idf_component as add_idf_component,
-    add_idf_sdkconfig_option as add_idf_sdkconfig_option,
-    require_vfs_dir as require_vfs_dir,
-)
 from esphome.components.storage import (
-    FilesystemStorage as FilesystemStorage,
-    register_mount_path as register_mount_path,
     request_path_length,
     request_storage_device,
     request_storage_worker,
-    validate_mount_path as validate_mount_path,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -35,9 +27,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_SIZE,
-    CONF_SOURCE as CONF_SOURCE,
     CONF_SPI_ID,
-    CONF_TARGET as CONF_TARGET,
     CONF_TYPE,
     CONF_VALUE,
 )
