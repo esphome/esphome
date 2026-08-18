@@ -21,7 +21,7 @@ static const char *const TAG_BASE = "sd_storage";
 // f_unlink() (used for rmdir -- see rmdir() below, FATFS has no dedicated f_rmdir) returns
 // FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
 // caller must tell us which context applies.
-static StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
+StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
   switch (res) {
     case FR_OK:
       return StorageError::STORAGE_ERROR_OK;
