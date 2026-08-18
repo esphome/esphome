@@ -313,6 +313,11 @@ def _ccache_env() -> dict[str, str]:
         return {"ESPHOME_CCACHE_ENABLE": "0"}
     ccache_path = shutil.which("ccache")
     if ccache_path is None:
+        if explicit:
+            _LOGGER.warning(
+                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
+                "compiling without ccache"
+            )
         return {"ESPHOME_CCACHE_ENABLE": "0"}
     # Strip before probing so the probe validates (and the failure warning
     # names) the exact string the build will execute through cmd.exe.

@@ -448,25 +448,34 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "env_vars",
+    ("env_vars", "expect_warning"),
     [
-        pytest.param({}, id="default"),
-        pytest.param({"ESPHOME_CCACHE_ENABLE": "1"}, id="forced-on"),
+        pytest.param({}, False, id="default"),
+        pytest.param({"ESPHOME_CCACHE_ENABLE": "1"}, True, id="forced-on"),
     ],
 )
 def test_ccache_env_disabled_without_binary(
-    setup_core: Path, env_vars: dict[str, str]
+    setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
+    env_vars: dict[str, str],
+    expect_warning: bool,
 ) -> None:
-    """Ccache stays off when the binary is not on PATH, even when forced on."""
+    """Ccache stays off when the binary is not on PATH, even when forced on.
+
+    A deliberate opt-in that finds no binary is downgraded with a warning so
+    the user can tell why it had no effect; the default path stays quiet.
+    """
     CORE.build_path = setup_core / "build" / "test"
 
     with (
         patch.dict(os.environ, env_vars, clear=True),
         patch.object(toolchain.shutil, "which", return_value=None),
+        caplog.at_level("WARNING"),
     ):
         env = toolchain._ccache_env()
 
     assert env == {"ESPHOME_CCACHE_ENABLE": "0"}
+    assert ("no ccache binary is on PATH" in caplog.text) is expect_warning
 
 
 @pytest.mark.parametrize(
