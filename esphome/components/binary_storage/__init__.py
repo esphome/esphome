@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 import re
 
 from esphome import automation, pins
@@ -9,17 +8,17 @@ import esphome.codegen as cg
 from esphome.components import i2c, spi
 from esphome.components.const import CONF_LABEL
 from esphome.components.esp32 import (
-    add_idf_component,
-    add_idf_sdkconfig_option,
-    require_vfs_dir,
+    add_idf_component as add_idf_component,
+    add_idf_sdkconfig_option as add_idf_sdkconfig_option,
+    require_vfs_dir as require_vfs_dir,
 )
 from esphome.components.storage import (
-    FilesystemStorage,
-    register_mount_path,
+    FilesystemStorage as FilesystemStorage,
+    register_mount_path as register_mount_path,
     request_path_length,
     request_storage_device,
     request_storage_worker,
-    validate_mount_path,
+    validate_mount_path as validate_mount_path,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -36,9 +35,9 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_SIZE,
-    CONF_SOURCE,
+    CONF_SOURCE as CONF_SOURCE,
     CONF_SPI_ID,
-    CONF_TARGET,
+    CONF_TARGET as CONF_TARGET,
     CONF_TYPE,
     CONF_VALUE,
 )
@@ -83,13 +82,10 @@ SPIMRAM = binary_storage_ns.class_(
 )
 OneWireEEPROM = binary_storage_ns.class_("OneWireEEPROM", BinaryStorage)
 
-# Filesystem storage classes -- extend FilesystemStorage
-FlashPartition = binary_storage_ns.class_("FlashPartition", FilesystemStorage)
 
 # Key-value storage classes -- extend KeyValueStorage
 NVSStore = binary_storage_ns.class_("NVSStore", KeyValueStorage)
 InplaceKVStore = binary_storage_ns.class_("InplaceKVStore", KeyValueStorage)
-LittleFSMount = binary_storage_ns.class_("LittleFSMount", FilesystemStorage)
 
 # Automation classes
 ReadAction = binary_storage_ns.class_("ReadAction", automation.Action)
@@ -126,60 +122,12 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_REGIONS = "regions"
 FORMAT_RAW = "raw"
-FORMAT_LITTLEFS = "littlefs"
 FORMAT_KV = "kv"
 FORMAT_NVS = "nvs"
 SUBTYPE_DATA_NVS = 0x02
-SUBTYPE_DATA_LITTLEFS = 0x83
 SUBTYPE_DATA_UNDEFINED = 0x06
 MAX_PARTITION_LABEL = 16
 REGION_REMAINING = "remaining"
-CONF_PRE_FILL = "pre_fill"
-
-# LittleFS geometry the compile-time image is built with (see the esp_littlefs fork's
-# littlefs_create_partition_image) -- used for the config-time fit estimate below.
-_LFS_BLOCK = 0x1000
-# Superblock pair + a little breathing room for metadata blocks; deliberately conservative
-# so a config that passes here does not surprise-fail at image build time.
-_LFS_OVERHEAD_BLOCKS = 4
-
-
-def _validate_prefill_target(value):
-    value = cv.string_strict(value)
-    if not value.startswith("/"):
-        raise cv.Invalid(
-            "pre_fill target must be an absolute path inside the filesystem"
-        )
-    if value.endswith("/") or ".." in value.split("/") or "//" in value:
-        raise cv.Invalid(f"invalid pre_fill target path: {value}")
-    return value
-
-
-def _validate_prefill_fits(config):
-    """Config-time fit estimate: every file rounds up to whole blocks, plus a conservative
-    metadata allowance. The image build enforces the real limit; this catches the obvious
-    mistakes before a compile is wasted."""
-    prefill = config.get(CONF_PRE_FILL)
-    if not prefill:
-        return config
-    targets = set()
-    blocks = _LFS_OVERHEAD_BLOCKS
-    for entry in prefill:
-        target = entry[CONF_TARGET]
-        if target in targets:
-            raise cv.Invalid(f"duplicate pre_fill target: {target}")
-        targets.add(target)
-        size = entry[CONF_SOURCE].stat().st_size
-        blocks += max(1, -(-size // _LFS_BLOCK))
-        # every directory level costs metadata too -- folded into the flat allowance above
-    needed = blocks * _LFS_BLOCK
-    if needed > config[CONF_PARTITION_SIZE]:
-        raise cv.Invalid(
-            f"pre_fill needs about {needed} bytes (files rounded to {_LFS_BLOCK}-byte "
-            f"blocks plus filesystem overhead) but partition_size is only "
-            f"{config[CONF_PARTITION_SIZE]}"
-        )
-    return config
 
 
 def validate_bytes(value):
@@ -204,17 +152,6 @@ def validate_bytes(value):
         raise cv.Invalid(f"Invalid suffix '{suffix}', valid: B, KB, KiB, MB, MiB")
 
     return int(int(match.group(1)) * suffixes[suffix])
-
-
-def _add_littlefs_sdkconfig():
-    """Set LittleFS sdkconfig options via the IDF build system."""
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_CACHE_SIZE", 512)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_MAX_PARTITIONS", 3)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_READ_SIZE", 128)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_WRITE_SIZE", 128)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_LOOKAHEAD_SIZE", 128)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_BLOCK_CYCLES", 512)
-    add_idf_sdkconfig_option("CONFIG_LITTLEFS_PAGE_SIZE", 256)
 
 
 # Opt-in shared by the bus-attached raw devices (SPI + I2C). The user asserts this device is
@@ -247,19 +184,6 @@ _RAW_REGION_SCHEMA = cv.Schema(
         cv.Optional(CONF_STORAGE_NAME): cv.string,
     }
 )
-_LITTLEFS_REGION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_MOUNT_ID): cv.declare_id(LittleFSMount),
-        # esp_partition mode mounts the region via esp_vfs_littlefs (FlashPartition) instead of the
-        # block-callback LittleFSMount; give it its own declared id.
-        cv.GenerateID(CONF_PARTITION_ID): cv.declare_id(FlashPartition),
-        cv.Optional(CONF_SIZE, default=REGION_REMAINING): region_size,
-        cv.Optional(CONF_MOUNT_PATH): validate_mount_path,
-        cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-        cv.Optional(CONF_LABEL): cv.string,
-        cv.Optional(CONF_STORAGE_NAME): cv.string,
-    }
-)
 # NVS region: only valid on esp32/esp-idf SPI flash with an exclusive bus (esp_partition mode),
 # where it becomes a real NVS partition with wear leveling.
 _NVS_REGION_SCHEMA = cv.Schema(
@@ -281,7 +205,6 @@ _KV_REGION_SCHEMA = cv.Schema(
 REGION_SCHEMA = cv.typed_schema(
     {
         FORMAT_RAW: _RAW_REGION_SCHEMA,
-        FORMAT_LITTLEFS: _LITTLEFS_REGION_SCHEMA,
         FORMAT_KV: _KV_REGION_SCHEMA,
         FORMAT_NVS: _NVS_REGION_SCHEMA,
     },
@@ -433,37 +356,6 @@ ONEWIRE_EEPROM_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
-# Flash Partition Configuration Schema
-FLASH_PARTITION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(FlashPartition),
-        cv.Required(CONF_PARTITION_LABEL): cv.string,
-        # Size of the data partition that gets appended to the generated partition table.
-        # Must be 4KB aligned. Ignored when the esp32 config supplies its own partitions CSV
-        # (the generated table is not used then) -- in that case the CSV must contain a data
-        # partition with this label itself. Unit casing follows validate_bytes /
-        # SI: lowercase k ("512kB"), uppercase M/G ("16MB").
-        cv.Optional(CONF_PARTITION_SIZE, default="512kB"): cv.All(
-            cv.validate_bytes, cv.Range(min=0x1000)
-        ),
-        cv.Optional(CONF_MOUNT_PATH, default="/littlefs"): validate_mount_path,
-        cv.Optional(CONF_AUTO_FORMAT, default=True): cv.boolean,
-        cv.Optional(CONF_STORAGE_NAME): cv.string,
-        # Compile-time pre-fill: the listed files are baked into a LittleFS image during the
-        # build (littlefs_create_partition_image) and flashed with the partition -- in the
-        # factory image automatically, over OTA via the image appended to firmware.ota.bin
-        # (see espidf/toolchain.py). Nothing is ever embedded into the app binary.
-        cv.Optional(CONF_PRE_FILL): cv.ensure_list(
-            cv.Schema(
-                {
-                    cv.Required(CONF_SOURCE): cv.file_,
-                    cv.Required(CONF_TARGET): _validate_prefill_target,
-                }
-            )
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
-
 
 # A dedicated NVS partition exposed as a KeyValueStorage. esp32 only (NVS is an ESP-IDF facility).
 # It uses its OWN partition label, never the system "nvs" partition, so it cannot collide with the
@@ -490,21 +382,6 @@ NVS_SCHEMA = cv.All(
 
 
 # Typed schema for device selection
-def _fill_derived_mount_path(config):
-    """Write the id-derived mount point into the config when the user left it out.
-
-    Deriving it in to_code() instead would hide it from validation: the storage component
-    rejects two devices sharing a mount point by reading the mount_path keys out of the
-    validated config, and a path that only ever exists inside to_code() is invisible to that
-    check. Filling it here keeps the config the single description of what was configured,
-    which is what codegen then reads -- no state travels between the two phases.
-    """
-    for region in config.get(CONF_REGIONS) or []:
-        if region[CONF_FORMAT] == FORMAT_LITTLEFS and CONF_MOUNT_PATH not in region:
-            region[CONF_MOUNT_PATH] = f"/{config[CONF_ID]}"
-    return config
-
-
 CONFIG_SCHEMA = cv.typed_schema(
     {
         "EEPROM": EEPROM_SCHEMA,
@@ -518,14 +395,11 @@ CONFIG_SCHEMA = cv.typed_schema(
         "MRAM": SPI_MRAM_SCHEMA,
         "ONEWIRE_EEPROM": ONEWIRE_EEPROM_SCHEMA,
         "ONEWIRE": ONEWIRE_EEPROM_SCHEMA,
-        "FLASH_PARTITION": FLASH_PARTITION_SCHEMA,
-        "PARTITION": FLASH_PARTITION_SCHEMA,
         "NVS": NVS_SCHEMA,
     },
     key=CONF_TYPE,
     upper=True,
 )
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _fill_derived_mount_path)
 
 # Mapping of device types to their source files, keyed by the type: value above.
 DEVICE_SOURCE_FILES = {
@@ -535,12 +409,11 @@ DEVICE_SOURCE_FILES = {
     "spi_fram": ["spi_fram.cpp"],
     "spi_mram": ["spi_mram.cpp"],
     "onewire_eeprom": ["onewire_eeprom.cpp"],
-    "flash_partition": ["flash_partition.cpp"],
     "nvs": ["nvs_store.cpp"],
     "inplace_kv": ["inplace_kv.cpp"],
 }
 
-# Raw media only: flash_partition is a filesystem and shows up as a mount point, not a node.
+# Raw media only (kv/nvs partition consumers are mount points/stores, not raw nodes).
 RAW_DEVICE_TYPES = {
     "i2c_eeprom",
     "i2c_fram",
@@ -562,8 +435,6 @@ TYPE_TO_DEVICE = {
     "MRAM": "spi_mram",
     "ONEWIRE_EEPROM": "onewire_eeprom",
     "ONEWIRE": "onewire_eeprom",
-    "FLASH_PARTITION": "flash_partition",
-    "PARTITION": "flash_partition",
     "NVS": "nvs",
 }
 
@@ -680,16 +551,6 @@ def _validate_regions(config):
             if size < 256:
                 raise cv.Invalid(
                     f"format: kv region must be at least 256 bytes (got {size})"
-                )
-        elif fmt == FORMAT_LITTLEFS:
-            if CORE.using_arduino or not CORE.is_esp32:
-                raise cv.Invalid(
-                    "format: littlefs requires ESP32 with the ESP-IDF framework."
-                )
-            if erase is not None and size % erase != 0:
-                raise cv.Invalid(
-                    f"format: littlefs region size ({size}) must be a multiple of the erase "
-                    f"sector ({erase})"
                 )
         region[CONF_SIZE] = size  # resolve remaining -> concrete size
         region["_offset"] = offset
@@ -816,7 +677,6 @@ def _validate_assume_exclusive_bus(config, fconf):
 def _final_validate(config):
     _validate_regions(config)
     _validate_device_node(config)
-    _validate_prefill_fits(config)
     _validate_assume_exclusive_bus(config, fv.full_config.get())
     # Resolved here because it depends on another component's config; stored back for to_code().
     if (node_name := _node_name_of(config)) is not None:
@@ -834,30 +694,9 @@ def _final_validate(config):
         fconf = fv.full_config.get()
         bus_conf = fconf.get_config_for_path(fconf.get_path_for_id(bus_id)[:-1])
         config["_esp_flash_host_index"] = bus_conf.get("interface_index", 0)
-        # nvs and littlefs regions still pull in their partition consumers.
+        # nvs regions still pull in their partition consumer.
         if any(r[CONF_FORMAT] == FORMAT_NVS for r in regions):
             CORE.data.setdefault("binary_storage_device_types", set()).add("nvs")
-        if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
-            CORE.data.setdefault("binary_storage_device_types", set()).add(
-                "flash_partition"
-            )
-    needs_littlefs = any(
-        r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions
-    ) or device_type in [
-        "FLASH_PARTITION",
-        "PARTITION",
-    ]
-    if needs_littlefs:
-        if CORE.using_arduino:
-            raise cv.Invalid(
-                "LittleFS and flash partition support requires ESP32 with ESP-IDF framework, "
-                "not Arduino. Use mode: raw or switch to esp-idf."
-            )
-        if not CORE.is_esp32:
-            raise cv.Invalid(
-                "LittleFS and flash partition support is only available on ESP32."
-            )
-        require_vfs_dir()
     return config
 
 
@@ -873,97 +712,9 @@ def FILTER_SOURCE_FILES():
     return exclude
 
 
-def _stage_prefill(label: str, prefill: list) -> None:
-    """Copy the pre-fill sources into a per-partition staging tree under the build dir and
-    hand partition + tree to our own esp_littlefs component via sdkconfig -- its
-    project_include.cmake builds the image (littlefs_create_partition_image) and
-    FLASH_IN_PROJECT registers it in flasher_args.json, which the stock factory merge picks
-    up as-is. No esphome core involved anywhere: component codegen, component cmake,
-    stock toolchain."""
-    import shutil
-
-    staging = Path(CORE.build_path) / "littlefs_prefill" / label
-    # Rebuilt from scratch every codegen run: stale files from removed entries must not
-    # linger in the image.
-    if staging.exists():
-        shutil.rmtree(staging)
-    for entry in prefill:
-        dest = staging / entry[CONF_TARGET].lstrip("/")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(entry[CONF_SOURCE], dest)
-    add_idf_sdkconfig_option("CONFIG_ESPHOME_LITTLEFS_PREFILL_PARTITION", label)
-    add_idf_sdkconfig_option("CONFIG_ESPHOME_LITTLEFS_PREFILL_DIR", staging.as_posix())
-
-
 async def to_code(config):
     device_type = config[CONF_TYPE].upper()
 
-    if CORE.is_esp32 and not CORE.using_arduino:
-        # LittleFS sdkconfig options and library only needed on ESP32-IDF
-        _add_littlefs_sdkconfig()
-        add_idf_component(
-            name="p1ngb4ck/esphome_esp_littlefs",
-            repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
-            ref="main",
-        )
-
-    # Handle FLASH_PARTITION
-    if device_type in ["FLASH_PARTITION", "PARTITION"]:
-        require_vfs_dir()
-        cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
-        _add_littlefs_sdkconfig()
-        add_idf_component(
-            name="p1ngb4ck/esphome_esp_littlefs",
-            repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
-            ref="main",
-        )
-
-        var = cg.new_Pvariable(config[CONF_ID])
-        await cg.register_component(var, config)
-
-        # Append the backing data partition to the generated partition table so the
-        # label actually exists at runtime (esp_littlefs locates it by LABEL with
-        # subtype ANY). add_partition() raises on duplicate names / invalid values --
-        # surface that as a config error instead of a traceback.
-        from esphome.components.esp32 import add_partition
-
-        size = config[CONF_PARTITION_SIZE]
-        if size % 0x1000 != 0:
-            size = (size + 0xFFF) & ~0xFFF
-        try:
-            add_partition(config[CONF_PARTITION_LABEL], "data", "littlefs", size)
-        except ValueError as err:
-            raise cv.Invalid(str(err)) from err
-
-        cg.add(var.set_partition_label(config[CONF_PARTITION_LABEL]))
-        cg.add(var.set_mount_path(config[CONF_MOUNT_PATH]))
-        # Full VFS paths are longer than the relative ones request_path_length() bounds; the
-        # storage component sizes its buffers from the mount points registered here.
-        register_mount_path(config[CONF_MOUNT_PATH])
-        cg.add(var.set_auto_format(config[CONF_AUTO_FORMAT]))
-
-        if prefill := config.get(CONF_PRE_FILL):
-            _stage_prefill(config[CONF_PARTITION_LABEL], prefill)
-            # Only a pre-fill build touches OTA at all: the OTA path is one of several ways the
-            # pre-fill image reaches the partition, and its listener coordinates the unmount/
-            # remount so an in-band pre-fill OTA needn't force a reboot. Without pre_fill,
-            # binary_storage has no OTA involvement whatsoever.
-            cg.add_define("USE_BINARY_STORAGE_PREFILL")
-
-        # The device's identity in the registry is its YAML id -- nothing else to choose.
-        storage_id = str(config[CONF_ID])
-        storage_name = config.get(CONF_STORAGE_NAME, config[CONF_PARTITION_LABEL])
-        cg.add(var.set_storage_id(storage_id))
-        cg.add(var.set_storage_name(storage_name))
-
-        request_storage_device()
-        # LittleFS name limit: 255 characters plus the terminator.
-        request_path_length(256)
-        # Path-based driver -> async worker. task_safe: esp_littlefs serializes internally
-        # and esp_partition flash I/O is task-safe in IDF for every instance of this driver
-        # (see FlashPartition::get_capabilities()).
-        request_storage_worker(task_safe=True)
-        return
 
     if device_type == "NVS":
         cg.add_define("USE_BINARY_STORAGE_NVS")
@@ -1000,11 +751,6 @@ async def to_code(config):
         {CONF_FORMAT: FORMAT_RAW, "_offset": 0, CONF_SIZE: 0}
     ]
 
-    # Custom block device support required for external memory LittleFS
-    if any(r[CONF_FORMAT] == FORMAT_LITTLEFS for r in regions):
-        add_idf_sdkconfig_option("CONFIG_LITTLEFS_CUSTOM_BLOCK_DEVICE", True)
-        require_vfs_dir()
-        cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -1113,23 +859,6 @@ async def to_code(config):
                 if (rname := region.get(CONF_STORAGE_NAME)) is not None:
                     cg.add(var.set_storage_name(rname))
                 request_storage_device()
-            elif fmt == FORMAT_LITTLEFS:
-                cg.add(
-                    var.add_partition_region(offset, size, label, SUBTYPE_DATA_LITTLEFS)
-                )
-                fp = cg.new_Pvariable(region[CONF_PARTITION_ID])
-                await cg.register_component(fp, {})
-                # External esp_partition regions may be unmounted (e.g. to format); internal
-                # FLASH_PARTITION devices stay statically mounted.
-                cg.add(fp.set_mountable(True))
-                cg.add(fp.set_partition_label(label))
-                mount_path = region.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
-                cg.add(fp.set_mount_path(mount_path))
-                register_mount_path(mount_path)
-                if (af := region.get(CONF_AUTO_FORMAT)) is not None:
-                    cg.add(fp.set_auto_format(af))
-                request_storage_device()
-                request_path_length(256)
             elif fmt == FORMAT_NVS:
                 cg.add_define("USE_BINARY_STORAGE_NVS")
                 cg.add(var.add_partition_region(offset, size, label, SUBTYPE_DATA_NVS))
@@ -1147,19 +876,6 @@ async def to_code(config):
                 cg.add(var.set_storage_name(rname))
             request_storage_device()
 
-        elif fmt == FORMAT_LITTLEFS:
-            cg.add(var.set_fs_window(offset, size))
-            mount_var = cg.new_Pvariable(region[CONF_MOUNT_ID])
-            await cg.register_component(mount_var, {})
-            cg.add(mount_var.set_storage_device(var))
-            mount_path = region.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
-            cg.add(mount_var.set_mount_path(mount_path))
-            register_mount_path(mount_path)
-            if (af := region.get(CONF_AUTO_FORMAT)) is not None:
-                cg.add(mount_var.set_auto_format(af))
-            request_storage_device()
-            request_path_length(256)
-            request_storage_worker()
 
         elif fmt == FORMAT_KV:
             cg.add_define("USE_BINARY_STORAGE_INPLACE_KV")

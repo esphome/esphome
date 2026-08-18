@@ -4,7 +4,7 @@ A unified interface for non-volatile binary storage devices (FRAM, EEPROM, Flash
 
 ## Overview
 
-The `binary_storage` component provides a consistent API for accessing various types of non-volatile memory devices over I2C, SPI, and OneWire buses. It supports both raw binary access and LittleFS filesystem mounting for structured data storage.
+The `binary_storage` component provides a consistent API for accessing various types of non-volatile memory devices over I2C, SPI, and OneWire buses. It supports raw binary access as well as key-value (kv/nvs) storage.
 
 ## Supported Devices
 
@@ -60,33 +60,6 @@ binary_storage:
     mode: raw
 ```
 
-### LittleFS Mode
-Mount device as a LittleFS filesystem for file-based access (ESP-IDF only).
-
-```yaml
-binary_storage:
-  - id: my_flash
-    type: SPI_FLASH
-    model: W25Q32
-    cs_pin: GPIO5
-    mode: littlefs
-    mount_path: /data
-    auto_format: true
-```
-
-### Both Mode
-Combine raw access and filesystem mounting on the same device.
-
-```yaml
-binary_storage:
-  - id: my_fram
-    type: SPI_FRAM
-    model: FM25V10
-    cs_pin: GPIO15
-    mode: both
-    mount_path: /logs
-```
-
 ## Configuration
 
 ### Common Parameters
@@ -97,7 +70,7 @@ binary_storage:
     type: DEVICE_TYPE           # Required: See device types below
     model: MODEL_STRING         # Optional: Auto-configures capacity
     capacity: SIZE              # Optional: Override auto-detected size
-    mode: raw                   # Optional: raw, littlefs, or both (default: raw)
+    mode: raw                   # Optional (default: raw)
 ```
 
 ### Device Types
@@ -139,8 +112,7 @@ binary_storage:
     id: flash_storage
     model: W25Q32               # 4MB Flash
     cs_pin: GPIO5
-    mode: littlefs
-    mount_path: /data
+    mode: raw
 ```
 
 ### OneWire Configuration
@@ -227,20 +199,6 @@ on_boot:
         ESP_LOGI("boot", "Boot count: %u", boot_count);
 ```
 
-### LittleFS Mode
-
-```yaml
-on_boot:
-  then:
-    - lambda: |-
-        // Write to file on mounted LittleFS
-        FILE *f = fopen("/data/config.txt", "w");
-        if (f) {
-          fprintf(f, "Boot time: %lu\n", millis());
-          fclose(f);
-        }
-```
-
 ## Device Characteristics
 
 ### Write Endurance Comparison
@@ -266,7 +224,6 @@ on_boot:
 When used with the `storage` component, binary storage devices automatically register:
 
 - **Raw mode**: Device nodes like `/dev/fram0`, `/dev/eeprom0`
-- **LittleFS mode**: Mount points like `/fram`, `/data`
 
 This enables unified file system access across different storage types.
 
@@ -294,31 +251,6 @@ on_boot:
         ESP_LOGI("boot", "Boot #%u", count);
 ```
 
-### Data Logger (Flash + LittleFS)
-
-```yaml
-binary_storage:
-  - id: flash
-    type: SPI_FLASH
-    model: W25Q32
-    cs_pin: GPIO5
-    mode: littlefs
-    mount_path: /logs
-    auto_format: true
-
-sensor:
-  - platform: dallas
-    id: temp_sensor
-    on_value:
-      then:
-        - lambda: |-
-            FILE *f = fopen("/logs/temp.csv", "a");
-            if (f) {
-              fprintf(f, "%lu,%.1f\n", millis(), id(temp_sensor).state);
-              fclose(f);
-            }
-```
-
 ### Multi-Device Configuration
 
 ```yaml
@@ -344,32 +276,27 @@ binary_storage:
     type: I2C_EEPROM
     model: AT24C256
     address: 0x51
-    mode: littlefs
-    mount_path: /config
+    mode: raw
 
   # Flash for data logging
   - id: data_flash
     type: SPI_FLASH
     model: W25Q32
     cs_pin: GPIO5
-    mode: littlefs
-    mount_path: /data
+    mode: raw
 ```
 
 ## Platform Support
 
-- **ESP32**: Full support (all device types, all modes)
-- **ESP8266**: Raw mode only (no LittleFS support)
-- **RP2040**: Raw mode only (no LittleFS support)
+- **ESP32**: Full support (all device types)
+- **ESP8266**: Raw mode only
+- **RP2040**: Raw mode only
 
-LittleFS mounting requires ESP-IDF framework.
 
 ## Notes
 
-- LittleFS component is automatically loaded for ESP-IDF builds
 - Device nodes are auto-generated as `/dev/{type}{index}` (e.g., `/dev/fram0`)
 - Mount points default to `/{device_id}` if not specified
-- Auto-format initializes LittleFS on first mount or after corruption
 - FRAM and MRAM support unlimited writes - ideal for counters and frequent state updates
 - Flash requires erase-before-write and has sector-level wear leveling
 

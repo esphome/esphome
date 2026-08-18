@@ -14,18 +14,6 @@ namespace esphome::binary_storage {
 // is 15). Derived so it cannot drift from what the API hands down.
 static constexpr size_t STORAGE_MAX_PATH_LEN = storage::STORAGE_PATH_MAX + 32;
 
-#ifdef USE_BINARY_STORAGE_LITTLEFS
-// Block device configuration for LittleFS integration.
-// LittleFS requires block-oriented operations -- this provides the translation
-// layer between byte-addressable storage and LittleFS block callbacks.
-struct BlockDeviceConfig {
-  uint32_t block_size;
-  uint32_t block_count;
-  uint32_t read_size;
-  uint32_t prog_size;
-  uint32_t lookahead_size;
-};
-#endif  // USE_BINARY_STORAGE_LITTLEFS
 
 // Abstract base for all binary storage devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire EEPROM).
 // Extends RawStorage -- provides offset-based byte access.
@@ -95,17 +83,6 @@ class BinaryStorage : public storage::RawStorage {
   // Fill entire device with a value. Returns bytes written.
   virtual uint32_t fill(uint8_t value);
 
-#ifdef USE_BINARY_STORAGE_LITTLEFS
-  //========================================================================
-  // LittleFS block device interface (internal -- used by LittleFSMount only)
-  //========================================================================
-
-  virtual BlockDeviceConfig get_block_config() const;
-  virtual int block_read(uint32_t block, uint32_t offset, void *buffer, uint32_t size);
-  virtual int block_prog(uint32_t block, uint32_t offset, const void *buffer, uint32_t size);
-  virtual int block_erase(uint32_t block);
-  virtual int block_sync() { return 0; }
-#endif  // USE_BINARY_STORAGE_LITTLEFS
 
   //========================================================================
   // Configuration setters (called by Python codegen)
@@ -113,20 +90,15 @@ class BinaryStorage : public storage::RawStorage {
 
   void set_storage_id(const char *id) { this->storage_id_ = id; }
   void set_storage_name(const char *name) { this->storage_name_ = name; }
-  // Regions: place the raw / LittleFS window on a byte range of the device. Raw addresses are
+  // Regions: place the raw window on a byte range of the device. Raw addresses are
   // rebased to raw_offset_ so the window is a self-contained memory (capacity == its size, and no
   // raw operation can reach outside it). size 0 means "to the end of the device".
   void set_raw_window(uint64_t offset, uint64_t size) {
     this->raw_offset_ = offset;
     this->raw_size_ = size;
   }
-  void set_fs_window(uint64_t offset, uint64_t size) {
-    this->fs_offset_ = offset;
-    this->fs_size_ = size;
-  }
-  uint64_t get_fs_offset() const { return this->fs_offset_; }
-  // mode: littlefs -- the device is a filesystem backing only: it never registers as a raw
-  // storage, so it has no raw API presence, no device node, no automations target.
+  // Backing-only devices (kv/nvs) never register as raw storage: no raw API presence, no device
+  // node, no automations target.
   void set_raw_enabled(bool enabled) { this->raw_enabled_ = enabled; }
   // Opt-in: the user asserts this device is alone on its bus, so its data-plane I/O may run on
   // the async worker task (see get_capabilities above and the contract in .ai/). Off by
@@ -151,8 +123,7 @@ class BinaryStorage : public storage::RawStorage {
 
  protected:
   // The physical device operations -- implemented by each driver, addresses are device
-  // addresses over the full capacity. Only the window wrappers above and the LittleFS block
-  // callbacks (which reach the LittleFS window) call these.
+  // addresses over the full capacity. Only the window wrappers above call these.
   virtual storage::StorageError read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual storage::StorageError write_physical(uint64_t offset, const uint8_t *buf, size_t len,
                                                size_t *bytes_transferred) = 0;
@@ -168,9 +139,7 @@ class BinaryStorage : public storage::RawStorage {
   const char *storage_name_{nullptr};
   uint64_t raw_offset_{0};            // physical base of the raw window
   uint64_t raw_size_{0};              // raw window size in bytes; 0 = to the end of the device
-  uint64_t fs_offset_{0};             // physical base of the LittleFS window
-  uint64_t fs_size_{0};               // LittleFS window size in bytes; 0 = whole device
-  bool raw_enabled_{true};            // false for mode: littlefs -- no raw registration or window
+  bool raw_enabled_{true};            // false for backing-only devices (kv/nvs): no raw window
   bool assume_exclusive_bus_{false};  // opt-in: device is alone on its bus -> task-safe I/O
 #ifdef USE_STORAGE_DEVICE_NODES
   // nullptr = no node for this device (device_node: false, or no browser configured at all).

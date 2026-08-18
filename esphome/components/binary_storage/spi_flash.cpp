@@ -20,7 +20,7 @@ void SPIFlash::setup() {
       this->mark_failed();
       return;
     }
-    // Regions are registered as esp_partitions; littlefs/nvs consumers mount by label. The raw
+    // Regions are registered as esp_partitions; nvs consumers mount by label. The raw
     // side, if any, registers here as usual (BinaryStorage::setup()).
     BinaryStorage::setup();
     ESP_LOGCONFIG(TAG, "  Model: %s (esp_partition mode)", this->model_.c_str());

@@ -170,8 +170,7 @@ storage::StorageError I2CFram::write_physical(uint64_t offset, const uint8_t *bu
 
 storage::StorageError I2CFram::erase_physical(uint64_t offset, size_t len) {
   // Cells are overwritten in place -- the device has no erase command to honour. Reporting OK
-  // would tell the caller the range is blank when it still holds the old data. The littlefs
-  // block-device path does not come through here (see BinaryStorage::block_erase()).
+  // would tell the caller the range is blank when it still holds the old data.
   return storage::StorageError::STORAGE_ERROR_NOT_SUPPORTED;
 }
 
