@@ -138,9 +138,10 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   template<typename... Ts> friend class UnmountCardAction;
   template<typename... Ts> friend class ListFilesAction;
 
-  void log_mount_result_(bool success) const;
-  void log_unmount_() const;
+  void log_mount_result_(storage::StorageError err) const;
+  void log_unmount_(storage::StorageError err) const;
   void log_list_dir_start_(const char *path) const;
+  void log_list_dir_result_(storage::StorageError err) const;
   // Matches the list_dir() callback signature (bool return = keep enumerating).
   static bool log_list_dir_entry(const storage::FileStat *entry, void *ctx);
   static const char *card_type_to_string(CardType type);
