@@ -5,6 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <array>
 #include <span>
 
 namespace esphome::pzem6l24 {
@@ -19,6 +20,16 @@ enum ResetPhase : uint8_t {
   RESET_PHASE_COMBINED = 0x03,  // Reset combined (sum) energy only
   RESET_PHASE_ALL = 0x0F,       // Reset all energy counters
 };
+
+// Reset energy function code (PZEM-6L24 specific, non-standard Modbus)
+static constexpr uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
+
+// The energy reset command as it goes on the wire: function code 0x42, a reserved byte and the phase
+// selector. The hub prepends the device address and appends the CRC. Split out from reset_energy_() so
+// the byte order can be pinned by a test - a wrong phase byte irreversibly zeroes the wrong counters.
+constexpr std::array<uint8_t, 3> build_reset_pdu(ResetPhase phase) {
+  return {PZEM_CMD_RESET_ENERGY, 0x00, static_cast<uint8_t>(phase)};
+}
 
 class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
@@ -98,6 +109,8 @@ class PZEM6L24 final : public PollingComponent, public modbus::ModbusClientDevic
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
 
   bool on_no_response(std::span<const uint8_t> request_pdu) override;
+
+  void on_not_sent(std::span<const uint8_t> request_pdu) override;
 
   void dump_config() override;
 

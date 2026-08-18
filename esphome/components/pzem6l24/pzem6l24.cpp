@@ -7,8 +7,6 @@ namespace esphome::pzem6l24 {
 
 static const char *const TAG = "pzem6l24";
 
-// Reset energy function code (PZEM-6L24 specific, non-standard Modbus)
-static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 // Number of input registers to read (0x0000 – 0x003F inclusive)
 static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 bytes
 // Payload size of the register read response
@@ -21,6 +19,11 @@ static const size_t PZEM_PAYLOAD_SIZE = PZEM_REGISTER_COUNT * 2;
 //  i.e. the low byte of each 16-bit register is transmitted first.
 //  32-bit quantities occupy two consecutive registers with the low
 //  word at the lower address.
+//
+//  NOTE: this is the opposite of standard Modbus, and of the single-phase
+//  pzemac component, which decodes big-endian. It is not an oversight: the
+//  byte order below was established against a live PZEM-6L24, so please do
+//  not "correct" it to big-endian without a device to verify against.
 //
 //  Byte offset = register_address × 2
 //
@@ -122,6 +125,7 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < PZEM_PAYLOAD_SIZE) {
     ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
+    this->publish_values_({});
     return;
   }
 
@@ -130,6 +134,8 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
 
 void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
   if (!is_register_read(request_pdu)) {
+    // The only other request this device sends is the energy reset; the counters were left as they were.
+    ESP_LOGW(TAG, "PZEM-6L24 rejected the energy reset with exception 0x%02X", static_cast<uint8_t>(exception_code));
     return;
   }
   ESP_LOGW(TAG, "PZEM-6L24 returned exception 0x%02X to the register read", static_cast<uint8_t>(exception_code));
@@ -140,8 +146,20 @@ bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
   if (is_register_read(request_pdu)) {
     ESP_LOGW(TAG, "PZEM-6L24 did not respond to the register read");
     this->publish_values_({});
+  } else {
+    ESP_LOGW(TAG, "PZEM-6L24 did not acknowledge the energy reset; the counters may not have been cleared");
   }
   return false;  // no retry; the next update() polls again
+}
+
+// An accepted request that was dropped before it reached the wire (clear_tx_queue_for_address()).
+void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
+  if (is_register_read(request_pdu)) {
+    ESP_LOGW(TAG, "Register read was dropped before it was sent");
+    this->publish_values_({});
+  } else {
+    ESP_LOGW(TAG, "Energy reset was dropped before it was sent; the counters were not cleared");
+  }
 }
 
 // Publishes every configured sensor from `data`, the 128-byte register payload. An empty span means the
@@ -245,7 +263,14 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
   }
 }
 
-void PZEM6L24::update() { this->read_input_registers(0x0000, PZEM_REGISTER_COUNT); }
+void PZEM6L24::update() {
+  // A refused request gets no callback at all, so the entities have to be blanked here or they would
+  // keep showing the previous poll's readings indefinitely.
+  if (!this->read_input_registers(0x0000, PZEM_REGISTER_COUNT)) {
+    ESP_LOGW(TAG, "Register read was not queued");
+    this->publish_values_({});
+  }
+}
 
 void PZEM6L24::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -290,11 +315,11 @@ void PZEM6L24::dump_config() {
 }
 
 void PZEM6L24::reset_energy_(ResetPhase phase_option) {
-  // The PZEM-6L24 reset command uses function code 0x42 with two extra
-  // bytes: a reserved 0x00 byte and the phase selection byte.
-  // The hub prepends the device address and appends the CRC.
-  const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY, 0x00, static_cast<uint8_t>(phase_option)};
-  this->send_pdu(pdu);
+  const auto pdu = build_reset_pdu(phase_option);
+  // A refused request gets no callback, so the failed button press would otherwise leave no trace.
+  if (!this->queue_pdu(pdu)) {
+    ESP_LOGW(TAG, "Energy reset was not queued; the counters were not cleared");
+  }
 }
 
 }  // namespace esphome::pzem6l24

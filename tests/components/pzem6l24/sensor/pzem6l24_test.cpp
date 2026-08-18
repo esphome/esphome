@@ -1,6 +1,9 @@
 #include "../common.h"
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <utility>
 #include <gtest/gtest.h>
 
 namespace esphome::pzem6l24::testing {
@@ -172,16 +175,20 @@ TEST(PZEM6L24Test, IgnoresResetAcknowledgement) {
   EXPECT_FALSE(h.total_active_energy.has_state());
 }
 
-// A truncated response must be rejected outright rather than decoded from out-of-range bytes.
-TEST(PZEM6L24Test, IgnoresShortPayload) {
+// A truncated response must be rejected rather than decoded from out-of-range bytes, and - like every
+// other way a read can fail - must not leave the previous poll's readings published.
+TEST(PZEM6L24Test, PublishesNanOnShortPayload) {
   Harness h;
   std::vector<uint8_t> short_pdu{0x04, 10};
   short_pdu.resize(12, 0x11);
 
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+  ASSERT_FALSE(std::isnan(h.voltage_a.state));
+
   h.pzem.on_response(READ_REQUEST_PDU, short_pdu);
 
-  EXPECT_FALSE(h.voltage_a.has_state());
-  EXPECT_FALSE(h.total_active_energy.has_state());
+  EXPECT_TRUE(std::isnan(h.voltage_a.state));
+  EXPECT_TRUE(std::isnan(h.total_active_energy.state));
 }
 
 // A meter that stops answering must not leave stale readings behind.
@@ -208,6 +215,19 @@ TEST(PZEM6L24Test, PublishesNanOnExceptionResponse) {
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
 }
 
+// A read dropped from the transmit queue never reaches the meter, so it must blank the readings like
+// the other read failures do.
+TEST(PZEM6L24Test, PublishesNanWhenTheReadIsNotSent) {
+  Harness h;
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+  ASSERT_FALSE(std::isnan(h.voltage_a.state));
+
+  h.pzem.on_not_sent(READ_REQUEST_PDU);
+
+  EXPECT_TRUE(std::isnan(h.voltage_a.state));
+  EXPECT_TRUE(std::isnan(h.total_active_energy.state));
+}
+
 // A failed reset command says nothing about the measurements, so it must not blank them.
 TEST(PZEM6L24Test, KeepsReadingsWhenTheResetCommandFails) {
   Harness h;
@@ -215,9 +235,34 @@ TEST(PZEM6L24Test, KeepsReadingsWhenTheResetCommandFails) {
 
   EXPECT_FALSE(h.pzem.on_no_response(RESET_REQUEST_PDU));
   h.pzem.on_error(RESET_REQUEST_PDU, modbus::ExceptionCode::ILLEGAL_FUNCTION);
+  h.pzem.on_not_sent(RESET_REQUEST_PDU);
 
   EXPECT_FLOAT_EQ(h.voltage_a.state, 2301 * 0.1f);
   EXPECT_FLOAT_EQ(h.total_active_energy.state, 300006 * 0.1f);
+}
+
+// The reset is destructive and irreversible, so the frame it builds - in particular the phase selector -
+// is pinned here rather than left to the first user who presses the button.
+TEST(PZEM6L24Test, BuildsTheResetFrameForEveryPhase) {
+  const std::array<std::pair<ResetPhase, uint8_t>, 5> cases{{
+      {RESET_PHASE_A, 0x00},
+      {RESET_PHASE_B, 0x01},
+      {RESET_PHASE_C, 0x02},
+      {RESET_PHASE_COMBINED, 0x03},
+      {RESET_PHASE_ALL, 0x0F},
+  }};
+
+  for (const auto &[phase, selector] : cases) {
+    const auto pdu = build_reset_pdu(phase);
+    EXPECT_EQ(pdu[0], 0x42) << "function code for selector " << static_cast<int>(selector);
+    EXPECT_EQ(pdu[1], 0x00) << "reserved byte for selector " << static_cast<int>(selector);
+    EXPECT_EQ(pdu[2], selector);
+  }
+
+  // The reset frame the other tests use as a request argument must be the one the component sends.
+  const auto reset_all = build_reset_pdu(RESET_PHASE_ALL);
+  EXPECT_TRUE(
+      std::equal(reset_all.begin(), reset_all.end(), std::begin(RESET_REQUEST_PDU), std::end(RESET_REQUEST_PDU)));
 }
 
 }  // namespace esphome::pzem6l24::testing
