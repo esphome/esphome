@@ -253,11 +253,12 @@ bool RuntimeImage::is_decode_finished() const {
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // End any active decode session before releasing the decoder
+  // End any active decode session and reclaim the decoder's internal image buffer
+  // The decoder object is kept so the next decode of the same format can reuse it.
   this->is_decoder_active_ = false;
-  // The decoder lifecycle is managed by begin_decode()/end_decode().
-  // release() can be called from within the decoder, so we must not destroy the decoder here.
-  // Additionally, the decoder may be reused for the same format, so we keep it around for efficiency.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
 }
 
 void RuntimeImage::release_buffer_() {

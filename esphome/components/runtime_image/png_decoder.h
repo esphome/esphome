@@ -29,6 +29,7 @@ class PngDecoder : public ImageDecoder {
     if (this->pngle_) {
       pngle_reset(this->pngle_);
     }
+    pixels_decoded_ = 0;
   }
 
   int prepare(size_t expected_size) override;

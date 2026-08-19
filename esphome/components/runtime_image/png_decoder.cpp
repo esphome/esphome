@@ -58,6 +58,7 @@ PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
     }
     memset(pngle, 0, PNGLE_T_SIZE);
     this->pngle_ = pngle;
+    pngle_reset(this->pngle_);
   }
 }
 
@@ -75,7 +76,7 @@ int PngDecoder::prepare(size_t expected_size) {
     ESP_LOGE(TAG, "PNG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
-  pngle_reset(this->pngle_);
+  this->pixels_decoded_ = 0;
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);

@@ -54,6 +54,9 @@ class ImageDecoder {
    *        and free any internal buffers / release resources.
    */
   virtual void reset() {
+    // Keep in sync with prepare().
+    // it can't be called by it, because as a virtual method, the derived classes
+    // might expect to be able to call prepare() without resetting their state.
     this->decoded_bytes_ = 0;
     this->size_valid_ = true;
     this->x_scale_ = 1.0;
@@ -67,8 +70,8 @@ class ImageDecoder {
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
   virtual int prepare(size_t expected_size) {
-    this->decoded_bytes_ = 0;
     this->expected_size_ = expected_size;
+    this->decoded_bytes_ = 0;
     this->size_valid_ = true;
     this->x_scale_ = 1.0;
     this->y_scale_ = 1.0;
