@@ -44,6 +44,10 @@
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
 
+#ifdef USE_WEBSERVER_CAPTIVE
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -340,7 +344,9 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 }
 #endif
 
-WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
+WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) { global_web_server = this; }
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
@@ -401,15 +407,53 @@ void WebServer::setup() {
   });
 }
 void WebServer::loop() {
-  // No SSE clients connected; stop looping until a new client connects via
-  // enable_loop_soon_any_context(). This is safe because:
+  bool busy = this->events_.loop();
+#ifdef USE_WEBSERVER_CAPTIVE
+  if (this->captive_) {
+#if defined(USE_ESP32)
+    this->dns_server_->process_next_request();
+#elif defined(USE_ARDUINO)
+    this->dns_server_->processNextRequest();
+#endif
+    busy = true;
+  }
+#endif
+  // No SSE clients connected (and no captive DNS to serve); stop looping until a new
+  // client connects via enable_loop_soon_any_context(). This is safe because:
   // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
   // - deferrable_send_state early-outs when no clients are connected
   // - try_send_nodefer (log, ping) iterates sessions which are empty
   // - REST API handlers use defer() which runs via the Scheduler
-  if (!this->events_.loop())
+  if (!busy)
     this->disable_loop();
 }
+
+#ifdef USE_WEBSERVER_CAPTIVE
+void WebServer::start_captive() {
+  if (this->captive_)
+    return;
+  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
+  this->dns_server_ = make_unique<DNSServer>();
+#if defined(USE_ESP32)
+  this->dns_server_->start(ip);
+#elif defined(USE_ARDUINO)
+  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
+  this->dns_server_->start(53, ESPHOME_F("*"), ip);
+#endif
+  this->captive_ = true;
+  this->enable_loop();
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGI(TAG, "AP mode: serving the web interface as captive portal at http://%s/", ip.str_to(ip_buf));
+}
+
+void WebServer::end_captive() {
+  if (!this->captive_)
+    return;
+  this->captive_ = false;
+  this->dns_server_->stop();
+  this->dns_server_ = nullptr;
+}
+#endif
 
 #ifdef USE_LOGGER
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
@@ -2335,6 +2379,13 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #endif
   const auto method = request->method();
 
+#ifdef USE_WEBSERVER_CAPTIVE
+  // AP mode: answer every GET; unknown URLs redirect to the index page, so the OS captive
+  // portal check (generate_204, hotspot-detect.html, ...) opens the interface.
+  if (this->captive_ && method == HTTP_GET)
+    return true;
+#endif
+
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
   if (url == ESPHOME_F("/"))
     return true;
@@ -2640,6 +2691,18 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
   else {
+#ifdef USE_WEBSERVER_CAPTIVE
+    if (this->captive_ && request->method() == HTTP_GET) {
+      // OS captive portal probe (or any other unknown page): send the browser to the real
+      // page. A redirect rather than the page itself, because the interface resolves its
+      // /events and REST paths relative to the page URL.
+      char location[7 + network::IP_ADDRESS_BUFFER_SIZE];
+      memcpy(location, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+      wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + 7);
+      request->redirect(location);
+      return;
+    }
+#endif
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
     request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));

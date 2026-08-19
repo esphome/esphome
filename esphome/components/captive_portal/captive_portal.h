@@ -3,7 +3,7 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include <memory>
 #if defined(USE_ESP32)
-#include "dns_server_esp32_idf.h"
+#include "esphome/components/web_server_base/dns_server_esp32_idf.h"
 #elif defined(USE_ARDUINO)
 #include <DNSServer.h>
 #endif
@@ -13,6 +13,10 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 
 namespace esphome::captive_portal {
+
+#if defined(USE_ESP32)
+using web_server_base::DNSServer;
+#endif
 
 class CaptivePortal final : public AsyncWebHandler, public Component {
  public:

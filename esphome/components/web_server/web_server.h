@@ -4,6 +4,13 @@
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_WEBSERVER_CAPTIVE
+#if defined(USE_ESP32)
+#include "esphome/components/web_server_base/dns_server_esp32_idf.h"
+#elif defined(USE_ARDUINO)
+#include <DNSServer.h>
+#endif
+#endif
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
@@ -14,6 +21,7 @@
 
 #include <functional>
 #include <list>
+#include <memory>
 #include <map>
 #include <string>
 #include <utility>
@@ -35,6 +43,10 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 #endif
 
 namespace esphome::web_server {
+
+#if defined(USE_WEBSERVER_CAPTIVE) && defined(USE_ESP32)
+using web_server_base::DNSServer;
+#endif
 
 // Type for parameter names that can be stored in flash on ESP8266
 #ifdef USE_ESP8266
@@ -275,6 +287,16 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef USE_WEBSERVER_CAPTIVE
+  /** AP mode: run a DNS server that answers every name with the AP address and serve the
+   * interface for any unknown URL, so a phone joining the AP opens it through the OS captive
+   * portal check. Started and ended by the wifi component with the access point.
+   */
+  void start_captive();
+  void end_captive();
+  bool is_captive() const { return this->captive_; }
+#endif
 
   /// Return the webserver configuration as JSON.
   json::SerializationBuffer<> get_config_json();
@@ -597,6 +619,10 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  std::unique_ptr<DNSServer> dns_server_;
+  bool captive_{false};
+#endif
 
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
@@ -695,6 +721,8 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
 };
+
+extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::web_server
 #endif

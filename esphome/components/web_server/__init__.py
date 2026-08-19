@@ -23,13 +23,11 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
-    CONF_MANUAL_IP,
     CONF_NAME,
     CONF_NETWORKS,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
-    CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
@@ -49,7 +47,14 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["json", "web_server_base"]
+
+def AUTO_LOAD() -> list[str]:
+    auto_load = ["json", "web_server_base"]
+    if CORE.is_esp32:
+        # The AP mode DNS server (web_server_base/dns_server_esp32_idf) uses socket
+        auto_load.append("socket")
+    return auto_load
+
 
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
@@ -334,56 +339,61 @@ async def add_entity_config(entity, config):
     )
 
 
+def wifi_has_ap(wifi_config: ConfigType | None) -> bool:
+    return wifi_config is not None and CONF_AP in wifi_config
+
+
 def wifi_is_ap_only(wifi_config: ConfigType | None) -> bool:
     """Return True when WiFi has an access point but no network to join, so the device
     is only ever reached through its own AP."""
-    return (
-        wifi_config is not None
-        and CONF_AP in wifi_config
-        and not wifi_config.get(CONF_NETWORKS)
-    )
+    return wifi_has_ap(wifi_config) and not wifi_config.get(CONF_NETWORKS)
 
 
 def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
     """Return True when the web interface is embedded in the firmware instead of
-    loaded from oi.esphome.io. An explicit ``local:`` wins. Otherwise it is embedded for AP only
-    WiFi, since browsers on the AP usually have no internet and the hosted page would
+    loaded from oi.esphome.io. An explicit ``local:`` wins. Otherwise it is embedded for AP
+    only WiFi, since browsers on the AP usually have no internet and the hosted page would
     stay blank. Version 1 has no local mode."""
     if (local := config.get(CONF_LOCAL)) is not None:
         return local
     return config[CONF_VERSION] != 1 and wifi_is_ap_only(wifi_config)
 
 
-def _final_validate_ap_only(config: ConfigType) -> None:
+def serve_captive(
+    config: ConfigType, wifi_config: ConfigType | None, has_captive_portal: bool
+) -> bool:
+    """Return True when web_server runs its own captive portal (DNS server plus the
+    interface for every URL) while the WiFi access point is up: the interface must be
+    embedded, an AP must exist, and captive_portal (which owns that role when present)
+    must not be configured."""
+    return (
+        serve_local(config, wifi_config)
+        and wifi_has_ap(wifi_config)
+        and not has_captive_portal
+    )
+
+
+def _final_validate_ap_mode(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     wifi_config = full_config.get(CONF_WIFI)
-    if not wifi_is_ap_only(wifi_config):
+    if serve_captive(config, wifi_config, "captive_portal" in full_config):
+        # Sockets for the DNS server and the OS captive portal probes, like captive_portal.
+        from esphome.components import socket
+
+        socket.consume_sockets(3, "web_server")(config)
+        socket.consume_sockets(1, "web_server", socket.SocketType.UDP)(config)
         return
-    ap_ip = "192.168.4.1"
-    if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
-        ap_ip = str(manual_ip[CONF_STATIC_IP])
-    captive = (
-        "" if "captive_portal" in full_config else " (the AP is not a captive portal)"
-    )
-    if serve_local(config, wifi_config):
-        how = "The web interface is embedded in the firmware (local: true)"
-    else:
-        how = (
-            "With local: false the web interface is loaded from the internet, which "
-            "browsers on the AP usually cannot reach, so the page stays blank"
+    if wifi_is_ap_only(wifi_config) and not serve_local(config, wifi_config):
+        _LOGGER.warning(
+            "WiFi is AP only and web_server has local: false, so the web interface is "
+            "loaded from the internet, which browsers on the access point usually cannot "
+            "reach; the page stays blank. Remove 'local: false' to embed it in the firmware."
         )
-    _LOGGER.warning(
-        "WiFi is AP only, so web_server is reachable only through the access point: "
-        "open http://%s/ manually after joining it%s. %s.",
-        ap_ip,
-        captive,
-        how,
-    )
 
 
 def _final_validate(config: ConfigType) -> None:
     _final_validate_sorting(config)
-    _final_validate_ap_only(config)
+    _final_validate_ap_mode(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -489,8 +499,16 @@ async def to_code(config):
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    if serve_local(config, CORE.config.get(CONF_WIFI)):
+    wifi_config = CORE.config.get(CONF_WIFI)
+    if serve_local(config, wifi_config):
         cg.add_define("USE_WEBSERVER_LOCAL")
+    if serve_captive(
+        config, wifi_config, CORE.has_at_least_one_component("captive_portal")
+    ):
+        # AP mode: DNS server plus catch-all page so phones open the interface by themselves
+        cg.add_define("USE_WEBSERVER_CAPTIVE")
+        if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2):
+            cg.add_library("DNSServer", None)
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_WEBSERVER_GZIP")
 

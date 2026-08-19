@@ -1,21 +1,20 @@
-"""Tests for web_server component helpers."""
+"""Tests for the web_server AP mode helpers."""
 
 import logging
 
 import pytest
 
 from esphome.components.web_server import (
-    _final_validate_ap_only,
+    _final_validate_ap_mode,
+    serve_captive,
     serve_local,
     wifi_is_ap_only,
 )
 from esphome.const import (
     CONF_AP,
     CONF_LOCAL,
-    CONF_MANUAL_IP,
     CONF_NETWORKS,
     CONF_SSID,
-    CONF_STATIC_IP,
     CONF_VERSION,
     CONF_WIFI,
 )
@@ -58,52 +57,45 @@ def test_serve_local(
 
 
 @pytest.mark.parametrize(
-    ("web_server_config", "full_config", "expected"),
+    ("web_server_config", "wifi_config", "has_captive_portal", "expected"),
     [
-        ({CONF_VERSION: 2}, {CONF_WIFI: AP_ONLY}, "http://192.168.4.1/"),
-        (
-            {CONF_VERSION: 2},
-            {CONF_WIFI: {CONF_AP: {CONF_MANUAL_IP: {CONF_STATIC_IP: "10.0.0.1"}}}},
-            "http://10.0.0.1/",
-        ),
-        ({CONF_VERSION: 2}, {CONF_WIFI: AP_ONLY}, "not a captive portal"),
-        ({CONF_VERSION: 2}, {CONF_WIFI: AP_ONLY}, "embedded in the firmware"),
-        ({CONF_VERSION: 2, CONF_LOCAL: False}, {CONF_WIFI: AP_ONLY}, "stays blank"),
-        ({CONF_VERSION: 2}, {CONF_WIFI: AP_FALLBACK}, None),
-        ({CONF_VERSION: 2}, {CONF_WIFI: STA_ONLY}, None),
-        ({CONF_VERSION: 2}, {}, None),
+        # AP only: local is implied, web_server is the captive portal.
+        ({CONF_VERSION: 2}, AP_ONLY, False, True),
+        # AP fallback needs an explicit local: true to be captive.
+        ({CONF_VERSION: 2}, AP_FALLBACK, False, False),
+        ({CONF_VERSION: 2, CONF_LOCAL: True}, AP_FALLBACK, False, True),
+        # captive_portal owns the role when configured.
+        ({CONF_VERSION: 2}, AP_ONLY, True, False),
+        # No AP, hosted page, or version 1: never captive.
+        ({CONF_VERSION: 2, CONF_LOCAL: True}, STA_ONLY, False, False),
+        ({CONF_VERSION: 2, CONF_LOCAL: False}, AP_ONLY, False, False),
+        ({CONF_VERSION: 1}, AP_ONLY, False, False),
     ],
 )
-def test_final_validate_ap_only_warning(
+def test_serve_captive(
     web_server_config: dict,
-    full_config: dict,
-    expected: str | None,
-    caplog: pytest.LogCaptureFixture,
+    wifi_config: dict | None,
+    has_captive_portal: bool,
+    expected: bool,
 ) -> None:
-    """AP only WiFi with web_server warns and names the AP address; others stay quiet."""
-    token = fv.full_config.set({"web_server": web_server_config, **full_config})
-    try:
-        with caplog.at_level(logging.WARNING):
-            _final_validate_ap_only(web_server_config)
-    finally:
-        fv.full_config.reset(token)
-    if expected is None:
-        assert "AP only" not in caplog.text
-    else:
-        assert expected in caplog.text
+    assert serve_captive(web_server_config, wifi_config, has_captive_portal) is expected
 
 
-def test_final_validate_ap_only_with_captive_portal(
+def test_final_validate_ap_mode_warns_for_hosted_page(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """With captive_portal the AP is captive, so that clause is left out."""
-    token = fv.full_config.set(
-        {"web_server": {CONF_VERSION: 2}, CONF_WIFI: AP_ONLY, "captive_portal": {}}
-    )
-    try:
-        with caplog.at_level(logging.WARNING):
-            _final_validate_ap_only({CONF_VERSION: 2})
-    finally:
-        fv.full_config.reset(token)
-    assert "AP only" in caplog.text
-    assert "captive portal" not in caplog.text
+    """AP only with an explicit local: false gets a warning; AP only default does not."""
+    for web_server_config, expect_warning in (
+        ({CONF_VERSION: 2, CONF_LOCAL: False}, True),
+        ({CONF_VERSION: 2}, False),
+    ):
+        caplog.clear()
+        token = fv.full_config.set(
+            {"web_server": web_server_config, CONF_WIFI: AP_ONLY}
+        )
+        try:
+            with caplog.at_level(logging.WARNING):
+                _final_validate_ap_mode(web_server_config)
+        finally:
+            fv.full_config.reset(token)
+        assert ("stays blank" in caplog.text) is expect_warning

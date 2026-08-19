@@ -3,7 +3,6 @@ import logging
 import esphome.codegen as cg
 from esphome.components import web_server_base, wifi
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
-from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
@@ -15,7 +14,6 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
-    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
@@ -108,14 +106,3 @@ async def to_code(config):
 
     if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2):
         cg.add_library("DNSServer", None)
-
-
-# Only compile the ESP-IDF DNS server when using ESP-IDF framework
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "dns_server_esp32_idf.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-    }
-)

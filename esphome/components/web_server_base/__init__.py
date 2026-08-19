@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, PlatformFramework
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.helpers import copy_file_if_changed
@@ -80,3 +81,15 @@ async def to_code(config):
             cg.add_platformio_option("extra_scripts", ["pre:fix_rp2040_hash.py"])
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
         cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+
+
+# The DNS server used for captive portals on ESP32; other platforms use the Arduino
+# DNSServer library. Its source is also guarded by USE_CAPTIVE_PORTAL / USE_WEBSERVER_CAPTIVE.
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "dns_server_esp32_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

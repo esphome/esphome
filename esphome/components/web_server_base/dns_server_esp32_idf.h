@@ -1,11 +1,15 @@
 #pragma once
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
+// Small DNS server that answers every query with the access point address, so a
+// phone joining the AP opens the captive portal or web_server page on its own.
+// Shared by captive_portal and the web_server AP mode.
+#if defined(USE_ESP32) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
 
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/socket/socket.h"
 
-namespace esphome::captive_portal {
+namespace esphome::web_server_base {
 
 class DNSServer {
  public:
@@ -27,6 +31,6 @@ class DNSServer {
   uint8_t buffer_[DNS_BUFFER_SIZE];
 };
 
-}  // namespace esphome::captive_portal
+}  // namespace esphome::web_server_base
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && (USE_CAPTIVE_PORTAL || USE_WEBSERVER_CAPTIVE)

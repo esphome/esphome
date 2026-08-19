@@ -36,6 +36,9 @@
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+#include "esphome/components/web_server/web_server.h"
+#endif
 
 #ifdef USE_IMPROV
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
@@ -731,6 +734,9 @@ void WiFiComponent::start() {
       captive_portal::global_captive_portal->start();
     }
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+    web_server::global_web_server->start_captive();
+#endif
 #endif  // USE_WIFI_AP
   }
 #ifdef USE_IMPROV
@@ -867,6 +873,9 @@ void WiFiComponent::loop() {
           this->has_completed_scan_after_captive_portal_start_ = false;
           captive_portal::global_captive_portal->start();
         }
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+        web_server::global_web_server->start_captive();
 #endif
       }
     }
@@ -1622,6 +1631,9 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       if (this->is_captive_portal_active_()) {
         captive_portal::global_captive_portal->end();
       }
+#endif
+#ifdef USE_WEBSERVER_CAPTIVE
+      web_server::global_web_server->end_captive();
 #endif
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
