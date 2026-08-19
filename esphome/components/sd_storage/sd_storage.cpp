@@ -84,10 +84,6 @@ void SdMmc::dump_config() {
   if (this->is_mounted_) {
     ESP_LOGCONFIG(TAG, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG, "  Total bytes: %" PRIu64, this->total_bytes_);
-    if (this->update_card_info())
-      ESP_LOGCONFIG(TAG, "  Used bytes: %" PRIu64, this->used_bytes_);
-    else
-      ESP_LOGCONFIG(TAG, "  Used bytes: unavailable");
   }
 }
 
