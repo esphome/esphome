@@ -5,11 +5,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #ifdef USE_WEBSERVER_CAPTIVE
-#if defined(USE_ESP32)
-#include "esphome/components/web_server_base/dns_server_esp32_idf.h"
-#elif defined(USE_ARDUINO)
-#include <DNSServer.h>
-#endif
+#include "esphome/components/web_server_base/captive_dns.h"
 #endif
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
@@ -21,7 +17,6 @@
 
 #include <functional>
 #include <list>
-#include <memory>
 #include <map>
 #include <string>
 #include <utility>
@@ -43,10 +38,6 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 #endif
 
 namespace esphome::web_server {
-
-#if defined(USE_WEBSERVER_CAPTIVE) && defined(USE_ESP32)
-using web_server_base::DNSServer;
-#endif
 
 // Type for parameter names that can be stored in flash on ESP8266
 #ifdef USE_ESP8266
@@ -289,13 +280,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   void handle_index_request(AsyncWebServerRequest *request);
 
 #ifdef USE_WEBSERVER_CAPTIVE
-  /** AP mode: run a DNS server that answers every name with the AP address and serve the
-   * interface for any unknown URL, so a phone joining the AP opens it through the OS captive
-   * portal check. Started and ended by the wifi component with the access point.
+  /** AP mode: run a DNS server that answers every name with the AP address and redirect any
+   * unknown URL to the interface, so a phone joining the AP opens it through the OS captive
+   * portal check. Started and ended by the wifi component with the access point; start may
+   * run before setup(), so it touches nothing but the DNS server.
    */
   void start_captive();
   void end_captive();
-  bool is_captive() const { return this->captive_; }
+  bool is_captive() const { return this->dns_.is_running(); }
 #endif
 
   /// Return the webserver configuration as JSON.
@@ -620,8 +612,8 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   DeferredUpdateEventSourceList events_;
 #endif
 #ifdef USE_WEBSERVER_CAPTIVE
-  std::unique_ptr<DNSServer> dns_server_;
-  bool captive_{false};
+  void handle_not_found_(AsyncWebServerRequest *request);
+  web_server_base::CaptiveDNS dns_;
 #endif
 
 #if USE_WEBSERVER_VERSION == 1
@@ -722,7 +714,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 };
 
+#ifdef USE_WEBSERVER_CAPTIVE
 extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 }  // namespace esphome::web_server
 #endif

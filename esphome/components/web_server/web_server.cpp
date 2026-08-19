@@ -344,9 +344,13 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 }
 #endif
 
+#ifdef USE_WEBSERVER_CAPTIVE
 WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) { global_web_server = this; }
+#else
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
+#endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
@@ -392,6 +396,12 @@ void WebServer::setup() {
   this->base_->add_handler(&this->events_);
 #endif
   this->base_->add_handler(this);
+#ifdef USE_WEBSERVER_CAPTIVE
+  // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
+  // arbitrary URLs and must get the redirect without credentials.
+  this->base_->get_server()->onNotFound(
+      [](AsyncWebServerRequest *request) { global_web_server->handle_not_found_(request); });
+#endif
 
   // OTA is now handled by the web_server OTA platform
 
@@ -407,51 +417,48 @@ void WebServer::setup() {
   });
 }
 void WebServer::loop() {
-  bool busy = this->events_.loop();
+  bool has_clients = this->events_.loop();
 #ifdef USE_WEBSERVER_CAPTIVE
-  if (this->captive_) {
-#if defined(USE_ESP32)
-    this->dns_server_->process_next_request();
-#elif defined(USE_ARDUINO)
-    this->dns_server_->processNextRequest();
-#endif
-    busy = true;
+  if (this->dns_.is_running()) {
+    this->dns_.loop();
+    return;
   }
 #endif
-  // No SSE clients connected (and no captive DNS to serve); stop looping until a new
-  // client connects via enable_loop_soon_any_context(). This is safe because:
+  // No SSE clients connected; stop looping until a new client connects via
+  // enable_loop_soon_any_context(). This is safe because:
   // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
   // - deferrable_send_state early-outs when no clients are connected
   // - try_send_nodefer (log, ping) iterates sessions which are empty
   // - REST API handlers use defer() which runs via the Scheduler
-  if (!busy)
+  if (!has_clients)
     this->disable_loop();
 }
 
 #ifdef USE_WEBSERVER_CAPTIVE
 void WebServer::start_captive() {
-  if (this->captive_)
+  if (this->dns_.is_running())
     return;
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_server_ = make_unique<DNSServer>();
-#if defined(USE_ESP32)
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
-  this->captive_ = true;
+  this->dns_.start(ip);
   this->enable_loop();
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGI(TAG, "AP mode: serving the web interface as captive portal at http://%s/", ip.str_to(ip_buf));
 }
 
-void WebServer::end_captive() {
-  if (!this->captive_)
+void WebServer::end_captive() { this->dns_.stop(); }
+
+void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
+  // OS captive portal probe (or any other unknown page) while the AP is up: send the browser
+  // to the real page. A redirect rather than the page itself, because the interface resolves
+  // its /events and REST paths relative to the page URL.
+  if (this->dns_.is_running() && request->method() == HTTP_GET) {
+    char location[7 + network::IP_ADDRESS_BUFFER_SIZE];
+    size_t pos = buf_append_str(location, sizeof(location), 0, "http://");
+    wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + pos);
+    request->redirect(location);
     return;
-  this->captive_ = false;
-  this->dns_server_->stop();
-  this->dns_server_ = nullptr;
+  }
+  request->send(404);
 }
 #endif
 
@@ -2379,13 +2386,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #endif
   const auto method = request->method();
 
-#ifdef USE_WEBSERVER_CAPTIVE
-  // AP mode: answer every GET; unknown URLs redirect to the index page, so the OS captive
-  // portal check (generate_204, hotspot-detect.html, ...) opens the interface.
-  if (this->captive_ && method == HTTP_GET)
-    return true;
-#endif
-
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
   if (url == ESPHOME_F("/"))
     return true;
@@ -2691,18 +2691,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
   else {
-#ifdef USE_WEBSERVER_CAPTIVE
-    if (this->captive_ && request->method() == HTTP_GET) {
-      // OS captive portal probe (or any other unknown page): send the browser to the real
-      // page. A redirect rather than the page itself, because the interface resolves its
-      // /events and REST paths relative to the page URL.
-      char location[7 + network::IP_ADDRESS_BUFFER_SIZE];
-      memcpy(location, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
-      wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + 7);
-      request->redirect(location);
-      return;
-    }
-#endif
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
     request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));
