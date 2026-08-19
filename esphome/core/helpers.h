@@ -988,13 +988,13 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
     return false;
   }
 // There is no strcasestr equivalent on the
-// RP2 or Zephyr platforms, so it needs to be
+// LibreTiny, RP2 or Zephyr platforms, so it needs to be
 // implemented by hand.
-#if defined(USE_RP2) || defined(USE_ZEPHYR)
+#if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return str_contains_ignore_case_fallback(haystack, needle);
-#else   // defined(USE_RP2) || defined(USE_ZEPHYR)
+#else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return strcasestr(haystack, needle) != nullptr;
-#endif  // defined(USE_RP2) || defined(USE_ZEPHYR)
+#endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
