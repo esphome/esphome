@@ -177,6 +177,11 @@ void MatterLockEndpoint::report_state_to_fabric_(::esphome::lock::LockState stat
 // MatterDoorLockPluginServerInitCallback (properly defined in
 // door-lock-server.cpp:4312), so an empty per-cluster init is functionally
 // correct.
+//
+// Function names + camelCase parameter names below are dictated by CHIP's
+// weak-symbol contract; suppressing clang-tidy's naming check across the
+// block since renaming would break the override.
+// NOLINTBEGIN(readability-identifier-naming)
 void emberAfDoorLockClusterInitCallback(chip::EndpointId /*endpoint*/) {}
 
 bool emberAfPluginDoorLockOnDoorLockCommand(chip::EndpointId endpointId,
@@ -212,6 +217,7 @@ bool emberAfPluginDoorLockOnDoorUnlockCommand(chip::EndpointId endpointId,
   err = chip::app::Clusters::DoorLock::OperationErrorEnum::kUnspecified;
   return false;
 }
+// NOLINTEND(readability-identifier-naming)
 
 #endif  // USE_LOCK
 #endif  // USE_ESP_IDF

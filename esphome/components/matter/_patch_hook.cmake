@@ -28,6 +28,7 @@ elseif(DEFINED Python3_EXECUTABLE)
 else()
     set(_matter_python "python3")
 endif()
+set(_matter_stamp "${_matter_dir}/.esphome-matter-patched")
 if(EXISTS "${_matter_dir}")
     execute_process(
         COMMAND "${_matter_python}" "${CMAKE_CURRENT_LIST_DIR}/_apply_patches.py" "${_matter_dir}"
@@ -50,9 +51,23 @@ if(EXISTS "${_matter_dir}")
             "stdout: ${_matter_patches_out}\n"
             "stderr: ${_matter_patches_err}")
     else()
+        # Positive marker so drift detection (a future esp_matter release
+        # that moves the managed-component path, or a stale build tree
+        # where the dir survives but our patches were reverted) can spot
+        # "compiled without patches" state by looking for this stamp.
+        file(WRITE "${_matter_stamp}" "applied\n")
         message(STATUS "matter: source patches applied to ${_matter_dir}")
     endif()
 else()
-    message(STATUS
-        "matter: ${_matter_dir} missing — component-manager has not synced yet")
+    # AUTHOR_WARNING (not STATUS) so a genuine dir-name drift — an upstream
+    # release renaming managed_components/espressif__esp_matter to something
+    # else — is at least visible in the configure output rather than
+    # silently degrading to "no patches, no message" and compiling unpatched
+    # sources. Not FATAL because on a very first configure the component-
+    # manager sync can occasionally race the hook.
+    message(AUTHOR_WARNING
+        "matter: ${_matter_dir} missing — component-manager has not synced yet, "
+        "OR the managed-component path drifted upstream (verify against "
+        "espressif/esp_matter releases). If configure re-runs cleanly next "
+        "time, ignore; if this repeats, patches are not being applied.")
 endif()

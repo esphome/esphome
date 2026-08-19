@@ -70,6 +70,7 @@ bool MatterValveEndpoint::setup() {
   return true;
 }
 
+// NOLINTNEXTLINE(readability-identifier-naming)  // CHIP Delegate override
 ::chip::app::DataModel::Nullable<::chip::Percent> MatterValveEndpoint::HandleOpenValve(
     ::chip::app::DataModel::Nullable<::chip::Percent> level) {
   (void) level;  // no Level (kLevel) feature advertised — level is null
@@ -83,6 +84,7 @@ bool MatterValveEndpoint::setup() {
   return ::chip::app::DataModel::Nullable<::chip::Percent>();
 }
 
+// NOLINTNEXTLINE(readability-identifier-naming)  // CHIP Delegate override
 CHIP_ERROR MatterValveEndpoint::HandleCloseValve() {
   ESP_LOGD(TAG, "matter Close command endpoint=%u valve='%s'", this->endpoint_id_, this->valve_->get_name().c_str());
   MatterComponent::instance()->defer_on_main_loop(
@@ -90,6 +92,7 @@ CHIP_ERROR MatterValveEndpoint::HandleCloseValve() {
   return CHIP_NO_ERROR;
 }
 
+// NOLINTNEXTLINE(readability-identifier-naming)  // CHIP Delegate override
 void MatterValveEndpoint::HandleRemainingDurationTick(uint32_t /*duration*/) {
   // No-op — we don't advertise the TimeSync feature and don't track OpenDuration.
 }

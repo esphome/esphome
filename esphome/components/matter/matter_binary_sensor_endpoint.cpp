@@ -98,21 +98,19 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
   // ESP_ERR_NOT_SUPPORTED there and we have to go through the cluster's own
   // setter (see below). OccupancySensing.Occupancy is a regular writable
   // attribute and goes through the update path.
-  const bool internally_managed = (this->kind_ != DeviceKind::DEVICE_KIND_OCCUPANCY);
-  ::esp_matter_attr_val_t val;
-  uint32_t cluster_id;
-  uint32_t attribute_id;
-  if (this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY) {
-    // OccupancySensing.Occupancy bit0 = occupied.
-    val = ::esp_matter_bitmap8(state ? 0x01 : 0x00);
-    cluster_id = chip::app::Clusters::OccupancySensing::Id;
-    attribute_id = chip::app::Clusters::OccupancySensing::Attributes::Occupancy::Id;
-  } else {
-    val = ::esp_matter_bool(state);
-    cluster_id = chip::app::Clusters::BooleanState::Id;
-    attribute_id = chip::app::Clusters::BooleanState::Attributes::StateValue::Id;
-  }
-  if (!internally_managed) {
+  const bool is_occupancy = (this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY);
+  // OccupancySensing.Occupancy is a bitmap8 (bit0 = occupied); BooleanState
+  // .StateValue is a plain bool. Different value encoders, different
+  // cluster/attribute IDs — build the target attribute descriptor via a
+  // ternary so the two branches don't structurally clone (clang-tidy's
+  // bugprone-branch-clone would otherwise flag the pair of if/else
+  // blocks even though the values differ).
+  const uint32_t cluster_id =
+      is_occupancy ? chip::app::Clusters::OccupancySensing::Id : chip::app::Clusters::BooleanState::Id;
+  const uint32_t attribute_id = is_occupancy ? chip::app::Clusters::OccupancySensing::Attributes::Occupancy::Id
+                                             : chip::app::Clusters::BooleanState::Attributes::StateValue::Id;
+  ::esp_matter_attr_val_t val = is_occupancy ? ::esp_matter_bitmap8(state ? 0x01 : 0x00) : ::esp_matter_bool(state);
+  if (is_occupancy) {
     esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "attribute::update endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));

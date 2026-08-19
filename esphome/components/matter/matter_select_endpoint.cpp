@@ -28,6 +28,7 @@ static const char *const TAG = "matter.select";
 // setup(). Registration into CHIP happens once on the first select setup.
 namespace {
 
+// NOLINTBEGIN(readability-identifier-naming)  // CHIP interface overrides
 class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedModesManager {
  public:
   static SharedModesManager &instance() {
@@ -89,6 +90,7 @@ class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedMo
   // MatterSelectEndpoint's shared singleton.
   std::vector<std::pair<uint16_t, MatterSelectEndpoint *>> endpoints_;
 };
+// NOLINTEND(readability-identifier-naming)
 
 }  // namespace
 

@@ -38,7 +38,7 @@ int16_t celsius_to_hundredths(float c) {
   // returning e.g. 1e6 °C) would otherwise wrap around silently instead of
   // saturating at the spec range. Mirrors the sensor wrapper's clamp on
   // every measurement path.
-  const long v = std::lround(std::clamp(c * 100.0f, -32768.0f, 32767.0f));
+  const int32_t v = static_cast<int32_t>(std::lround(std::clamp(c * 100.0f, -32768.0f, 32767.0f)));
   return static_cast<int16_t>(v);
 }
 
@@ -118,22 +118,28 @@ bool MatterClimateEndpoint::setup() {
 
   // ControlSequenceOfOperation summarizes what heating/cooling this thermostat
   // can do. Matches the feature bits we chose above; controllers use it to
-  // decide which SystemMode values to offer in the UI.
-  if (this->supports_heating_ && this->supports_cooling_) {
-    config.thermostat.control_sequence_of_operation =
-        static_cast<uint8_t>(chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kCoolingAndHeating);
-  } else if (this->supports_heating_) {
-    config.thermostat.control_sequence_of_operation =
-        static_cast<uint8_t>(chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kHeatingOnly);
-  } else {
-    config.thermostat.control_sequence_of_operation =
-        static_cast<uint8_t>(chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kCoolingOnly);
-  }
+  // decide which SystemMode values to offer in the UI. Written as a chained
+  // ternary so the three "assign different enum value to the same field"
+  // branches don't structurally clone.
+  const auto control_seq = (this->supports_heating_ && this->supports_cooling_)
+                               ? chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kCoolingAndHeating
+                           : this->supports_heating_
+                               ? chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kHeatingOnly
+                               : chip::app::Clusters::Thermostat::ControlSequenceOfOperationEnum::kCoolingOnly;
+  config.thermostat.control_sequence_of_operation = static_cast<uint8_t>(control_seq);
 
   // SystemMode seed — pick from the current ESPHome mode so a re-boot lands
-  // the fabric on the state the device was actually in.
+  // the fabric on the state the device was actually in. The cases below are
+  // structurally identical (each is a single assignment of a different enum
+  // value); clang-tidy's bugprone-branch-clone flags that pattern even
+  // though the enum values are semantically distinct.
+  // NOLINTNEXTLINE(bugprone-branch-clone)
   switch (this->climate_->mode) {
     case climate::CLIMATE_MODE_OFF:
+    default:
+      // FAN_ONLY / DRY have Matter equivalents (7 / 8) but they need extra
+      // clusters that aren't wired up in this MVP — fall back to Off so the
+      // fabric doesn't get a mode it can't drive back to.
       config.thermostat.system_mode = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kOff);
       break;
     case climate::CLIMATE_MODE_HEAT:
@@ -145,12 +151,6 @@ bool MatterClimateEndpoint::setup() {
     case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_AUTO:
       config.thermostat.system_mode = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kAuto);
-      break;
-    default:
-      // FAN_ONLY / DRY have Matter equivalents (7 / 8) but they need extra
-      // clusters that aren't wired up in this MVP — fall back to Off so the
-      // fabric doesn't get a mode it can't drive back to.
-      config.thermostat.system_mode = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kOff);
       break;
   }
 
@@ -279,12 +279,13 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   // lock wrappers use. Constructing via a raw numeric_limits::min value
   // relied on an undocumented esp-matter nullable<T> constructor detail.
   {
-    ::esp_matter_attr_val_t v;
-    if (std::isnan(this->climate_->current_temperature)) {
-      v = ::esp_matter_nullable_int16(::nullable<int16_t>());
-    } else {
-      v = ::esp_matter_nullable_int16(celsius_to_hundredths(this->climate_->current_temperature));
-    }
+    // Ternary flattens what used to be a two-branch if — the branches are
+    // structurally identical (only the nullable payload differs), which
+    // clang-tidy's bugprone-branch-clone would flag on the if form.
+    ::esp_matter_attr_val_t v =
+        std::isnan(this->climate_->current_temperature)
+            ? ::esp_matter_nullable_int16(::nullable<int16_t>())
+            : ::esp_matter_nullable_int16(celsius_to_hundredths(this->climate_->current_temperature));
     esp_err_t err =
         ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
                                         chip::app::Clusters::Thermostat::Attributes::LocalTemperature::Id, &v);
@@ -306,11 +307,11 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
     heat_c = this->climate_->target_temperature_low;
     cool_c = this->climate_->target_temperature_high;
     if (this->supports_auto_) {
-      constexpr float kMinSpread = 1.0f;  // °C — safely above the 0.2°C default deadband
-      if (std::isnan(heat_c) || std::isnan(cool_c) || cool_c - heat_c < kMinSpread) {
+      constexpr float min_spread = 1.0f;  // °C — safely above the 0.2°C default deadband
+      if (std::isnan(heat_c) || std::isnan(cool_c) || cool_c - heat_c < min_spread) {
         float mid = std::isnan(heat_c) || std::isnan(cool_c) ? 22.5f : (heat_c + cool_c) / 2.0f;
-        heat_c = mid - kMinSpread / 2.0f;
-        cool_c = mid + kMinSpread / 2.0f;
+        heat_c = mid - min_spread / 2.0f;
+        cool_c = mid + min_spread / 2.0f;
       }
     }
   } else {
@@ -347,10 +348,15 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
     }
   }
 
-  // SystemMode.
+  // SystemMode. The cases are structurally identical (single assignment of
+  // a different enum value); merging OFF and default suppresses the "kOff
+  // used twice" branch-clone but the remaining cases still each pick a
+  // distinct value — the NOLINT covers that intentional shape.
   uint8_t sys;
+  // NOLINTNEXTLINE(bugprone-branch-clone)
   switch (this->climate_->mode) {
     case climate::CLIMATE_MODE_OFF:
+    default:
       sys = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kOff);
       break;
     case climate::CLIMATE_MODE_HEAT:
@@ -368,9 +374,6 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
       break;
     case climate::CLIMATE_MODE_DRY:
       sys = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kDry);
-      break;
-    default:
-      sys = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kOff);
       break;
   }
   ::esp_matter_attr_val_t v_mode = ::esp_matter_enum8(sys);

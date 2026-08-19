@@ -557,26 +557,17 @@ async def to_code(config: ConfigType) -> None:
                 # handshake window.
                 "CONFIG_ESP_WIFI_AMPDU_RX_ENABLED": False,
                 "CONFIG_ESP_WIFI_AMPDU_TX_ENABLED": False,
-                # Bump ESP-IDF's compile-time log ceiling so CHIP/NimBLE INFO
-                # lines (BLE advertising start, GAP events, GATT service reg,
-                # PASE handshake progress) actually make it into the binary.
-                # ESPHome defaults to LOG_MAXIMUM_LEVEL=ERROR because its own
-                # logger owns output, but that compiles OUT every non-error
-                # trace from the ESP-IDF native code — including everything
-                # useful for debugging BLE commissioning. INFO is the smallest
-                # bump that reveals what NimBLE and the CHIP BLE layer are
-                # doing; only ~a few KB of extra flash when BLE
-                # commissioning is enabled.
-                "CONFIG_LOG_DEFAULT_LEVEL_ERROR": False,
-                "CONFIG_LOG_DEFAULT_LEVEL_INFO": True,
-                "CONFIG_LOG_MAXIMUM_LEVEL_ERROR": False,
-                "CONFIG_LOG_MAXIMUM_LEVEL_INFO": True,
-                # CHIP's own log ceiling — Progress is level 2, Detail is 3.
-                # Setting DETAIL surfaces the BLE-connection lifecycle traces
-                # (chip::DeviceLayer::Internal::BLEManagerImpl → advertising
-                # start/stop, connection accept, service reg, indication send).
-                "CONFIG_CHIP_LOG_DEFAULT_LEVEL_EQUALS_LOG_DEFAULT_LEVEL": False,
-                "CONFIG_CHIP_LOG_DEFAULT_LEVEL_DETAIL": True,
+                # NOTE on logging: the ESP-IDF-wide compile-time log ceiling
+                # (CONFIG_LOG_MAXIMUM_LEVEL_*) and CHIP's own ceiling
+                # (CONFIG_CHIP_LOG_DEFAULT_LEVEL_*) are deliberately NOT
+                # touched here. Enabling ble_commissioning is a commissioning-
+                # transport choice, not a debugging opt-in; raising those
+                # ceilings would compile INFO/DEBUG strings across the entire
+                # IDF tree (Wi-Fi, LwIP, SPI, NVS, mbedTLS) for every user of
+                # this flag, adding flash and serial noise nobody asked for.
+                # If BLE lifecycle traces are needed for debugging, set them
+                # at runtime with esp_log_level_set("NimBLE", ESP_LOG_INFO)
+                # (and the CHIP tag) or via esp32.framework.sdkconfig_options.
             }
             if ble_commissioning
             else {}
@@ -685,19 +676,18 @@ async def to_code(config: ConfigType) -> None:
         # and manifests as "Long dispatch time" warnings. 100 is a safe
         # ceiling for a 73-endpoint bridge under multi-fabric load.
         "CONFIG_MAX_EVENT_QUEUE_SIZE": 100,
-        # The killer switch. With static pools, CHIP hard-caps the number of
+        # POOL_USE_HEAP is gated on PSRAM presence below — see the block
+        # after this dict. With static pools, CHIP hard-caps the number of
         # simultaneously-tracked subscription/read/attribute paths at
         # (MAX_FABRICS-derived) compile-time constants — even with MAX_FABRICS
         # at 10 that is only 90 subscription path groups, which a single
         # wildcard subscriber over 72 bridged endpoints × ~4 attributes each
-        # expands well past. Turning POOL_USE_HEAP=y makes every CHIP
-        # ObjectPool allocate through the standard allocator instead of a
-        # fixed-size static array. Combined with SPIRAM_USE_MALLOC (set in
-        # _apply_matter_psram_overrides), the pool nodes spill into PSRAM
-        # rather than fighting internal DRAM. Trade-off: certification tests
-        # flag this because there is no upstream cap on subscription count.
-        # Behavior is unchanged for devices that never hit the old caps.
-        "CONFIG_CHIP_SYSTEM_CONFIG_POOL_USE_HEAP": True,
+        # expands well past. POOL_USE_HEAP makes every CHIP ObjectPool
+        # allocate through the standard allocator instead. Only enabled when
+        # PSRAM is present because on a no-PSRAM board the static pools are
+        # the last line of defense against a remote-driven OOM — a wildcard-
+        # subscribing controller can otherwise drive allocation until the
+        # 320KB internal DRAM is exhausted and the device aborts.
         # Custom DeviceInfoProvider so we can serve per-endpoint FixedLabel
         # entries (endpoint name shown by controllers) without touching the
         # factory data path. Turning on ENABLE_ESP32_FACTORY_DATA_PROVIDER
@@ -726,6 +716,16 @@ async def to_code(config: ConfigType) -> None:
         sdkconfig["CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT"] = config[
             _CONF_MAX_DYNAMIC_ENDPOINT_COUNT
         ]
+
+    # POOL_USE_HEAP: only enable when PSRAM is present. See the comment on
+    # the sdkconfig dict above — on a no-PSRAM board the static ObjectPools
+    # are the only bound on remote-driven allocation, and turning them off
+    # trades a bounded, well-understood failure (subscription refused) for
+    # an unbounded one (heap exhaustion → abort). Users who explicitly want
+    # heap pools on a no-PSRAM board can still set the option themselves via
+    # esp32.framework.sdkconfig_options.
+    if config.get(_CONF_PSRAM_PRESENT, False):
+        sdkconfig["CONFIG_CHIP_SYSTEM_CONFIG_POOL_USE_HEAP"] = True
 
     for key, value in sdkconfig.items():
         add_idf_sdkconfig_option(key, value)
