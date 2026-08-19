@@ -9,7 +9,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_BLE_GATT_CLIENT) && !defined(USE_ESP32)
+#if defined(USE_BLE_GATT_CLIENT) && !defined(USE_BLE_CLIENT_LEGACY_ENGINE)
 
 #include <tuple>
 
@@ -115,4 +115,4 @@ template<typename... Ts> class BLEClientDisconnectAction final : public Action<T
 
 }  // namespace esphome::ble_client
 
-#endif  // USE_BLE_GATT_CLIENT && !USE_ESP32
+#endif  // USE_BLE_GATT_CLIENT && !USE_BLE_CLIENT_LEGACY_ENGINE

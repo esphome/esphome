@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+#ifdef USE_BLE_CLIENT_LEGACY_ENGINE
 
 #ifdef USE_BLE_CLIENT_GATT_NODES
 #include "esphome/components/bluetooth_connection/bluetooth_connection.h"

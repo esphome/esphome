@@ -1,6 +1,8 @@
 #pragma once
 
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
+
+#ifdef USE_BLE_CLIENT_LEGACY_ENGINE
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
