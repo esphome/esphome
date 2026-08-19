@@ -11,6 +11,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_AUTH,
     CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_LOCAL,
     CONF_LOG,
     CONF_NAME,
+    CONF_NETWORKS,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
@@ -31,6 +33,7 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
+    CONF_WIFI,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -203,7 +206,33 @@ def _final_validate_sorting(config: ConfigType) -> None:
         )
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_sorting
+def _final_validate_ap_only_hosted_ui(config: ConfigType) -> None:
+    # AP only: the device is reachable only through its own AP, where browsers usually
+    # have no internet to download the hosted interface. Warn unless it is served locally.
+    if config.get(CONF_LOCAL) or not config[CONF_JS_URL]:
+        return
+    full_config = fv.full_config.get()
+    wifi_conf = full_config.get(CONF_WIFI)
+    ap_only = (
+        wifi_conf is not None
+        and CONF_AP in wifi_conf
+        and not wifi_conf.get(CONF_NETWORKS)
+    )
+    if not ap_only or "captive_portal" in full_config:
+        return
+    _LOGGER.warning(
+        "WiFi is AP only and web_server loads its interface from the internet, which "
+        "clients of the AP usually cannot reach, so the page stays blank. "
+        "Set 'local: true' under 'web_server:' or add 'captive_portal:'."
+    )
+
+
+def _final_validate(config: ConfigType) -> None:
+    _final_validate_sorting(config)
+    _final_validate_ap_only_hosted_ui(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
@@ -344,19 +373,18 @@ def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
     if js_include:
         html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
-    js_url = config[CONF_JS_URL]
-    if js_url and offline_hint:
-        # The interface is downloaded from the internet. Show a hint instead of a blank
-        # page when the browser cannot reach it, which is common in WiFi AP mode.
-        # Kept short: this string lives in flash on every build without captive_portal.
-        hint = (
-            "Could not download the web interface. This browser needs internet access, "
-            "or set local: true under web_server: in the YAML and reinstall so the "
-            "device serves it."
-        )
-        html += f'<script src="{js_url}" onerror="document.body.innerText=\'{hint}\'"></script>'
-    elif js_url:
-        html += f'<script src="{js_url}"></script>'
+    if js_url := config[CONF_JS_URL]:
+        onerror = ""
+        if offline_hint:
+            # The interface is downloaded from the internet. Show a hint instead of a
+            # blank page when the browser cannot reach it, which is common in WiFi AP
+            # mode. Kept short: it lives in flash on every build without captive_portal.
+            onerror = (
+                " onerror=\"document.body.innerText='Could not download the web interface. "
+                "This browser needs internet access, or set local: true under web_server: "
+                "in the YAML.'\""
+            )
+        html += f'<script src="{js_url}"{onerror}></script>'
     html += "</body></html>"
     return html
 
@@ -397,7 +425,7 @@ async def to_code(config):
         # With captive_portal the AP serves its own local page, so the offline hint is
         # only useful without it.
         index_html = build_index_html(
-            config, offline_hint="captive_portal" not in CORE.config
+            config, offline_hint=not CORE.has_at_least_one_component("captive_portal")
         )
         add_resource_as_progmem("INDEX_HTML", index_html, compress=False)
     else:
