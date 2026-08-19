@@ -343,10 +343,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ccache libsdl2-dev
       - name: Restore ccache (restore-only)
-        # esphome stores the PlatformIO ccache under the machine-global cache
-        # dir (see _ccache_env() in esphome/platformio/toolchain.py). The
-        # bucket-name prefix prefers a same-bucket seed; the bare prefix falls
-        # back to any seed when the bucket layout differs from dev.
+        # Prefer a same-bucket seed; fall back to any seed when the buckey layout differs
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/esphome/platformio-ccache
@@ -412,14 +409,6 @@ jobs:
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).
         run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
-      - name: Save ccache
-        # Pull request saves land in per-PR scopes nothing else can reuse;
-        # dev pushes seed the shared copy instead.
-        if: github.event_name != 'pull_request'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/esphome/platformio-ccache
-          key: integration-ccache-${{ matrix.bucket.name }}-${{ github.sha }}
 
   import-time:
     name: Check import esphome.__main__ time
@@ -576,24 +565,29 @@ jobs:
           fetch-depth: 2
 
       - name: Restore Python
+        id: restore-python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      # Key on the exact Python version as well: LibreTiny creates a venv under
+      # ~/.platformio/penv whose interpreter is a symlink into the runner's
+      # hosted toolcache, so a cache saved on an older runner image breaks once
+      # a new image ships a newer patch release and drops the old interpreter.
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
         if: matrix.cache_idf
