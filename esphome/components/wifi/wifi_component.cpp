@@ -2219,7 +2219,6 @@ bool WiFiComponent::is_ap_portal_active_() {
   return this->is_captive_portal_active_();
 }
 
-#ifdef USE_WIFI_AP
 void WiFiComponent::start_ap_portal_() {
 #ifdef USE_CAPTIVE_PORTAL
   if (captive_portal::global_captive_portal != nullptr)
@@ -2239,7 +2238,6 @@ void WiFiComponent::end_ap_portal_() {
   web_server::global_web_server->end_captive();
 #endif
 }
-#endif  // USE_WIFI_AP
 bool WiFiComponent::is_esp32_improv_active_() {
 #ifdef USE_IMPROV
   return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();
