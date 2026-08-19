@@ -58,7 +58,7 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
 
  protected:
   SdFileHandle *get_handle_pool() override { return this->handle_pool_; }
-  uint64_t get_free_bytes_impl() const override;
+  storage::StorageError get_free_bytes_impl(uint64_t &free_out) const override;
   uint32_t get_block_size_impl() const override;
 
   bool update_card_info();

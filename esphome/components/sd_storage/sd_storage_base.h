@@ -86,7 +86,9 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
 
   // Subclasses provide handle pool and card capacity/space info
   virtual SdFileHandle *get_handle_pool() = 0;
-  virtual uint64_t get_free_bytes_impl() const = 0;
+  // Query free space on the mounted filesystem. Writes free_out only on success; returns the
+  // real error (never a fabricated figure) so get_info() can propagate a failed query.
+  virtual storage::StorageError get_free_bytes_impl(uint64_t &free_out) const = 0;
   virtual uint32_t get_block_size_impl() const = 0;
 
   // Build absolute VFS path from a relative path into caller-supplied buffer.

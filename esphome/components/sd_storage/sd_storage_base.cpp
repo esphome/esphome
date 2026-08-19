@@ -79,11 +79,20 @@ storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
   info->name = "SD Card";
   info->kind = "sd";
   info->total_bytes = this->total_bytes_;
-  info->free_bytes = this->get_free_bytes_impl();
+  info->free_bytes = 0;
   info->block_size = this->get_block_size_impl();
   info->is_mounted = this->is_mounted_;
   info->is_removable = true;
   info->is_read_only = false;
+  // Contract: an unmounted-but-registered device reports OK with is_mounted = false, not an error.
+  if (!this->is_mounted_)
+    return storage::StorageError::STORAGE_ERROR_OK;
+  // Mounted: a failed free-space query is a real error -- surface it instead of reporting 0.
+  uint64_t free_bytes = 0;
+  storage::StorageError err = this->get_free_bytes_impl(free_bytes);
+  if (err != storage::StorageError::STORAGE_ERROR_OK)
+    return err;
+  info->free_bytes = free_bytes;
   return storage::StorageError::STORAGE_ERROR_OK;
 }
 
