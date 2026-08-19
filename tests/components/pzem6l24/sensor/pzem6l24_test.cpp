@@ -185,7 +185,27 @@ TEST(PZEM6L24Test, PublishesNanOnShortPayload) {
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
   ASSERT_FALSE(std::isnan(h.voltage_a.state));
 
-  h.pzem.on_response(READ_REQUEST_PDU, short_pdu);
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.on_response(READ_REQUEST_PDU, short_pdu);
+  }
+
+  EXPECT_TRUE(std::isnan(h.voltage_a.state));
+  EXPECT_TRUE(std::isnan(h.total_active_energy.state));
+}
+
+// A response carrying no payload at all - a byte-count-0 reply the hub still dispatches - is as
+// undecodable as any other wrong size, and must be reported rather than passed off as an already-logged
+// failure.
+TEST(PZEM6L24Test, PublishesNanOnEmptyPayload) {
+  Harness h;
+  const uint8_t empty_pdu[] = {0x04, 0x00};
+
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+  ASSERT_FALSE(std::isnan(h.voltage_a.state));
+
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.on_response(READ_REQUEST_PDU, empty_pdu);
+  }
 
   EXPECT_TRUE(std::isnan(h.voltage_a.state));
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
@@ -202,7 +222,9 @@ TEST(PZEM6L24Test, PublishesNanOnOversizedPayload) {
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
   ASSERT_FALSE(std::isnan(h.voltage_a.state));
 
-  h.pzem.on_response(READ_REQUEST_PDU, long_pdu);
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.on_response(READ_REQUEST_PDU, long_pdu);
+  }
 
   EXPECT_TRUE(std::isnan(h.voltage_a.state));
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
@@ -214,7 +236,9 @@ TEST(PZEM6L24Test, PublishesNanWhenTheMeterDoesNotRespond) {
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
   ASSERT_FALSE(std::isnan(h.voltage_a.state));
 
-  EXPECT_FALSE(h.pzem.on_no_response(READ_REQUEST_PDU));
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    EXPECT_FALSE(h.pzem.on_no_response(READ_REQUEST_PDU));
+  }
 
   EXPECT_TRUE(std::isnan(h.voltage_a.state));
   EXPECT_TRUE(std::isnan(h.total_active_power.state));
@@ -226,7 +250,9 @@ TEST(PZEM6L24Test, PublishesNanOnExceptionResponse) {
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
   ASSERT_FALSE(std::isnan(h.voltage_a.state));
 
-  h.pzem.on_error(READ_REQUEST_PDU, modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.on_error(READ_REQUEST_PDU, modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS);
+  }
 
   EXPECT_TRUE(std::isnan(h.voltage_a.state));
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
@@ -239,7 +265,73 @@ TEST(PZEM6L24Test, PublishesNanWhenTheReadIsNotSent) {
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
   ASSERT_FALSE(std::isnan(h.voltage_a.state));
 
-  h.pzem.on_not_sent(READ_REQUEST_PDU);
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.on_not_sent(READ_REQUEST_PDU);
+  }
+
+  EXPECT_TRUE(std::isnan(h.voltage_a.state));
+  EXPECT_TRUE(std::isnan(h.total_active_energy.state));
+}
+
+// An isolated failure is routine on a shared RS-485 bus, so the readings ride it out; the count of
+// failures that have to pile up before blanking starts over as soon as a poll succeeds.
+TEST(PZEM6L24Test, KeepsReadingsUntilFailuresReachTheThreshold) {
+  Harness h;
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING - 1; i++) {
+    h.pzem.on_no_response(READ_REQUEST_PDU);
+  }
+  EXPECT_FLOAT_EQ(h.voltage_a.state, 2301 * 0.1f);
+
+  // A good poll resets the run, so the next failures start counting from zero rather than tipping over.
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING - 1; i++) {
+    h.pzem.on_error(READ_REQUEST_PDU, modbus::ExceptionCode::SERVICE_DEVICE_FAILURE);
+  }
+
+  EXPECT_FLOAT_EQ(h.voltage_a.state, 2301 * 0.1f);
+}
+
+// update()'s refusal branch decides between two opposite outcomes - blank everything, or say nothing -
+// off reads_outstanding_, so both sides are pinned against a real hub rather than assumed.
+TEST(PZEM6L24Test, KeepsReadingsWhenAPollIsAbsorbedIntoAReadInFlight) {
+  // Declared before the harness so it outlives it: ~ModbusClientDevice clears its frames from the hub.
+  modbus::ModbusClientHub hub;
+  Harness h;
+  h.pzem.set_parent(&hub);
+  h.pzem.set_address(0x01);
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+
+  // A read entry serves at most two requests, so the hub takes two polls and refuses the third as an
+  // over-cap duplicate. Two terminals are still owed, so that refusal is not a lost reading.
+  h.pzem.update();
+  h.pzem.update();
+  h.pzem.update();
+
+  EXPECT_FLOAT_EQ(h.voltage_a.state, 2301 * 0.1f);
+  EXPECT_FLOAT_EQ(h.total_active_energy.state, 300006 * 0.1f);
+}
+
+// The same false return with nothing in flight means no callback is ever coming, so it counts as a
+// failed poll like any other.
+TEST(PZEM6L24Test, PublishesNanWhenThePollCannotBeQueued) {
+  modbus::ModbusClientHub hub;
+  Harness h;
+  h.pzem.set_parent(&hub);
+  h.pzem.set_address(0x01);
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+
+  // Fill the transmit queue with distinct frames for another address, so this device has nothing in
+  // flight and its poll is refused outright rather than absorbed.
+  for (uint16_t i = 0; i < modbus::MODBUS_TX_BUFFER_SIZE; i++) {
+    const uint8_t filler_pdu[] = {0x04, 0x00, static_cast<uint8_t>(i), 0x00, 0x01};
+    ASSERT_TRUE(hub.queue_pdu(0x02, filler_pdu));
+  }
+
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    h.pzem.update();
+  }
 
   EXPECT_TRUE(std::isnan(h.voltage_a.state));
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
@@ -250,9 +342,11 @@ TEST(PZEM6L24Test, KeepsReadingsWhenTheResetCommandFails) {
   Harness h;
   h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
 
-  EXPECT_FALSE(h.pzem.on_no_response(RESET_REQUEST_PDU));
-  h.pzem.on_error(RESET_REQUEST_PDU, modbus::ExceptionCode::ILLEGAL_FUNCTION);
-  h.pzem.on_not_sent(RESET_REQUEST_PDU);
+  for (int i = 0; i < FAILURES_BEFORE_BLANKING; i++) {
+    EXPECT_FALSE(h.pzem.on_no_response(RESET_REQUEST_PDU));
+    h.pzem.on_error(RESET_REQUEST_PDU, modbus::ExceptionCode::ILLEGAL_FUNCTION);
+    h.pzem.on_not_sent(RESET_REQUEST_PDU);
+  }
 
   EXPECT_FLOAT_EQ(h.voltage_a.state, 2301 * 0.1f);
   EXPECT_FLOAT_EQ(h.total_active_energy.state, 300006 * 0.1f);

@@ -12,6 +12,18 @@ static const uint8_t PZEM_REGISTER_COUNT = 64;  // 64 × 16-bit registers = 128 
 // Payload size of the register read response
 static const size_t PZEM_PAYLOAD_SIZE = PZEM_REGISTER_COUNT * 2;
 
+// Consecutive failed polls tolerated before the readings are blanked. On a shared RS-485 bus an
+// occasional collision or timeout is routine, and taking all 35 entities to unavailable for a whole
+// update interval over one of them is worse than briefly holding readings that are one poll old. Every
+// failure is still logged as it happens; only the blanking waits, and a real outage reaches it in three
+// polls.
+static const uint8_t MAX_CONSECUTIVE_READ_FAILURES = 3;
+
+// Consecutive polls the hub may refuse before the refusal is reported and the read accounting is reset.
+// A refusal is harmless when it means this poll was absorbed into a read already in flight, but
+// queue_pdu() does not say why it refused, so that reading of it is only trusted this far.
+static const uint8_t MAX_UNQUEUED_POLLS = 3;
+
 // -----------------------------------------------------------------------
 // Register map (input registers, starting address 0x0000):
 //
@@ -102,8 +114,12 @@ enum RegType : uint8_t {
 };
 
 // One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds.
-// Deliberately no name column: 35 string literals would land in DRAM on ESP8266, and dump_config()
-// already names every sensor from flash.
+//
+// The table costs DRAM on ESP8266, where .rodata is RAM rather than flash: roughly 12 bytes per entry,
+// paid whether the user configures one sensor or all thirty-five. That is a deliberate trade for the
+// offsets sitting next to the register map they mirror, and for the switch below covering every width at
+// compile time. It is also why there is no name column - 35 string literals would add ~700 bytes to the
+// same total, and dump_config() already names every sensor from flash (LOG_SENSOR uses PSTR).
 struct SensorEntry {
   sensor::Sensor *PZEM6L24::*member;
   uint8_t offset;
@@ -133,14 +149,14 @@ void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionC
   }
   this->read_finished_();
   ESP_LOGW(TAG, "PZEM-6L24 returned exception 0x%02X to the register read", static_cast<uint8_t>(exception_code));
-  this->publish_values_({});
+  this->read_failed_();
 }
 
 bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
   if (is_register_read(request_pdu)) {
     this->read_finished_();
     ESP_LOGW(TAG, "PZEM-6L24 did not respond to the register read");
-    this->publish_values_({});
+    this->read_failed_();
   } else {
     ESP_LOGW(TAG, "PZEM-6L24 did not acknowledge the energy reset; the counters may not have been cleared");
   }
@@ -152,25 +168,31 @@ void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
   if (is_register_read(request_pdu)) {
     this->read_finished_();
     ESP_LOGW(TAG, "Register read was dropped before it was sent");
-    this->publish_values_({});
+    this->read_failed_();
   } else {
     ESP_LOGW(TAG, "Energy reset was dropped before it was sent; the counters were not cleared");
   }
 }
 
-// Publishes every configured sensor from `data`, the register payload of a read response. The size is
-// validated here, in the one place that knows what the offsets below need: anything but exactly
-// PZEM_PAYLOAD_SIZE bytes is not a payload this map can decode - too short would read past the end, too
-// long is a frame from something other than the meter this component expects - and publishes NAN so the
-// entities go unavailable rather than holding a stale reading.
-//
-// An empty span is how the failure paths ask for that same blanking; each has already logged why, so it
-// is the one wrong size that does not warrant a second warning here.
+// Decodes a register read response and publishes it. The size is validated here, in the one place that
+// knows what the offsets below need: anything but exactly PZEM_PAYLOAD_SIZE bytes is not a payload this
+// map can decode - too short would read past the end, too long did not come from the frame layout the
+// map was written for - and every wrong size, including a degenerate empty one, is reported.
 void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
-  const bool available = data.size() == PZEM_PAYLOAD_SIZE;
-  if (!available && !data.empty()) {
+  if (data.size() != PZEM_PAYLOAD_SIZE) {
     ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
+    this->read_failed_();
+    return;
   }
+  this->consecutive_failures_ = 0;
+  this->publish_(data.data());
+}
+
+// The single publish path: `data` points at PZEM_PAYLOAD_SIZE validated bytes, or is nullptr to blank
+// every sensor. Both walk the same table, so a sensor cannot be published in one case and forgotten in
+// the other.
+void PZEM6L24::publish_(const uint8_t *data) {
+  const bool available = data != nullptr;
 
   // Helper: decode a little-endian 16-bit value at byte offset i.
   auto get_u16 = [&](size_t i) -> uint16_t { return (uint16_t(data[i + 1]) << 8) | uint16_t(data[i]); };
@@ -269,19 +291,28 @@ void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
 void PZEM6L24::update() {
   if (this->read_input_registers(0x0000, PZEM_REGISTER_COUNT)) {
     this->reads_outstanding_++;
+    this->unqueued_polls_ = 0;
     return;
   }
-  // queue_pdu() refused. That is either a genuine refusal - nothing was accepted and no callback of any
-  // kind will follow - or this poll being absorbed as an over-cap duplicate of a read already in flight,
-  // which still resolves in its own terminal. Only the first leaves the entities without an answer, so
-  // only the first blanks them; blanking on a congested bus would flap every entity to unavailable while
-  // the meter is answering fine.
-  if (this->reads_outstanding_ > 0) {
+
+  // queue_pdu() refused, and it does not say why. This poll may have been absorbed as an over-cap
+  // duplicate of a read already in flight, which still resolves in its own terminal and needs no
+  // reporting - blanking there would flap every entity to unavailable while the meter answers fine. But
+  // the hub also refuses for reasons that will not clear on their own (a full transmit queue), and a read
+  // counted as outstanding whose terminal never arrives - a device teardown that retires frames silently
+  // - would otherwise hold this branch open forever. So the harmless reading is only trusted while a read
+  // is outstanding AND only for a few polls; past that the refusal is reported and the accounting starts
+  // over, so failure reporting cannot be disabled indefinitely.
+  this->unqueued_polls_++;
+  if (this->reads_outstanding_ > 0 && this->unqueued_polls_ < MAX_UNQUEUED_POLLS) {
     ESP_LOGD(TAG, "Register read merged into one already in flight; the bus is running behind");
     return;
   }
+
   ESP_LOGW(TAG, "Register read was not queued");
-  this->publish_values_({});
+  this->unqueued_polls_ = 0;
+  this->reads_outstanding_ = 0;  // whatever was owed is not arriving; do not keep waiting on it
+  this->read_failed_();
 }
 
 void PZEM6L24::dump_config() {
@@ -325,6 +356,21 @@ void PZEM6L24::dump_config() {
   LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_);
   LOG_SENSOR("  ", "Total Reactive Energy", this->total_reactive_energy_);
   LOG_SENSOR("  ", "Total Apparent Energy", this->total_apparent_energy_);
+}
+
+// A poll produced no usable measurements; the caller has already logged why. The readings are held for
+// a couple more polls before being blanked, so one bad poll on a busy bus does not take every entity to
+// unavailable. Once blanked they stay blanked - the counter stops at the threshold - until a poll
+// succeeds and resets it.
+void PZEM6L24::read_failed_() {
+  if (this->consecutive_failures_ >= MAX_CONSECUTIVE_READ_FAILURES) {
+    return;
+  }
+  if (++this->consecutive_failures_ == MAX_CONSECUTIVE_READ_FAILURES) {
+    ESP_LOGW(TAG, "No valid reading in %u consecutive polls; the readings are now unavailable",
+             MAX_CONSECUTIVE_READ_FAILURES);
+    this->publish_(nullptr);
+  }
 }
 
 // One terminal has arrived for a register read, so that read is no longer in flight.

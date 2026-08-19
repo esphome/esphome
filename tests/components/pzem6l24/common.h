@@ -11,6 +11,9 @@ namespace esphome::pzem6l24::testing {
 static constexpr uint8_t REGISTER_COUNT = 64;
 static constexpr size_t PAYLOAD_SIZE = REGISTER_COUNT * 2;
 
+// Mirrored from pzem6l24.cpp: consecutive failed polls before the readings are blanked.
+static constexpr int FAILURES_BEFORE_BLANKING = 3;
+
 // The request PDU update() puts on the wire: read 64 input registers from 0x0000.
 static constexpr uint8_t READ_REQUEST_PDU[] = {0x04, 0x00, 0x00, 0x00, REGISTER_COUNT};
 // The request PDU reset_energy_() puts on the wire: function 0x42, reserved byte, phase selector.
