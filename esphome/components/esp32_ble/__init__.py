@@ -443,7 +443,7 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
-def final_validation(config):
+def final_validation(config) -> None:
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
@@ -513,8 +513,6 @@ def final_validation(config):
     # CONFIG_BTDM_CTRL_BLE_MAX_CONN is ESP32-specific controller limit (just connections, not ADV/SCAN)
     # For newer chips (C3/S3/etc), different configs are used automatically
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validation

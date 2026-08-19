@@ -44,10 +44,10 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
-        return config
+        return
     full_config = fv.full_config.get()
     transport_path = full_config.get_path_for_id(config[CONF_TRANSPORT_ID])[:-1]
     transport_config = full_config.get_config_for_path(transport_path)
@@ -56,7 +56,7 @@ def _final_validate(config):
         for p in transport_config[CONF_PROVIDERS]
         if p[CONF_NAME] == config[CONF_PROVIDER]
     ):
-        return config
+        return
     raise cv.Invalid(
         "Status sensor requires ping-pong to be enabled and the nominated provider to use encryption."
     )

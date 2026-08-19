@@ -60,6 +60,9 @@ def _strip_win_long_path_prefix(path: str) -> str:
     "The system cannot find the path specified." Stripping the prefix early
     keeps the path shell-quotable.
 
+    Also applied to the ccache path exported by ``_ccache_env()``, which
+    ``shutil.which`` can return with the same prefix.
+
     No-op on non-Windows platforms.
     """
     if sys.platform != "win32":
@@ -235,8 +238,8 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
-def _ccache_usable() -> bool:
-    """Return True when the ``ccache`` on PATH actually runs.
+def _ccache_runs(ccache: str) -> bool:
+    """Return True when the ``ccache`` found on PATH actually runs.
 
     ``shutil.which`` proves existence, not runnability: on Windows it also
     matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
@@ -244,9 +247,6 @@ def _ccache_usable() -> bool:
     step with an opaque OS error, so probe once and fall back to compiling
     without ccache when the probe fails.
     """
-    ccache = shutil.which("ccache")
-    if ccache is None:
-        return False
     try:
         subprocess.run(
             [ccache, "--version"],
@@ -265,14 +265,29 @@ def _ccache_usable() -> bool:
 
 
 def _ccache_env() -> dict[str, str]:
-    """Return ccache settings for PlatformIO builds.
+    r"""Return ccache settings for PlatformIO builds.
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``ESPHOME_CCACHE_ENABLE=0`` in the environment to opt out (or ``1`` to
-    force it on). The decision is normalized into ``ESPHOME_CCACHE_ENABLE``
-    so platform build scripts (e.g. the esp8266 ``ccache.py`` extra script,
-    which wraps compiler invocations inside SCons) only have to check for
-    ``"1"`` instead of re-implementing the policy.
+    force it on without the runnability probe; a binary is still needed).
+    The decision is normalized into ``ESPHOME_CCACHE_ENABLE`` and the
+    binary's location into ``ESPHOME_CCACHE_PATH`` so platform build scripts
+    (the shared ``ccache.py`` extra script, which wraps compiler invocations
+    inside SCons) only have to check for ``"1"`` and use the path as given
+    instead of re-implementing the policy.
+
+    The path is exported rather than looked up again inside SCons because
+    ``shutil.which`` can return a Windows extended-length ``\\?\`` path
+    (ESPHome Desktop puts its bundled ccache on PATH that way). Such a path
+    runs fine through ``CreateProcess``, which is how ESP-IDF invokes it,
+    but SCons runs every compile through ``cmd.exe``, which fails on it with
+    "The system cannot find the path specified." (#18399), so the prefix is
+    stripped here with ``_strip_win_long_path_prefix()`` before the
+    runnability probe, which therefore validates the exact string the build
+    will execute.
+    ``ESPHOME_CCACHE_PATH`` is an internal channel, not a user setting: the
+    script only honours it together with ``ESPHOME_CCACHE_ENABLE=1``, and this
+    function always sets both or neither.
 
     The returned values are merged into the environment of the PlatformIO
     subprocess only, never into ``os.environ``: a long-running process
@@ -293,13 +308,27 @@ def _ccache_env() -> dict[str, str]:
     build dir. The other ``CCACHE_*`` values the user already set in the
     environment are respected.
     """
-    if "ESPHOME_CCACHE_ENABLE" in os.environ:
-        enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
-    else:
-        enabled = _ccache_usable()
-    env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
-    if not enabled:
-        return env
+    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
+    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    ccache_path = shutil.which("ccache")
+    if ccache_path is None:
+        if explicit:
+            _LOGGER.warning(
+                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
+                "compiling without ccache"
+            )
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    # Strip before probing so the probe validates (and the failure warning
+    # names) the exact string the build will execute through cmd.exe.
+    ccache_path = _strip_win_long_path_prefix(ccache_path)
+    # An explicit opt-in skips the runnability probe.
+    if not explicit and not _ccache_runs(ccache_path):
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    env = {
+        "ESPHOME_CCACHE_ENABLE": "1",
+        "ESPHOME_CCACHE_PATH": ccache_path,
+    }
     # build_path is set during preload for every config-loading command, so it
     # being unset means a caller built the environment too early; fail loudly
     # rather than with an opaque TypeError from Path(None).

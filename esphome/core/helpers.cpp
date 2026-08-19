@@ -579,13 +579,8 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
-static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz"
-                                            "0123456789+/";
-
-// Helper function to find the index of a base64/base64url character in the lookup table.
-// Returns the character's position (0-63) if found, or 0 if not found.
+// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
+// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
 // Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
@@ -593,13 +588,18 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
-  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
-  if (c == '-')
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 26;
+  if (c >= '0' && c <= '9')
+    return c - '0' + 52;
+  // base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '+' || c == '-')
     return 62;
-  if (c == '_')
+  if (c == '/' || c == '_')
     return 63;
-  const char *pos = strchr(BASE64_CHARS, c);
-  return pos ? (pos - BASE64_CHARS) : 0;
+  return 0;
 }
 
 // Check if character is valid base64 or base64url
