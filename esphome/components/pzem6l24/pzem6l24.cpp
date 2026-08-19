@@ -1,7 +1,9 @@
 #include "pzem6l24.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <cmath>
+#include <type_traits>
 
 namespace esphome::pzem6l24 {
 
@@ -113,19 +115,16 @@ enum RegType : uint8_t {
   REG_I32,  // two registers, signed, low word first
 };
 
-// One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds.
-//
-// The table costs DRAM on ESP8266, where .rodata is RAM rather than flash: roughly 12 bytes per entry,
-// paid whether the user configures one sensor or all thirty-five. That is a deliberate trade for the
-// offsets sitting next to the register map they mirror, and for the switch below covering every width at
-// compile time. It is also why there is no name column - 35 string literals would add ~700 bytes to the
-// same total, and dump_config() already names every sensor from flash (LOG_SENSOR uses PSTR).
+// One decodable quantity: where it lives in the payload, how to read it and which sensor it feeds. The
+// table of these is kept in flash (see SENSORS below), so entries are copied one at a time to the stack
+// as they are decoded - which is what makes trivial copyability a requirement rather than a detail.
 struct SensorEntry {
   sensor::Sensor *PZEM6L24::*member;
   uint8_t offset;
   RegType type;
   float scale;
 };
+static_assert(std::is_trivially_copyable_v<SensorEntry>, "SENSORS is copied out of flash with memcpy");
 
 // True for the periodic register read issued by update(). Every other reply routed to this device -
 // notably the acknowledgement of the 0x42 reset command - carries no measurement payload.
@@ -209,7 +208,14 @@ void PZEM6L24::publish_(const uint8_t *data) {
 
   // Byte offset, width and scaling for every quantity, in register-map order. All three phases share the
   // same grid frequency, so phase A's register is reported as the representative value.
-  static constexpr SensorEntry SENSORS[] = {
+  //
+  // PROGMEM keeps the table in flash on ESP8266, where .rodata is DRAM: at ~12 bytes per entry it would
+  // otherwise cost ~420 bytes of permanently resident RAM on a chip with ~40 kB of heap, paid whether
+  // the user configures one sensor or all thirty-five. The price is one 12-byte stack copy per sensor
+  // per poll. PROGMEM is a no-op on every other platform, where progmem_memcpy() is a plain memcpy.
+  // Same reason there is no name column: 35 string literals would be another ~700 bytes of DRAM, and
+  // dump_config() already names every sensor from flash via LOG_SENSOR's PSTR.
+  static const SensorEntry SENSORS[] PROGMEM = {
       // Voltages (×0.1 V)
       {&PZEM6L24::voltage_a_, 0, REG_U16, 0.1f},
       {&PZEM6L24::voltage_b_, 2, REG_U16, 0.1f},
@@ -259,7 +265,9 @@ void PZEM6L24::publish_(const uint8_t *data) {
       {&PZEM6L24::total_apparent_energy_, 124, REG_U32, 0.1f},
   };
 
-  for (const auto &entry : SENSORS) {
+  for (const SensorEntry &flash_entry : SENSORS) {
+    SensorEntry entry;
+    progmem_memcpy(&entry, &flash_entry, sizeof(entry));
     sensor::Sensor *sens = this->*entry.member;
     if (sens == nullptr)
       continue;
