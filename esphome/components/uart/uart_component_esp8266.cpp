@@ -15,7 +15,10 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart";
-// Edge decoder up to this baud rate, start bit sampler above it.
+// Edge decoder up to this baud rate, start bit sampler above it. The cutoff is
+// a deliberate tradeoff: the decoder tolerates ~0.25 bit of ISR latency jitter
+// (~6.5us at 38400), too tight for higher rates where the sampler's whole byte
+// ISR block is short anyway.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 38400;
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
