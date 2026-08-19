@@ -20,3 +20,5 @@ async def test_host_mode_basic(
         device_info = await client.device_info()
         assert device_info is not None
         assert device_info.name == "host-test"
+
+# Chained CI test for the apt changes on the parent branch; delete with the branch.

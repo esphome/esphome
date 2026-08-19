@@ -17,3 +17,5 @@ sensor:
         return 42.0;
       }
       return 0.0;
+
+# Chained CI test for the apt changes on the parent branch; delete with the branch.
