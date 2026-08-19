@@ -48,11 +48,13 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
+def AUTO_LOAD() -> list[str]:
+    # No config parameter on purpose: that would make this a late (dynamic) auto-load and
+    # ota.web_server's dependency on web_server_base would not be satisfied in time.
     auto_load = ["json", "web_server_base"]
     # The AP mode DNS server (web_server_base/dns_server_esp32_idf) uses socket; only
     # configs with a WiFi access point can end up in AP mode.
-    wifi = CORE.raw_config.get(CONF_WIFI) if CORE.raw_config is not None else None
+    wifi = CORE.raw_config.get(CONF_WIFI) if CORE.raw_config else None
     if CORE.is_esp32 and (not isinstance(wifi, dict) or CONF_AP in wifi):
         auto_load.append("socket")
     return auto_load
