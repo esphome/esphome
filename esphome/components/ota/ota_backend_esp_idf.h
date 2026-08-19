@@ -54,9 +54,15 @@ class IDFOTABackend final {
 #endif
 
  private:
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+  // Accept an image signed by any key the running app trusts (up to 3 blocks),
+  // so rotation and backup keys work. Fails closed. Covers app and bootloader.
+  bool verify_signed_image_(const esp_partition_t *incoming);
+#endif
+  // Keep md5_ first since its digest_ is alignas(32) on DMA-SHA variants; md5_set_ stays last so buf_ packs tightly.
+  md5::MD5Digest md5_{};
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_;
-  md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS

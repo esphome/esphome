@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 
@@ -136,6 +137,67 @@ async def _generate_component_source_table() -> None:
         )
 
 
+_SLOT_COUNTER_DOMAIN = "slot_counter"
+
+
+@dataclass
+class _SlotCounterState:
+    """Per-run slot counter state: requested counts and already-emitted defines."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+    emitted: set[str] = field(default_factory=set)
+
+
+def _get_slot_counter_state() -> _SlotCounterState:
+    """Get or create the slot counter state from CORE.data."""
+    if _SLOT_COUNTER_DOMAIN not in CORE.data:
+        CORE.data[_SLOT_COUNTER_DOMAIN] = _SlotCounterState()
+    return CORE.data[_SLOT_COUNTER_DOMAIN]
+
+
+def get_slot_count(define: str) -> int:
+    """Number of slots requested so far for `define`."""
+    return _get_slot_counter_state().counts.get(define, 0)
+
+
+def slot_counter(define: str) -> Callable[[], None]:
+    """Create a request_slot function for codegen-sized storage.
+
+    The pattern behind a StaticVector listener array: a consumer's to_code
+    calls the returned function once per slot it will occupy at runtime, and
+    at FINAL priority — after every consumer's to_code has run — `define` is
+    emitted with the requested count. No requests, no define: the guarded
+    storage and its registration method compile out entirely.
+
+    The counts live in a table under CORE.data, which clears between runs.
+    A request arriving after the define was already emitted raises instead of
+    silently undercounting: the define would keep the stale smaller value and
+    StaticVector::push_back would drop the extra listener at runtime.
+    """
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def emit_job() -> None:
+        state = _get_slot_counter_state()
+        state.emitted.add(define)
+        # Scheduled only by the first request, so the count is always >= 1 here.
+        add_define(define, state.counts[define])
+
+    def request_slot() -> None:
+        state = _get_slot_counter_state()
+        if define in state.emitted:
+            raise ValueError(
+                f"slot_counter('{define}'): slot requested after the count "
+                f"define was emitted; request slots from to_code, not from a "
+                f"job running after FINAL emission"
+            )
+        counts = state.counts
+        counts[define] = (count := counts.get(define, 0) + 1)
+        if count == 1:
+            CORE.add_job(emit_job)
+
+    return request_slot
+
+
 async def gpio_pin_expression(conf):
     """Generate an expression for the given pin option.
 
@@ -149,6 +211,17 @@ async def gpio_pin_expression(conf):
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
+
+
+def set_setup_priority(var, priority: float) -> None:
+    """Emit a setup-priority override for the given component.
+
+    Pairs the ``set_setup_priority()`` call with the ``USE_SETUP_PRIORITY_OVERRIDE``
+    define that compiles in the core override support, so callers cannot emit one
+    without the other.
+    """
+    add_define("USE_SETUP_PRIORITY_OVERRIDE")
+    add(var.set_setup_priority(priority))
 
 
 async def register_component(var, config):
@@ -168,8 +241,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
-        add_define("USE_SETUP_PRIORITY_OVERRIDE")
-        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 

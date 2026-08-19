@@ -7,7 +7,7 @@
 
 namespace esphome::bp1658cj {
 
-class BP1658CJ : public Component {
+class BP1658CJ final : public Component {
  public:
   class Channel;
 
@@ -29,7 +29,7 @@ class BP1658CJ : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(BP1658CJ *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }

@@ -4,11 +4,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::sdm_meter {
 
-class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
+class SDMMeter final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].setup = true;
@@ -55,7 +55,7 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
   void dump_config() override;
 
