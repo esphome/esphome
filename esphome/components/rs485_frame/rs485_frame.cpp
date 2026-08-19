@@ -329,9 +329,9 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
   if (this->dump_frames_) {
     // Reuse the setup-time allocated hex_log_buf_ to avoid per-frame heap allocation
     // that the std::vector-returning hex formatter would incur. Buffer is sized for the
-    // worst-case TX frame so any RX payload fits.
-    format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, this->rx_payload_.data(),
-                  this->rx_payload_.size());
+    // worst-case TX frame, which comfortably fits any RX raw_frame_ too. Logs the full wire
+    // frame (framing + CRC), matching write_frame_'s TX log below -- "frame" means all bits.
+    format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, this->raw_frame_.data(), this->raw_frame_.size());
     ESP_LOGD(TAG, "RX %s", this->hex_log_buf_.get());
   }
 
