@@ -110,7 +110,10 @@ TEST(StringContainsIgnoreCaseTest, MiscCaseMatches) {
 TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
   const char *haystack = "Hello World";
 
+  // Expected to match
   EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hell"));
+
+  // Expected not to match
   EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Heaven"));
   EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Hello!"));
   EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!"));
