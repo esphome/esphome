@@ -301,7 +301,7 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
-#ifdef USE_BLE_GATT_SERVICE_TABLE
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
   this->table_.free();
 #endif
   // Always set: terminates any in-flight stream on every cache config.
@@ -316,7 +316,7 @@ void BluedroidGattClient::release_services() {
 #endif
 }
 
-#ifdef USE_BLE_GATT_SERVICE_TABLE
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
 ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
   // Lifetime: every teardown path (CLOSE_EVT, the safety timeout, stack-down,
   // passive DISCONNECT) routes through release_services(), so a materialized
@@ -332,7 +332,7 @@ ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
   }
   return this->table_.view();
 }
-#endif  // USE_BLE_GATT_SERVICE_TABLE
+#endif  // USE_BLUEDROID_GATT_SERVICE_TABLE
 
 // ---- internals ----
 
@@ -380,7 +380,7 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 // ---- service streaming ----
 
 int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
-#ifdef USE_BLE_GATT_SERVICE_TABLE
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
   // Re-discovery moves the counts the table view derives offsets from; free
   // the stale table.
   this->table_.free();

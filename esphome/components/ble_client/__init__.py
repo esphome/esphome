@@ -44,13 +44,20 @@ from esphome.types import ConfigType
 # platforms' registries (the bluetooth_proxy pattern).
 
 
+def _legacy_engine() -> bool:
+    """True when the build uses the legacy raw-gattc engine - one line to
+    flip when esp32 moves to the neutral engine (with
+    USE_BLE_CLIENT_LEGACY_ENGINE in _to_code_esp32)."""
+    return CORE.is_esp32
+
+
 def AUTO_LOAD() -> list[str]:
     """The engine's closure per platform: the legacy esp32 engine builds on
     esp32_ble_client plus bluetooth_connection (the shared service-table
     materializer; its sources compile empty in builds without a neutral
     node), the neutral engine on the bluetooth_connection backend. The
     platform-less arm is the union for manifest-resolving tooling."""
-    if CORE.is_esp32 or CORE.target_platform is None:
+    if _legacy_engine() or CORE.target_platform is None:
         return ["bluetooth_connection", "esp32_ble_client"]
     return ["bluetooth_connection"]
 
@@ -242,7 +249,7 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         # The language-schema dumper runs without a platform; expose the
         # esp32 (legacy-engine) shape.
         return _esp32_config_schema()
-    if CORE.is_esp32:
+    if _legacy_engine():
         return _esp32_config_schema()(config)
     if CORE.target_platform in bluetooth_connection.GATT_CLIENT_PLATFORMS:
         return _gatt_config_schema(CORE.target_platform)(config)
@@ -269,7 +276,7 @@ class BLEClientFeatures(StrEnum):
 
 def _engine_features() -> set[BLEClientFeatures]:
     """Features the validated platform's engine provides."""
-    if CORE.is_esp32:
+    if _legacy_engine():
         return {
             BLEClientFeatures.GATT_NODE,
             BLEClientFeatures.RAW_GATTC,
@@ -342,11 +349,12 @@ def _request_gatt_node_build() -> None:
     compiled in", plus the esp32 bridge/materializer defines."""
     _request_node_slot()
     cg.add_define("USE_BLE_CLIENT_GATT_NODES")
-    if CORE.is_esp32:
+    if _legacy_engine():
         # Deliberately not ble_device_base.request_gatt_client(): that would
         # claim a phantom backend slot on combined proxy builds.
         cg.add_define("USE_BLE_GATT_CLIENT")
-        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
+        cg.add_define("USE_BLE_GATT_BACKEND_BLUEDROID")
+        cg.add_define("USE_BLUEDROID_GATT_SERVICE_TABLE")
 
 
 async def register_gatt_node(var, config):
@@ -525,6 +533,7 @@ async def _to_code_esp32(config: ConfigType) -> cg.MockObj:
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
     cg.add_define("USE_ESP32_BLE_UUID")
+    cg.add_define("USE_BLE_CLIENT_LEGACY_ENGINE")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -552,7 +561,7 @@ async def _to_code_gatt(config: ConfigType) -> cg.MockObj:
 
 
 async def to_code(config: ConfigType) -> None:
-    if CORE.is_esp32:
+    if _legacy_engine():
         var = await _to_code_esp32(config)
     else:
         var = await _to_code_gatt(config)

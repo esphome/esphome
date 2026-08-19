@@ -9,7 +9,7 @@
 #ifdef USE_BLE_GATT_CLIENT
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #endif
-#ifdef USE_ESP32
+#ifdef USE_BLE_CLIENT_LEGACY_ENGINE
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
 #include <esp_gap_ble_api.h>
@@ -40,9 +40,9 @@ class BLEClientNode {
   virtual void on_write_result(uint16_t handle, int error) {}
   virtual void on_pairing_result(int status) {}
 #endif
-#ifdef USE_ESP32
-  // Legacy raw surface (esp32 engine only); components overriding these are
-  // esp32-only until migrated to the neutral surface above.
+#ifdef USE_BLE_CLIENT_LEGACY_ENGINE
+  // Legacy raw surface; components overriding these need the legacy engine
+  // until migrated to the neutral surface above.
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {}
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {}

@@ -124,6 +124,8 @@ class _PlatformBackend:
     backend_class: cg.MockObjClass
     schema_fragment: Callable[[], cv.Schema]
     register: Callable[[cg.MockObj, ConfigType], Awaitable[None]]
+    # Selects the backend's alias-ladder arm (order-independent arms).
+    define: str
 
 
 # The single registry of platforms with a GATT client backend; a platform
@@ -131,9 +133,14 @@ class _PlatformBackend:
 # platform's arm.
 _PLATFORM_BACKENDS: dict[str, _PlatformBackend] = {
     PLATFORM_ESP32: _PlatformBackend(
-        BluedroidGattClient, _esp32_schema_fragment, _esp32_register
+        BluedroidGattClient,
+        _esp32_schema_fragment,
+        _esp32_register,
+        "USE_BLE_GATT_BACKEND_BLUEDROID",
     ),
-    PLATFORM_RP2: _PlatformBackend(RP2GattClient, _rp2_schema_fragment, _rp2_register),
+    PLATFORM_RP2: _PlatformBackend(
+        RP2GattClient, _rp2_schema_fragment, _rp2_register, "USE_BLE_GATT_BACKEND_RP2"
+    ),
 }
 
 # Gates dedicated-backend consumers (cv.only_on).
@@ -244,16 +251,18 @@ async def new_gatt_backend(
     """
     from esphome.components import ble_device_base
 
+    entry = _backend_entry()
     ble_device_base.request_gatt_client()
+    cg.add_define(entry.define)
     if service_table:
-        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
+        cg.add_define("USE_BLUEDROID_GATT_SERVICE_TABLE")
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
     # The backend is the slot's real Component: component keys from the
     # connection entry (setup_priority, ...) apply to it. Consumers whose own
     # schema carries keys that register_component would misapply to the
     # backend (e.g. a polling interval) must not put them in this config.
     await cg.register_component(backend, config)
-    await _backend_entry().register(backend, config)
+    await entry.register(backend, config)
     return backend
 
 

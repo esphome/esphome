@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#ifdef USE_BLE_CLIENT_LEGACY_ENGINE
 
 #include "ble_client_node.h"
 #include "connect_backoff.h"

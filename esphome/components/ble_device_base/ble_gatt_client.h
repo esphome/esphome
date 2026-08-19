@@ -11,13 +11,16 @@
 // interface. All listener calls are delivered on the ESPHome main loop;
 // borrowed data pointers are valid only for the duration of the call.
 //
-// Error domain (plain int, forwarded to the API without translation):
+// Error domain (plain int, forwarded to the API without translation, so the
+// values are wire-frozen - API clients interpret them):
 //   0            success
-//   1..0x11      ATT error codes (Bluetooth spec; BTstack and Bluedroid agree)
+//   1..0x11      ATT error codes (Bluetooth spec) - reserved; a backend whose
+//                native error codes land in this window must remap them out
 //   GATT_ERR_NOT_CONNECTED (-1)  no connection to the peer (on esp32 a raw
 //                ESP_FAIL from the stack shares this value; both read as a
 //                failed, unusable connection on the client side)
 //   GATT_ERR_NO_MEMORY (-2)      backend storage exhausted
+//   -1..-15      reserved for future contract sentinels
 //   anything else: platform stack error/status code, surfaced opaquely.
 // Connection events carry HCI status/disconnect reason codes (same code
 // space on every controller).
@@ -99,9 +102,18 @@ class GattClientListener {
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
 // through the listener) or a synchronous error (busy, not connected, stack
-// rejection); one operation may be outstanding at a time. Semantics beyond
-// the signatures:
+// rejection); one operation may be outstanding at a time. An accepted
+// operation's completion is delivered from the event loop, NEVER
+// synchronously from inside the op call - a synchronous terminal
+// on_connection_state from within gatt_disconnect() would re-enter the
+// consumer mid-teardown. Semantics beyond the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
+//   Returning 0 means the request is accepted, not that the radio acted: the
+//   backend owns integration with its platform's scan/connect arbitration
+//   (Bluedroid parks the request for the tracker's promote loop, which owns
+//   scan-stop/coex/one-connect-at-a-time; the rp2 backend opens immediately
+//   and relies on sighting-gated consumers). Consumers must not assume
+//   connect timing.
 // - gatt_disconnect: also cancels a connect in progress (named to coexist
 //   with a platform stack's own void disconnect() on one backend class).
 //   Nonzero means nothing to tear down and no completion will follow; an
