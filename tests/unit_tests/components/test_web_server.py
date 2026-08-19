@@ -108,3 +108,34 @@ def test_final_validate_ap_mode_warns_for_non_default_port(
         fv.full_config.reset(token)
     assert "cannot open automatically" in caplog.text
     assert "http://192.168.4.1:8080/" in caplog.text
+
+
+def test_final_validate_ap_mode_port_warning_uses_manual_ip(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The manual URL in the port warning honors wifi.ap.manual_ip."""
+    from esphome.const import CONF_MANUAL_IP, CONF_STATIC_IP
+
+    config = {CONF_VERSION: 2, CONF_PORT: 8080}
+    wifi = {CONF_AP: {CONF_MANUAL_IP: {CONF_STATIC_IP: "10.0.0.1"}}}
+    token = fv.full_config.set({"web_server": config, CONF_WIFI: wifi})
+    try:
+        with caplog.at_level(logging.WARNING):
+            _final_validate_ap_mode(config)
+    finally:
+        fv.full_config.reset(token)
+    assert "http://10.0.0.1:8080/" in caplog.text
+
+
+def test_final_validate_ap_mode_informs_fallback_captive(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Explicit local: true on a fallback AP logs that web_server becomes captive."""
+    config = {CONF_VERSION: 2, CONF_PORT: 80, CONF_LOCAL: True}
+    token = fv.full_config.set({"web_server": config, CONF_WIFI: AP_FALLBACK})
+    try:
+        with caplog.at_level(logging.INFO):
+            _final_validate_ap_mode(config)
+    finally:
+        fv.full_config.reset(token)
+    assert "fallback access point" in caplog.text

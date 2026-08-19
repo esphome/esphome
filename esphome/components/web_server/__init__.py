@@ -23,11 +23,13 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_MANUAL_IP,
     CONF_NAME,
     CONF_NETWORKS,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
@@ -384,32 +386,44 @@ def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
 def _final_validate_ap_mode(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     wifi_config = full_config.get(CONF_WIFI)
-    if serve_captive(config, full_config):
+    captive = serve_captive(config, full_config)
+    local = serve_local(config, wifi_config)
+    if captive:
         web_server_base.consume_captive_dns_sockets(config, "web_server")
-        if CONF_LOCAL not in config:
-            _LOGGER.info(
-                "WiFi is AP only: embedding the web interface in the firmware "
-                "(local: true, roughly 13 KB of flash for version 2, 78 KB for "
-                "version 3) and serving it as a captive portal on the access point. "
-                "Set 'local: false' to load it from the internet instead."
-            )
-    elif wifi_is_ap_only(wifi_config) and not serve_local(config, wifi_config):
+    # Surface behavior that the config does not spell out.
+    if local and CONF_LOCAL not in config:
+        _LOGGER.info(
+            "WiFi is AP only: embedding the web interface in the firmware "
+            "(local: true, roughly 13 KB of flash for version 2, 78 KB for version 3)%s. "
+            "Set 'local: false' to load it from the internet instead.",
+            " and serving it as a captive portal on the access point"
+            if captive
+            else "",
+        )
+    elif captive and not wifi_is_ap_only(wifi_config):
+        _LOGGER.info(
+            "web_server will act as a captive portal while the fallback access point "
+            "is active."
+        )
+    if not wifi_is_ap_only(wifi_config):
+        return
+    if not local:
         _LOGGER.warning(
             "WiFi is AP only and the web_server interface is loaded from the internet, "
             "which browsers on the access point usually cannot reach; the page stays "
             "blank. Remove 'local: false', or migrate off version 1, so the interface "
             "is embedded in the firmware."
         )
-    elif (
-        wifi_is_ap_only(wifi_config)
-        and serve_local(config, wifi_config)
-        and config[CONF_PORT] != 80
-    ):
+    elif config[CONF_PORT] != 80:
+        ap_ip = "192.168.4.1"
+        if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
+            ap_ip = str(manual_ip[CONF_STATIC_IP])
         _LOGGER.warning(
             "WiFi is AP only and web_server uses port %d. The interface cannot open "
             "automatically on the access point (captive portal detection only works on "
-            "port 80); open http://192.168.4.1:%d/ manually, or remove 'port:' to use 80.",
+            "port 80); open http://%s:%d/ manually, or remove 'port:' to use 80.",
             config[CONF_PORT],
+            ap_ip,
             config[CONF_PORT],
         )
 
