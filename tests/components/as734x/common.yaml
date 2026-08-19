@@ -9,7 +9,6 @@ sensor:
     normalize_basic_counts: bands
     saturation_level: Saturation level
     illuminance: Illuminance
-    irradiance: Irradiance
     irradiance_photopic: Irradiance photopic
     irradiance_par: Irradiance PAR
     ppfd: PPFD
