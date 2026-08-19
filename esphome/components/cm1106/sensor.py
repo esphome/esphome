@@ -17,6 +17,8 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@andrewjswan"]
 
+CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
+
 cm1106_ns = cg.esphome_ns.namespace("cm1106")
 CM1106Component = cm1106_ns.class_(
     "CM1106Component", cg.PollingComponent, uart.UARTDevice
@@ -25,6 +27,9 @@ CM1106CalibrateZeroAction = cm1106_ns.class_(
     "CM1106CalibrateZeroAction",
     automation.Action,
 )
+CM1106ABCEnableAction = cm1106_ns.class_("CM1106ABCEnableAction", automation.Action)
+CM1106ABCDisableAction = cm1106_ns.class_("CM1106ABCDisableAction", automation.Action)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -37,6 +42,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AUTOMATIC_BASELINE_CALIBRATION): cv.boolean,
         },
     )
     .extend(cv.polling_component_schema("60s"))
@@ -49,9 +55,17 @@ async def to_code(config) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
     if co2_config := config.get(CONF_CO2):
         sens = await sensor.new_sensor(co2_config)
         cg.add(var.set_co2_sensor(sens))
+
+    if (
+        automatic_baseline_calibration := config.get(
+            CONF_AUTOMATIC_BASELINE_CALIBRATION
+        )
+    ) is not None:
+        cg.add(var.set_abc_enabled(automatic_baseline_calibration))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -64,6 +78,18 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "cm1106.calibrate_zero",
     CM1106CalibrateZeroAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "cm1106.abc_enable",
+    CM1106ABCEnableAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "cm1106.abc_disable",
+    CM1106ABCDisableAction,
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
