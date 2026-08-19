@@ -200,10 +200,8 @@ def test_legacy_migrate_skipped_for_autoload() -> None:
 
 
 # ---------------------------------------------------------------------------
-# EXPAND_PLATFORM_CONFIG hook on LoadValidationStep -- the permanent,
-# non-deprecated counterpart to legacy_config_migrate that lets a platform
-# component expand a platform-tagged entry into several (e.g. `image`'s
-# `defaults:`/`files:` shape). Runs after legacy migration/list normalization.
+# EXPAND_PLATFORM_CONFIG hook on LoadValidationStep -- permanent counterpart
+# to legacy_config_migrate; runs after legacy migration/list normalization.
 # ---------------------------------------------------------------------------
 
 
@@ -238,9 +236,7 @@ def test_expand_hook_runs_after_legacy_migrate() -> None:
 
 
 def test_expand_hook_skipped_for_non_dict_entry() -> None:
-    """A malformed entry (e.g. a bare string) is left alone -- the hook is not
-    invoked, so a component can assume every entry it receives is a
-    `platform:` tagged dict without checking for it itself."""
+    """Malformed entries are left alone; the hook only sees `platform:`-tagged dicts."""
     expand = Mock(side_effect=lambda conf: conf)
 
     result = _run_load_step("image", ["not-a-dict"], None, expand)
@@ -261,9 +257,7 @@ def test_expand_hook_skipped_for_entry_missing_platform_key() -> None:
 
 
 def test_expand_hook_skipped_for_autoload() -> None:
-    """A non-empty AutoLoad reaching the hook stage (e.g. because
-    legacy_config_migrate declined to touch it) is left alone rather than
-    handed to a component's EXPAND_PLATFORM_CONFIG."""
+    """A non-empty AutoLoad reaching the hook stage is left alone."""
     expand = Mock(side_effect=lambda conf: conf)
     auto = AutoLoad()
     auto["id"] = "a"
@@ -286,13 +280,7 @@ def test_expand_hook_runs_when_all_entries_are_platform_tagged_dicts() -> None:
 
 
 def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
-    """A `cv.Invalid` raised by the hook is reported once, via the except clauses
-    in LoadValidationStep.run (not swallowed, not duplicated), with the domain
-    path prepended. `self.conf` is left as the pre-expand list -- the per-entry
-    loop later in the same run() call will independently validate it and may add
-    its own error, but `run_validation_steps`'s `while ... and not self.errors`
-    guard means no further validation step actually executes once this error is
-    recorded, so only this one error is ever surfaced to the user."""
+    """A `cv.Invalid` from the hook is reported once with the domain path prepended; no further validation runs."""
     expand = Mock(side_effect=cv.Invalid("bad shape"))
     pre_expand_conf = [{"platform": "file", "id": "a"}]
 
@@ -305,10 +293,7 @@ def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
 
 
 def test_expand_hook_final_external_invalid_reports_without_path_prepend() -> None:
-    """`cv.FinalExternalInvalid` is reported via its own except clause, distinct
-    from plain `cv.Invalid`/`vol.Invalid`: its path is used as-is (the domain
-    path is deliberately not prepended), since it represents an error that
-    already carries a fully resolved path."""
+    """`cv.FinalExternalInvalid` keeps its already-resolved path (no domain path prepended)."""
     already_resolved_error = cv.FinalExternalInvalid(
         "bad shape", path=["image", 3, "files"]
     )
@@ -324,10 +309,8 @@ def test_expand_hook_final_external_invalid_reports_without_path_prepend() -> No
 
 
 def test_expand_hook_non_list_return_raises_type_error() -> None:
-    """A non-list return is a coding error in the component, not a user config
-    error, so it must not be caught/reported like a `cv.Invalid` -- it should
-    escape as a TypeError instead. An explicit raise is used rather than a bare
-    assert so this guard survives under python -O/-OO."""
+    """A non-list return is a component bug: it escapes as an uncaught TypeError
+    (explicit raise survives -O/-OO)."""
     expand = Mock(return_value={"not": "a list"})
 
     with pytest.raises(TypeError, match="must return a list"):

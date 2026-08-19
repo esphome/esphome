@@ -1,9 +1,5 @@
-# `platform: file` entry using the `defaults:`/`files:` shape to share options
-# across several images without repeating them on every entry. Config-only test
-# exercising the (permanent, non-deprecated) expansion path, including the
-# per-type byte_order drop when an entry overrides to a non-endian type
-# (binary) -- mirrors validate-defaults.host.yaml's legacy-format coverage of
-# the same case.
+# `platform: file` entry using the `defaults:`/`files:` shape, including the
+# per-type byte_order drop when an entry overrides to a non-endian type.
 display:
   - platform: sdl
     id: image_display

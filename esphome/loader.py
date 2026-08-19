@@ -168,37 +168,8 @@ class ComponentManifest:
     def expand_platform_config(
         self,
     ) -> Callable[[list[ConfigType]], list[ConfigType]] | None:
-        """Optional `EXPAND_PLATFORM_CONFIG` callable on a platform component module.
-
-        Called once per domain in `LoadValidationStep.run`, after the domain's raw
-        config has been normalized to a list of `platform:` tagged entries and after
-        any `legacy_config_migrate` has run, but *before* any per-entry
-        `CONFIG_SCHEMA`/`FINAL_VALIDATE_SCHEMA` or ID registration (`cv.declare_id`)
-        happens. It receives that list and must return a list of the same shape --
-        `platform:` tagged dicts -- possibly with more or fewer entries than it was
-        given (e.g. `image`'s `defaults:`/`files:` expands one entry into several).
-
-        The caller only invokes this hook when every entry in the list is already a
-        `dict` containing a `platform` key -- a malformed entry (e.g. a bare string,
-        or a dict missing `platform:`) skips the hook entirely and falls through to
-        the normal per-entry error reporting instead. Implementations can therefore
-        assume every entry they receive matches this shape without checking for it.
-
-        Contract:
-        - Do only structural dict manipulation here; leave semantic validation (e.g.
-          "is this key valid for this platform") to the platform's own CONFIG_SCHEMA,
-          which still runs on every entry in the returned list.
-        - To reject malformed input, raise `cv.Invalid` (optionally with `path=` set
-          to the offending entry's index in the *input* list) -- this is caught and
-          reported like any other config error. Do not raise other exception types
-          for user-facing errors.
-        - The return value must always be a `list`; returning anything else is
-          treated as a bug in the component (an uncaught `TypeError`), not a
-          user config error.
-
-        Unlike `legacy_config_migrate`, this is a permanent mechanism, not a
-        deprecation shim -- it is not tied to any removal version.
-        """
+        """Optional `EXPAND_PLATFORM_CONFIG` callable; runs on the normalized `platform:`-tagged
+        entry list before per-entry CONFIG_SCHEMA. Must return a list (raise `cv.Invalid` for user errors)."""
         return getattr(self.module, "EXPAND_PLATFORM_CONFIG", None)
 
     @property

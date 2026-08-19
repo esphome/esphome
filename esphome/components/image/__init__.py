@@ -55,10 +55,7 @@ TRANSPARENCY_TYPES = (
     CONF_ALPHA_CHANNEL,
 )
 
-# Shared with the `file`/`animation` and `online_image`/`runtime_image`
-# platform schemas (which validate `byte_order` themselves via this same
-# validator) so `_drop_incompatible_byte_order` below can check a value it is
-# about to discard without duplicating the accepted-values list.
+# Shared validator for the image platform schemas and `_drop_incompatible_byte_order`.
 validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
 
 
@@ -418,45 +415,18 @@ def get_image_metadata(image_id: str) -> ImageMetaData | None:
 
 
 # ---------------------------------------------------------------------------
-# `defaults:`/`files:` platform entry expansion.
-#
-# Any `image:` platform entry (`platform: file`, `platform: animation`,
-# `platform: online_image`, ...) may provide `defaults:` (options merged into
-# every file) together with `files:` (a list of per-image overrides) instead
-# of a single flat entry, so options shared by many images don't need to be
-# repeated on every one. This is purely structural -- the resulting entries
-# go through the platform's own CONFIG_SCHEMA exactly like hand-written
-# entries, so unsupported/invalid keys are still caught there. Unlike the
-# legacy migration below, this is a permanent, non-deprecated mechanism.
+# `defaults:`/`files:` expansion: a `platform:` entry merges shared `defaults:`
+# into every `files:` entry; the platform's CONFIG_SCHEMA validates each.
+# Permanent, unlike the legacy migration below.
 # ---------------------------------------------------------------------------
 
 
 def _drop_incompatible_byte_order(
     merged: dict, explicit: dict, *, index: int | None = None
 ) -> dict:
-    """Drop `byte_order` from a merged entry if its resolved type doesn't support it
-    -- but only when `byte_order` was NOT written directly on `explicit`.
+    """Drop `byte_order` when the resolved type doesn't support it, unless written directly on `explicit`.
 
-    Used two different ways by the two callers below:
-
-    * The `defaults:`/`files:` expansion passes the actual hand-written per-image
-      entry as `explicit` and its own index as `index`, so a `byte_order` the user
-      wrote directly on that entry (as opposed to one inherited from `defaults:`)
-      is a direct, explicit conflict with an incompatible `type:` on that same
-      entry, and is left in place to surface the normal "does not support byte
-      order configuration" validation error instead of being silently discarded.
-      A value being dropped here came from `defaults:` and would otherwise never
-      reach the platform's own `CONFIG_SCHEMA` (which is what normally validates
-      it), so it is checked against `validate_byte_order` first -- a typo'd or
-      otherwise invalid `byte_order` in `defaults:` must still raise, not vanish
-      silently just because it happened to land on an incompatible `type:`.
-    * The legacy `defaults:`/`images:` flattener passes an empty dict and no
-      `index`, i.e. it always drops an incompatible `byte_order` unconditionally
-      and unchecked -- matching the pre-platform-component `get_options()`
-      behavior this flattener restores, which never distinguished "explicit" from
-      "inherited from defaults" (or validated the dropped value) for this
-      deprecated shape. Changing that now would be a silent behavior change for
-      existing, still-supported deprecated configs.
+    With `index`, inherited values are validated before being dropped (the legacy flattener always drops).
     """
     if CONF_BYTE_ORDER in explicit:
         return merged
@@ -507,9 +477,7 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
         defaults = {}
     if not isinstance(defaults, dict):
         raise cv.Invalid(f"'{CONF_DEFAULTS}' must be a mapping", path=[index])
-    # Neither makes sense inside `defaults:`: one `id:` can't apply to every
-    # file, and a `platform:` here would silently reassign which platform
-    # module handles every file, overriding the entry's own `platform:` key.
+    # Neither `id:` nor `platform:` makes sense inside `defaults:`.
     for disallowed in (CONF_ID, CONF_PLATFORM):
         if disallowed in defaults:
             raise cv.Invalid(
@@ -526,23 +494,14 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
             raise cv.Invalid(
                 f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
             )
-        # Silently letting a file entry override `platform:` would be an
-        # accidental, confusing feature -- the platform is chosen once, by the
-        # entry's own `platform:` key.
+        # The platform is chosen by the entry's own `platform:` key, not per file.
         if CONF_PLATFORM in file_entry:
             raise cv.Invalid(
                 f"'{CONF_PLATFORM}' is not allowed inside '{CONF_FILES}'",
                 path=[index],
             )
-        # Wrapped with the source range of the original `files:` item (rather
-        # than left as a plain dict) so an error raised against this whole
-        # entry -- not just one of its keys -- still anchors at the actual
-        # file item instead of falling back to the parent `- platform:` line.
-        # `from_database` requires an actual ESPHomeDataBase (it reads
-        # `.esp_range` unconditionally, unlike `add_class_to_obj`, so it can't
-        # just be handed a plain dict) -- real YAML-sourced entries are always
-        # one, but hand-built dicts (e.g. in unit tests) are not, so only pass
-        # it through when it actually is one.
+        # Keep the `files:` item's source range so whole-entry errors anchor there;
+        # `make_data_base` needs a real ESPHomeDataBase, so skip it for plain dicts.
         source = (
             file_entry if isinstance(file_entry, yaml_util.ESPHomeDataBase) else None
         )
@@ -554,16 +513,7 @@ def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
 
 
 def expand_platform_config(config: list) -> list:
-    """Expand `defaults:`/`files:` platform entries into individual entries.
-
-    Shared across every image platform (`file`, `animation`, `online_image`,
-    and any future one): a platform-tagged `image:` entry may provide
-    `defaults:` (options merged into every file) together with `files:` (a
-    list of per-image overrides) instead of a single flat entry. Purely
-    structural -- the resulting entries go through the platform's own
-    CONFIG_SCHEMA exactly like hand-written entries, so invalid/unsupported
-    keys are still caught there with normal error messages.
-    """
+    """Expand `defaults:`/`files:` entries; the platform's own CONFIG_SCHEMA validates each result."""
     result = []
     for i, entry in enumerate(config):
         if isinstance(entry, dict) and CONF_PLATFORM in entry:
@@ -670,14 +620,8 @@ def _is_legacy_image_format(config: object) -> bool:
     proper error instead of the migration silently dropping the input.
     """
     if isinstance(config, list):
-        # A bare list of (not-yet-platform-tagged) image dicts. An entry with a
-        # `files:` key is excluded for the same reason as in the mapping branch
-        # below -- `_flatten_legacy_image_config`'s list branch copies list
-        # entries verbatim, so a `defaults:`/`files:` entry missing `platform:`
-        # (e.g. the user meant `platform: animation` and forgot the key) would
-        # otherwise be silently migrated to a hard-coded `platform: file`
-        # instead of raising the normal "required key not provided: 'platform'"
-        # error.
+        # Exclude `files:` entries -- the list branch would otherwise silently
+        # migrate them to `platform: file` instead of raising the missing-platform error.
         return bool(config) and all(
             isinstance(entry, dict)
             and CONF_PLATFORM not in entry
@@ -685,19 +629,8 @@ def _is_legacy_image_format(config: object) -> bool:
             for entry in config
         )
     if not isinstance(config, dict) or CONF_PLATFORM in config or CONF_FILES in config:
-        # A dict already tagged with `platform:` is the new format written
-        # without its list brackets (e.g. a single `defaults:`/`files:` entry,
-        # or a single flat entry) -- not a legacy shape. Leave it alone; the
-        # normal `elif not isinstance(self.conf, list): self.conf = [self.conf]`
-        # normalization in LoadValidationStep wraps it into a one-entry list,
-        # which the new EXPAND_PLATFORM_CONFIG hook then handles correctly.
-        #
-        # A `files:` key is also excluded even without `platform:` -- the
-        # pre-platform schema never recognised `files:` (only `images:`), so
-        # `_flatten_legacy_image_config` has no branch for it and would
-        # silently drop every file (returning `[]`) instead of raising. Left
-        # unmigrated, this shape falls through to the normal "requires a
-        # 'platform' key" error instead of vanishing.
+        # `platform:`/`files:` dicts are new-format (left for list-wrapping +
+        # expansion); the legacy flattener has no `files:` branch and would drop them.
         return False
     # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
     return (
@@ -729,8 +662,7 @@ def _flatten_legacy_image_config(config: object) -> list[dict]:
 
     def _add(entry: dict, extra: dict) -> None:
         merged = {**defaults, **extra, **entry}
-        # Always drop, regardless of where byte_order came from -- see
-        # _drop_incompatible_byte_order's docstring.
+        # Always drop, matching the pre-platform behavior -- see `_drop_incompatible_byte_order`.
         result.append(_drop_incompatible_byte_order(merged, {}))
 
     def _add_entries(entries: object, extra: dict) -> None:

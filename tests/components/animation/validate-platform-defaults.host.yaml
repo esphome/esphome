@@ -1,6 +1,4 @@
-# `platform: animation` entry using the shared (image component) `defaults:`/
-# `files:` expansion. Config-only test confirming the mechanism, implemented
-# once in the base `image` component, works unmodified for other platforms.
+# `platform: animation` entry exercising the shared `defaults:`/`files:` expansion.
 display:
   - platform: sdl
     id: animation_display
