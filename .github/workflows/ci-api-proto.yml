@@ -45,11 +45,14 @@ jobs:
         # apt cache entry and the cached apt action would write one copy per
         # pull request. Plain apt stays, but every call is bounded and
         # retried so a slow mirror fails the step instead of hanging it.
+        # timeout runs under sudo so it can kill apt-get itself; the
+        # per-call bounds are sized so all three attempts fit inside
+        # timeout-minutes (3 x (75 + 75 + 10) s).
         timeout-minutes: 10
         run: |
           for attempt in 1 2 3; do
-            if timeout 300 sudo apt-get update \
-              && timeout 300 sudo DEBIAN_FRONTEND=noninteractive \
+            if sudo timeout -k 15 60 apt-get update \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 60 \
                 apt-get install -y protobuf-compiler
             then
               protoc --version

@@ -74,10 +74,12 @@ jobs:
     # Pull request jobs restore the apt packages below through the cache
     # action, and a cache written on a pull request branch is only visible
     # to that one pull request. Pushes to dev/beta/release seed and refresh
-    # the single shared entry instead, so pull request jobs always hit it
-    # and never write a copy of their own. The package list and version
-    # must stay identical to the steps that restore it; the cache key is
-    # derived from them alone.
+    # the single shared entry instead, so pull request jobs hit it and never
+    # write a copy of their own for as long as that entry exists. The package
+    # list and version must stay identical to the steps that restore it; the
+    # cache key is derived from them alone. Listed in ci-status so a broken
+    # seed shows up on dev instead of quietly bringing per-pull-request
+    # copies back.
     if: github.event_name == 'push'
     timeout-minutes: 10
     steps:
@@ -491,17 +493,23 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Install libc6-dbg
-        # The CodSpeed runner installs this itself with a plain apt-get call
-        # that has no timeout, so a slow apt mirror hangs the job until
-        # timeout-minutes kills it. Installing it here with a bounded retry
-        # also lets the runner find it already present after restoring
-        # valgrind from its cache and skip apt entirely. The cached apt
-        # action cannot be used for this: it restores files without
-        # registering them with dpkg, so the runner would still call apt.
+        # The CodSpeed runner (CodSpeedHQ/codspeed, executor/valgrind/setup.rs)
+        # skips its own install only when valgrind is present and
+        # ``dpkg -s libc6-dbg`` succeeds; otherwise helpers/apt.rs runs
+        # ``apt-get update`` with no timeout, so a slow apt mirror hangs the
+        # job until timeout-minutes kills it. Installing libc6-dbg here with
+        # a bounded retry lets the runner skip apt once valgrind is restored
+        # from its cache. The cached apt action cannot be used for this: it
+        # restores files without registering them with dpkg. Best effort
+        # only; a failure here just hands the install back to the runner,
+        # with the job timeout as the backstop. Per-call bounds are sized so
+        # all three attempts fit inside timeout-minutes (3 x (75 + 75 + 10) s).
+        timeout-minutes: 10
+        continue-on-error: true
         run: |
           for attempt in 1 2 3; do
-            if timeout 300 sudo apt-get update \
-              && timeout 300 sudo DEBIAN_FRONTEND=noninteractive \
+            if sudo timeout -k 15 60 apt-get update \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 60 \
                 apt-get install -y libc6-dbg
             then
               exit 0
@@ -940,7 +948,10 @@ jobs:
         # pull-request-only job hits and never saves a copy of its own. A
         # cache hit never touches apt, so a slow mirror cannot hang the job,
         # and the timeout bounds the cold path. Package list and version
-        # must match seed-apt-cache exactly.
+        # must match seed-apt-cache exactly. The action has no
+        # --no-install-recommends, so the recommended packages of libsdl2-dev
+        # come along; this is the same package set this job used before
+        # #17463.
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
@@ -1480,6 +1491,7 @@ jobs:
     # this check.
     needs:
       - common
+      - seed-apt-cache
       - determine-jobs
       - ci-custom
       - pylint
