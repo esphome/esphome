@@ -1619,7 +1619,9 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
     if (this->has_ap()) {
+#ifdef USE_WIFI_AP
       this->end_ap_portal_();
+#endif
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
@@ -2219,6 +2221,9 @@ bool WiFiComponent::is_ap_portal_active_() {
   return this->is_captive_portal_active_();
 }
 
+#ifdef USE_WIFI_AP
+// global_web_server needs no null check: codegen always instantiates WebServer when
+// USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
 #ifdef USE_CAPTIVE_PORTAL
   if (captive_portal::global_captive_portal != nullptr)
@@ -2238,6 +2243,7 @@ void WiFiComponent::end_ap_portal_() {
   web_server::global_web_server->end_captive();
 #endif
 }
+#endif  // USE_WIFI_AP
 bool WiFiComponent::is_esp32_improv_active_() {
 #ifdef USE_IMPROV
   return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();

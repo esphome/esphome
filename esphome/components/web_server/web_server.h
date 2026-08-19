@@ -282,8 +282,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #ifdef USE_WEBSERVER_CAPTIVE
   /** AP mode: run a DNS server that answers every name with the AP address and redirect any
    * unknown URL to the interface, so a phone joining the AP opens it through the OS captive
-   * portal check. Started and ended by the wifi component with the access point; start may
-   * run before setup(), so it touches nothing but the DNS server.
+   * portal check. Started and ended by the wifi component with the access point. start may run
+   * before setup() (wifi sets up first): safe because enable_loop() is a no-op before setup;
+   * nothing but the DNS server may be touched, in particular not base_ or the handlers.
    */
   void start_captive();
   void end_captive();

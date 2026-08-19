@@ -346,11 +346,13 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 
 #ifdef USE_WEBSERVER_CAPTIVE
 WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) { global_web_server = this; }
-#else
-WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 #endif
+
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {
+#ifdef USE_WEBSERVER_CAPTIVE
+  global_web_server = this;
+#endif
+}
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
@@ -399,8 +401,7 @@ void WebServer::setup() {
 #ifdef USE_WEBSERVER_CAPTIVE
   // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
   // arbitrary URLs and must get the redirect without credentials.
-  this->base_->get_server()->onNotFound(
-      [](AsyncWebServerRequest *request) { global_web_server->handle_not_found_(request); });
+  this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *request) { this->handle_not_found_(request); });
 #endif
 
   // OTA is now handled by the web_server OTA platform
@@ -417,25 +418,24 @@ void WebServer::setup() {
   });
 }
 void WebServer::loop() {
-  bool has_clients = this->events_.loop();
+  bool keep_looping = this->events_.loop();
 #ifdef USE_WEBSERVER_CAPTIVE
-  if (this->dns_.is_running()) {
-    this->dns_.loop();
-    return;
-  }
+  this->dns_.loop();
+  keep_looping |= this->dns_.is_running();
 #endif
-  // No SSE clients connected; stop looping until a new client connects via
+  // No SSE clients connected (and no captive DNS to serve); stop looping until a new client connects via
   // enable_loop_soon_any_context(). This is safe because:
   // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
   // - deferrable_send_state early-outs when no clients are connected
   // - try_send_nodefer (log, ping) iterates sessions which are empty
   // - REST API handlers use defer() which runs via the Scheduler
-  if (!has_clients)
+  if (!keep_looping)
     this->disable_loop();
 }
 
 #ifdef USE_WEBSERVER_CAPTIVE
 void WebServer::start_captive() {
+  // CaptiveDNS::start() no-ops too; this guard just avoids repeating the log and enable_loop
   if (this->dns_.is_running())
     return;
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();

@@ -378,11 +378,18 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
     wifi_config = full_config.get(CONF_WIFI)
     if serve_captive(config, full_config):
         web_server_base.consume_captive_dns_sockets(config, "web_server")
+        if CONF_LOCAL not in config:
+            _LOGGER.info(
+                "WiFi is AP only: embedding the web interface in the firmware "
+                "(local: true) and serving it as a captive portal on the access point. "
+                "Set 'local: false' to load it from the internet instead."
+            )
     elif wifi_is_ap_only(wifi_config) and not serve_local(config, wifi_config):
         _LOGGER.warning(
-            "WiFi is AP only and web_server has local: false, so the web interface is "
-            "loaded from the internet, which browsers on the access point usually cannot "
-            "reach; the page stays blank. Remove 'local: false' to embed it in the firmware."
+            "WiFi is AP only and the web_server interface is loaded from the internet, "
+            "which browsers on the access point usually cannot reach; the page stays "
+            "blank. Remove 'local: false', or migrate off version 1, so the interface "
+            "is embedded in the firmware."
         )
 
 

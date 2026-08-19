@@ -1131,10 +1131,11 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #if (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE)) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
   // Configure DHCP Option 114 (Captive Portal URI) if captive portal or the web_server AP
   // mode is enabled. This provides a standards-compliant way for clients to discover the portal
-#ifdef USE_CAPTIVE_PORTAL
-  const bool has_portal = captive_portal::global_captive_portal != nullptr;
-#else
+#ifdef USE_WEBSERVER_CAPTIVE
+  // web_server AP mode always serves the portal when compiled in
   const bool has_portal = true;
+#else
+  const bool has_portal = captive_portal::global_captive_portal != nullptr;
 #endif
   if (has_portal) {
     // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy

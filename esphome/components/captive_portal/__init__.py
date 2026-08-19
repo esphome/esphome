@@ -74,7 +74,6 @@ def _final_validate(config: ConfigType) -> None:
             "Add 'ap:' to your WiFi configuration to enable the captive portal."
         )
 
-    # The listening socket is registered by web_server_base (shared HTTP server).
     web_server_base.consume_captive_dns_sockets(config, "captive_portal")
 
 
