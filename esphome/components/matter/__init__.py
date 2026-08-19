@@ -271,9 +271,9 @@ def _validate_final(config):
     # Detect PSRAM presence up-front — used both by the BLE-commissioning
     # branch below (which forces SPIRAM_USE_MALLOC to fit NimBLE + CHIP into
     # a mixed internal+PSRAM heap) and by the plain Matter path (where a
-    # device with many endpoints — 74 on unicontrol-max — exhausts internal
-    # DRAM otherwise, starving DMA-capable allocations like the W5500 SPI
-    # priv RX buffer). Flipped later in _apply_matter_psram_overrides.
+    # bridge with many endpoints exhausts internal DRAM otherwise, starving
+    # DMA-capable allocations like the W5500 SPI priv RX buffer). Flipped
+    # later in _apply_matter_psram_overrides.
     try:
         full_conf.get_config_for_path(["psram"])
         config["_psram_present"] = True
@@ -320,10 +320,11 @@ def _validate_final(config):
         # _psram_present is set above, before this branch
 
     # Auto-compute CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT so users don't
-    # have to hand-tune it every time they add or remove an entity. The Kconfig
-    # default (16) is far below the entity count of realistic Flexip boards
-    # (unicontrol-max has ~74), and overrunning the limit aborts endpoint
-    # creation at boot. Sum: entity endpoints scanned by the C++ side
+    # have to hand-tune it every time they add or remove an entity. The
+    # Kconfig default (16) is far below the entity count of a modest bridge
+    # (tested with ~74 bridged entities on one board), and overrunning the
+    # limit aborts endpoint creation at boot. Sum: entity endpoints scanned
+    # by the C++ side
     # (scan_and_register_*), plus root_node + aggregator overhead, plus a small
     # headroom so incidental yaml edits don't force a sdkconfig change and a
     # full esp-matter rebuild. Clamped to the Kconfig range; floored at the
@@ -471,8 +472,8 @@ async def to_code(config):
                 # commissioning uses exactly one; every unused slot costs ~4-8KB.
                 "CONFIG_BT_NIMBLE_MAX_CONNECTIONS": 1,
                 # NimBLE host task stack — 4KB default. On the classic ESP32
-                # a shallower 3KB stack survived commissioning (verified on
-                # the Wi-Fi PoC's tighter code path), but on ESP32-S3 the CHIP
+                # a shallower 3KB stack survived commissioning in an earlier
+                # slimmer configuration, but on ESP32-S3 the CHIP
                 # ↔ NimBLE bridge is deeper: the GATT service registration
                 # and PASE-start callbacks all run inside the nimble_host task
                 # and blow 3KB the moment a central connects, causing a
@@ -483,8 +484,9 @@ async def to_code(config):
                 "CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE": 5120,
                 # Wi-Fi driver RX buffers stay at IDF defaults (10 static /
                 # 32 dynamic). Earlier we shrank STATIC_RX to 4 to save RAM
-                # on the classic ESP32, but on the ESP32-S3 BLE PoC that
-                # broke Matter's post-commissioning Wi-Fi provisioning: WPA2
+                # on the classic ESP32, but on the ESP32-S3 with BLE
+                # commissioning enabled that broke Matter's post-commissioning
+                # Wi-Fi provisioning: WPA2
                 # 4-way handshake sends four EAPOL frames back-to-back while
                 # beacons + probe responses are still arriving, and four RX
                 # slots overflow → EAPOL dropped → `Auth Expired`. The
@@ -509,7 +511,8 @@ async def to_code(config):
                 # trace from the ESP-IDF native code — including everything
                 # useful for debugging BLE commissioning. INFO is the smallest
                 # bump that reveals what NimBLE and the CHIP BLE layer are
-                # doing; only ~a few KB of extra flash on the BLE PoC path.
+                # doing; only ~a few KB of extra flash when BLE
+                # commissioning is enabled.
                 "CONFIG_LOG_DEFAULT_LEVEL_ERROR": False,
                 "CONFIG_LOG_DEFAULT_LEVEL_INFO": True,
                 "CONFIG_LOG_MAXIMUM_LEVEL_ERROR": False,
@@ -543,9 +546,9 @@ async def to_code(config):
         # these off is free.
         "CONFIG_SUPPORT_CLOSURE_CONTROL_CLUSTER": False,
         "CONFIG_SUPPORT_CLOSURE_DIMENSION_CLUSTER": False,
-        # CHIP resource caps sized for multi-fabric bridge devices. The
-        # unicontrol-max ships as an Aggregator with ~72 Bridged Device Basic
-        # Info endpoints, and controllers like eWeLink Cube / Sonoff open
+        # CHIP resource caps sized for multi-fabric bridge devices. A large
+        # bridge (Aggregator + ~72 Bridged Device Basic Info endpoints) is a
+        # realistic worst case, and controllers like eWeLink Cube / Sonoff open
         # wildcard subscriptions against every one of them the moment they
         # commission. The Kconfig defaults (5 fabrics → 15 subscriptions →
         # 45 subscription path groups → 45 read path groups) were sized for a
@@ -638,9 +641,8 @@ async def to_code(config):
         # fixed-size static array. Combined with SPIRAM_USE_MALLOC (set in
         # _apply_matter_psram_overrides), the pool nodes spill into PSRAM
         # rather than fighting internal DRAM. Trade-off: certification tests
-        # flag this because there is no upstream cap on subscription count —
-        # not a concern for the PoC (uncertified). Behavior is unchanged for
-        # devices that never hit the old caps.
+        # flag this because there is no upstream cap on subscription count.
+        # Behavior is unchanged for devices that never hit the old caps.
         "CONFIG_CHIP_SYSTEM_CONFIG_POOL_USE_HEAP": True,
         # Custom DeviceInfoProvider so we can serve per-endpoint FixedLabel
         # entries (endpoint name shown by controllers) without touching the

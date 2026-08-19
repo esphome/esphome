@@ -31,15 +31,15 @@ MatterBinarySensorEndpoint::DeviceKind MatterBinarySensorEndpoint::pick_device_k
   char buf[esphome::MAX_DEVICE_CLASS_LENGTH]{};
   const char *dc = this->bs_->get_device_class_to(std::span<char, esphome::MAX_DEVICE_CLASS_LENGTH>(buf));
   if (dc == nullptr || dc[0] == '\0') {
-    return DeviceKind::CONTACT;
+    return DeviceKind::DEVICE_KIND_CONTACT;
   }
   // Matter OccupancySensing covers motion detectors, presence detectors and
   // occupancy sensors. Everything else defaults to a contact sensor (spec-safe
   // fallback — a door sensor mislabelled as contact still works).
   if (std::strcmp(dc, "motion") == 0 || std::strcmp(dc, "occupancy") == 0 || std::strcmp(dc, "presence") == 0) {
-    return DeviceKind::OCCUPANCY;
+    return DeviceKind::DEVICE_KIND_OCCUPANCY;
   }
-  return DeviceKind::CONTACT;
+  return DeviceKind::DEVICE_KIND_CONTACT;
 }
 
 bool MatterBinarySensorEndpoint::setup() {
@@ -52,7 +52,7 @@ bool MatterBinarySensorEndpoint::setup() {
   this->kind_ = this->pick_device_kind_();
 
   ::esp_matter::endpoint_t *endpoint = nullptr;
-  if (this->kind_ == DeviceKind::OCCUPANCY) {
+  if (this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY) {
     ::esp_matter::endpoint::occupancy_sensor::config_t config;
     // OccupancySensorType default = PIR (0). Bitmap advertises PIR.
     config.occupancy_sensing.occupancy_sensor_type = 0;
@@ -85,7 +85,8 @@ bool MatterBinarySensorEndpoint::setup() {
   });
 
   ESP_LOGI(TAG, "registered binary_sensor '%s' as Matter %s endpoint %u", this->bs_->get_name().c_str(),
-           this->kind_ == DeviceKind::OCCUPANCY ? "occupancy_sensor" : "contact_sensor", this->endpoint_id_);
+           this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY ? "occupancy_sensor" : "contact_sensor",
+           this->endpoint_id_);
   return true;
 }
 
@@ -96,7 +97,7 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
   uint32_t cluster_id;
   uint32_t attribute_id;
   bool internally_managed;
-  if (this->kind_ == DeviceKind::OCCUPANCY) {
+  if (this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY) {
     // OccupancySensing.Occupancy bit0 = occupied.
     val = ::esp_matter_bitmap8(state ? 0x01 : 0x00);
     cluster_id = chip::app::Clusters::OccupancySensing::Id;

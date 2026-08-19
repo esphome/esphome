@@ -89,6 +89,14 @@ class MatterClimateEndpoint {
   bool supports_heating_{false};
   bool supports_cooling_{false};
   bool supports_auto_{false};
+  // True when the ESPHome climate reports CLIMATE_SUPPORTS_TWO_POINT_TARGET_
+  // TEMPERATURE — i.e. it exposes target_temperature_low / _high. Without
+  // this the "heat = target-0.5, cool = target+0.5" spread hack we used to
+  // apply to satisfy Auto's MinSetpointDeadBand drifts the ESPHome target
+  // downward on every fabric round-trip, so AutoMode is disabled and each
+  // setpoint is published as-is (spec §4.3.7.5 makes the deadband check
+  // conditional on AutoMode).
+  bool supports_two_point_target_{false};
 
   // Probed at setup() by walking the created cluster's attribute list. If a
   // future esp-matter version stops creating the setpoint attributes for a

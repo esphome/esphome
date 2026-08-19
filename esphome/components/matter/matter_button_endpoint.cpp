@@ -73,10 +73,10 @@ void MatterButtonEndpoint::emit_press_cycle_() {
   // Switch events go through CHIP's EventManagement::LogEvent which asserts
   // the CHIP stack lock. We're firing from the ESPHome loop task (interval
   // → button.press → this callback), NOT from the CHIP task, so we must take
-  // the lock ourselves. Same pattern as the binary_sensor MANAGED_INTERNALLY
-  // workaround — see MATTER.md gotcha #4. Attribute updates via
-  // esp_matter::attribute::update() take the lock internally, but event
-  // helpers do not.
+  // the lock ourselves — matter_binary_sensor_endpoint uses the same
+  // ScopedChipStackLock around its own event pushes for the same reason.
+  // Attribute updates via esp_matter::attribute::update() take the lock
+  // internally, but event helpers do not.
   ::esp_matter::lock::ScopedChipStackLock stack_lock(portMAX_DELAY);
 
   // 1) CurrentPosition = 1 (pressed) — spec §1.13.5.2

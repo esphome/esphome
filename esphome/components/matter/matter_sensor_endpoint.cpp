@@ -38,22 +38,22 @@ bool MatterSensorEndpoint::detect_kind() {
       unit == "\xc2\xb0"
               "C" ||
       unit == "C") {
-    this->kind_ = Kind::TEMPERATURE;
+    this->kind_ = Kind::KIND_TEMPERATURE;
   } else if (unit == "%") {
     // Ambiguous — could be humidity or battery. Fall through to device_class
     // check below; only assume humidity if device_class matches too, else
     // skip so we don't accidentally publish battery % as humidity.
   } else if (unit == "hPa") {
-    this->kind_ = Kind::PRESSURE_HPA;
+    this->kind_ = Kind::KIND_PRESSURE_HPA;
   } else if (unit == "kPa") {
-    this->kind_ = Kind::PRESSURE_KPA;
+    this->kind_ = Kind::KIND_PRESSURE_KPA;
   } else if (unit == "lx") {
-    this->kind_ = Kind::ILLUMINANCE;
+    this->kind_ = Kind::KIND_ILLUMINANCE;
   } else if (unit == "m³/h" || unit == "m^3/h" || unit == "m3/h") {
-    this->kind_ = Kind::FLOW;
+    this->kind_ = Kind::KIND_FLOW;
   }
 
-  if (this->kind_ != Kind::UNKNOWN) {
+  if (this->kind_ != Kind::KIND_UNKNOWN) {
     return true;
   }
 
@@ -65,17 +65,17 @@ bool MatterSensorEndpoint::detect_kind() {
     return false;
   }
   if (std::strcmp(dc, "temperature") == 0) {
-    this->kind_ = Kind::TEMPERATURE;
+    this->kind_ = Kind::KIND_TEMPERATURE;
   } else if (std::strcmp(dc, "humidity") == 0) {
-    this->kind_ = Kind::HUMIDITY;
+    this->kind_ = Kind::KIND_HUMIDITY;
   } else if (std::strcmp(dc, "pressure") == 0 || std::strcmp(dc, "atmospheric_pressure") == 0) {
     // Assume hPa when the user gave a device_class but no clear unit —
     // matches ESPHome's typical sensor: platform: bmp280 defaults.
-    this->kind_ = Kind::PRESSURE_HPA;
+    this->kind_ = Kind::KIND_PRESSURE_HPA;
   } else if (std::strcmp(dc, "illuminance") == 0) {
-    this->kind_ = Kind::ILLUMINANCE;
+    this->kind_ = Kind::KIND_ILLUMINANCE;
   }
-  return this->kind_ != Kind::UNKNOWN;
+  return this->kind_ != Kind::KIND_UNKNOWN;
 }
 
 bool MatterSensorEndpoint::setup() {
@@ -84,7 +84,7 @@ bool MatterSensorEndpoint::setup() {
     ESP_LOGE(TAG, "no Matter node available for sensor '%s'", this->sensor_->get_name().c_str());
     return false;
   }
-  if (this->kind_ == Kind::UNKNOWN) {
+  if (this->kind_ == Kind::KIND_UNKNOWN) {
     ESP_LOGW(TAG, "skipping sensor '%s' — no unit/device_class mapping to Matter cluster",
              this->sensor_->get_name().c_str());
     return false;
@@ -93,39 +93,39 @@ bool MatterSensorEndpoint::setup() {
   ::esp_matter::endpoint_t *endpoint = nullptr;
   const char *device_type_name = "";
   switch (this->kind_) {
-    case Kind::TEMPERATURE: {
+    case Kind::KIND_TEMPERATURE: {
       ::esp_matter::endpoint::temperature_sensor::config_t config;
       endpoint =
           ::esp_matter::endpoint::temperature_sensor::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       device_type_name = "temperature_sensor";
       break;
     }
-    case Kind::HUMIDITY: {
+    case Kind::KIND_HUMIDITY: {
       ::esp_matter::endpoint::humidity_sensor::config_t config;
       endpoint = ::esp_matter::endpoint::humidity_sensor::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       device_type_name = "humidity_sensor";
       break;
     }
-    case Kind::PRESSURE_HPA:
-    case Kind::PRESSURE_KPA: {
+    case Kind::KIND_PRESSURE_HPA:
+    case Kind::KIND_PRESSURE_KPA: {
       ::esp_matter::endpoint::pressure_sensor::config_t config;
       endpoint = ::esp_matter::endpoint::pressure_sensor::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       device_type_name = "pressure_sensor";
       break;
     }
-    case Kind::ILLUMINANCE: {
+    case Kind::KIND_ILLUMINANCE: {
       ::esp_matter::endpoint::light_sensor::config_t config;
       endpoint = ::esp_matter::endpoint::light_sensor::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       device_type_name = "light_sensor";
       break;
     }
-    case Kind::FLOW: {
+    case Kind::KIND_FLOW: {
       ::esp_matter::endpoint::flow_sensor::config_t config;
       endpoint = ::esp_matter::endpoint::flow_sensor::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       device_type_name = "flow_sensor";
       break;
     }
-    case Kind::UNKNOWN:
+    case Kind::KIND_UNKNOWN:
       return false;
   }
   if (endpoint == nullptr) {
@@ -167,7 +167,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
   uint32_t cluster_id = 0;
   uint32_t attribute_id = 0;
   switch (this->kind_) {
-    case Kind::TEMPERATURE: {
+    case Kind::KIND_TEMPERATURE: {
       // °C × 100, int16, clamped to spec range.
       int32_t v = static_cast<int32_t>(std::lround(state * 100.0f));
       v = std::clamp(v, static_cast<int32_t>(-27315), static_cast<int32_t>(32767));
@@ -176,7 +176,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
       attribute_id = chip::app::Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Id;
       break;
     }
-    case Kind::HUMIDITY: {
+    case Kind::KIND_HUMIDITY: {
       // %RH × 100, uint16, 0..10000.
       int32_t v = static_cast<int32_t>(std::lround(state * 100.0f));
       v = std::clamp(v, static_cast<int32_t>(0), static_cast<int32_t>(10000));
@@ -185,10 +185,10 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
       attribute_id = chip::app::Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Id;
       break;
     }
-    case Kind::PRESSURE_HPA:
-    case Kind::PRESSURE_KPA: {
+    case Kind::KIND_PRESSURE_HPA:
+    case Kind::KIND_PRESSURE_KPA: {
       // Matter attribute unit = kPa × 10, int16.
-      float kpa = (this->kind_ == Kind::PRESSURE_HPA) ? state * 0.1f : state;
+      float kpa = (this->kind_ == Kind::KIND_PRESSURE_HPA) ? state * 0.1f : state;
       int32_t v = static_cast<int32_t>(std::lround(kpa * 10.0f));
       v = std::clamp(v, static_cast<int32_t>(-32768), static_cast<int32_t>(32767));
       val = ::esp_matter_nullable_int16(static_cast<int16_t>(v));
@@ -196,7 +196,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
       attribute_id = chip::app::Clusters::PressureMeasurement::Attributes::MeasuredValue::Id;
       break;
     }
-    case Kind::ILLUMINANCE: {
+    case Kind::KIND_ILLUMINANCE: {
       // Matter formula: 10000 * log10(lux) + 1. lux <= 1 clamps to 1.
       float lux = std::max(state, 1.0f);
       int32_t v = static_cast<int32_t>(std::lround(10000.0f * std::log10(lux) + 1.0f));
@@ -206,7 +206,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
       attribute_id = chip::app::Clusters::IlluminanceMeasurement::Attributes::MeasuredValue::Id;
       break;
     }
-    case Kind::FLOW: {
+    case Kind::KIND_FLOW: {
       // Matter attribute unit = m³/h × 10, uint16.
       int32_t v = static_cast<int32_t>(std::lround(state * 10.0f));
       v = std::clamp(v, static_cast<int32_t>(0), static_cast<int32_t>(0xFFFE));
@@ -215,7 +215,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
       attribute_id = chip::app::Clusters::FlowMeasurement::Attributes::MeasuredValue::Id;
       break;
     }
-    case Kind::UNKNOWN:
+    case Kind::KIND_UNKNOWN:
       return;
   }
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
@@ -229,33 +229,33 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
   uint32_t cluster_id = 0;
   uint32_t attribute_id = 0;
   switch (this->kind_) {
-    case Kind::TEMPERATURE:
+    case Kind::KIND_TEMPERATURE:
       val = ::esp_matter_nullable_int16(::nullable<int16_t>());
       cluster_id = chip::app::Clusters::TemperatureMeasurement::Id;
       attribute_id = chip::app::Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Id;
       break;
-    case Kind::HUMIDITY:
+    case Kind::KIND_HUMIDITY:
       val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
       cluster_id = chip::app::Clusters::RelativeHumidityMeasurement::Id;
       attribute_id = chip::app::Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Id;
       break;
-    case Kind::PRESSURE_HPA:
-    case Kind::PRESSURE_KPA:
+    case Kind::KIND_PRESSURE_HPA:
+    case Kind::KIND_PRESSURE_KPA:
       val = ::esp_matter_nullable_int16(::nullable<int16_t>());
       cluster_id = chip::app::Clusters::PressureMeasurement::Id;
       attribute_id = chip::app::Clusters::PressureMeasurement::Attributes::MeasuredValue::Id;
       break;
-    case Kind::ILLUMINANCE:
+    case Kind::KIND_ILLUMINANCE:
       val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
       cluster_id = chip::app::Clusters::IlluminanceMeasurement::Id;
       attribute_id = chip::app::Clusters::IlluminanceMeasurement::Attributes::MeasuredValue::Id;
       break;
-    case Kind::FLOW:
+    case Kind::KIND_FLOW:
       val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
       cluster_id = chip::app::Clusters::FlowMeasurement::Id;
       attribute_id = chip::app::Clusters::FlowMeasurement::Attributes::MeasuredValue::Id;
       break;
-    case Kind::UNKNOWN:
+    case Kind::KIND_UNKNOWN:
       return;
   }
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);

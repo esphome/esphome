@@ -29,12 +29,14 @@ class MatterComponent;
 // pairing" endpoint over the very fabric it manages.
 class MatterActionButton : public ::esphome::button::Button, public Component {
  public:
+  // Values follow the AGENTS.md rule for enum classes — prefix each with
+  // the UPPER_SNAKE_CASE form of the enum name.
   enum class Action : uint8_t {
-    OPEN_COMMISSIONING_WINDOW = 0,
+    ACTION_OPEN_COMMISSIONING_WINDOW = 0,
     // Wipes the Matter fabric (chip-config NVS + fabric table) and reboots.
     // Delegates to esp_matter::factory_reset, which schedules the wipe on the
     // CHIP task and calls esp_restart after — the ESPHome loop never returns.
-    FACTORY_RESET = 1,
+    ACTION_FACTORY_RESET = 1,
   };
 
   MatterActionButton();
@@ -59,7 +61,7 @@ class MatterActionButton : public ::esphome::button::Button, public Component {
   void press_action() override;
 
   MatterComponent *matter_{nullptr};
-  Action action_{Action::OPEN_COMMISSIONING_WINDOW};
+  Action action_{Action::ACTION_OPEN_COMMISSIONING_WINDOW};
   uint32_t timeout_seconds_{300};
 };
 

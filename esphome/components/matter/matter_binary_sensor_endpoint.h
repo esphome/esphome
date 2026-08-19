@@ -28,9 +28,13 @@ namespace matter {
 // there is no on_matter_write() nor an applying_matter_write_ guard.
 class MatterBinarySensorEndpoint {
  public:
+  // Values follow the AGENTS.md rule for enum classes — prefix each with
+  // the UPPER_SNAKE_CASE form of the enum name so bare tokens like CONTACT
+  // never collide with SDK #define macros the preprocessor would substitute
+  // before the compiler sees them.
   enum class DeviceKind : uint8_t {
-    CONTACT,
-    OCCUPANCY,
+    DEVICE_KIND_CONTACT,
+    DEVICE_KIND_OCCUPANCY,
   };
 
   explicit MatterBinarySensorEndpoint(binary_sensor::BinarySensor *bs);
@@ -45,7 +49,7 @@ class MatterBinarySensorEndpoint {
 
   binary_sensor::BinarySensor *bs_;
   uint16_t endpoint_id_{0};
-  DeviceKind kind_{DeviceKind::CONTACT};
+  DeviceKind kind_{DeviceKind::DEVICE_KIND_CONTACT};
 };
 
 }  // namespace matter

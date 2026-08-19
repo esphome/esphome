@@ -47,19 +47,33 @@ bool MatterClimateEndpoint::setup() {
   auto traits = this->climate_->get_traits();
   this->supports_heating_ = traits.supports_mode(climate::CLIMATE_MODE_HEAT);
   this->supports_cooling_ = traits.supports_mode(climate::CLIMATE_MODE_COOL);
-  this->supports_auto_ =
+  this->supports_two_point_target_ = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+  // AutoMode requires both Heating and Cooling per Matter spec AND enforces
+  // MinSetpointDeadBand between the two setpoints. Without a real two-point
+  // target, publishing target ± spread would drift the ESPHome target on
+  // every fabric round-trip. So we only advertise Auto when the climate
+  // actually exposes target_temperature_low / _high. Without Auto the
+  // MinSetpointDeadBand check does not apply (spec §4.3.7.5), so we can
+  // still expose both Heating and Cooling with a shared single setpoint.
+  const bool declares_auto =
       traits.supports_mode(climate::CLIMATE_MODE_HEAT_COOL) || traits.supports_mode(climate::CLIMATE_MODE_AUTO);
-  // Auto mandates both Heating and Cooling per Matter spec. Force-enable them
-  // rather than silently dropping Auto — the ESPHome climate advertised
-  // HEAT_COOL, so it can physically do both.
-  if (this->supports_auto_) {
+  this->supports_auto_ = declares_auto && this->supports_two_point_target_;
+  if (declares_auto) {
+    // ESPHome advertised HEAT_COOL, so the climate can physically do both.
     this->supports_heating_ = true;
     this->supports_cooling_ = true;
+    if (!this->supports_two_point_target_) {
+      ESP_LOGD(TAG,
+               "climate '%s' supports HEAT_COOL but not two-point target — "
+               "not advertising Matter AutoMode; heating/cooling setpoints "
+               "share the single ESPHome target",
+               this->climate_->get_name().c_str());
+    }
   }
 
   // esp-matter's thermostat cluster runs VALIDATE_FEATURES_AT_LEAST_ONE at
-  // boot ([[matter_feature_flags_gotcha]]); an off-only climate would crash
-  // the whole node. Skip with a warning — the user probably forgot to add
+  // boot; an off-only climate would trip that check and abort the whole
+  // node. Skip with a warning — the user probably forgot to add
   // supported_modes to the template climate.
   if (!this->supports_heating_ && !this->supports_cooling_) {
     ESP_LOGW(TAG, "climate '%s' supports neither HEAT nor COOL — skipping (Matter Thermostat requires at least one)",
@@ -269,30 +283,34 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   }
 
   // Setpoints — publish separate heating and cooling values when the climate
-  // reports a two-point target (HEAT_COOL mode uses target_temperature_low /
-  // target_temperature_high). When only a single-point target is set (HEAT or
-  // COOL alone), reuse that value for both. In HEAT+COOL+Auto mode the CHIP
-  // thermostat server enforces a MinSetpointDeadBand between the two — if
-  // they're equal, PreAttributeChanged rejects the write with InvalidValue.
-  // We keep at least ~1°C spread here so the deadband check passes with
-  // esp-matter's default (0.2°C).
-  auto ctraits = this->climate_->get_traits();
-  bool two_point = ctraits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+  // exposes a real two-point target. Otherwise share the single setpoint
+  // across both attributes: with AutoMode disabled (see setup) the CHIP
+  // thermostat server no longer enforces MinSetpointDeadBand, so the
+  // ±spread hack is neither needed nor safe (it drifted the ESPHome target
+  // downward on every fabric round-trip).
   float heat_c;
   float cool_c;
-  if (two_point) {
+  if (this->supports_two_point_target_) {
     heat_c = this->climate_->target_temperature_low;
     cool_c = this->climate_->target_temperature_high;
+    if (this->supports_auto_) {
+      constexpr float kMinSpread = 1.0f;  // °C — safely above the 0.2°C default deadband
+      if (std::isnan(heat_c) || std::isnan(cool_c) || cool_c - heat_c < kMinSpread) {
+        float mid = std::isnan(heat_c) || std::isnan(cool_c) ? 22.5f : (heat_c + cool_c) / 2.0f;
+        heat_c = mid - kMinSpread / 2.0f;
+        cool_c = mid + kMinSpread / 2.0f;
+      }
+    }
   } else {
     heat_c = this->climate_->target_temperature;
     cool_c = this->climate_->target_temperature;
-  }
-  if (this->supports_heating_ && this->supports_cooling_) {
-    constexpr float kMinSpread = 1.0f;  // °C — safely above the 0.2°C default deadband
-    if (std::isnan(heat_c) || std::isnan(cool_c) || cool_c - heat_c < kMinSpread) {
-      float mid = std::isnan(heat_c) || std::isnan(cool_c) ? 22.5f : (heat_c + cool_c) / 2.0f;
-      heat_c = mid - kMinSpread / 2.0f;
-      cool_c = mid + kMinSpread / 2.0f;
+    if (std::isnan(heat_c)) {
+      // celsius_to_hundredths_ substitutes 20.00°C for NaN because the
+      // Occupied*Setpoint attributes are non-nullable; note it so the
+      // fabricated value isn't mistaken for a genuine reading during
+      // early boot when the climate hasn't produced a target yet.
+      ESP_LOGD(TAG, "endpoint %u: no target_temperature yet — publishing setpoint fallback 20.00 °C",
+               this->endpoint_id_);
     }
   }
 

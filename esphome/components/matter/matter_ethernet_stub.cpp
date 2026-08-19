@@ -8,10 +8,10 @@
 // esp-matter's own NetworkCommissioningDriver_Ethernet.cpp hardcodes PHY = IP101
 // and calls esp_eth_driver_install() on its own, then esp_netif_attach() and
 // esp_eth_start(). In an ESPHome build the `ethernet:` component already
-// installed the PHY driver (LAN8720 on the classic ESP32 PoCs, W5500 on
-// unicontrol-max), created the netif, and started it — so esp-matter's Init()
-// aborts with ESP_ERR_INVALID_ARG on esp_eth_driver_install(): a second install
-// is not legal, and the PHY types don't match.
+// installed the PHY driver (whatever the user configured — LAN8720, W5500,
+// etc.), created the netif, and started it — so esp-matter's Init() aborts
+// with ESP_ERR_INVALID_ARG on esp_eth_driver_install(): a second install is
+// not legal, and the PHY types don't match.
 //
 // esp-matter's own comment invites this override:
 //   /* Currently default ethernet board supported is IP101, if you want to

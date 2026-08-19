@@ -37,8 +37,8 @@ Patches:
      invalidates pointers to existing elements (C++ spec guarantee). Fixes
      a rehash bug where CHIP's cluster registry holds pointers into the
      map that go dangling when ``unordered_map`` grows past its load-factor
-     threshold. On unicontrol-max with 76 endpoints (root + aggregator +
-     74 entities) this reproducibly corrupted
+     threshold. On a bridge with 76 endpoints (root + aggregator + 74
+     bridged entities) this reproducibly corrupted
      ``DefaultServerCluster::Startup`` mid-boot.
   4. esp_matter's top-level CMakeLists.txt — drop the arm that excludes
      ``ESP32DnssdImpl.cpp`` when both ``ENABLE_WIFI_STATION`` and
@@ -81,7 +81,7 @@ class PatchError(Exception):
     """
 
 
-PATCH1_STUB = """// PATCHED-BY-UNISEC-MATTER
+PATCH1_STUB = """// ESPHOME-MATTER-PATCH
 //
 // Original file hardcoded internal ESP32 EMAC APIs (esp_eth_mac_new_esp32,
 // eth_esp32_emac_config_t) that do not exist on ESP32-S3/S2/C3/C6/H2 with
@@ -97,7 +97,7 @@ PATCH2_OLD = (
     '== CHIP_NO_ERROR, ESP_FAIL, ESP_LOGE(TAG, "Error initializing Wi-Fi stack"));'
 )
 PATCH2_NEW = (
-    "// PATCHED-BY-UNISEC-MATTER-WIFI: InitWiFiStack skipped — ESPHome owns "
+    "// ESPHOME-MATTER-PATCH-WIFI: InitWiFiStack skipped — ESPHome owns "
     "esp_wifi_init; WIFI_EVENT handler re-registered from matter_component.cpp"
 )
 
@@ -119,7 +119,7 @@ PATCH4_OLD = (
     "    endif()"
 )
 PATCH4_NEW = (
-    "    # PATCHED-BY-UNISEC-MATTER-DNSSD: dropped the "
+    "    # ESPHOME-MATTER-PATCH-DNSSD: dropped the "
     "!WIFI_STATION && !WIFI_AP arm.\n"
     "    # DnssdImpl.cpp references EspDnssd* symbols defined in "
     "ESP32DnssdImpl.cpp;\n"
@@ -132,10 +132,10 @@ PATCH4_NEW = (
     "    endif()"
 )
 
-PATCH5_MARKER_V2 = "# PATCHED-BY-UNISEC-MATTER-KCONFIG-V2"
-PATCH5_MARKER_V1 = "PATCHED-BY-UNISEC-MATTER-KCONFIG"
+PATCH5_MARKER_V2 = "# ESPHOME-MATTER-PATCH-KCONFIG-V2"
+PATCH5_MARKER_V1 = "ESPHOME-MATTER-PATCH-KCONFIG"
 PATCH5_REPLACEMENT = (
-    "        # PATCHED-BY-UNISEC-MATTER-KCONFIG-V2: standalone declaration of\n"
+    "        # ESPHOME-MATTER-PATCH-KCONFIG-V2: standalone declaration of\n"
     "        # SEC_CERT_DAC_PROVIDER removed. The symbol is a member of the\n"
     "        # ESP_MATTER_DAC_PROVIDER choice defined at esp_matter/Kconfig:48;\n"
     "        # every reference below (`depends on SEC_CERT_DAC_PROVIDER`) and\n"
@@ -168,7 +168,7 @@ PATCH6_OLD = (
     "    endif()"
 )
 PATCH6_NEW = (
-    "# PATCHED-BY-UNISEC-MATTER-IPV4-GUARD: keep LwIP IPv4 available for the\n"
+    "# ESPHOME-MATTER-PATCH-IPV4-GUARD: keep LwIP IPv4 available for the\n"
     "# outer ESPHome application (api / ota / captive_portal / non-Matter mdns)\n"
     "# while still forcing CHIP itself onto IPv6 only. INET_CONFIG_ENABLE_IPV4=0\n"
     "# (set by CONFIG_DISABLE_IPV4=y via Kconfig) strips every IPv4 code path\n"
@@ -182,7 +182,7 @@ PATCH6_NEW = (
 )
 
 
-PATCH3_MARKER = "// PATCHED-BY-UNISEC-MATTER-MAP"
+PATCH3_MARKER = "// ESPHOME-MATTER-PATCH-MAP"
 
 # Two substitutions per integration file: swap the include and the type
 # alias. std::unordered_map guarantees O(1) average lookup at the price of
@@ -238,7 +238,7 @@ def _apply_std_map_swap(path: Path) -> str:
     # Remove the earlier UserLabel-specific reserve() patch if it lingers from
     # a prior build. std::map has no bucket_count/reserve — leaving those in
     # yields a compile error.
-    old_marker = "// PATCHED-BY-UNISEC-MATTER-USERLABEL"
+    old_marker = "// ESPHOME-MATTER-PATCH-USERLABEL"
     if old_marker in content:
         cleaned_lines = []
         skip_lines = 0
@@ -384,7 +384,7 @@ def apply_patches(matter_dir: Path) -> list:
             / "platform"
             / "ESP32"
             / "NetworkCommissioningDriver_Ethernet.cpp",
-            "PATCHED-BY-UNISEC-MATTER",
+            "ESPHOME-MATTER-PATCH",
             PATCH1_STUB,
         )
     )
@@ -392,7 +392,7 @@ def apply_patches(matter_dir: Path) -> list:
     results.append(
         _apply_string_replace(
             matter_dir / "components" / "esp_matter" / "esp_matter_core.cpp",
-            "PATCHED-BY-UNISEC-MATTER-WIFI",
+            "ESPHOME-MATTER-PATCH-WIFI",
             PATCH2_OLD,
             PATCH2_NEW,
         )
@@ -401,7 +401,7 @@ def apply_patches(matter_dir: Path) -> list:
     results.append(
         _apply_string_replace(
             matter_dir / "CMakeLists.txt",
-            "PATCHED-BY-UNISEC-MATTER-DNSSD",
+            "ESPHOME-MATTER-PATCH-DNSSD",
             PATCH4_OLD,
             PATCH4_NEW,
         )
@@ -431,7 +431,7 @@ def apply_patches(matter_dir: Path) -> list:
     results.append(
         _apply_string_replace(
             matter_dir / "CMakeLists.txt",
-            "PATCHED-BY-UNISEC-MATTER-IPV4-GUARD",
+            "ESPHOME-MATTER-PATCH-IPV4-GUARD",
             PATCH6_OLD,
             PATCH6_NEW,
         )

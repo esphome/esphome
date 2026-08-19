@@ -32,15 +32,15 @@ MatterLightEndpoint::DeviceKind MatterLightEndpoint::detect_device_kind_() const
   const bool has_ct = traits.supports_color_capability(::esphome::light::ColorCapability::COLOR_TEMPERATURE);
   const bool has_brightness = traits.supports_color_capability(::esphome::light::ColorCapability::BRIGHTNESS);
   if (has_rgb) {
-    return DeviceKind::kExtendedColor;
+    return DeviceKind::DEVICE_KIND_EXTENDED_COLOR;
   }
   if (has_ct) {
-    return DeviceKind::kColorTemperature;
+    return DeviceKind::DEVICE_KIND_COLOR_TEMPERATURE;
   }
   if (has_brightness) {
-    return DeviceKind::kDimmable;
+    return DeviceKind::DEVICE_KIND_DIMMABLE;
   }
-  return DeviceKind::kOnOff;
+  return DeviceKind::DEVICE_KIND_ON_OFF;
 }
 
 bool MatterLightEndpoint::setup() {
@@ -79,20 +79,20 @@ bool MatterLightEndpoint::setup() {
 
   ::esp_matter::endpoint_t *endpoint = nullptr;
   switch (this->device_kind_) {
-    case DeviceKind::kOnOff: {
+    case DeviceKind::DEVICE_KIND_ON_OFF: {
       ::esp_matter::endpoint::on_off_light::config_t config;
       config.on_off.on_off = initial_on;
       endpoint = ::esp_matter::endpoint::on_off_light::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       break;
     }
-    case DeviceKind::kDimmable: {
+    case DeviceKind::DEVICE_KIND_DIMMABLE: {
       ::esp_matter::endpoint::dimmable_light::config_t config;
       config.on_off.on_off = initial_on;
       config.level_control.current_level = initial_level;
       endpoint = ::esp_matter::endpoint::dimmable_light::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
       break;
     }
-    case DeviceKind::kColorTemperature: {
+    case DeviceKind::DEVICE_KIND_COLOR_TEMPERATURE: {
       ::esp_matter::endpoint::color_temperature_light::config_t config;
       config.on_off.on_off = initial_on;
       config.level_control.current_level = initial_level;
@@ -109,7 +109,7 @@ bool MatterLightEndpoint::setup() {
                                                                          ::esp_matter::ENDPOINT_FLAG_NONE, this);
       break;
     }
-    case DeviceKind::kExtendedColor: {
+    case DeviceKind::DEVICE_KIND_EXTENDED_COLOR: {
       ::esp_matter::endpoint::extended_color_light::config_t config;
       config.on_off.on_off = initial_on;
       config.level_control.current_level = initial_level;
@@ -138,16 +138,16 @@ bool MatterLightEndpoint::setup() {
 
   const char *kind_name = "on_off";
   switch (this->device_kind_) {
-    case DeviceKind::kOnOff:
+    case DeviceKind::DEVICE_KIND_ON_OFF:
       kind_name = "on_off";
       break;
-    case DeviceKind::kDimmable:
+    case DeviceKind::DEVICE_KIND_DIMMABLE:
       kind_name = "dimmable";
       break;
-    case DeviceKind::kColorTemperature:
+    case DeviceKind::DEVICE_KIND_COLOR_TEMPERATURE:
       kind_name = "color_temperature";
       break;
-    case DeviceKind::kExtendedColor:
+    case DeviceKind::DEVICE_KIND_EXTENDED_COLOR:
       kind_name = "extended_color";
       break;
   }
@@ -248,7 +248,7 @@ void MatterLightEndpoint::report_state_to_fabric_() {
     ESP_LOGW(TAG, "attribute::update OnOff endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }
 
-  if (this->device_kind_ != DeviceKind::kOnOff) {
+  if (this->device_kind_ != DeviceKind::DEVICE_KIND_ON_OFF) {
     // LevelControl.CurrentLevel handling. The Lighting feature (LT) — which
     // color_temperature_light / dimmable_light / extended_color_light all
     // set — constrains CurrentLevel to [min_level, max_level] = [1, 254]
@@ -278,7 +278,8 @@ void MatterLightEndpoint::report_state_to_fabric_() {
     }
   }
 
-  if (this->device_kind_ == DeviceKind::kColorTemperature || this->device_kind_ == DeviceKind::kExtendedColor) {
+  if (this->device_kind_ == DeviceKind::DEVICE_KIND_COLOR_TEMPERATURE ||
+      this->device_kind_ == DeviceKind::DEVICE_KIND_EXTENDED_COLOR) {
     auto traits = this->light_->get_traits();
     const float min_m = traits.get_min_mireds();
     const float max_m = traits.get_max_mireds();

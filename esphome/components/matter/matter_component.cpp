@@ -86,6 +86,23 @@ MatterComponent *MatterComponent::instance_ = nullptr;
 
 namespace {
 
+// Linear lookup over the endpoint→wrapper vectors. Entity counts are small
+// (typically 1–30 per platform), so a linear scan beats the ~2KB fixed
+// overhead of std::unordered_map — see the header comment on the *_by_id_
+// vectors.
+template<typename T> T *find_endpoint_by_id_(const std::vector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
+  for (const auto &kv : vec) {
+    if (kv.first == endpoint_id) {
+      return kv.second;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+namespace {
+
 // FixedLabel iterator scoped to a single endpoint. Serves at most one entry
 // ("name" → truncated entity name) — we do not expose multiple labels per
 // endpoint. Storage stays alive for the whole iterator lifetime because the
@@ -616,10 +633,12 @@ void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_
     // VerifyOrReturnValue on k_max_node_label_length.
     constexpr size_t kMaxNodeLabel = 32;
     // Buffer must be writable — esp_matter_char_str stores a char* pointer.
-    // Copy into a stable per-endpoint std::string held in bridged_labels_ so
-    // it lives for the whole app lifetime.
-    std::string &stored = this->bridged_labels_[endpoint_id];
-    stored = label.substr(0, kMaxNodeLabel);
+    // Wrap in unique_ptr so the std::string sits at a stable heap address,
+    // unaffected by any later push into bridged_labels_ (a bare vector of
+    // std::string could realloc and invalidate SSO buffer pointers we've
+    // already handed to esp_matter).
+    this->bridged_labels_.push_back(std::make_unique<std::string>(label.substr(0, kMaxNodeLabel)));
+    std::string &stored = *this->bridged_labels_.back();
     ::esp_matter::cluster::bridged_device_basic_information::attribute::create_node_label(
         bdbi_cluster,
         // The API takes `char *` but esp_matter stores it internally; passing
@@ -1118,30 +1137,24 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
   // attribute id lives on both device types. Check both maps by endpoint id,
   // switch first (the cheaper lookup pattern established earlier).
 #ifdef USE_SWITCH
-  {
-    auto it = this->switch_endpoints_by_id_.find(endpoint_id);
-    if (it != this->switch_endpoints_by_id_.end()) {
-      // Suppress re-entry when we are the ones driving attribute::update()
-      // from the device→fabric report path (PRE_UPDATE fires synchronously
-      // during update()).
-      if (it->second->applying_report()) {
-        return;
-      }
-      it->second->on_matter_write(bool_value);
+  if (auto *wrapper = find_endpoint_by_id_(this->switch_endpoints_by_id_, endpoint_id)) {
+    // Suppress re-entry when we are the ones driving attribute::update()
+    // from the device→fabric report path (PRE_UPDATE fires synchronously
+    // during update()).
+    if (wrapper->applying_report()) {
       return;
     }
+    wrapper->on_matter_write(bool_value);
+    return;
   }
 #endif
 #ifdef USE_LIGHT
-  {
-    auto it = this->light_endpoints_by_id_.find(endpoint_id);
-    if (it != this->light_endpoints_by_id_.end()) {
-      if (it->second->applying_report()) {
-        return;
-      }
-      it->second->on_matter_on_off_write(bool_value);
+  if (auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id)) {
+    if (wrapper->applying_report()) {
       return;
     }
+    wrapper->on_matter_on_off_write(bool_value);
+    return;
   }
 #endif
   // Dispatch miss: OnOff.OnOff write arrived for an endpoint we don't own.
@@ -1153,60 +1166,60 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
 
 void MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths) {
 #ifdef USE_COVER
-  auto it = this->cover_endpoints_by_id_.find(endpoint_id);
-  if (it == this->cover_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->cover_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "cover target write for unknown endpoint=%u", endpoint_id);
     return;
   }
   // Same round-trip guard as the switch dispatcher: attribute::update on
   // CurrentPositionLift fires PRE_UPDATE synchronously, which would land back
   // here if the fabric wrote Target=Current simultaneously.
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_target_write(percent100ths);
+  wrapper->on_matter_target_write(percent100ths);
 #endif
 }
 
 void MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent) {
 #ifdef USE_FAN
-  auto it = this->fan_endpoints_by_id_.find(endpoint_id);
-  if (it == this->fan_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->fan_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan percent write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_percent_write(percent);
+  wrapper->on_matter_percent_write(percent);
 #endif
 }
 
 void MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode) {
 #ifdef USE_FAN
-  auto it = this->fan_endpoints_by_id_.find(endpoint_id);
-  if (it == this->fan_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->fan_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan mode write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_fan_mode_write(fan_mode);
+  wrapper->on_matter_fan_mode_write(fan_mode);
 #endif
 }
 
 void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t level) {
 #ifdef USE_LIGHT
-  auto it = this->light_endpoints_by_id_.find(endpoint_id);
-  if (it == this->light_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light level write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_level_write(level);
+  wrapper->on_matter_level_write(level);
 #else
   (void) endpoint_id;
   (void) level;
@@ -1215,15 +1228,15 @@ void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t lev
 
 void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds) {
 #ifdef USE_LIGHT
-  auto it = this->light_endpoints_by_id_.find(endpoint_id);
-  if (it == this->light_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light color-temp write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_color_temp_write(mireds);
+  wrapper->on_matter_color_temp_write(mireds);
 #else
   (void) endpoint_id;
   (void) mireds;
@@ -1232,15 +1245,15 @@ void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16
 
 void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode) {
 #ifdef USE_CLIMATE
-  auto it = this->climate_endpoints_by_id_.find(endpoint_id);
-  if (it == this->climate_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate SystemMode write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_system_mode_write(system_mode);
+  wrapper->on_matter_system_mode_write(system_mode);
 #else
   (void) endpoint_id;
   (void) system_mode;
@@ -1249,15 +1262,15 @@ void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uin
 
 void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
-  auto it = this->climate_endpoints_by_id_.find(endpoint_id);
-  if (it == this->climate_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate heating-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_heating_setpoint_write(hundredths);
+  wrapper->on_matter_heating_setpoint_write(hundredths);
 #else
   (void) endpoint_id;
   (void) hundredths;
@@ -1266,15 +1279,15 @@ void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id
 
 void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
-  auto it = this->climate_endpoints_by_id_.find(endpoint_id);
-  if (it == this->climate_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate cooling-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_cooling_setpoint_write(hundredths);
+  wrapper->on_matter_cooling_setpoint_write(hundredths);
 #else
   (void) endpoint_id;
   (void) hundredths;
@@ -1283,15 +1296,15 @@ void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id
 
 void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode) {
 #ifdef USE_SELECT
-  auto it = this->select_endpoints_by_id_.find(endpoint_id);
-  if (it == this->select_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->select_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "select CurrentMode write for unknown endpoint=%u", endpoint_id);
     return;
   }
-  if (it->second->applying_report()) {
+  if (wrapper->applying_report()) {
     return;
   }
-  it->second->on_matter_current_mode_write(mode);
+  wrapper->on_matter_current_mode_write(mode);
 #else
   (void) endpoint_id;
   (void) mode;
@@ -1300,15 +1313,15 @@ void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uin
 
 bool MatterComponent::handle_lock_command(uint16_t endpoint_id, bool is_lock) {
 #ifdef USE_LOCK
-  auto it = this->lock_endpoints_by_id_.find(endpoint_id);
-  if (it == this->lock_endpoints_by_id_.end()) {
+  auto *wrapper = find_endpoint_by_id_(this->lock_endpoints_by_id_, endpoint_id);
+  if (wrapper == nullptr) {
     ESP_LOGW(TAG, "lock command for unknown endpoint=%u", endpoint_id);
     return false;
   }
   // No applying_report() check — DoorLock uses commands, not attribute writes,
   // for remote lock ops, and our attribute::update from device→fabric goes
   // through a different path (not this dispatcher).
-  return it->second->on_matter_command(is_lock);
+  return wrapper->on_matter_command(is_lock);
 #else
   (void) endpoint_id;
   (void) is_lock;
@@ -1473,7 +1486,7 @@ void MatterComponent::scan_and_register_switches_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->switch_endpoints_by_id_[id] = endpoint.get();
+    this->switch_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->switch_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1539,7 +1552,7 @@ void MatterComponent::scan_and_register_covers_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->cover_endpoints_by_id_[id] = endpoint.get();
+    this->cover_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->cover_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1561,7 +1574,7 @@ void MatterComponent::scan_and_register_fans_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->fan_endpoints_by_id_[id] = endpoint.get();
+    this->fan_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->fan_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1583,7 +1596,7 @@ void MatterComponent::scan_and_register_locks_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->lock_endpoints_by_id_[id] = endpoint.get();
+    this->lock_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->lock_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1625,7 +1638,7 @@ void MatterComponent::scan_and_register_selects_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->select_endpoints_by_id_[id] = endpoint.get();
+    this->select_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->select_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1687,7 +1700,7 @@ void MatterComponent::scan_and_register_lights_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->light_endpoints_by_id_[id] = endpoint.get();
+    this->light_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->light_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1709,7 +1722,7 @@ void MatterComponent::scan_and_register_climates_() {
       continue;
     }
     uint16_t id = endpoint->endpoint_id();
-    this->climate_endpoints_by_id_[id] = endpoint.get();
+    this->climate_endpoints_by_id_.emplace_back(id, endpoint.get());
     this->climate_endpoints_.push_back(std::move(endpoint));
     registered++;
   }
@@ -1790,8 +1803,8 @@ void MatterComponent::log_onboarding_payload_() {
   // reach us. kBLE is added only when BLE commissioning is compiled in — a
   // controller that trusts the payload would otherwise waste airtime BLE-
   // scanning for a device that will never answer. Both flags can be OR'd:
-  // controllers try BLE first (Wi-Fi PoC path) and fall back to on-network
-  // (Ethernet PoC path, or Wi-Fi if the device is already joined).
+  // controllers try BLE first for a device provisioning Wi-Fi credentials
+  // and fall back to on-network for an already-joined or Ethernet device.
   ::chip::RendezvousInformationFlags flags(::chip::RendezvousInformationFlag::kOnNetwork);
   if (this->ble_commissioning_) {
     flags.Set(::chip::RendezvousInformationFlag::kBLE);

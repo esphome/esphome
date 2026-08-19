@@ -32,14 +32,17 @@ namespace matter {
 // skipped with a WARN — Matter has no generic float measurement cluster.
 class MatterSensorEndpoint {
  public:
+  // Values follow the AGENTS.md rule for enum classes — prefix each with
+  // the UPPER_SNAKE_CASE form of the enum name so short tokens like UNKNOWN
+  // or FLOW never collide with SDK #define macros.
   enum class Kind : uint8_t {
-    UNKNOWN,
-    TEMPERATURE,
-    HUMIDITY,
-    PRESSURE_HPA,  // input in hPa — scale to kPa*10 before writing
-    PRESSURE_KPA,  // input in kPa — write kPa*10 directly
-    ILLUMINANCE,
-    FLOW,
+    KIND_UNKNOWN,
+    KIND_TEMPERATURE,
+    KIND_HUMIDITY,
+    KIND_PRESSURE_HPA,  // input in hPa — scale to kPa*10 before writing
+    KIND_PRESSURE_KPA,  // input in kPa — write kPa*10 directly
+    KIND_ILLUMINANCE,
+    KIND_FLOW,
   };
 
   explicit MatterSensorEndpoint(sensor::Sensor *s);
@@ -63,7 +66,7 @@ class MatterSensorEndpoint {
 
   sensor::Sensor *sensor_;
   uint16_t endpoint_id_{0};
-  Kind kind_{Kind::UNKNOWN};
+  Kind kind_{Kind::KIND_UNKNOWN};
 };
 
 }  // namespace matter

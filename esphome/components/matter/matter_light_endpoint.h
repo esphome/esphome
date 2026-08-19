@@ -56,7 +56,15 @@ class MatterLightEndpoint : public ::esphome::light::LightRemoteValuesListener {
   // Which Matter light device type we advertised at boot — needed by the
   // dispatcher so it can decide which write branches are legal for this
   // endpoint (e.g. dimmable_light has no ColorControl cluster).
-  enum class DeviceKind : uint8_t { kOnOff, kDimmable, kColorTemperature, kExtendedColor };
+  // Values follow the AGENTS.md rule for enum classes — prefix each with
+  // the UPPER_SNAKE_CASE form of the enum name (CHIP's own `k`-prefix
+  // convention is not used elsewhere in ESPHome).
+  enum class DeviceKind : uint8_t {
+    DEVICE_KIND_ON_OFF,
+    DEVICE_KIND_DIMMABLE,
+    DEVICE_KIND_COLOR_TEMPERATURE,
+    DEVICE_KIND_EXTENDED_COLOR,
+  };
   DeviceKind device_kind() const { return device_kind_; }
 
  protected:
@@ -65,7 +73,7 @@ class MatterLightEndpoint : public ::esphome::light::LightRemoteValuesListener {
 
   ::esphome::light::LightState *light_;
   uint16_t endpoint_id_{0};
-  DeviceKind device_kind_{DeviceKind::kOnOff};
+  DeviceKind device_kind_{DeviceKind::DEVICE_KIND_ON_OFF};
   // Suppress the ESPHome remote-values listener while we drive the light
   // from a matter write — otherwise the state change we just caused would
   // echo back to the fabric.

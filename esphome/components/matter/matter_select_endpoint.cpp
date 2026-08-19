@@ -15,7 +15,8 @@
 #include <app/clusters/mode-select-server/supported-modes-manager.h>
 
 #include <cstring>
-#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 namespace matter {
@@ -35,25 +36,25 @@ class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedMo
     return self;
   }
 
-  void register_endpoint(uint16_t ep, MatterSelectEndpoint *w) { endpoints_[ep] = w; }
+  void register_endpoint(uint16_t ep, MatterSelectEndpoint *w) { endpoints_.emplace_back(ep, w); }
 
   ModeOptionsProvider getModeOptionsProvider(::chip::EndpointId endpointId) const override {
-    auto it = endpoints_.find(static_cast<uint16_t>(endpointId));
-    if (it == endpoints_.end()) {
+    MatterSelectEndpoint *wrapper = this->find_(static_cast<uint16_t>(endpointId));
+    if (wrapper == nullptr) {
       return ModeOptionsProvider();
     }
-    const auto &opts = it->second->mode_options();
+    const auto &opts = wrapper->mode_options();
     return ModeOptionsProvider(opts.data(), opts.data() + opts.size());
   }
 
   ::chip::Protocols::InteractionModel::Status getModeOptionByMode(
       ::chip::EndpointId endpointId, uint8_t mode,
       const ::chip::app::Clusters::ModeSelect::Structs::ModeOptionStruct::Type **dataPtr) const override {
-    auto it = endpoints_.find(static_cast<uint16_t>(endpointId));
-    if (it == endpoints_.end()) {
+    MatterSelectEndpoint *wrapper = this->find_(static_cast<uint16_t>(endpointId));
+    if (wrapper == nullptr) {
       return ::chip::Protocols::InteractionModel::Status::UnsupportedEndpoint;
     }
-    const auto &opts = it->second->mode_options();
+    const auto &opts = wrapper->mode_options();
     for (const auto &opt : opts) {
       if (opt.mode == mode) {
         *dataPtr = &opt;
@@ -67,7 +68,20 @@ class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedMo
   SharedModesManager() = default;
 
  private:
-  std::unordered_map<uint16_t, MatterSelectEndpoint *> endpoints_;
+  MatterSelectEndpoint *find_(uint16_t endpoint_id) const {
+    for (const auto &kv : this->endpoints_) {
+      if (kv.first == endpoint_id) {
+        return kv.second;
+      }
+    }
+    return nullptr;
+  }
+
+  // Linear scan is preferable to unordered_map here: select endpoints are
+  // typically ≤3 per device and the lookup only fires on fabric-driven
+  // mode changes (not a hot path); dropping the hash table saves ~2KB per
+  // MatterSelectEndpoint's shared singleton.
+  std::vector<std::pair<uint16_t, MatterSelectEndpoint *>> endpoints_;
 };
 
 }  // namespace

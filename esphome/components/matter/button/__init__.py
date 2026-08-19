@@ -17,7 +17,7 @@ from esphome.core import TimePeriod
 
 from .. import CONF_MATTER, MatterComponent, matter_ns
 
-CODEOWNERS = ["@unisec"]
+CODEOWNERS = ["@gtjadsonsantos"]
 DEPENDENCIES = ["matter"]
 
 MatterActionButton = matter_ns.class_("MatterActionButton", button.Button, cg.Component)
@@ -28,8 +28,8 @@ MatterActionButton = matter_ns.class_("MatterActionButton", button.Button, cg.Co
 # breaks equality checks in a config-level validator).
 _ACTION_ENUM = matter_ns.enum("MatterActionButton::Action", is_class=True)
 _ACTION_CPP_NAMES = {
-    "open_commissioning_window": "OPEN_COMMISSIONING_WINDOW",
-    "factory_reset": "FACTORY_RESET",
+    "open_commissioning_window": "ACTION_OPEN_COMMISSIONING_WINDOW",
+    "factory_reset": "ACTION_FACTORY_RESET",
 }
 ACTIONS = list(_ACTION_CPP_NAMES.keys())
 
