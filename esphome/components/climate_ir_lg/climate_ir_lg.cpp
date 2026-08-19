@@ -28,7 +28,7 @@ enum CommandBasic : uint32_t {
 enum CommandSys : uint32_t {
   HEADER_SYS = 0xC0000,
 
-  OFF = 0x050,
+  COMMAND_OFF = 0x050,
 
   // Also known as 'auto-dry'
   AUTO_CLEAN_ON = 0x0B0,
@@ -163,7 +163,7 @@ void LgIrClimate::transmit_state() {
       case climate::CLIMATE_MODE_OFF:
       default:
         remote_state |= CommandSys::HEADER_SYS;
-        remote_state |= CommandSys::OFF;
+        remote_state |= CommandSys::COMMAND_OFF;
     }
   }
 
@@ -197,6 +197,7 @@ void LgIrClimate::transmit_state() {
       if (!this->advanced_commands_support_) {  // Keep previous behavior
         break;
       }
+      [[fallthrough]];
     case climate::CLIMATE_MODE_COOL:
     case climate::CLIMATE_MODE_HEAT:
       temp = static_cast<uint8_t>(roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX)));
@@ -237,7 +238,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   switch (remote_state & COMMAND_HEADER_MASK) {
     case CommandSys::HEADER_SYS:
       ESP_LOGD(TAG, "Got system command! With data: 0x%02" PRIX32, remote_state & COMMAND_DATA_MASK);
-      if ((remote_state & COMMAND_DATA_MASK) == CommandSys::OFF) {
+      if ((remote_state & COMMAND_DATA_MASK) == CommandSys::COMMAND_OFF) {
         this->mode = climate::CLIMATE_MODE_OFF;
       } else {
         return false;
