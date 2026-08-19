@@ -485,6 +485,19 @@ def zephyr_set_prj_conf_override(
     zephyr_data()[KEY_PRJ_CONF][image][name] = (value, True)
 
 
+def zephyr_set_sysbuild_conf_override(name: str, value: PrjConfValueType) -> None:
+    """Unconditionally set a sysbuild-level Kconfig value (SB_CONFIG_*), replacing
+    anything set by a component's own zephyr_add_sysbuild_conf() call.
+
+    Same always-wins precedent as zephyr_set_prj_conf_override(), but for
+    zephyr/sysbuild.conf (SB_CONFIG_*, e.g. a vendor SDK's own `choice` default in a
+    Kconfig.sysbuild file) rather than an image's own CONFIG_* prj.conf -- a user-supplied
+    `kconfig_options:` name is routed here automatically when it already starts with
+    SB_CONFIG_.
+    """
+    zephyr_data()[KEY_SYSBUILD_CONF][name] = (value, True)
+
+
 def request_zephyr_module(capability: str) -> None:
     """Component-facing: record that `capability` (e.g. "zigbee") is needed as an
     additive west module. Not resolved to a concrete version here -- a user's
@@ -900,6 +913,8 @@ async def _kconfig_options_to_code(config: ConfigType) -> None:
         if isinstance(value, dict):
             for image_name, image_value in value.items():
                 zephyr_set_prj_conf_override(image_name, image_value, image=name)
+        elif name.startswith("SB_CONFIG_"):
+            zephyr_set_sysbuild_conf_override(name, value)
         else:
             zephyr_set_prj_conf_override(name, value)
 
@@ -1317,6 +1332,9 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Optional(CONF_ADVANCED, default={}): dict,
         # Raw Kconfig passthrough -- Zephyr's equivalent of esp32's sdkconfig_options. A
         # dict value (e.g. `mcuboot:`) targets that sysbuild child image's own prj.conf.
+        # A name already prefixed SB_CONFIG_ instead targets zephyr/sysbuild.conf itself
+        # (the sysbuild superproject's own Kconfig tree, e.g. a vendor SDK's `choice`
+        # default in its own Kconfig.sysbuild) -- see zephyr_set_sysbuild_conf_override().
         cv.Optional(CONF_KCONFIG_OPTIONS, default={}): {
             cv.string_strict: cv.Any(
                 cv.boolean,
