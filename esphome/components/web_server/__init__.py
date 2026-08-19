@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import gzip
+from html import escape as html_escape
 import logging
 import re
 
@@ -344,8 +345,20 @@ def build_index_html(config) -> str:
     if js_include:
         html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
-    if config[CONF_JS_URL]:
-        html += f'<script src="{config[CONF_JS_URL]}"></script>'
+    if js_url := config[CONF_JS_URL]:
+        # The interface is downloaded from the internet. Show a hint instead of a blank
+        # page when the browser cannot reach it, which is common in WiFi AP mode.
+        hint = (
+            f"Could not load the web interface from {js_url}. This browser needs internet "
+            "access to download it. To serve it from the device instead (for example in "
+            "WiFi access point mode), set local: true under web_server: in the YAML "
+            "configuration and install the firmware again."
+        )
+        # Escape for a JS single quoted string inside a double quoted HTML attribute.
+        hint_js = html_escape(
+            hint.replace("\\", "\\\\").replace("'", "\\'"), quote=True
+        )
+        html += f'<script src="{js_url}" onerror="document.body.innerText=\'{hint_js}\'"></script>'
     html += "</body></html>"
     return html
 
