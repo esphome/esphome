@@ -119,7 +119,7 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
-      } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
+      } else {
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
       }
     }
