@@ -411,8 +411,10 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
         _LOGGER.warning(
             "WiFi is AP only and the web_server interface is loaded from the internet, "
             "which browsers on the access point usually cannot reach; the page stays "
-            "blank. Remove 'local: false', or migrate off version 1, so the interface "
-            "is embedded in the firmware."
+            "blank. %s so the interface is embedded in the firmware.",
+            "Remove 'local: false'"
+            if config.get(CONF_LOCAL) is False
+            else "Migrate to version 2 or 3",
         )
     elif config[CONF_PORT] != 80:
         ap_ip = "192.168.4.1"
