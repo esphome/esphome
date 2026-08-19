@@ -1,6 +1,7 @@
 import hashlib
 import logging
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -34,6 +35,96 @@ _DTS_CACHE = Path.home() / ".esphome" / "zephyr_dts_cache"
 _SPARSE_CHECKOUT_SCHEMA = "2"  # v2: added snippets/ (zephyr: snippets: DTS overlays)
 _SDK_SOURCE_VERSION_CACHE = Path.home() / ".esphome" / "zephyr_sdk_source_version_cache"
 _MANIFEST_REVISION_CACHE = Path.home() / ".esphome" / "zephyr_manifest_revision_cache"
+
+# A fork-pinned boards revision (e.g. Silabs' zephyr-silabs west.yml) is a raw commit
+# SHA, which `git clone --branch` can't resolve.
+_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+_DTS_SPARSE_PATHS = (
+    # scripts/dts/python-devicetree/ is the bundled edtlib, needed because the PyPI
+    # package rejects newer binding keys (e.g. 'examples:').
+    "boards/",
+    "dts/",
+    "include/zephyr/",
+    "scripts/dts/python-devicetree/",
+    "snippets/",
+)
+
+
+def _git_sparse_fetch(repo: str, ref: str, dest: Path) -> None:
+    """Fetch `ref` (a branch/tag name or a raw commit SHA) from `repo` into `dest`,
+    sparse-checked-out to _DTS_SPARSE_PATHS.
+
+    A raw SHA is fetched and checked out explicitly, since `git clone --branch` can't
+    resolve it.
+    """
+    if _COMMIT_SHA_RE.fullmatch(ref):
+        subprocess.run(
+            ["git", "init", str(dest)], check=True, capture_output=True, text=True
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "remote", "add", "origin", repo],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(dest),
+                "fetch",
+                "--depth=1",
+                "--filter=blob:none",
+                "origin",
+                ref,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "sparse-checkout", "init", "--cone"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "sparse-checkout", "set", *_DTS_SPARSE_PATHS],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(dest), "checkout", "FETCH_HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return
+
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth=1",
+            "--filter=blob:none",
+            "--sparse",
+            "--branch",
+            ref,
+            repo,
+            str(dest),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(dest), "sparse-checkout", "set", *_DTS_SPARSE_PATHS],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _framework_base_version() -> str:
@@ -271,47 +362,7 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
     )
     dest.mkdir(parents=True, exist_ok=True)
     try:
-        subprocess.run(
-            [
-                "git",
-                "clone",
-                "--depth=1",
-                "--filter=blob:none",
-                "--sparse",
-                "--branch",
-                tag,
-                repo,
-                str(dest),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                str(dest),
-                "sparse-checkout",
-                "set",
-                # Cone-mode sparse-checkout only accepts directory patterns; VERSION is a
-                # top-level file already included automatically, so it's not listed here.
-                # Full include/zephyr/ is needed since dt-bindings headers transitively
-                # include other core headers. scripts/dts/python-devicetree/ is the
-                # bundled edtlib preferred over the PyPI package, which rejects newer
-                # binding keys (e.g. 'examples:'). boards/ already covers boards/shields/
-                # (shield definitions, no separate pattern needed); snippets/ is needed
-                # separately for zephyr: snippets:'s own devicetree overlay fragments.
-                "boards/",
-                "dts/",
-                "include/zephyr/",
-                "scripts/dts/python-devicetree/",
-                "snippets/",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        _git_sparse_fetch(repo, tag, dest)
         # sdk-zephyr repos nest the Zephyr tree one level down
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
         if (zephyr_dir / "boards").is_dir():
@@ -375,28 +426,29 @@ def _sparse_clone_dts_from_source(
     )
     dest.mkdir(parents=True, exist_ok=True)
     try:
-        cmd = ["git", "clone", "--depth=1", "--filter=blob:none", "--sparse"]
         if ref:
-            cmd += ["--branch", ref]
-        cmd += [url, str(dest)]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                str(dest),
-                "sparse-checkout",
-                "set",
-                "boards/",
-                "dts/",
-                "include/zephyr/",
-                "scripts/dts/python-devicetree/",
-                "snippets/",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+            _git_sparse_fetch(url, ref, dest)
+        else:
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    url,
+                    str(dest),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(dest), "sparse-checkout", "set", *_DTS_SPARSE_PATHS],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
         if (zephyr_dir / "boards").is_dir():
             schema_marker.write_text(_SPARSE_CHECKOUT_SCHEMA)
