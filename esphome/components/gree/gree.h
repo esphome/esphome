@@ -76,6 +76,12 @@ static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
+// Mode bits stored in remote_state[2] bits 4..7 for YAN/YAA/YAC/YAC1FB9.
+static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
+static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
+static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
+static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
+
 // Model codes
 enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
@@ -104,7 +110,8 @@ class GreeClimate final : public climate_ir::ClimateIR {
   uint8_t preset_();
 
   Model model_{};
-  uint8_t mode_bits_{0};  // Combined mode bits for remote_state[2]
+  // LIGHT on by default to preserve pre-#12160 behavior.
+  uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};
 };
 
 }  // namespace esphome::gree
