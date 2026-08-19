@@ -41,17 +41,12 @@ jobs:
           version: "0.11.15"
 
       - name: Install apt dependencies
-        # Pull-request-only workflow, so nothing on dev could seed a shared
-        # apt cache entry and the cached apt action would write one copy per
-        # pull request. Plain apt stays, but every call is bounded so a
-        # slow mirror fails the step instead of hanging it.
-        # Short per-fetch timeouts in apt.conf.d make apt abandon a
-        # black-holing mirror in seconds, so the outer bounds are spent on
-        # the working fallback; timeout runs under sudo so it can kill
-        # apt-get itself. The install is tried without ``apt-get update``
-        # first: the runner image ships with fresh package lists, so the
-        # common path avoids the index download that a congested fallback
-        # mirror makes slow.
+        # PR-only workflow, so nothing on dev could seed a shared apt cache
+        # entry; the cached apt action would save one copy per PR. Plain apt
+        # with every call bounded: the apt.conf.d timeouts make a dead
+        # mirror fail over in seconds, and timeout runs under sudo so it can
+        # kill apt-get itself. Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes slow.
         timeout-minutes: 15
         run: |
           sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
@@ -65,10 +60,8 @@ jobs:
             protoc --version
             exit 0
           fi
-          # Rescue path: refresh the lists once, with a generous bound.
-          # The apt config above already converts a stalled mirror into a
-          # fast per-fetch failure and a fallback, so one bounded attempt
-          # is enough; the outer timeout is only a backstop.
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
           sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
             dpkg --configure -a || true
           sudo timeout -k 15 300 apt-get update
