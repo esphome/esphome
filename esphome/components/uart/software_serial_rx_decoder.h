@@ -47,8 +47,10 @@ class SoftwareSerialRxDecoder {
   }
 
   /// ISR: the line changed to `level` at cycle `now`.
-  /// Returns true when the main loop should be woken: a byte was pushed, or the
-  /// line went idle high mid frame and finalize() is needed to complete the byte.
+  /// Returns true when the main loop should be woken: a byte was pushed, or a frame
+  /// is open and the line is high, in which case finalize() may be needed. That is
+  /// deliberately conservative; a data 1 and the idle tail are indistinguishable at
+  /// the edge, and repeat wakes are cheap because the wake flag is already set.
   bool ESPHOME_ALWAYS_INLINE on_edge(uint32_t now, bool level) {
     const bool last_level = this->last_level_;
     // Two edges collapsed into one interrupt: skip it so the run is still
