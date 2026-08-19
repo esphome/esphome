@@ -244,6 +244,44 @@ def test_get_changed_files_github_actions_pull_request_large_pr(
         assert result == expected_files
 
 
+def test_get_changed_files_github_actions_pull_request_large_diff(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Test _get_changed_files_github_actions fallback for PRs with >20000 diff lines."""
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+
+    expected_files = ["file1.py", "file2.cpp"]
+
+    with (
+        patch("helpers._get_pr_number_from_github_env", return_value="17909"),
+        patch("helpers._get_changed_files_from_command") as mock_get,
+    ):
+        # First call fails with too many diff lines error, second succeeds with API method
+        mock_get.side_effect = [
+            Exception(
+                "could not find pull request diff: HTTP 406: Sorry, "
+                "the diff exceeded the maximum number of lines (20000)"
+            ),
+            expected_files,
+        ]
+
+        result = _get_changed_files_github_actions()
+
+        assert mock_get.call_count == 2
+        mock_get.assert_any_call(["gh", "pr", "diff", "17909", "--name-only"])
+        mock_get.assert_any_call(
+            [
+                "gh",
+                "api",
+                "repos/esphome/esphome/pulls/17909/files",
+                "--paginate",
+                "--jq",
+                ".[].filename",
+            ]
+        )
+        assert result == expected_files
+
+
 def test_get_changed_files_github_actions_pull_request_other_error(
     monkeypatch: MonkeyPatch,
 ) -> None:

@@ -341,18 +341,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ccache
-      - name: Restore ccache (restore-only)
-        # esphome stores the PlatformIO ccache under the machine-global cache
-        # dir (see _ccache_env() in esphome/platformio/toolchain.py). The
-        # bucket-name prefix prefers a same-bucket seed; the bare prefix falls
-        # back to any seed when the bucket layout differs from dev.
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/esphome/platformio-ccache
-          key: integration-ccache-${{ matrix.bucket.name }}-${{ github.sha }}
-          restore-keys: |
-            integration-ccache-${{ matrix.bucket.name }}-
-            integration-ccache-
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -401,14 +389,6 @@ jobs:
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).
         run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
-      - name: Save ccache
-        # Pull request saves land in per-PR scopes nothing else can reuse;
-        # dev pushes seed the shared copy instead.
-        if: github.event_name != 'pull_request'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/esphome/platformio-ccache
-          key: integration-ccache-${{ matrix.bucket.name }}-${{ github.sha }}
 
   import-time:
     name: Check import esphome.__main__ time
@@ -464,10 +444,21 @@ jobs:
       - name: Build benchmarks
         id: build
         run: |
+          # pipefail: without it a failed build is masked by the grep/cut
+          # pipeline below, leaving BINARY empty and silently dropping every
+          # C++ benchmark from the run while the job still reports success.
+          set -o pipefail
           . venv/bin/activate
-          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
-          # --build-only prints BUILD_BINARY=<path> to stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
+          BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          export BENCHMARK_LIB_CONFIG
+          # --build-only prints BUILD_BINARY=<path> to stdout; the grep is
+          # non-fatal so a missing marker reaches the check below instead of
+          # tripping errexit at this assignment
+          BINARY=$(script/cpp_benchmark.py --all --build-only | { grep '^BUILD_BINARY=' || true; } | tail -1 | cut -d= -f2-)
+          if [ -z "$BINARY" ]; then
+            echo "::error::Benchmark build did not report a binary path"
+            exit 1
+          fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
