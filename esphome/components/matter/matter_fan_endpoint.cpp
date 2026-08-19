@@ -130,43 +130,49 @@ uint8_t MatterFanEndpoint::percent_to_fan_mode_(uint8_t percent) const {
 void MatterFanEndpoint::on_matter_percent_write(uint8_t percent) {
   ESP_LOGD(TAG, "matter PercentSetting write endpoint=%u percent=%u fan='%s'", this->endpoint_id_,
            static_cast<unsigned>(percent), this->fan_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  auto call = this->fan_->make_call();
-  call.set_state(percent > 0);
-  if (this->supports_speed_) {
-    uint8_t speed = this->percent_to_speed_(percent);
-    if (speed > 0) {
-      call.set_speed(speed);
+  // Runs on the CHIP task — defer the Fan::make_call sequence and the guard
+  // flag onto the main loop to avoid racing the fan's own state machine.
+  MatterComponent::instance()->defer_on_main_loop([this, percent]() {
+    this->applying_matter_write_ = true;
+    auto call = this->fan_->make_call();
+    call.set_state(percent > 0);
+    if (this->supports_speed_) {
+      uint8_t speed = this->percent_to_speed_(percent);
+      if (speed > 0) {
+        call.set_speed(speed);
+      }
     }
-  }
-  call.perform();
-  this->applying_matter_write_ = false;
+    call.perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterFanEndpoint::on_matter_fan_mode_write(uint8_t fan_mode) {
   ESP_LOGD(TAG, "matter FanMode write endpoint=%u mode=%u fan='%s'", this->endpoint_id_,
            static_cast<unsigned>(fan_mode), this->fan_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  auto call = this->fan_->make_call();
-  if (fan_mode == 0) {
-    call.set_state(false);
-  } else {
-    call.set_state(true);
-    // Map the coarse mode back to a speed roughly matching the last
-    // percent_to_fan_mode_ mapping — keeps a fabric-side FanMode-only write
-    // from resetting the speed to whatever restore_mode saved.
-    if (this->supports_speed_) {
-      uint8_t speed = 1;
-      if (fan_mode == 2) {  // Medium
-        speed = static_cast<uint8_t>(std::max(1, this->supported_speed_count_ / 2));
-      } else if (fan_mode == 3 || fan_mode == 4) {  // High / On
-        speed = static_cast<uint8_t>(this->supported_speed_count_);
+  MatterComponent::instance()->defer_on_main_loop([this, fan_mode]() {
+    this->applying_matter_write_ = true;
+    auto call = this->fan_->make_call();
+    if (fan_mode == 0) {
+      call.set_state(false);
+    } else {
+      call.set_state(true);
+      // Map the coarse mode back to a speed roughly matching the last
+      // percent_to_fan_mode_ mapping — keeps a fabric-side FanMode-only write
+      // from resetting the speed to whatever restore_mode saved.
+      if (this->supports_speed_) {
+        uint8_t speed = 1;
+        if (fan_mode == 2) {  // Medium
+          speed = static_cast<uint8_t>(std::max(1, this->supported_speed_count_ / 2));
+        } else if (fan_mode == 3 || fan_mode == 4) {  // High / On
+          speed = static_cast<uint8_t>(this->supported_speed_count_);
+        }
+        call.set_speed(speed);
       }
-      call.set_speed(speed);
     }
-  }
-  call.perform();
-  this->applying_matter_write_ = false;
+    call.perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterFanEndpoint::push_initial_state() { this->report_state_to_fabric_(); }

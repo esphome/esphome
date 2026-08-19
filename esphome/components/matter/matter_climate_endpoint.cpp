@@ -209,9 +209,14 @@ void MatterClimateEndpoint::on_matter_system_mode_write(uint8_t system_mode) {
       ESP_LOGW(TAG, "unsupported SystemMode value %u — ignoring", static_cast<unsigned>(system_mode));
       return;
   }
-  this->applying_matter_write_ = true;
-  this->climate_->make_call().set_mode(target).perform();
-  this->applying_matter_write_ = false;
+  // Runs on the CHIP task — defer the Climate call and the guard onto the
+  // main loop so the mode transition and its listeners don't race the
+  // ESPHome loop.
+  MatterComponent::instance()->defer_on_main_loop([this, target]() {
+    this->applying_matter_write_ = true;
+    this->climate_->make_call().set_mode(target).perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterClimateEndpoint::on_matter_heating_setpoint_write(int16_t hundredths) {
@@ -220,18 +225,22 @@ void MatterClimateEndpoint::on_matter_heating_setpoint_write(int16_t hundredths)
   // Route to the plain single-point setter — HVAC UIs that write both
   // setpoints separately during HEAT_COOL still end up with the "most recent
   // wins" behavior, which matches ESPHome's single-value target semantics for
-  // the MVP.
-  this->applying_matter_write_ = true;
-  this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
-  this->applying_matter_write_ = false;
+  // the MVP. Deferred to the main loop like the other CHIP-task-driven writes.
+  MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
+    this->applying_matter_write_ = true;
+    this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterClimateEndpoint::on_matter_cooling_setpoint_write(int16_t hundredths) {
   ESP_LOGD(TAG, "matter OccupiedCoolingSetpoint write endpoint=%u value=%d (%.2f °C) climate='%s'", this->endpoint_id_,
            static_cast<int>(hundredths), hundredths_to_celsius_(hundredths), this->climate_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
-  this->applying_matter_write_ = false;
+  MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
+    this->applying_matter_write_ = true;
+    this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterClimateEndpoint::push_initial_state() { this->report_state_to_fabric_(); }

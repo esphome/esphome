@@ -67,13 +67,22 @@ bool MatterSwitchEndpoint::setup() {
 void MatterSwitchEndpoint::on_matter_write(bool state) {
   ESP_LOGD(TAG, "matter write endpoint=%u state=%d switch='%s'", this->endpoint_id_, static_cast<int>(state),
            this->switch_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  if (state) {
-    this->switch_->turn_on();
-  } else {
-    this->switch_->turn_off();
-  }
-  this->applying_matter_write_ = false;
+  // on_matter_write runs on the CHIP PlatformManager task (esp-matter invokes
+  // attribute_update_cb from there), NOT the ESPHome main loop. Touching
+  // Switch::turn_on/off directly off-loop races the ESPHome state machine and
+  // its subscribers. Route through defer_on_main_loop so the ESPHome-side
+  // call always executes on the main thread; applying_matter_write_ is
+  // scoped inside the deferred lambda so both writer and reader (the state
+  // callback in setup()) touch it on the main loop only — no atomic needed.
+  MatterComponent::instance()->defer_on_main_loop([this, state]() {
+    this->applying_matter_write_ = true;
+    if (state) {
+      this->switch_->turn_on();
+    } else {
+      this->switch_->turn_off();
+    }
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterSwitchEndpoint::push_initial_state() { this->report_state_to_fabric_(this->switch_->state); }

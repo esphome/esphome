@@ -109,13 +109,20 @@ bool MatterLockEndpoint::setup() {
 bool MatterLockEndpoint::on_matter_command(bool is_lock) {
   ESP_LOGD(TAG, "matter %s command endpoint=%u lock='%s'", is_lock ? "LockDoor" : "UnlockDoor", this->endpoint_id_,
            this->lock_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  if (is_lock) {
-    this->lock_->lock();
-  } else {
-    this->lock_->unlock();
-  }
-  this->applying_matter_write_ = false;
+  // Called straight from CHIP's DoorLockServer callback on the PlatformManager
+  // task — Lock::lock/unlock must not run there. Defer the actual command onto
+  // the main loop; the return value here is the "did we accept the command"
+  // ack, which is optimistic anyway (see comment below). applying_matter_write_
+  // is scoped inside the lambda to keep guard access main-loop-only.
+  MatterComponent::instance()->defer_on_main_loop([this, is_lock]() {
+    this->applying_matter_write_ = true;
+    if (is_lock) {
+      this->lock_->lock();
+    } else {
+      this->lock_->unlock();
+    }
+    this->applying_matter_write_ = false;
+  });
   // Optimistic ack — the ESPHome lock() call itself doesn't return status.
   // CHIP's DoorLockServer will call SetLockState(Locked/Unlocked) internally
   // when we return true. If the physical lock jams, the platform will publish

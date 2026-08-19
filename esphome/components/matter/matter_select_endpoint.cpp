@@ -169,9 +169,13 @@ void MatterSelectEndpoint::on_matter_current_mode_write(uint8_t mode) {
              static_cast<unsigned>(this->mode_options_.size()));
     return;
   }
-  this->applying_matter_write_ = true;
-  this->select_->make_call().set_index(static_cast<size_t>(mode)).perform();
-  this->applying_matter_write_ = false;
+  // Runs on the CHIP task — defer the Select call and the guard onto the
+  // main loop.
+  MatterComponent::instance()->defer_on_main_loop([this, mode]() {
+    this->applying_matter_write_ = true;
+    this->select_->make_call().set_index(static_cast<size_t>(mode)).perform();
+    this->applying_matter_write_ = false;
+  });
 }
 
 void MatterSelectEndpoint::push_initial_state() {

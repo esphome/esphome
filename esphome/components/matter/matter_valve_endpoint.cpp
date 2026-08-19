@@ -75,7 +75,10 @@ bool MatterValveEndpoint::setup() {
     ::chip::app::DataModel::Nullable<::chip::Percent> level) {
   (void) level;  // no Level (kLevel) feature advertised — level is null
   ESP_LOGD(TAG, "matter Open command endpoint=%u valve='%s'", this->endpoint_id_, this->valve_->get_name().c_str());
-  this->valve_->make_call().set_command_open().perform();
+  // Delegate invoked on the CHIP task — defer the Valve::make_call so the
+  // ESPHome-side call runs on the main loop. The return value is CHIP's
+  // Nullable<Percent> ack, which we always report null (no percent feature).
+  MatterComponent::instance()->defer_on_main_loop([this]() { this->valve_->make_call().set_command_open().perform(); });
   // Return null — signals to CHIP that we don't report a percent-level.
   // For binary valves the caller ignores the value except to check null-ness.
   return ::chip::app::DataModel::Nullable<::chip::Percent>();
@@ -83,7 +86,8 @@ bool MatterValveEndpoint::setup() {
 
 CHIP_ERROR MatterValveEndpoint::HandleCloseValve() {
   ESP_LOGD(TAG, "matter Close command endpoint=%u valve='%s'", this->endpoint_id_, this->valve_->get_name().c_str());
-  this->valve_->make_call().set_command_close().perform();
+  MatterComponent::instance()->defer_on_main_loop(
+      [this]() { this->valve_->make_call().set_command_close().perform(); });
   return CHIP_NO_ERROR;
 }
 

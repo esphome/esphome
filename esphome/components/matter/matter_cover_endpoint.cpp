@@ -117,28 +117,35 @@ void MatterCoverEndpoint::on_matter_target_write(uint16_t percent100ths) {
   float target_pos = matter_100ths_to_esphome(percent100ths);
   ESP_LOGD(TAG, "matter target write endpoint=%u percent100ths=%u → esphome_pos=%.3f cover='%s'", this->endpoint_id_,
            static_cast<unsigned>(percent100ths), target_pos, this->cover_->get_name().c_str());
-  this->applying_matter_write_ = true;
-  auto call = this->cover_->make_call();
-  if (this->supports_position_) {
-    call.set_position(target_pos);
-  } else {
-    // Binary cover — pick the closer of fully-open / fully-closed. The
-    // 50% threshold matches how Home Assistant maps slider drags to
-    // OPEN/CLOSE for assumed-state covers.
-    if (target_pos >= 0.5f) {
-      call.set_command_open();
+  // Fabric writes arrive on the CHIP PlatformManager task; Cover::make_call
+  // and the trailing report_state_to_fabric_ mutate ESPHome state and
+  // attribute cache concurrently with the main loop otherwise. Defer the
+  // whole sequence onto the main loop and keep applying_matter_write_
+  // scoped inside the lambda so the guard is main-loop-only.
+  MatterComponent::instance()->defer_on_main_loop([this, target_pos]() {
+    this->applying_matter_write_ = true;
+    auto call = this->cover_->make_call();
+    if (this->supports_position_) {
+      call.set_position(target_pos);
     } else {
-      call.set_command_close();
+      // Binary cover — pick the closer of fully-open / fully-closed. The
+      // 50% threshold matches how Home Assistant maps slider drags to
+      // OPEN/CLOSE for assumed-state covers.
+      if (target_pos >= 0.5f) {
+        call.set_command_open();
+      } else {
+        call.set_command_close();
+      }
     }
-  }
-  call.perform();
-  this->applying_matter_write_ = false;
+    call.perform();
+    this->applying_matter_write_ = false;
 
-  // publish_state() from the template cover fired our device→fabric callback
-  // synchronously while applying_matter_write_ was set, so no CurrentPosition
-  // report went out. Push it now — otherwise CHIP's PostAttributeChange sees
-  // Target=X, Current=old and pegs OperationalStatus at Moving forever.
-  this->report_state_to_fabric_();
+    // publish_state() from the template cover fired our device→fabric callback
+    // synchronously while applying_matter_write_ was set, so no CurrentPosition
+    // report went out. Push it now — otherwise CHIP's PostAttributeChange sees
+    // Target=X, Current=old and pegs OperationalStatus at Moving forever.
+    this->report_state_to_fabric_();
+  });
 }
 
 void MatterCoverEndpoint::push_initial_state() { this->report_state_to_fabric_(); }
