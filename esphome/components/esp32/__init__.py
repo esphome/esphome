@@ -1079,7 +1079,7 @@ def _normalize_p4_engineering_sample(value):
     engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
     if engineering_sample is None:
         _LOGGER.warning(
-            "No chip revision specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+            "Defaulting to ESP32-P4 production silicon (rev3).\n"
             "If you have an early engineering sample (pre-rev3), add this to your config:\n"
             "\n"
             "  esp32:\n"
