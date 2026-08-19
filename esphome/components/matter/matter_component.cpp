@@ -90,7 +90,7 @@ namespace {
 // (typically 1–30 per platform), so a linear scan beats the ~2KB fixed
 // overhead of std::unordered_map — see the header comment on the *_by_id_
 // vectors.
-template<typename T> T *find_endpoint_by_id_(const std::vector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
+template<typename T> T *find_endpoint_by_id_(const FixedVector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
   for (const auto &kv : vec) {
     if (kv.first == endpoint_id) {
       return kv.second;
@@ -109,7 +109,7 @@ namespace {
 // backing string is copied into `label_`; CharSpan just references it.
 class EndpointFixedLabelIterator : public chip::DeviceLayer::DeviceInfoProvider::FixedLabelIterator {
  public:
-  EndpointFixedLabelIterator(const std::vector<std::pair<uint16_t, std::string>> &labels, chip::EndpointId endpoint) {
+  EndpointFixedLabelIterator(const FixedVector<std::pair<uint16_t, std::string>> &labels, chip::EndpointId endpoint) {
     for (const auto &pair : labels) {
       if (pair.first == endpoint) {
         this->label_ = pair.second;
@@ -182,7 +182,7 @@ class EndpointUserLabelIterator : public chip::DeviceLayer::DeviceInfoProvider::
 // Commissionable/DAC providers we depend on).
 class MatterDeviceInfoProvider : public chip::DeviceLayer::DeviceInfoProvider {
  public:
-  const std::vector<std::pair<uint16_t, std::string>> *labels = nullptr;
+  const FixedVector<std::pair<uint16_t, std::string>> *labels = nullptr;
   MatterComponent *component = nullptr;
 
   FixedLabelIterator *IterateFixedLabel(chip::EndpointId endpoint) override {
@@ -992,6 +992,49 @@ void MatterComponent::setup() {
   } else {
     ESP_LOGI(TAG, "topology=composed — skipping Aggregator + BridgedDeviceBasicInformation attach");
   }
+
+  // Compute an upper bound on the total endpoint count so we can allocate
+  // the aggregate label vectors up-front. Sums over every ESPHome list the
+  // scan_and_register_* passes below iterate — filtered entries (internal
+  // sensors, mode-less selects, etc.) just leave unused capacity, which
+  // costs ~24 bytes each. Only paid once at setup and never resized after.
+  size_t total_entity_upper_bound = 0;
+#ifdef USE_SWITCH
+  total_entity_upper_bound += App.get_switches().size();
+#endif
+#ifdef USE_BINARY_SENSOR
+  total_entity_upper_bound += App.get_binary_sensors().size();
+#endif
+#ifdef USE_SENSOR
+  total_entity_upper_bound += App.get_sensors().size();
+#endif
+#ifdef USE_COVER
+  total_entity_upper_bound += App.get_covers().size();
+#endif
+#ifdef USE_FAN
+  total_entity_upper_bound += App.get_fans().size();
+#endif
+#ifdef USE_LOCK
+  total_entity_upper_bound += App.get_locks().size();
+#endif
+#ifdef USE_VALVE
+  total_entity_upper_bound += App.get_valves().size();
+#endif
+#ifdef USE_SELECT
+  total_entity_upper_bound += App.get_selects().size();
+#endif
+#ifdef USE_BUTTON
+  total_entity_upper_bound += App.get_buttons().size();
+#endif
+#ifdef USE_LIGHT
+  total_entity_upper_bound += App.get_lights().size();
+#endif
+#ifdef USE_CLIMATE
+  total_entity_upper_bound += App.get_climates().size();
+#endif
+  this->endpoint_labels_.init(total_entity_upper_bound);
+  this->bridged_labels_.init(total_entity_upper_bound);
+
   this->scan_and_register_switches_();
   this->scan_and_register_binary_sensors_();
   this->scan_and_register_sensors_();
@@ -1476,6 +1519,9 @@ void MatterComponent::create_aggregator_endpoint_() {
 
 void MatterComponent::scan_and_register_switches_() {
 #ifdef USE_SWITCH
+  const size_t upper_bound = App.get_switches().size();
+  this->switch_endpoints_.init(upper_bound);
+  this->switch_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *sw : App.get_switches()) {
     if (sw == nullptr || sw->is_internal()) {
@@ -1498,6 +1544,8 @@ void MatterComponent::scan_and_register_switches_() {
 
 void MatterComponent::scan_and_register_binary_sensors_() {
 #ifdef USE_BINARY_SENSOR
+  const size_t upper_bound = App.get_binary_sensors().size();
+  this->binary_sensor_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *bs : App.get_binary_sensors()) {
     if (bs == nullptr || bs->is_internal()) {
@@ -1518,6 +1566,8 @@ void MatterComponent::scan_and_register_binary_sensors_() {
 
 void MatterComponent::scan_and_register_sensors_() {
 #ifdef USE_SENSOR
+  const size_t upper_bound = App.get_sensors().size();
+  this->sensor_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *s : App.get_sensors()) {
     if (s == nullptr || s->is_internal()) {
@@ -1542,6 +1592,9 @@ void MatterComponent::scan_and_register_sensors_() {
 
 void MatterComponent::scan_and_register_covers_() {
 #ifdef USE_COVER
+  const size_t upper_bound = App.get_covers().size();
+  this->cover_endpoints_.init(upper_bound);
+  this->cover_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *c : App.get_covers()) {
     if (c == nullptr || c->is_internal()) {
@@ -1564,6 +1617,9 @@ void MatterComponent::scan_and_register_covers_() {
 
 void MatterComponent::scan_and_register_fans_() {
 #ifdef USE_FAN
+  const size_t upper_bound = App.get_fans().size();
+  this->fan_endpoints_.init(upper_bound);
+  this->fan_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *f : App.get_fans()) {
     if (f == nullptr || f->is_internal()) {
@@ -1586,6 +1642,9 @@ void MatterComponent::scan_and_register_fans_() {
 
 void MatterComponent::scan_and_register_locks_() {
 #ifdef USE_LOCK
+  const size_t upper_bound = App.get_locks().size();
+  this->lock_endpoints_.init(upper_bound);
+  this->lock_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *l : App.get_locks()) {
     if (l == nullptr || l->is_internal()) {
@@ -1608,6 +1667,8 @@ void MatterComponent::scan_and_register_locks_() {
 
 void MatterComponent::scan_and_register_valves_() {
 #ifdef USE_VALVE
+  const size_t upper_bound = App.get_valves().size();
+  this->valve_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *v : App.get_valves()) {
     if (v == nullptr || v->is_internal()) {
@@ -1628,6 +1689,9 @@ void MatterComponent::scan_and_register_valves_() {
 
 void MatterComponent::scan_and_register_selects_() {
 #ifdef USE_SELECT
+  const size_t upper_bound = App.get_selects().size();
+  this->select_endpoints_.init(upper_bound);
+  this->select_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *s : App.get_selects()) {
     if (s == nullptr || s->is_internal()) {
@@ -1650,6 +1714,8 @@ void MatterComponent::scan_and_register_selects_() {
 
 void MatterComponent::scan_and_register_buttons_() {
 #ifdef USE_BUTTON
+  const size_t upper_bound = App.get_buttons().size();
+  this->button_endpoints_.init(upper_bound);
   size_t registered = 0;
   size_t skipped_matter_action = 0;
   for (auto *b : App.get_buttons()) {
@@ -1690,6 +1756,9 @@ void MatterComponent::scan_and_register_buttons_() {
 
 void MatterComponent::scan_and_register_lights_() {
 #ifdef USE_LIGHT
+  const size_t upper_bound = App.get_lights().size();
+  this->light_endpoints_.init(upper_bound);
+  this->light_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *l : App.get_lights()) {
     if (l == nullptr || l->is_internal()) {
@@ -1712,6 +1781,9 @@ void MatterComponent::scan_and_register_lights_() {
 
 void MatterComponent::scan_and_register_climates_() {
 #ifdef USE_CLIMATE
+  const size_t upper_bound = App.get_climates().size();
+  this->climate_endpoints_.init(upper_bound);
+  this->climate_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *c : App.get_climates()) {
     if (c == nullptr || c->is_internal()) {

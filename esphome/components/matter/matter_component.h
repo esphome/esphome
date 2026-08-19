@@ -3,6 +3,7 @@
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <esp_err.h>
@@ -278,7 +279,7 @@ class MatterComponent : public Component {
   // scan_and_register_*(). Read by MatterDeviceInfoProvider whenever a
   // controller queries the FixedLabel cluster on any endpoint — the vector
   // is stable for the lifetime of MatterComponent.
-  std::vector<std::pair<uint16_t, std::string>> endpoint_labels_;
+  FixedVector<std::pair<uint16_t, std::string>> endpoint_labels_;
 
   // Opaque handle to the Aggregator endpoint created by
   // create_aggregator_endpoint_(). Cast to ::esp_matter::endpoint_t * at
@@ -295,7 +296,7 @@ class MatterComponent : public Component {
   // stable heap address regardless of vector realloc — safer than raw
   // std::string values, whose short-string-optimized data() would dangle
   // on realloc. Push-once; no keyed lookup needed.
-  std::vector<std::unique_ptr<std::string>> bridged_labels_;
+  FixedVector<std::unique_ptr<std::string>> bridged_labels_;
 
   // Writable UserLabel entries, keyed by endpoint id. Populated at boot from
   // NVS by load_user_labels_() and mutated by fabric writes via the
@@ -312,31 +313,31 @@ class MatterComponent : public Component {
 #ifdef USE_SWITCH
   // Owned wrappers, one per registered switch. Vector holds the storage;
   // endpoints_by_id_ is the dispatcher's linear-scan lookup.
-  std::vector<std::unique_ptr<MatterSwitchEndpoint>> switch_endpoints_;
-  std::vector<std::pair<uint16_t, MatterSwitchEndpoint *>> switch_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterSwitchEndpoint>> switch_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterSwitchEndpoint *>> switch_endpoints_by_id_;
 #endif
 #ifdef USE_BINARY_SENSOR
   // Read-only wrappers — no dispatcher lookup needed.
-  std::vector<std::unique_ptr<MatterBinarySensorEndpoint>> binary_sensor_endpoints_;
+  FixedVector<std::unique_ptr<MatterBinarySensorEndpoint>> binary_sensor_endpoints_;
 #endif
 #ifdef USE_SENSOR
-  std::vector<std::unique_ptr<MatterSensorEndpoint>> sensor_endpoints_;
+  FixedVector<std::unique_ptr<MatterSensorEndpoint>> sensor_endpoints_;
 #endif
 #ifdef USE_COVER
   // Bidirectional wrappers — dispatcher needs endpoint→wrapper lookup for
   // fabric-driven target writes.
-  std::vector<std::unique_ptr<MatterCoverEndpoint>> cover_endpoints_;
-  std::vector<std::pair<uint16_t, MatterCoverEndpoint *>> cover_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterCoverEndpoint>> cover_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterCoverEndpoint *>> cover_endpoints_by_id_;
 #endif
 #ifdef USE_FAN
-  std::vector<std::unique_ptr<MatterFanEndpoint>> fan_endpoints_;
-  std::vector<std::pair<uint16_t, MatterFanEndpoint *>> fan_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterFanEndpoint>> fan_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterFanEndpoint *>> fan_endpoints_by_id_;
 #endif
 #ifdef USE_LOCK
   // Bidirectional wrappers — the DoorLock command hooks in the .cpp look up
   // the wrapper by endpoint id via handle_lock_command.
-  std::vector<std::unique_ptr<MatterLockEndpoint>> lock_endpoints_;
-  std::vector<std::pair<uint16_t, MatterLockEndpoint *>> lock_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterLockEndpoint>> lock_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterLockEndpoint *>> lock_endpoints_by_id_;
 #endif
 #ifdef USE_VALVE
   // Bidirectional wrappers. No endpoint→wrapper map: fabric→device flows
@@ -344,33 +345,33 @@ class MatterComponent : public Component {
   // ValveConfigurationAndControl::Delegate interface), so CHIP calls our
   // methods directly on the object registered during setup — no dispatcher
   // lookup needed.
-  std::vector<std::unique_ptr<MatterValveEndpoint>> valve_endpoints_;
+  FixedVector<std::unique_ptr<MatterValveEndpoint>> valve_endpoints_;
 #endif
 #ifdef USE_SELECT
   // Bidirectional wrappers. Fabric ChangeToMode → CHIP writes CurrentMode →
   // our attribute_update_cb dispatches by endpoint, so we do need the map.
-  std::vector<std::unique_ptr<MatterSelectEndpoint>> select_endpoints_;
-  std::vector<std::pair<uint16_t, MatterSelectEndpoint *>> select_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterSelectEndpoint>> select_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterSelectEndpoint *>> select_endpoints_by_id_;
 #endif
 #ifdef USE_BUTTON
   // Emit-only wrappers. Buttons don't receive commands from the fabric — no
   // dispatcher and no endpoint→wrapper map. Each wrapper hooks its ESPHome
   // button's press callback and emits Switch cluster events directly.
-  std::vector<std::unique_ptr<MatterButtonEndpoint>> button_endpoints_;
+  FixedVector<std::unique_ptr<MatterButtonEndpoint>> button_endpoints_;
 #endif
 #ifdef USE_LIGHT
   // Bidirectional wrappers. Multiple Matter clusters per endpoint (OnOff +
   // LevelControl + ColorControl depending on device kind), so the map is
   // consulted from several dispatcher branches.
-  std::vector<std::unique_ptr<MatterLightEndpoint>> light_endpoints_;
-  std::vector<std::pair<uint16_t, MatterLightEndpoint *>> light_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterLightEndpoint>> light_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterLightEndpoint *>> light_endpoints_by_id_;
 #endif
 #ifdef USE_CLIMATE
   // Bidirectional wrappers. Thermostat cluster has three writable attrs the
   // fabric touches (SystemMode + Occupied{Heating,Cooling}Setpoint); each
   // dispatcher branch consults the same map.
-  std::vector<std::unique_ptr<MatterClimateEndpoint>> climate_endpoints_;
-  std::vector<std::pair<uint16_t, MatterClimateEndpoint *>> climate_endpoints_by_id_;
+  FixedVector<std::unique_ptr<MatterClimateEndpoint>> climate_endpoints_;
+  FixedVector<std::pair<uint16_t, MatterClimateEndpoint *>> climate_endpoints_by_id_;
 #endif
 
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
