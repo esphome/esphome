@@ -22,6 +22,8 @@ class SoftwareSerialRxDecoder {
  public:
   static constexpr uint8_t RX_IDLE = 0xFF;
 
+  /// Configure the framing and buffer. Drops buffered bytes and any partial frame and
+  /// assumes an idle high line; call reset() afterwards with the real line level.
   void setup(uint32_t bit_cycles, uint8_t data_bits, bool parity, uint8_t stop_bits, uint8_t *buffer,
              size_t buffer_size) {
     this->bit_cycles_ = bit_cycles;
@@ -33,11 +35,13 @@ class SoftwareSerialRxDecoder {
     this->buffer_size_ = buffer_size;
     this->in_pos_ = 0;
     this->out_pos_ = 0;
+    this->reset(0, true);
   }
 
   /// Forget any partial frame; `level` is the current line level.
   void reset(uint32_t now, bool level) {
     this->bit_ = RX_IDLE;
+    this->cur_byte_ = 0;
     this->last_level_ = level;
     this->last_edge_ = now;
   }

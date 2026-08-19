@@ -315,8 +315,10 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg)
 void ESP8266SoftwareSerial::rx_finalize_pending_() {
   if (!this->rx_.finalize_due(arch_get_cpu_cycle_count())) {
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-    // Not old enough yet: run the loop again right away instead of after a full loop_interval_.
-    wake_loop_threadsafe();
+    // Not old enough yet: once the caller has drained what is there, run the loop
+    // again right away instead of after a full loop_interval_.
+    if (this->rx_.available() == 0)
+      wake_loop_threadsafe();
 #endif
     return;
   }

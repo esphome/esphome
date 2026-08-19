@@ -219,6 +219,59 @@ TEST(SoftwareSerialRxDecoder, DropsBytesWhenBufferIsFullAndKeepsOldest) {
     EXPECT_EQ(sim.received()[n], n);
 }
 
+TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFraming) {
+  // Mirrors load_settings(): bytes buffered and a frame left open under 8N1 in a
+  // 64 byte buffer, then setup() again with 5E2 in a 4 byte buffer.
+  LineSim sim(9600, 8, false, false, 1);
+  uint32_t t = 5000;
+  for (int n = 0; n < 10; n++)
+    t = sim.send(static_cast<uint8_t>(0x40 + n), t);
+  sim.edge(t + 8 * sim.bit_cycles(), false);  // open a frame, never closed
+  SoftwareSerialRxDecoder &dec = sim.decoder();
+  ASSERT_GE(dec.available(), 9u);
+
+  std::vector<uint8_t> small(4, 0xEE);
+  const uint32_t bit = CPU_HZ / 2400;
+  dec.setup(bit, 5, true, 2, small.data(), small.size());
+  EXPECT_EQ(dec.available(), 0u);
+  EXPECT_FALSE(dec.pending());
+  EXPECT_EQ(dec.read_byte(), 0);
+
+  // 5E2 frames fed straight into the reconfigured decoder: capacity is 3, the
+  // rest are dropped and nothing is written past the end of the new buffer.
+  auto send_5e2 = [&](uint8_t value, uint32_t start) {
+    bool line = true;
+    uint32_t at = start;
+    auto put = [&](bool b) {
+      if (b != line) {
+        dec.on_edge(at, b);
+        line = b;
+      }
+      at += bit;
+    };
+    put(false);
+    int ones = 0;
+    for (int i = 0; i < 5; i++) {
+      bool b = (value >> i) & 1;
+      ones += b;
+      put(b);
+    }
+    put(ones & 1);
+    put(true);
+    put(true);
+    return at;
+  };
+  uint32_t t2 = 5000;
+  for (int n = 1; n <= 6; n++)
+    t2 = send_5e2(static_cast<uint8_t>(n), t2);
+  dec.finalize(t2 + 20 * bit);
+  ASSERT_EQ(dec.available(), 3u);
+  EXPECT_EQ(dec.read_byte(), 1);
+  EXPECT_EQ(dec.read_byte(), 2);
+  EXPECT_EQ(dec.read_byte(), 3);
+  EXPECT_EQ(small[3], 0xEE);  // capacity slot is never written
+}
+
 TEST(SoftwareSerialRxDecoder, ResetDiscardsPartialFrame) {
   LineSim sim(9600, 8, false, false, 1);
   const uint32_t bit = sim.bit_cycles();
