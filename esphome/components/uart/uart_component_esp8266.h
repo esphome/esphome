@@ -7,6 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "software_serial_rx_decoder.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
@@ -35,37 +36,23 @@ class ESP8266SoftwareSerial {
   bool read_bit_(uint32_t *wait, const uint32_t &start);
   void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
 
-  bool rx_push_byte_(uint8_t data);
-  /// Feed `bits` consecutive bits at `level` into the edge decoder. Returns true when a byte was pushed.
-  bool rx_consume_run_(uint32_t bits, bool level);
-  /// Complete a byte whose trailing bits are idle-high and so never produce a closing edge.
+  /// Complete a byte whose trailing bits are idle high and so never produce a closing edge.
   void rx_finalize_pending_();
   void ESPHOME_ALWAYS_INLINE rx_sync_() {
-    if (this->rx_bit_ != RX_IDLE && this->rx_last_level_)
+    if (this->rx_.pending())
       this->rx_finalize_pending_();
   }
 
-  // Edge decoder state. rx_bit_ is the index of the next frame bit after the
-  // start bit (data, then parity, then stop at rx_stop_bit_) or RX_IDLE.
-  static constexpr uint8_t RX_IDLE = 0xFF;
-
   // Members ordered largest to smallest to minimize padding
   uint32_t bit_time_{0};
-  uint32_t rx_max_run_cycles_{0};
-  volatile uint32_t rx_last_edge_{0};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_;
-  volatile size_t rx_in_pos_{0};
-  size_t rx_out_pos_{0};
+  size_t rx_buffer_size_{0};
   InternalGPIOPin *gpio_tx_pin_{nullptr};
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
   ISRInternalGPIOPin rx_pin_;
+  SoftwareSerialRxDecoder rx_;
   UARTParityOptions parity_;
-  volatile uint8_t rx_bit_{RX_IDLE};
-  volatile uint8_t rx_cur_byte_{0};
-  volatile bool rx_last_level_{true};
-  uint8_t rx_stop_bit_{0};
   uint8_t stop_bits_;
   uint8_t data_bits_;
 };
