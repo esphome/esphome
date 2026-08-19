@@ -981,6 +981,33 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
+  if (!needle || !haystack) {
+    return false;
+  }
+// There is no strcasestr equivalent on the
+// RP2/Arduino platform, so it needs to be
+// implemented by hand.
+#if defined(USE_RP2) || defined(USE_ARDUINO)
+  if (needle[0] == '\0') {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    size_t i = 0;
+    while (needle[i] != '\0' &&
+           tolower(static_cast<unsigned char>(p[i])) == tolower(static_cast<unsigned char>(needle[i]))) {
+      i++;
+    }
+    if (needle[i] == '\0') {
+      return true;
+    }
+  }
+  return false;
+#else   // defined(USE_RP2) || defined(USE_ARDUINO)
+  return strcasestr(haystack, needle) != nullptr;
+#endif  // defined(USE_RP2) || defined(USE_ARDUINO)
+}
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
