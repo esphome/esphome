@@ -1,8 +1,0 @@
-esphome:
-  name: test
-
-esp32:
-  variant: esp32p4
-  toolchain: esp-idf
-  framework:
-    type: esp-idf
