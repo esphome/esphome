@@ -221,7 +221,10 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
 }
 
 bool str_contains_ignore_case_fallback(const char *haystack, const char *needle) {
-  const size_t needle_len = strlen(needle) if (needle_len == 0) { return true; }
+  const size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return true;
+  }
   for (const char *p = haystack; *p != '\0'; p++) {
     if (strncasecmp(p, needle, needle_len) == 0) {
       return true;
