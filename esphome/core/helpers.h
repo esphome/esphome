@@ -988,7 +988,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
 // There is no strcasestr equivalent on the
 // RP2/Arduino platform, so it needs to be
 // implemented by hand.
-#if defined(USE_RP2) || defined(USE_ARDUINO)
+#if defined(USE_RP2) || defined(USE_ARDUINO) || defined(USE_NRF52)
   if (needle[0] == '\0') {
     return true;
   }
@@ -1003,9 +1003,9 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
     }
   }
   return false;
-#else   // defined(USE_RP2) || defined(USE_ARDUINO)
+#else   // defined(USE_RP2) || defined(USE_ARDUINO) || defined(USE_NRF52)
   return strcasestr(haystack, needle) != nullptr;
-#endif  // defined(USE_RP2) || defined(USE_ARDUINO)
+#endif  // defined(USE_RP2) || defined(USE_ARDUINO) || defined(USE_NRF52)
 }
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
