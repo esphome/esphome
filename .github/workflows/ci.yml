@@ -493,52 +493,51 @@ jobs:
           fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
-      - name: Install libc6-dbg
-        # The CodSpeed runner (CodSpeedHQ/codspeed, executor/valgrind/setup.rs)
-        # skips its own install only when valgrind is present and
-        # ``dpkg -s libc6-dbg`` succeeds; otherwise helpers/apt.rs runs
-        # ``apt-get update`` with no timeout, so a slow apt mirror hangs the
-        # job until timeout-minutes kills it. Installing libc6-dbg here with
-        # a bounded retry lets the runner skip apt once valgrind is restored
-        # from its cache. The cached apt action cannot be used for this: it
-        # restores files without registering them with dpkg. Best effort
-        # only; a failure here just hands the install back to the runner,
-        # with the job timeout as the backstop. The per-call bound escalates
-        # per attempt so a congested but working mirror still gets a generous
-        # last try; with the kill grace, the dpkg recovery call and the
-        # sleeps, all three attempts stay inside timeout-minutes. The ladder
-        # is tighter than the one in ci-api-proto.yml on purpose: this step
-        # is optional, so most of the 30 minute job budget stays reserved
-        # for the benchmark run itself.
-        timeout-minutes: 10
+      - name: Bound apt fetches and pre-install libc6-dbg
+        # Two protections for the CodSpeed step below. First, a persistent
+        # apt config: the CodSpeed runner (CodSpeedHQ/codspeed,
+        # executor/valgrind/setup.rs) installs valgrind and libc6-dbg with
+        # its own ``apt-get update`` that has no timeout, and per-invocation
+        # options cannot reach it. With short per-fetch timeouts in
+        # apt.conf.d, any stalled mirror connection dies in seconds for
+        # every later apt call in this job, the runner's included, so a
+        # black-holing mirror can no longer hang the job. Second, a
+        # best-effort libc6-dbg pre-install so the runner can skip apt
+        # entirely once its valgrind cache is restored (it skips only when
+        # valgrind is present and ``dpkg -s libc6-dbg`` succeeds). The
+        # install is tried without ``apt-get update`` first: the runner
+        # image ships with fresh package lists, so the common path avoids
+        # the index download that a congested fallback mirror makes slow.
+        # The cached apt action cannot be used for this: it restores files
+        # without registering them with dpkg. A failure here just hands the
+        # install back to the runner, now itself bounded by the apt config,
+        # with the job timeout as the last backstop.
+        timeout-minutes: 15
         continue-on-error: true
         run: |
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
           if dpkg -s libc6-dbg >/dev/null 2>&1; then
             echo "libc6-dbg already installed"
             exit 0
           fi
-          # The runners' primary mirror (azure.archive.ubuntu.com) can
-          # black-hole; apt's default per-fetch timeout then burns most of
-          # a bound before the mirrorlist falls back to archive.ubuntu.com.
-          # Short per-fetch timeouts make apt give up on the dead mirror in
-          # seconds so the bound is spent on the working fallback.
-          APT_OPTS=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
-          attempt=0
-          for bound in 30 60 120; do
-            attempt=$((attempt + 1))
-            if sudo timeout -k 15 "$bound" \
-                apt-get "${APT_OPTS[@]}" update \
-              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 "$bound" \
-                apt-get "${APT_OPTS[@]}" install -y libc6-dbg
-            then
-              exit 0
-            fi
-            echo "apt-get attempt ${attempt} (${bound}s per call) failed, retrying"
-            sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
-              dpkg --configure -a || true
-            sleep 10
-          done
-          exit 1
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y libc6-dbg; then
+            exit 0
+          fi
+          # Rescue path: refresh the lists once, with a generous bound.
+          # The apt config above already converts a stalled mirror into a
+          # fast per-fetch failure and a fallback, so one bounded attempt
+          # is enough; the outer timeout is only a backstop.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
