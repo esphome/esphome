@@ -1104,10 +1104,6 @@ def _detect_variant(value):
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
         # name rather than carrying a PIO board name through the IDF build.
-        # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible,
-        # and downstream code derives CONFIG_ESP32P4_SELECTS_REV_LESS_V3 and
-        # the default CPU frequency from CONF_ENGINEERING_SAMPLE, so it is
-        # normalized here on every path.
         if CORE.using_toolchain_esp_idf:
             value = value.copy()
             if variant == VARIANT_ESP32P4:
