@@ -41,11 +41,25 @@ jobs:
           version: "0.11.15"
 
       - name: Install apt dependencies
+        # Pull-request-only workflow, so nothing on dev could seed a shared
+        # apt cache entry and the cached apt action would write one copy per
+        # pull request. Plain apt stays, but every call is bounded and
+        # retried so a slow mirror fails the step instead of hanging it.
+        timeout-minutes: 10
         run: |
-          sudo apt update
-          sudo apt-cache show protobuf-compiler
-          sudo apt install -y protobuf-compiler
-          protoc --version
+          for attempt in 1 2 3; do
+            if timeout 300 sudo apt-get update \
+              && timeout 300 sudo DEBIAN_FRONTEND=noninteractive \
+                apt-get install -y protobuf-compiler
+            then
+              protoc --version
+              exit 0
+            fi
+            echo "apt-get attempt ${attempt} failed, retrying"
+            sudo dpkg --configure -a || true
+            sleep 10
+          done
+          exit 1
       - name: Install python dependencies
         run: uv pip install --system aioesphomeapi -c requirements.txt -r requirements_dev.txt
       - name: Generate files

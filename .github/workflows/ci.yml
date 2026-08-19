@@ -68,6 +68,25 @@ jobs:
           uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
 
+  seed-apt-cache:
+    name: Seed apt package cache
+    runs-on: ubuntu-24.04
+    # Pull request jobs restore the apt packages below through the cache
+    # action, and a cache written on a pull request branch is only visible
+    # to that one pull request. Pushes to dev/beta/release seed and refresh
+    # the single shared entry instead, so pull request jobs always hit it
+    # and never write a copy of their own. The package list and version
+    # must stay identical to the steps that restore it; the cache key is
+    # derived from them alone.
+    if: github.event_name == 'push'
+    timeout-minutes: 10
+    steps:
+      - name: Install apt packages (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
+
   determine-jobs:
     name: Determine which jobs to run
     runs-on: ubuntu-24.04
@@ -323,7 +342,10 @@ jobs:
 
   integration-tests:
     name: Run integration tests (${{ matrix.bucket.name }})
-    runs-on: ubuntu-latest
+    # Pinned to the same image as seed-apt-cache: the apt cache key does
+    # not include the OS, so the restored packages must come from the same
+    # Ubuntu release.
+    runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
@@ -335,12 +357,18 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ccache
+      - name: Install ccache (cached)
         # Speeds up the host compiles: tests in a bucket compile overlapping
         # component sets, so later tests reuse earlier tests' objects.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache
+        # Restored from the entry seed-apt-cache writes on dev; a cache hit
+        # never touches apt, so a slow mirror cannot hang the job, and the
+        # timeout bounds the cold path. Package list and version must match
+        # seed-apt-cache exactly.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -421,6 +449,7 @@ jobs:
   benchmarks:
     name: Run CodSpeed benchmarks
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs:
       - common
       - determine-jobs
@@ -460,6 +489,28 @@ jobs:
             exit 1
           fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
+
+      - name: Install libc6-dbg
+        # The CodSpeed runner installs this itself with a plain apt-get call
+        # that has no timeout, so a slow apt mirror hangs the job until
+        # timeout-minutes kills it. Installing it here with a bounded retry
+        # also lets the runner find it already present after restoring
+        # valgrind from its cache and skip apt entirely. The cached apt
+        # action cannot be used for this: it restores files without
+        # registering them with dpkg, so the runner would still call apt.
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 sudo apt-get update \
+              && timeout 300 sudo DEBIAN_FRONTEND=noninteractive \
+                apt-get install -y libc6-dbg
+            then
+              exit 0
+            fi
+            echo "apt-get attempt ${attempt} failed, retrying"
+            sudo dpkg --configure -a || true
+            sleep 10
+          done
+          exit 1
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
@@ -884,12 +935,17 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
-      - name: Install apt packages
-        # Not cached: this job is pull-request-only, so a cache save could
-        # never be shared and would only consume quota.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
+      - name: Install apt packages (cached)
+        # Restored from the entry seed-apt-cache writes on dev, so this
+        # pull-request-only job hits and never saves a copy of its own. A
+        # cache hit never touches apt, so a slow mirror cannot hang the job,
+        # and the timeout bounds the cold path. Package list and version
+        # must match seed-apt-cache exactly.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
