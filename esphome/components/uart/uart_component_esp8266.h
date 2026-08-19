@@ -26,17 +26,41 @@ class ESP8266SoftwareSerial {
   size_t available();
 
  protected:
+  /// Start bit sampler for high baud rates: reads the whole byte inside the ISR.
   static void gpio_intr(ESP8266SoftwareSerial *arg);
+  /// Edge decoder for low baud rates: counts bits from the time between edges, returns at once.
+  static void gpio_intr_edge(ESP8266SoftwareSerial *arg);
 
   void wait_(uint32_t *wait, const uint32_t &start);
   bool read_bit_(uint32_t *wait, const uint32_t &start);
   void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+
+  bool rx_push_byte_(uint8_t data);
+  /// Feed `bits` consecutive bits at `level` into the edge decoder. Returns true when a byte was pushed.
+  bool rx_consume_run_(uint32_t bits, bool level);
+  /// Complete a byte whose trailing bits are idle-high and so never produce a closing edge.
+  void rx_finalize_pending_();
+  void ESPHOME_ALWAYS_INLINE rx_sync_() {
+    if (this->rx_bit_ != RX_IDLE && this->rx_last_level_)
+      this->rx_finalize_pending_();
+  }
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
   size_t rx_buffer_size_;
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
+
+  // Edge decoder state. rx_bit_ is the index of the next frame bit after the
+  // start bit (data, then parity, then stop at rx_stop_bit_) or RX_IDLE.
+  static constexpr uint8_t RX_IDLE = 0xFF;
+  uint32_t rx_max_run_cycles_{0};
+  volatile uint32_t rx_last_edge_{0};
+  volatile uint8_t rx_bit_{RX_IDLE};
+  volatile uint8_t rx_cur_byte_{0};
+  volatile bool rx_last_level_{true};
+  uint8_t rx_stop_bit_{0};
+
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
