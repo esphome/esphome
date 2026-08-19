@@ -2224,7 +2224,7 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   }
   return false;
 }
-bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
+bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
@@ -2253,7 +2253,7 @@ uint16_t APIConnection::encode_to_buffer_slow(uint32_t calculated_size, MessageE
                                               APIConnection *conn, uint32_t remaining_size) {
   return encode_to_buffer(calculated_size, encode_fn, msg, conn, remaining_size);
 }
-bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
+bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
   if (!this->try_to_clear_buffer(!is_log_message)) {
@@ -2283,12 +2283,12 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
   this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
   return this->schedule_batch_();
 }
 
-bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
     auto &shared_buf = this->parent_->get_shared_buffer_ref();

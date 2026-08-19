@@ -374,7 +374,7 @@ class APIConnection final : public APIServerConnectionBase {
       return true;
     return this->try_to_clear_buffer_slow_(log_out_of_space);
   }
-  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type);
+  bool send_buffer(ProtoWriteBuffer buffer, uint16_t message_type);
 
   const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
@@ -423,7 +423,7 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Non-template buffer management for send_message
-  bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
+  bool send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
   // Core batch encoding logic. ALWAYS_INLINE so encode_fn devirtualizes at hot call sites.
   // Defined in api_connection_buffer.h (needs APIServer complete).
@@ -664,10 +664,9 @@ class APIConnection final : public APIServerConnectionBase {
 
     struct BatchItem {
       EntityBase *entity;                       // 4 bytes - Entity pointer
-      uint8_t message_type;                     // 1 byte - Message type for protocol and dispatch
+      uint16_t message_type;                    // 2 bytes - Message type for protocol and dispatch
       uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
       uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
-      // 1 byte padding
     };
 
     std::vector<BatchItem> items;
@@ -677,7 +676,7 @@ class APIConnection final : public APIServerConnectionBase {
     // connections that do, buffers are released after initial sync anyway
 
     // Add item to the batch (with deduplication)
-    void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+    void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                   uint8_t aux_data_index = AUX_DATA_UNUSED) {
       // Dedup: O(n) scan but optimized for RAM over performance
       // Skip deduplication for events - they are edge-triggered, every occurrence matters
@@ -693,7 +692,7 @@ class APIConnection final : public APIServerConnectionBase {
       this->items.push_back({entity, message_type, estimated_size, aux_data_index});
     }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+    void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
       // Swap to front avoids expensive vector::insert which shifts all elements
       this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
       if (this->items.size() > 1) {
@@ -761,10 +760,10 @@ class APIConnection final : public APIServerConnectionBase {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
+  uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  uint8_t batch_message_type_{0};  // Current message type during batch encoding
-  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
+  // Total: 2 (flags) + 2 + 2 + 2 + 1 = 9 bytes
 
   // Actual header size used by encode_to_buffer for the current message.
   // Read by process_batch_multi_ to pass into MessageInfo.
@@ -813,7 +812,7 @@ class APIConnection final : public APIServerConnectionBase {
   // 2. It's an EventResponse (events are edge-triggered - every occurrence matters)
   // 3. OR: User has opted into immediate sending (should_try_send_immediately = true
   //    AND batch_delay = 0)
-  inline bool should_send_immediately_(uint8_t message_type) const {
+  inline bool should_send_immediately_(uint16_t message_type) const {
     return (
 #ifdef USE_UPDATE
         message_type == UpdateStateResponse::MESSAGE_TYPE ||
@@ -827,11 +826,11 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper method to send a message either immediately or via batching
   // Tries immediate send if should_send_immediately_() returns true and buffer has space
   // Falls back to batching if immediate send fails or isn't applicable
-  bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+  bool send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
 
   // Helper function to schedule a deferred message with known message type
-  bool schedule_message_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+  bool schedule_message_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                          uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
     this->deferred_batch_.add_item(entity, message_type, estimated_size, aux_data_index);
     return this->schedule_batch_();
@@ -839,7 +838,7 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Helper function to schedule a high priority message at the front of the batch
   // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
-  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
+  bool schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size);
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

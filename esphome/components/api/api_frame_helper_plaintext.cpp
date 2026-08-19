@@ -252,24 +252,14 @@ ESPHOME_ALWAYS_INLINE static inline void encode_varint_16(uint16_t value, uint8_
   *p = static_cast<uint8_t>(value);
 }
 
-// Encode an 8-bit varint (1-2 bytes) using pre-computed length.
-ESPHOME_ALWAYS_INLINE static inline void encode_varint_8(uint8_t value, uint8_t varint_len, uint8_t *p) {
-  if (varint_len == 2) {
-    *p++ = static_cast<uint8_t>(value | 0x80);
-    *p = static_cast<uint8_t>(value >> 7);
-  } else {
-    *p = value;
-  }
-}
-
 // Write plaintext header into pre-allocated padding before payload.
 // padding_size: bytes reserved before payload (HEADER_PADDING for first/single msg,
 //               actual header size for contiguous batch messages).
 // Returns the total header length (indicator + varints).
 ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, uint16_t payload_size,
-                                                                   uint8_t message_type, uint8_t padding_size) {
+                                                                   uint16_t message_type, uint8_t padding_size) {
   uint8_t size_varint_len = ProtoSize::varint16(payload_size);
-  uint8_t type_varint_len = ProtoSize::varint8(message_type);
+  uint8_t type_varint_len = ProtoSize::varint16(message_type);
   uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
   // The header is right-justified within the padding so it sits immediately before payload.
@@ -292,12 +282,12 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
 
   // Encode varints directly into buffer using pre-computed lengths
   encode_varint_16(payload_size, size_varint_len, buf_start + header_offset + 1);
-  encode_varint_8(message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
+  encode_varint_16(message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
 
   return total_header_len;
 }
 
-APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+APIError APIPlaintextFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
 #ifdef ESPHOME_DEBUG_API
   assert(this->state_ == State::DATA);
 #endif
