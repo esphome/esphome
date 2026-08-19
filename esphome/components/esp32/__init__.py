@@ -1076,8 +1076,7 @@ def _parse_pio_platform_version(value):
 def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
     """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
     silicon (rev3) is assumed. Returns the normalized flag."""
-    engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-    if engineering_sample is None:
+    if (engineering_sample := value.get(CONF_ENGINEERING_SAMPLE)) is None:
         _LOGGER.warning(
             "Defaulting to ESP32-P4 production silicon (rev3).\n"
             "If you have an early engineering sample (pre-rev3), add this to your config:\n"
