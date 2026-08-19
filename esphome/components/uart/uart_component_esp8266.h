@@ -45,29 +45,29 @@ class ESP8266SoftwareSerial {
       this->rx_finalize_pending_();
   }
 
+  // Edge decoder state. rx_bit_ is the index of the next frame bit after the
+  // start bit (data, then parity, then stop at rx_stop_bit_) or RX_IDLE.
+  static constexpr uint8_t RX_IDLE = 0xFF;
+
+  // Members ordered largest to smallest to minimize padding
   uint32_t bit_time_{0};
+  uint32_t rx_max_run_cycles_{0};
+  volatile uint32_t rx_last_edge_{0};
   uint8_t *rx_buffer_{nullptr};
   size_t rx_buffer_size_;
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
-
-  // Edge decoder state. rx_bit_ is the index of the next frame bit after the
-  // start bit (data, then parity, then stop at rx_stop_bit_) or RX_IDLE.
-  static constexpr uint8_t RX_IDLE = 0xFF;
-  uint32_t rx_max_run_cycles_{0};
-  volatile uint32_t rx_last_edge_{0};
-  volatile uint8_t rx_bit_{RX_IDLE};
-  volatile uint8_t rx_cur_byte_{0};
-  volatile bool rx_last_level_{true};
-  uint8_t rx_stop_bit_{0};
-
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
   InternalGPIOPin *gpio_tx_pin_{nullptr};
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
   ISRInternalGPIOPin rx_pin_;
+  UARTParityOptions parity_;
+  volatile uint8_t rx_bit_{RX_IDLE};
+  volatile uint8_t rx_cur_byte_{0};
+  volatile bool rx_last_level_{true};
+  uint8_t rx_stop_bit_{0};
+  uint8_t stop_bits_;
+  uint8_t data_bits_;
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {
