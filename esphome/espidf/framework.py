@@ -747,12 +747,16 @@ def _prefetch_idf_tool_archives(
             len(entries),
             ", ".join(entry["name"] for entry in entries),
         )
-        # tools.json always carries sizes; should one be missing the bar
-        # could not be trusted, so draw none rather than a wrong one.
+        # tools.json always carries sizes; should one be missing the combined
+        # bar could not be trusted, so show no bar at all (per-file bars from
+        # several threads would interleave) rather than a wrong one.
         sizes = [entry["size"] for entry in entries]
         progress = BatchDownloadProgress(
             "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
         )
+        # Reported after the bar is done so the warnings do not land on
+        # its row; list.append is atomic under the GIL.
+        failures: list[tuple[str, Exception]] = []
 
         def _download(entry: dict) -> None:
             tracker = progress.tracker()
@@ -768,7 +772,7 @@ def _prefetch_idf_tool_archives(
                 # Keep prefetching the remaining archives; the installer
                 # will retry this one itself (without resume).
                 tracker(0)
-                _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
+                failures.append((entry["name"], e))
 
         ex = ThreadPoolExecutor(max_workers=min(_PREFETCH_WORKERS, len(entries)))
         try:
@@ -779,6 +783,8 @@ def _prefetch_idf_tool_archives(
             # all before the process can exit; in-flight ones still finish.
             ex.shutdown(wait=True, cancel_futures=True)
             progress.done()
+        for name, e in failures:
+            _LOGGER.warning("Could not prefetch %s: %s", name, e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.

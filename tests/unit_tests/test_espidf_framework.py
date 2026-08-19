@@ -896,6 +896,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
         ),
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
@@ -910,10 +911,9 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     assert kwargs["sha256"] == "ab" * 32
     assert kwargs["size"] == 123
     # every archive reports into the one combined progress bar
-    assert all(
-        kw["progress"].__qualname__.startswith("BatchDownloadProgress.tracker")
-        for kw in calls.values()
-    )
+    progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 123 + 45)
+    tracker = progress_cls.return_value.tracker.return_value
+    assert all(kw["progress"] is tracker for kw in calls.values())
 
 
 def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
