@@ -1790,10 +1790,10 @@ void APIConnection::complete_authentication_() {
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
-  this->client_api_version_major_ = msg.api_version_major;
-  this->client_api_version_minor_ = msg.api_version_minor;
+  this->client_api_version_major_ = static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_major, 255));
+  this->client_api_version_minor_ = static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_minor, 255));
   char peername[socket::SOCKADDR_STR_LEN];
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %u.%u", this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;

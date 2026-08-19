@@ -757,13 +757,15 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   } flags_{};  // 2 bytes total
 
-  // 2-byte types immediately after flags_ (no padding between them)
-  uint16_t client_api_version_major_{0};
-  uint16_t client_api_version_minor_{0};
+  // 2-byte type immediately after flags_ (no padding between them)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
+  // Client API versions are clamped to 255 on receive (see send_hello_response_)
+  uint8_t client_api_version_major_{0};
+  uint8_t client_api_version_minor_{0};
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  // Total: 2 (flags) + 2 + 2 + 2 + 1 = 9 bytes
+  // Total: 2 (flags) + 2 + 1 + 1 + 1 + 1 (batch_header_size_ below) = 8 bytes,
+  // aligned to 4-byte boundary
 
   // Actual header size used by encode_to_buffer for the current message.
   // Read by process_batch_multi_ to pass into MessageInfo.
