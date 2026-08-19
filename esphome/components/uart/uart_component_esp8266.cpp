@@ -15,8 +15,7 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart";
-// Edge decoder up to this baud rate; above it the start bit sampler, whose
-// whole-byte block in the ISR is short there and whose timing still holds up.
+// Edge decoder up to this baud rate, start bit sampler above it.
 static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 38400;
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -239,7 +238,7 @@ UARTFlushResult ESP8266UartComponent::flush() {
 void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
                                   uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
                                   size_t rx_buffer_size) {
-  // load_settings() re-enters here: stop the RX interrupt before touching anything it reads.
+  // load_settings() re-enters here: detach the ISR before touching its state.
   if (this->gpio_rx_pin_ != nullptr)
     this->gpio_rx_pin_->detach_interrupt();
   this->bit_time_ = F_CPU / baud_rate;
@@ -315,8 +314,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg)
 void ESP8266SoftwareSerial::rx_finalize_pending_() {
   if (!this->rx_.finalize_due(arch_get_cpu_cycle_count())) {
 #ifdef USE_UART_WAKE_LOOP_ON_RX
-    // Not old enough yet: once the caller has drained what is there, run the loop
-    // again right away instead of after a full loop_interval_.
+    // Byte not old enough yet: re-run the loop once the buffer is drained.
     if (this->rx_.available() == 0)
       wake_loop_threadsafe();
 #endif

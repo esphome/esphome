@@ -14,9 +14,8 @@ namespace {
 // 80 MHz ESP8266 clock
 constexpr uint32_t CPU_HZ = 80000000;
 
-// Drives a SoftwareSerialRxDecoder with a simulated line: frames are turned into
-// edges at their ideal cycle counts (plus optional jitter), and the main loop is
-// emulated by poll(), which finalizes a pending byte and drains the buffer.
+// Simulated line: frames become edges at ideal cycle counts plus jitter;
+// poll() emulates the main loop (finalize pending byte, drain buffer).
 class LineSim {
  public:
   LineSim(uint32_t baud, uint8_t data_bits, bool parity, bool odd, uint8_t stop_bits, size_t buffer_size = 64)
@@ -45,8 +44,7 @@ class LineSim {
       this->received_.push_back(this->dec_.read_byte());
   }
 
-  // Emit one frame starting at cycle `start`; `jitter` is the per edge offset in cycles
-  // (positive or negative) supplied by the caller. Returns the cycle at which the frame ends.
+  // Emit one frame at `start` with per edge `jitter` in cycles; returns the end cycle.
   uint32_t send(
       uint8_t value, uint32_t start, const std::function<int32_t()> &jitter = [] { return 0; }) {
     std::vector<bool> bits;
@@ -123,8 +121,7 @@ TEST(SoftwareSerialRxDecoder, DecodesBackToBackFramesAtCommonBaudRates) {
 }
 
 TEST(SoftwareSerialRxDecoder, ToleratesEdgeJitterUpToAQuarterBit) {
-  // Consecutive edges can each be off by up to a quarter bit in either direction,
-  // so the measured run length is within half a bit of the true one.
+  // A quarter bit per edge keeps each run within the half bit rounding budget.
   run_stream({9600, 8, false, false, 1}, 0.24, 0, 2000, 1);
   run_stream({9600, 8, false, false, 1}, 0.24, 7, 2000, 2);
   run_stream({38400, 8, false, false, 1}, 0.24, 4, 2000, 3);
@@ -141,11 +138,10 @@ TEST(SoftwareSerialRxDecoder, AllOnesByteCompletesOnlyByFinalize) {
   LineSim sim(9600, 8, false, false, 1);
   const uint32_t bit = sim.bit_cycles();
   uint32_t t = 5000;
-  // Start bit, then the line goes high and stays there: 0xFF has no closing edge.
+  // 0xFF: start bit, then the line stays high with no closing edge.
   sim.edge(t, false);
   sim.edge(t + bit, true);
   EXPECT_TRUE(sim.decoder().pending());
-  // Eight data bits plus the stop bit must elapse after the rising edge.
   sim.poll(t + bit + 8 * bit);
   EXPECT_TRUE(sim.received().empty());
   EXPECT_FALSE(sim.decoder().finalize_due(t + bit + 8 * bit));
@@ -191,9 +187,7 @@ TEST(SoftwareSerialRxDecoder, BreakConditionIsDroppedAndResyncs) {
 TEST(SoftwareSerialRxDecoder, CollapsedEdgeIsIgnoredAndStreamRealignsAtIdle) {
   LineSim sim(9600, 8, false, false, 1);
   const uint32_t bit = sim.bit_cycles();
-  // 0x31 = 0b00110001: start, 1, 0, 0, 0, 1, 1, 0, 0, stop. Lose the rising edge
-  // of data bit 4 (ISR delayed past two edges), so the next edge arrives at the
-  // same level as the last one the decoder saw.
+  // 0x31: lose the rising edge of bit 4, so the next edge repeats the last level.
   uint32_t t = 5000;
   sim.edge(t, false);                         // start
   sim.edge(t + 1 * bit, true);                // bit0 = 1
@@ -220,8 +214,7 @@ TEST(SoftwareSerialRxDecoder, DropsBytesWhenBufferIsFullAndKeepsOldest) {
 }
 
 TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFraming) {
-  // Mirrors load_settings(): bytes buffered and a frame left open under 8N1 in a
-  // 64 byte buffer, then setup() again with 5E2 in a 4 byte buffer.
+  // Mirrors load_settings(): buffered 8N1 bytes and an open frame, then setup() as 5E2.
   LineSim sim(9600, 8, false, false, 1);
   uint32_t t = 5000;
   for (int n = 0; n < 10; n++)
@@ -237,8 +230,7 @@ TEST(SoftwareSerialRxDecoder, SetupAgainDropsStaleStateAndUsesNewBufferAndFramin
   EXPECT_FALSE(dec.pending());
   EXPECT_EQ(dec.read_byte(), 0);
 
-  // 5E2 frames fed straight into the reconfigured decoder: capacity is 3, the
-  // rest are dropped and nothing is written past the end of the new buffer.
+  // Capacity of the 4 byte buffer is 3; the spare slot must stay untouched.
   auto send_5e2 = [&](uint8_t value, uint32_t start) {
     bool line = true;
     uint32_t at = start;
