@@ -119,4 +119,14 @@ TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
   EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!"));
 }
 
+TEST(StringContainsIgnoreCaseTest, FallbackMatchesLibc) {
+  const char *haystack = "Hello World";
+  for (const char *needle : {"", "Hello", "hELLO", "Hell", "world", "Heaven", "Hello!", "d"}) {
+    EXPECT_EQ(str_contains_ignore_case_fallback(haystack, needle), str_contains_ignore_case(haystack, needle))
+        << "needle: " << needle;
+  }
+  EXPECT_EQ(str_contains_ignore_case_fallback("", ""), str_contains_ignore_case("", ""));
+  EXPECT_EQ(str_contains_ignore_case_fallback("ab", "abc"), str_contains_ignore_case("ab", "abc"));
+}
+
 }  // namespace esphome

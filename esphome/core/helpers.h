@@ -989,9 +989,10 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   if (!needle || !haystack) {
     return false;
   }
-// There is no strcasestr equivalent on the
-// LibreTiny, RP2 or Zephyr platforms, so it needs to be
-// implemented by hand.
+
+// strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
+// ESP32/ESP8266/host builds get it from their framework or from g++ on Linux;
+// LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
 #if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return str_contains_ignore_case_fallback(haystack, needle);
 #else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
