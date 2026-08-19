@@ -116,7 +116,6 @@ void AS734XComponent::dump_config() {
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
-  LOG_SENSOR("  ", "Irradiance", this->irradiance_sensor_);
   LOG_SENSOR("  ", "Irradiance photopic", this->irradiance_photopic_sensor_);
   LOG_SENSOR("  ", "Irradiance PAR", this->irradiance_par_sensor_);
   LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
@@ -315,7 +314,6 @@ float AS734XComponent::normalization_divisor_() const {
 // Each channel contributes a fixed amount per basic count to every integrated quantity, so the
 // totals are a weighted sum over the channels.
 void AS734XComponent::calculate_light_metrics_() {
-  float irradiance = 0.0f;
   float irradiance_photopic = 0.0f;
   float irradiance_par = 0.0f;
   float ppfd = 0.0f;
@@ -324,21 +322,19 @@ void AS734XComponent::calculate_light_metrics_() {
     const float basic_count = this->calculated_.basic_counts[i];
     const ChannelContribution contribution = this->device_->get_channel_contribution(i);
 
-    irradiance += contribution.irradiance * basic_count;
     irradiance_photopic += contribution.irradiance_photopic * basic_count;
     irradiance_par += contribution.irradiance_par * basic_count;
     ppfd += contribution.ppfd * basic_count;
   }
 
-  this->calculated_.irradiance = irradiance;
   this->calculated_.irradiance_photopic = irradiance_photopic;
   this->calculated_.irradiance_par = irradiance_par;
   this->calculated_.ppfd = ppfd * 1e3f;
   this->calculated_.illuminance = irradiance_photopic * LUMENS_PER_WATT;
 
-  ESP_LOGV(TAG, "Irradiance %.4f, photopic %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx",
-           this->calculated_.irradiance, this->calculated_.irradiance_photopic, this->calculated_.irradiance_par,
-           this->calculated_.ppfd, this->calculated_.illuminance);
+  ESP_LOGV(TAG, "Photopic irradiance %.4f, PAR %.4f, PPFD %.4f, illuminance %.2f lx",
+           this->calculated_.irradiance_photopic, this->calculated_.irradiance_par, this->calculated_.ppfd,
+           this->calculated_.illuminance);
 }
 
 void AS734XComponent::calculate_color_() {
@@ -417,9 +413,6 @@ void AS734XComponent::publish_light_metrics_() {
 #ifdef USE_SENSOR
   if (this->illuminance_sensor_ != nullptr) {
     this->illuminance_sensor_->publish_state(this->calculated_.illuminance);
-  }
-  if (this->irradiance_sensor_ != nullptr) {
-    this->irradiance_sensor_->publish_state(this->calculated_.irradiance);
   }
   if (this->irradiance_photopic_sensor_ != nullptr) {
     this->irradiance_photopic_sensor_->publish_state(this->calculated_.irradiance_photopic);

@@ -66,7 +66,6 @@ constexpr float LUMENS_PER_WATT = 683.002f;
 // How much one basic count of a channel contributes to each integrated quantity. The factors come
 // from the manufacturer's golden-device calibration, convolved for a reconstructed spectrum.
 struct ChannelContribution {
-  float irradiance;           // full band
   float irradiance_photopic;  // weighted by the CIE 1931 V(lambda) curve
   float irradiance_par;       // 400-700 nm only
   float ppfd;                 // 400-700 nm only, scaled by 1e3 before publishing
@@ -198,7 +197,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(saturation_level)
   SUB_SENSOR(illuminance)
-  SUB_SENSOR(irradiance)
   SUB_SENSOR(irradiance_photopic)
   SUB_SENSOR(irradiance_par)
   SUB_SENSOR(ppfd)
@@ -274,7 +272,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
     float max_band_basic_count{0.0f};  // largest of the visible bands only
     float clear_basic_count{0.0f};     // the wideband clear channel
     float saturation_level{0.0f};
-    float irradiance{0.0f};
     float irradiance_photopic{0.0f};
     float irradiance_par{0.0f};
     float ppfd{0.0f};

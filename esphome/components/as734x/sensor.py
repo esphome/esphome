@@ -33,7 +33,6 @@ CONF_NORMALIZE_BASIC_COUNTS = "normalize_basic_counts"
 CONF_CHANNEL_CORRECTION = "channel_correction"
 CONF_DARK_CURRENT = "dark_current"
 CONF_SATURATION_LEVEL = "saturation_level"
-CONF_IRRADIANCE = "irradiance"
 CONF_IRRADIANCE_PHOTOPIC = "irradiance_photopic"
 CONF_IRRADIANCE_PAR = "irradiance_par"
 CONF_PPFD = "ppfd"
@@ -59,7 +58,6 @@ UNIT_PPFD = "µmol/m²/s"
 ICON_COUNTS = "mdi:counter"
 ICON_SATURATION = "mdi:weather-sunny-alert"
 ICON_ILLUMINANCE = "mdi:weather-sunny"
-ICON_IRRADIANCE = "mdi:radioactive"
 ICON_IRRADIANCE_PHOTOPIC = "mdi:sun-wireless-outline"
 ICON_PAR = "mdi:sprout"
 ICON_PPFD = "mdi:sprout-outline"
@@ -241,16 +239,6 @@ _COMMON_SCHEMA = (
                 ),
                 key=CONF_NAME,
             ),
-            cv.Optional(CONF_IRRADIANCE): cv.maybe_simple_value(
-                sensor.sensor_schema(
-                    unit_of_measurement=UNIT_IRRADIANCE,
-                    icon=ICON_IRRADIANCE,
-                    accuracy_decimals=3,
-                    device_class=DEVICE_CLASS_IRRADIANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                key=CONF_NAME,
-            ),
             cv.Optional(CONF_IRRADIANCE_PHOTOPIC): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_IRRADIANCE,
@@ -352,7 +340,6 @@ CONFIG_SCHEMA = cv.All(
 DERIVED_SENSORS = (
     CONF_SATURATION_LEVEL,
     CONF_ILLUMINANCE,
-    CONF_IRRADIANCE,
     CONF_IRRADIANCE_PHOTOPIC,
     CONF_IRRADIANCE_PAR,
     CONF_PPFD,
