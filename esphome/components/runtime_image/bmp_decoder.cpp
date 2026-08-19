@@ -14,6 +14,11 @@ static const char *const TAG = "image_decoder.bmp";
 
 void BmpDecoder::reset() {
   ImageDecoder::reset();
+  this->bits_per_pixel_ = 0;
+  this->compression_method_ = 0;
+  this->image_data_size_ = 0;
+  this->width_ = 0;
+  this->height_ = 0;
   this->current_index_ = 0;
   this->paint_index_ = 0;
   this->color_table_.reset();

@@ -236,6 +236,8 @@ bool RuntimeImage::end_decode() {
     this->data_start_ = this->buffer_;
   }
 
+  this->decoder_->reset();  // Reset decoder state for potential reuse
+
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
 }

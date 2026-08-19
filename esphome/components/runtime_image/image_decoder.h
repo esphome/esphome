@@ -55,7 +55,6 @@ class ImageDecoder {
    */
   virtual void reset() {
     this->decoded_bytes_ = 0;
-    this->expected_size_ = 0;
     this->size_valid_ = true;
     this->x_scale_ = 1.0;
     this->y_scale_ = 1.0;
