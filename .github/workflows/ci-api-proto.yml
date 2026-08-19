@@ -45,21 +45,26 @@ jobs:
         # apt cache entry and the cached apt action would write one copy per
         # pull request. Plain apt stays, but every call is bounded and
         # retried so a slow mirror fails the step instead of hanging it.
-        # timeout runs under sudo so it can kill apt-get itself; the
-        # per-call bounds are sized so all three attempts fit inside
-        # timeout-minutes (3 x (75 + 75 + 10) s).
-        timeout-minutes: 10
+        # timeout runs under sudo so it can kill apt-get itself. The
+        # per-call bound escalates per attempt so a congested but working
+        # mirror still gets a generous last try; with the kill grace, the
+        # dpkg recovery call and the sleeps, all three attempts stay inside
+        # timeout-minutes.
+        timeout-minutes: 15
         run: |
-          for attempt in 1 2 3; do
-            if sudo timeout -k 15 60 apt-get update \
-              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 60 \
+          attempt=0
+          for bound in 45 90 180; do
+            attempt=$((attempt + 1))
+            if sudo timeout -k 15 "$bound" apt-get update \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 "$bound" \
                 apt-get install -y protobuf-compiler
             then
               protoc --version
               exit 0
             fi
-            echo "apt-get attempt ${attempt} failed, retrying"
-            sudo dpkg --configure -a || true
+            echo "apt-get attempt ${attempt} (${bound}s per call) failed, retrying"
+            sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+              dpkg --configure -a || true
             sleep 10
           done
           exit 1

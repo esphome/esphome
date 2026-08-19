@@ -359,13 +359,14 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ccache (cached)
-        # Speeds up the host compiles: tests in a bucket compile overlapping
-        # component sets, so later tests reuse earlier tests' objects.
-        # Restored from the entry seed-apt-cache writes on dev; a cache hit
-        # never touches apt, so a slow mirror cannot hang the job, and the
-        # timeout bounds the cold path. Package list and version must match
-        # seed-apt-cache exactly.
+      - name: Install apt packages (cached)
+        # ccache speeds up the host compiles: tests in a bucket compile
+        # overlapping component sets, so later tests reuse earlier tests'
+        # objects. Restored from the entry seed-apt-cache writes on dev; a
+        # cache hit never touches apt, so a slow mirror cannot hang the job,
+        # and the timeout bounds the cold path. Package list and version must
+        # match seed-apt-cache exactly: libsdl2-dev is not used here and is
+        # carried only so this step shares the seed job's cache key.
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
@@ -502,20 +503,25 @@ jobs:
         # from its cache. The cached apt action cannot be used for this: it
         # restores files without registering them with dpkg. Best effort
         # only; a failure here just hands the install back to the runner,
-        # with the job timeout as the backstop. Per-call bounds are sized so
-        # all three attempts fit inside timeout-minutes (3 x (75 + 75 + 10) s).
-        timeout-minutes: 10
+        # with the job timeout as the backstop. The per-call bound escalates
+        # per attempt so a congested but working mirror still gets a generous
+        # last try; with the kill grace, the dpkg recovery call and the
+        # sleeps, all three attempts stay inside timeout-minutes.
+        timeout-minutes: 15
         continue-on-error: true
         run: |
-          for attempt in 1 2 3; do
-            if sudo timeout -k 15 60 apt-get update \
-              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 60 \
+          attempt=0
+          for bound in 45 90 180; do
+            attempt=$((attempt + 1))
+            if sudo timeout -k 15 "$bound" apt-get update \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 "$bound" \
                 apt-get install -y libc6-dbg
             then
               exit 0
             fi
-            echo "apt-get attempt ${attempt} failed, retrying"
-            sudo dpkg --configure -a || true
+            echo "apt-get attempt ${attempt} (${bound}s per call) failed, retrying"
+            sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+              dpkg --configure -a || true
             sleep 10
           done
           exit 1
