@@ -400,10 +400,10 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             if captive
             else "",
         )
-    elif captive and not wifi_is_ap_only(wifi_config):
+    elif captive:
         _LOGGER.info(
-            "web_server will act as a captive portal while the fallback access point "
-            "is active."
+            "web_server will act as a captive portal while the %saccess point is active.",
+            "" if wifi_is_ap_only(wifi_config) else "fallback ",
         )
     if not wifi_is_ap_only(wifi_config):
         return

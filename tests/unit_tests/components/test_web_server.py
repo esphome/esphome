@@ -127,15 +127,24 @@ def test_final_validate_ap_mode_port_warning_uses_manual_ip(
     assert "http://10.0.0.1:8080/" in caplog.text
 
 
-def test_final_validate_ap_mode_informs_fallback_captive(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize(
+    ("wifi_config", "expected"),
+    [
+        # Explicit local: true on a fallback AP: announce the captive fallback role.
+        (AP_FALLBACK, "fallback access point"),
+        # Explicit local: true on AP only skips the implied-local info; still announce.
+        (AP_ONLY, "captive portal while the access point"),
+    ],
+)
+def test_final_validate_ap_mode_informs_explicit_local_captive(
+    wifi_config: dict, expected: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Explicit local: true on a fallback AP logs that web_server becomes captive."""
+    """Explicit local: true logs that web_server becomes the captive portal."""
     config = {CONF_VERSION: 2, CONF_PORT: 80, CONF_LOCAL: True}
-    token = fv.full_config.set({"web_server": config, CONF_WIFI: AP_FALLBACK})
+    token = fv.full_config.set({"web_server": config, CONF_WIFI: wifi_config})
     try:
         with caplog.at_level(logging.INFO):
             _final_validate_ap_mode(config)
     finally:
         fv.full_config.reset(token)
-    assert "fallback access point" in caplog.text
+    assert expected in caplog.text
