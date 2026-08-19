@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_AP,
     CONF_LOCAL,
     CONF_NETWORKS,
+    CONF_PORT,
     CONF_SSID,
     CONF_VERSION,
     CONF_WIFI,
@@ -52,6 +53,8 @@ def test_serve_local(
     [
         # AP only: local is implied, web_server is the captive portal.
         ({CONF_VERSION: 2}, {CONF_WIFI: AP_ONLY}, True),
+        # Captive portal probes only work on port 80.
+        ({CONF_VERSION: 2, CONF_PORT: 8080}, {CONF_WIFI: AP_ONLY}, False),
         # AP fallback needs an explicit local: true to be captive.
         ({CONF_VERSION: 2}, {CONF_WIFI: AP_FALLBACK}, False),
         ({CONF_VERSION: 2, CONF_LOCAL: True}, {CONF_WIFI: AP_FALLBACK}, True),
@@ -67,6 +70,7 @@ def test_serve_local(
 def test_serve_captive(
     web_server_config: dict, full_config: dict, expected: bool
 ) -> None:
+    web_server_config.setdefault(CONF_PORT, 80)
     assert serve_captive(web_server_config, full_config) is expected
 
 
@@ -74,9 +78,9 @@ def test_serve_captive(
     ("web_server_config", "expect_warning"),
     [
         # Explicit local: false on an AP only device: the hosted page will stay blank.
-        ({CONF_VERSION: 2, CONF_LOCAL: False}, True),
+        ({CONF_VERSION: 2, CONF_PORT: 80, CONF_LOCAL: False}, True),
         # Default: embedded and captive, nothing to warn about.
-        ({CONF_VERSION: 2}, False),
+        ({CONF_VERSION: 2, CONF_PORT: 80}, False),
     ],
 )
 def test_final_validate_ap_mode_warns_for_hosted_page(
@@ -89,3 +93,18 @@ def test_final_validate_ap_mode_warns_for_hosted_page(
     finally:
         fv.full_config.reset(token)
     assert ("stays blank" in caplog.text) is expect_warning
+
+
+def test_final_validate_ap_mode_warns_for_non_default_port(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Captive portal detection needs port 80; other ports get a hint, not captive mode."""
+    config = {CONF_VERSION: 2, CONF_PORT: 8080}
+    token = fv.full_config.set({"web_server": config, CONF_WIFI: AP_ONLY})
+    try:
+        with caplog.at_level(logging.WARNING):
+            _final_validate_ap_mode(config)
+    finally:
+        fv.full_config.reset(token)
+    assert "cannot open automatically" in caplog.text
+    assert "http://192.168.4.1:8080/" in caplog.text

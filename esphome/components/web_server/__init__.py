@@ -363,10 +363,13 @@ def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
 
 def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
     """web_server runs its own captive portal while the AP is up: embedded interface plus
-    an access point, unless captive_portal (which owns that role) is configured."""
+    an access point, unless captive_portal (which owns that role) is configured. Only on
+    port 80: the OS captive portal probes and the DHCP portal URI always use port 80, so
+    a portal on another port could never be discovered."""
     wifi_config = full_config.get(CONF_WIFI)
     return (
         "captive_portal" not in full_config
+        and config[CONF_PORT] == 80
         and wifi_config is not None
         and CONF_AP in wifi_config
         and serve_local(config, wifi_config)
@@ -390,6 +393,18 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "which browsers on the access point usually cannot reach; the page stays "
             "blank. Remove 'local: false', or migrate off version 1, so the interface "
             "is embedded in the firmware."
+        )
+    elif (
+        wifi_is_ap_only(wifi_config)
+        and serve_local(config, wifi_config)
+        and config[CONF_PORT] != 80
+    ):
+        _LOGGER.warning(
+            "WiFi is AP only and web_server uses port %d. The interface cannot open "
+            "automatically on the access point (captive portal detection only works on "
+            "port 80); open http://192.168.4.1:%d/ manually, or remove 'port:' to use 80.",
+            config[CONF_PORT],
+            config[CONF_PORT],
         )
 
 
