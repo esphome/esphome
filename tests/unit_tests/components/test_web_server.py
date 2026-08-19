@@ -21,6 +21,16 @@ def test_build_index_html_escapes_hint() -> None:
     assert "a\\&#x27;b&quot;c.js" in html
 
 
+def test_build_index_html_hint_disabled() -> None:
+    """The plain script tag is kept when the hint is not wanted (captive_portal)."""
+    html = build_index_html(
+        {CONF_JS_URL: "https://oi.esphome.io/v2/www.js", CONF_CSS_URL: ""},
+        offline_hint=False,
+    )
+    assert '<script src="https://oi.esphome.io/v2/www.js"></script>' in html
+    assert "onerror" not in html
+
+
 def test_build_index_html_without_js_url() -> None:
     """No hosted script and no hint when js_url is empty."""
     html = build_index_html({CONF_JS_URL: "", CONF_CSS_URL: ""})

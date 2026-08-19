@@ -333,7 +333,7 @@ async def add_entity_config(entity, config):
     )
 
 
-def build_index_html(config) -> str:
+def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
@@ -345,7 +345,8 @@ def build_index_html(config) -> str:
     if js_include:
         html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
-    if js_url := config[CONF_JS_URL]:
+    js_url = config[CONF_JS_URL]
+    if js_url and offline_hint:
         # The interface is downloaded from the internet. Show a hint instead of a blank
         # page when the browser cannot reach it, which is common in WiFi AP mode.
         hint = (
@@ -359,6 +360,8 @@ def build_index_html(config) -> str:
             hint.replace("\\", "\\\\").replace("'", "\\'"), quote=True
         )
         html += f'<script src="{js_url}" onerror="document.body.innerText=\'{hint_js}\'"></script>'
+    elif js_url:
+        html += f'<script src="{js_url}"></script>'
     html += "</body></html>"
     return html
 
@@ -396,7 +399,12 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
-        add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
+        # With captive_portal the AP serves its own local page, so the offline hint is
+        # only useful without it.
+        index_html = build_index_html(
+            config, offline_hint="captive_portal" not in CORE.config
+        )
+        add_resource_as_progmem("INDEX_HTML", index_html, compress=False)
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
