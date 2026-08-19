@@ -795,27 +795,26 @@ async def _write_executable_component_name() -> None:
 
     Two -D args are appended to ``board_build.cmake_extra_args`` here:
 
-    1. ``EXECUTABLE_COMPONENT_NAME=src`` — esp-matter's CMakeLists.txt reads
-       this to know which component library to link CHIP against. Default is
-       ``main``; ESPHome's app component is ``src`` (it globs everything under
-       ``.esphome/build/<name>/src/``, including the .cpp files we drop under
-       ``src/esphome/components/matter/``). Without this, CMake configure
-       fails with "Failed to resolve component 'main'".
+    1. ``EXECUTABLE_COMPONENT_NAME=src`` — belt-and-braces companion to the
+       identical ``set()`` in ``build_gen/espidf.py``. The template is the
+       primary source for direct ``idf.py`` invocations
+       (script/test_build_components uses that path and does not honor
+       PlatformIO's ``board_build.cmake_extra_args``); the -D here covers
+       users running ``esphome compile`` against an already-installed
+       release of ESPHome whose bundled template pre-dates the ``set()``
+       above but whose ``matter/`` component tree is this branch's copy
+       (``external_components: local``). Both paths converge on the same
+       value, so the "duplication" is a no-op when both fire.
 
-    2. ``CMAKE_PROJECT_INCLUDE=<abs path to _patch_hook.cmake>`` (all
-       ESP32 variants) — patches esp-matter sources so they build cleanly
-       on ESP32-S3/S2/C3/C6/H2 with an SPI PHY AND on the classic ESP32
-       with the internal EMAC. Applying the patches on classic ESP32 too
-       (previously skipped) removes the link-order dependency that
-       ``matter_ethernet_stub.cpp`` used to rely on: with PATCH1 stubbing
-       ``NetworkCommissioningDriver_Ethernet.cpp`` to an empty file on
-       every variant, our ``ESPEthernetDriver::Init`` override is the
-       sole provider — a future upstream release adding another
-       externally-linked symbol to that TU can no longer force a
-       multiple-definition link error on classic ESP32.
-       CMAKE_PROJECT_INCLUDE fires AFTER the top-level ``project()`` call,
-       which is AFTER idf-component-manager's integrity-restore pass —
-       meaning our patches survive to ninja. Earlier attempts at ESPHome
+    2. ``CMAKE_PROJECT_INCLUDE=<abs path to _patch_hook.cmake>`` patches
+       esp-matter sources so they build cleanly on every supported ESP32
+       variant (S3 with SPI PHY, classic with internal EMAC, etc.). PATCH1
+       stubs ``NetworkCommissioningDriver_Ethernet.cpp`` on every variant
+       so our ``ESPEthernetDriver::Init`` override is the sole provider —
+       no link-order dependency for ``matter_ethernet_stub.cpp``.
+       CMAKE_PROJECT_INCLUDE fires AFTER the top-level ``project()`` call
+       — which is AFTER idf-component-manager's integrity-restore pass —
+       so our patches survive to ninja. Earlier attempts at ESPHome
        codegen time were reverted every configure by component-manager.
        See ``_apply_patches.py`` and ``_patch_hook.cmake`` for the rest.
 
