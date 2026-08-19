@@ -27,7 +27,7 @@ class TuyaFan final : public Component, public fan::Fan {
   optional<uint8_t> switch_id_{};
   optional<uint8_t> oscillation_id_{};
   optional<uint8_t> direction_id_{};
-  optional<bool> optimistic_{};
+  bool optimistic_{false};
   int speed_count_{};
   TuyaDatapointType speed_type_{};
   TuyaDatapointType oscillation_type_{};
