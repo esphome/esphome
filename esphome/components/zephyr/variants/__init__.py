@@ -452,6 +452,7 @@ def set_core_data(
     shields: list[str] | None = None,
     shield_root: Path | None = None,
     snippet_root: Path | None = None,
+    runner: str | None = None,
 ) -> None:
     """Populate CORE.data for a Zephyr variant's config_schema().
 
@@ -503,6 +504,7 @@ def set_core_data(
         module_requests={},
         module_overrides={},
         blobs=[],
+        runner=runner,
     )
 
 

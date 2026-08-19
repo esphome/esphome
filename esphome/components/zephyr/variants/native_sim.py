@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_MAC_ADDRESS,
@@ -9,11 +10,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import ZEPHYR_VARIANT_NATIVE_SIM
+from ..const import ADVANCED_SCHEMA, CONF_RUNNER, ZEPHYR_VARIANT_NATIVE_SIM
 from . import MAINLINE, ZephyrVariant, resolve_framework_version, set_core_data
 
 _DEFAULT_BOARD = "native_sim/native/64"
 _VALID_BOARDS = [_DEFAULT_BOARD]
+
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NATIVE_SIM
@@ -31,6 +34,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_MAC_ADDRESS] = cv.mac_address("98:35:69:ab:f6:79")
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     board = config[CONF_BOARD]
     if board not in _VALID_BOARDS:
         raise cv.Invalid(
@@ -49,6 +53,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 

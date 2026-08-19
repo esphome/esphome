@@ -1,6 +1,7 @@
 from typing import Final
 
 import esphome.codegen as cg
+import esphome.config_validation as cv
 
 BOOTLOADER_MCUBOOT = "mcuboot"
 
@@ -10,7 +11,24 @@ BOOTLOADER_MCUBOOT = "mcuboot"
 CONF_BOOTLOADER = "bootloader"
 BOOTLOADER_NONE = "none"
 
+# advanced: runner: -- free-text west flash runner override. Valid names are
+# board/SDK-specific and only knowable after CMake configure, so this is
+# intentionally unvalidated here (see build_zephyr.log_available_runners()).
+CONF_RUNNER = "runner"
+
+# Base advanced: schema shared by every variant; extend() on extra per-variant keys.
+ADVANCED_SCHEMA = cv.Schema({cv.Optional(CONF_RUNNER): cv.string_strict})
+
+BOOTLOADER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
+            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
+        ),
+    }
+)
+
 KEY_BOOTLOADER: Final = "bootloader"
+KEY_RUNNER: Final = "runner"
 KEY_EXTRA_BUILD_FILES: Final = "extra_build_files"
 KEY_OVERLAY: Final = "overlay"
 KEY_OVERLAY_BUILDER: Final = "overlay_builder"

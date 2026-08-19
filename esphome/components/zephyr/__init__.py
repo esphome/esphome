@@ -70,6 +70,7 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_RUNNER,
     KEY_SHIELD_ROOT,
     KEY_SHIELDS,
     KEY_SINGLE_SLOT,
@@ -225,6 +226,7 @@ class ZephyrData(TypedDict):
     # (west_module, allow_regex, sentinel_name) entries added via zephyr_add_blobs() --
     # transport-conditional blob fetches, on top of the variant's own static `blobs`.
     blobs: list[tuple[str, str, str]]
+    runner: str | None  # zephyr: advanced: runner: -- west flash runner override
 
 
 # platform: nrf52 use only
@@ -266,6 +268,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         module_requests={},
         module_overrides={},
         blobs=[],
+        runner=None,
     )
 
 
@@ -2000,11 +2003,23 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         CONFIG_SCHEMA(zephyr_config)
 
     if host == "BOOTSEL":
+        if zephyr_data().get(KEY_RUNNER):
+            _LOGGER.info(
+                "Configured advanced.runner has no effect on BOOTSEL/picotool flashing"
+            )
         return _upload_using_picotool()
 
     if host == "PYOCD":
         if zephyr_variant_family() == "esp32":
             return False  # PYOCD isn't supported on esp32-family; it flashes over serial instead
+
+        configured_runner = zephyr_data().get(KEY_RUNNER)
+        if configured_runner and configured_runner != "pyocd":
+            _LOGGER.info(
+                "Ignoring configured advanced.runner '%s' -- --device PYOCD always "
+                "forces the pyocd runner",
+                configured_runner,
+            )
 
         from .build_zephyr import run_west_flash_pyocd
         from .framework_west import check_and_install as west_install
@@ -2036,6 +2051,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if get_port_type(host) != PortType.SERIAL:
             return False
 
+        if zephyr_data().get(KEY_RUNNER):
+            _LOGGER.info(
+                "Configured advanced.runner has no effect on BOOTSEL/picotool flashing"
+            )
         if not _touch_1200_baud_reboot(host):
             raise EsphomeError(
                 f"Could not trigger a BOOTSEL reboot on {host}. Manually put the "
@@ -2075,7 +2094,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         speed = getattr(args, "upload_speed", None)
 
         if not run_west_flash(
-            python_bin, framework_path, west_env, build_dir, host, speed
+            python_bin,
+            framework_path,
+            west_env,
+            build_dir,
+            host,
+            speed,
+            runner=zephyr_data().get(KEY_RUNNER),
         ):
             raise EsphomeError("Zephyr west flash failed")
         return True
@@ -2104,14 +2129,26 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         modules=resolve_zephyr_modules(),
     )
     build_dir = CORE.relative_build_path(".west_build")
-    # Disambiguate which attached probe to flash when the board's default
-    # runner supports device IDs -- see resolve_dev_id() for why this can't
-    # just always be forwarded, and #85 for the multi-probe problem it fixes.
-    dev_id = resolve_dev_id(python_bin, framework_path, build_dir, host)
+    configured_runner = zephyr_data().get(KEY_RUNNER)
+    # Disambiguate which attached probe to flash when the effective runner supports
+    # device IDs -- see resolve_dev_id() for why this can't just always be forwarded,
+    # and #85 for the multi-probe problem it fixes.
+    dev_id = resolve_dev_id(
+        python_bin,
+        framework_path,
+        build_dir,
+        host,
+        runner_override=configured_runner,
+    )
     if dev_id:
         _LOGGER.info("Selecting probe %s (port %s) for west flash", dev_id, host)
     if not run_west_flash_generic(
-        python_bin, framework_path, west_env, build_dir, dev_id
+        python_bin,
+        framework_path,
+        west_env,
+        build_dir,
+        dev_id,
+        runner=configured_runner,
     ):
         raise EsphomeError("Zephyr west flash failed")
     return True
@@ -2210,6 +2247,7 @@ def run_compile(args, config: ConfigType) -> bool:
         shield_root=zephyr_data().get(KEY_SHIELD_ROOT),
         shields=zephyr_data()[KEY_SHIELDS],
         snippet_root=zephyr_data().get(KEY_SNIPPET_ROOT),
+        requested_runner=zephyr_data().get(KEY_RUNNER),
     )
     return True
 
