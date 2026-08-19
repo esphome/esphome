@@ -10,6 +10,7 @@ DEPENDENCIES = ["tuya"]
 CONF_SPEED_DATAPOINT = "speed_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 CONF_DIRECTION_DATAPOINT = "direction_datapoint"
+CONF_OPTIMISTIC = "optimistic"
 
 TuyaFan = tuya_ns.class_("TuyaFan", cg.Component, fan.Fan)
 
@@ -23,6 +24,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
+            cv.Optional(CONF_OPTIMISTIC): cv.bool,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -45,3 +47,5 @@ async def to_code(config):
         cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
     if CONF_DIRECTION_DATAPOINT in config:
         cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
+    if CONF_OPTIMISTIC in config:
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
