@@ -767,7 +767,7 @@ audience, including non-native English speakers.
 ## 10. Code Comments
 
 Code comments on individual lines should be used only where necessary to flag issues that may not be obvious
-on a simple reading of the code. Keep them short (e.g. 1 or 2 lines.)
+on a simple reading of the code. Keep them short (e.g. 1 or 2 lines).
 
 Function and method comment blocks may include more detail as required to make
 calling contracts clear and document parameter usage, but should still be kept concise.
