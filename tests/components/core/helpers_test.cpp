@@ -87,9 +87,9 @@ TEST(StringContainsIgnoreCaseTest, NullPointerAlwaysFalse) {
   const char *haystack = nullptr;
   const char *needle = nullptr;
 
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, needle));
-  EXPECT_FALSE(str_contains_ignore_case_fallback("Hello World", needle));
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "anything"));
+  EXPECT_FALSE(str_contains_ignore_case(haystack, needle));
+  EXPECT_FALSE(str_contains_ignore_case("Hello World", needle));
+  EXPECT_FALSE(str_contains_ignore_case(haystack, "anything"));
 }
 
 TEST(StringContainsIgnoreCaseTest, EmptySearchMatches) {
