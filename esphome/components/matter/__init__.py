@@ -4,20 +4,40 @@ from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32S3,
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    only_on_variant,
 )
 import esphome.config_validation as cv
+from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_INTERNAL, CONF_PLATFORM
+from esphome.core import CORE, EsphomeError
+from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 # VARIANT_ESP32 / get_esp32_variant are still imported: the PSRAM-override
 # coroutine below uses them to gate the NimBLE-in-PSRAM tweak, which is
 # variant-specific. The source-patch hook, in contrast, now runs on every
 # variant (see _write_executable_component_name).
-from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_INTERNAL, CONF_PLATFORM
-from esphome.core import CORE, EsphomeError
-from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.types import ConfigType
+#
+# esp-matter 1.6.0 upstream supports these five ESP32 variants only. Other
+# variants either lack Wi-Fi/BLE on-chip (P4, S2), are too RAM-constrained
+# (C2), or are too new for the SDK to have been ported (C5, C61, H4, H21,
+# S31). Config validation below rejects unsupported variants at config
+# time; source files also carry a compile-time guard so clang-tidy on the
+# variant-specific jobs strips them out (esp_matter.h isn't shipped for
+# those targets).
+_MATTER_SUPPORTED_VARIANTS = [
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+]
 
 CODEOWNERS = ["@gtjadsonsantos"]
 DEPENDENCIES = ["esp32"]
@@ -177,32 +197,40 @@ def _validate_setup_code(value: str) -> str:
     return v
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(MatterComponent),
-        cv.Required(CONF_VENDOR_ID): cv.hex_uint16_t,
-        cv.Required(CONF_PRODUCT_ID): cv.hex_uint16_t,
-        cv.Required(CONF_SETUP_CODE): _validate_setup_code,
-        cv.Required(CONF_DISCRIMINATOR): cv.int_range(min=0, max=0xFFF),
-        cv.Optional(CONF_VENDOR_NAME, default=""): _string_with_max(
-            _MAX_VENDOR_NAME_LEN
-        ),
-        cv.Optional(CONF_PRODUCT_NAME, default=""): _string_with_max(
-            _MAX_PRODUCT_NAME_LEN
-        ),
-        cv.Optional(CONF_NODE_LABEL, default=""): _string_with_max(_MAX_NODE_LABEL_LEN),
-        cv.Optional(CONF_HARDWARE_VERSION_STRING, default=""): _string_with_max(
-            _MAX_HARDWARE_VERSION_STRING_LEN
-        ),
-        cv.Optional(CONF_SOFTWARE_VERSION_STRING, default=""): _string_with_max(
-            _MAX_SOFTWARE_VERSION_STRING_LEN
-        ),
-        cv.Optional(CONF_BLE_COMMISSIONING, default=False): cv.boolean,
-        cv.Optional(CONF_TOPOLOGY, default=_TOPOLOGY_BRIDGE): cv.one_of(
-            _TOPOLOGY_BRIDGE, _TOPOLOGY_COMPOSED, lower=True
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MatterComponent),
+            cv.Required(CONF_VENDOR_ID): cv.hex_uint16_t,
+            cv.Required(CONF_PRODUCT_ID): cv.hex_uint16_t,
+            cv.Required(CONF_SETUP_CODE): _validate_setup_code,
+            cv.Required(CONF_DISCRIMINATOR): cv.int_range(min=0, max=0xFFF),
+            cv.Optional(CONF_VENDOR_NAME, default=""): _string_with_max(
+                _MAX_VENDOR_NAME_LEN
+            ),
+            cv.Optional(CONF_PRODUCT_NAME, default=""): _string_with_max(
+                _MAX_PRODUCT_NAME_LEN
+            ),
+            cv.Optional(CONF_NODE_LABEL, default=""): _string_with_max(
+                _MAX_NODE_LABEL_LEN
+            ),
+            cv.Optional(CONF_HARDWARE_VERSION_STRING, default=""): _string_with_max(
+                _MAX_HARDWARE_VERSION_STRING_LEN
+            ),
+            cv.Optional(CONF_SOFTWARE_VERSION_STRING, default=""): _string_with_max(
+                _MAX_SOFTWARE_VERSION_STRING_LEN
+            ),
+            cv.Optional(CONF_BLE_COMMISSIONING, default=False): cv.boolean,
+            cv.Optional(CONF_TOPOLOGY, default=_TOPOLOGY_BRIDGE): cv.one_of(
+                _TOPOLOGY_BRIDGE, _TOPOLOGY_COMPOSED, lower=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    only_on_variant(
+        supported=_MATTER_SUPPORTED_VARIANTS,
+        msg_prefix="The 'matter' component",
+    ),
+)
 
 
 def _is_esp_idf() -> bool:

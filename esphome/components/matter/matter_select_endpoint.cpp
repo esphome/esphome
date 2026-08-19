@@ -1,6 +1,15 @@
 #include "esphome/core/defines.h"
 
+// esp-matter 1.6.0 only supports these ESP32 variants. Strip the whole
+// TU on any other target (P4, S2, C2, C5, C61, H4, H21, S31) so clang-tidy
+// jobs for those variants — which grep this file in via USE_WIFI /
+// USE_ETHERNET — don't try to compile against an esp_matter.h that upstream
+// never ships for those chips. Runtime builds are already rejected by the
+// only_on_variant config validator in matter/__init__.py; this guard is the
+// static-analysis mirror of the same restriction.
 #ifdef USE_ESP_IDF
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #ifdef USE_SELECT
 
 #include "matter_select_endpoint.h"
@@ -221,4 +230,5 @@ void MatterSelectEndpoint::report_state_to_fabric_(uint8_t mode) {
 }  // namespace esphome::matter
 
 #endif  // USE_SELECT
+#endif  // matter supported variant
 #endif  // USE_ESP_IDF
