@@ -506,12 +506,19 @@ jobs:
         # with the job timeout as the backstop. The per-call bound escalates
         # per attempt so a congested but working mirror still gets a generous
         # last try; with the kill grace, the dpkg recovery call and the
-        # sleeps, all three attempts stay inside timeout-minutes.
-        timeout-minutes: 15
+        # sleeps, all three attempts stay inside timeout-minutes. The ladder
+        # is tighter than the one in ci-api-proto.yml on purpose: this step
+        # is optional, so most of the 30 minute job budget stays reserved
+        # for the benchmark run itself.
+        timeout-minutes: 10
         continue-on-error: true
         run: |
+          if dpkg -s libc6-dbg >/dev/null 2>&1; then
+            echo "libc6-dbg already installed"
+            exit 0
+          fi
           attempt=0
-          for bound in 45 90 180; do
+          for bound in 30 60 120; do
             attempt=$((attempt + 1))
             if sudo timeout -k 15 "$bound" apt-get update \
               && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 "$bound" \
