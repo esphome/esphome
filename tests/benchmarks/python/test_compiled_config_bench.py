@@ -115,4 +115,5 @@ def test_read_config_uncached(primed_yaml: Path, benchmark) -> None:
         iterations=1,
     )
 
+
 # Chained CI test for the apt changes on the parent branch; delete with the branch.
