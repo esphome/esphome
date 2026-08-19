@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
@@ -8,7 +9,12 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_ESP32_C3
+from ..const import (
+    ADVANCED_SCHEMA,
+    BOOTLOADER_MCUBOOT,
+    CONF_RUNNER,
+    ZEPHYR_VARIANT_ESP32_C3,
+)
 from ..dts_lookup import get_i2c_pinctrl_esp32
 from . import (
     MAINLINE,
@@ -21,6 +27,8 @@ from . import (
 # Bare name; qualify_board() expands it to "esp32c3_devkitm/esp32c3" using soc= below.
 # No hp/lpcore qualifier -- unlike esp32_c6/esp32_c5, this chip is single-core.
 _DEFAULT_BOARD = "esp32c3_devkitm"
+
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c3-pinctrl.h
 # GPIO0-21, no gaps; identical set for tx and rx on this variant.
@@ -54,6 +62,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     config = dict(config)
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "esp32_c3", config, "mainline ESP32-C3 support"
@@ -66,6 +75,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 

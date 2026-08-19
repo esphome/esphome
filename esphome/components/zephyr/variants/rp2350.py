@@ -1,7 +1,6 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -13,9 +12,11 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from ..const import (
+    ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
-    BOOTLOADER_NONE,
+    BOOTLOADER_SCHEMA,
     CONF_BOOTLOADER,
+    CONF_RUNNER,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2350,
 )
@@ -36,13 +37,7 @@ _DEFAULT_BOARD = "rpi_pico2"
 # rather than required. Only some boards (e.g. rpi_pico2) ship an upstream vendor
 # .../mcuboot DTS sibling -- xiao_rp2350 does not -- so anyone choosing mcuboot must
 # supply the fully qualified board themselves, e.g. board: rpi_pico2/rp2350a/m33/mcuboot.
-_ADVANCED_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
-            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
-        ),
-    }
-)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2350
 VARIANT = ZephyrVariant(
@@ -98,6 +93,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 

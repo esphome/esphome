@@ -1,7 +1,6 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -13,9 +12,11 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from ..const import (
+    ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
-    BOOTLOADER_NONE,
+    BOOTLOADER_SCHEMA,
     CONF_BOOTLOADER,
+    CONF_RUNNER,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2040,
 )
@@ -44,13 +45,7 @@ _DEFAULT_BOARD = "rpi_pico"
 # fully qualified board themselves, e.g. board: rpi_pico/rp2040/mcuboot, same as they'd
 # supply their own MCUboot-shaped partitions via overlays: for a board without one.
 
-_ADVANCED_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
-            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
-        ),
-    }
-)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
@@ -104,6 +99,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 
