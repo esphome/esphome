@@ -388,7 +388,7 @@ StorageError SdSpi::get_free_bytes_impl(uint64_t &free_out) const {
   if (err != ESP_OK) {
     ESP_LOGW(TAG_SPI, "esp_vfs_fat_info(%s) failed: %s", this->mount_path_, esp_err_to_name(err));
     return (err == ESP_ERR_INVALID_STATE) ? StorageError::STORAGE_ERROR_NOT_READY
-                                           : StorageError::STORAGE_ERROR_READ_ERROR;
+                                          : StorageError::STORAGE_ERROR_READ_ERROR;
   }
   free_out = free_bytes;
   return StorageError::STORAGE_ERROR_OK;
