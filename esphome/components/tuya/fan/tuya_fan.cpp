@@ -92,6 +92,8 @@ void TuyaFan::control(const fan::FanCall &call) {
     auto state = call.get_state();
     if (state.has_value()) {
       this->parent_->set_boolean_datapoint_value(*switch_id, *state);
+      this->state = *state;
+      this->publish_state();
     }
   }
   auto osc_id = this->oscillation_id_;
@@ -111,6 +113,8 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (direction.has_value()) {
       bool enable = *direction == fan::FanDirection::REVERSE;
       this->parent_->set_enum_datapoint_value(*dir_id, enable);
+      this->direction = *direction;
+      this->publish_state();
     }
   }
   auto spd_id = this->speed_id_;
@@ -121,6 +125,8 @@ void TuyaFan::control(const fan::FanCall &call) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
       } else {
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
+        this->speed = *speed;
+        this->publish_state();
       }
     }
   }
