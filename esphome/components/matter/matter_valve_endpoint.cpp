@@ -98,7 +98,7 @@ void MatterValveEndpoint::push_initial_state() { this->report_state_to_fabric_()
 
 void MatterValveEndpoint::report_state_to_fabric_() {
   uint8_t state = this->esphome_to_matter_state_();
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
 
   ::esp_matter_attr_val_t v_current = ::esp_matter_nullable_enum8(::nullable<uint8_t>(state));
   esp_err_t err = ::esp_matter::attribute::update(
@@ -122,8 +122,6 @@ void MatterValveEndpoint::report_state_to_fabric_() {
       ESP_LOGW(TAG, "attribute::update TargetState endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err2));
     }
   }
-
-  this->applying_report_ = false;
 }
 
 }  // namespace esphome::matter

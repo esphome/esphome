@@ -16,6 +16,7 @@
 #include <app/clusters/boolean-state-server/BooleanStateCluster.h>
 #include <app/server-cluster/ServerClusterInterfaceRegistry.h>
 #include <data_model_provider/esp_matter_data_model_provider.h>
+#include <platform/CHIPDeviceLayer.h>
 
 #include <cstring>
 #include <span>
@@ -132,11 +133,32 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
   }
   auto *cluster = static_cast<::chip::app::Clusters::BooleanStateCluster *>(iface);
   // SetStateValue() reaches into the CHIP reporting engine (SetDirty →
-  // MarkDirty), which asserts the CHIP stack lock is held by the current
-  // thread. We are on the ESPHome scheduler thread here, so grab the lock
-  // for the duration of the write.
-  ::esp_matter::lock::ScopedChipStackLock lock(portMAX_DELAY);
-  cluster->SetStateValue(state);
+  // MarkDirty), which asserts the CHIP stack lock. We are on the ESPHome
+  // scheduler thread here, so we must NOT block the loop waiting for the
+  // lock — the CHIP task holds it while encoding subscription reports, and
+  // on a high-endpoint bridge under multi-controller load that runs for
+  // 1–3 s, well past the task watchdog. Marshal the SetStateValue call
+  // onto the CHIP task via ScheduleWork so it runs after any in-progress
+  // report finishes, without stalling the main loop.
+  struct WorkArgs {
+    ::chip::app::Clusters::BooleanStateCluster *cluster;
+    bool state;
+  };
+  auto *args = new WorkArgs{cluster, state};
+  const CHIP_ERROR err = ::chip::DeviceLayer::PlatformMgr().ScheduleWork(
+      [](intptr_t arg) {
+        auto *a = reinterpret_cast<WorkArgs *>(arg);
+        // Runs on the CHIP task with the stack lock already held by the
+        // scheduler dispatcher, so SetStateValue's MarkDirty is safe here.
+        a->cluster->SetStateValue(a->state);
+        delete a;
+      },
+      reinterpret_cast<intptr_t>(args));
+  if (err != CHIP_NO_ERROR) {
+    ESP_LOGW(TAG, "ScheduleWork(SetStateValue) endpoint=%u failed: %s — dropping this update", this->endpoint_id_,
+             err.AsString());
+    delete args;
+  }
 }
 
 }  // namespace esphome::matter

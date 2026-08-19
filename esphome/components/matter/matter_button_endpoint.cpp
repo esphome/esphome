@@ -12,6 +12,7 @@
 #include <esp_matter.h>
 
 #include <app-common/zap-generated/cluster-objects.h>
+#include <platform/CHIPDeviceLayer.h>
 
 namespace esphome::matter {
 
@@ -66,47 +67,56 @@ bool MatterButtonEndpoint::setup() {
 
 void MatterButtonEndpoint::emit_press_cycle_() {
   const uint16_t ep = this->endpoint_id_;
-  constexpr uint8_t pressed = 1;
-  constexpr uint8_t released = 0;
 
   // Switch events go through CHIP's EventManagement::LogEvent which asserts
   // the CHIP stack lock. We're firing from the ESPHome loop task (interval
-  // → button.press → this callback), NOT from the CHIP task, so we must take
-  // the lock ourselves — matter_binary_sensor_endpoint uses the same
-  // ScopedChipStackLock around its own event pushes for the same reason.
-  // Attribute updates via esp_matter::attribute::update() take the lock
-  // internally, but event helpers do not.
-  ::esp_matter::lock::ScopedChipStackLock stack_lock(portMAX_DELAY);
+  // → button.press → this callback), so blocking the loop on
+  // ScopedChipStackLock(portMAX_DELAY) can stall for the full duration of
+  // an in-progress subscription-report encode (1–3 s on a busy bridge) —
+  // long enough to trip the task watchdog on the ESPHome side. Marshal the
+  // whole 4-step press/release cycle onto the CHIP task via ScheduleWork:
+  // the dispatcher runs with the stack lock already held, so both
+  // attribute::update() and the send_* event helpers are safe there.
+  const CHIP_ERROR err = ::chip::DeviceLayer::PlatformMgr().ScheduleWork(
+      [](intptr_t arg) {
+        const uint16_t endpoint_id = static_cast<uint16_t>(arg);
+        constexpr uint8_t pressed = 1;
+        constexpr uint8_t released = 0;
 
-  // 1) CurrentPosition = 1 (pressed) — spec §1.13.5.2
-  ::esp_matter_attr_val_t v_pressed = ::esp_matter_uint8(pressed);
-  esp_err_t err = ::esp_matter::attribute::update(
-      ep, chip::app::Clusters::Switch::Id, chip::app::Clusters::Switch::Attributes::CurrentPosition::Id, &v_pressed);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update CurrentPosition=1 endpoint=%u failed: %s", ep, esp_err_to_name(err));
-  }
+        // 1) CurrentPosition = 1 (pressed) — spec §1.13.5.2
+        ::esp_matter_attr_val_t v_pressed = ::esp_matter_uint8(pressed);
+        esp_err_t rc =
+            ::esp_matter::attribute::update(endpoint_id, chip::app::Clusters::Switch::Id,
+                                            chip::app::Clusters::Switch::Attributes::CurrentPosition::Id, &v_pressed);
+        if (rc != ESP_OK) {
+          ESP_LOGW(TAG, "attribute::update CurrentPosition=1 endpoint=%u failed: %s", endpoint_id, esp_err_to_name(rc));
+        }
 
-  // 2) InitialPress(newPosition=1) event
-  err = ::esp_matter::cluster::switch_cluster::event::send_initial_press(ep, pressed);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "send_initial_press endpoint=%u failed: %s", ep, esp_err_to_name(err));
-  }
+        // 2) InitialPress(newPosition=1) event
+        rc = ::esp_matter::cluster::switch_cluster::event::send_initial_press(endpoint_id, pressed);
+        if (rc != ESP_OK) {
+          ESP_LOGW(TAG, "send_initial_press endpoint=%u failed: %s", endpoint_id, esp_err_to_name(rc));
+        }
 
-  // 3) CurrentPosition = 0 (released)
-  ::esp_matter_attr_val_t v_released = ::esp_matter_uint8(released);
-  err = ::esp_matter::attribute::update(ep, chip::app::Clusters::Switch::Id,
-                                        chip::app::Clusters::Switch::Attributes::CurrentPosition::Id, &v_released);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update CurrentPosition=0 endpoint=%u failed: %s", ep, esp_err_to_name(err));
-  }
+        // 3) CurrentPosition = 0 (released)
+        ::esp_matter_attr_val_t v_released = ::esp_matter_uint8(released);
+        rc = ::esp_matter::attribute::update(endpoint_id, chip::app::Clusters::Switch::Id,
+                                             chip::app::Clusters::Switch::Attributes::CurrentPosition::Id, &v_released);
+        if (rc != ESP_OK) {
+          ESP_LOGW(TAG, "attribute::update CurrentPosition=0 endpoint=%u failed: %s", endpoint_id, esp_err_to_name(rc));
+        }
 
-  // 4) ShortRelease(previousPosition=1) event — the emitted `newPosition`
-  // parameter on send_short_release is actually the *previous* position (the
-  // one held while pressed) per Matter 1.4 spec §1.13.6.4. The helper's
-  // parameter name is `previous_position` in esp_matter_event.h.
-  err = ::esp_matter::cluster::switch_cluster::event::send_short_release(ep, pressed);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "send_short_release endpoint=%u failed: %s", ep, esp_err_to_name(err));
+        // 4) ShortRelease(previousPosition=1) event — the emitted `newPosition`
+        // parameter on send_short_release is actually the *previous* position
+        // (the one held while pressed) per Matter 1.4 spec §1.13.6.4.
+        rc = ::esp_matter::cluster::switch_cluster::event::send_short_release(endpoint_id, pressed);
+        if (rc != ESP_OK) {
+          ESP_LOGW(TAG, "send_short_release endpoint=%u failed: %s", endpoint_id, esp_err_to_name(rc));
+        }
+      },
+      static_cast<intptr_t>(ep));
+  if (err != CHIP_NO_ERROR) {
+    ESP_LOGW(TAG, "ScheduleWork(button press) endpoint=%u failed: %s — dropping this event", ep, err.AsString());
   }
 }
 

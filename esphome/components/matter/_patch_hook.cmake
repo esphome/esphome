@@ -14,10 +14,23 @@
 # (day-to-day rebuilds), the previous configure's patches remain in place.
 
 set(_matter_dir "${CMAKE_HOME_DIRECTORY}/managed_components/espressif__esp_matter")
+# Resolve the Python interpreter the way ESP-IDF itself does — the `python3`
+# alias is not present on all systems (notably the ESP-IDF Windows install
+# and some containerised setups). ESP-IDF exposes the resolved interpreter
+# via ${python} on modern releases and via ${Python3_EXECUTABLE} when the
+# newer FindPython machinery ran. Fall back to `python3` only if neither is
+# defined so a stock Linux install still works when the hook is exercised
+# outside of an ESP-IDF configure (e.g. by our own test scripts).
+if(DEFINED python)
+    set(_matter_python "${python}")
+elseif(DEFINED Python3_EXECUTABLE)
+    set(_matter_python "${Python3_EXECUTABLE}")
+else()
+    set(_matter_python "python3")
+endif()
 if(EXISTS "${_matter_dir}")
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -E env python3
-                "${CMAKE_CURRENT_LIST_DIR}/_apply_patches.py" "${_matter_dir}"
+        COMMAND "${_matter_python}" "${CMAKE_CURRENT_LIST_DIR}/_apply_patches.py" "${_matter_dir}"
         RESULT_VARIABLE _matter_patches_rc
         OUTPUT_VARIABLE _matter_patches_out
         ERROR_VARIABLE _matter_patches_err

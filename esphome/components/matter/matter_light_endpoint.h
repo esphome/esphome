@@ -6,6 +6,7 @@
 #ifdef USE_LIGHT
 
 #include <cstdint>
+#include <atomic>
 
 #include "esphome/components/light/light_state.h"
 
@@ -50,7 +51,7 @@ class MatterLightEndpoint : public ::esphome::light::LightRemoteValuesListener {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   ::esphome::light::LightState *esphome_light() const { return light_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
   // Which Matter light device type we advertised at boot — needed by the
   // dispatcher so it can decide which write branches are legal for this
@@ -80,7 +81,7 @@ class MatterLightEndpoint : public ::esphome::light::LightRemoteValuesListener {
   // Set while attribute::update() runs — PRE_UPDATE fires synchronously and
   // lands in the global dispatcher; the dispatcher checks this via
   // applying_report() to break the round-trip.
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
   // Last non-zero level we observed on the ESPHome side. Serves as the
   // Matter LevelControl.CurrentLevel value while the light is off — CHIP's
   // Lighting-feature OnOff handler reads CurrentLevel during the On→Off

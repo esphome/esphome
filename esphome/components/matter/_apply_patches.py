@@ -202,7 +202,11 @@ def _apply_stub_overwrite(path: Path, marker: str, stub: str) -> str:
             f"drift? update _apply_patches.py"
         )
     head = path.read_bytes()[:128].decode(errors="replace")
-    if marker in head:
+    # Accept the pre-rename marker (PATCHED-BY-UNISEC-MATTER) as "already
+    # patched" so a file stubbed by an older version of this script isn't
+    # rewritten every configure. The stub content itself may differ slightly
+    # (comment wording) — that difference alone is not worth re-writing.
+    if marker in head or "PATCHED-BY-UNISEC-MATTER" in head:
         return f"noop (already patched): {path.name}"
     path.write_text(stub, encoding="utf-8")
     return f"stub: {path.name}"
@@ -230,7 +234,11 @@ def _apply_std_map_swap(path: Path) -> str:
     if not path.exists():
         return f"skip (missing): {path.name}"
     content = path.read_text(encoding="utf-8")
-    if PATCH3_MARKER in content:
+    # Accept the pre-rename marker so a file patched by an older version of
+    # this script (before PATCHED-BY-UNISEC-MATTER → ESPHOME-MATTER-PATCH)
+    # is not re-processed and left with a duplicate `#include <map>`.
+    _LEGACY_PATCH3_MARKER = "// PATCHED-BY-UNISEC-MATTER-MAP"
+    if PATCH3_MARKER in content or _LEGACY_PATCH3_MARKER in content:
         return f"noop (already patched): {path.name}"
     if "LazyRegisteredServerCluster" not in content or "gServers" not in content:
         return f"skip (no buggy pattern): {path.name}"
@@ -299,10 +307,18 @@ def _apply_patch5_kconfig(path: Path) -> str:
         )
     content = path.read_text(encoding="utf-8")
 
-    if PATCH5_MARKER_V2 in content:
+    # Recognise the pre-rename marker names too: a build that ran an earlier
+    # version of this script (before the PATCHED-BY-UNISEC-MATTER → ESPHOME-
+    # MATTER-PATCH sweep) will have stamped `PATCHED-BY-UNISEC-MATTER-KCONFIG*`
+    # into the file. Treat legacy V2 as already patched; legacy V1 flows into
+    # the V1→V2 migration branch below.
+    _LEGACY_PATCH5_MARKER_V2 = "PATCHED-BY-UNISEC-MATTER-KCONFIG-V2"
+    _LEGACY_PATCH5_MARKER_V1 = "PATCHED-BY-UNISEC-MATTER-KCONFIG"
+
+    if PATCH5_MARKER_V2 in content or _LEGACY_PATCH5_MARKER_V2 in content:
         return f"noop (already patched V2): {path.name}"
 
-    if PATCH5_MARKER_V1 in content:
+    if PATCH5_MARKER_V1 in content or _LEGACY_PATCH5_MARKER_V1 in content:
         # V1-patched shape: the V1 marker sits as a comment block, followed
         # by `config SEC_CERT_DAC_PROVIDER` with only `help` (no bool/default).
         # Find the V1 marker comment line and delete everything from there
@@ -310,7 +326,7 @@ def _apply_patch5_kconfig(path: Path) -> str:
         lines = content.splitlines(keepends=True)
         v1_start = None
         for i, line in enumerate(lines):
-            if PATCH5_MARKER_V1 in line:
+            if PATCH5_MARKER_V1 in line or _LEGACY_PATCH5_MARKER_V1 in line:
                 v1_start = i
                 break
         if v1_start is None:
@@ -342,7 +358,9 @@ def _apply_patch5_kconfig(path: Path) -> str:
     )
 
 
-def _apply_string_replace(path: Path, marker: str, old: str, new: str) -> str:
+def _apply_string_replace(
+    path: Path, marker: str, old: str, new: str, legacy_markers: tuple = ()
+) -> str:
     if not path.exists():
         raise PatchError(
             f"required patch target missing: {path} — esp-matter version "
@@ -351,6 +369,14 @@ def _apply_string_replace(path: Path, marker: str, old: str, new: str) -> str:
     content = path.read_text(encoding="utf-8")
     if marker in content:
         return f"noop (already patched): {path.name}"
+    # Recognise markers from an earlier version of this script that patched
+    # the same anchor. The anchor string was already replaced by that build,
+    # so a naive re-run would find neither the new marker nor the anchor and
+    # fail with "esp-matter release changed" even though the file is fine.
+    # We treat legacy markers as "already patched" and move on.
+    for legacy in legacy_markers:
+        if legacy in content:
+            return f"noop (legacy patch marker present): {path.name}"
     if old not in content:
         # Truncate the expected substring for logging — the full text can be
         # multi-line and swamp CMake's output.
@@ -395,6 +421,7 @@ def apply_patches(matter_dir: Path) -> list:
             "ESPHOME-MATTER-PATCH-WIFI",
             PATCH2_OLD,
             PATCH2_NEW,
+            legacy_markers=("PATCHED-BY-UNISEC-MATTER-WIFI",),
         )
     )
 
@@ -404,6 +431,7 @@ def apply_patches(matter_dir: Path) -> list:
             "ESPHOME-MATTER-PATCH-DNSSD",
             PATCH4_OLD,
             PATCH4_NEW,
+            legacy_markers=("PATCHED-BY-UNISEC-MATTER-DNSSD",),
         )
     )
 
@@ -434,6 +462,7 @@ def apply_patches(matter_dir: Path) -> list:
             "ESPHOME-MATTER-PATCH-IPV4-GUARD",
             PATCH6_OLD,
             PATCH6_NEW,
+            legacy_markers=("PATCHED-BY-UNISEC-MATTER-IPV4-GUARD",),
         )
     )
 

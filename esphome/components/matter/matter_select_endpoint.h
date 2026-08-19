@@ -6,6 +6,7 @@
 #ifdef USE_SELECT
 
 #include <cstdint>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -53,7 +54,7 @@ class MatterSelectEndpoint {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   ::esphome::select::Select *esphome_select() const { return select_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
   // Exposed for the shared SupportedModesManager singleton.
   const std::vector<::chip::app::Clusters::ModeSelect::Structs::ModeOptionStruct::Type> &mode_options() const {
@@ -71,7 +72,7 @@ class MatterSelectEndpoint {
   std::vector<std::string> option_labels_;
   std::vector<::chip::app::Clusters::ModeSelect::Structs::ModeOptionStruct::Type> mode_options_;
   bool applying_matter_write_{false};
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 };
 
 }  // namespace esphome::matter

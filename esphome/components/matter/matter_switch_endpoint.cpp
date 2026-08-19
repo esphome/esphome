@@ -94,10 +94,9 @@ void MatterSwitchEndpoint::report_state_to_fabric_(bool state) {
   // relies on the fabric having an active subscription that reads the flag.
   // update() also fires PRE_UPDATE synchronously, which lands in our own
   // dispatcher — the applying_report_ flag suppresses the round-trip.
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::OnOff::Id,
                                                   chip::app::Clusters::OnOff::Attributes::OnOff::Id, &val);
-  this->applying_report_ = false;
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }

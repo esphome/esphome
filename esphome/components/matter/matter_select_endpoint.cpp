@@ -40,6 +40,12 @@ class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedMo
   ModeOptionsProvider getModeOptionsProvider(::chip::EndpointId endpointId) const override {
     MatterSelectEndpoint *wrapper = this->find_(static_cast<uint16_t>(endpointId));
     if (wrapper == nullptr) {
+      // Consistent with the handle_*_write dispatchers in matter_component.cpp:
+      // a fabric query for an endpoint we don't own is a dispatch inconsistency,
+      // not routine traffic. Log at WARN so the empty SupportedModes list (which
+      // renders as a select with no options) has a matching entry in the trace.
+      ESP_LOGW(TAG, "SharedModesManager: no wrapper for endpoint=%u — returning empty options",
+               static_cast<unsigned>(endpointId));
       return ModeOptionsProvider();
     }
     const auto &opts = wrapper->mode_options();
@@ -51,6 +57,7 @@ class SharedModesManager : public ::chip::app::Clusters::ModeSelect::SupportedMo
       const ::chip::app::Clusters::ModeSelect::Structs::ModeOptionStruct::Type **dataPtr) const override {
     MatterSelectEndpoint *wrapper = this->find_(static_cast<uint16_t>(endpointId));
     if (wrapper == nullptr) {
+      ESP_LOGW(TAG, "SharedModesManager: no wrapper for endpoint=%u on mode lookup", static_cast<unsigned>(endpointId));
       return ::chip::Protocols::InteractionModel::Status::UnsupportedEndpoint;
     }
     const auto &opts = wrapper->mode_options();
@@ -201,10 +208,9 @@ void MatterSelectEndpoint::push_initial_state() {
 
 void MatterSelectEndpoint::report_state_to_fabric_(uint8_t mode) {
   ::esp_matter_attr_val_t val = ::esp_matter_uint8(mode);
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::ModeSelect::Id,
                                                   chip::app::Clusters::ModeSelect::Attributes::CurrentMode::Id, &val);
-  this->applying_report_ = false;
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update CurrentMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }

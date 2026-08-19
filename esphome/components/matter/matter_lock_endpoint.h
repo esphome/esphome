@@ -9,6 +9,7 @@
 #ifdef USE_LOCK
 
 #include <cstdint>
+#include <atomic>
 
 namespace esphome::lock {
 class Lock;
@@ -52,7 +53,7 @@ class MatterLockEndpoint {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   lock::Lock *esphome_lock() const { return lock_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
  protected:
   void report_state_to_fabric_(lock::LockState state);
@@ -66,7 +67,7 @@ class MatterLockEndpoint {
   // Set while attribute::update() runs — PRE_UPDATE fires synchronously and
   // lands in the global dispatcher. LockState has no dispatcher branch today,
   // but keeping the flag consistent with the other bidirectional wrappers.
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 };
 
 }  // namespace esphome::matter

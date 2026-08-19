@@ -6,6 +6,7 @@
 #ifdef USE_COVER
 
 #include <cstdint>
+#include <atomic>
 
 namespace esphome::cover {
 class Cover;
@@ -47,7 +48,7 @@ class MatterCoverEndpoint {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   cover::Cover *esphome_cover() const { return cover_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
  protected:
   // Writes current position (and matching target when idle) to the fabric.
@@ -62,7 +63,7 @@ class MatterCoverEndpoint {
   bool applying_matter_write_{false};
   // Suppresses the fabric→device dispatch while attribute::update() fires
   // PRE_UPDATE synchronously from our own report path.
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
   // Cached traits.supports_position — checked once at setup(). Determines
   // whether on_matter_target_write drives set_position() or falls back to
   // open/close command based on a threshold.

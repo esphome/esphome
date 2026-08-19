@@ -6,6 +6,7 @@
 #ifdef USE_VALVE
 
 #include <cstdint>
+#include <atomic>
 
 #include <app/clusters/valve-configuration-and-control-server/valve-configuration-and-control-delegate.h>
 #include <app-common/zap-generated/cluster-enums.h>
@@ -57,7 +58,7 @@ class MatterValveEndpoint : public ::chip::app::Clusters::ValveConfigurationAndC
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   ::esphome::valve::Valve *esphome_valve() const { return valve_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
  protected:
   void report_state_to_fabric_();
@@ -73,7 +74,7 @@ class MatterValveEndpoint : public ::chip::app::Clusters::ValveConfigurationAndC
   // read anywhere (valve has no PRE_UPDATE dispatch loop today), but the
   // state-callback path sets it around attribute::update() so a future
   // dispatcher branch on CurrentState/TargetState can suppress re-entry.
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 };
 
 }  // namespace esphome::matter

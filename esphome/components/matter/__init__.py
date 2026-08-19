@@ -15,8 +15,9 @@ import esphome.config_validation as cv
 # variant-specific. The source-patch hook, in contrast, now runs on every
 # variant (see _write_executable_component_name).
 from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_INTERNAL, CONF_PLATFORM
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@gtjadsonsantos"]
 DEPENDENCIES = ["esp32"]
@@ -65,6 +66,9 @@ _TOPOLOGY_COMPOSED = "composed"
 # reflects the actual transport (Ethernet vs Wi-Fi). Not part of the user
 # schema.
 _CONF_TRANSPORT_ETHERNET = "_transport_ethernet"
+# Detected in _validate_final and consumed by _apply_matter_psram_overrides
+# in to_code. Underscore-prefixed so it never collides with a user key.
+_CONF_PSRAM_PRESENT = "_psram_present"
 # Auto-computed Matter dynamic endpoint budget populated by FINAL_VALIDATE and
 # consumed in to_code. Also carries a flag noting whether the user pinned the
 # value themselves in esp32.framework.sdkconfig_options, in which case we
@@ -117,7 +121,7 @@ _MAX_SOFTWARE_VERSION_STRING_LEN = 64
 
 
 def _string_with_max(max_len: int):
-    def validator(value):
+    def validator(value: str) -> str:
         v = cv.string_strict(value)
         if len(v) > max_len:
             raise cv.Invalid(
@@ -128,12 +132,57 @@ def _string_with_max(max_len: int):
     return validator
 
 
+# Reserved passcodes from Matter spec §5.1.6.1 — repeating digits, ascending
+# 12345678, descending 87654321. Commissioners reject them, so surface at
+# config time instead of shipping a device that will never pair.
+_MATTER_RESERVED_PASSCODES = frozenset(
+    {
+        "00000000",
+        "11111111",
+        "22222222",
+        "33333333",
+        "44444444",
+        "55555555",
+        "66666666",
+        "77777777",
+        "88888888",
+        "99999999",
+        "12345678",
+        "87654321",
+    }
+)
+
+
+def _validate_setup_code(value: str) -> str:
+    v = cv.string_strict(value)
+    if not v.isdigit():
+        raise cv.Invalid(
+            f"matter.setup_code must be an 8-digit numeric string, got {v!r}"
+        )
+    if len(v) != 8:
+        raise cv.Invalid(
+            f"matter.setup_code must be exactly 8 digits (leading zeros allowed), "
+            f"got {len(v)} digit(s)"
+        )
+    n = int(v)
+    if n < 1 or n > 99999998:
+        raise cv.Invalid(
+            "matter.setup_code numeric value must be in [1, 99999998] per Matter spec"
+        )
+    if v in _MATTER_RESERVED_PASSCODES:
+        raise cv.Invalid(
+            f"matter.setup_code {v!r} is reserved by Matter spec and will be "
+            f"rejected by commissioners"
+        )
+    return v
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(MatterComponent),
         cv.Required(CONF_VENDOR_ID): cv.hex_uint16_t,
         cv.Required(CONF_PRODUCT_ID): cv.hex_uint16_t,
-        cv.Required(CONF_SETUP_CODE): cv.string_strict,
+        cv.Required(CONF_SETUP_CODE): _validate_setup_code,
         cv.Required(CONF_DISCRIMINATOR): cv.int_range(min=0, max=0xFFF),
         cv.Optional(CONF_VENDOR_NAME, default=""): _string_with_max(
             _MAX_VENDOR_NAME_LEN
@@ -156,24 +205,14 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _is_esp_idf():
-    # ESPHome has moved this flag around across versions (CORE.using_esp_idf,
-    # CORE.target_framework, raw data lookup). Try each in order.
-    for attr in ("using_esp_idf",):
-        if hasattr(CORE, attr):
-            return bool(getattr(CORE, attr))
-    if hasattr(CORE, "target_framework"):
-        return CORE.target_framework == "esp-idf"
-    esp32_conf = CORE.data.get("esp32", {}) if hasattr(CORE, "data") else {}
-    fw = esp32_conf.get("framework")
-    if isinstance(fw, dict):
-        return fw.get("type") == "esp-idf"
-    if isinstance(fw, str):
-        return fw == "esp-idf"
-    return False
+def _is_esp_idf() -> bool:
+    # CORE.target_framework is the single source of truth in this tree —
+    # the previous CORE.using_esp_idf probe and CORE.data["esp32"] fallback
+    # were left over from an older API shape and never fire.
+    return CORE.target_framework == "esp-idf"
 
 
-def _count_matter_endpoint_entities(full_conf):
+def _count_matter_endpoint_entities(full_conf) -> int:
     """Count ESPHome entities the C++ scanner will turn into Matter endpoints.
 
     Mirrors scan_and_register_*() in matter_component.cpp:
@@ -205,10 +244,21 @@ def _count_matter_endpoint_entities(full_conf):
         if isinstance(entries, dict):
             entries = [entries]
         if not isinstance(entries, list):
-            continue
+            # Unknown shape — refuse rather than silently counting zero
+            # endpoints for this platform. Undercounting would size
+            # CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT too low and crash
+            # at boot with an opaque abort, which is exactly what this
+            # over-counting helper exists to prevent.
+            raise cv.Invalid(
+                f"matter: unexpected shape for '{key}' block "
+                f"({type(entries).__name__}) — cannot count endpoints"
+            )
         for entry in entries:
             if not isinstance(entry, dict):
-                continue
+                raise cv.Invalid(
+                    f"matter: unexpected entry shape under '{key}' "
+                    f"({type(entry).__name__}) — cannot count endpoints"
+                )
             if entry.get(CONF_INTERNAL, False):
                 continue
             if key == "button" and entry.get(CONF_PLATFORM) == "matter":
@@ -217,7 +267,7 @@ def _count_matter_endpoint_entities(full_conf):
     return total
 
 
-def _validate_final(config):
+def _validate_final(config: ConfigType) -> ConfigType:
     if not _is_esp_idf():
         raise cv.Invalid(
             "The matter component requires framework 'esp-idf'. "
@@ -276,9 +326,13 @@ def _validate_final(config):
     # later in _apply_matter_psram_overrides.
     try:
         full_conf.get_config_for_path(["psram"])
-        config["_psram_present"] = True
-    except (KeyError, TypeError):
-        config["_psram_present"] = False
+        config[_CONF_PSRAM_PRESENT] = True
+    except KeyError:
+        # "no psram: block" — expected for many configs; the SPIRAM_USE_MALLOC
+        # overrides just don't apply. Any other exception is a real
+        # path-resolution bug and should surface at config time rather than
+        # be silently mapped to "no psram".
+        config[_CONF_PSRAM_PRESENT] = False
 
     if config.get(CONF_BLE_COMMISSIONING, False):
         # BLE commissioning is spec-native for Wi-Fi Matter devices only. On
@@ -361,7 +415,7 @@ def _validate_final(config):
 FINAL_VALIDATE_SCHEMA = _validate_final
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_VENDOR_ID],
@@ -681,7 +735,7 @@ async def to_code(config):
 
     CORE.add_job(_write_executable_component_name)
 
-    if config.get("_psram_present", False):
+    if config.get(_CONF_PSRAM_PRESENT, False):
         # Overriding SPIRAM_USE_* has to happen AFTER ESPHome's psram: to_code
         # writes SPIRAM_USE_CAPS_ALLOC=y — otherwise psram overwrites us. Punt
         # to a FINAL coroutine so we always win.
@@ -752,10 +806,11 @@ async def _write_executable_component_name() -> None:
     # Fail loudly on an unexpected shape: silently returning here would drop
     # the CMAKE_PROJECT_INCLUDE flag and the source patches would never run,
     # producing a green configure that then blows up at compile or (worse)
-    # link time with an unrelated error. If PlatformIO ever changes this
-    # option to accept a list, this raise surfaces the mismatch immediately.
+    # link time with an unrelated error. This coroutine runs during codegen
+    # (long after validation), so cv.Invalid would surface as an unhandled
+    # traceback — EsphomeError is the framework's codegen-time error type.
     if not isinstance(existing, str):
-        raise cv.Invalid(
+        raise EsphomeError(
             "matter: board_build.cmake_extra_args has an unexpected shape "
             f"({type(existing).__name__}); cannot append the Matter CMake "
             f"flags safely — file an issue with this configuration."

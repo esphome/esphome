@@ -15,8 +15,8 @@
 
 #include <app-common/zap-generated/cluster-objects.h>
 
+#include <algorithm>
 #include <cmath>
-#include <limits>
 
 namespace esphome::matter {
 
@@ -34,7 +34,12 @@ int16_t celsius_to_hundredths(float c) {
     // nullable and handled with a dedicated code path in report_state_.
     return 2000;  // 20.00 °C
   }
-  return static_cast<int16_t>(std::lround(c * 100.0f));
+  // Clamp before the int16 cast — a bogus reading (disconnected sensor
+  // returning e.g. 1e6 °C) would otherwise wrap around silently instead of
+  // saturating at the spec range. Mirrors the sensor wrapper's clamp on
+  // every measurement path.
+  const long v = std::lround(std::clamp(c * 100.0f, -32768.0f, 32767.0f));
+  return static_cast<int16_t>(v);
 }
 
 float hundredths_to_celsius(int16_t h) { return static_cast<float>(h) / 100.0f; }
@@ -266,16 +271,17 @@ void MatterClimateEndpoint::on_matter_cooling_setpoint_write(int16_t hundredths)
 void MatterClimateEndpoint::push_initial_state() { this->report_state_to_fabric_(); }
 
 void MatterClimateEndpoint::report_state_to_fabric_() {
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
 
   // LocalTemperature — nullable int16 hundredths of °C. NAN means "no reading
-  // yet" from the ESPHome climate, so publish null. esp-matter's nullable<T>
-  // ctor recognizes std::numeric_limits<T>::min() as the null sentinel for
-  // signed integers (see nullable<T>::GetNullValue in esp_matter_attribute_utils.h).
+  // yet" from the ESPHome climate, so publish the null sentinel via the
+  // default-constructed ::nullable<int16_t>{} — same idiom the sensor and
+  // lock wrappers use. Constructing via a raw numeric_limits::min value
+  // relied on an undocumented esp-matter nullable<T> constructor detail.
   {
     ::esp_matter_attr_val_t v;
     if (std::isnan(this->climate_->current_temperature)) {
-      v = ::esp_matter_nullable_int16(std::numeric_limits<int16_t>::min());
+      v = ::esp_matter_nullable_int16(::nullable<int16_t>());
     } else {
       v = ::esp_matter_nullable_int16(celsius_to_hundredths(this->climate_->current_temperature));
     }
@@ -373,8 +379,6 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update SystemMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }
-
-  this->applying_report_ = false;
 }
 
 }  // namespace esphome::matter

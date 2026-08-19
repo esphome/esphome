@@ -6,6 +6,7 @@
 #ifdef USE_CLIMATE
 
 #include <cstdint>
+#include <atomic>
 
 namespace esphome::climate {
 class Climate;
@@ -65,7 +66,7 @@ class MatterClimateEndpoint {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   climate::Climate *esphome_climate() const { return climate_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
  protected:
   void report_state_to_fabric_();
@@ -97,7 +98,7 @@ class MatterClimateEndpoint {
   bool has_cooling_setpoint_attr_{false};
 
   bool applying_matter_write_{false};
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 };
 
 }  // namespace esphome::matter

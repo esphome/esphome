@@ -90,7 +90,7 @@ namespace {
 // (typically 1–30 per platform), so a linear scan beats the ~2KB fixed
 // overhead of std::unordered_map — see the header comment on the *_by_id_
 // vectors.
-template<typename T> T *find_endpoint_by_id_(const std::vector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
+template<typename T> T *find_endpoint_by_id_(const FixedVector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
   for (const auto &kv : vec) {
     if (kv.first == endpoint_id) {
       return kv.second;
@@ -109,7 +109,7 @@ namespace {
 // backing string is copied into `label_`; CharSpan just references it.
 class EndpointFixedLabelIterator : public chip::DeviceLayer::DeviceInfoProvider::FixedLabelIterator {
  public:
-  EndpointFixedLabelIterator(const std::vector<std::pair<uint16_t, std::string>> &labels, chip::EndpointId endpoint) {
+  EndpointFixedLabelIterator(const FixedVector<std::pair<uint16_t, std::string>> &labels, chip::EndpointId endpoint) {
     for (const auto &pair : labels) {
       if (pair.first == endpoint) {
         this->label_ = pair.second;
@@ -182,7 +182,7 @@ class EndpointUserLabelIterator : public chip::DeviceLayer::DeviceInfoProvider::
 // Commissionable/DAC providers we depend on).
 class MatterDeviceInfoProvider : public chip::DeviceLayer::DeviceInfoProvider {
  public:
-  const std::vector<std::pair<uint16_t, std::string>> *labels = nullptr;
+  const FixedVector<std::pair<uint16_t, std::string>> *labels = nullptr;
   MatterComponent *component = nullptr;
 
   FixedLabelIterator *IterateFixedLabel(chip::EndpointId endpoint) override {
@@ -537,8 +537,22 @@ void MatterComponent::write_factory_strings_() {
 }
 
 void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_id, const std::string &label) {
-  if (label.empty() || endpoint == nullptr) {
+  if (endpoint == nullptr) {
     return;
+  }
+  // An empty name only means we can't populate FixedLabel/BDBI.NodeLabel —
+  // it does NOT mean we should skip the bridged-device wrap. Bailing here
+  // (as the previous version did) left the endpoint without a Bridged Node
+  // device type or an Aggregator reparent, producing exactly the
+  // half-configured bridge the setup() aggregator-fallback path treats as
+  // incoherent. Continue with a synthesized label so the wrap still runs.
+  std::string effective_label = label;
+  if (effective_label.empty()) {
+    char synthesized[16];
+    std::snprintf(synthesized, sizeof(synthesized), "ep-%u", endpoint_id);
+    effective_label.assign(synthesized);
+    ESP_LOGW(TAG, "endpoint %u has empty name — using synthesized label '%s' for FixedLabel/BDBI", endpoint_id,
+             effective_label.c_str());
   }
   // FixedLabel cluster attach is intentionally NOT done anymore. It became
   // redundant once we started attaching BridgedDeviceBasicInformation per
@@ -583,10 +597,10 @@ void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_
   // Matter spec 1.4 §9.7 caps FixedLabel value at 16 octets. Truncate here
   // and log once so the entity author knows to shorten the ESPHome `name:` —
   // this is a hard spec limit, not an ESP32 provider quirk.
-  std::string clipped = label;
+  std::string clipped = effective_label;
   if (clipped.size() > chip::DeviceLayer::kMaxLabelValueLength) {
     ESP_LOGW(TAG, "endpoint %u name \"%s\" exceeds 16-octet FixedLabel value limit — truncating", endpoint_id,
-             label.c_str());
+             effective_label.c_str());
     clipped.resize(chip::DeviceLayer::kMaxLabelValueLength);
   }
   this->endpoint_labels_.emplace_back(endpoint_id, std::move(clipped));
@@ -637,7 +651,7 @@ void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_
     // unaffected by any later push into bridged_labels_ (a bare vector of
     // std::string could realloc and invalidate SSO buffer pointers we've
     // already handed to esp_matter).
-    this->bridged_labels_.push_back(std::make_unique<std::string>(label.substr(0, kMaxNodeLabel)));
+    this->bridged_labels_.push_back(std::make_unique<std::string>(effective_label.substr(0, kMaxNodeLabel)));
     std::string &stored = *this->bridged_labels_.back();
     ::esp_matter::cluster::bridged_device_basic_information::attribute::create_node_label(
         bdbi_cluster,
@@ -718,32 +732,37 @@ static std::string user_label_key_for(uint16_t endpoint_id) {
 // Best-effort parse: on malformed blob (short read, oversized field) we bail
 // out with whatever entries were successfully decoded — the endpoint just
 // starts fresh instead of trapping the boot.
-static std::vector<MatterComponent::UserLabelEntry> deserialize_user_labels(const uint8_t *buf, size_t len) {
-  std::vector<MatterComponent::UserLabelEntry> out;
+// Returns true on a fully-parsed blob; false when the input was truncated,
+// malformed, or the declared count could not be filled. Callers use the
+// return value to decide whether to log — treating a partial decode as
+// authoritative would let the next fabric write persist the truncated list
+// back over NVS and silently destroy the remaining entries.
+static bool deserialize_user_labels(const uint8_t *buf, size_t len, std::vector<MatterComponent::UserLabelEntry> &out) {
+  out.clear();
   if (buf == nullptr || len == 0) {
-    return out;
+    return true;  // "no data" is not corruption
   }
   size_t pos = 0;
   uint8_t count = buf[pos++];
   out.reserve(count);
   for (uint8_t i = 0; i < count; i++) {
     if (pos >= len)
-      break;
+      return false;
     uint8_t label_len = buf[pos++];
     if (label_len > kUserLabelMaxOctets || pos + label_len > len)
-      break;
+      return false;
     std::string label(reinterpret_cast<const char *>(buf + pos), label_len);
     pos += label_len;
     if (pos >= len)
-      break;
+      return false;
     uint8_t value_len = buf[pos++];
     if (value_len > kUserLabelMaxOctets || pos + value_len > len)
-      break;
+      return false;
     std::string value(reinterpret_cast<const char *>(buf + pos), value_len);
     pos += value_len;
     out.push_back({std::move(label), std::move(value)});
   }
-  return out;
+  return true;
 }
 
 static std::vector<uint8_t> serialize_user_labels(const std::vector<MatterComponent::UserLabelEntry> &entries) {
@@ -811,8 +830,15 @@ void MatterComponent::load_user_labels_() {
         if (rd_err != ESP_OK) {
           ESP_LOGW(TAG, "nvs_get_blob(%s) read failed: %s", info.key, esp_err_to_name(rd_err));
         } else {
-          auto entries = deserialize_user_labels(buf.data(), blob_size);
-          if (entries.empty()) {
+          std::vector<MatterComponent::UserLabelEntry> entries;
+          const bool ok = deserialize_user_labels(buf.data(), blob_size, entries);
+          if (!ok) {
+            // Partial decode — do NOT persist this endpoint back to NVS on
+            // the next fabric write, or the truncated list becomes the new
+            // authoritative state.
+            ESP_LOGW(TAG, "nvs blob %s malformed/truncated — dropping %u partially-decoded entries", info.key,
+                     static_cast<unsigned>(entries.size()));
+          } else if (entries.empty()) {
             ESP_LOGW(TAG, "nvs blob %s decoded to zero UserLabel entries — corrupt or empty", info.key);
           } else {
             restored_entries += entries.size();
@@ -992,6 +1018,49 @@ void MatterComponent::setup() {
   } else {
     ESP_LOGI(TAG, "topology=composed — skipping Aggregator + BridgedDeviceBasicInformation attach");
   }
+
+  // Compute an upper bound on the total endpoint count so we can allocate
+  // the aggregate label vectors up-front. Sums over every ESPHome list the
+  // scan_and_register_* passes below iterate — filtered entries (internal
+  // sensors, mode-less selects, etc.) just leave unused capacity, which
+  // costs ~24 bytes each. Only paid once at setup and never resized after.
+  size_t total_entity_upper_bound = 0;
+#ifdef USE_SWITCH
+  total_entity_upper_bound += App.get_switches().size();
+#endif
+#ifdef USE_BINARY_SENSOR
+  total_entity_upper_bound += App.get_binary_sensors().size();
+#endif
+#ifdef USE_SENSOR
+  total_entity_upper_bound += App.get_sensors().size();
+#endif
+#ifdef USE_COVER
+  total_entity_upper_bound += App.get_covers().size();
+#endif
+#ifdef USE_FAN
+  total_entity_upper_bound += App.get_fans().size();
+#endif
+#ifdef USE_LOCK
+  total_entity_upper_bound += App.get_locks().size();
+#endif
+#ifdef USE_VALVE
+  total_entity_upper_bound += App.get_valves().size();
+#endif
+#ifdef USE_SELECT
+  total_entity_upper_bound += App.get_selects().size();
+#endif
+#ifdef USE_BUTTON
+  total_entity_upper_bound += App.get_buttons().size();
+#endif
+#ifdef USE_LIGHT
+  total_entity_upper_bound += App.get_lights().size();
+#endif
+#ifdef USE_CLIMATE
+  total_entity_upper_bound += App.get_climates().size();
+#endif
+  this->endpoint_labels_.init(total_entity_upper_bound);
+  this->bridged_labels_.init(total_entity_upper_bound);
+
   this->scan_and_register_switches_();
   this->scan_and_register_binary_sensors_();
   this->scan_and_register_sensors_();
@@ -1476,6 +1545,9 @@ void MatterComponent::create_aggregator_endpoint_() {
 
 void MatterComponent::scan_and_register_switches_() {
 #ifdef USE_SWITCH
+  const size_t upper_bound = App.get_switches().size();
+  this->switch_endpoints_.init(upper_bound);
+  this->switch_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *sw : App.get_switches()) {
     if (sw == nullptr || sw->is_internal()) {
@@ -1498,6 +1570,8 @@ void MatterComponent::scan_and_register_switches_() {
 
 void MatterComponent::scan_and_register_binary_sensors_() {
 #ifdef USE_BINARY_SENSOR
+  const size_t upper_bound = App.get_binary_sensors().size();
+  this->binary_sensor_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *bs : App.get_binary_sensors()) {
     if (bs == nullptr || bs->is_internal()) {
@@ -1518,6 +1592,8 @@ void MatterComponent::scan_and_register_binary_sensors_() {
 
 void MatterComponent::scan_and_register_sensors_() {
 #ifdef USE_SENSOR
+  const size_t upper_bound = App.get_sensors().size();
+  this->sensor_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *s : App.get_sensors()) {
     if (s == nullptr || s->is_internal()) {
@@ -1542,6 +1618,9 @@ void MatterComponent::scan_and_register_sensors_() {
 
 void MatterComponent::scan_and_register_covers_() {
 #ifdef USE_COVER
+  const size_t upper_bound = App.get_covers().size();
+  this->cover_endpoints_.init(upper_bound);
+  this->cover_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *c : App.get_covers()) {
     if (c == nullptr || c->is_internal()) {
@@ -1564,6 +1643,9 @@ void MatterComponent::scan_and_register_covers_() {
 
 void MatterComponent::scan_and_register_fans_() {
 #ifdef USE_FAN
+  const size_t upper_bound = App.get_fans().size();
+  this->fan_endpoints_.init(upper_bound);
+  this->fan_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *f : App.get_fans()) {
     if (f == nullptr || f->is_internal()) {
@@ -1586,6 +1668,9 @@ void MatterComponent::scan_and_register_fans_() {
 
 void MatterComponent::scan_and_register_locks_() {
 #ifdef USE_LOCK
+  const size_t upper_bound = App.get_locks().size();
+  this->lock_endpoints_.init(upper_bound);
+  this->lock_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *l : App.get_locks()) {
     if (l == nullptr || l->is_internal()) {
@@ -1608,6 +1693,8 @@ void MatterComponent::scan_and_register_locks_() {
 
 void MatterComponent::scan_and_register_valves_() {
 #ifdef USE_VALVE
+  const size_t upper_bound = App.get_valves().size();
+  this->valve_endpoints_.init(upper_bound);
   size_t registered = 0;
   for (auto *v : App.get_valves()) {
     if (v == nullptr || v->is_internal()) {
@@ -1628,6 +1715,9 @@ void MatterComponent::scan_and_register_valves_() {
 
 void MatterComponent::scan_and_register_selects_() {
 #ifdef USE_SELECT
+  const size_t upper_bound = App.get_selects().size();
+  this->select_endpoints_.init(upper_bound);
+  this->select_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *s : App.get_selects()) {
     if (s == nullptr || s->is_internal()) {
@@ -1650,6 +1740,8 @@ void MatterComponent::scan_and_register_selects_() {
 
 void MatterComponent::scan_and_register_buttons_() {
 #ifdef USE_BUTTON
+  const size_t upper_bound = App.get_buttons().size();
+  this->button_endpoints_.init(upper_bound);
   size_t registered = 0;
   size_t skipped_matter_action = 0;
   for (auto *b : App.get_buttons()) {
@@ -1690,6 +1782,9 @@ void MatterComponent::scan_and_register_buttons_() {
 
 void MatterComponent::scan_and_register_lights_() {
 #ifdef USE_LIGHT
+  const size_t upper_bound = App.get_lights().size();
+  this->light_endpoints_.init(upper_bound);
+  this->light_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *l : App.get_lights()) {
     if (l == nullptr || l->is_internal()) {
@@ -1712,6 +1807,9 @@ void MatterComponent::scan_and_register_lights_() {
 
 void MatterComponent::scan_and_register_climates_() {
 #ifdef USE_CLIMATE
+  const size_t upper_bound = App.get_climates().size();
+  this->climate_endpoints_.init(upper_bound);
+  this->climate_endpoints_by_id_.init(upper_bound);
   size_t registered = 0;
   for (auto *c : App.get_climates()) {
     if (c == nullptr || c->is_internal()) {
@@ -1830,6 +1928,8 @@ void MatterComponent::log_onboarding_payload_() {
   }
   if (qr_err == CHIP_NO_ERROR) {
     ESP_LOGI(TAG, "    QR code payload:      %s", qr_code.c_str());
+  } else {
+    ESP_LOGW(TAG, "    QR code payload: <failed err=%s>", qr_err.AsString());
   }
   ESP_LOGI(TAG, "    Setup passcode:       %u (raw)", static_cast<unsigned>(payload.setUpPINCode));
   ESP_LOGI(TAG, "    Discriminator:        %u", this->discriminator_);
@@ -1977,9 +2077,21 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
   ESP_LOGI(TAG, "  Enhanced Commissioning Window open for %us:", static_cast<unsigned>(timeout_seconds));
   if (manual_err == CHIP_NO_ERROR) {
     ESP_LOGI(TAG, "    Manual pairing code:  %s", manual_code.c_str());
+  } else {
+    ESP_LOGE(TAG, "    Manual pairing code: <failed err=%s>", manual_err.AsString());
   }
   if (qr_err == CHIP_NO_ERROR) {
     ESP_LOGI(TAG, "    QR code payload:      %s", qr_code.c_str());
+  } else {
+    ESP_LOGE(TAG, "    QR code payload: <failed err=%s>", qr_err.AsString());
+  }
+  // If both string generators failed, the operator has no way to reach the
+  // window that just opened. Log at ERROR — the passcode still prints below
+  // so a tech-savvy user could reconstruct the pairing string by hand, but
+  // this is a bug worth surfacing loudly.
+  if (manual_err != CHIP_NO_ERROR && qr_err != CHIP_NO_ERROR) {
+    ESP_LOGE(TAG, "    Neither pairing representation could be generated — "
+                  "operator cannot commission through the window that just opened");
   }
   ESP_LOGI(TAG, "    New passcode:         %u", static_cast<unsigned>(passcode));
   ESP_LOGI(TAG, "    New discriminator:    %u", static_cast<unsigned>(discriminator));

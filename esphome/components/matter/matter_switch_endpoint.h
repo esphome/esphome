@@ -9,6 +9,7 @@
 #ifdef USE_SWITCH
 
 #include <cstdint>
+#include <atomic>
 
 // Forward declaration keeps the switch header out of this .h. The esp-matter
 // node handle is opaque here — the .cpp fetches it via esp_matter::node::get().
@@ -71,10 +72,10 @@ class MatterSwitchEndpoint {
   // switch_->turn_on() again and (potentially) loop. Skipping the dispatch
   // while this flag is set breaks the round-trip.
   bool applying_matter_write_{false};
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 
  public:
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 };
 
 }  // namespace esphome::matter

@@ -24,11 +24,10 @@ namespace {
 
 // Convert ESPHome position (0.0=closed .. 1.0=open) to Matter
 // percent100ths (0=open .. 10000=closed). Inverts direction and clamps
-// to the valid range.
+// to the valid range. Callers must handle NaN themselves (setup and
+// report_state_to_fabric_ both seed the nullable attribute with a null
+// sentinel rather than passing NaN through).
 uint16_t esphome_to_matter_100ths(float esphome_position) {
-  if (std::isnan(esphome_position)) {
-    return 0;
-  }
   float inverted = 1.0f - std::clamp(esphome_position, 0.0f, 1.0f);
   int32_t v = static_cast<int32_t>(std::lround(inverted * 10000.0f));
   // Bounds typed to int32_t explicitly — on the xtensa toolchain int32_t
@@ -59,8 +58,16 @@ bool MatterCoverEndpoint::setup() {
 
   // Seed the endpoint config with the cover's current position so the
   // fabric view is coherent from the first attribute read (before
-  // push_initial_state() runs after esp_matter::start).
-  uint16_t initial_100ths = esphome_to_matter_100ths(this->cover_->position);
+  // push_initial_state() runs after esp_matter::start). CurrentPosition /
+  // TargetPositionLiftPercent100ths are nullable — seed them null when
+  // the ESPHome cover has no known position (NaN) instead of substituting
+  // "fully open" (percent100ths 0). Controllers reading the attributes
+  // before the first state callback then get "unavailable" rather than a
+  // confident wrong value.
+  const bool initial_position_known = !std::isnan(this->cover_->position);
+  ::nullable<uint16_t> initial_100ths_nullable =
+      initial_position_known ? ::nullable<uint16_t>(esphome_to_matter_100ths(this->cover_->position))
+                             : ::nullable<uint16_t>();
 
   ::esp_matter::endpoint::window_covering::config_t config(
       static_cast<uint8_t>(chip::app::Clusters::WindowCovering::EndProductType::kRollerShade));
@@ -83,8 +90,8 @@ bool MatterCoverEndpoint::setup() {
   // (target != current → OperationalStatus says "moving"). The config uses
   // esp-matter's own ::nullable<T> template — not chip::DataModel::Nullable —
   // and implicit-converts a raw uint16 through nullable<T>::nullable(T).
-  config.window_covering.features.position_aware_lift.current_position_lift_percent_100ths = initial_100ths;
-  config.window_covering.features.position_aware_lift.target_position_lift_percent_100ths = initial_100ths;
+  config.window_covering.features.position_aware_lift.current_position_lift_percent_100ths = initial_100ths_nullable;
+  config.window_covering.features.position_aware_lift.target_position_lift_percent_100ths = initial_100ths_nullable;
 
   ::esp_matter::endpoint_t *endpoint =
       ::esp_matter::endpoint::window_covering::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
@@ -160,7 +167,7 @@ void MatterCoverEndpoint::report_state_to_fabric_() {
       position_known ? ::nullable<uint16_t>(esphome_to_matter_100ths(esphome_pos)) : ::nullable<uint16_t>();
   ::esp_matter_attr_val_t current_val = ::esp_matter_nullable_uint16(current_nullable);
 
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
   esp_err_t err = ::esp_matter::attribute::update(
       this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
       chip::app::Clusters::WindowCovering::Attributes::CurrentPositionLiftPercent100ths::Id, &current_val);
@@ -185,7 +192,6 @@ void MatterCoverEndpoint::report_state_to_fabric_() {
                esp_err_to_name(terr));
     }
   }
-  this->applying_report_ = false;
 }
 
 }  // namespace esphome::matter

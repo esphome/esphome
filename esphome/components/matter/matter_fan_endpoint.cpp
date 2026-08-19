@@ -186,7 +186,7 @@ void MatterFanEndpoint::report_state_to_fabric_() {
   uint8_t percent = this->esphome_to_percent_();
   uint8_t fan_mode = this->percent_to_fan_mode_(percent);
 
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
 
   // PercentCurrent — read-only device→fabric.
   ::esp_matter_attr_val_t v_current = ::esp_matter_uint8(percent);
@@ -213,8 +213,6 @@ void MatterFanEndpoint::report_state_to_fabric_() {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update FanMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }
-
-  this->applying_report_ = false;
 }
 
 }  // namespace esphome::matter

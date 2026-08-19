@@ -237,7 +237,7 @@ void MatterLightEndpoint::push_initial_state() { this->report_state_to_fabric_()
 
 void MatterLightEndpoint::report_state_to_fabric_() {
   const auto &rv = this->light_->remote_values;
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
 
   // OnOff.OnOff
   ::esp_matter_attr_val_t v_on = ::esp_matter_bool(rv.is_on());
@@ -301,8 +301,6 @@ void MatterLightEndpoint::report_state_to_fabric_() {
     // Color XY reporting (for extended_color_light) intentionally skipped
     // in this pass — see header comment.
   }
-
-  this->applying_report_ = false;
 }
 
 }  // namespace esphome::matter

@@ -6,6 +6,7 @@
 #ifdef USE_FAN
 
 #include <cstdint>
+#include <atomic>
 
 namespace esphome::fan {
 class Fan;
@@ -51,7 +52,7 @@ class MatterFanEndpoint {
 
   uint16_t endpoint_id() const { return endpoint_id_; }
   fan::Fan *esphome_fan() const { return fan_; }
-  bool applying_report() const { return applying_report_; }
+  bool applying_report() const { return this->applying_report_.load(std::memory_order_acquire); }
 
  protected:
   void report_state_to_fabric_();
@@ -64,7 +65,7 @@ class MatterFanEndpoint {
   int supported_speed_count_{1};
   bool supports_speed_{false};
   bool applying_matter_write_{false};
-  bool applying_report_{false};
+  std::atomic<bool> applying_report_{false};
 };
 
 }  // namespace esphome::matter

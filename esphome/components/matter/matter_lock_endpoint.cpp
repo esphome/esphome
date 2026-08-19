@@ -143,10 +143,9 @@ void MatterLockEndpoint::report_state_to_fabric_(::esphome::lock::LockState stat
   ::nullable<uint8_t> nv = is_null ? ::nullable<uint8_t>() : ::nullable<uint8_t>(matter_state);
   ::esp_matter_attr_val_t val = ::esp_matter_nullable_enum8(nv);
 
-  this->applying_report_ = true;
+  ApplyingReportGuard applying_report_guard(this->applying_report_);
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::DoorLock::Id,
                                                   chip::app::Clusters::DoorLock::Attributes::LockState::Id, &val);
-  this->applying_report_ = false;
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update LockState endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }
