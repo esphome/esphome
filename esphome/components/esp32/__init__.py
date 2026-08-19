@@ -1107,20 +1107,15 @@ def _detect_variant(value):
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
         # name rather than carrying a PIO board name through the IDF build.
-        # ESP32-P4 boards must be picked per chip revision on both toolchains:
-        # pre-v3 and rev3 (v3.0+) silicon are not binary compatible, and
-        # downstream code derives CONFIG_ESP32P4_SELECTS_REV_LESS_V3 and the
-        # default CPU frequency from CONF_ENGINEERING_SAMPLE, normalized here.
+        # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible,
+        # and downstream code derives CONFIG_ESP32P4_SELECTS_REV_LESS_V3 and
+        # the default CPU frequency from CONF_ENGINEERING_SAMPLE, so it is
+        # normalized here on every path.
         if CORE.using_toolchain_esp_idf:
             value = value.copy()
             if variant == VARIANT_ESP32P4:
-                value[CONF_BOARD] = (
-                    "esp32-p4"
-                    if _normalize_p4_engineering_sample(value)
-                    else "esp32-p4_r3"
-                )
-            else:
-                value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
+                _normalize_p4_engineering_sample(value)
+            value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
             return value
         if variant not in STANDARD_BOARDS:
             raise cv.Invalid(
@@ -1142,10 +1137,13 @@ def _detect_variant(value):
         value = value.copy()
         value[CONF_VARIANT] = variant
         if variant == VARIANT_ESP32P4:
-            value.setdefault(
-                CONF_ENGINEERING_SAMPLE,
-                BOARDS[board].get("engineering_sample", False),
-            )
+            board_is_es = BOARDS[board].get("engineering_sample", False)
+            engineering_sample = value.setdefault(CONF_ENGINEERING_SAMPLE, board_is_es)
+            if engineering_sample != board_is_es:
+                raise cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{board}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
     elif not variant:
         raise cv.Invalid(
             "This board is unknown, if you are sure you want to compile with this board selection, "
@@ -1463,20 +1461,6 @@ def final_validate(config) -> None:
                 path=[CONF_ENGINEERING_SAMPLE],
             )
         )
-    if (
-        config[CONF_VARIANT] == VARIANT_ESP32P4
-        and config.get(CONF_ENGINEERING_SAMPLE) is not None
-    ):
-        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
-        )
-        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
-            errs.append(
-                cv.Invalid(
-                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
-                    path=[CONF_ENGINEERING_SAMPLE],
-                )
-            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
