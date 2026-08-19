@@ -172,33 +172,41 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
 }
 
 bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
-  if (this->decoder_) {
+  if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
-  this->decoder_ = this->create_decoder_(format);
+  // If decoder exists but is not active (failed or finished), check format compatibility
+  if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
+    this->decoder_ = nullptr;  // Reset decoder to create a new one for the requested format
+  }
+
   if (!this->decoder_) {
-    ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
-    return false;
+    this->decoder_ = this->create_decoder_(format);
+    if (!this->decoder_) {
+      ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
+      return false;
+    }
   }
 
   this->total_size_ = expected_size;
   this->decoded_bytes_ = 0;
 
-  // Initialize decoder
   int result = this->decoder_->prepare(expected_size);
   if (result < 0) {
     ESP_LOGE(TAG, "Failed to prepare decoder: %d", result);
-    this->decoder_ = nullptr;
+    this->is_decoder_active_ = false;
+    this->decoder_ = nullptr;  // If prepare fails, a full reset is needed
     return false;
   }
-
+  this->is_decoder_active_ = true;
   return true;
 }
 
 int RuntimeImage::feed_data(uint8_t *data, size_t len) {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     ESP_LOGE(TAG, "No decoder initialized");
     return -1;
   }
@@ -212,9 +220,12 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
 }
 
 bool RuntimeImage::end_decode() {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     return false;
   }
+
+  // Mark the decode session as complete
+  this->is_decoder_active_ = false;
 
   // Finalize the image for display
   if (!this->progressive_display_) {
@@ -224,14 +235,15 @@ bool RuntimeImage::end_decode() {
     this->data_start_ = this->buffer_;
   }
 
-  // Clean up decoder
-  this->decoder_ = nullptr;
+  this->decoder_->reset();  // Reset decoder state for potential reuse
 
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
 }
 
 bool RuntimeImage::is_decode_finished() const {
+  // null pointer check to avoid dereferencing a nullptr
+  // when calling is_finished on it.
   if (!this->decoder_) {
     return false;
   }
@@ -240,10 +252,11 @@ bool RuntimeImage::is_decode_finished() const {
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // Reset decoder separately — release() can be called from within the decoder
-  // (via set_size -> resize -> resize_buffer_), so we must not destroy the decoder here.
+  // End any active decode session before releasing the decoder
+  this->is_decoder_active_ = false;
   // The decoder lifecycle is managed by begin_decode()/end_decode().
-  this->decoder_ = nullptr;
+  // release() can be called from within the decoder, so we must not destroy the decoder here.
+  // Additionally, the decoder may be reused for the same format, so we keep it around for efficiency.
 }
 
 void RuntimeImage::release_buffer_() {
@@ -348,23 +361,24 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
 std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
-  // For backwards compatibility, if requested format is AUTO (=default), keep old behaviour
-  //   (use format supplied at construction)
-  if (format == AUTO) {
+  if (format == AUTO && this->format_ != AUTO) {
+    // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
     format = this->format_;
   }
-
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
+      ESP_LOGV(TAG, "Creating BMP decoder");
       return make_unique<BmpDecoder>(this);
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
     case JPEG:
+      ESP_LOGV(TAG, "Creating JPEG decoder");
       return make_unique<JpegDecoder>(this);
 #endif
 #ifdef USE_RUNTIME_IMAGE_PNG
     case PNG:
+      ESP_LOGV(TAG, "Creating PNG decoder");
       return make_unique<PngDecoder>(this);
 #endif
     case AUTO:

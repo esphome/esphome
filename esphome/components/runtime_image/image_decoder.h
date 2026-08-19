@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
+#include "image_format.h"
 
 namespace esphome::runtime_image {
 
@@ -41,13 +42,36 @@ class ImageDecoder {
   virtual ~ImageDecoder() = default;
 
   /**
+   * @brief Get the image format handled by this decoder.
+   *
+   * @return The image format represented by the concrete decoder implementation.
+   */
+  virtual ImageFormat get_format() const = 0;
+
+  /**
+   * @brief Reset the decoder state to allow for a new decoding session.
+   *        Subclasses should override this method to reset any format-specific state
+   *        and free any internal buffers / release resources.
+   */
+  virtual void reset() {
+    this->decoded_bytes_ = 0;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
+  }
+
+  /**
    * @brief Initialize the decoder.
    *
    * @param expected_size Hint about the expected data size (0 if unknown).
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
   virtual int prepare(size_t expected_size) {
+    this->decoded_bytes_ = 0;
     this->expected_size_ = expected_size;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
     return 0;
   }
 
