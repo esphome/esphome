@@ -17,7 +17,7 @@ void TuyaFan::setup() {
           this->speed = datapoint.value_enum + 1;
           this->publish_state();
         }
-      } else if (datapoint.type == TuyaDatapointType::INTEGER) {
+      } else {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
         this->speed = datapoint.value_int;
         this->publish_state();
