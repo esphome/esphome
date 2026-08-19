@@ -18,7 +18,7 @@ from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_INTERNAL, CONF_PLATFOR
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
-CODEOWNERS = ["@unisec"]
+CODEOWNERS = ["@gtjadsonsantos"]
 DEPENDENCIES = ["esp32"]
 
 matter_ns = cg.esphome_ns.namespace("matter")
