@@ -106,9 +106,10 @@ class RuntimeImage : public image::Image {
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free its memory.
+   * @brief Release the image buffer and free its memory, ending any decode session.
    *
-   * An external buffer is let go of rather than freed.
+   * An external buffer is let go of rather than freed. The decoder object is kept
+   * warm so the next decode can reuse it without churning the heap.
    */
   void release();
 

@@ -241,8 +241,8 @@ bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && th
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // End any active decode session and reclaim the decoder's internal image buffer
-  // The decoder object is kept so the next decode of the same format can reuse it.
+  // End any active decode session; decoders free the format-specific working buffers
+  // they can (PNG), while the decoder object itself is kept warm for the next decode.
   if (this->decoder_) {
     this->decoder_->reset();
   }
