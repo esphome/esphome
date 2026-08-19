@@ -126,6 +126,8 @@ class _PlatformBackend:
     register: Callable[[cg.MockObj, ConfigType], Awaitable[None]]
     # Selects the backend's alias-ladder arm (order-independent arms).
     define: str
+    # The backend's on-demand materializer gate, when it has one.
+    materializer_define: str | None = None
 
 
 # The single registry of platforms with a GATT client backend; a platform
@@ -137,6 +139,7 @@ _PLATFORM_BACKENDS: dict[str, _PlatformBackend] = {
         _esp32_schema_fragment,
         _esp32_register,
         "USE_BLE_GATT_BACKEND_BLUEDROID",
+        materializer_define="USE_BLUEDROID_GATT_SERVICE_TABLE",
     ),
     PLATFORM_RP2: _PlatformBackend(
         RP2GattClient, _rp2_schema_fragment, _rp2_register, "USE_BLE_GATT_BACKEND_RP2"
@@ -254,8 +257,8 @@ async def new_gatt_backend(
     entry = _backend_entry()
     ble_device_base.request_gatt_client()
     cg.add_define(entry.define)
-    if service_table:
-        cg.add_define("USE_BLUEDROID_GATT_SERVICE_TABLE")
+    if service_table and entry.materializer_define is not None:
+        cg.add_define(entry.materializer_define)
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
     # The backend is the slot's real Component: component keys from the
     # connection entry (setup_priority, ...) apply to it. Consumers whose own

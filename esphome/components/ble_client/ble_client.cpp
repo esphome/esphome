@@ -141,6 +141,9 @@ bool BLEClient::all_nodes_established_() {
 #ifdef USE_BLE_CLIENT_GATT_NODES
 
 void BLEClient::register_gatt_node(BLEClientNode *node) {
+  // Parent before the capacity check so a dropped node still has a usable
+  // parent() (neutral-engine parity).
+  node->set_ble_client_parent(this);
   if (this->gatt_nodes_.size() == ESPHOME_BLE_CLIENT_MAX_NODES) {
     // push_back past capacity is a silent no-op; an undersized slot count
     // must be loud at boot, not an unresolvable node at runtime.
