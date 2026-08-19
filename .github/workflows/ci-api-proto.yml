@@ -52,12 +52,19 @@ jobs:
         # timeout-minutes.
         timeout-minutes: 15
         run: |
+          # The runners' primary mirror (azure.archive.ubuntu.com) can
+          # black-hole; apt's default per-fetch timeout then burns most of
+          # a bound before the mirrorlist falls back to archive.ubuntu.com.
+          # Short per-fetch timeouts make apt give up on the dead mirror in
+          # seconds so the bound is spent on the working fallback.
+          APT_OPTS=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
           attempt=0
           for bound in 45 90 180; do
             attempt=$((attempt + 1))
-            if sudo timeout -k 15 "$bound" apt-get update \
+            if sudo timeout -k 15 "$bound" \
+                apt-get "${APT_OPTS[@]}" update \
               && sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 "$bound" \
-                apt-get install -y protobuf-compiler
+                apt-get "${APT_OPTS[@]}" install -y protobuf-compiler
             then
               protoc --version
               exit 0
