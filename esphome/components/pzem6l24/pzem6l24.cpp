@@ -122,15 +122,7 @@ void PZEM6L24::on_response(std::span<const uint8_t> request_pdu, std::span<const
     return;
   }
   this->read_finished_();
-
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < PZEM_PAYLOAD_SIZE) {
-    ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
-    this->publish_values_({});
-    return;
-  }
-
-  this->publish_values_(data);
+  this->publish_values_(modbus::helpers::server_pdu_payload(response_pdu));
 }
 
 void PZEM6L24::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
@@ -166,12 +158,19 @@ void PZEM6L24::on_not_sent(std::span<const uint8_t> request_pdu) {
   }
 }
 
-// Publishes every configured sensor from `data`, the 128-byte register payload. Anything shorter means
-// the meter could not be read, and publishes NAN instead so the entities go unavailable rather than
-// holding a stale reading. The length is checked here, next to the offsets that depend on it, so no
-// caller can decode past the end of a short span.
+// Publishes every configured sensor from `data`, the register payload of a read response. The size is
+// validated here, in the one place that knows what the offsets below need: anything but exactly
+// PZEM_PAYLOAD_SIZE bytes is not a payload this map can decode - too short would read past the end, too
+// long is a frame from something other than the meter this component expects - and publishes NAN so the
+// entities go unavailable rather than holding a stale reading.
+//
+// An empty span is how the failure paths ask for that same blanking; each has already logged why, so it
+// is the one wrong size that does not warrant a second warning here.
 void PZEM6L24::publish_values_(std::span<const uint8_t> data) {
-  const bool available = data.size() >= PZEM_PAYLOAD_SIZE;
+  const bool available = data.size() == PZEM_PAYLOAD_SIZE;
+  if (!available && !data.empty()) {
+    ESP_LOGW(TAG, "Invalid data size for PZEM-6L24: expected %zu bytes, got %zu", PZEM_PAYLOAD_SIZE, data.size());
+  }
 
   // Helper: decode a little-endian 16-bit value at byte offset i.
   auto get_u16 = [&](size_t i) -> uint16_t { return (uint16_t(data[i + 1]) << 8) | uint16_t(data[i]); };

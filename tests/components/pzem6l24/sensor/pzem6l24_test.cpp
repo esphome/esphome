@@ -191,6 +191,23 @@ TEST(PZEM6L24Test, PublishesNanOnShortPayload) {
   EXPECT_TRUE(std::isnan(h.total_active_energy.state));
 }
 
+// A response longer than the register map is not a payload this decode table can be trusted with either -
+// it did not come from the frame layout the map was written for - so it must be rejected rather than
+// decoded from its first 128 bytes.
+TEST(PZEM6L24Test, PublishesNanOnOversizedPayload) {
+  Harness h;
+  auto long_pdu = make_reference_payload().response_pdu();
+  long_pdu.push_back(0x11);
+
+  h.pzem.on_response(READ_REQUEST_PDU, make_reference_payload().response_pdu());
+  ASSERT_FALSE(std::isnan(h.voltage_a.state));
+
+  h.pzem.on_response(READ_REQUEST_PDU, long_pdu);
+
+  EXPECT_TRUE(std::isnan(h.voltage_a.state));
+  EXPECT_TRUE(std::isnan(h.total_active_energy.state));
+}
+
 // A meter that stops answering must not leave stale readings behind.
 TEST(PZEM6L24Test, PublishesNanWhenTheMeterDoesNotRespond) {
   Harness h;
