@@ -87,33 +87,33 @@ TEST(StringContainsIgnoreCaseTest, NullPointerAlwaysFalse) {
   const char *haystack = nullptr;
   const char *needle = nullptr;
 
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, needle);
-  EXPECT_FALSE(str_contains_ignore_case_fallback("Hello World", needle);
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "anything");
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, needle));
+  EXPECT_FALSE(str_contains_ignore_case_fallback("Hello World", needle));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "anything"));
 }
 
 TEST(StringContainsIgnoreCaseTest, EmptySearchMatches) {
   const char *haystack = "Hello World";
 
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "");
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, ""));
 }
 
 TEST(StringContainsIgnoreCaseTest, MiscCaseMatches) {
   const char *haystack = "Hello World";
 
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hello");
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hello");
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "HELLO");
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hELLO");
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "HELLO"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hELLO"));
 }
 
 TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
   const char *haystack = "Hello World";
 
-  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hell");
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Heaven");
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Hello!");
-  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!");
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hell"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Heaven"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Hello!"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!"));
 }
 
 }  // namespace esphome
