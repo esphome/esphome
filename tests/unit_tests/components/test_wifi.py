@@ -1,10 +1,13 @@
 """Tests for WiFi component public helpers."""
 
+import logging
+
 import pytest
 
 from esphome.components.esp32 import const
 from esphome.components.wifi import (
     check_placeholder_credentials,
+    final_validate,
     has_native_wifi,
     variant_has_wifi,
 )
@@ -17,6 +20,7 @@ from esphome.const import (
     Platform,
 )
 from esphome.core import EsphomeError, Lambda
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -197,3 +201,32 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.mark.parametrize(
+    ("wifi_config", "full_config", "expect_warning"),
+    [
+        # AP only with a hosted web_server page: warn.
+        ({CONF_AP: {}}, {"web_server": {}}, True),
+        # local: true serves the page from the device.
+        ({CONF_AP: {}}, {"web_server": {"local": True}}, False),
+        # captive_portal serves its own local page.
+        ({CONF_AP: {}}, {"web_server": {}, "captive_portal": {}}, False),
+        # STA with AP fallback: the AP is rarely used, stay quiet.
+        ({CONF_AP: {}, CONF_NETWORKS: [{CONF_SSID: "x"}]}, {"web_server": {}}, False),
+    ],
+)
+def test_final_validate_ap_only_hosted_web_server_warning(
+    wifi_config: dict,
+    full_config: dict,
+    expect_warning: bool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AP only configs with a hosted web_server page get a hint to use local: true."""
+    token = fv.full_config.set({"wifi": wifi_config, **full_config})
+    try:
+        with caplog.at_level(logging.WARNING):
+            final_validate(wifi_config)
+    finally:
+        fv.full_config.reset(token)
+    assert ("AP only" in caplog.text) is expect_warning
