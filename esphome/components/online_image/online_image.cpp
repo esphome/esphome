@@ -1,8 +1,7 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <algorithm>
-#include <cstring>
 
 static const char *const TAG = "online_image";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
@@ -125,13 +124,14 @@ void OnlineImage::update() {
     auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     const char *content_type = content_type_header.c_str();
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
-    if (ESPHOME_strcasestr(content_type, "image/bmp")) {
+    if (str_contains_ignore_case(content_type, "image/bmp")) {
       format = runtime_image::BMP;
-    } else if (ESPHOME_strcasestr(content_type, "image/jpeg") or ESPHOME_strcasestr(content_type, "image/jpg")) {
+    } else if (str_contains_ignore_case(content_type, "image/jpeg") or
+               str_contains_ignore_case(content_type, "image/jpg")) {
       format = runtime_image::JPEG;
-    } else if (ESPHOME_strcasestr(content_type, "image/png")) {
+    } else if (str_contains_ignore_case(content_type, "image/png")) {
       format = runtime_image::PNG;
-    } else if (ESPHOME_strcasestr(content_type, "image/")) {
+    } else if (str_contains_ignore_case(content_type, "image/")) {
       ESP_LOGW(TAG, "Unsupported image type: '%s'", content_type);
       this->end_connection_();
       this->download_error_callback_.call();
