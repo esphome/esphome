@@ -172,7 +172,7 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
 }
 
 bool RuntimeImage::begin_decode(size_t expected_size) {
-  auto format = this->format_;  // <- remove when merging PR #16337
+  const ImageFormat format = this->format_;  // <- remove when merging PR #16337
   if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
@@ -180,7 +180,7 @@ bool RuntimeImage::begin_decode(size_t expected_size) {
 
   // If decoder exists but is not active (failed or finished), check format compatibility
   if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
-    ESP_LOGI(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
     this->decoder_ = nullptr;  // Reset decoder to create a new one for the requested format
   }
 
@@ -241,7 +241,8 @@ bool RuntimeImage::end_decode() {
 }
 
 bool RuntimeImage::is_decode_finished() const {
-  // If the decoder is not active but exists, it means decoding has finished (successfully or not)
+  // null pointer check to avoid dereferencing a nullptr
+  // when calling is_finished on it.
   if (!this->decoder_) {
     return false;
   }
@@ -253,9 +254,8 @@ void RuntimeImage::release() {
   // End any active decode session before releasing the decoder
   this->is_decoder_active_ = false;
   // The decoder lifecycle is managed by begin_decode()/end_decode().
-  // release() can be called from within the decoder via set_size -> resize -> resize_buffer_,
-  // so we must not destroy the decoder here. Additionally, the decoder may be reused for the
-  // same format, so we keep it around for efficiency.
+  // release() can be called from within the decoder, so we must not destroy the decoder here.
+  // Additionally, the decoder may be reused for the same format, so we keep it around for efficiency.
 }
 
 void RuntimeImage::release_buffer_() {

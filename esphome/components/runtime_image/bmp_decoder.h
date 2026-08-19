@@ -25,6 +25,7 @@ class BmpDecoder : public ImageDecoder {
 
   ImageFormat get_format() const override { return BMP; }
 
+  void reset() override;
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 

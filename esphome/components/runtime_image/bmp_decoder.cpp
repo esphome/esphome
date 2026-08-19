@@ -12,8 +12,8 @@ namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder.bmp";
 
-int BmpDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
+void BmpDecoder::reset() {
+  ImageDecoder::reset();
   this->current_index_ = 0;
   this->paint_index_ = 0;
   this->color_table_.reset();
@@ -21,6 +21,11 @@ int BmpDecoder::prepare(size_t expected_size) {
   this->data_offset_ = 0;
   this->padding_bytes_ = 0;
   this->width_bytes_ = 0;
+}
+
+int BmpDecoder::prepare(size_t expected_size) {
+  ImageDecoder::prepare(expected_size);
+  this->reset();
 
   return 0;
 }

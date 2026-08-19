@@ -49,6 +49,19 @@ class ImageDecoder {
   virtual ImageFormat get_format() const = 0;
 
   /**
+   * @brief Reset the decoder state to allow for a new decoding session.
+   *        Subclasses should override this method to reset any format-specific state
+   *        and free any internal buffers / release resources.
+   */
+  virtual void reset() {
+    this->decoded_bytes_ = 0;
+    this->expected_size_ = 0;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
+  }
+
+  /**
    * @brief Initialize the decoder.
    *
    * @param expected_size Hint about the expected data size (0 if unknown).
