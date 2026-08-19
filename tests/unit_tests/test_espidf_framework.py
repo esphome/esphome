@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tarfile
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -1041,6 +1041,29 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
 
     assert download.call_count == 2
     assert "Could not prefetch cmake@3.30.2" in caplog.text
+
+
+def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> None:
+    """The batch bar is closed out after the pool, and the pool is shut down
+    with cancel_futures so Ctrl-C does not drain every queued archive."""
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, _PREFETCH_JSON, ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume"),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+        patch(
+            "esphome.espidf.framework.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+        ) as pool_cls,
+    ):
+        pool = MagicMock(wraps=ThreadPoolExecutor(max_workers=2))
+        pool_cls.return_value = pool
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+
+    pool.shutdown.assert_called_once_with(wait=True, cancel_futures=True)
+    progress_cls.return_value.done.assert_called_once_with()
 
 
 def test_prefetch_passes_targets_and_tools_to_script(tmp_path: Path) -> None:

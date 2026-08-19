@@ -742,7 +742,9 @@ class BatchDownloadProgress:
     Each ``tracker()`` is a ``progress`` callback for one download; it reports
     that file's absolute byte count and the bar shows the sum over ``total``.
     The lock also serialises the bar's stderr writes, so worker threads never
-    interleave frames. With an unknown ``total`` (0) nothing is drawn.
+    interleave frames. With an unknown ``total`` (0) nothing is drawn. Call
+    ``done()`` once every download has finished (or failed) so a bar that
+    never reached 100% still ends its line before the next log message.
     """
 
     def __init__(self, header: str, total: int) -> None:
@@ -764,6 +766,10 @@ class BatchDownloadProgress:
                 self._bar.update(min(self._sum / self._total, 1))
 
         return update
+
+    def done(self) -> None:
+        if self._bar is not None and self._bar.last_progress != 100:
+            self._bar.done()
 
 
 def download_with_resume(
@@ -829,7 +835,7 @@ def download_with_resume(
         try:
             _verify_file(dest, sha256, size)
             if progress is not None:
-                progress(dest.stat().st_size)
+                progress(size if size is not None else dest.stat().st_size)
             return
         except EsphomeError:
             dest.unlink()
@@ -887,7 +893,7 @@ def download_with_resume(
             if progress is not None:
                 # Also credits a part file an earlier run completed without
                 # streaming anything this time.
-                progress(part.stat().st_size)
+                progress(expected_size or part.stat().st_size)
             if not expected_size and sha256 is None:
                 # No sha, no size, and the server sent no usable
                 # content-length: nothing can prove the download complete

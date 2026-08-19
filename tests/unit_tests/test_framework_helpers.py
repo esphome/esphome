@@ -1181,8 +1181,30 @@ class TestBatchDownloadProgress:
 
     def test_unknown_total_draws_nothing(self) -> None:
         with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
-            BatchDownloadProgress("Downloading", 0).tracker()(5)
+            progress = BatchDownloadProgress("Downloading", 0)
+            progress.tracker()(5)
+            progress.done()
         bar_cls.assert_not_called()
+
+    def test_done_ends_an_unfinished_bar(self) -> None:
+        """A batch that stops short of 100% (a failed archive) still ends its
+        line so the next log message starts on a fresh row."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(5)
+            progress.done()
+        assert stream.getvalue().endswith("50% \n")
+
+    def test_done_after_full_bar_adds_nothing(self) -> None:
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(10)
+            progress.done()
+        assert stream.getvalue().endswith("100% Done...\r\n")
 
 
 class TestDownloadFromMirrors:

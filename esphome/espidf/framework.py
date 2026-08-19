@@ -747,27 +747,38 @@ def _prefetch_idf_tool_archives(
             len(entries),
             ", ".join(entry["name"] for entry in entries),
         )
+        # tools.json always carries sizes; should one be missing the bar
+        # could not be trusted, so draw none rather than a wrong one.
+        sizes = [entry["size"] for entry in entries]
         progress = BatchDownloadProgress(
-            "Downloading ESP-IDF tools",
-            sum(entry["size"] or 0 for entry in entries),
+            "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
         )
 
         def _download(entry: dict) -> None:
+            tracker = progress.tracker()
             try:
                 download_with_resume(
                     entry["url"],
                     dist_path / entry["dest"],
                     sha256=entry["sha256"],
                     size=entry["size"],
-                    progress=progress.tracker(),
+                    progress=tracker,
                 )
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Keep prefetching the remaining archives; the installer
                 # will retry this one itself (without resume).
+                tracker(0)
                 _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
 
-        with ThreadPoolExecutor(max_workers=min(_PREFETCH_WORKERS, len(entries))) as ex:
-            list(ex.map(_download, entries))
+        ex = ThreadPoolExecutor(max_workers=min(_PREFETCH_WORKERS, len(entries)))
+        try:
+            for future in [ex.submit(_download, entry) for entry in entries]:
+                future.result()
+        finally:
+            # On Ctrl-C drop the queued archives instead of downloading them
+            # all before the process can exit; in-flight ones still finish.
+            ex.shutdown(wait=True, cancel_futures=True)
+            progress.done()
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
