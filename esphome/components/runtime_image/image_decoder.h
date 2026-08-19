@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
-#include "runtime_image.h"
+#include "image_format.h"
 
 namespace esphome::runtime_image {
 
@@ -57,6 +57,9 @@ class ImageDecoder {
   virtual int prepare(size_t expected_size) {
     this->decoded_bytes_ = 0;
     this->expected_size_ = expected_size;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
     return 0;
   }
 

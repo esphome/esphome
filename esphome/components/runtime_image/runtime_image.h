@@ -3,24 +3,12 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include "image_format.h"
+
 namespace esphome::runtime_image {
 
 // Forward declaration
 class ImageDecoder;
-
-/**
- * @brief Image format types that can be decoded dynamically.
- */
-enum ImageFormat {
-  /** Automatically detect from data. Not implemented yet. */
-  AUTO,
-  /** JPEG format. */
-  JPEG,
-  /** PNG format. */
-  PNG,
-  /** BMP format. */
-  BMP,
-};
 
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
@@ -120,7 +108,7 @@ class RuntimeImage : public image::Image {
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free memory.
+   * @brief Release the image buffer and free its memory.
    *
    * An external buffer is let go of rather than freed.
    */

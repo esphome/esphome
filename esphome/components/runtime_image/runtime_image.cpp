@@ -199,6 +199,7 @@ bool RuntimeImage::begin_decode(size_t expected_size) {
   if (result < 0) {
     ESP_LOGE(TAG, "Failed to prepare decoder: %d", result);
     this->is_decoder_active_ = false;
+    this->decoder_ = nullptr;  // If prepare fails, a full reset is needed
     return false;
   }
   this->is_decoder_active_ = true;
@@ -206,7 +207,7 @@ bool RuntimeImage::begin_decode(size_t expected_size) {
 }
 
 int RuntimeImage::feed_data(uint8_t *data, size_t len) {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     ESP_LOGE(TAG, "No decoder initialized");
     return -1;
   }
@@ -220,7 +221,7 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
 }
 
 bool RuntimeImage::end_decode() {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     return false;
   }
 
@@ -240,6 +241,7 @@ bool RuntimeImage::end_decode() {
 }
 
 bool RuntimeImage::is_decode_finished() const {
+  // If the decoder is not active but exists, it means decoding has finished (successfully or not)
   if (!this->decoder_) {
     return false;
   }
@@ -251,7 +253,9 @@ void RuntimeImage::release() {
   // End any active decode session before releasing the decoder
   this->is_decoder_active_ = false;
   // The decoder lifecycle is managed by begin_decode()/end_decode().
-  // We don't delete the decoder here since it may be reused for the same format.
+  // release() can be called from within the decoder via set_size -> resize -> resize_buffer_,
+  // so we must not destroy the decoder here. Additionally, the decoder may be reused for the
+  // same format, so we keep it around for efficiency.
 }
 
 void RuntimeImage::release_buffer_() {
