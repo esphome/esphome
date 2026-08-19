@@ -981,8 +981,10 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+/// Fallback implementation for case insensitive substring comparison.
 bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
 
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
 inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   if (!needle || !haystack) {
     return false;
