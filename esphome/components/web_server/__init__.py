@@ -362,7 +362,16 @@ async def add_entity_config(entity, config):
 
 
 def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
+    js_url = config[CONF_JS_URL]
+    # The interface is downloaded from the internet. Without internet access, which is
+    # common for browsers on the WiFi AP, that download fails or simply stalls and the
+    # page stays blank. Show a hint after a few seconds unless www.js has registered the
+    # esp-app element; CSS hides the hint again if the interface does arrive later.
+    # Kept short: it lives in flash on every build without captive_portal.
+    offline_hint = offline_hint and bool(js_url)
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
+    if offline_hint:
+        html += "<style>esp-app:defined+p{display:none}</style>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
     if css_include:
@@ -373,18 +382,15 @@ def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
     if js_include:
         html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
-    if js_url := config[CONF_JS_URL]:
-        onerror = ""
-        if offline_hint:
-            # The interface is downloaded from the internet. Show a hint instead of a
-            # blank page when the browser cannot reach it, which is common in WiFi AP
-            # mode. Kept short: it lives in flash on every build without captive_portal.
-            onerror = (
-                " onerror=\"document.body.innerText='Could not download the web interface. "
-                "This browser needs internet access, or set local: true under web_server: "
-                "in the YAML.'\""
-            )
-        html += f'<script src="{js_url}"{onerror}></script>'
+    if offline_hint:
+        html += (
+            "<p hidden>The web interface is not loading. This browser needs internet "
+            "access to download it, or set local: true under web_server: in the YAML.</p>"
+            "<script>setTimeout(function(){document.querySelector('p').hidden=0},5e3)"
+            "</script>"
+        )
+    if js_url:
+        html += f'<script src="{js_url}"></script>'
     html += "</body></html>"
     return html
 

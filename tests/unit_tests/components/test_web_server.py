@@ -23,24 +23,29 @@ JS_URL = "https://oi.esphome.io/v2/www.js"
 
 
 def test_build_index_html_has_offline_hint() -> None:
-    """The hosted script tag shows a hint when the browser cannot download it."""
+    """A hidden hint is shown after a timeout unless www.js registered esp-app."""
     html = build_index_html({CONF_JS_URL: JS_URL, CONF_CSS_URL: ""})
-    assert f'<script src="{JS_URL}" onerror="' in html
-    assert "document.body.innerText='Could not download the web interface." in html
+    assert "<style>esp-app:defined+p{display:none}</style>" in html
+    assert "<esp-app></esp-app><p hidden>The web interface is not loading." in html
     assert "local: true" in html
+    assert "<script>setTimeout(function(){document.querySelector('p').hidden=0}" in html
+    # The hint script must come before the hosted script, which may never finish loading
+    assert html.index("setTimeout") < html.index(f'<script src="{JS_URL}">')
 
 
 def test_build_index_html_hint_disabled() -> None:
-    """The plain script tag is kept when the hint is not wanted (captive_portal)."""
+    """Plain page when the hint is not wanted (captive_portal)."""
     html = build_index_html({CONF_JS_URL: JS_URL, CONF_CSS_URL: ""}, offline_hint=False)
-    assert f'<script src="{JS_URL}"></script>' in html
-    assert "onerror" not in html
+    assert f'<esp-app></esp-app><script src="{JS_URL}"></script>' in html
+    assert "<p" not in html
+    assert "<style>" not in html
 
 
 def test_build_index_html_without_js_url() -> None:
     """No hosted script and no hint when js_url is empty."""
     html = build_index_html({CONF_JS_URL: "", CONF_CSS_URL: ""})
     assert "<script" not in html
+    assert "<p" not in html
 
 
 @pytest.mark.parametrize(
