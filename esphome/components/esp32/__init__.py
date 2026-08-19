@@ -1073,7 +1073,7 @@ def _parse_pio_platform_version(value):
         return value
 
 
-def _normalize_p4_engineering_sample(value):
+def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
     """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
     silicon (rev3) is assumed. Returns the normalized flag."""
     engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
