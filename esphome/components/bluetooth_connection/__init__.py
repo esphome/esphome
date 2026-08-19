@@ -255,7 +255,7 @@ async def new_gatt_backend(
     ble_device_base.request_gatt_client()
     cg.add_define(entry.define)
     if service_table:
-        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
+        cg.add_define("USE_BLUEDROID_GATT_SERVICE_TABLE")
     backend = cg.new_Pvariable(config[CONF_BACKEND_ID])
     # The backend is the slot's real Component: component keys from the
     # connection entry (setup_priority, ...) apply to it. Consumers whose own

@@ -1,6 +1,6 @@
 #include "gatt_service_table_bluedroid.h"
 
-#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT) && defined(USE_BLE_GATT_SERVICE_TABLE)
+#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUEDROID_GATT_SERVICE_TABLE)
 
 #include "esphome/core/log.h"
 
@@ -195,4 +195,4 @@ void BluedroidServiceTable::log_walk_warning_(const char *operation, int code) {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT && USE_BLE_GATT_SERVICE_TABLE
+#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT && USE_BLUEDROID_GATT_SERVICE_TABLE

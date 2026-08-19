@@ -76,9 +76,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
   // On-demand table for direct consumers; the proxy streams instead, so the
-  // materializer compiles only under USE_BLE_GATT_SERVICE_TABLE (emitted by
+  // materializer compiles only under USE_BLUEDROID_GATT_SERVICE_TABLE (emitted by
   // direct-consumer codegen, never by the proxy).
-#ifdef USE_BLE_GATT_SERVICE_TABLE
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
   ble_device_base::GattServiceTable get_service_table();
 #else
   // A direct consumer reaching this stub misconfigured its codegen
@@ -113,7 +113,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 
   // Group 1: pointers / composed objects
   ble_device_base::GattClientListener *listener_{nullptr};
-#ifdef USE_BLE_GATT_SERVICE_TABLE
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
   BluedroidServiceTable table_;
 #endif
   // Group 2: 4-byte types

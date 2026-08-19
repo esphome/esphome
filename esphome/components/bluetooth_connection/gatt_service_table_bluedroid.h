@@ -6,7 +6,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT) && defined(USE_BLE_GATT_SERVICE_TABLE)
+#if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT) && defined(USE_BLUEDROID_GATT_SERVICE_TABLE)
 
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/core/helpers.h"
@@ -73,4 +73,4 @@ class BluedroidServiceTable {
 
 }  // namespace esphome::bluetooth_connection
 
-#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT && USE_BLE_GATT_SERVICE_TABLE
+#endif  // USE_ESP32_BLE && USE_BLE_GATT_CLIENT && USE_BLUEDROID_GATT_SERVICE_TABLE

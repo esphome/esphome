@@ -354,7 +354,7 @@ def _request_gatt_node_build() -> None:
         # claim a phantom backend slot on combined proxy builds.
         cg.add_define("USE_BLE_GATT_CLIENT")
         cg.add_define("USE_BLE_GATT_BACKEND_BLUEDROID")
-        cg.add_define("USE_BLE_GATT_SERVICE_TABLE")
+        cg.add_define("USE_BLUEDROID_GATT_SERVICE_TABLE")
 
 
 async def register_gatt_node(var, config):
