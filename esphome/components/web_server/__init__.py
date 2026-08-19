@@ -23,11 +23,13 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_MANUAL_IP,
     CONF_NAME,
     CONF_NETWORKS,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
@@ -206,35 +208,6 @@ def _final_validate_sorting(config: ConfigType) -> None:
         )
 
 
-def _final_validate_ap_only_hosted_ui(config: ConfigType) -> None:
-    # AP only: the device is reachable only through its own AP, where browsers usually
-    # have no internet to download the hosted interface. Warn unless it is served locally.
-    if config.get(CONF_LOCAL) or not config[CONF_JS_URL]:
-        return
-    full_config = fv.full_config.get()
-    wifi_conf = full_config.get(CONF_WIFI)
-    ap_only = (
-        wifi_conf is not None
-        and CONF_AP in wifi_conf
-        and not wifi_conf.get(CONF_NETWORKS)
-    )
-    if not ap_only or "captive_portal" in full_config:
-        return
-    _LOGGER.warning(
-        "WiFi is AP only and web_server loads its interface from the internet, which "
-        "clients of the AP usually cannot reach, so the page stays blank. "
-        "Set 'local: true' under 'web_server:' or add 'captive_portal:'."
-    )
-
-
-def _final_validate(config: ConfigType) -> None:
-    _final_validate_sorting(config)
-    _final_validate_ap_only_hosted_ui(config)
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
     from esphome.components import socket
@@ -361,17 +334,63 @@ async def add_entity_config(entity, config):
     )
 
 
-def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
-    js_url = config[CONF_JS_URL]
-    # The interface is downloaded from the internet. Without internet access, which is
-    # common for browsers on the WiFi AP, that download fails or simply stalls and the
-    # page stays blank. Show a hint after a few seconds unless www.js has registered the
-    # esp-app element; CSS hides the hint again if the interface does arrive later.
-    # Kept short: it lives in flash on every build without captive_portal.
-    offline_hint = offline_hint and bool(js_url)
+def wifi_is_ap_only(wifi_config: ConfigType | None) -> bool:
+    """Return True when WiFi has an access point but no network to join, so the device
+    is only ever reached through its own AP."""
+    return (
+        wifi_config is not None
+        and CONF_AP in wifi_config
+        and not wifi_config.get(CONF_NETWORKS)
+    )
+
+
+def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
+    """Return True when the web interface is embedded in the firmware instead of
+    loaded from oi.esphome.io. An explicit ``local:`` wins. Otherwise it is embedded for AP only
+    WiFi, since browsers on the AP usually have no internet and the hosted page would
+    stay blank. Version 1 has no local mode."""
+    if (local := config.get(CONF_LOCAL)) is not None:
+        return local
+    return config[CONF_VERSION] != 1 and wifi_is_ap_only(wifi_config)
+
+
+def _final_validate_ap_only(config: ConfigType) -> None:
+    full_config = fv.full_config.get()
+    wifi_config = full_config.get(CONF_WIFI)
+    if not wifi_is_ap_only(wifi_config):
+        return
+    ap_ip = "192.168.4.1"
+    if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
+        ap_ip = str(manual_ip[CONF_STATIC_IP])
+    captive = (
+        "" if "captive_portal" in full_config else " (the AP is not a captive portal)"
+    )
+    if serve_local(config, wifi_config):
+        how = "The web interface is embedded in the firmware (local: true)"
+    else:
+        how = (
+            "With local: false the web interface is loaded from the internet, which "
+            "browsers on the AP usually cannot reach, so the page stays blank"
+        )
+    _LOGGER.warning(
+        "WiFi is AP only, so web_server is reachable only through the access point: "
+        "open http://%s/ manually after joining it%s. %s.",
+        ap_ip,
+        captive,
+        how,
+    )
+
+
+def _final_validate(config: ConfigType) -> None:
+    _final_validate_sorting(config)
+    _final_validate_ap_only(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def build_index_html(config) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
-    if offline_hint:
-        html += "<style>esp-app:defined+p{display:none}</style>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
     if css_include:
@@ -382,15 +401,8 @@ def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
     if js_include:
         html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
-    if offline_hint:
-        html += (
-            "<p hidden>The web interface is not loading. This browser needs internet "
-            "access to download it, or set local: true under web_server: in the YAML.</p>"
-            "<script>setTimeout(function(){document.querySelector('p').hidden=0},5e3)"
-            "</script>"
-        )
-    if js_url:
-        html += f'<script src="{js_url}"></script>'
+    if config[CONF_JS_URL]:
+        html += f'<script src="{config[CONF_JS_URL]}"></script>'
     html += "</body></html>"
     return html
 
@@ -428,12 +440,7 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
-        # With captive_portal the AP serves its own local page, so the offline hint is
-        # only useful without it.
-        index_html = build_index_html(
-            config, offline_hint=not CORE.has_at_least_one_component("captive_portal")
-        )
-        add_resource_as_progmem("INDEX_HTML", index_html, compress=False)
+        add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
@@ -482,7 +489,7 @@ async def to_code(config):
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    if CONF_LOCAL in config and config[CONF_LOCAL]:
+    if serve_local(config, CORE.config.get(CONF_WIFI)):
         cg.add_define("USE_WEBSERVER_LOCAL")
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_WEBSERVER_GZIP")
