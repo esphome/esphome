@@ -19,10 +19,22 @@ CONF_GREE_ID = "gree_id"
 # Switch configurations: (config_key, display_name, bit_mask, icon, default_restore_mode)
 # LIGHT defaults to ON to match pre-#12160 behavior.
 SWITCH_CONFIGS = (
-    (CONF_TURBO, "Gree Turbo Switch", 0x10, "mdi:car-turbocharger", "RESTORE_DEFAULT_OFF"),
+    (
+        CONF_TURBO,
+        "Gree Turbo Switch",
+        0x10,
+        "mdi:car-turbocharger",
+        "RESTORE_DEFAULT_OFF",
+    ),
     (CONF_LIGHT, "Gree Light Switch", 0x20, "mdi:led-outline", "RESTORE_DEFAULT_ON"),
     (CONF_HEALTH, "Gree Health Switch", 0x40, "mdi:pine-tree", "RESTORE_DEFAULT_OFF"),
-    (CONF_XFAN, "Gree X-FAN Switch", 0x80, "mdi:wall-sconce-flat", "RESTORE_DEFAULT_OFF"),
+    (
+        CONF_XFAN,
+        "Gree X-FAN Switch",
+        0x80,
+        "mdi:wall-sconce-flat",
+        "RESTORE_DEFAULT_OFF",
+    ),
 )
 
 SUPPORTED_MODELS = {
