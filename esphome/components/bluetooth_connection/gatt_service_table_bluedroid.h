@@ -18,6 +18,10 @@ namespace esphome::bluetooth_connection {
 class BluedroidServiceTable {
  public:
   ~BluedroidServiceTable() { this->free(); }
+  // Owns storage_; a copy would double-free.
+  BluedroidServiceTable() = default;
+  BluedroidServiceTable(const BluedroidServiceTable &) = delete;
+  BluedroidServiceTable &operator=(const BluedroidServiceTable &) = delete;
 
   /// The service count build() requires: the stack's PRIMARY+SECONDARY
   /// attribute totals, never the SEARCH_RES event count.
