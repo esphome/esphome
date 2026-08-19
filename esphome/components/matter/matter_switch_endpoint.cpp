@@ -16,8 +16,7 @@
 
 #include <app-common/zap-generated/cluster-objects.h>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.switch";
 
@@ -104,8 +103,7 @@ void MatterSwitchEndpoint::report_state_to_fabric_(bool state) {
   }
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SWITCH
 #endif  // USE_ESP_IDF

@@ -17,8 +17,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.fan";
 
@@ -218,8 +217,7 @@ void MatterFanEndpoint::report_state_to_fabric_() {
   this->applying_report_ = false;
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_FAN
 #endif  // USE_ESP_IDF

@@ -11,8 +11,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.action_button";
 
@@ -82,8 +81,7 @@ void MatterActionButton::dump_config() {
   }
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_BUTTON
 #endif  // USE_ESP_IDF

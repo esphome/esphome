@@ -8,14 +8,11 @@
 #include <cstdint>
 
 // The .cpp includes the switch/binary_sensor and esp_matter headers.
-namespace esphome {
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 class BinarySensor;
-}
-}  // namespace esphome
+}  // namespace esphome::binary_sensor
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome binary_sensor as a Matter endpoint.
 //
@@ -52,8 +49,7 @@ class MatterBinarySensorEndpoint {
   DeviceKind kind_{DeviceKind::DEVICE_KIND_CONTACT};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_BINARY_SENSOR
 #endif  // USE_ESP_IDF

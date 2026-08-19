@@ -7,14 +7,11 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 class Sensor;
-}
-}  // namespace esphome
+}  // namespace esphome::sensor
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome sensor as a Matter measurement endpoint. Read-only —
 // Matter never writes back to a measurement, so no on_matter_write or guard.
@@ -69,8 +66,7 @@ class MatterSensorEndpoint {
   Kind kind_{Kind::KIND_UNKNOWN};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SENSOR
 #endif  // USE_ESP_IDF

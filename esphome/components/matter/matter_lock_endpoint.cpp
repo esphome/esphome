@@ -16,8 +16,7 @@
 #include <app-common/zap-generated/cluster-objects.h>
 #include <app/clusters/door-lock-server/door-lock-server.h>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.lock";
 
@@ -153,8 +152,7 @@ void MatterLockEndpoint::report_state_to_fabric_(::esphome::lock::LockState stat
   }
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 // =============================================================================
 // Weak-symbol overrides for CHIP's DoorLock command hooks.

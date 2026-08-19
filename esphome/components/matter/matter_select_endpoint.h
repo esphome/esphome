@@ -11,14 +11,11 @@
 
 #include <app-common/zap-generated/cluster-objects.h>
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 class Select;
-}
-}  // namespace esphome
+}  // namespace esphome::select
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome select as a Matter mode_select endpoint.
 //
@@ -77,8 +74,7 @@ class MatterSelectEndpoint {
   bool applying_report_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SELECT
 #endif  // USE_ESP_IDF

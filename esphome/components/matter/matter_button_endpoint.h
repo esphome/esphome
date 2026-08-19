@@ -7,14 +7,11 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 class Button;
-}
-}  // namespace esphome
+}  // namespace esphome::button
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome button as a Matter generic_switch endpoint.
 //
@@ -56,8 +53,7 @@ class MatterButtonEndpoint {
   uint16_t endpoint_id_{0};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_BUTTON
 #endif  // USE_ESP_IDF

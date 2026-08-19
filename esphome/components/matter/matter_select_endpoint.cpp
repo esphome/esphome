@@ -18,8 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.select";
 
@@ -211,8 +210,7 @@ void MatterSelectEndpoint::report_state_to_fabric_(uint8_t mode) {
   }
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SELECT
 #endif  // USE_ESP_IDF

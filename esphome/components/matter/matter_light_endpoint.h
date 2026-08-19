@@ -9,8 +9,7 @@
 
 #include "esphome/components/light/light_state.h"
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome light as a Matter light endpoint. The concrete Matter
 // device type is picked at setup() from the entity's LightTraits:
@@ -91,8 +90,7 @@ class MatterLightEndpoint : public ::esphome::light::LightRemoteValuesListener {
   uint8_t last_known_level_{254};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_LIGHT
 #endif  // USE_ESP_IDF

@@ -7,14 +7,11 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 class Fan;
-}
-}  // namespace esphome
+}  // namespace esphome::fan
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome fan as a Matter fan device (FanControl cluster).
 //
@@ -70,8 +67,7 @@ class MatterFanEndpoint {
   bool applying_report_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_FAN
 #endif  // USE_ESP_IDF

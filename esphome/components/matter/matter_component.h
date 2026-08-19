@@ -14,8 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 #ifdef USE_SWITCH
 class MatterSwitchEndpoint;
@@ -113,7 +112,7 @@ class MatterComponent : public Component {
 
   // Singleton accessor for the C-style esp-matter callback to find us.
   // Set in constructor. Only one MatterComponent per binary makes sense.
-  static MatterComponent *instance() { return instance_; }
+  static MatterComponent *instance() { return global_matter_component; }
 
   // Open an Enhanced Commissioning Window so another Matter admin can pair
   // with this already-commissioned device (multi-admin). Generates a fresh
@@ -374,10 +373,10 @@ class MatterComponent : public Component {
   std::vector<std::pair<uint16_t, MatterClimateEndpoint *>> climate_endpoints_by_id_;
 #endif
 
-  static MatterComponent *instance_;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static MatterComponent *global_matter_component;
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_ESP_IDF

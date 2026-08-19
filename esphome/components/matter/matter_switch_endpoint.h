@@ -12,14 +12,11 @@
 
 // Forward declaration keeps the switch header out of this .h. The esp-matter
 // node handle is opaque here — the .cpp fetches it via esp_matter::node::get().
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 class Switch;
-}
-}  // namespace esphome
+}  // namespace esphome::switch_
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome switch as a Matter on_off_plug_in_unit endpoint.
 //
@@ -80,8 +77,7 @@ class MatterSwitchEndpoint {
   bool applying_report() const { return applying_report_; }
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SWITCH
 #endif  // USE_ESP_IDF

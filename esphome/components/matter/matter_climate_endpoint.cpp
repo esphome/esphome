@@ -18,14 +18,16 @@
 #include <cmath>
 #include <limits>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.climate";
 
-MatterClimateEndpoint::MatterClimateEndpoint(climate::Climate *climate) : climate_(climate) {}
+namespace {
 
-int16_t MatterClimateEndpoint::celsius_to_hundredths_(float c) {
+// Conversions between ESPHome degrees-Celsius floats and the int16
+// hundredths-of-Celsius Matter uses on the wire. Kept in one place so a
+// future Fahrenheit-native ESPHome climate does not silently double-scale.
+int16_t celsius_to_hundredths(float c) {
   if (std::isnan(c)) {
     // Setpoint attributes are non-nullable — return a safe midpoint so a
     // fabric read never sees an int16 min/max sentinel. LocalTemperature is
@@ -35,7 +37,11 @@ int16_t MatterClimateEndpoint::celsius_to_hundredths_(float c) {
   return static_cast<int16_t>(std::lround(c * 100.0f));
 }
 
-float MatterClimateEndpoint::hundredths_to_celsius_(int16_t h) { return static_cast<float>(h) / 100.0f; }
+float hundredths_to_celsius(int16_t h) { return static_cast<float>(h) / 100.0f; }
+
+}  // namespace
+
+MatterClimateEndpoint::MatterClimateEndpoint(climate::Climate *climate) : climate_(climate) {}
 
 bool MatterClimateEndpoint::setup() {
   ::esp_matter::node_t *node = ::esp_matter::node::get();
@@ -90,14 +96,14 @@ bool MatterClimateEndpoint::setup() {
     // heating-capable mode; otherwise use the default (20.00°C).
     if (!std::isnan(this->climate_->target_temperature)) {
       config.thermostat.features.heating.occupied_heating_setpoint =
-          celsius_to_hundredths_(this->climate_->target_temperature);
+          celsius_to_hundredths(this->climate_->target_temperature);
     }
   }
   if (this->supports_cooling_) {
     feature_flags |= static_cast<uint32_t>(chip::app::Clusters::Thermostat::Feature::kCooling);
     if (!std::isnan(this->climate_->target_temperature)) {
       config.thermostat.features.cooling.occupied_cooling_setpoint =
-          celsius_to_hundredths_(this->climate_->target_temperature);
+          celsius_to_hundredths(this->climate_->target_temperature);
     }
   }
   if (this->supports_auto_) {
@@ -235,24 +241,24 @@ void MatterClimateEndpoint::on_matter_system_mode_write(uint8_t system_mode) {
 
 void MatterClimateEndpoint::on_matter_heating_setpoint_write(int16_t hundredths) {
   ESP_LOGD(TAG, "matter OccupiedHeatingSetpoint write endpoint=%u value=%d (%.2f °C) climate='%s'", this->endpoint_id_,
-           static_cast<int>(hundredths), hundredths_to_celsius_(hundredths), this->climate_->get_name().c_str());
+           static_cast<int>(hundredths), hundredths_to_celsius(hundredths), this->climate_->get_name().c_str());
   // Route to the plain single-point setter — HVAC UIs that write both
   // setpoints separately during HEAT_COOL still end up with the "most recent
   // wins" behavior, which matches ESPHome's single-value target semantics for
   // the MVP. Deferred to the main loop like the other CHIP-task-driven writes.
   MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
     this->applying_matter_write_ = true;
-    this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
+    this->climate_->make_call().set_target_temperature(hundredths_to_celsius(hundredths)).perform();
     this->applying_matter_write_ = false;
   });
 }
 
 void MatterClimateEndpoint::on_matter_cooling_setpoint_write(int16_t hundredths) {
   ESP_LOGD(TAG, "matter OccupiedCoolingSetpoint write endpoint=%u value=%d (%.2f °C) climate='%s'", this->endpoint_id_,
-           static_cast<int>(hundredths), hundredths_to_celsius_(hundredths), this->climate_->get_name().c_str());
+           static_cast<int>(hundredths), hundredths_to_celsius(hundredths), this->climate_->get_name().c_str());
   MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
     this->applying_matter_write_ = true;
-    this->climate_->make_call().set_target_temperature(hundredths_to_celsius_(hundredths)).perform();
+    this->climate_->make_call().set_target_temperature(hundredths_to_celsius(hundredths)).perform();
     this->applying_matter_write_ = false;
   });
 }
@@ -271,7 +277,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
     if (std::isnan(this->climate_->current_temperature)) {
       v = ::esp_matter_nullable_int16(std::numeric_limits<int16_t>::min());
     } else {
-      v = ::esp_matter_nullable_int16(celsius_to_hundredths_(this->climate_->current_temperature));
+      v = ::esp_matter_nullable_int16(celsius_to_hundredths(this->climate_->current_temperature));
     }
     esp_err_t err =
         ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
@@ -305,7 +311,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
     heat_c = this->climate_->target_temperature;
     cool_c = this->climate_->target_temperature;
     if (std::isnan(heat_c)) {
-      // celsius_to_hundredths_ substitutes 20.00°C for NaN because the
+      // celsius_to_hundredths substitutes 20.00°C for NaN because the
       // Occupied*Setpoint attributes are non-nullable; note it so the
       // fabricated value isn't mistaken for a genuine reading during
       // early boot when the climate hasn't produced a target yet.
@@ -315,7 +321,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   }
 
   if (this->has_heating_setpoint_attr_) {
-    ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths_(heat_c));
+    ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths(heat_c));
     esp_err_t err =
         ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
                                         chip::app::Clusters::Thermostat::Attributes::OccupiedHeatingSetpoint::Id, &v);
@@ -325,7 +331,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
     }
   }
   if (this->has_cooling_setpoint_attr_) {
-    ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths_(cool_c));
+    ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths(cool_c));
     esp_err_t err =
         ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
                                         chip::app::Clusters::Thermostat::Attributes::OccupiedCoolingSetpoint::Id, &v);
@@ -371,8 +377,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   this->applying_report_ = false;
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_CLIMATE
 #endif  // USE_ESP_IDF

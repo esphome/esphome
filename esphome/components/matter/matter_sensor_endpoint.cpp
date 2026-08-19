@@ -20,8 +20,7 @@
 #include <cstring>
 #include <span>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.sensor";
 
@@ -264,8 +263,7 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
   }
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_SENSOR
 #endif  // USE_ESP_IDF

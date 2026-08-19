@@ -7,15 +7,12 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 class Climate;
 class ClimateCall;
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome climate as a Matter thermostat endpoint (Thermostat cluster).
 //
@@ -73,13 +70,6 @@ class MatterClimateEndpoint {
  protected:
   void report_state_to_fabric_();
 
-  // Convenience conversions between ESPHome degrees-Celsius floats and the
-  // int16 hundredths-of-Celsius Matter uses on the wire. Keeps the round-trip
-  // in one place so a future Fahrenheit-native ESPHome climate does not
-  // silently double-scale.
-  static int16_t celsius_to_hundredths_(float c);
-  static float hundredths_to_celsius_(int16_t h);
-
   climate::Climate *climate_;
   uint16_t endpoint_id_{0};
 
@@ -110,8 +100,7 @@ class MatterClimateEndpoint {
   bool applying_report_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_CLIMATE
 #endif  // USE_ESP_IDF

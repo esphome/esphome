@@ -13,14 +13,11 @@
 #include <lib/core/CHIPError.h>
 #include <lib/core/DataModelTypes.h>
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 class Valve;
-}
-}  // namespace esphome
+}  // namespace esphome::valve
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome valve as a Matter water_valve endpoint.
 //
@@ -46,10 +43,16 @@ class MatterValveEndpoint : public ::chip::app::Clusters::ValveConfigurationAndC
   void push_initial_state();
 
   // Delegate overrides — called by CHIP's valve-configuration-and-control-server
-  // in response to Open (0x00) / Close (0x01) commands.
+  // in response to Open (0x00) / Close (0x01) commands. Names follow CHIP's
+  // UpperCamelCase virtual method contract; NOLINT so clang-tidy's default
+  // lower_case rule for ESPHome methods does not fire on the required
+  // override signature.
+  // NOLINTNEXTLINE(readability-identifier-naming)
   ::chip::app::DataModel::Nullable<::chip::Percent> HandleOpenValve(
       ::chip::app::DataModel::Nullable<::chip::Percent> level) override;
+  // NOLINTNEXTLINE(readability-identifier-naming)
   CHIP_ERROR HandleCloseValve() override;
+  // NOLINTNEXTLINE(readability-identifier-naming)
   void HandleRemainingDurationTick(uint32_t duration) override;
 
   uint16_t endpoint_id() const { return endpoint_id_; }
@@ -73,8 +76,7 @@ class MatterValveEndpoint : public ::chip::app::Clusters::ValveConfigurationAndC
   bool applying_report_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_VALVE
 #endif  // USE_ESP_IDF

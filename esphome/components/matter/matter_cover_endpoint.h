@@ -7,14 +7,11 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 class Cover;
-}
-}  // namespace esphome
+}  // namespace esphome::cover
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome cover as a Matter window_covering endpoint
 // (Lift + PositionAwareLift). Bidirectional.
@@ -72,8 +69,7 @@ class MatterCoverEndpoint {
   bool supports_position_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_COVER
 #endif  // USE_ESP_IDF

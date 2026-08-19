@@ -20,8 +20,7 @@
 #include <cstring>
 #include <span>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.binary_sensor";
 
@@ -93,25 +92,24 @@ bool MatterBinarySensorEndpoint::setup() {
 void MatterBinarySensorEndpoint::push_initial_state() { this->report_state_to_fabric_(this->bs_->state); }
 
 void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
+  // BooleanState.StateValue is created with ATTRIBUTE_FLAG_MANAGED_INTERNALLY
+  // in esp-matter 1.5.1; attribute::update() rejects writes with
+  // ESP_ERR_NOT_SUPPORTED there and we have to go through the cluster's own
+  // setter (see below). OccupancySensing.Occupancy is a regular writable
+  // attribute and goes through the update path.
+  const bool internally_managed = (this->kind_ != DeviceKind::DEVICE_KIND_OCCUPANCY);
   ::esp_matter_attr_val_t val;
   uint32_t cluster_id;
   uint32_t attribute_id;
-  bool internally_managed;
   if (this->kind_ == DeviceKind::DEVICE_KIND_OCCUPANCY) {
     // OccupancySensing.Occupancy bit0 = occupied.
     val = ::esp_matter_bitmap8(state ? 0x01 : 0x00);
     cluster_id = chip::app::Clusters::OccupancySensing::Id;
     attribute_id = chip::app::Clusters::OccupancySensing::Attributes::Occupancy::Id;
-    internally_managed = false;
   } else {
     val = ::esp_matter_bool(state);
     cluster_id = chip::app::Clusters::BooleanState::Id;
     attribute_id = chip::app::Clusters::BooleanState::Attributes::StateValue::Id;
-    // In esp-matter 1.5.1 BooleanState.StateValue is created with
-    // ATTRIBUTE_FLAG_MANAGED_INTERNALLY. attribute::update() rejects writes
-    // with ESP_ERR_NOT_SUPPORTED — we must use attribute::report() which
-    // marks the value dirty without going through the writeable path.
-    internally_managed = true;
   }
   if (!internally_managed) {
     esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
@@ -141,8 +139,7 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
   cluster->SetStateValue(state);
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_BINARY_SENSOR
 #endif  // USE_ESP_IDF

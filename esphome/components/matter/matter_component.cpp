@@ -77,12 +77,12 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter";
 
-MatterComponent *MatterComponent::instance_ = nullptr;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+MatterComponent *MatterComponent::global_matter_component = nullptr;
 
 namespace {
 
@@ -469,7 +469,7 @@ MatterComponent::MatterComponent(uint16_t vendor_id, uint16_t product_id, std::s
       hardware_version_string_(std::move(hardware_version_string)),
       software_version_string_(std::move(software_version_string)),
       composed_topology_(composed_topology) {
-  MatterComponent::instance_ = this;
+  MatterComponent::global_matter_component = this;
 }
 
 void MatterComponent::write_factory_strings_() {
@@ -1986,7 +1986,6 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
   ESP_LOGI(TAG, "═════════════════════════════════════════════");
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_ESP_IDF

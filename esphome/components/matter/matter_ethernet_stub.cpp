@@ -34,8 +34,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.eth.stub";
 
@@ -47,8 +46,7 @@ void log_ethernet_driver_stub_init() {
   ESP_LOGI(TAG, "ESPEthernetDriver::Init override — ESPHome ethernet: owns the PHY, no-op");
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 namespace chip {
 namespace DeviceLayer {

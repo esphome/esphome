@@ -13,8 +13,7 @@
 
 #include <app-common/zap-generated/cluster-objects.h>
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 static const char *const TAG = "matter.valve";
 
@@ -127,8 +126,7 @@ void MatterValveEndpoint::report_state_to_fabric_() {
   this->applying_report_ = false;
 }
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_VALVE
 #endif  // USE_ESP_IDF

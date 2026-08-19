@@ -10,15 +10,12 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 class Lock;
 enum LockState : uint8_t;
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 // Wraps one ESPHome lock as a Matter door_lock endpoint.
 //
@@ -72,8 +69,7 @@ class MatterLockEndpoint {
   bool applying_report_{false};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_LOCK
 #endif  // USE_ESP_IDF

@@ -10,8 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace matter {
+namespace esphome::matter {
 
 class MatterComponent;
 
@@ -65,8 +64,7 @@ class MatterActionButton : public ::esphome::button::Button, public Component {
   uint32_t timeout_seconds_{300};
 };
 
-}  // namespace matter
-}  // namespace esphome
+}  // namespace esphome::matter
 
 #endif  // USE_BUTTON
 #endif  // USE_ESP_IDF
