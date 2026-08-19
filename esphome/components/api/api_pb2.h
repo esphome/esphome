@@ -9,6 +9,10 @@
 
 namespace esphome::api {
 
+// Upper bound on message IDs, enforced by the code generator: the plaintext
+// frame header budgets 2 varint bytes for the type (HEADER_PADDING).
+static constexpr uint16_t MAX_MESSAGE_TYPE = 16383;
+
 namespace enums {
 
 enum DisconnectReason : uint32_t {

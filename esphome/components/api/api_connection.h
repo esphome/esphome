@@ -326,8 +326,10 @@ class APIConnection final : public APIServerConnectionBase {
   bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
-  // Get client API version for feature detection
-  bool client_supports_api_version(uint16_t major, uint16_t minor) const {
+  // Get client API version for feature detection.
+  // Stored versions saturate at 255 (see send_hello_response_), so requesting
+  // a minimum above that can never match.
+  bool client_supports_api_version(uint8_t major, uint8_t minor) const {
     return this->client_api_version_major_ > major ||
            (this->client_api_version_major_ == major && this->client_api_version_minor_ >= minor);
   }

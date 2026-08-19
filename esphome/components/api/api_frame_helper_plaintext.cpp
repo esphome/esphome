@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "api_pb2.h"
 #include "proto.h"
 #include <cstring>
 #include <cinttypes>
@@ -251,6 +252,13 @@ ESPHOME_ALWAYS_INLINE static inline void encode_varint_16(uint16_t value, uint8_
   }
   *p = static_cast<uint8_t>(value);
 }
+
+// The generator rejects message IDs above MAX_MESSAGE_TYPE, so the type varint
+// can never outgrow the 2 bytes HEADER_PADDING budgets for it. Without this
+// bound, write_plaintext_header's header_offset would underflow for the first
+// message in a batch and the header write would land outside the buffer.
+static_assert(1 + 3 + ProtoSize::varint16(MAX_MESSAGE_TYPE) <= APIPlaintextFrameHelper::HEADER_PADDING,
+              "HEADER_PADDING cannot fit the type varint of the largest message ID");
 
 // Write plaintext header into pre-allocated padding before payload.
 // padding_size: bytes reserved before payload (HEADER_PADDING for first/single msg,
