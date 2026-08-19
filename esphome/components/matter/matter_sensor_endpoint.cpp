@@ -33,10 +33,10 @@ bool MatterSensorEndpoint::detect_kind() {
   const StringRef &unit = this->sensor_->get_unit_of_measurement_ref();
 
   // Preferred: unit_of_measurement — narrow set of well-known unit strings.
-  if (unit == "°C" ||
-      unit == "\xc2\xb0"
-              "C" ||
-      unit == "C") {
+  // "°C" in source is already the UTF-8 sequence \xc2\xb0"C", so we drop the
+  // explicit-bytes duplicate that used to sit next to it (clang-tidy's
+  // misc-redundant-expression flags the pair as equivalent operands).
+  if (unit == "°C" || unit == "C") {
     this->kind_ = Kind::KIND_TEMPERATURE;
   } else if (unit == "%") {
     // Ambiguous — could be humidity or battery. Fall through to device_class
@@ -227,6 +227,10 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
   ::esp_matter_attr_val_t val;
   uint32_t cluster_id = 0;
   uint32_t attribute_id = 0;
+  // Cases share the same shape (nullable value + cluster/attribute id assignment)
+  // but each targets a distinct cluster — clang-tidy's bugprone-branch-clone
+  // would flag the pattern despite the semantic differences.
+  // NOLINTNEXTLINE(bugprone-branch-clone)
   switch (this->kind_) {
     case Kind::KIND_TEMPERATURE:
       val = ::esp_matter_nullable_int16(::nullable<int16_t>());

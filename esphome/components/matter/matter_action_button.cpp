@@ -25,21 +25,21 @@ namespace {
 // action buttons — a std::vector<Button*> is materially smaller than an
 // unordered_set at those counts (the set carries ~2KB of hash-table
 // machinery before it holds anything).
-std::vector<const ::esphome::button::Button *> &instances_() {
+std::vector<const ::esphome::button::Button *> &instances() {
   static std::vector<const ::esphome::button::Button *> vec;
   return vec;
 }
 }  // namespace
 
-MatterActionButton::MatterActionButton() { instances_().push_back(this); }
+MatterActionButton::MatterActionButton() { instances().push_back(this); }
 
 MatterActionButton::~MatterActionButton() {
-  auto &vec = instances_();
+  auto &vec = instances();
   vec.erase(std::remove(vec.begin(), vec.end(), this), vec.end());
 }
 
 bool MatterActionButton::is_instance(const ::esphome::button::Button *btn) {
-  const auto &vec = instances_();
+  const auto &vec = instances();
   return std::find(vec.begin(), vec.end(), btn) != vec.end();
 }
 
@@ -66,13 +66,16 @@ void MatterActionButton::press_action() {
 
 void MatterActionButton::dump_config() {
   ESP_LOGCONFIG(TAG, "Matter Action Button '%s':", this->get_name().c_str());
-  const char *action_name = "unknown";
+  const char *action_name;
   switch (this->action_) {
     case Action::ACTION_OPEN_COMMISSIONING_WINDOW:
       action_name = "open_commissioning_window";
       break;
     case Action::ACTION_FACTORY_RESET:
       action_name = "factory_reset";
+      break;
+    default:
+      action_name = "unknown";
       break;
   }
   ESP_LOGCONFIG(TAG, "  Action: %s", action_name);

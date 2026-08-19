@@ -90,7 +90,7 @@ namespace {
 // (typically 1–30 per platform), so a linear scan beats the ~2KB fixed
 // overhead of std::unordered_map — see the header comment on the *_by_id_
 // vectors.
-template<typename T> T *find_endpoint_by_id_(const FixedVector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
+template<typename T> T *find_endpoint_by_id(const FixedVector<std::pair<uint16_t, T *>> &vec, uint16_t endpoint_id) {
   for (const auto &kv : vec) {
     if (kv.first == endpoint_id) {
       return kv.second;
@@ -107,6 +107,12 @@ namespace {
 // ("name" → truncated entity name) — we do not expose multiple labels per
 // endpoint. Storage stays alive for the whole iterator lifetime because the
 // backing string is copied into `label_`; CharSpan just references it.
+// Method and parameter names in the classes below are dictated by the CHIP
+// DeviceInfoProvider / DeviceInstanceInfoProvider virtual interfaces, which
+// use UpperCamelCase methods and camelCase parameter names. Renaming to
+// match ESPHome conventions would break the override contract, so suppress
+// clang-tidy's naming check across these classes.
+// NOLINTBEGIN(readability-identifier-naming)
 class EndpointFixedLabelIterator : public chip::DeviceLayer::DeviceInfoProvider::FixedLabelIterator {
  public:
   EndpointFixedLabelIterator(const FixedVector<std::pair<uint16_t, std::string>> &labels, chip::EndpointId endpoint) {
@@ -242,7 +248,8 @@ class MatterDeviceInfoProvider : public chip::DeviceLayer::DeviceInfoProvider {
   }
 };
 
-static MatterDeviceInfoProvider s_device_info_provider;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+MatterDeviceInfoProvider s_device_info_provider;
 
 // Serves vendor/product name + version strings from the YAML-configured
 // values on MatterComponent. Without this, CHIP's GenericDeviceInstanceInfoProvider
@@ -303,8 +310,10 @@ class MatterDeviceInstanceInfoProvider : public chip::DeviceLayer::DeviceInstanc
     return CHIP_NO_ERROR;
   }
 };
+// NOLINTEND(readability-identifier-naming)
 
-static MatterDeviceInstanceInfoProvider s_device_instance_info_provider;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+MatterDeviceInstanceInfoProvider s_device_instance_info_provider;
 
 }  // namespace
 
@@ -492,7 +501,7 @@ void MatterComponent::write_factory_strings_() {
     const char *key;
     const std::string &value;
   };
-  const Pair kPairs[] = {
+  const Pair pairs[] = {
       {"vendor-name", this->vendor_name_},
       {"product-name", this->product_name_},
       {"hw-ver-str", this->hardware_version_string_},
@@ -502,7 +511,7 @@ void MatterComponent::write_factory_strings_() {
   };
 
   bool any = false;
-  for (const auto &p : kPairs) {
+  for (const auto &p : pairs) {
     if (!p.value.empty()) {
       any = true;
       break;
@@ -518,7 +527,7 @@ void MatterComponent::write_factory_strings_() {
     ESP_LOGW(TAG, "nvs_open(chip-factory) failed: %s — identity strings not applied", esp_err_to_name(err));
     return;
   }
-  for (const auto &p : kPairs) {
+  for (const auto &p : pairs) {
     if (p.value.empty()) {
       continue;
     }
@@ -645,13 +654,13 @@ void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_
     // NodeLabel is capped at 32 chars per BasicInformation spec (§11.1.5.3),
     // and esp-matter's create_node_label rejects anything longer via
     // VerifyOrReturnValue on k_max_node_label_length.
-    constexpr size_t kMaxNodeLabel = 32;
+    constexpr size_t max_node_label = 32;
     // Buffer must be writable — esp_matter_char_str stores a char* pointer.
     // Wrap in unique_ptr so the std::string sits at a stable heap address,
     // unaffected by any later push into bridged_labels_ (a bare vector of
     // std::string could realloc and invalidate SSO buffer pointers we've
     // already handed to esp_matter).
-    this->bridged_labels_.push_back(std::make_unique<std::string>(effective_label.substr(0, kMaxNodeLabel)));
+    this->bridged_labels_.push_back(std::make_unique<std::string>(effective_label.substr(0, max_node_label)));
     std::string &stored = *this->bridged_labels_.back();
     ::esp_matter::cluster::bridged_device_basic_information::attribute::create_node_label(
         bdbi_cluster,
@@ -720,8 +729,8 @@ void MatterComponent::install_device_info_provider_() {
 // few hundred bytes — comfortable for NVS blob semantics.
 // ---------------------------------------------------------------------------
 
-static constexpr const char *kUserLabelNvsNamespace = "mtr-ul";
-static constexpr size_t kUserLabelMaxOctets = 16;  // Matter spec §9.7
+static constexpr const char *USER_LABEL_NVS_NAMESPACE = "mtr-ul";
+static constexpr size_t USER_LABEL_MAX_OCTETS = 16;  // Matter spec §9.7
 
 static std::string user_label_key_for(uint16_t endpoint_id) {
   char buf[16];
@@ -749,14 +758,14 @@ static bool deserialize_user_labels(const uint8_t *buf, size_t len, std::vector<
     if (pos >= len)
       return false;
     uint8_t label_len = buf[pos++];
-    if (label_len > kUserLabelMaxOctets || pos + label_len > len)
+    if (label_len > USER_LABEL_MAX_OCTETS || pos + label_len > len)
       return false;
     std::string label(reinterpret_cast<const char *>(buf + pos), label_len);
     pos += label_len;
     if (pos >= len)
       return false;
     uint8_t value_len = buf[pos++];
-    if (value_len > kUserLabelMaxOctets || pos + value_len > len)
+    if (value_len > USER_LABEL_MAX_OCTETS || pos + value_len > len)
       return false;
     std::string value(reinterpret_cast<const char *>(buf + pos), value_len);
     pos += value_len;
@@ -768,14 +777,14 @@ static bool deserialize_user_labels(const uint8_t *buf, size_t len, std::vector<
 static std::vector<uint8_t> serialize_user_labels(const std::vector<MatterComponent::UserLabelEntry> &entries) {
   std::vector<uint8_t> buf;
   const size_t n = std::min<size_t>(entries.size(), 255);
-  buf.reserve(1 + n * (2 + 2 * kUserLabelMaxOctets));
+  buf.reserve(1 + n * (2 + 2 * USER_LABEL_MAX_OCTETS));
   buf.push_back(static_cast<uint8_t>(n));
   for (size_t i = 0; i < n; i++) {
     const auto &e = entries[i];
-    const uint8_t label_len = static_cast<uint8_t>(std::min<size_t>(e.label.size(), kUserLabelMaxOctets));
+    const uint8_t label_len = static_cast<uint8_t>(std::min<size_t>(e.label.size(), USER_LABEL_MAX_OCTETS));
     buf.push_back(label_len);
     buf.insert(buf.end(), e.label.data(), e.label.data() + label_len);
-    const uint8_t value_len = static_cast<uint8_t>(std::min<size_t>(e.value.size(), kUserLabelMaxOctets));
+    const uint8_t value_len = static_cast<uint8_t>(std::min<size_t>(e.value.size(), USER_LABEL_MAX_OCTETS));
     buf.push_back(value_len);
     buf.insert(buf.end(), e.value.data(), e.value.data() + value_len);
   }
@@ -784,18 +793,18 @@ static std::vector<uint8_t> serialize_user_labels(const std::vector<MatterCompon
 
 void MatterComponent::load_user_labels_() {
   nvs_handle_t handle;
-  esp_err_t err = nvs_open(kUserLabelNvsNamespace, NVS_READONLY, &handle);
+  esp_err_t err = nvs_open(USER_LABEL_NVS_NAMESPACE, NVS_READONLY, &handle);
   if (err == ESP_ERR_NVS_NOT_FOUND) {
     // Fresh device — namespace hasn't been created yet. Nothing to load.
     return;
   }
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "nvs_open(%s) failed: %s — UserLabel entries not restored", kUserLabelNvsNamespace,
+    ESP_LOGW(TAG, "nvs_open(%s) failed: %s — UserLabel entries not restored", USER_LABEL_NVS_NAMESPACE,
              esp_err_to_name(err));
     return;
   }
   nvs_iterator_t it = nullptr;
-  esp_err_t find_err = nvs_entry_find("nvs", kUserLabelNvsNamespace, NVS_TYPE_BLOB, &it);
+  esp_err_t find_err = nvs_entry_find("nvs", USER_LABEL_NVS_NAMESPACE, NVS_TYPE_BLOB, &it);
   size_t restored_entries = 0;
   while (find_err == ESP_OK && it != nullptr) {
     nvs_entry_info_t info;
@@ -861,9 +870,9 @@ void MatterComponent::load_user_labels_() {
 
 esp_err_t MatterComponent::persist_user_labels_for_endpoint_(uint16_t endpoint_id) {
   nvs_handle_t handle;
-  esp_err_t err = nvs_open(kUserLabelNvsNamespace, NVS_READWRITE, &handle);
+  esp_err_t err = nvs_open(USER_LABEL_NVS_NAMESPACE, NVS_READWRITE, &handle);
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "nvs_open(%s) failed: %s — endpoint %u UserLabel not persisted", kUserLabelNvsNamespace,
+    ESP_LOGW(TAG, "nvs_open(%s) failed: %s — endpoint %u UserLabel not persisted", USER_LABEL_NVS_NAMESPACE,
              esp_err_to_name(err), endpoint_id);
     return err;
   }
@@ -892,7 +901,7 @@ esp_err_t MatterComponent::persist_user_labels_for_endpoint_(uint16_t endpoint_i
   }
   esp_err_t cerr = nvs_commit(handle);
   if (cerr != ESP_OK) {
-    ESP_LOGW(TAG, "nvs_commit(%s) failed: %s", kUserLabelNvsNamespace, esp_err_to_name(cerr));
+    ESP_LOGW(TAG, "nvs_commit(%s) failed: %s", USER_LABEL_NVS_NAMESPACE, esp_err_to_name(cerr));
     if (status == ESP_OK) {
       status = cerr;
     }
@@ -935,8 +944,8 @@ int MatterComponent::set_user_label_at(uint16_t endpoint_id, size_t index, const
   // Enforce the 16-octet cap regardless of what the fabric sent; some
   // controllers ignore constraint checks and a longer string would violate
   // Matter spec §9.7.
-  vec[index].label = label.substr(0, kUserLabelMaxOctets);
-  vec[index].value = value.substr(0, kUserLabelMaxOctets);
+  vec[index].label = label.substr(0, USER_LABEL_MAX_OCTETS);
+  vec[index].value = value.substr(0, USER_LABEL_MAX_OCTETS);
   return (this->persist_user_labels_for_endpoint_(endpoint_id) == ESP_OK) ? 0 : 1;
 }
 
@@ -1206,7 +1215,7 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
   // attribute id lives on both device types. Check both maps by endpoint id,
   // switch first (the cheaper lookup pattern established earlier).
 #ifdef USE_SWITCH
-  if (auto *wrapper = find_endpoint_by_id_(this->switch_endpoints_by_id_, endpoint_id)) {
+  if (auto *wrapper = find_endpoint_by_id(this->switch_endpoints_by_id_, endpoint_id)) {
     // Suppress re-entry when we are the ones driving attribute::update()
     // from the device→fabric report path (PRE_UPDATE fires synchronously
     // during update()).
@@ -1218,7 +1227,7 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
   }
 #endif
 #ifdef USE_LIGHT
-  if (auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id)) {
+  if (auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id)) {
     if (wrapper->applying_report()) {
       return;
     }
@@ -1235,7 +1244,7 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
 
 void MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths) {
 #ifdef USE_COVER
-  auto *wrapper = find_endpoint_by_id_(this->cover_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->cover_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "cover target write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1252,7 +1261,7 @@ void MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t p
 
 void MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent) {
 #ifdef USE_FAN
-  auto *wrapper = find_endpoint_by_id_(this->fan_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->fan_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan percent write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1266,7 +1275,7 @@ void MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t per
 
 void MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode) {
 #ifdef USE_FAN
-  auto *wrapper = find_endpoint_by_id_(this->fan_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->fan_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan mode write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1280,7 +1289,7 @@ void MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mo
 
 void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t level) {
 #ifdef USE_LIGHT
-  auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light level write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1297,7 +1306,7 @@ void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t lev
 
 void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds) {
 #ifdef USE_LIGHT
-  auto *wrapper = find_endpoint_by_id_(this->light_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light color-temp write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1314,7 +1323,7 @@ void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16
 
 void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode) {
 #ifdef USE_CLIMATE
-  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate SystemMode write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1331,7 +1340,7 @@ void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uin
 
 void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
-  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate heating-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1348,7 +1357,7 @@ void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id
 
 void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
-  auto *wrapper = find_endpoint_by_id_(this->climate_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate cooling-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1365,7 +1374,7 @@ void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id
 
 void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode) {
 #ifdef USE_SELECT
-  auto *wrapper = find_endpoint_by_id_(this->select_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->select_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "select CurrentMode write for unknown endpoint=%u", endpoint_id);
     return;
@@ -1382,7 +1391,7 @@ void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uin
 
 bool MatterComponent::handle_lock_command(uint16_t endpoint_id, bool is_lock) {
 #ifdef USE_LOCK
-  auto *wrapper = find_endpoint_by_id_(this->lock_endpoints_by_id_, endpoint_id);
+  auto *wrapper = find_endpoint_by_id(this->lock_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "lock command for unknown endpoint=%u", endpoint_id);
     return false;
@@ -1978,12 +1987,12 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
   // Passcodes reserved by Matter spec §5.1.1.6 — trivial patterns that would
   // let a casual observer guess the code. Generator loops until it produces
   // something outside this set.
-  static constexpr uint32_t kReservedPasscodes[] = {
+  static constexpr uint32_t RESERVED_PASSCODES[] = {
       00000000, 11111111, 22222222, 33333333, 44444444, 55555555,
       66666666, 77777777, 88888888, 99999999, 12345678, 87654321,
   };
   const auto is_reserved = [](uint32_t code) {
-    for (uint32_t reserved : kReservedPasscodes) {
+    for (uint32_t reserved : RESERVED_PASSCODES) {
       if (code == reserved)
         return true;
     }
@@ -2027,12 +2036,12 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
     return;
   }
   ::chip::ByteSpan salt(salt_bytes, sizeof(salt_bytes));
-  constexpr uint32_t kIterations = 15000;
+  constexpr uint32_t iterations = 15000;
 
   // Derive the Spake2p verifier — the CommissioningWindowManager only stores
   // the verifier, never the passcode itself.
   ::chip::Crypto::Spake2pVerifier verifier;
-  CHIP_ERROR err = verifier.Generate(kIterations, salt, passcode);
+  CHIP_ERROR err = verifier.Generate(iterations, salt, passcode);
   if (err != CHIP_NO_ERROR) {
     ESP_LOGE(TAG, "Spake2pVerifier::Generate failed: %s", err.AsString());
     return;
@@ -2047,7 +2056,7 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
   // when they press it), pass `kUndefinedFabricIndex` and our own
   // vendor id. The manager accepts this pair on ESP32.
   err = ::chip::Server::GetInstance().GetCommissioningWindowManager().OpenEnhancedCommissioningWindow(
-      ::chip::System::Clock::Seconds32(timeout_seconds), discriminator, verifier, kIterations, salt,
+      ::chip::System::Clock::Seconds32(timeout_seconds), discriminator, verifier, iterations, salt,
       ::chip::kUndefinedFabricIndex, static_cast<::chip::VendorId>(this->vendor_id_));
   if (err != CHIP_NO_ERROR) {
     ESP_LOGE(TAG, "OpenEnhancedCommissioningWindow failed: %s", err.AsString());
