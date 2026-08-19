@@ -15,6 +15,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # components have hardware dependencies (BLE/UART/RMT); lightweight
         # stub headers in tests/benchmarks/stubs/ satisfy the includes.
         cg.add_define("USE_BLUETOOTH_PROXY")
+        cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
         cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", 3)
         cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
         cg.add_define("USE_ZWAVE_PROXY")

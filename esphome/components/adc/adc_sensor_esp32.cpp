@@ -6,7 +6,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.esp32";
+static const char *const TAG = "adc";
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
