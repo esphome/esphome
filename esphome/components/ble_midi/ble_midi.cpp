@@ -68,18 +68,21 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
           ESP_LOGW(TAG, "Pairing failed, error=%d", err);
         }
       }
-      for (auto *trigger : this->connect_triggers_)
-        trigger->trigger();
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
     case ESP_GATTC_CLOSE_EVT: {
       this->parser_.reset();
       this->characteristic_handle_ = 0;
+      // Both events can arrive for the same disconnect, so the triggers are
+      // fired only for the one that follows an established MIDI connection.
+      bool was_ready = this->notify_registered_;
       this->notify_registered_ = false;
       this->node_state = espbt::ClientState::IDLE;
-      for (auto *trigger : this->disconnect_triggers_)
-        trigger->trigger();
+      if (was_ready) {
+        for (auto *trigger : this->disconnect_triggers_)
+          trigger->trigger();
+      }
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -107,6 +110,10 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       this->notify_registered_ = true;
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGI(TAG, "MIDI notifications enabled");
+      // The device can only be sent to once notifications are enabled, so this
+      // is the point where on_connect is useful.
+      for (auto *trigger : this->connect_triggers_)
+        trigger->trigger();
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {

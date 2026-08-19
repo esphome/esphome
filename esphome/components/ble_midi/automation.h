@@ -13,11 +13,14 @@
 
 namespace esphome::ble_midi {
 
+/// Triggered once the MIDI characteristic is found and notifications are
+/// enabled, which is also when the device can be sent to.
 class ConnectTrigger final : public Trigger<> {
  public:
   explicit ConnectTrigger(BLEMidi *parent) { parent->add_on_connect_trigger(this); }
 };
 
+/// Triggered when an established MIDI connection is lost.
 class DisconnectTrigger final : public Trigger<> {
  public:
   explicit DisconnectTrigger(BLEMidi *parent) { parent->add_on_disconnect_trigger(this); }
