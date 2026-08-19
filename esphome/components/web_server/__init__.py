@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import gzip
-from html import escape as html_escape
 import logging
 import re
 
@@ -349,17 +348,13 @@ def build_index_html(config: ConfigType, offline_hint: bool = True) -> str:
     if js_url and offline_hint:
         # The interface is downloaded from the internet. Show a hint instead of a blank
         # page when the browser cannot reach it, which is common in WiFi AP mode.
+        # Kept short: this string lives in flash on every build without captive_portal.
         hint = (
-            f"Could not load the web interface from {js_url}. This browser needs internet "
-            "access to download it. To serve it from the device instead (for example in "
-            "WiFi access point mode), set local: true under web_server: in the YAML "
-            "configuration and install the firmware again."
+            "Could not download the web interface. This browser needs internet access, "
+            "or set local: true under web_server: in the YAML and reinstall so the "
+            "device serves it."
         )
-        # Escape for a JS single quoted string inside a double quoted HTML attribute.
-        hint_js = html_escape(
-            hint.replace("\\", "\\\\").replace("'", "\\'"), quote=True
-        )
-        html += f'<script src="{js_url}" onerror="document.body.innerText=\'{hint_js}\'"></script>'
+        html += f'<script src="{js_url}" onerror="document.body.innerText=\'{hint}\'"></script>'
     elif js_url:
         html += f'<script src="{js_url}"></script>'
     html += "</body></html>"

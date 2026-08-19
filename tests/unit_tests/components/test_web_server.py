@@ -10,15 +10,8 @@ def test_build_index_html_has_offline_hint() -> None:
         {CONF_JS_URL: "https://oi.esphome.io/v2/www.js", CONF_CSS_URL: ""}
     )
     assert '<script src="https://oi.esphome.io/v2/www.js" onerror="' in html
+    assert "document.body.innerText='Could not download the web interface." in html
     assert "local: true" in html
-    assert "https://oi.esphome.io/v2/www.js. This browser needs internet" in html
-
-
-def test_build_index_html_escapes_hint() -> None:
-    """Quotes in the script URL cannot break out of the onerror attribute."""
-    html = build_index_html({CONF_JS_URL: "http://x/a'b\"c.js", CONF_CSS_URL: ""})
-    assert "onerror=\"document.body.innerText='" in html
-    assert "a\\&#x27;b&quot;c.js" in html
 
 
 def test_build_index_html_hint_disabled() -> None:
