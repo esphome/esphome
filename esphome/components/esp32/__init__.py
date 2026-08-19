@@ -1073,25 +1073,22 @@ def _parse_pio_platform_version(value):
         return value
 
 
-_P4_NO_BOARD_WARNING = (
-    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
-    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
-    "\n"
-    "  esp32:\n"
-    "    engineering_sample: true\n"
-    "\n"
-    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
-    "Engineering samples will show a revision below v3.0.\n"
-    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
-)
-
-
 def _normalize_p4_engineering_sample(value):
     """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
     silicon (rev3) is assumed. Returns the normalized flag."""
     engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
     if engineering_sample is None:
-        _LOGGER.warning(_P4_NO_BOARD_WARNING)
+        _LOGGER.warning(
+            "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+            "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+            "\n"
+            "  esp32:\n"
+            "    engineering_sample: true\n"
+            "\n"
+            "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+            "Engineering samples will show a revision below v3.0.\n"
+            "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
+        )
         engineering_sample = False
         value[CONF_ENGINEERING_SAMPLE] = engineering_sample
     return engineering_sample
