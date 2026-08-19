@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate the provisioning setup once every component has been processed.
 
     Sources register during their own config validation, so by final validation
@@ -89,7 +89,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "hardcoding them makes the window pointless.",
             ", ".join(sorted(data.hardcoded_credentials)),
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

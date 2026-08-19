@@ -11,7 +11,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 OTAResponseTypes IDFOTABackend::register_and_validate_bootloader_part_() {
   // Register the bootloader partition
