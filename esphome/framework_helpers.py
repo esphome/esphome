@@ -768,7 +768,13 @@ class BatchDownloadProgress:
         return update
 
     def done(self) -> None:
-        if self._bar is not None and self._bar.last_progress != 100:
+        # Nothing to end unless a frame was drawn and it was not the final
+        # one (update(1) already emitted its own newline).
+        if (
+            self._bar is not None
+            and self._bar.last_progress is not None
+            and self._bar.last_progress != 100
+        ):
             self._bar.done()
 
 

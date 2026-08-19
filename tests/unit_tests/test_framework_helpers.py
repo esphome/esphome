@@ -1197,6 +1197,15 @@ class TestBatchDownloadProgress:
             progress.done()
         assert stream.getvalue().endswith("50% \n")
 
+    def test_done_before_any_frame_writes_nothing(self) -> None:
+        """A batch aborted before any tracker fired must not emit a stray
+        newline for a bar that was never drawn."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            BatchDownloadProgress("Downloading", 10).done()
+        assert stream.getvalue() == ""
+
     def test_done_after_full_bar_adds_nothing(self) -> None:
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[method-assign]
