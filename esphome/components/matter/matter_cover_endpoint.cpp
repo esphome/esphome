@@ -151,8 +151,15 @@ void MatterCoverEndpoint::on_matter_target_write(uint16_t percent100ths) {
 void MatterCoverEndpoint::push_initial_state() { this->report_state_to_fabric_(); }
 
 void MatterCoverEndpoint::report_state_to_fabric_() {
-  uint16_t current_100ths = esphome_to_matter_100ths(this->cover_->position);
-  ::esp_matter_attr_val_t current_val = ::esp_matter_nullable_uint16(current_100ths);
+  // CurrentPositionLiftPercent100ths is a nullable attribute — when the
+  // ESPHome cover has no known position (NaN, e.g. an assumed-state cover
+  // that has not been driven since boot) publish null so the fabric renders
+  // "unavailable" rather than a fabricated fully-open. Same for TargetPosition.
+  const float esphome_pos = this->cover_->position;
+  const bool position_known = !std::isnan(esphome_pos);
+  ::nullable<uint16_t> current_nullable =
+      position_known ? ::nullable<uint16_t>(esphome_to_matter_100ths(esphome_pos)) : ::nullable<uint16_t>();
+  ::esp_matter_attr_val_t current_val = ::esp_matter_nullable_uint16(current_nullable);
 
   this->applying_report_ = true;
   esp_err_t err = ::esp_matter::attribute::update(
@@ -170,7 +177,7 @@ void MatterCoverEndpoint::report_state_to_fabric_() {
   // window-covering-server's PostAttributeChange computes OperationalState =
   // Stall (current==target) and the fabric stops thinking we're moving.
   if (this->cover_->current_operation == cover::COVER_OPERATION_IDLE) {
-    ::esp_matter_attr_val_t target_val = ::esp_matter_nullable_uint16(current_100ths);
+    ::esp_matter_attr_val_t target_val = ::esp_matter_nullable_uint16(current_nullable);
     esp_err_t terr = ::esp_matter::attribute::update(
         this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
         chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id, &target_val);

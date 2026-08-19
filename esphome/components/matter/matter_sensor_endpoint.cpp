@@ -138,7 +138,13 @@ bool MatterSensorEndpoint::setup() {
 
   this->sensor_->add_on_state_callback([this](float state) {
     if (std::isnan(state)) {
-      return;  // don't push NaN — Matter attribute is nullable but stays absent
+      // Sensor became unavailable — every MeasuredValue attribute we use is
+      // nullable per Matter spec, so publish null instead of leaving the last
+      // good reading in the fabric cache indefinitely.
+      ESP_LOGD(TAG, "device state change → fabric: endpoint=%u state=NaN → null sensor='%s'", this->endpoint_id_,
+               this->sensor_->get_name().c_str());
+      this->report_null_to_fabric_();
+      return;
     }
     ESP_LOGD(TAG, "device state change → fabric: endpoint=%u state=%.3f sensor='%s'", this->endpoint_id_, state,
              this->sensor_->get_name().c_str());
@@ -215,6 +221,46 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
+  }
+}
+
+void MatterSensorEndpoint::report_null_to_fabric_() {
+  ::esp_matter_attr_val_t val;
+  uint32_t cluster_id = 0;
+  uint32_t attribute_id = 0;
+  switch (this->kind_) {
+    case Kind::TEMPERATURE:
+      val = ::esp_matter_nullable_int16(::nullable<int16_t>());
+      cluster_id = chip::app::Clusters::TemperatureMeasurement::Id;
+      attribute_id = chip::app::Clusters::TemperatureMeasurement::Attributes::MeasuredValue::Id;
+      break;
+    case Kind::HUMIDITY:
+      val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
+      cluster_id = chip::app::Clusters::RelativeHumidityMeasurement::Id;
+      attribute_id = chip::app::Clusters::RelativeHumidityMeasurement::Attributes::MeasuredValue::Id;
+      break;
+    case Kind::PRESSURE_HPA:
+    case Kind::PRESSURE_KPA:
+      val = ::esp_matter_nullable_int16(::nullable<int16_t>());
+      cluster_id = chip::app::Clusters::PressureMeasurement::Id;
+      attribute_id = chip::app::Clusters::PressureMeasurement::Attributes::MeasuredValue::Id;
+      break;
+    case Kind::ILLUMINANCE:
+      val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
+      cluster_id = chip::app::Clusters::IlluminanceMeasurement::Id;
+      attribute_id = chip::app::Clusters::IlluminanceMeasurement::Attributes::MeasuredValue::Id;
+      break;
+    case Kind::FLOW:
+      val = ::esp_matter_nullable_uint16(::nullable<uint16_t>());
+      cluster_id = chip::app::Clusters::FlowMeasurement::Id;
+      attribute_id = chip::app::Clusters::FlowMeasurement::Attributes::MeasuredValue::Id;
+      break;
+    case Kind::UNKNOWN:
+      return;
+  }
+  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "attribute::update null endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
   }
 }
 

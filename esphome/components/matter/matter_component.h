@@ -5,6 +5,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
+#include <esp_err.h>
+
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -201,8 +203,10 @@ class MatterComponent : public Component {
   // Serialize user_labels_[endpoint_id] and write to NVS. Called from
   // set_user_label_length / set_user_label_at / delete_user_label_at on
   // every write. If the vector is empty, deletes the key instead of
-  // writing an empty blob.
-  void persist_user_labels_for_endpoint_(uint16_t endpoint_id);
+  // writing an empty blob. Returns ESP_OK on success, or the first non-OK
+  // NVS error the callers propagate as CHIP_ERROR_PERSISTED_STORAGE_FAILED
+  // so the fabric sees the write failed instead of a silent lie.
+  esp_err_t persist_user_labels_for_endpoint_(uint16_t endpoint_id);
   // Runs on the CHIP PlatformManager task — the public open_commissioning_
   // window() marshals here via ScheduleWork so the CommissioningWindowManager
   // touches (fresh spake2p verifier, discriminator, DNSSD advertisement)
@@ -218,7 +222,11 @@ class MatterComponent : public Component {
   // run before esp_matter::start(): the setup_providers step inside
   // esp_matter::start reads the custom-provider pointer.
   void install_device_info_provider_();
-  void create_root_node_();
+  // Returns false on failure (node creation refused); setup() must bail
+  // immediately so subsequent scan_and_register_* passes don't cascade
+  // per-entity errors against a non-existent node. mark_failed() is called
+  // internally so the caller only needs to short-circuit.
+  bool create_root_node_();
   // Start the periodic subscription keep-alive tick. Some hub UIs — notably
   // the eWeLink Cube / NSPanel mobile app path (their v2.10.2 change log
   // states: "Router devices report within 1 minute … Devices exceeding the

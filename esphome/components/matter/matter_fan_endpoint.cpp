@@ -71,6 +71,12 @@ bool MatterFanEndpoint::setup() {
         ESP_LOGW(TAG, "fan MultiSpeed feature add failed for '%s': %s", this->fan_->get_name().c_str(),
                  esp_err_to_name(ferr));
       }
+    } else {
+      // Without MultiSpeed the fabric renders a read-only fan (no slider) —
+      // the exact symptom the block above exists to prevent. If the cluster
+      // lookup ever returns null, surface it instead of silently degrading.
+      ESP_LOGW(TAG, "fan '%s' endpoint=%u: FanControl cluster lookup returned null — MultiSpeed feature not added",
+               this->fan_->get_name().c_str(), this->endpoint_id_);
     }
   }
 

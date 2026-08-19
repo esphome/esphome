@@ -191,7 +191,12 @@ def _count_matter_endpoint_entities(full_conf):
     for key in _MATTER_ENDPOINT_ENTITY_KEYS:
         try:
             entries = full_conf.get_config_for_path([key])
-        except (KeyError, TypeError):
+        except KeyError:
+            # Key genuinely absent from the config — expected for platforms
+            # the user is not using. Anything else (TypeError, etc.) means a
+            # real bug in path resolution; letting it propagate here makes it
+            # visible at config time instead of under-counting endpoints and
+            # aborting at boot with an opaque "too few dynamic endpoints".
             continue
         if entries is None:
             continue
@@ -742,8 +747,17 @@ async def _write_executable_component_name() -> None:
         "-DEXECUTABLE_COMPONENT_NAME=src",
         f"-DCMAKE_PROJECT_INCLUDE={patch_hook}",
     ]
+    # Fail loudly on an unexpected shape: silently returning here would drop
+    # the CMAKE_PROJECT_INCLUDE flag and the source patches would never run,
+    # producing a green configure that then blows up at compile or (worse)
+    # link time with an unrelated error. If PlatformIO ever changes this
+    # option to accept a list, this raise surfaces the mismatch immediately.
     if not isinstance(existing, str):
-        return
+        raise cv.Invalid(
+            "matter: board_build.cmake_extra_args has an unexpected shape "
+            f"({type(existing).__name__}); cannot append the Matter CMake "
+            f"flags safely — file an issue with this configuration."
+        )
     combined = existing
     for arg in args_to_add:
         if arg not in combined:

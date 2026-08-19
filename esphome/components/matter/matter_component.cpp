@@ -780,11 +780,22 @@ void MatterComponent::load_user_labels_() {
     }
     if (key_matches) {
       size_t blob_size = 0;
-      if (nvs_get_blob(handle, info.key, nullptr, &blob_size) == ESP_OK && blob_size > 0) {
+      esp_err_t sz_err = nvs_get_blob(handle, info.key, nullptr, &blob_size);
+      if (sz_err != ESP_OK) {
+        // Swallowing this hides genuine NVS corruption — the summary log
+        // below would then report a successful restore for the remaining
+        // keys while this endpoint's labels were silently lost.
+        ESP_LOGW(TAG, "nvs_get_blob(%s) size query failed: %s", info.key, esp_err_to_name(sz_err));
+      } else if (blob_size > 0) {
         std::vector<uint8_t> buf(blob_size);
-        if (nvs_get_blob(handle, info.key, buf.data(), &blob_size) == ESP_OK) {
+        esp_err_t rd_err = nvs_get_blob(handle, info.key, buf.data(), &blob_size);
+        if (rd_err != ESP_OK) {
+          ESP_LOGW(TAG, "nvs_get_blob(%s) read failed: %s", info.key, esp_err_to_name(rd_err));
+        } else {
           auto entries = deserialize_user_labels(buf.data(), blob_size);
-          if (!entries.empty()) {
+          if (entries.empty()) {
+            ESP_LOGW(TAG, "nvs blob %s decoded to zero UserLabel entries — corrupt or empty", info.key);
+          } else {
             restored_entries += entries.size();
             this->user_labels_[static_cast<uint16_t>(ep_id)] = std::move(entries);
           }
@@ -803,15 +814,20 @@ void MatterComponent::load_user_labels_() {
   }
 }
 
-void MatterComponent::persist_user_labels_for_endpoint_(uint16_t endpoint_id) {
+esp_err_t MatterComponent::persist_user_labels_for_endpoint_(uint16_t endpoint_id) {
   nvs_handle_t handle;
   esp_err_t err = nvs_open(kUserLabelNvsNamespace, NVS_READWRITE, &handle);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "nvs_open(%s) failed: %s — endpoint %u UserLabel not persisted", kUserLabelNvsNamespace,
              esp_err_to_name(err), endpoint_id);
-    return;
+    return err;
   }
   const std::string key = user_label_key_for(endpoint_id);
+  // Track the first failure so the caller (and thus the CHIP provider) can
+  // return CHIP_ERROR_PERSISTED_STORAGE_FAILED. Continue with the commit so
+  // the erase/set that did succeed is durable — we don't want to leave the
+  // in-memory state and NVS state permanently diverged.
+  esp_err_t status = ESP_OK;
   auto it = this->user_labels_.find(endpoint_id);
   if (it == this->user_labels_.end() || it->second.empty()) {
     // Erase key so the next boot sees no entries — avoids stale zero-count
@@ -819,19 +835,25 @@ void MatterComponent::persist_user_labels_for_endpoint_(uint16_t endpoint_id) {
     esp_err_t erase_err = nvs_erase_key(handle, key.c_str());
     if (erase_err != ESP_OK && erase_err != ESP_ERR_NVS_NOT_FOUND) {
       ESP_LOGW(TAG, "nvs_erase_key(%s) failed: %s", key.c_str(), esp_err_to_name(erase_err));
+      status = erase_err;
     }
   } else {
     const auto blob = serialize_user_labels(it->second);
     esp_err_t werr = nvs_set_blob(handle, key.c_str(), blob.data(), blob.size());
     if (werr != ESP_OK) {
       ESP_LOGW(TAG, "nvs_set_blob(%s) failed: %s", key.c_str(), esp_err_to_name(werr));
+      status = werr;
     }
   }
   esp_err_t cerr = nvs_commit(handle);
   if (cerr != ESP_OK) {
     ESP_LOGW(TAG, "nvs_commit(%s) failed: %s", kUserLabelNvsNamespace, esp_err_to_name(cerr));
+    if (status == ESP_OK) {
+      status = cerr;
+    }
   }
   nvs_close(handle);
+  return status;
 }
 
 const std::vector<MatterComponent::UserLabelEntry> *MatterComponent::user_labels_for(uint16_t endpoint_id) const {
@@ -851,8 +873,10 @@ int MatterComponent::set_user_label_length(uint16_t endpoint_id, size_t new_leng
   } else {
     vec.resize(new_length);  // grows with empty entries, shrinks by dropping the tail
   }
-  this->persist_user_labels_for_endpoint_(endpoint_id);
-  return 0;
+  // Return non-zero when NVS persist fails so the CHIP provider maps it to
+  // CHIP_ERROR_PERSISTED_STORAGE_FAILED — otherwise the fabric is told the
+  // write is durable while NVS still has the old (or no) blob.
+  return (this->persist_user_labels_for_endpoint_(endpoint_id) == ESP_OK) ? 0 : 1;
 }
 
 int MatterComponent::set_user_label_at(uint16_t endpoint_id, size_t index, const std::string &label,
@@ -868,8 +892,7 @@ int MatterComponent::set_user_label_at(uint16_t endpoint_id, size_t index, const
   // Matter spec §9.7.
   vec[index].label = label.substr(0, kUserLabelMaxOctets);
   vec[index].value = value.substr(0, kUserLabelMaxOctets);
-  this->persist_user_labels_for_endpoint_(endpoint_id);
-  return 0;
+  return (this->persist_user_labels_for_endpoint_(endpoint_id) == ESP_OK) ? 0 : 1;
 }
 
 int MatterComponent::delete_user_label_at(uint16_t endpoint_id, size_t index) {
@@ -878,8 +901,7 @@ int MatterComponent::delete_user_label_at(uint16_t endpoint_id, size_t index) {
     return 0;  // deleting a non-existent slot is idempotent success
   }
   it->second.erase(it->second.begin() + index);
-  this->persist_user_labels_for_endpoint_(endpoint_id);
-  return 0;
+  return (this->persist_user_labels_for_endpoint_(endpoint_id) == ESP_OK) ? 0 : 1;
 }
 
 void MatterComponent::setup() {
@@ -923,7 +945,13 @@ void MatterComponent::setup() {
   // pick up whatever labels the fabric wrote last session.
   this->load_user_labels_();
 
-  this->create_root_node_();
+  if (!this->create_root_node_()) {
+    // Bail immediately — without a root node, every scan_and_register_* pass
+    // and install_device_info_provider_ + esp_matter::start would fail
+    // per-entity, drowning the single real error in dispatch noise.
+    // create_root_node_ has already called mark_failed(); nothing else to do.
+    return;
+  }
   // Aggregator only exists in bridge topology. In composed mode the entity
   // endpoints are direct children of root_node — no wrapper endpoint sits
   // between them and node 0. Skipping the create call leaves
@@ -931,6 +959,17 @@ void MatterComponent::setup() {
   // when deciding whether to reparent + attach BDBI.
   if (!this->composed_topology_) {
     this->create_aggregator_endpoint_();
+    if (this->aggregator_endpoint_ == nullptr) {
+      // Fall back to composed topology: without an aggregator, attaching
+      // Bridged Node + BDBI on each endpoint would produce a half-configured
+      // bridge (device type says "sub-accessory" but nothing reparents them),
+      // which controllers render as anonymous/offline entries. Composed is
+      // strictly less capable but coherent, and the entity endpoints still
+      // hang off root_node normally.
+      ESP_LOGW(TAG, "topology=bridge requested but Aggregator creation failed — "
+                    "falling back to composed (single-device) topology");
+      this->composed_topology_ = true;
+    }
   } else {
     ESP_LOGI(TAG, "topology=composed — skipping Aggregator + BridgedDeviceBasicInformation attach");
   }
@@ -1105,14 +1144,18 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
     }
   }
 #endif
-  ESP_LOGV(TAG, "OnOff write for endpoint=%u — no switch or light wrapper found", endpoint_id);
+  // Dispatch miss: OnOff.OnOff write arrived for an endpoint we don't own.
+  // Not routine — either the endpoint map is out of sync with the CHIP
+  // data model, or a foreign cluster registered under the same id. Log at
+  // WARN so it surfaces in default builds instead of being compiled out.
+  ESP_LOGW(TAG, "OnOff write for endpoint=%u — no switch or light wrapper found", endpoint_id);
 }
 
 void MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths) {
 #ifdef USE_COVER
   auto it = this->cover_endpoints_by_id_.find(endpoint_id);
   if (it == this->cover_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "cover target write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "cover target write for unknown endpoint=%u", endpoint_id);
     return;
   }
   // Same round-trip guard as the switch dispatcher: attribute::update on
@@ -1129,7 +1172,7 @@ void MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t per
 #ifdef USE_FAN
   auto it = this->fan_endpoints_by_id_.find(endpoint_id);
   if (it == this->fan_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "fan percent write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "fan percent write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1143,7 +1186,7 @@ void MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mo
 #ifdef USE_FAN
   auto it = this->fan_endpoints_by_id_.find(endpoint_id);
   if (it == this->fan_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "fan mode write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "fan mode write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1157,7 +1200,7 @@ void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t lev
 #ifdef USE_LIGHT
   auto it = this->light_endpoints_by_id_.find(endpoint_id);
   if (it == this->light_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "light level write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "light level write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1174,7 +1217,7 @@ void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16
 #ifdef USE_LIGHT
   auto it = this->light_endpoints_by_id_.find(endpoint_id);
   if (it == this->light_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "light color-temp write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "light color-temp write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1191,7 +1234,7 @@ void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uin
 #ifdef USE_CLIMATE
   auto it = this->climate_endpoints_by_id_.find(endpoint_id);
   if (it == this->climate_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "climate SystemMode write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "climate SystemMode write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1208,7 +1251,7 @@ void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id
 #ifdef USE_CLIMATE
   auto it = this->climate_endpoints_by_id_.find(endpoint_id);
   if (it == this->climate_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "climate heating-setpoint write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "climate heating-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1225,7 +1268,7 @@ void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id
 #ifdef USE_CLIMATE
   auto it = this->climate_endpoints_by_id_.find(endpoint_id);
   if (it == this->climate_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "climate cooling-setpoint write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "climate cooling-setpoint write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1242,7 +1285,7 @@ void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uin
 #ifdef USE_SELECT
   auto it = this->select_endpoints_by_id_.find(endpoint_id);
   if (it == this->select_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "select CurrentMode write for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "select CurrentMode write for unknown endpoint=%u", endpoint_id);
     return;
   }
   if (it->second->applying_report()) {
@@ -1259,7 +1302,7 @@ bool MatterComponent::handle_lock_command(uint16_t endpoint_id, bool is_lock) {
 #ifdef USE_LOCK
   auto it = this->lock_endpoints_by_id_.find(endpoint_id);
   if (it == this->lock_endpoints_by_id_.end()) {
-    ESP_LOGV(TAG, "lock command for unknown endpoint=%u", endpoint_id);
+    ESP_LOGW(TAG, "lock command for unknown endpoint=%u", endpoint_id);
     return false;
   }
   // No applying_report() check — DoorLock uses commands, not attribute writes,
@@ -1354,7 +1397,7 @@ void MatterComponent::keepalive_tick_impl_() {
   ESP_LOGV(TAG, "keepalive: refreshed %u bridged endpoints", static_cast<unsigned>(refreshed));
 }
 
-void MatterComponent::create_root_node_() {
+bool MatterComponent::create_root_node_() {
   // node::create() internally creates the root_node endpoint (endpoint 0)
   // for us — see esp_matter_endpoint.cpp: it calls
   // endpoint::root_node::create() with config->root_node. Do NOT create
@@ -1384,7 +1427,9 @@ void MatterComponent::create_root_node_() {
   if (node == nullptr) {
     ESP_LOGE(TAG, "failed to create Matter node");
     this->mark_failed();
+    return false;
   }
+  return true;
 }
 
 void MatterComponent::create_aggregator_endpoint_() {

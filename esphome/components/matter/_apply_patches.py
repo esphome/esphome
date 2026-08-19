@@ -496,15 +496,17 @@ def main() -> int:
         return 3
     matter_dir = Path(raw)
     if not matter_dir.is_dir():
-        # esp-matter not yet downloaded — component-manager will populate it
-        # in this same configure pass; the next configure pass runs the hook
-        # again. Non-fatal.
+        # esp-matter not yet downloaded — component-manager normally populates
+        # it before this hook runs, but on a cold configure the two can race.
+        # Return a distinct code so the CMake hook treats it as tolerable
+        # (skip with STATUS) rather than confusing it with a real
+        # patch-application failure. Any other non-zero code is fatal.
         print(
             f"_apply_patches.py: esp_matter dir not present yet: "
             f"{matter_dir} — skipping (will retry next configure)",
             file=sys.stderr,
         )
-        return 0
+        return 20
 
     try:
         results = apply_patches(matter_dir)

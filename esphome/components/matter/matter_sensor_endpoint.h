@@ -56,6 +56,10 @@ class MatterSensorEndpoint {
 
  protected:
   void report_state_to_fabric_(float state);
+  // Publishes the nullable attribute's null value for the current Kind so
+  // the fabric renders "no reading" instead of holding a stale last-good
+  // value indefinitely when the ESPHome sensor goes unavailable (NaN).
+  void report_null_to_fabric_();
 
   sensor::Sensor *sensor_;
   uint16_t endpoint_id_{0};

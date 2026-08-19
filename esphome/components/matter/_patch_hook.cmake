@@ -22,12 +22,24 @@ if(EXISTS "${_matter_dir}")
         OUTPUT_VARIABLE _matter_patches_out
         ERROR_VARIABLE _matter_patches_err
     )
-    if(NOT _matter_patches_rc EQUAL 0)
-        message(WARNING
+    # rc=20 is the distinct "esp_matter dir not present yet" tolerated skip
+    # (see _apply_patches.py::main). Anything else non-zero means the sweep
+    # or an anchored patch failed against the current esp-matter release —
+    # e.g. PATCH3's absence leaves std::unordered_map in place, which links
+    # fine but reproduces the registry-corruption bug at runtime. Escalate
+    # to FATAL_ERROR so a green build cannot ship silently-broken firmware.
+    if(_matter_patches_rc EQUAL 20)
+        message(STATUS
+            "matter: esp_matter dir not populated yet — will retry next configure")
+    elseif(NOT _matter_patches_rc EQUAL 0)
+        message(FATAL_ERROR
             "matter: _apply_patches.py failed rc=${_matter_patches_rc}\n"
             "stdout: ${_matter_patches_out}\n"
             "stderr: ${_matter_patches_err}")
     else()
         message(STATUS "matter: source patches applied to ${_matter_dir}")
     endif()
+else()
+    message(STATUS
+        "matter: ${_matter_dir} missing — component-manager has not synced yet")
 endif()
