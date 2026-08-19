@@ -194,9 +194,11 @@ class RuntimeImage : public image::Image {
   int get_position_(int x, int y) const;
 
   /**
-   * @brief Create decoder instance for the image's format.
+   * @brief Create decoder instance for the requested format.
+   * @param format The image format to decode.
+   * @return Unique pointer to the created decoder, or nullptr on failure.
    */
-  std::unique_ptr<ImageDecoder> create_decoder_();
+  std::unique_ptr<ImageDecoder> create_decoder_(ImageFormat format);
 
   // Memory management
   uint8_t *buffer_{nullptr};

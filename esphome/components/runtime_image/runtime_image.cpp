@@ -172,7 +172,7 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
 }
 
 bool RuntimeImage::begin_decode(size_t expected_size) {
-  auto format = this->format_;  // <- remove when implementing auto-format detection (PR #16337)
+  auto format = this->format_;  // <- remove when merging PR #16337
   if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
@@ -355,8 +355,8 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
-std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
-  switch (this->format_) {
+std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
+  switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
       ESP_LOGV(TAG, "Creating BMP decoder");
@@ -373,7 +373,7 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
       return make_unique<PngDecoder>(this);
 #endif
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", this->format_);
+      ESP_LOGE(TAG, "Unsupported image format: %d", format);
       return nullptr;
   }
 }
