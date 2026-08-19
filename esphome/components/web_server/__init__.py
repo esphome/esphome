@@ -53,9 +53,14 @@ def AUTO_LOAD() -> list[str]:
     # ota.web_server's dependency on web_server_base would not be satisfied in time.
     auto_load = ["json", "web_server_base"]
     # The AP mode DNS server (web_server_base/dns_server_esp32_idf) uses socket; only
-    # configs with a WiFi access point can end up in AP mode.
+    # configs with a WiFi access point can end up in AP mode. CORE.raw_config is set
+    # after package merging, so a wifi block from a package is visible here.
     wifi = CORE.raw_config.get(CONF_WIFI) if CORE.raw_config else None
-    if CORE.is_esp32 and (not isinstance(wifi, dict) or CONF_AP in wifi):
+    if (
+        CORE.is_esp32
+        and wifi is not None
+        and (not isinstance(wifi, dict) or CONF_AP in wifi)
+    ):
         auto_load.append("socket")
     return auto_load
 
@@ -384,7 +389,8 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
         if CONF_LOCAL not in config:
             _LOGGER.info(
                 "WiFi is AP only: embedding the web interface in the firmware "
-                "(local: true) and serving it as a captive portal on the access point. "
+                "(local: true, roughly 13 KB of flash for version 2, 78 KB for "
+                "version 3) and serving it as a captive portal on the access point. "
                 "Set 'local: false' to load it from the internet instead."
             )
     elif wifi_is_ap_only(wifi_config) and not serve_local(config, wifi_config):

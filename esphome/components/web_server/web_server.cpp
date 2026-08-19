@@ -452,9 +452,11 @@ void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
   // to the real page. A redirect rather than the page itself, because the interface resolves
   // its /events and REST paths relative to the page URL.
   if (this->dns_.is_running() && request->method() == HTTP_GET) {
-    char location[7 + network::IP_ADDRESS_BUFFER_SIZE];
+    // Captive mode requires port 80 (enforced at validation), so no port suffix is needed.
+    char location[7 + network::IP_ADDRESS_BUFFER_SIZE + 1];
     size_t pos = buf_append_str(location, sizeof(location), 0, "http://");
     wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + pos);
+    buf_append_str(location, sizeof(location), strlen(location), "/");
     request->redirect(location);
     return;
   }
