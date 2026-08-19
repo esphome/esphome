@@ -172,7 +172,7 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
 }
 
 bool RuntimeImage::begin_decode(size_t expected_size) {
-  auto format = this->format_; // <- remove when implementing auto-format detection (PR #16337)
+  auto format = this->format_;  // <- remove when implementing auto-format detection (PR #16337)
   if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
