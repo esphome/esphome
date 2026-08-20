@@ -252,14 +252,21 @@ def test_esp32_configuration_errors(
             id="http_request",
         ),
         pytest.param(
+            # "mqtt" itself is deliberately not asserted: on IDF >= 6.0 it
+            # is a managed component and never leaves the exclusion set.
             "exclusion_reincludes_mqtt.yaml",
-            ("esp-tls", "mqtt"),
+            ("esp-tls",),
             id="mqtt",
         ),
         pytest.param(
             "exclusion_reincludes_web_server.yaml",
             ("esp-tls",),
             id="web_server_idf",
+        ),
+        pytest.param(
+            "exclusion_reincludes_nextion.yaml",
+            ("esp-tls", "esp_http_client"),
+            id="nextion",
         ),
     ],
 )

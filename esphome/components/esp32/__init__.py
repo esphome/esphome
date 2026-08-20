@@ -219,8 +219,8 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - only needed by ac_dimmer, opentherm
-    "esp_driver_i2c",  # I2C driver - only needed by i2c component
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
