@@ -32,8 +32,8 @@ def _ccache_runs(ccache: str) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=15,
-            # Repo-wide convention (posix_spawn fast path); pinned by
-            # tests/script/test_helpers.py
+            # Repo-wide convention (posix_spawn fast path); see the
+            # close_fds=False call sites across esphome/ and script/helpers.py
             close_fds=False,
         )
     except (OSError, subprocess.SubprocessError):
