@@ -224,6 +224,16 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
     # full firmware build would be wasted work. --no-sysbuild keeps sdk-nrf
     # 2.9+ from wrapping the build in a multi-image sysbuild project, which
     # would nest the compile commands and hide the headers target.
+    #
+    # Zephyr's own "zephyr_generated_headers" is an INTERFACE library with no
+    # sources of its own (just add_dependencies() on the real generators) --
+    # NCS 3.4.0's bundled CMake (4.x) no longer emits a Ninja alias for a
+    # sourceless INTERFACE library, so `-t zephyr_generated_headers` fails with
+    # "unknown target". `cmake_object_order_depends_target_app` is CMake's own
+    # generated alias for the app object files' order-only dependencies -- it
+    # resolves to exactly the same generated-header set (confirmed by
+    # inspecting build.ninja) without compiling main.cpp, and it's an actual
+    # Ninja target regardless of INTERFACE-library alias behavior.
     west_cmd = [
         str(paths["python_executable"]),
         "-m",
@@ -236,7 +246,7 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
         str(build_dir),
         str(source_dir),
         "-t",
-        "zephyr_generated_headers",
+        "cmake_object_order_depends_target_app",
         "--",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
     ]
