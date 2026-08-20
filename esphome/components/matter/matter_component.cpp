@@ -1,13 +1,16 @@
-// esp-matter 1.6.0 only supports these ESP32 variants. Strip the whole
-// TU on any other target (P4, S2, C2, C5, C61, H4, H21, S31) so clang-tidy
-// jobs for those variants — which grep this file in via USE_WIFI /
-// USE_ETHERNET — don't try to compile against an esp_matter.h that upstream
-// never ships for those chips. Runtime builds are already rejected by the
-// only_on_variant config validator in matter/__init__.py; this guard is the
-// static-analysis mirror of the same restriction.
-#ifdef USE_ESP_IDF
-#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+#include "esphome/core/defines.h"
+
+// USE_MATTER_VARIANT_SUPPORTED is set by matter's Python to_code() via
+// cg.add_define() on the 5 esp-matter-supported ESP32 variants (ESP32,
+// S3, C3, C6, H2). It is deliberately NOT declared in
+// esphome/core/defines.h — that path is only exercised by clang-tidy and
+// static-analysis tools, which do not have esp_matter.h available (the
+// SDK is a third-party managed component fetched at build time). Keeping
+// the symbol out of defines.h means matter files strip on lint (no
+// missing-header errors) but compile normally on real builds where
+// Python-side codegen has run. Runtime variant enforcement lives in the
+// only_on_variant validator in matter/__init__.py.
+#if defined(USE_ESP_IDF) && defined(USE_MATTER_VARIANT_SUPPORTED)
 
 #include "matter_component.h"
 
@@ -2118,5 +2121,4 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
 
 }  // namespace esphome::matter
 
-#endif  // matter supported variant
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP_IDF && USE_MATTER_VARIANT_SUPPORTED

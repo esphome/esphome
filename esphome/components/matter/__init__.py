@@ -759,6 +759,17 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option(key, value)
 
     cg.add_define("USE_MATTER")
+    # Companion symbol referenced in the compile-time guard at the top of
+    # every matter_*.{h,cpp} file. Injected here (not in esphome/core/
+    # defines.h) so clang-tidy / static-analysis passes — which read
+    # defines.h and do NOT run codegen — see it undefined and strip the
+    # matter TU entirely. The esp_matter.h header is a third-party managed
+    # component fetched only at real-build time, so linting matter code
+    # against it isn't feasible in the ESPHome CI environment. Real builds
+    # get -D USE_MATTER_VARIANT_SUPPORTED and compile normally. Runtime
+    # variant enforcement is upstream of this — the only_on_variant
+    # validator on CONFIG_SCHEMA already rejects unsupported chips.
+    cg.add_define("USE_MATTER_VARIANT_SUPPORTED")
     cg.add_build_flag("-DCHIP_HAVE_CONFIG_H")
 
     CORE.add_job(_write_executable_component_name)
