@@ -2547,19 +2547,23 @@ def check_supported_toolchain(
     different backend.
     """
     toolchain = CORE.toolchain
-    if toolchain is None or toolchain not in supported:
+    if toolchain is None:
+        # A caller ran the check before resolving; an ordering bug, not a
+        # user error
+        raise Invalid(f"Toolchain was not resolved before {platform_name} validation")
+    if toolchain not in supported:
         names = ", ".join(f"'{tc.value}'" for tc in supported)
         raise Invalid(
             f"Unsupported toolchain "
-            f"'{toolchain.value if toolchain else 'unresolved'}' for "
+            f"'{toolchain.value}' for "
             f"{platform_name}. Supported: {names}."
         )
 
 
-def toolchain_enum(supported: tuple[Toolchain, ...]):
+def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
     """Schema validator for a platform's ``toolchain`` config key."""
 
-    def validator(value) -> Toolchain:
+    def validator(value: str) -> Toolchain:
         return Toolchain(one_of(*supported, lower=True)(value))
 
     return validator
@@ -2567,7 +2571,7 @@ def toolchain_enum(supported: tuple[Toolchain, ...]):
 
 def resolve_toolchain(
     platform_name: str, supported: tuple[Toolchain, ...], default: Toolchain
-):
+) -> Callable[[ConfigType], ConfigType]:
     """Resolve ``CORE.toolchain`` (CLI > YAML > default) and reject one the
     platform cannot serve.
 
@@ -2584,7 +2588,9 @@ def resolve_toolchain(
     return validator
 
 
-def require_platformio_toolchain(platform_name: str):
+def require_platformio_toolchain(
+    platform_name: str,
+) -> Callable[[ConfigType], ConfigType]:
     """Reject a CLI-selected toolchain other than PlatformIO.
 
     For platforms with only the PlatformIO backend; without this a
