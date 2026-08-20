@@ -570,6 +570,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -1070,6 +1073,26 @@ def _parse_pio_platform_version(value):
         return value
 
 
+def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
+    """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
+    silicon (rev3) is assumed. Returns the normalized flag."""
+    if (engineering_sample := value.get(CONF_ENGINEERING_SAMPLE)) is None:
+        _LOGGER.warning(
+            "Defaulting to ESP32-P4 production silicon (rev3).\n"
+            "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+            "\n"
+            "  esp32:\n"
+            "    engineering_sample: true\n"
+            "\n"
+            "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+            "Engineering samples will show a revision below v3.0.\n"
+            "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
+        )
+        engineering_sample = False
+        value[CONF_ENGINEERING_SAMPLE] = engineering_sample
+    return engineering_sample
+
+
 def _detect_variant(value):
     board = value.get(CONF_BOARD)
     variant = value.get(CONF_VARIANT)
@@ -1082,6 +1105,8 @@ def _detect_variant(value):
         # name rather than carrying a PIO board name through the IDF build.
         if CORE.using_toolchain_esp_idf:
             value = value.copy()
+            if variant == VARIANT_ESP32P4:
+                _normalize_p4_engineering_sample(value)
             value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
             return value
         if variant not in STANDARD_BOARDS:
@@ -1092,22 +1117,8 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
-        if variant == VARIANT_ESP32P4:
-            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-            if engineering_sample is None:
-                _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
-                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
-                    "\n"
-                    "  esp32:\n"
-                    "    engineering_sample: true\n"
-                    "\n"
-                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
-                    "Engineering samples will show a revision below v3.0.\n"
-                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
-                )
-            elif engineering_sample:
-                value[CONF_BOARD] = "esp32-p4-evboard"
+        if variant == VARIANT_ESP32P4 and _normalize_p4_engineering_sample(value):
+            value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -1117,6 +1128,14 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_VARIANT] = variant
+        if variant == VARIANT_ESP32P4:
+            board_is_es = BOARDS[board].get("engineering_sample", False)
+            engineering_sample = value.setdefault(CONF_ENGINEERING_SAMPLE, board_is_es)
+            if engineering_sample != board_is_es:
+                raise cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{board}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
     elif not variant:
         raise cv.Invalid(
             "This board is unknown, if you are sure you want to compile with this board selection, "
@@ -1128,6 +1147,9 @@ def _detect_variant(value):
             "This board is unknown; the specified variant '%s' will be used but this may not work as expected.",
             variant,
         )
+        if variant == VARIANT_ESP32P4:
+            value = value.copy()
+            _normalize_p4_engineering_sample(value)
     return value
 
 
@@ -1365,7 +1387,7 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     return config
 
 
-def final_validate(config):
+def final_validate(config) -> None:
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
@@ -1431,20 +1453,6 @@ def final_validate(config):
                 path=[CONF_ENGINEERING_SAMPLE],
             )
         )
-    if (
-        config[CONF_VARIANT] == VARIANT_ESP32P4
-        and config.get(CONF_ENGINEERING_SAMPLE) is not None
-    ):
-        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
-        )
-        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
-            errs.append(
-                cv.Invalid(
-                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
-                    path=[CONF_ENGINEERING_SAMPLE],
-                )
-            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
@@ -1625,8 +1633,6 @@ def final_validate(config):
         )
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
@@ -2517,15 +2523,14 @@ async def to_code(config):
             f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
         )
 
-    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
-    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
-    # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the board's chip revision.
+    # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible.
+    # CONFIG_ESP32P4_SELECTS_REV_LESS_V3 selects which layout ESP-IDF links;
+    # validation normalizes CONF_ENGINEERING_SAMPLE from the board when unset.
     if variant == VARIANT_ESP32P4:
-        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
+            config.get(CONF_ENGINEERING_SAMPLE, False),
         )
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
@@ -3280,17 +3285,45 @@ def copy_files():
         __version__,
     )
 
+    # Remote extra build files are fetched into the shared download cache in
+    # one parallel batch (conditional requests skip unchanged files), then
+    # copied into the build tree like their local counterparts.
+    sources: dict[str, Path] = {}
+    remote: list[tuple[str, str]] = []
     for file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].values():
         name: str = file[KEY_NAME]
         path: Path = file[KEY_PATH]
         if str(path).startswith("http"):
-            import requests
-
-            CORE.relative_build_path(name).parent.mkdir(parents=True, exist_ok=True)
-            content = requests.get(path, timeout=30).content
-            CORE.relative_build_path(name).write_bytes(content)
+            remote.append((name, str(path)))
         else:
-            copy_file_if_changed(path, CORE.relative_build_path(name))
+            sources[name] = path
+    if remote:
+        # Imported lazily: requests (via external_files) is a heavy import
+        # and remote extra build files are rare.
+        from esphome import external_files
+
+        downloads: list[external_files.RemoteFile] = []
+        for name, url in remote:
+            cache_path = external_files.compute_local_file_path(KEY_ESP32, url)
+            # Unverifiable bytes: an unrevalidated copy is an error, matching
+            # the old always-download behavior on network failure.
+            downloads.append(
+                external_files.RemoteFile(url, cache_path, allow_stale=False)
+            )
+            sources[name] = cache_path
+        try:
+            external_files.download_content_many(
+                downloads, description="extra build file(s)"
+            )
+        except cv.MultipleInvalid as e:
+            details = "; ".join(str(err) for err in e.errors)
+            raise EsphomeError(
+                f"Could not download extra build file(s): {details}"
+            ) from e
+        except cv.Invalid as e:
+            raise EsphomeError(f"Could not download extra build file(s): {e}") from e
+    for name, source in sources.items():
+        copy_file_if_changed(source, CORE.relative_build_path(name))
 
 
 def _decode_pc(config, addr):
