@@ -21,14 +21,11 @@ import re
 import subprocess
 import sys
 
+from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
     ESP8266_BOARD_BUILD,
     ESP8266_LD_SCRIPTS,
-)
-from esphome.components.esp8266.build_surgery import (
-    apply_testing_memory_patches,
-    relocate_ratetable,
 )
 from esphome.components.esp8266.const import (
     KEY_BOARD,
@@ -357,7 +354,16 @@ def generate_ld_scripts(
     # incremental builds when nothing changed.
     output = ld_dir / "local.eagle.app.v6.common.ld"
     stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
-    stamp_content = " ".join(cmd) + f" testing={CORE.testing_mode}"
+    # The surgery constants are inputs too: an edit to build_surgery.py must
+    # invalidate existing build dirs, not wait for an esphome clean.
+    stamp_content = (
+        " ".join(cmd)
+        + f" testing={CORE.testing_mode}"
+        + f" {build_surgery.RATETABLE_RULE}"
+        + f" {build_surgery.TESTING_IRAM_SIZE}"
+        + f" {build_surgery.TESTING_DRAM_SIZE}"
+        + f" {build_surgery.TESTING_FLASH_SIZE}"
+    )
     if not (
         output.is_file()
         and stamp.is_file()
@@ -368,9 +374,11 @@ def generate_ld_scripts(
         )
         if result.returncode != 0:
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
-        content = relocate_ratetable(result.stdout)
+        content = build_surgery.relocate_ratetable(result.stdout)
         if CORE.testing_mode:
-            content = apply_testing_memory_patches(content, require=("iram1_0_seg",))
+            content = build_surgery.apply_testing_memory_patches(
+                content, require=("iram1_0_seg",)
+            )
         write_file_if_changed(output, content)
         stamp.write_text(stamp_content, encoding="utf-8")
 
@@ -380,7 +388,7 @@ def generate_ld_scripts(
         flash_ld = framework / "tools" / "sdk" / "ld" / flash_ld_name
         write_file_if_changed(
             ld_dir / f"testing_{flash_ld_name}",
-            apply_testing_memory_patches(
+            build_surgery.apply_testing_memory_patches(
                 flash_ld.read_text(encoding="utf-8"),
                 require=("dram0_0_seg", "irom0_0_seg"),
             ),

@@ -1270,14 +1270,12 @@ def test_apply_extra_script_pio_platform(tmp_path) -> None:
 
 
 def test_apply_extra_script_missing_script_logged(tmp_path, caplog) -> None:
-    """A declared but absent extraScript is skipped with a diagnostic."""
-    import logging
+    """A declared but absent extraScript is skipped with a visible warning:
+    its captured link flags are lost."""
+    from esphome.espidf.extra_script import apply_extra_script
 
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "nope.py"}}
-    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.extra_script"):
-        from esphome.espidf.extra_script import apply_extra_script
-
-        apply_extra_script(c, "esp8266")
+    apply_extra_script(c, "esp8266")
     assert "not found" in caplog.text

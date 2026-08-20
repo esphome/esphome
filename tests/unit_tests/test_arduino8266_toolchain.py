@@ -253,3 +253,22 @@ def test_print_size_summary_unparsable_section(
         toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
     assert "RAM:" in capsys.readouterr().out
     assert "Unparsable size output" in caplog.text
+
+
+def test_print_size_summary_missing_section_skips_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A totals section absent from the output must not default to zero."""
+    without_bss = "\n".join(
+        line for line in _SIZE_OUTPUT.splitlines() if ".bss" not in line
+    )
+    with patch.object(
+        toolchain.subprocess,
+        "run",
+        return_value=MagicMock(returncode=0, stdout=without_bss),
+    ):
+        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+    assert capsys.readouterr().out == ""
+    assert "missing section(s) .bss" in caplog.text

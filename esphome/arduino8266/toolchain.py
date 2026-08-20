@@ -149,8 +149,15 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
                     # A confident total built on a dropped section would feed
                     # a wrong number to CI's memory-impact metric
                     return
-    ram = sum(sections.get(s, 0) for s in _RAM_SECTIONS)
-    flash = sum(sections.get(s, 0) for s in _FLASH_SECTIONS)
+    if missing := set(_RAM_SECTIONS + _FLASH_SECTIONS) - set(sections):
+        # A defaulted 0 would print a confidently wrong total for CI's metric
+        _LOGGER.warning(
+            "Size output is missing section(s) %s; skipping the size summary",
+            ", ".join(sorted(missing)),
+        )
+        return
+    ram = sum(sections[s] for s in _RAM_SECTIONS)
+    flash = sum(sections[s] for s in _FLASH_SECTIONS)
     print(f"RAM:   {format_bar(ram, _MAX_RAM_SIZE)}")
     if app_size := _parse_app_size(build_dir):
         print(f"Flash: {format_bar(flash, app_size)}")

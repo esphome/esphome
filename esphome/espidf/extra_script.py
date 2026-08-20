@@ -70,7 +70,9 @@ def apply_extra_script(
         )
         return
     if not script_path.is_file():
-        _LOGGER.debug(
+        # The script's captured -L/-l/-D flags are lost; surface that here
+        # instead of as undefined references at link time
+        _LOGGER.warning(
             "extraScript %s of library %s not found; skipping",
             extra_script,
             component.name,
