@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from esphome.components.esp8266 import (
@@ -114,3 +116,28 @@ def test_yaml_toolchain_key_defaults_to_platformio() -> None:
 
     _resolve_toolchain({})
     assert CORE.toolchain == Toolchain.PLATFORMIO
+
+
+def test_decode_pc_native_missing_tools_warns_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A stack dump of many addresses produces one missing-tool warning."""
+    from unittest.mock import patch
+
+    from esphome.components import esp8266
+
+    esp8266._warn_missing_decode_tool.cache_clear()
+    with (
+        patch(
+            "esphome.arduino8266.toolchain.get_addr2line_path",
+            return_value=tmp_path / "missing-addr2line",
+        ),
+        patch(
+            "esphome.arduino8266.toolchain.get_elf_path",
+            return_value=tmp_path / "missing.elf",
+        ),
+    ):
+        esp8266._decode_pc({}, "40201234")
+        esp8266._decode_pc({}, "40201238")
+    assert caplog.text.count("Cannot decode crash addresses") == 1
+    esp8266._warn_missing_decode_tool.cache_clear()

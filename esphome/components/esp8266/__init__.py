@@ -1,3 +1,4 @@
+import functools
 import logging
 from pathlib import Path
 import platform
@@ -604,6 +605,12 @@ ESP8266_EXCEPTION_CODES = {
 }
 
 
+@functools.cache
+def _warn_missing_decode_tool(path: str) -> None:
+    # Cached so a stack dump of dozens of addresses warns once, not per line
+    _LOGGER.warning("Cannot decode crash addresses: %s missing", path)
+
+
 def _decode_pc(config, addr):
     if CORE.using_toolchain_arduino:
         from esphome.arduino8266 import toolchain as native_toolchain
@@ -611,9 +618,8 @@ def _decode_pc(config, addr):
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
         if not addr2line.is_file() or not elf.is_file():
-            _LOGGER.warning(
-                "Cannot decode crash addresses: %s missing",
-                addr2line if not addr2line.is_file() else elf,
+            _warn_missing_decode_tool(
+                str(addr2line if not addr2line.is_file() else elf)
             )
             return
         addr2line, elf = str(addr2line), str(elf)

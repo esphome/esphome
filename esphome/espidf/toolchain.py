@@ -528,6 +528,8 @@ def get_idedata() -> dict | None:
     """
     from esphome.espidf.idedata import load_or_build_idedata
 
+    # No launcher: CMake excludes CMAKE_<LANG>_COMPILER_LAUNCHER (ccache)
+    # from the exported compile database, unlike ninja's compdb dump.
     return load_or_build_idedata(
         CORE.relative_build_path("build", "compile_commands.json"),
         get_elf_path(),
