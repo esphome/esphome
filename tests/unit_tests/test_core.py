@@ -1000,10 +1000,11 @@ class TestEsphomeCore:
         with pytest.raises(ValueError, match="Invalid CMake arg name"):
             target.add_cmake_arg(name, "value")
 
-    @pytest.mark.parametrize("value", ["a b", "a\tb", 'a"b', "a'b"])
+    @pytest.mark.parametrize("value", ["a b", "a\tb", 'a"b', "a'b", "a${FOO}b"])
     def test_add_cmake_arg__rejects_invalid_value(self, target, value: str) -> None:
-        """Whitespace and quotes are rejected: the PlatformIO backend passes
-        args as one space-joined string, which would split such a value."""
+        """Whitespace and quotes are rejected (the PlatformIO backend passes
+        args as one space-joined string, which would split such a value), and
+        so is '$' (expanded differently by CMake and PlatformIO)."""
         with pytest.raises(ValueError, match="must not contain"):
             target.add_cmake_arg("MY_ARG", value)
 

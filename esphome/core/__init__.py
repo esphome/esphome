@@ -1068,15 +1068,18 @@ class EsphomeCore:
     def add_cmake_arg(self, name: str, value: str) -> None:
         """Register a CMake variable for CMake-based toolchains.
 
-        The value must not contain whitespace or quotes: the PlatformIO
+        The value must not contain whitespace or quotes (the PlatformIO
         backend passes all args to CMake as a single space-joined string
-        of ``-DNAME=VALUE`` pairs.
+        of ``-DNAME=VALUE`` pairs) or ``$`` (expanded by CMake on the
+        ESP-IDF path but interpolated differently or passed through by
+        PlatformIO).
         """
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError(f"Invalid CMake arg name: {name!r}")
-        if re.search(r"[\s\"']", value):
+        if re.search(r"[\s\"'$]", value):
             raise ValueError(
-                f"CMake arg {name} value {value!r} must not contain whitespace or quotes"
+                f"CMake arg {name} value {value!r} must not contain "
+                "whitespace, quotes, or '$'"
             )
         old = self.cmake_args.get(name)
         if old is not None and old != value:

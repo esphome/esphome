@@ -72,6 +72,13 @@ def has_discovered_components() -> bool:
     return get_available_components() is not None
 
 
+def _cmake_quote(value: str) -> str:
+    """Quote a cmake arg value for a set() line. add_cmake_arg rejects
+    whitespace, quotes, and '$', so only backslashes need escaping."""
+    escaped = value.replace("\\", "\\\\")
+    return f'"{escaped}"'
+
+
 def get_project_cmakelists(minimal: bool = False) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
@@ -118,10 +125,8 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
     # set when project.cmake seeds the component list, and on minimal
     # (discovery) writes too so excluded components never register.
-    # add_cmake_arg rejects whitespace and quotes, so only backslashes
-    # need escaping here.
     cmake_args = "\n".join(
-        f'set({name} "{value.replace("\\", "\\\\")}")'
+        f"set({name} {_cmake_quote(value)})"
         for name, value in sorted(CORE.cmake_args.items())
     )
 
@@ -149,6 +154,8 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # project_description.json from a build without exclusions may still
     # list them, and requiring an excluded component pulls it back into
     # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
+    # Derived from the EXCLUDE_COMPONENTS cmake arg emitted above so the
+    # two can never disagree within one generated file.
     builtin_components_property = (
         ""
         if minimal
@@ -156,7 +163,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
                 set(get_available_components() or []).difference(
-                    get_excluded_builtin_components()
+                    CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
                 )
             )
         )

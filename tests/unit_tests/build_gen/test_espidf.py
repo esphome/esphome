@@ -148,6 +148,17 @@ def test_get_project_cmakelists_emits_cmake_args() -> None:
     assert 'set(EXECUTABLE_COMPONENT_NAME "src")' in content
 
 
+def test_get_project_cmakelists_escapes_backslashes_in_cmake_args() -> None:
+    """Backslashes (the only character escaping applies to; the rest are
+    rejected at registration) are doubled so CMake reads the value back
+    verbatim."""
+    CORE.add_cmake_arg("MY_PATH", r"C:\esp\idf")
+
+    content = _render(minimal=True)
+
+    assert r'set(MY_PATH "C:\\esp\\idf")' in content
+
+
 def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None:
     """Excluded components are passed to IDF via EXCLUDE_COMPONENTS and are
     dropped from ESPHOME_PROJECT_BUILTIN_COMPONENTS even when a stale
