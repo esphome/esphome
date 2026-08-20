@@ -143,11 +143,11 @@ def CONFIG_SCHEMA(config: ConfigType) -> ConfigType:
 
 
 # Legacy climate-owned hub compatibility. Remove in 2027.2.0.
-def _legacy_final_validate(config: ConfigType) -> ConfigType:
+def _legacy_final_validate(config: ConfigType) -> None:
     if CONF_MITSUBISHI_CN105_ID in config:
-        return config
+        return
 
-    return uart.final_validate_device_schema(
+    uart.final_validate_device_schema(
         DOMAIN,
         require_rx=True,
         require_tx=True,

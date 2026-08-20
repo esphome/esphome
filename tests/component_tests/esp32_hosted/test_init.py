@@ -19,7 +19,7 @@ def test_final_validate_accepts_supported_idf(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
     )
-    assert _final_validate({}) == {}
+    _final_validate({})
 
 
 @pytest.mark.parametrize("idf", ["5.0.0", "5.2.2"])
