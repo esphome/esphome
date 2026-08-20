@@ -3,6 +3,7 @@ from esphome.components import esp32, i2c
 from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
@@ -76,7 +77,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
