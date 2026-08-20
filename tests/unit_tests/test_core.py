@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 from hypothesis import given
 import pytest
-from strategies import mac_addr_strings
 
 from esphome import const, core
+from tests.unit_tests.strategies import mac_addr_strings
 
 
 class TestHexInt:
