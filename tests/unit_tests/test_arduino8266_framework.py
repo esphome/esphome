@@ -81,6 +81,42 @@ def _registry_response(files: list[dict]) -> MagicMock:
     return resp
 
 
+def test_registry_download_network_error_is_clean_and_retried() -> None:
+    """Registry failures raise EsphomeError after retries, not a traceback."""
+    import requests
+
+    with (
+        patch("requests.get", side_effect=requests.ConnectionError("boom")) as mock_get,
+        pytest.raises(EsphomeError, match="Could not query the package registry"),
+    ):
+        framework._registry_download("pkg", "1.0.0")
+    assert mock_get.call_count == 3
+
+
+def test_registry_download_retries_transient_error() -> None:
+    import requests
+
+    resp = _registry_response(
+        [
+            {
+                "system": ["linux_x86_64"],
+                "download_url": "http://x/linux",
+                "checksum": {"sha256": "abc123"},
+                "size": 42,
+            }
+        ]
+    )
+    with (
+        patch("requests.get", side_effect=[requests.ConnectionError("boom"), resp]),
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        assert framework._registry_download("pkg", "1.0.0") == (
+            "http://x/linux",
+            "abc123",
+            42,
+        )
+
+
 def test_registry_download_matches_system() -> None:
     resp = _registry_response(
         [

@@ -138,9 +138,20 @@ def _registry_download(package: str, version: str) -> tuple[str, str, int | None
     import requests
 
     url = _REGISTRY_URL.format(package=package)
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
+    last_err: Exception | None = None
+    for _ in range(3):
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except requests.RequestException as err:
+            last_err = err
+    else:
+        # A clean, retried error like the other download paths in the tree
+        raise EsphomeError(
+            f"Could not query the package registry for {package}: {last_err}"
+        ) from last_err
     system = _pio_system()
     for ver in data.get("versions", []):
         if ver.get("name") != version:
