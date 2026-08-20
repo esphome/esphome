@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 # is the code owner of the relevant code base
@@ -43,7 +44,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 # The async def keyword is used to define a concurrent function.
 # Concurrent functions are special functions designed to work with Python's asyncio library to support asynchronous I/O operations.
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # This line of code creates a new Pvariable (a Python object representing a C++ variable) with the variable's ID taken from the configuration.
     var = cg.new_Pvariable(config[CONF_ID])
     # This line of code registers the newly created Pvariable as a component so that ESPHome can manage it at runtime.
