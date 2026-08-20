@@ -23,6 +23,7 @@ from esphome.components.image import (
     get_image_type_enum,
     get_transparency_enum,
     is_svg_file,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
@@ -200,7 +201,7 @@ OPTIONS_SCHEMA = {
         "NONE", "FLOYDSTEINBERG", upper=True
     ),
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
-    cv.Optional(CONF_BYTE_ORDER): cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True),
+    cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
 }
 

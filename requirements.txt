@@ -12,7 +12,7 @@ pyserial==3.5
 platformio==6.1.19
 esptool==5.3.1
 click==8.3.3
-aioesphomeapi==45.10.3
+aioesphomeapi==45.12.0
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
 zeroconf==0.150.0
 puremagic==2.2.0
@@ -20,7 +20,7 @@ ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
 pillow==12.3.0
-resvg-py==0.3.4
+resvg-py==0.4.0
 freetype-py==2.5.1
 jinja2==3.1.6
 bleak==3.0.2
