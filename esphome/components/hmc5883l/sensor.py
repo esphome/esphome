@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -17,6 +20,8 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -59,14 +64,16 @@ HMC5883L_RANGES = {
 }
 
 
-def validate_enum(enum_values, units=None, int=True):
+def validate_enum(
+    enum_values: dict[Any, Any], units: str | list[str] | None = None, int: bool = True
+) -> Callable[[Any], Any]:
     _units = []
     if units is not None:
         _units = units if isinstance(units, list) else [units]
         _units = [str(x) for x in _units]
     enum_bound = cv.enum(enum_values, int=int)
 
-    def validate_enum_bound(value):
+    def validate_enum_bound(value: Any) -> Any:
         value = cv.string(value)
         for unit in _units:
             if value.endswith(unit):
@@ -112,7 +119,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def auto_data_rate(config):
+def auto_data_rate(config: ConfigType) -> MockObj:
     interval_msec = config[CONF_UPDATE_INTERVAL].total_milliseconds
     interval_hz = 1000.0 / interval_msec
     for datarate in sorted(HMC5883LDatarates.keys()):
@@ -121,7 +128,7 @@ def auto_data_rate(config):
     return HMC5883LDatarates[75]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
