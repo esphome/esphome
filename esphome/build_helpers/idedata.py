@@ -297,17 +297,8 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
 
-    # ninja-generated compile DBs repeat one identical multi-KB command per
-    # source file; parse each distinct (directory, command) once.
-    parsed: dict[tuple[str, str], tuple[str, list[str], list[str], list[str]]] = {}
-
-    def _parse(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
-        key = (entry["directory"], entry["command"])
-        if key not in parsed:
-            parsed[key] = parse_entry(entry, launcher)
-        return parsed[key]
-
-    cxx_path, defines, _, cxx_flags = _parse(_pick_entry(entries))
+    representative = _pick_entry(entries)
+    cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
     if _is_launcher(cxx_path):
         # Checked before the toolchain probe (which would fail opaquely on
         # a launcher) so the unusable compile DB is named, and never
@@ -317,11 +308,16 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
             "compiler; the compile database is unusable"
         )
 
-    build_includes: dict[str, None] = {}
+    # Seed with the representative's includes so it is not parsed twice
+    # (per-file -c/-o arguments make every command distinct, so memoizing
+    # whole commands would never hit)
+    build_includes: dict[str, None] = dict.fromkeys(
+        rep_includes if _is_esphome_src(representative["file"]) else ()
+    )
     for entry in entries:
-        if not _is_esphome_src(entry["file"]):
+        if entry is representative or not _is_esphome_src(entry["file"]):
             continue
-        for inc in _parse(entry)[2]:
+        for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
     return {
