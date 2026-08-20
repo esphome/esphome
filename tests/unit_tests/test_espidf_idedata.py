@@ -264,18 +264,24 @@ def test_parse_entry_normalizes_windows_cxx_path() -> None:
     assert "C:/inc/a" in includes
 
 
-def test_parse_entry_strips_ccache_prefix() -> None:
-    """A ccache-wrapped compile names the compiler second; the wrapper must
-    not be mistaken for the compiler path."""
+def test_parse_entry_strips_launcher_prefix() -> None:
+    """A launcher-wrapped compile names the compiler second; the exact
+    configured launcher is stripped, not anything ccache-shaped."""
     entry = _entry(
         f"{ABS}build",
         f"{ABS}build/src/esphome/core/application.cpp",
         "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -DUSE_ESP8266 "
         "-c app.cpp -o app.cpp.o",
     )
-    cxx_path, defines, _, _ = idedata._parse_entry(entry)
+    cxx_path, defines, _, _ = idedata._parse_entry(
+        entry, launcher="/opt/homebrew/bin/ccache"
+    )
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert defines == ["USE_ESP8266"]
+    # Without a configured launcher nothing is stripped, even a token that
+    # happens to be named ccache
+    cxx_path, _, _, _ = idedata._parse_entry(entry)
+    assert cxx_path == "/opt/homebrew/bin/ccache"
 
 
 def _write_compile_commands(tmp_path: Path) -> Path:

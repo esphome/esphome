@@ -210,8 +210,12 @@ def get_idedata() -> dict | None:
     """
     from esphome.espidf.idedata import load_or_build_idedata
 
+    ccache = framework.ccache_path()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),
         CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+        # The compile DB's commands carry the same ccache prefix the ninja
+        # rules were generated with
+        launcher=str(ccache) if ccache else None,
     )

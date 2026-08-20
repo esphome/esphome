@@ -200,14 +200,31 @@ def test_print_size_summary_size_tool_failure(
 
 
 def test_get_idedata_delegates(tmp_path: Path) -> None:
-    with patch(
-        "esphome.espidf.idedata.load_or_build_idedata", return_value={"cc_path": "x"}
-    ) as mock_load:
+    with (
+        patch(
+            "esphome.espidf.idedata.load_or_build_idedata",
+            return_value={"cc_path": "x"},
+        ) as mock_load,
+        patch.object(framework, "ccache_path", return_value=Path("/cc/ccache")),
+    ):
         assert toolchain.get_idedata() == {"cc_path": "x"}
     compile_commands, elf, cache = mock_load.call_args[0]
     assert compile_commands.name == "compile_commands.json"
     assert elf.name == "firmware.elf"
     assert cache.name == "test8266.json"
+    # The exact configured launcher is passed for compile DB parsing
+    assert mock_load.call_args.kwargs["launcher"] == str(Path("/cc/ccache"))
+
+
+def test_get_idedata_no_ccache(tmp_path: Path) -> None:
+    with (
+        patch(
+            "esphome.espidf.idedata.load_or_build_idedata", return_value={}
+        ) as mock_load,
+        patch.object(framework, "ccache_path", return_value=None),
+    ):
+        toolchain.get_idedata()
+    assert mock_load.call_args.kwargs["launcher"] is None
 
 
 def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:

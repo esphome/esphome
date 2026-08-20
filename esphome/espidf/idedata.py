@@ -120,7 +120,9 @@ def _pick_entry(entries: list[dict]) -> dict:
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
 
-def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
+def _parse_entry(
+    entry: dict, launcher: str | None = None
+) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
     tokens = _expand_response_files(_split_command(entry["command"]), directory)
@@ -136,8 +138,10 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
             raw = os.path.normpath(directory / raw)
         return raw.replace("\\", "/")
 
-    # A ccache-wrapped command ("ccache g++ ...") names the compiler second.
-    if Path(tokens[0]).stem == "ccache":
+    # A launcher-wrapped command ("ccache g++ ...") names the compiler
+    # second. The caller passes the exact launcher it configured into the
+    # build, so this is a comparison, not a guess by name.
+    if launcher is not None and tokens[0] == launcher:
         tokens = tokens[1:]
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
@@ -223,12 +227,17 @@ def _cc_path_from_cxx(cxx_path: str) -> str:
 
 
 def load_or_build_idedata(
-    compile_commands: Path, elf_path: Path, cache: Path
+    compile_commands: Path,
+    elf_path: Path,
+    cache: Path,
+    launcher: str | None = None,
 ) -> dict | None:
     """Return idedata for a compile_commands.json build, cached on mtime.
 
     Shared by the native ESP-IDF and ESP8266 Arduino toolchains. Returns None
-    when the compile DB doesn't exist yet (nothing was built).
+    when the compile DB doesn't exist yet (nothing was built). ``launcher``
+    is the compiler-launcher path (ccache) the build was generated with, if
+    any; commands in the compile DB are prefixed with it.
     """
     if not compile_commands.is_file():
         _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
@@ -247,14 +256,14 @@ def load_or_build_idedata(
             if isinstance(cached, dict) and "cc_path" in cached:
                 return cached
 
-    data = idedata_from_build(compile_commands)
+    data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
 
 
-def idedata_from_build(compile_commands: Path) -> dict:
+def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
     A single ESP-IDF compile entry only carries its own component's REQUIRES
@@ -265,13 +274,13 @@ def idedata_from_build(compile_commands: Path) -> dict:
     provides).
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    cxx_path, defines, _, cxx_flags = _parse_entry(_pick_entry(entries))
+    cxx_path, defines, _, cxx_flags = _parse_entry(_pick_entry(entries), launcher)
 
     build_includes: dict[str, None] = {}
     for entry in entries:
         if not _is_esphome_src(entry["file"]):
             continue
-        for inc in _parse_entry(entry)[2]:
+        for inc in _parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
     return {
