@@ -2,15 +2,13 @@
 #include "esphome/core/log.h"
 #ifdef USE_HOST
 #include <sys/time.h>
-#elif defined(USE_ZEPHYR)
-#include <zephyr/posix/time.h>
-#else
+#elif !defined(USE_ZEPHYR)
 #include "lwip/opt.h"
 #endif
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2) || defined(USE_ZEPHYR)
+#if defined(USE_RP2)
 #include <sys/time.h>
 #endif
 #include <cerrno>
