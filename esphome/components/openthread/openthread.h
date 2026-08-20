@@ -19,14 +19,7 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
-enum class OtcTeardownStage : uint8_t {
-  NOT_STARTED = 0,
-  STARTED,
-  DETACH_COMPLETED,
-  STOP_STARTED,
-  STOP_IN_PROCESS,
-  COMPLETED
-};
+enum class TeardownStage : uint8_t { NOT_STARTED = 0, STOP_IN_PROCESS, COMPLETED };
 
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
 
@@ -44,10 +37,6 @@ class OpenThreadComponent final : public Component {
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-#ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
-  // Signature matches otDetachGracefullyCallback: void(*)(void *aContext) -- no otError parameter.
-  static void detach_callback(void *context);
-#endif
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
@@ -81,8 +70,6 @@ class OpenThreadComponent final : public Component {
    */
   void apply_linkmode_(otInstance *instance);
 
-  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::NOT_STARTED};
-
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
@@ -92,6 +79,7 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
+  std::atomic<TeardownStage> teardown_stage_{TeardownStage::NOT_STARTED};
   bool connected_{false};
 
   otDeviceRole active_role_{OT_DEVICE_ROLE_DISABLED};

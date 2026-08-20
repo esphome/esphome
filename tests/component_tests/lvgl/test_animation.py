@@ -169,14 +169,27 @@ class TestTimingSchema:
     def test_round_trip_string(self) -> None:
         assert TIMING_SCHEMA("round_trip")["type"] == "round_trip"
 
+    def test_round_trip_default_pause(self) -> None:
+        # Back-compat default: no pause, matching the pre-existing round_trip behavior.
+        assert TIMING_SCHEMA("round_trip")["pause"] == pytest.approx(0.0)
+
+    def test_round_trip_pause_percentage_string(self) -> None:
+        result = TIMING_SCHEMA({"type": "round_trip", "pause": "50%"})
+        assert result["pause"] == pytest.approx(0.5)
+
+    def test_round_trip_pause_rejects_one(self) -> None:
+        # pause == 1.0 would make moving_length_ zero and divide by zero in map_progress.
+        with pytest.raises((Invalid, MultipleInvalid)):
+            TIMING_SCHEMA({"type": "round_trip", "pause": 1.0})
+
     def test_ease_in_out_default_weight(self) -> None:
         result = TIMING_SCHEMA("ease_in_out")
         assert result["type"] == "ease_in_out"
-        assert result["weight"] == pytest.approx(2.0)
+        assert result["weight"] == pytest.approx(1.0)
 
     def test_ease_in_out_custom_weight(self) -> None:
-        result = TIMING_SCHEMA({"type": "ease_in_out", "weight": 3})
-        assert result["weight"] == pytest.approx(3.0)
+        result = TIMING_SCHEMA({"type": "ease_in_out", "weight": 0.5})
+        assert result["weight"] == pytest.approx(0.5)
 
     def test_gravity_defaults(self) -> None:
         result = TIMING_SCHEMA("gravity")

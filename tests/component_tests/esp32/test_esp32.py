@@ -10,11 +10,16 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    KEY_FATFS_REQUIRED,
+    KEY_VFS_DIR_REQUIRED,
+    KEY_VFS_SELECT_REQUIRED,
+    KEY_VFS_TERMIOS_REQUIRED,
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
+    _reconcile_vfs_fatfs_sdkconfig,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -106,6 +111,24 @@ def test_esp32_default_toolchain_is_esp_idf(
     CONFIG_SCHEMA(config)
 
     assert CORE.toolchain == expected
+
+
+@pytest.mark.parametrize(
+    "config_toolchain",
+    [Toolchain.SDK_NRF.value, "nonsense"],
+)
+def test_esp32_rejects_unsupported_toolchains(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str,
+) -> None:
+    """Toolchains esp32 does not support are rejected at validation time."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = None
+    with pytest.raises(cv.Invalid, match="Unknown value"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
 
 
 @pytest.mark.parametrize(
@@ -250,6 +273,53 @@ def test_nvs_encryption_sdkconfig(
     assert sdkconfig.get("CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID") == 0
     # The permanent/irreversible eFuse burn is warned about at config time.
     assert "PERMANENT and IRREVERSIBLE" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("fixture", "multi_key", "idf_on_update"),
+    [
+        # Externally-signed RSA with a declared trusted-key list hands
+        # verification to ESPHome's multi-key verifier, so IDF's single-block
+        # on-update check must be OFF. It defaults ON under
+        # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it has to be set to False
+        # explicitly -- not merely omitted.
+        ("signed_ota_verification_keys_s3.yaml", True, False),
+        # Externally-signed RSA without a trusted-key list has no trust anchor,
+        # so it falls back to IDF's built-in check.
+        ("signed_ota_external_rsa_s3.yaml", False, True),
+        # Build-time signing and the other schemes keep IDF's check.
+        ("signed_ota_signing_key_s3.yaml", False, True),
+        ("signed_ota_ecdsa256_c6.yaml", False, True),
+        ("signed_ota_ecdsa_v1.yaml", False, True),
+    ],
+)
+def test_signed_ota_verification_sdkconfig(
+    fixture: str,
+    multi_key: bool,
+    idf_on_update: bool,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only external RSA disables IDF's on-update check and uses ESPHome's verifier."""
+    generate_main(component_config_path(fixture))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    # The padded, externally-signable image is always produced.
+    assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT") is True
+    # Explicit value (never left to the Kconfig default) decides who verifies.
+    assert (
+        sdkconfig.get("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") is idf_on_update
+    )
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY" in defines) is multi_key
+    if multi_key:
+        # The padding / reserved signature sector the verifier depends on keys
+        # off the RSA scheme symbol, not the hidden CONFIG_SECURE_SIGNED_APPS
+        # (which the explicit `n` above drives to n). Pin the real dependency.
+        assert sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") is True
+        # The compiled-in trust anchor: the fixture lists one key.
+        define_values = {define.name: str(define.value) for define in CORE.defines}
+        assert define_values["OTA_TRUSTED_KEY_COUNT"] == "1"
+        assert "OTA_TRUSTED_KEY_DIGESTS" in define_values
 
 
 @pytest.mark.parametrize(
@@ -454,25 +524,17 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(
-                wifi=True, bluetooth=True, ble_42=True, software_coexistence=True
-            ),
+            NetworkSdkconfigData(wifi=True, bluetooth=True, software_coexistence=True),
             {},
             {
                 "CONFIG_BT_ENABLED": True,
                 "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
+                "CONFIG_BT_BLE_50_FEATURES_SUPPORTED": False,
                 "CONFIG_SW_COEXIST_ENABLE": True,
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
                 "CONFIG_LWIP_DHCPS": False,
             },
             id="idf_wifi_ble_tracker_coexistence",
-        ),
-        pytest.param(
-            PlatformFramework.ESP32_IDF,
-            NetworkSdkconfigData(bluetooth=True),
-            {},
-            {"CONFIG_BT_ENABLED": True},
-            id="idf_ble_server_only_no_ble42",
         ),
         # --- IDF: user sdkconfig_options always win ---
         pytest.param(
@@ -557,6 +619,160 @@ def test_reconcile_network_sdkconfig(
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
 
 
+@pytest.mark.parametrize(
+    ("requires", "fatfs_required", "disables", "preset", "expected"),
+    [
+        # Nothing required and every disable_* flag off (NOT the shipped defaults, which
+        # disable everything): VFS enabled, FATFS left untouched entirely.
+        pytest.param(
+            {},
+            False,
+            (False, False, False, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="nothing_disabled_nothing_required",
+        ),
+        # The shipped out-of-the-box path: every disable_* flag defaults to True and nothing
+        # is required -- VFS off, FATFS at the smallest footprint (8.3 names, one volume).
+        pytest.param(
+            {},
+            False,
+            (True, True, True, True),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": False,
+                "CONFIG_VFS_SUPPORT_SELECT": False,
+                "CONFIG_VFS_SUPPORT_DIR": False,
+                "CONFIG_FATFS_LFN_NONE": True,
+                "CONFIG_FATFS_VOLUME_COUNT": 1,
+            },
+            id="all_disabled_fatfs_fallback",
+        ),
+        # A component's require_* beats the user's disable_* flag for every VFS feature.
+        pytest.param(
+            {
+                KEY_VFS_TERMIOS_REQUIRED: True,
+                KEY_VFS_SELECT_REQUIRED: True,
+                KEY_VFS_DIR_REQUIRED: True,
+            },
+            False,
+            (True, True, True, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="require_beats_disable",
+        ),
+        # A user sdkconfig_options preset wins over a require (the set_opt guard).
+        pytest.param(
+            {KEY_VFS_SELECT_REQUIRED: True},
+            False,
+            (False, False, False, False),
+            {"CONFIG_VFS_SUPPORT_SELECT": False},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": False,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="user_preset_wins_over_require",
+        ),
+        # require_fatfs() with no user preset: long filenames on the heap, 255 chars,
+        # four volumes.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_NONE": False,
+                "CONFIG_FATFS_LFN_HEAP": True,
+                "CONFIG_FATFS_MAX_LFN": 255,
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_required_defaults",
+        ),
+        # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice: a user picking any member
+        # (here LFN_STACK) leaves the whole group untouched -- no second =y in the choice.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {"CONFIG_FATFS_LFN_STACK": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_STACK": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_user_lfn_stack_untouched",
+        ),
+        # disable_fatfs (the shipped default) with a user LFN pick: the choice group is the
+        # user's -- no LFN_NONE=y written next to their member, only the volume fallback.
+        pytest.param(
+            {},
+            False,
+            (False, False, False, True),
+            {"CONFIG_FATFS_LFN_HEAP": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_HEAP": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 1,
+            },
+            id="disable_fatfs_user_lfn_untouched",
+        ),
+        # Same for an explicit LFN_NONE preset: the group is the user's, only the volume
+        # count default is added.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {"CONFIG_FATFS_LFN_NONE": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_NONE": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_user_lfn_none_untouched",
+        ),
+    ],
+)
+def test_reconcile_vfs_fatfs_sdkconfig(
+    set_core_config: SetCoreConfigCallable,
+    requires: dict[str, bool],
+    fatfs_required: bool,
+    disables: tuple[bool, bool, bool, bool],
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """The FINAL-priority reconciler resolves the VFS feature flags and the FATFS
+    defaults from the recorded require_* calls, with user sdkconfig_options winning
+    and the LFN Kconfig choice treated as one group."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+    if fatfs_required:
+        CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
+    for key, value in requires.items():
+        CORE.data[key] = value
+
+    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables))
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
 def test_network_wifi_only_reconciles_end_to_end(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -594,11 +810,29 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
+    assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+
+
+def test_network_wifi_ethernet_priority_keeps_wifi_enabled(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: with both WiFi and Ethernet declared under network: priority:,
+    the reconciler must NOT disable the WiFi stack or coexistence (the
+    multi-interface case unlocked by composing network priority with the
+    sdkconfig reconciler)."""
+    generate_main(component_config_path("network_wifi_ethernet_priority.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+    assert "CONFIG_SW_COEXIST_ENABLE" not in sdkconfig
+    # WiFi has no AP here, so SoftAP/DHCP server are still dropped.
+    assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
+    assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
 
 
 def test_esp32_build_internals_are_yaml_only() -> None:
@@ -679,6 +913,9 @@ def test_downgrade_protection_reports_all_unmet_requirements() -> None:
         # V1 ECDSA: exactly one of signing key / verification key.
         {"signing_scheme": "ecdsa_v1", "signing_key": "key.pem"},
         {"signing_scheme": "ecdsa_v1", "verification_key": "key.bin"},
+        # External RSA with a compiled-in trusted-key list (digests).
+        {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32]},
+        {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32, "cd" * 32]},
     ],
 )
 def test_signed_ota_keys_valid_combinations(config: dict) -> None:
@@ -733,6 +970,34 @@ def test_signed_ota_bare_block_selects_v2_external_signing(value: dict | None) -
             },
             "not both",
         ),
+        # A trusted-key list only applies to external RSA.
+        (
+            {"signing_scheme": "ecdsa256", "verification_keys": ["ab" * 32]},
+            "only used with signing scheme 'rsa3072'",
+        ),
+        # Can't both auto-sign and verify against a fixed trusted set.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "signing_key": "key.pem",
+                "verification_keys": ["ab" * 32],
+            },
+            "cannot be combined with",
+        ),
+        # The singular V1 key and the RSA trusted-key list are mutually exclusive.
+        (
+            {
+                "signing_scheme": "rsa3072",
+                "verification_key": "key.bin",
+                "verification_keys": ["ab" * 32],
+            },
+            "at most one",
+        ),
+        # Duplicate trusted keys are rejected.
+        (
+            {"signing_scheme": "rsa3072", "verification_keys": ["ab" * 32, "ab" * 32]},
+            "must be unique",
+        ),
     ],
 )
 def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
@@ -740,6 +1005,48 @@ def test_signed_ota_keys_invalid_combinations(config: dict, match: str) -> None:
 
     with pytest.raises(cv.Invalid, match=match):
         _validate_signed_ota_keys(config)
+
+
+def test_sbv2_rsa_key_digest_known_answer() -> None:
+    """The compiled-in trust anchor is the block-format digest the device
+    computes per signature block; pin it to espsecure's known output for the
+    shipped dummy key so a future change to the derivation can't drift silently.
+    """
+    from esphome.components.esp32 import _sbv2_rsa_key_digest
+
+    key = (
+        Path(__file__).parent.parent.parent
+        / "components"
+        / "esp32"
+        / "dummy_signing_key.pem"
+    )
+    assert (
+        _sbv2_rsa_key_digest(key).hex()
+        == "957671f5ec1b55b3fb1d32c5525a68d3b8c33847922daddb4feefe64cd679f65"
+    )
+
+
+def test_validate_trusted_key_hex_forms() -> None:
+    """The digest-input branch: the same key as an uppercase 64-hex digest
+    normalizes to the PEM-derived value (the two forms are interchangeable), and
+    a mangled digest fails clearly instead of as a missing file.
+    """
+    from esphome.components.esp32 import _sbv2_rsa_key_digest, _validate_trusted_key
+
+    key = (
+        Path(__file__).parent.parent.parent
+        / "components"
+        / "esp32"
+        / "dummy_signing_key.pem"
+    )
+    pem_digest = _sbv2_rsa_key_digest(key).hex()
+    assert _validate_trusted_key(pem_digest.upper()) == pem_digest
+    for bad in (pem_digest[:-1], "0x" + pem_digest):
+        with pytest.raises(cv.Invalid, match="64 hex"):
+            _validate_trusted_key(bad)
+    # An unquoted 0x.../all-digit digest reaches the validator as a YAML int.
+    with pytest.raises(cv.Invalid, match="Quote the digest"):
+        _validate_trusted_key(0x957671F5EC1B55B3)
 
 
 @pytest.mark.parametrize(
