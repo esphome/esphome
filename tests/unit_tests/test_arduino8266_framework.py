@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -36,226 +34,6 @@ def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
         path = framework.get_arduino8266_tools_path()
     assert path.name == "arduino8266"
     assert path != Path.cwd()
-
-
-@pytest.mark.parametrize(
-    ("system", "machine", "expected"),
-    [
-        ("Darwin", "arm64", "darwin_arm64"),
-        ("Darwin", "x86_64", "darwin_x86_64"),
-        ("Windows", "AMD64", "windows_amd64"),
-        ("Windows", "ARM64", "windows_amd64"),
-        ("Windows", "x86", "windows_x86"),
-        ("Linux", "x86_64", "linux_x86_64"),
-        ("Linux", "aarch64", "linux_aarch64"),
-        ("Linux", "i686", "linux_i686"),
-        ("Linux", "armv7l", "linux_armv7l"),
-    ],
-)
-def test_pio_system(system: str, machine: str, expected: str) -> None:
-    with (
-        patch("platform.system", return_value=system),
-        patch("platform.machine", return_value=machine),
-    ):
-        assert framework._pio_system() == expected
-
-
-@pytest.mark.parametrize(
-    ("system", "machine"),
-    [
-        ("FreeBSD", "amd64"),
-        ("Linux", "ppc64le"),
-        ("Darwin", "ppc"),
-        ("Darwin", ""),
-        ("Windows", "ia64"),
-    ],
-)
-def test_pio_system_unsupported_host_raises(system: str, machine: str) -> None:
-    # Fails at resolution rather than installing a toolchain that can't run
-    with (
-        patch("platform.system", return_value=system),
-        patch("platform.machine", return_value=machine),
-        pytest.raises(EsphomeError, match="use 'toolchain: platformio'"),
-    ):
-        framework._pio_system()
-
-
-def _registry_response(files: list[dict]):
-    """Patch the shared downloader to serve a canned registry response."""
-    payload = {"versions": [{"name": "1.0.0", "files": files}]}
-
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(json.dumps(payload).encode())
-        return mirrors[0].format(**substitutions)
-
-    return patch.object(framework, "download_from_mirrors", side_effect=fake_download)
-
-
-def test_registry_download_uses_shared_downloader() -> None:
-    """The metadata fetch delegates its retries and error reporting to
-    download_from_mirrors; failures surface unchanged."""
-    with (
-        patch.object(
-            framework,
-            "download_from_mirrors",
-            side_effect=EsphomeError("Failed to download from all mirrors"),
-        ) as mock_download,
-        pytest.raises(EsphomeError, match="Failed to download from all mirrors"),
-    ):
-        framework._registry_download("pkg", "1.0.0")
-    (mirrors, substitutions, _), _ = mock_download.call_args
-    assert mirrors == [framework._REGISTRY_URL]
-    assert substitutions == {"package": "pkg"}
-
-
-def test_registry_download_invalid_json_is_clean() -> None:
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(b"<html>not json</html>")
-        return "http://x"
-
-    with (
-        patch.object(framework, "download_from_mirrors", side_effect=fake_download),
-        pytest.raises(EsphomeError, match="invalid JSON"),
-    ):
-        framework._registry_download("pkg", "1.0.0")
-
-
-def test_registry_download_matches_system() -> None:
-    with (
-        _registry_response(
-            [
-                {"system": ["windows_amd64"], "download_url": "http://x/win"},
-                {
-                    "system": ["linux_x86_64"],
-                    "download_url": "http://x/linux",
-                    "checksum": {"sha256": "abc123"},
-                    "size": 42,
-                },
-            ]
-        ),
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-    ):
-        assert framework._registry_download("pkg", "1.0.0") == (
-            "http://x/linux",
-            "abc123",
-            42,
-        )
-
-
-def test_registry_download_bare_string_system() -> None:
-    """A bare-string system tag is an exact match, not a substring test."""
-    with (
-        _registry_response(
-            [
-                {"system": "linux_x86", "download_url": "http://x/x86"},
-                {
-                    "system": "linux_x86_64",
-                    "download_url": "http://x/x86_64",
-                    "checksum": {"sha256": "abc"},
-                },
-            ]
-        ),
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-    ):
-        assert framework._registry_download("pkg", "1.0.0")[0] == "http://x/x86_64"
-
-
-def test_registry_download_wildcard_system() -> None:
-    with _registry_response(
-        [
-            {
-                "system": "*",
-                "download_url": "http://x/any",
-                "checksum": {"sha256": "abc"},
-                "size": 7,
-            }
-        ]
-    ):
-        assert framework._registry_download("pkg", "1.0.0") == (
-            "http://x/any",
-            "abc",
-            7,
-        )
-
-
-def test_registry_download_missing_checksum_raises() -> None:
-    """An unverifiable archive is refused, never silently extracted."""
-    with (
-        _registry_response([{"system": "*", "download_url": "http://x/any"}]),
-        pytest.raises(EsphomeError, match="no sha256"),
-    ):
-        framework._registry_download("pkg", "1.0.0")
-
-
-def test_registry_download_no_system_match() -> None:
-    with (
-        _registry_response(
-            [{"system": ["windows_amd64"], "download_url": "http://x/win"}]
-        ),
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-        pytest.raises(EsphomeError, match="No pkg 1.0.0 build"),
-    ):
-        framework._registry_download("pkg", "1.0.0")
-
-
-def test_registry_download_version_not_found() -> None:
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(
-            json.dumps({"versions": [{"name": "2.0.0", "files": []}]}).encode()
-        )
-        return "http://x"
-
-    with (
-        patch.object(framework, "download_from_mirrors", side_effect=fake_download),
-        pytest.raises(EsphomeError, match="not found"),
-    ):
-        framework._registry_download("pkg", "1.0.0")
-
-
-def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
-    dest = tmp_path / "pkg"
-    dest.mkdir()
-    (dest / ".esphome_extracted").touch()
-    with patch.object(framework, "download_from_mirrors") as mock_download:
-        framework._install_package("pkg", "1.0.0", dest, [])
-    mock_download.assert_not_called()
-
-
-def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
-    dest = tmp_path / "pkg"
-    mirrors = ["http://mirror/{VERSION}/{SYSTEM}.tar.gz"]
-    with (
-        patch.object(framework, "download_from_mirrors") as mock_download,
-        patch.object(framework, "archive_extract_all") as mock_extract,
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-    ):
-        # Extraction is expected to create the directory
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        framework._install_package("pkg", "1.0.0", dest, mirrors)
-    assert mock_download.call_args[0][0] is mirrors
-    assert mock_download.call_args[0][1] == {
-        "VERSION": "1.0.0",
-        "SYSTEM": "linux_x86_64",
-    }
-    assert (dest / ".esphome_extracted").is_file()
-
-
-def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
-    """The registry path downloads with the registry's sha256 and size."""
-    dest = tmp_path / "pkg"
-    with (
-        patch.object(framework, "download_with_resume") as mock_download,
-        patch.object(framework, "archive_extract_all") as mock_extract,
-        patch.object(
-            framework,
-            "_registry_download",
-            return_value=("http://x/pkg.tar.gz", "abc123", 42),
-        ),
-    ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        framework._install_package("pkg", "1.0.0", dest, [])
-    assert mock_download.call_args[0][0] == "http://x/pkg.tar.gz"
-    assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
 
 def test_find_ninja_prefers_path(tmp_path: Path) -> None:
@@ -298,7 +76,7 @@ def test_find_ninja_missing_everywhere(tmp_path: Path) -> None:
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "_install_package") as mock_install,
+        patch.object(framework, "install_package") as mock_install,
         patch.object(framework, "_find_ninja", return_value=tmp_path / "ninja"),
     ):
         paths = framework.check_and_install(cv.Version(3, 1, 2))
@@ -385,53 +163,6 @@ def test_ccache_env(tmp_path: Path) -> None:
     assert env["CCACHE_DIR"].endswith("ccache")
 
 
-def test_install_package_validates_expected_layout(tmp_path: Path) -> None:
-    """The success marker is only written when the extracted tree is usable."""
-    dest = tmp_path / "pkg"
-    with (
-        patch.object(framework, "download_from_mirrors"),
-        patch.object(framework, "archive_extract_all") as mock_extract,
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-    ):
-        mock_extract.side_effect = lambda *_a, **_kw: (dest / "bin").mkdir(parents=True)
-        framework._install_package("pkg", "1.0.0", dest, ["http://m"], expect=("bin",))
-    assert (dest / ".esphome_extracted").is_file()
-
-
-def test_install_package_unexpected_layout_raises(tmp_path: Path) -> None:
-    dest = tmp_path / "pkg"
-    with (
-        patch.object(framework, "download_from_mirrors"),
-        patch.object(framework, "archive_extract_all") as mock_extract,
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-        pytest.raises(EsphomeError, match="without the expected bin"),
-    ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        framework._install_package("pkg", "1.0.0", dest, ["http://m"], expect=("bin",))
-    assert not (dest / ".esphome_extracted").exists()
-
-
-def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
-    """A concurrent install finishing while we wait for the lock is detected."""
-    dest = tmp_path / "pkg"
-    marker = dest / ".esphome_extracted"
-
-    @contextmanager
-    def _fake_lock(*_a, **_kw):
-        dest.mkdir(parents=True, exist_ok=True)
-        marker.touch()
-        yield
-
-    with (
-        patch("filelock.FileLock", _fake_lock),
-        patch.object(framework, "download_from_mirrors") as mock_download,
-        patch.object(framework, "rmdir") as mock_rmdir,
-    ):
-        framework._install_package("pkg", "1.0.0", dest, ["http://m"])
-    mock_download.assert_not_called()
-    mock_rmdir.assert_not_called()
-
-
 def test_ccache_env_requires_build_path() -> None:
     """Building the env before preload set build_path fails loudly."""
     CORE.build_path = None
@@ -446,17 +177,3 @@ def test_check_and_install_rejects_old_core(tmp_path: Path) -> None:
     """Calling the installer below the floor fails before any download."""
     with pytest.raises(EsphomeError, match=">= 3.1.1"):
         framework.check_and_install(cv.Version(3, 0, 2))
-
-
-def test_install_package_uses_hard_lock(tmp_path: Path) -> None:
-    """The install lock must never degrade to a soft (existence) lock."""
-    dest = tmp_path / "pkg"
-    with (
-        patch("filelock.FileLock") as mock_lock,
-        patch.object(framework, "download_from_mirrors"),
-        patch.object(framework, "archive_extract_all") as mock_extract,
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
-    ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir(exist_ok=True)
-        framework._install_package("pkg", "1.0.0", dest, ["http://m"])
-    assert mock_lock.call_args.kwargs["fallback_to_soft"] is False

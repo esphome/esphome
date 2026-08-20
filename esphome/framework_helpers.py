@@ -1238,6 +1238,7 @@ def _ccache_runs(ccache: str) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=15,
+            close_fds=False,
         )
     except (OSError, subprocess.SubprocessError):
         _LOGGER.warning(
