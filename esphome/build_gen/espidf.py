@@ -72,6 +72,13 @@ def has_discovered_components() -> bool:
     return get_available_components() is not None
 
 
+def _cmake_quote(value: str) -> str:
+    """Quote a cmake arg value for a set() line. add_cmake_arg rejects
+    whitespace, quotes, and '$', so only backslashes need escaping."""
+    escaped = value.replace("\\", "\\\\")
+    return f'"{escaped}"'
+
+
 def get_project_cmakelists(minimal: bool = False) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
@@ -114,6 +121,15 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else ""
     )
 
+    # CMake variables registered via cg.add_cmake_arg(). Emitted before
+    # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
+    # set when project.cmake seeds the component list, and on minimal
+    # (discovery) writes too so excluded components never register.
+    cmake_args = "\n".join(
+        f"set({name} {_cmake_quote(value)})"
+        for name, value in sorted(CORE.cmake_args.items())
+    )
+
     # Per-project list exposed as a CMake variable so converted PIO libs
     # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
     # project-specific names into their cached CMakeLists.
@@ -129,18 +145,6 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for name in get_managed_component_require_names()
     )
 
-    # Components excluded from the build (DEFAULT_EXCLUDED_IDF_COMPONENTS
-    # minus per-component re-includes). project.cmake reads the plain
-    # EXCLUDE_COMPONENTS variable when seeding the component list, so this
-    # must be set before project(). Emitted on minimal writes too so the
-    # discovery reconfigure never registers the excluded components.
-    excluded_components = get_excluded_builtin_components()
-    exclude_components_var = (
-        f'set(EXCLUDE_COMPONENTS "{";".join(excluded_components)}")'
-        if excluded_components
-        else ""
-    )
-
     # Built-in IDF components exposed via our own property (not IDF's
     # __COMPONENT_REQUIRES_COMMON, which would append them to every
     # component's REQUIRES including real IDF components). Referenced by
@@ -150,13 +154,17 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # project_description.json from a build without exclusions may still
     # list them, and requiring an excluded component pulls it back into
     # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
+    # Derived from the EXCLUDE_COMPONENTS cmake arg emitted above so the
+    # two can never disagree within one generated file.
     builtin_components_property = (
         ""
         if minimal
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(get_available_components() or []).difference(excluded_components)
+                set(get_available_components() or []).difference(
+                    CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
+                )
             )
         )
     )
@@ -184,9 +192,9 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
-include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
+{cmake_args}
 
-{exclude_components_var}
+include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
 

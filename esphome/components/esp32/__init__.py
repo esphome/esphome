@@ -760,9 +760,10 @@ def include_builtin_idf_component(name: str) -> None:
 def get_excluded_builtin_components() -> list[str]:
     """Return the sorted built-in IDF components excluded from the build.
 
-    Single accessor for both build writers: the PlatformIO path passes it as
-    ``-DEXCLUDE_COMPONENTS`` and the native ESP-IDF path emits it into the
-    generated CMakeLists.
+    The set reaches both build writers as the ``EXCLUDE_COMPONENTS`` CMake
+    arg (registered via ``cg.add_cmake_arg`` at FINAL priority); the native
+    ESP-IDF writer also reads it directly to filter the built-in component
+    list.
     """
     return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
 
@@ -2148,14 +2149,16 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+def register_exclude_components_cmake_arg() -> None:
+    """Register the current exclusion set as the EXCLUDE_COMPONENTS cmake arg."""
+    if excluded := get_excluded_builtin_components():
+        cg.add_cmake_arg("EXCLUDE_COMPONENTS", ";".join(excluded))
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
-    if excluded := get_excluded_builtin_components():
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args",
-            f"-DEXCLUDE_COMPONENTS={';'.join(excluded)}",
-        )
+    register_exclude_components_cmake_arg()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
