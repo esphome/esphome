@@ -360,3 +360,114 @@ BOARDS = {
         "flash_size": FLASH_SIZE_4_MB,
     },
 }
+
+"""
+ESP8266_BOARD_BUILD generate with:
+
+git clone https://github.com/platformio/platform-espressif8266
+python3 - <<'EOF'
+import json, glob, os
+for f in sorted(glob.glob("platform-espressif8266/boards/*.json")):
+    b = json.load(open(f))["build"]
+    extra = b["extra_flags"]
+    extra = extra.split() if isinstance(extra, str) else extra
+    defines = [
+        e[2:] for e in extra if e not in ("-DESP8266", "-DARDUINO_ARCH_ESP8266")
+    ]
+    entries = ", ".join(f'"{d}"' for d in defines) + ("," if len(defines) == 1 else "")
+    board = os.path.splitext(os.path.basename(f))[0]
+    print(f'    "{board}": {{"variant": "{b["variant"]}", "defines": ({entries})}},')
+EOF
+"""
+
+# Per-board Arduino core build metadata for the native (PlatformIO-free)
+# toolchain: the variant directory (supplies pins_arduino.h) and the
+# board-identity defines the PlatformIO builder passes via build.extra_flags.
+# -DESP8266 and -DARDUINO_ARCH_ESP8266 are shared by every board and added by
+# the generator; only the per-board defines are listed here.
+ESP8266_BOARD_BUILD = {
+    "agruminolemon": {
+        "variant": "agruminolemonv4",
+        "defines": ("ARDUINO_ESP8266_AGRUMINO_LEMON_V4",),
+    },
+    "d1": {"variant": "d1", "defines": ("ARDUINO_ESP8266_WEMOS_D1R1",)},
+    "d1_mini": {"variant": "d1_mini", "defines": ("ARDUINO_ESP8266_WEMOS_D1MINI",)},
+    "d1_mini_lite": {
+        "variant": "d1_mini",
+        "defines": ("ARDUINO_ESP8266_WEMOS_D1MINILITE",),
+    },
+    "d1_mini_pro": {
+        "variant": "d1_mini",
+        "defines": ("ARDUINO_ESP8266_WEMOS_D1MINIPRO",),
+    },
+    "d1_wroom_02": {
+        "variant": "d1_mini",
+        "defines": ("ARDUINO_ESP8266_WEMOS_D1WROOM02",),
+    },
+    "eduinowifi": {
+        "variant": "eduinowifi",
+        "defines": ("ARDUINO_ESP8266_SCHIRMILABS_EDUINO_WIFI",),
+    },
+    "esp01": {"variant": "generic", "defines": ("ARDUINO_ESP8266_ESP01",)},
+    "esp01_1m": {"variant": "generic", "defines": ("ARDUINO_ESP8266_ESP01",)},
+    "esp07": {"variant": "generic", "defines": ("ARDUINO_ESP8266_ESP07",)},
+    "esp07s": {"variant": "nodemcu", "defines": ("ARDUINO_ESP8266_ESP07",)},
+    "esp12e": {"variant": "nodemcu", "defines": ("ARDUINO_ESP8266_ESP12",)},
+    "esp210": {"variant": "generic", "defines": ("ARDUINO_ESP8266_ESP210",)},
+    "esp8285": {"variant": "esp8285", "defines": ("ARDUINO_ESP8266_ESP01",)},
+    "esp_wroom_02": {
+        "variant": "nodemcu",
+        "defines": ("ARDUINO_ESP8266_ESP_WROOM_02",),
+    },
+    "espduino": {"variant": "ESPDuino", "defines": ("ARDUINO_ESP8266_ESP13",)},
+    "espectro": {"variant": "espectro", "defines": ("ARDUINO_ESP8266_ESPECTRO_CORE",)},
+    "espino": {"variant": "espino", "defines": ("ARDUINO_ESP8266_ESP12",)},
+    "espinotee": {"variant": "espinotee", "defines": ("ARDUINO_ESP8266_ESP13",)},
+    "espmxdevkit": {
+        "variant": "esp8285",
+        "defines": ("ARDUINO_ESP8266_ESP01", "LED_BUILTIN=16"),
+    },
+    "espresso_lite_v1": {
+        "variant": "espresso_lite_v1",
+        "defines": ("ARDUINO_ESP8266_ESPRESSO_LITE_V1",),
+    },
+    "espresso_lite_v2": {
+        "variant": "espresso_lite_v2",
+        "defines": ("ARDUINO_ESP8266_ESPRESSO_LITE_V2",),
+    },
+    "gen4iod": {"variant": "generic", "defines": ("ARDUINO_GEN4_IOD",)},
+    "heltec_wifi_kit_8": {
+        "variant": "wifi_kit_8",
+        "defines": ("ARDUINO_wifi_kit_8",),
+    },
+    "huzzah": {"variant": "adafruit", "defines": ("ARDUINO_ESP8266_ADAFRUIT_HUZZAH",)},
+    "inventone": {"variant": "inventone", "defines": ("ARDUINO_ESP8266_INVENT_ONE",)},
+    "modwifi": {"variant": "generic", "defines": ("ARDUINO_MOD_WIFI_ESP8266",)},
+    "nodemcu": {"variant": "nodemcu", "defines": ("ARDUINO_ESP8266_NODEMCU",)},
+    "nodemcuv2": {"variant": "nodemcu", "defines": ("ARDUINO_ESP8266_NODEMCU_ESP12E",)},
+    "oak": {"variant": "oak", "defines": ("ARDUINO_ESP8266_OAK",)},
+    "phoenix_v1": {
+        "variant": "phoenix_v1",
+        "defines": ("ARDUINO_ESP8266_PHOENIX_V1",),
+    },
+    "phoenix_v2": {
+        "variant": "phoenix_v2",
+        "defines": ("ARDUINO_ESP8266_PHOENIX_V2",),
+    },
+    "sonoff_basic": {"variant": "itead", "defines": ("ARDUINO_ESP8266_SONOFF_BASIC",)},
+    "sonoff_s20": {"variant": "itead", "defines": ("ARDUINO_ESP8266_SONOFF_S20",)},
+    "sonoff_sv": {"variant": "itead", "defines": ("ARDUINO_ESP8266_SONOFF_SV",)},
+    "sonoff_th": {"variant": "itead", "defines": ("ARDUINO_ESP8266_SONOFF_TH",)},
+    "sparkfunBlynk": {"variant": "thing", "defines": ("ARDUINO_ESP8266_THING",)},
+    "thing": {"variant": "thing", "defines": ("ARDUINO_ESP8266_THING",)},
+    "thingdev": {"variant": "thing", "defines": ("ARDUINO_ESP8266_THING_DEV",)},
+    "wifi_slot": {"variant": "wifi_slot", "defines": ("ARDUINO_AMPERKA_WIFI_SLOT",)},
+    "wifiduino": {"variant": "wifiduino", "defines": ("ARDUINO_WIFIDUINO_ESP8266",)},
+    "wifinfo": {"variant": "wifinfo", "defines": ("ARDUINO_WIFINFO",)},
+    "wio_link": {"variant": "wiolink", "defines": ("ARDUINO_ESP8266_WIO_LINK",)},
+    "wio_node": {"variant": "nodemcu", "defines": ("ARDUINO_ESP8266_ESP_WROOM_02",)},
+    "xinabox_cw01": {
+        "variant": "xinabox",
+        "defines": ("ARDUINO_ESP8266_XINABOX_CW01",),
+    },
+}
