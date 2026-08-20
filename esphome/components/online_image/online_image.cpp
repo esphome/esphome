@@ -2,6 +2,7 @@
 #include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 static const char *const TAG = "online_image";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
@@ -126,7 +127,7 @@ void OnlineImage::update() {
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
     if (str_contains_ignore_case(content_type, "image/bmp")) {
       format = runtime_image::BMP;
-    } else if (str_contains_ignore_case(content_type, "image/jpeg") or
+    } else if (str_contains_ignore_case(content_type, "image/jpeg") ||
                str_contains_ignore_case(content_type, "image/jpg")) {
       format = runtime_image::JPEG;
     } else if (str_contains_ignore_case(content_type, "image/png")) {
@@ -136,17 +137,14 @@ void OnlineImage::update() {
       this->end_connection_();
       this->download_error_callback_.call();
       return;
-    } else if (!strcmp(content_type, "")) {
-      // TODO:: implement auto-detection in runtime_image to try to detect format
-      // from the first few bytes of the image data
-      ESP_LOGW(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
     } else {
-      // TODO:: implement auto-detection in runtime_image to try to detect format
-      // from the first few bytes of the image data
-      ESP_LOGE(TAG, "Could not determine image format from Content-Type: '%s'. Set `format:` explicitly", content_type);
+      // TODO: implement auto-detection in runtime_image by sniffing the first few bytes of the image data
+      if (content_type_header.empty()) {
+        ESP_LOGW(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else {
+        ESP_LOGE(TAG, "Could not determine image format from Content-Type: '%s'. Set `format:` explicitly",
+                 content_type);
+      }
       this->end_connection_();
       this->download_error_callback_.call();
       return;
