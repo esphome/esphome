@@ -642,8 +642,8 @@ ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
 )
 
 # Infrastructure whose changes always trigger the native ESP8266 compile
-# test. esphome/espidf/ is included because the backend shares its idedata,
-# extra-script, and size-summary helpers.
+# test. esphome/build_helpers/ holds the idedata and size-summary helpers
+# the backend shares with the native ESP-IDF build.
 ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino8266/",
     "esphome/build_helpers/",
@@ -651,6 +651,8 @@ ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
 ESP8266_NATIVE_TRIGGER_FILES = frozenset(
     {
         "esphome/build_gen/arduino8266.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/platformio/extra_script.py",
         "esphome/components/esp8266/build_surgery.py",
         "esphome/components/esp8266/boards.py",
         "esphome/platformio/library.py",

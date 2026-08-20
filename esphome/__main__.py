@@ -813,7 +813,7 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
+    elif CORE.using_toolchain_arduino:
         # The ninja project is generated at compile time by
         # esphome.arduino8266.toolchain (it needs the downloaded framework).
         pass
@@ -968,7 +968,7 @@ def upload_using_esptool(
         flash_images = [
             FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
         ]
-    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
+    elif CORE.using_toolchain_arduino:
         # The native backend writes PlatformIO-compatible output paths, so the
         # shared property already points at the right file.
         flash_images = [FlashImage(path=CORE.firmware_bin, offset="0x0")]
@@ -1917,14 +1917,27 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
+def _native_toolchain_module():
+    """The native build backend module for the resolved toolchain, if any.
+
+    Platform toolchain validation rejects values a platform cannot serve, so
+    using_toolchain_arduino by itself implies the native ESP8266 build.
+    """
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain
+
+        return toolchain
+    if CORE.using_toolchain_arduino:
+        from esphome.arduino8266 import toolchain
+
+        return toolchain
+    return None
+
+
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
-    native_toolchain = None
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain as native_toolchain
-    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
-        from esphome.arduino8266 import toolchain as native_toolchain
+    native_toolchain = _native_toolchain_module()
 
     if native_toolchain is not None:
         # Native toolchains derive idedata from the build's
@@ -1979,11 +1992,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    native_toolchain = None
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain as native_toolchain
-    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
-        from esphome.arduino8266 import toolchain as native_toolchain
+    native_toolchain = _native_toolchain_module()
 
     if native_toolchain is not None:
         objdump_path = str(native_toolchain.get_objdump_path())

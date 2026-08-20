@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
+    _resolve_toolchain,
     _validate_native_toolchain,
 )
 import esphome.config_validation as cv
@@ -16,6 +18,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
+    CONF_TOOLCHAIN,
     CONF_VERSION,
     Toolchain,
 )
@@ -101,9 +104,6 @@ def test_unsupported_board_rejected() -> None:
 
 def test_yaml_toolchain_key_resolves() -> None:
     """The documented `toolchain: arduino` YAML key selects the native path."""
-    from esphome.components.esp8266 import _resolve_toolchain
-    from esphome.const import CONF_TOOLCHAIN
-
     CORE.toolchain = None
     _resolve_toolchain({CONF_TOOLCHAIN: Toolchain.ARDUINO})
     assert CORE.toolchain == Toolchain.ARDUINO
@@ -112,8 +112,6 @@ def test_yaml_toolchain_key_resolves() -> None:
 
 def test_yaml_toolchain_key_defaults_to_platformio() -> None:
     CORE.toolchain = None
-    from esphome.components.esp8266 import _resolve_toolchain
-
     _resolve_toolchain({})
     assert CORE.toolchain == Toolchain.PLATFORMIO
 
@@ -122,8 +120,6 @@ def test_decode_pc_native_missing_tools_warns_once(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A stack dump of many addresses produces one missing-tool warning."""
-    from unittest.mock import patch
-
     from esphome.components import esp8266
 
     esp8266._warn_missing_decode_tool.cache_clear()

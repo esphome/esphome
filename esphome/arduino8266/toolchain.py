@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 import subprocess
 
@@ -15,7 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import IS_WINDOWS, write_file_if_changed
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ def get_elf_path() -> Path:
 
 
 # Windows binutils carry the executable suffix; is_file() checks need it
-_EXE_SUFFIX = ".exe" if os.name == "nt" else ""
+_EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 
 
 def _toolchain_tool(name: str) -> Path:

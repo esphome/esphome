@@ -7150,54 +7150,24 @@ def test_upload_using_esptool_arduino_toolchain(
     assert cmd_list[firmware_offset_idx + 1] == str(CORE.firmware_bin)
 
 
-def test_write_cpp_file_arduino_toolchain_writes_no_project(tmp_path: Path) -> None:
-    """The native ESP8266 Arduino toolchain generates its project at compile
-    time, so write_cpp_file must not write a platformio.ini."""
-    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
-    CORE.toolchain = Toolchain.ARDUINO
-
-    with (
-        patch("esphome.writer.write_cpp") as mock_write_cpp,
-        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
-        patch.object(
-            type(CORE), "cpp_main_section", new_callable=PropertyMock
-        ) as mock_section,
-    ):
-        mock_section.return_value = ""
-        assert main.write_cpp_file() == 0
-
-    mock_write_cpp.assert_called_once()
-    mock_pio_project.assert_not_called()
-
-
-def test_write_cpp_file_platformio_toolchain_writes_project(tmp_path: Path) -> None:
-    """The default toolchain writes the PlatformIO project files."""
-    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
-
-    with (
-        patch("esphome.writer.write_cpp") as mock_write_cpp,
-        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
-        patch.object(
-            type(CORE), "cpp_main_section", new_callable=PropertyMock
-        ) as mock_section,
-    ):
-        mock_section.return_value = ""
-        assert main.write_cpp_file() == 0
-
-    mock_write_cpp.assert_called_once()
-    mock_pio_project.assert_called_once()
-
-
-def test_write_cpp_file_arduino_toolchain_other_platform_falls_through(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("toolchain", "pio_project_written"),
+    [
+        # The native toolchain generates its project at compile time, so
+        # write_cpp_file must not write a platformio.ini; the default
+        # toolchain writes the PlatformIO project files.
+        (Toolchain.ARDUINO, False),
+        (None, True),
+    ],
+)
+def test_write_cpp_file_project_generation_follows_toolchain(
+    tmp_path: Path, toolchain: Toolchain | None, pio_project_written: bool
 ) -> None:
-    """The 'arduino' toolchain is ESP8266-only; other platforms keep the
-    PlatformIO project generation."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
-    CORE.toolchain = Toolchain.ARDUINO
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = toolchain
 
     with (
-        patch("esphome.writer.write_cpp"),
+        patch("esphome.writer.write_cpp") as mock_write_cpp,
         patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
         patch.object(
             type(CORE), "cpp_main_section", new_callable=PropertyMock
@@ -7206,7 +7176,8 @@ def test_write_cpp_file_arduino_toolchain_other_platform_falls_through(
         mock_section.return_value = ""
         assert main.write_cpp_file() == 0
 
-    mock_pio_project.assert_called_once()
+    mock_write_cpp.assert_called_once()
+    assert mock_pio_project.called is pio_project_written
 
 
 def test_command_idedata_arduino_prints_json(
@@ -7238,77 +7209,39 @@ def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
     assert result == 1
 
 
-def test_command_analyze_memory_arduino_toolchain(
+@pytest.mark.parametrize(
+    ("platform", "toolchain", "module"),
+    [
+        (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
+        (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
+    ],
+)
+def test_command_analyze_memory_native_toolchains(
     tmp_path: Path,
     mock_write_cpp: Mock,
     mock_compile_program: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
     mock_ram_strings_analyzer: Mock,
+    platform: str,
+    toolchain: Toolchain,
+    module: str,
 ) -> None:
-    """analyze-memory uses the native toolchain's binutils under
-    'toolchain: arduino' instead of falling into the PlatformIO branch."""
-    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
-    CORE.toolchain = Toolchain.ARDUINO
+    """analyze-memory uses the native toolchain's binutils instead of
+    falling into the PlatformIO branch."""
+    setup_core(platform=platform, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = toolchain
 
     config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
     with (
-        patch(
-            "esphome.arduino8266.toolchain.get_objdump_path",
-            return_value=Path("/tc/objdump"),
-        ),
-        patch(
-            "esphome.arduino8266.toolchain.get_readelf_path",
-            return_value=Path("/tc/readelf"),
-        ),
-        patch(
-            "esphome.arduino8266.toolchain.get_elf_path",
-            return_value=Path("/build/firmware.elf"),
-        ),
+        patch(f"{module}.get_objdump_path", return_value=Path("/tc/objdump")),
+        patch(f"{module}.get_readelf_path", return_value=Path("/tc/readelf")),
+        patch(f"{module}.get_elf_path", return_value=Path("/build/firmware.elf")),
     ):
         result = command_analyze_memory(MockArgs(), config)
 
     assert result == 0
     # str(Path(...)) so the expectation matches the platform's separators
-    mock_memory_analyzer_cli.assert_called_once_with(
-        str(Path("/build/firmware.elf")),
-        str(Path("/tc/objdump")),
-        str(Path("/tc/readelf")),
-        set(),
-        idedata=None,
-    )
-
-
-def test_command_analyze_memory_esp_idf_toolchain(
-    tmp_path: Path,
-    mock_write_cpp: Mock,
-    mock_compile_program: Mock,
-    mock_get_esphome_components: Mock,
-    mock_memory_analyzer_cli: Mock,
-    mock_ram_strings_analyzer: Mock,
-) -> None:
-    """analyze-memory uses the ESP-IDF toolchain's binutils natively."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
-    CORE.toolchain = Toolchain.ESP_IDF
-
-    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
-    with (
-        patch(
-            "esphome.espidf.toolchain.get_objdump_path",
-            return_value=Path("/tc/objdump"),
-        ),
-        patch(
-            "esphome.espidf.toolchain.get_readelf_path",
-            return_value=Path("/tc/readelf"),
-        ),
-        patch(
-            "esphome.espidf.toolchain.get_elf_path",
-            return_value=Path("/build/firmware.elf"),
-        ),
-    ):
-        result = command_analyze_memory(MockArgs(), config)
-
-    assert result == 0
     mock_memory_analyzer_cli.assert_called_once_with(
         str(Path("/build/firmware.elf")),
         str(Path("/tc/objdump")),

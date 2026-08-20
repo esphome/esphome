@@ -118,11 +118,7 @@ def _resolve_toolchain(config: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
     if CORE.toolchain is None:
         CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
-    if CORE.toolchain not in (Toolchain.PLATFORMIO, Toolchain.ARDUINO):
-        raise cv.Invalid(
-            f"Unsupported toolchain '{CORE.toolchain.value}' for ESP8266. "
-            "Supported toolchains are 'platformio' and 'arduino'."
-        )
+    cv.check_supported_toolchain("ESP8266", (Toolchain.PLATFORMIO, Toolchain.ARDUINO))
     return config
 
 
@@ -152,6 +148,8 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
             "'toolchain: arduino' does not support a custom framework source; "
             "use 'toolchain: platformio'"
         )
+    # BOARDS is a subset of ESP8266_BOARD_BUILD today; the second clause is
+    # a drift guard for the independently regenerated tables
     if (
         config[CONF_BOARD] not in BOARDS
         or config[CONF_BOARD] not in ESP8266_BOARD_BUILD
@@ -617,10 +615,9 @@ def _decode_pc(config, addr):
 
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
-        if not addr2line.is_file() or not elf.is_file():
-            _warn_missing_decode_tool(
-                str(addr2line if not addr2line.is_file() else elf)
-            )
+        missing = addr2line if not addr2line.is_file() else elf
+        if not missing.is_file():
+            _warn_missing_decode_tool(str(missing))
             return
         addr2line, elf = str(addr2line), str(elf)
     else:
