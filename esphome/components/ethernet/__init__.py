@@ -4,6 +4,7 @@ import logging
 from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components import spi
 from esphome.components.network import (
     add_use_address,
     get_network_priority,
@@ -36,6 +37,7 @@ from esphome.const import (
     CONF_POLLING_INTERVAL,
     CONF_RESET_PIN,
     CONF_SPI,
+    CONF_SPI_ID,
     CONF_STATIC_IP,
     CONF_SUBNET,
     CONF_TYPE,
@@ -258,9 +260,41 @@ def _is_framework_spi_polling_mode_supported() -> bool:
     return False
 
 
+# Options that come from the referenced spi bus when spi_id is set
+_SPI_BUS_PROVIDED_OPTIONS = (
+    CONF_CLK_PIN,
+    CONF_MOSI_PIN,
+    CONF_MISO_PIN,
+    CONF_INTERFACE,
+)
+
+
+def _validate_spi_bus(config: ConfigType) -> ConfigType:
+    """Cross-validate spi_id against the options the referenced bus provides."""
+    if CONF_SPI_ID in config:
+        for key in _SPI_BUS_PROVIDED_OPTIONS:
+            if key in config:
+                raise cv.Invalid(
+                    f"'{key}' cannot be used together with '{CONF_SPI_ID}'; "
+                    f"it comes from the referenced 'spi:' bus.",
+                    path=[key],
+                )
+    else:
+        for key in (CONF_CLK_PIN, CONF_MOSI_PIN, CONF_MISO_PIN):
+            if key not in config:
+                raise cv.Invalid(
+                    f"'{key}' is a required option when '{CONF_SPI_ID}' is not set.",
+                    path=[key],
+                )
+    return config
+
+
 def _validate_spi_interface(config: ConfigType) -> ConfigType:
     """Set default SPI interface or validate user choice against the variant."""
     if not CORE.is_esp32:
+        return config
+    if CONF_SPI_ID in config:
+        # The interface comes from the referenced spi bus; don't set a default.
         return config
     from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
     from esphome.components.spi import get_hw_interface_list
@@ -446,9 +480,14 @@ def _spi_schema(default_clock: str = "26.67MHz", max_clock: int = int(80e6)):
         BASE_SCHEMA.extend(
             cv.Schema(
                 {
-                    cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
-                    cv.Required(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
-                    cv.Required(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
+                    # clk/mosi/miso are required unless spi_id is set; enforced
+                    # by _validate_spi_bus below.
+                    cv.Optional(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Optional(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
+                    cv.Optional(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Optional(CONF_SPI_ID): cv.All(
+                        cv.only_on_esp32, cv.use_id(spi.SPIComponent)
+                    ),
                     cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
                     cv.Optional(
                         CONF_INTERRUPT_PIN
@@ -473,6 +512,7 @@ def _spi_schema(default_clock: str = "26.67MHz", max_clock: int = int(80e6)):
             ),
         ),
         cv.only_on([Platform.ESP32, Platform.RP2]),
+        _validate_spi_bus,
         _validate_spi_interface,
     )
 
@@ -523,6 +563,25 @@ def _final_validate_spi(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
+
+    if (spi_id := config.get(CONF_SPI_ID)) is not None:
+        # Sharing the bus: the referenced spi component must own a hardware
+        # host (the IDF ethernet drivers require one) and expose MISO so the
+        # ethernet chip can be read.
+        spi_conf = next(
+            c for c in fv.full_config.get()[CONF_SPI] if c[CONF_ID] == spi_id
+        )
+        if CONF_INTERFACE_INDEX not in spi_conf:
+            raise cv.Invalid(
+                f"The 'spi' bus referenced by '{CONF_SPI_ID}' must use a hardware "
+                f"'{CONF_INTERFACE}' to be shared with 'ethernet'."
+            )
+        if CONF_MISO_PIN not in spi_conf:
+            raise cv.Invalid(
+                f"The 'spi' bus referenced by '{CONF_SPI_ID}' must declare a "
+                f"'{CONF_MISO_PIN}' to be shared with 'ethernet'."
+            )
+        return
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         # get_spi_interface() returns strings like "SPI2_HOST"
@@ -620,9 +679,15 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     )
 
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
-        cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
-        cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
-        cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+        if (spi_id := config.get(CONF_SPI_ID)) is not None:
+            # Pins and host come from the shared spi bus.
+            spi_parent = await cg.get_variable(spi_id)
+            cg.add(var.set_spi_parent(spi_parent))
+        else:
+            cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+            cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+            cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
         if CONF_INTERRUPT_PIN in config:
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
@@ -636,7 +701,6 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
 
         cg.add_define("USE_ETHERNET_SPI")
 
-        cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # Types that are never built into IDF ship no Kconfig option at all
