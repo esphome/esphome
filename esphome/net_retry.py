@@ -12,34 +12,22 @@ import time
 
 _LOGGER = logging.getLogger(__name__)
 
-# Transient network failures are retried with 2s/4s backoff, matching
-# git.py's _NETWORK_MAX_ATTEMPTS and framework_helpers' mirror downloads.
-# Worst case per fetch is NETWORK_MAX_ATTEMPTS timeouts plus 6s of sleeps;
-# callers are expected to memoize failures so a flaky host pays that at
-# most once per file per run.
+# 3 tries with 2s/4s backoff, matching git.py's _NETWORK_MAX_ATTEMPTS.
+# Callers memoize failures so a flaky host pays this once per file per run.
 NETWORK_MAX_ATTEMPTS = 3
 
 
 def _is_permanent_dns_failure(e: BaseException) -> bool:
-    """Whether a permanent socket.gaierror hides in ``e``'s exception chain.
+    """Whether a hard socket.gaierror hides in ``e``'s exception chain.
 
-    EAI_AGAIN ("temporary failure in name resolution", the flaky container
-    resolver case) stays retryable; only hard resolution failures like
-    NXDOMAIN count. Everything except EAI_AGAIN is treated as permanent:
-    deliberately narrower than git.py, which retries NXDOMAIN too. Codes
-    like EAI_NONAME can occur during a brief network outage, but a 6s
-    backoff rarely outlives one, and permanent means callers with a cached
-    copy fall back to it immediately instead of sleeping first (the
-    offline-build case). The trade-off is that a hard resolver failure on
-    a first download fails without retrying, same as before retries
-    existed.
+    EAI_AGAIN (flaky resolver) stays retryable; anything else is permanent
+    so offline builds fall back to their cache without sleeping first.
+    Narrower than git.py, which retries NXDOMAIN too.
 
-    Only the deliberate chain is walked: ``__cause__``, ``args`` (requests
-    wraps MaxRetryError as ``ConnectionError(e)`` without ``from``) and
-    urllib3 MaxRetryError's ``reason`` attribute (NameResolutionError never
-    lands on the cause chain). Implicit ``__context__`` is skipped so a
-    resolution failure from an unrelated earlier attempt cannot reclassify
-    an error it did not cause.
+    Walks ``__cause__``, ``args`` (requests wraps MaxRetryError without
+    ``from``) and MaxRetryError's ``reason``, but not implicit
+    ``__context__``: an unrelated earlier attempt's resolution failure
+    must not reclassify an error it did not cause.
     """
     import socket
 
@@ -71,10 +59,8 @@ def _is_permanent_dns_failure(e: BaseException) -> bool:
 def is_transient_download_error(e: Exception) -> bool:
     """Return True when a download failure is worth retrying.
 
-    Connection-level failures and HTTP 429/5xx are transient. Hard name
-    resolution failures (NXDOMAIN, offline hosts; not EAI_AGAIN), other
-    HTTP errors, local errors, and exhausted-attempts EsphomeError
-    wrappers (their per-mirror retries are already spent) are permanent.
+    Connection-level failures and HTTP 429/5xx are transient; hard DNS
+    failures, other HTTP errors, and local errors are permanent.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only
     # needed when actually downloading, never during config validation.
@@ -99,9 +85,9 @@ def is_transient_download_error(e: Exception) -> bool:
 
 
 def fetch_with_retry[T](url: str, fetch: Callable[[], T], what: str = "Download") -> T:
-    """Run ``fetch``, retrying failures that ``is_transient_download_error``
-    classifies as transient with 2s/4s backoff. Other failures and the
-    final attempt's failure propagate to the caller's fallback handling.
+    """Run ``fetch``, retrying transient failures with 2s/4s backoff.
+
+    Permanent failures and the final attempt propagate to the caller;
     ``what`` names the operation in the retry warning.
     """
     import requests

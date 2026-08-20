@@ -83,10 +83,8 @@ def mock_download_content_many() -> MagicMock:
 
 @pytest.fixture
 def mock_retry_sleep() -> MagicMock:
-    """Patch the retry backoff sleep (module-global time.sleep, so the
-    blast radius is the whole process) for tests that inject transient
-    network errors; without it they would really wait 2s/4s per retry.
-    Retry tests assert on this mock's call args.
+    """Patch the retry backoff sleep (process-wide; net_retry.time is the
+    global module) so transient-error tests don't really wait 2s/4s.
     """
     with patch("esphome.net_retry.time.sleep") as m:
         yield m

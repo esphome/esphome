@@ -158,14 +158,11 @@ def has_remote_file_changed(
             }
             if etag := _read_etag(local_file_path):
                 headers[IF_NONE_MATCH] = etag
-            # Retried even though a failure degrades gracefully to the
-            # cached copy below: allow_stale=False consumers reject an
-            # unverified copy, so for them a healed flake avoids a hard
-            # failure in download_content. Only connection-level failures
-            # are retryable here; HEAD never raises on an HTTP status
-            # (deliberately: servers that reject HEAD with 405/501 fall
-            # through to "changed" and the GET below handles them), so a
-            # 5xx lands in the != 304 branch and the GET's retry covers it.
+            # Retried so allow_stale=False consumers don't hard-fail on a
+            # healed flake. Only connection-level failures retry: HEAD
+            # never raises on HTTP status (servers rejecting HEAD with
+            # 405/501 must fall through to the GET), so 5xx is handled by
+            # the GET's own retry.
             response = fetch_with_retry(
                 url,
                 lambda: requests.head(

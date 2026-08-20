@@ -39,10 +39,8 @@ class TestIsTransientDownloadError:
         assert not is_transient_download_error(req.HTTPError("boom"))
 
     def test_hard_dns_failures_are_permanent(self) -> None:
-        """Hard name resolution failures won't heal within a retry window;
-        offline builds must fall back to their cache without sleeping first.
-        requests can surface the gaierror via the cause chain or via
-        urllib3's MaxRetryError.reason attribute."""
+        """Hard resolution failures are permanent via both the cause chain
+        and MaxRetryError.reason."""
         from urllib3.exceptions import MaxRetryError, NameResolutionError
 
         gai = socket.gaierror(socket.EAI_NONAME, "nodename nor servname provided")
@@ -51,9 +49,8 @@ class TestIsTransientDownloadError:
         chained.__cause__ = gai
         assert not is_transient_download_error(chained)
 
-        # The real urllib3 shape, raised the way urllib3 raises it: the
-        # gaierror is NameResolutionError.__cause__ (set at the raise
-        # site), which MaxRetryError carries in its reason attribute.
+        # The real urllib3 shape: gaierror on NameResolutionError.__cause__,
+        # carried by MaxRetryError.reason.
         try:
             raise NameResolutionError("example.invalid", None, gai) from gai
         except NameResolutionError as nre:
@@ -66,8 +63,7 @@ class TestIsTransientDownloadError:
         assert is_transient_download_error(req.ConnectionError("reset by peer"))
 
     def test_temporary_dns_failure_stays_transient(self) -> None:
-        """EAI_AGAIN is a temporary resolver failure (flaky container DNS)
-        and does heal, matching git.py's policy of retrying DNS flakes."""
+        """EAI_AGAIN (flaky resolver) stays retryable."""
         gai = socket.gaierror(socket.EAI_AGAIN, "temporary failure in name resolution")
         chained = req.ConnectionError("resolution failed")
         chained.__cause__ = gai
@@ -75,9 +71,8 @@ class TestIsTransientDownloadError:
         assert is_transient_download_error(chained)
 
     def test_implicit_context_does_not_reclassify(self) -> None:
-        """A resolution failure from an unrelated earlier attempt reaches the
-        final error only via implicit __context__ (raise inside an except
-        block); it must not turn a genuine connection reset permanent."""
+        """A gaierror riding along as implicit __context__ must not turn a
+        genuine connection reset permanent."""
         try:
             try:
                 raise socket.gaierror(socket.EAI_NONAME, "first attempt")
@@ -133,8 +128,7 @@ class TestFetchWithRetry:
     def test_logs_the_upcoming_attempt_number(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """The warning names the attempt about to run, not the one that just
-        failed, so a user sees attempt 2/3 and 3/3 before the final failure."""
+        """The warning names the attempt about to run, not the failed one."""
         with (
             patch("esphome.net_retry.time.sleep") as mock_sleep,
             pytest.raises(req.ConnectionError),
