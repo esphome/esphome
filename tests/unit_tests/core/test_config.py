@@ -1389,3 +1389,36 @@ def test_esphome_build_internals_are_yaml_only() -> None:
         assert markers[field].visibility is cv.Visibility.ADVANCED, field
     # A regular device-config field stays on the main form.
     assert markers[CONF_NAME_ADD_MAC_SUFFIX].visibility is None
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_native_arduino(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The native ESP8266 Arduino toolchain warns about ignored options the
+    same way the native IDF toolchain does."""
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    await config._add_platformio_options(
+        {
+            "board_build.f_cpu": "160000000L",
+            "upload_speed": "115200",
+        }
+    )
+
+    assert "esphome->platformio_options->board_build.f_cpu is ignored" in caplog.text
+    assert "'arduino' toolchain" in caplog.text
+    assert "upload_speed" not in caplog.text
+
+
+def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
+    """Until the native backend lands, ESP8266 serves only PlatformIO."""
+    from esphome.components.esp8266 import CONFIG_SCHEMA
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        CONFIG_SCHEMA({"board": "nodemcuv2"})

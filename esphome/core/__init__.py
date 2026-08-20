@@ -983,6 +983,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_arduino(self):
+        return self.toolchain == Toolchain.ARDUINO
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 

@@ -619,3 +619,14 @@ def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> N
     assert not python.exists()
 
     assert _needs_venv_rebuild(python, sentinel, "abc123")
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
+    from esphome.components.nrf52 import _resolve_toolchain
+    import esphome.config_validation as cv
+    from esphome.const import Toolchain
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        _resolve_toolchain({})

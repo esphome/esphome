@@ -21,6 +21,8 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    # ESP8266: the Arduino core built directly (no PlatformIO)
+    ARDUINO = "arduino"
 
 
 class Platform(StrEnum):

@@ -557,10 +557,12 @@ def _add_library_str(lib: str) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
-    if CORE.using_toolchain_esp_idf:
-        # The native ESP-IDF build doesn't read platformio.ini; honor the
-        # options with a native equivalent and warn about the rest, which
-        # would otherwise be silently ignored.
+    if CORE.using_toolchain_esp_idf or (
+        CORE.using_toolchain_arduino and CORE.is_esp8266
+    ):
+        # The native builds don't read platformio.ini; honor the options
+        # with a native equivalent and warn about the rest, which would
+        # otherwise be silently ignored.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -588,8 +590,9 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # config at upload time (upload_using_esptool)
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
-                    "the native ESP-IDF toolchain",
+                    "the native '%s' toolchain",
                     key,
+                    CORE.toolchain.value,
                 )
         return
     # Add includes at the very end, so that they override everything

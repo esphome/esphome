@@ -1083,6 +1083,11 @@ def _resolve_toolchain(value: ConfigType) -> ConfigType:
     # CORE.toolchain instead of re-resolving it from the config dict.
     if CORE.toolchain is None:
         CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
+    if CORE.toolchain not in (Toolchain.PLATFORMIO, Toolchain.ESP_IDF):
+        raise cv.Invalid(
+            f"Unsupported toolchain '{CORE.toolchain.value}' for ESP32. "
+            "Supported toolchains are 'platformio' and 'esp-idf'."
+        )
     return value
 
 

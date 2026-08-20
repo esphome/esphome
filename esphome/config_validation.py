@@ -2532,6 +2532,28 @@ def platformio_version_constraint(value):
     return constraints
 
 
+def require_platformio_toolchain(platform_name: str):
+    """Reject a CLI-selected toolchain other than PlatformIO.
+
+    For platforms with only the PlatformIO backend; without this a
+    ``--toolchain`` they cannot serve would silently build with PlatformIO.
+    """
+
+    def validator(config):
+        from esphome.const import Toolchain
+
+        if CORE.toolchain is None:
+            CORE.toolchain = Toolchain.PLATFORMIO
+        if CORE.toolchain != Toolchain.PLATFORMIO:
+            raise Invalid(
+                f"Unsupported toolchain '{CORE.toolchain.value}' for "
+                f"{platform_name}. The only supported toolchain is 'platformio'."
+            )
+        return config
+
+    return validator
+
+
 def require_framework_version(
     *,
     max_version=False,
