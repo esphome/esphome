@@ -11,7 +11,6 @@ consumers (IDE integration, clang-tidy) expect:
 
 from __future__ import annotations
 
-import functools
 import json
 import logging
 import os
@@ -19,6 +18,8 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+
+from esphome.helpers import write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -132,11 +133,16 @@ _COMPILER_STEM = re.compile(
 )
 
 
-@functools.cache
+# Deduplicates the warning across a compile DB of hundreds of entries;
+# cleared per idedata build (a module-level functools.cache would suppress
+# the warning for the process lifetime in non-forking hosts).
+_warned_not_a_compiler: set[str] = set()
+
+
 def _warn_not_a_compiler(token: str) -> None:
-    # A stale compile DB built with a launcher the current run no longer
-    # configures would otherwise cache the launcher as the compiler path.
-    # Cached so a database of hundreds of entries warns once per path.
+    if token in _warned_not_a_compiler:
+        return
+    _warned_not_a_compiler.add(token)
     _LOGGER.warning("compile_commands entry does not start with a compiler: %s", token)
 
 
@@ -162,6 +168,14 @@ def parse_entry(
     # second. The caller passes the exact launcher it configured into the
     # build, so this is a comparison, not a guess by name.
     if launcher is not None and tokens[0] == launcher:
+        tokens = tokens[1:]
+    if (
+        not _COMPILER_STEM.search(Path(tokens[0]).stem)
+        and len(tokens) > 1
+        and _COMPILER_STEM.search(Path(tokens[1]).stem)
+    ):
+        # A stale compile DB built with a launcher the current run no longer
+        # configures: the real compiler is the next token.
         tokens = tokens[1:]
     if not _COMPILER_STEM.search(Path(tokens[0]).stem):
         _warn_not_a_compiler(tokens[0])
@@ -268,8 +282,10 @@ def load_or_build_idedata(
     if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
         try:
             cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            pass
+        except ValueError as err:
+            # A recurring cause (interrupted write, disk full) would otherwise
+            # look like unexplained slow builds
+            _LOGGER.warning("Discarding unreadable idedata cache %s: %s", cache, err)
         else:
             # Caches written before cc_path was emitted stay newer than
             # compile_commands.json forever, so rebuild them on the field rather
@@ -280,29 +296,48 @@ def load_or_build_idedata(
 
     data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    if _COMPILER_STEM.search(Path(data["cxx_path"]).stem):
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        # Atomic so a crash mid-write cannot leave a truncated cache
+        write_file(cache, json.dumps(data, indent=2) + "\n")
+    else:
+        # parse_entry already warned; serve the data for this run but never
+        # persist a known-bad compiler path (the cache would outlive the
+        # timestamp check and hide the fault)
+        _LOGGER.debug("Not caching idedata with unrecognized compiler path")
     return data
 
 
 def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
-    A single ESP-IDF compile entry only carries its own component's REQUIRES
-    include set, but consumers (clang-tidy) analyze ESPHome headers that
-    transitively pull in other components. So take cxx_path / cxx_flags /
-    defines from a representative ESPHome TU, but union the include dirs across
-    all ESPHome TUs to get a project-wide superset (as PlatformIO's idedata
-    provides).
+    A single compile entry only carries the include set its own translation
+    unit was built with (per-component under ESP-IDF), but consumers
+    (clang-tidy) analyze ESPHome headers that transitively pull in other
+    components. So take cxx_path / cxx_flags / defines from a representative
+    ESPHome TU, but union the include dirs across all ESPHome TUs to get a
+    project-wide superset (as PlatformIO's idedata provides).
     """
+    _warned_not_a_compiler.clear()
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    cxx_path, defines, _, cxx_flags = parse_entry(_pick_entry(entries), launcher)
+
+    # ninja-generated compile DBs repeat one identical multi-KB command per
+    # source file; parse each distinct (directory, command) once.
+    parsed: dict[tuple[str, str], tuple[str, list[str], list[str], list[str]]] = {}
+
+    def _parse(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
+        key = (entry["directory"], entry["command"])
+        if key not in parsed:
+            parsed[key] = parse_entry(entry, launcher)
+        return parsed[key]
+
+    cxx_path, defines, _, cxx_flags = _parse(_pick_entry(entries))
 
     build_includes: dict[str, None] = {}
     for entry in entries:
         if not _is_esphome_src(entry["file"]):
             continue
-        for inc in parse_entry(entry, launcher)[2]:
+        for inc in _parse(entry)[2]:
             build_includes.setdefault(inc, None)
 
     return {

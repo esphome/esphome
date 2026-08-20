@@ -1069,10 +1069,11 @@ def test_idf_component_download_passes_salt() -> None:
     assert c.path == Path("/converted/owner/name")
 
 
-def test_apply_extra_script_wrapper_wires_esp32_target(tmp_path, monkeypatch):
-    """The espidf wrapper resolves the esp32 variant into the shared helper."""
+def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
+    """Emitting a component resolves the esp32 variant into the shared
+    extraScript helper."""
     from esphome.components import esp32 as esp32_module
-    from esphome.espidf.component import _apply_extra_script
+    from esphome.espidf.component import _emit_idf_component
 
     monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
     (tmp_path / "src").mkdir()
@@ -1081,5 +1082,5 @@ def test_apply_extra_script_wrapper_wires_esp32_target(tmp_path, monkeypatch):
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py"}}
-    _apply_extra_script(c)
+    _emit_idf_component(c)
     assert c.data["build"]["flags"] == ["-lesp32"]
