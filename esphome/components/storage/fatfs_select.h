@@ -28,6 +28,8 @@ static constexpr uint8_t FS_SELECT_EXFAT = 2;
 // signatures name no FatFs type, so storage.cpp needs no FatFs include.
 void fatfs_log_probe_read_failed(const char *tag);
 void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat);
+void fatfs_log_unreadable(const char *tag);
+void fatfs_log_no_reformat(const char *tag);
 void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat);
 void fatfs_log_format_failed(const char *tag, bool want_exfat, int result);
 void fatfs_log_format_done(const char *tag, bool want_exfat);
@@ -105,23 +107,33 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
 // reformatted to the requested one right here -- destructive by configured contract, and the
 // subsequent mount is then already on the correct filesystem. Returns false only when the
 // reformat itself failed.
-inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested) {
+inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested,
+                                        bool format_on_mismatch) {
   if (requested == FS_SELECT_AUTO)
     return true;
   const bool want_exfat = requested == FS_SELECT_EXFAT;
   FatfsDetected found = fatfs_probe(tag, pdrv);
+  // only reformat if explicitly desired by user
   if (found == FatfsDetected::UNREADABLE) {
-    // The probe could not read the medium, which says nothing about what is on it. Formatting
-    // here would destroy a perfectly good filesystem over a card that was not ready yet or a
-    // connector that flickered. Leave it alone and let the mount below report the trouble.
-    return true;
+    fatfs_log_unreadable(tag);
+    return false;
   }
-  if ((found == FatfsDetected::EXFAT) == want_exfat && found != FatfsDetected::NONE)
+  if ((found == FatfsDetected::EXFAT) == want_exfat)
     return true;
   if (found == FatfsDetected::NONE) {
-    fatfs_log_reformat_no_filesystem(tag, want_exfat);
+    if (format_on_mismatch) {
+      fatfs_log_reformat_no_filesystem(tag, want_exfat);
+    } else {
+      fatfs_log_no_reformat(tag);
+      return false;
+    }
   } else {
-    fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
+    if (format_on_mismatch) {
+      fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
+    } else {
+      fatfs_log_no_reformat(tag);
+      return false;
+    }
   }
   auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
   MKFS_PARM parm{};

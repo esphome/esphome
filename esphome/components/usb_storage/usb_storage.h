@@ -143,6 +143,8 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   void set_vid(uint16_t vid) { this->vid_ = vid; }
   void set_pid(uint16_t pid) { this->pid_ = pid; }
   void set_storage_id(const char *id) { this->storage_id_ = id; }
+  voud set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ =
+                              format_on_mismatch; }
 
   // Called by USBStorageClient on connect/disconnect events
   void on_device_connected(const char *mount_path);
@@ -207,6 +209,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   uint16_t pid_{0};
   const char *storage_id_{nullptr};
   bool fs_mounted_{false};
+  bool format_on_mismatch_{false};
   // Deferred-unmount state: unmount() only requests the unmount (sets this flag); loop()
   // performs the actual sync + unmount once no file handle is open and no worker job still
   // touches this device. is_mounted() stays true until then, so an interval-based remount

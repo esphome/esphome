@@ -36,6 +36,7 @@ AUTO_LOAD = ["storage"]
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ON_MOUNTED = "on_mounted"
+CONF_FORMAT_ON_MISMATCH = "format_on_mismatch"
 
 usb_storage_ns = cg.esphome_ns.namespace("usb_storage")
 
@@ -98,6 +99,7 @@ DEVICE_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_MOUNT_PATH): validate_mount_path,
         cv.Optional(CONF_VID, default=0x0000): cv.hex_uint16_t,
         cv.Optional(CONF_PID, default=0x0000): cv.hex_uint16_t,
+        cv.Optional(CONF_FORMAT_ON_MISMATCH, default=False): cv.boolean,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DeviceMountedTrigger),
@@ -151,6 +153,7 @@ async def to_code(config):
 
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_storage_device(device, var)
+    cg.add(var.set_format_on_mismatch(config[CONF_FORMAT_ON_MISMATCH]))
 
     cg.add_define("USE_USB_BULK_TRANSFERS")
     cg.add_define("USE_USB_CONTROL_TRANSFERS")
