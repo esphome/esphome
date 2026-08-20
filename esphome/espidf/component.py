@@ -42,17 +42,6 @@ def _idf_framework() -> str:
     return "arduino" if CORE.using_arduino else "espidf"
 
 
-def _apply_extra_script(component: IDFComponent) -> None:
-    from esphome.components.esp32 import get_esp32_variant
-    from esphome.platformio.extra_script import apply_extra_script
-
-    apply_extra_script(
-        component,
-        board_mcu=lambda: variant_to_idf_target(get_esp32_variant()),
-        pio_platform="espressif32",
-    )
-
-
 def generate_cmakelists_txt(component: IDFComponent) -> str:
     """
     Generate a CMakeLists.txt file for an ESP-IDF component.
@@ -272,7 +261,14 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
 
 def _emit_idf_component(component: IDFComponent) -> None:
     """Write the ESP-IDF build files for a resolved library into its cache dir."""
-    _apply_extra_script(component)
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.platformio.extra_script import apply_extra_script
+
+    apply_extra_script(
+        component,
+        board_mcu=lambda: variant_to_idf_target(get_esp32_variant()),
+        pio_platform="espressif32",
+    )
     write_file_if_changed(
         component.path / "CMakeLists.txt",
         generate_cmakelists_txt(component),
