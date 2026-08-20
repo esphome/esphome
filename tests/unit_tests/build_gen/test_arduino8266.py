@@ -426,3 +426,48 @@ def test_flag_defines_lexes_quoted_single_tokens() -> None:
     """A quoted single-token define reads the same as on the compile line."""
     _set_flags('-DMMU_SEC_HEAP="0x40108000"')
     assert _flag_defines()["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
+
+
+def test_flag_defines_duplicate_defines_resolve_deterministically() -> None:
+    """Duplicate conflicting defines pick the same winner every run (sorted
+    iteration, last writer wins), independent of the set's hash seed."""
+    _set_flags("-DMMU_IRAM_SIZE=0x8000", "-DMMU_IRAM_SIZE=0xC000")
+    assert _flag_defines()["MMU_IRAM_SIZE"] == "MMU_IRAM_SIZE=0xC000"
+
+
+def test_flag_tables_match_platformio_builder() -> None:
+    """The transliterated flag lists pinned verbatim, like the define set:
+    a drift lands as a test failure, not a binary-size regression."""
+    assert arduino8266._ASFLAGS == ["-mlongcalls", "-mtext-section-literals"]
+    assert arduino8266._CFLAGS == [
+        "-std=gnu17",
+        "-Wpointer-arith",
+        "-Wno-implicit-function-declaration",
+        "-Wl,-EL",
+        "-fno-inline-functions",
+        "-nostdlib",
+    ]
+    assert arduino8266._CCFLAGS[:6] == [
+        "-Os",
+        "-mlongcalls",
+        "-mtext-section-literals",
+        "-falign-functions=4",
+        "-U__STRICT_ANSI__",
+        "-ffunction-sections",
+    ]
+    assert arduino8266._LINKFLAGS[:5] == [
+        "-Os",
+        "-nostdlib",
+        "-Wl,--no-check-sections",
+        "-Wl,-static",
+        "-Wl,--gc-sections",
+    ]
+
+
+def test_generate_ld_scripts_missing_compiler_is_clean(tmp_path: Path) -> None:
+    """A half-deleted toolchain cache fails with an ESPHome error naming the
+    binary, not a FileNotFoundError traceback."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    with pytest.raises(EsphomeError, match="Could not run"):
+        _run_generate_ld_scripts(paths)
