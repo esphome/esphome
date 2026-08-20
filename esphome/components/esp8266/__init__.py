@@ -649,12 +649,11 @@ def _decode_pc(config, addr):
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
-        if CORE.using_toolchain_arduino:
-            # A present-but-failing addr2line (stale ELF, bad install) must
-            # be visible, matching the missing-tool warning above
-            _warn_decode_problem(
-                "addr2line-failed", "Could not decode crash address %s", addr
-            )
+        # A present-but-failing addr2line (stale ELF, bad install) must be
+        # visible on either toolchain, matching the missing-tool warning above
+        _warn_decode_problem(
+            "addr2line-failed", "Could not decode crash address %s", addr
+        )
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
