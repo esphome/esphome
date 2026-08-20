@@ -24,7 +24,7 @@ TEST(HoermannHcpButtonTest, VentButtonSendsTheVentCommand) {
 }
 
 TEST(HoermannHcpButtonTest, HalfOpenButtonSendsTheHalfOpenCommand) {
-  HoermannHcp door;
+  TestableHoermannHcp door;
   HoermannHcpHalfOpenButton half_open(&door);
   connect_controller(door);
 
@@ -33,6 +33,10 @@ TEST(HoermannHcpButtonTest, HalfOpenButtonSendsTheHalfOpenCommand) {
   auto [pressed, pressed_2] = poll_command(door);
   EXPECT_EQ(pressed, 0x0200);
   EXPECT_EQ(pressed_2, 0x0400);
+  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
+  auto [released, released_2] = poll_command(door);
+  EXPECT_EQ(released, 0x0100);
+  EXPECT_EQ(released_2, 0x0400);
 }
 
 // The door drives to the vent position on its own, so a position the cover was still travelling to must not
