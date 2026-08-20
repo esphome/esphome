@@ -159,9 +159,6 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   container->feed_wdt();
-  // A redirected response reuses the same client/container object. Clear any stale
-  // headers from the previous hop before collecting headers for the next one.
-  container->response_headers_.clear();
   // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
   // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
@@ -199,6 +196,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
 
       container->feed_wdt();
+      // A redirected response reuses the same client/container object. Clear the stale
+      // headers from the previous hop before collecting headers for this one.
       container->response_headers_.clear();
       container->content_length = esp_http_client_fetch_headers(client);
       container->set_chunked(esp_http_client_is_chunked_response(client));

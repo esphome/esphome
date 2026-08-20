@@ -37,13 +37,32 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
+struct MimeLookup {
+  const char *mime_type;
+  ImageFormat format;
+};
+
+static constexpr MimeLookup MIME_LOOKUP_TABLE[] = {
+#ifdef USE_RUNTIME_IMAGE_BMP
+    {"image/bmp", ImageFormat::BMP},
+#endif
+#ifdef USE_RUNTIME_IMAGE_JPEG
+    {"image/jpeg", ImageFormat::JPEG},
+    {"image/jpg", ImageFormat::JPEG},
+#endif
+#ifdef USE_RUNTIME_IMAGE_PNG
+    {"image/png", ImageFormat::PNG},
+#endif
+};
+
 const char *get_mime_type_for_format(ImageFormat format) {
   for (const auto &entry : MIME_LOOKUP_TABLE) {
     if (entry.format == format) {
       return entry.mime_type;
     }
   }
-  return "image/*";  // Default fallback
+  // AUTO (and any format compiled out) has no single MIME type: accept any image
+  return "image/*";
 }
 
 std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {

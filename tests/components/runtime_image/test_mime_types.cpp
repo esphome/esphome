@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <optional>
 
 #include "esphome/components/runtime_image/runtime_image.h"
@@ -14,7 +13,6 @@ TEST(RuntimeImageMime, FormatForKnownMimeTypes) {
   EXPECT_EQ(get_format_for_mime_type("image/jpeg"), JPEG);
   EXPECT_EQ(get_format_for_mime_type("image/jpg"), JPEG);
 #endif  // USE_RUNTIME_IMAGE_JPEG
-  EXPECT_EQ(get_format_for_mime_type("image/*"), AUTO);
 }
 
 TEST(RuntimeImageMime, FormatMatchingIsCaseInsensitive) {
@@ -31,6 +29,7 @@ TEST(RuntimeImageMime, FormatMatchesContentTypeWithParameters) {
 TEST(RuntimeImageMime, UnknownMimeTypeHasNoFormat) {
   EXPECT_EQ(get_format_for_mime_type("text/html"), std::nullopt);
   EXPECT_EQ(get_format_for_mime_type("application/octet-stream"), std::nullopt);
+  EXPECT_EQ(get_format_for_mime_type("image/*"), std::nullopt);
   EXPECT_EQ(get_format_for_mime_type(""), std::nullopt);
   EXPECT_EQ(get_format_for_mime_type(nullptr), std::nullopt);
 }
@@ -41,17 +40,18 @@ TEST(RuntimeImageMime, MimeTypeForFormatRoundTrip) {
 #ifdef USE_RUNTIME_IMAGE_JPEG
   EXPECT_STREQ(get_mime_type_for_format(JPEG), "image/jpeg");
 #endif  // USE_RUNTIME_IMAGE_JPEG
+  // AUTO has no single MIME type and falls back to the wildcard
   EXPECT_STREQ(get_mime_type_for_format(AUTO), "image/*");
 
-  // Every table entry must resolve back to its own format.
-  for (const auto &entry : MIME_LOOKUP_TABLE) {
-    EXPECT_EQ(get_format_for_mime_type(entry.mime_type), entry.format) << entry.mime_type;
-  }
-}
-
-TEST(RuntimeImageMime, MaxMimeTypeLengthCoversTable) {
-  for (const auto &entry : MIME_LOOKUP_TABLE) {
-    EXPECT_LE(strlen(entry.mime_type), MAX_MIME_TYPE_LENGTH) << entry.mime_type;
+  // Every decodable format must resolve back to itself through its MIME type
+  for (ImageFormat format : {
+           BMP,
+           PNG,
+#ifdef USE_RUNTIME_IMAGE_JPEG
+           JPEG,
+#endif  // USE_RUNTIME_IMAGE_JPEG
+       }) {
+    EXPECT_EQ(get_format_for_mime_type(get_mime_type_for_format(format)), format) << format;
   }
 }
 

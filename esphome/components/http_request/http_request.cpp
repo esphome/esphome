@@ -23,12 +23,10 @@ void HttpRequestComponent::dump_config() {
 
 std::string HttpContainer::get_response_header(const std::string &header_name) {
   auto lower = str_lower_case(header_name);  // NOLINT
-  // Prefer the most recent matching header, which is the one relevant to the
-  // current response after redirects and duplicate header handling.
-  for (auto entry = this->response_headers_.rbegin(); entry != this->response_headers_.rend(); ++entry) {
-    if (entry->name == lower) {
-      ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry->value.c_str());
-      return entry->value;
+  for (const auto &entry : this->response_headers_) {
+    if (entry.name == lower) {
+      ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());
+      return entry.value;
     }
   }
   ESP_LOGW(TAG, "No header with name %s found", lower.c_str());

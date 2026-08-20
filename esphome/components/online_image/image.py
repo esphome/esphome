@@ -4,9 +4,16 @@ from esphome.components import runtime_image
 from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import CONF_TRANSPARENCY, add_metadata
-from esphome.components.runtime_image import CONF_FORMAT, IMAGE_FORMATS, AUTOFormat
+from esphome.components.runtime_image import IMAGE_FORMATS
 import esphome.config_validation as cv
-from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_ON_ERROR, CONF_TYPE, CONF_URL
+from esphome.const import (
+    CONF_BUFFER_SIZE,
+    CONF_FORMAT,
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_TYPE,
+    CONF_URL,
+)
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
@@ -32,11 +39,6 @@ ReleaseImageAction = online_image_ns.class_(
     "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
 )
 
-ONLINE_IMAGE_FORMATS = IMAGE_FORMATS
-ONLINE_IMAGE_FORMATS["AUTO"] = (
-    AUTOFormat()
-)  # Add AUTO format to the online image formats
-
 ONLINE_IMAGE_SCHEMA = (
     runtime_image.runtime_image_schema(OnlineImage)
     .extend(
@@ -44,8 +46,10 @@ ONLINE_IMAGE_SCHEMA = (
             # Online Image specific options
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
+            # AUTO (detect from the Content-Type header) is online_image specific,
+            # so it is added here instead of in the shared format registry.
             cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(
-                *ONLINE_IMAGE_FORMATS, upper=True
+                *IMAGE_FORMATS, "AUTO", upper=True
             ),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(

@@ -1,7 +1,8 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
+#include <cstdio>
 
 static const char *const TAG = "online_image";
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
@@ -62,11 +63,12 @@ void OnlineImage::update() {
   }
 
   runtime_image::ImageFormat format = this->get_format();
-  // Add Accept header based on image format
-  char accept_mime_type[esphome::runtime_image::MAX_MIME_TYPE_LENGTH + 11];
-  snprintf(accept_mime_type, sizeof(accept_mime_type), "%s,*/*;q=0.8",
-           esphome::runtime_image::get_mime_type_for_format(format));
-  headers.push_back({"Accept", accept_mime_type});
+  // Add Accept header based on image format: "<mime>,*/*;q=0.8". The longest MIME
+  // type is "image/jpeg" (10 chars) and the suffix is 10 chars, so 32 is ample;
+  // snprintf truncates safely if a longer type is ever added.
+  char accept_header[32];
+  snprintf(accept_header, sizeof(accept_header), "%s,*/*;q=0.8", runtime_image::get_mime_type_for_format(format));
+  headers.push_back({"Accept", accept_header});
 
   // User headers last so they can override any of the above
   for (auto &header : this->request_headers_) {
