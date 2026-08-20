@@ -46,7 +46,6 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
-    CONF_GRACEFUL_DETACH_ON_SHUTDOWN,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
@@ -237,7 +236,6 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_GRACEFUL_DETACH_ON_SHUTDOWN): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
@@ -339,8 +337,6 @@ async def to_code(config):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
-    if config.get(CONF_GRACEFUL_DETACH_ON_SHUTDOWN):
-        cg.add_define("USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN")
 
     # OpenThread SRP needs access to mDNS services after setup
     enable_mdns_storage()
