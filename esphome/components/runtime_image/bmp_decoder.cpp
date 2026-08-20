@@ -21,18 +21,11 @@ void BmpDecoder::reset() {
   this->height_ = 0;
   this->current_index_ = 0;
   this->paint_index_ = 0;
-  this->color_table_.reset();
+  // color_table_ is deliberately kept allocated so the next decode can reuse it
   this->color_table_entries_ = 0;
   this->data_offset_ = 0;
   this->padding_bytes_ = 0;
   this->width_bytes_ = 0;
-}
-
-int BmpDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
-  this->reset();
-
-  return 0;
 }
 
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
@@ -108,7 +101,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         size_t header_size = encode_uint32(buffer[17], buffer[16], buffer[15], buffer[14]);
         size_t offset = 14 + header_size;
 
-        this->color_table_ = std::make_unique<uint32_t[]>(this->color_table_entries_);
+        if (this->color_table_entries_ > this->color_table_capacity_) {
+          this->color_table_ = std::make_unique<uint32_t[]>(this->color_table_entries_);
+          this->color_table_capacity_ = this->color_table_entries_;
+        }
 
         for (size_t i = 0; i < this->color_table_entries_; i++) {
           this->color_table_[i] = encode_uint32(buffer[offset + i * 4 + 3], buffer[offset + i * 4 + 2],

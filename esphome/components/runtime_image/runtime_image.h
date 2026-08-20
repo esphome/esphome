@@ -3,12 +3,10 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include "image_decoder.h"
 #include "image_format.h"
 
 namespace esphome::runtime_image {
-
-// Forward declaration
-class ImageDecoder;
 
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
@@ -88,7 +86,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if decoding is currently in progress.
    */
-  bool is_decoding() const { return this->decoder_ != nullptr && this->is_decoder_active_; }
+  bool is_decoding() const { return this->decoder_ != nullptr && this->decoder_->is_active(); }
 
   /**
    * @brief Check if the decoder has finished processing all data.
@@ -109,9 +107,10 @@ class RuntimeImage : public image::Image {
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free its memory.
+   * @brief Release the image buffer and free its memory, ending any decode session.
    *
-   * An external buffer is let go of rather than freed.
+   * An external buffer is let go of rather than freed. The decoder object is kept
+   * warm so the next decode can reuse it without churning the heap.
    */
   void release();
 
@@ -194,7 +193,6 @@ class RuntimeImage : public image::Image {
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
-  bool is_decoder_active_{false};
   /** The image format this RuntimeImage is configured to decode. */
   const ImageFormat format_;
 
@@ -216,7 +214,6 @@ class RuntimeImage : public image::Image {
   int buffer_height_{0};
 
   // Decoding state
-  size_t total_size_{0};
   size_t decoded_bytes_{0};
 
   /** Fixed width requested on configuration, or 0 if not specified. */

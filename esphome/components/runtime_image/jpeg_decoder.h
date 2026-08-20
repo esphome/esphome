@@ -18,12 +18,9 @@ class JpegDecoder : public ImageDecoder {
    *
    * @param image The RuntimeImage to decode the stream into.
    */
-  JpegDecoder(RuntimeImage *image) : ImageDecoder(image) {}
+  JpegDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {}
   ~JpegDecoder() override {}
 
-  ImageFormat get_format() const override { return JPEG; }
-
-  int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
  protected:

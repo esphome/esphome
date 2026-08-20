@@ -1,8 +1,5 @@
 esphome:
   name: online-image-bmp
-  platformio_options:
-    build_flags:
-      - -D __LINUX__
 
 host:
 

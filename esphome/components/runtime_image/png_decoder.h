@@ -22,13 +22,12 @@ class PngDecoder : public ImageDecoder {
   PngDecoder(RuntimeImage *image);
   ~PngDecoder() override;
 
-  ImageFormat get_format() const override { return PNG; }
-
   void reset() override {
     ImageDecoder::reset();
     if (this->pngle_) {
       pngle_reset(this->pngle_);
     }
+    this->pixels_decoded_ = 0;
   }
 
   int prepare(size_t expected_size) override;

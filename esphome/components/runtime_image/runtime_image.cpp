@@ -177,10 +177,10 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
     return false;
   }
 
-  // If decoder exists but is not active (failed or finished), check format compatibility
+  // An idle decoder for a different format cannot be reused
   if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
     ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
-    this->decoder_ = nullptr;  // Reset decoder to create a new one for the requested format
+    this->decoder_ = nullptr;
   }
 
   if (!this->decoder_) {
@@ -191,17 +191,14 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
     }
   }
 
-  this->total_size_ = expected_size;
   this->decoded_bytes_ = 0;
 
   int result = this->decoder_->prepare(expected_size);
   if (result < 0) {
     ESP_LOGE(TAG, "Failed to prepare decoder: %d", result);
-    this->is_decoder_active_ = false;
     this->decoder_ = nullptr;  // If prepare fails, a full reset is needed
     return false;
   }
-  this->is_decoder_active_ = true;
   return true;
 }
 
@@ -224,9 +221,6 @@ bool RuntimeImage::end_decode() {
     return false;
   }
 
-  // Mark the decode session as complete
-  this->is_decoder_active_ = false;
-
   // Finalize the image for display
   if (!this->progressive_display_) {
     // Only now make the image visible
@@ -235,28 +229,23 @@ bool RuntimeImage::end_decode() {
     this->data_start_ = this->buffer_;
   }
 
-  this->decoder_->reset();  // Reset decoder state for potential reuse
+  // End the session; the decoder object stays warm so the next decode can
+  // reuse it (and its buffers) without churning the heap.
+  this->decoder_->reset();
 
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
 }
 
-bool RuntimeImage::is_decode_finished() const {
-  // null pointer check to avoid dereferencing a nullptr
-  // when calling is_finished on it.
-  if (!this->decoder_) {
-    return false;
-  }
-  return this->decoder_->is_finished();
-}
+bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // End any active decode session before releasing the decoder
-  this->is_decoder_active_ = false;
-  // The decoder lifecycle is managed by begin_decode()/end_decode().
-  // release() can be called from within the decoder, so we must not destroy the decoder here.
-  // Additionally, the decoder may be reused for the same format, so we keep it around for efficiency.
+  // End any active decode session; decoders free the format-specific working buffers
+  // they can (PNG), while the decoder object itself is kept warm for the next decode.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
 }
 
 void RuntimeImage::release_buffer_() {
@@ -365,20 +354,18 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
     // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
     format = this->format_;
   }
+  ESP_LOGV(TAG, "Creating decoder for format %d", format);
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
-      ESP_LOGV(TAG, "Creating BMP decoder");
       return make_unique<BmpDecoder>(this);
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
     case JPEG:
-      ESP_LOGV(TAG, "Creating JPEG decoder");
       return make_unique<JpegDecoder>(this);
 #endif
 #ifdef USE_RUNTIME_IMAGE_PNG
     case PNG:
-      ESP_LOGV(TAG, "Creating PNG decoder");
       return make_unique<PngDecoder>(this);
 #endif
     case AUTO:
