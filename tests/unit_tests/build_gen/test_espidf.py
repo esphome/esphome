@@ -16,6 +16,7 @@ from esphome.components.esp32 import (
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
+    register_exclude_components_cmake_arg,
 )
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE
@@ -147,16 +148,6 @@ def test_get_project_cmakelists_emits_cmake_args() -> None:
     assert 'set(EXECUTABLE_COMPONENT_NAME "src")' in content
 
 
-def _register_exclude_components_arg() -> None:
-    """Register EXCLUDE_COMPONENTS the way esp32's FINAL-priority coroutine
-    does in a real build."""
-    from esphome.components.esp32 import get_excluded_builtin_components
-
-    CORE.add_cmake_arg(
-        "EXCLUDE_COMPONENTS", ";".join(get_excluded_builtin_components())
-    )
-
-
 def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None:
     """Excluded components are passed to IDF via EXCLUDE_COMPONENTS and are
     dropped from ESPHOME_PROJECT_BUILTIN_COMPONENTS even when a stale
@@ -171,7 +162,7 @@ def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None
         },
     )
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
-    _register_exclude_components_arg()
+    register_exclude_components_cmake_arg()
 
     content = _render()
 
@@ -190,7 +181,7 @@ def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
     """The discovery (minimal) write also excludes components so they never
     register in project_description.json."""
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
-    _register_exclude_components_arg()
+    register_exclude_components_cmake_arg()
 
     content = _render(minimal=True)
 
@@ -199,6 +190,8 @@ def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
 
 def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:
     """No EXCLUDE_COMPONENTS line at all when nothing is excluded."""
+    register_exclude_components_cmake_arg()
+
     content = _render()
 
     assert "EXCLUDE_COMPONENTS" not in content
@@ -218,8 +211,8 @@ def test_include_builtin_idf_component_removes_exclusion() -> None:
     include_builtin_idf_component("esp_eth")
 
     assert get_excluded_builtin_components() == ["unity"]
-    _register_exclude_components_arg()
 
+    register_exclude_components_cmake_arg()
     content = _render()
 
     assert 'set(EXCLUDE_COMPONENTS "unity")' in content

@@ -12,7 +12,6 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.framework_helpers import (
-    get_project_cmake_args,
     get_project_compile_flags,
     get_project_cxx_compile_flags,
     get_project_link_flags,
@@ -119,9 +118,11 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
     # set when project.cmake seeds the component list, and on minimal
     # (discovery) writes too so excluded components never register.
+    # add_cmake_arg rejects whitespace and quotes, so only backslashes
+    # need escaping here.
     cmake_args = "\n".join(
-        f'set({name} "{value.replace("\\", "\\\\").replace('"', '\\"')}")'
-        for name, value in get_project_cmake_args()
+        f'set({name} "{value.replace("\\", "\\\\")}")'
+        for name, value in sorted(CORE.cmake_args.items())
     )
 
     # Per-project list exposed as a CMake variable so converted PIO libs
@@ -139,13 +140,6 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for name in get_managed_component_require_names()
     )
 
-    # Components excluded from the build (DEFAULT_EXCLUDED_IDF_COMPONENTS
-    # minus per-component re-includes). The EXCLUDE_COMPONENTS variable
-    # itself is emitted through the cmake_args block above (registered by
-    # esp32 at FINAL priority); the set is still needed here to filter the
-    # built-in component list below.
-    excluded_components = get_excluded_builtin_components()
-
     # Built-in IDF components exposed via our own property (not IDF's
     # __COMPONENT_REQUIRES_COMMON, which would append them to every
     # component's REQUIRES including real IDF components). Referenced by
@@ -161,7 +155,9 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(get_available_components() or []).difference(excluded_components)
+                set(get_available_components() or []).difference(
+                    get_excluded_builtin_components()
+                )
             )
         )
     )

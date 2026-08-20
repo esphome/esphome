@@ -1115,10 +1115,14 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: str | list[str]) -> None:
+    def add_platformio_option(
+        self, key: str, value: str | list[str], *, replace: bool = False
+    ) -> None:
+        """Set a platformio.ini option; list values append to an existing list
+        unless ``replace`` is True, which overwrites any existing value."""
         new_val = value
         old_val = self.platformio_options.get(key)
-        if isinstance(old_val, list):
+        if not replace and isinstance(old_val, list):
             assert isinstance(value, list)
             new_val = old_val + value
         self.platformio_options[key] = new_val

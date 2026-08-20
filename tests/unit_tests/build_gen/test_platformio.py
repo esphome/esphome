@@ -206,11 +206,19 @@ def test_get_ini_content_no_cpp_standard(
 def test_get_ini_content_emits_cmake_args(
     clean_core: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(CORE, "cmake_args", {"EXECUTABLE_COMPONENT_NAME": "src"})
+    """Registered args are space-joined into one option, sorted by name."""
+    monkeypatch.setattr(
+        CORE,
+        "cmake_args",
+        {"EXECUTABLE_COMPONENT_NAME": "src", "EXCLUDE_COMPONENTS": "unity"},
+    )
 
     content = platformio.get_ini_content()
 
-    assert "-DEXECUTABLE_COMPONENT_NAME=src" in content
+    assert (
+        "board_build.cmake_extra_args = "
+        "-DEXCLUDE_COMPONENTS=unity -DEXECUTABLE_COMPONENT_NAME=src" in content
+    )
 
 
 def test_get_ini_content_no_cmake_option_when_no_args(clean_core: None) -> None:
