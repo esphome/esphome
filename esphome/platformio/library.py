@@ -23,7 +23,6 @@ import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
-import shlex
 import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -562,6 +561,11 @@ def _resolve_registry_version(
 
 def split_flag_entry(entry: Any, owner: str) -> list[str]:
     """``shlex.split`` with a clean error naming the offending flags entry."""
+    # Late import: this module loads with the esp32 platform on every
+    # validate/compile; shlex (and its linecache pull-in) is only needed
+    # when actually lexing flags
+    import shlex
+
     try:
         return shlex.split(entry)
     except (ValueError, AttributeError, TypeError) as err:
