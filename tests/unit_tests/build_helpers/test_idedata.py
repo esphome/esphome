@@ -21,7 +21,7 @@ def _entry(directory: str, file: str, command: str) -> dict:
     return {"directory": directory, "file": file, "command": command}
 
 
-def test_parse_entry_extracts_fields() -> None:
+def testparse_entry_extracts_fields() -> None:
     """cxx_path, defines, includes and remaining flags are split apart."""
     entry = _entry(
         f"{ABS}build",
@@ -30,7 +30,7 @@ def test_parse_entry_extracts_fields() -> None:
         f"-I{ABS}inc/a -isystem {ABS}sys/b -std=gnu++20 -c app.cpp -o app.cpp.o",
     )
 
-    cxx_path, defines, includes, cxx_flags = idedata._parse_entry(entry)
+    cxx_path, defines, includes, cxx_flags = idedata.parse_entry(entry)
 
     assert cxx_path == "/tools/xtensa-esp32-elf-g++"
     assert "USE_ESP32" in defines
@@ -45,7 +45,7 @@ def test_parse_entry_extracts_fields() -> None:
     assert "app.cpp.o" not in cxx_flags
 
 
-def test_parse_entry_space_separated_args() -> None:
+def testparse_entry_space_separated_args() -> None:
     """``-D X`` / ``-I path`` (separate arg) and ``-isystem<path>`` (joined)."""
     entry = _entry(
         f"{ABS}build",
@@ -53,14 +53,14 @@ def test_parse_entry_space_separated_args() -> None:
         f"g++ -D FOO=1 -I {ABS}inc/sep -isystem{ABS}sys/joined -c x.cpp",
     )
 
-    _, defines, includes, _ = idedata._parse_entry(entry)
+    _, defines, includes, _ = idedata.parse_entry(entry)
 
     assert "FOO=1" in defines
     assert f"{ABS}inc/sep" in includes
     assert f"{ABS}sys/joined" in includes
 
 
-def test_parse_entry_resolves_relative_includes() -> None:
+def testparse_entry_resolves_relative_includes() -> None:
     """Relative includes are resolved against the entry's ``directory``."""
     directory = f"{ABS}build/proj"
     entry = _entry(
@@ -69,10 +69,10 @@ def test_parse_entry_resolves_relative_includes() -> None:
         "g++ -Iconfig -I../shared -isystem rel/sys -c x.cpp",
     )
 
-    _, _, includes, _ = idedata._parse_entry(entry)
+    _, _, includes, _ = idedata.parse_entry(entry)
 
     def resolved(rel: str) -> str:
-        # _parse_entry emits forward slashes for consistency (normpath would
+        # parse_entry emits forward slashes for consistency (normpath would
         # yield backslashes on Windows).
         return os.path.normpath(Path(directory) / rel).replace("\\", "/")
 
@@ -83,7 +83,7 @@ def test_parse_entry_resolves_relative_includes() -> None:
     assert all(Path(inc).is_absolute() for inc in includes)
 
 
-def test_parse_entry_skips_dependency_flags() -> None:
+def testparse_entry_skips_dependency_flags() -> None:
     """Dependency-generation flags (and their args) are dropped."""
     entry = _entry(
         "/build",
@@ -91,7 +91,7 @@ def test_parse_entry_skips_dependency_flags() -> None:
         "g++ -MD -MT x.cpp.o -MF x.cpp.o.d -c x.cpp -o x.cpp.o",
     )
 
-    _, _, _, cxx_flags = idedata._parse_entry(entry)
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
 
     for tok in ("-MD", "-MT", "x.cpp.o", "-MF", "x.cpp.o.d", "-c", "-o", "x.cpp"):
         assert tok not in cxx_flags
@@ -198,17 +198,17 @@ def test_idedata_from_build(tmp_path: Path) -> None:
     assert data["includes"]["toolchain"] == ["/tc/inc/c++", "/tc/inc"]
 
 
-def test_get_toolchain_includes_raises_on_probe_failure() -> None:
+def testget_toolchain_includes_raises_on_probe_failure() -> None:
     """A failed compiler probe is a hard error, not a silent empty list."""
     fake_proc = MagicMock(returncode=1, stderr="xtensa-esp32-elf-g++: not found")
     with (
         patch.object(idedata.subprocess, "run", return_value=fake_proc),
         pytest.raises(RuntimeError, match="builtin include dirs"),
     ):
-        idedata._get_toolchain_includes("/bad/compiler")
+        idedata.get_toolchain_includes("/bad/compiler")
 
 
-def test_get_toolchain_includes_raises_when_no_dirs_found() -> None:
+def testget_toolchain_includes_raises_when_no_dirs_found() -> None:
     """Markers present but no dirs (anomalous output) also raises."""
     fake_proc = MagicMock(
         returncode=0,
@@ -218,7 +218,7 @@ def test_get_toolchain_includes_raises_when_no_dirs_found() -> None:
         patch.object(idedata.subprocess, "run", return_value=fake_proc),
         pytest.raises(RuntimeError, match="builtin include dirs"),
     ):
-        idedata._get_toolchain_includes("/some/compiler")
+        idedata.get_toolchain_includes("/some/compiler")
 
 
 # ESP-IDF's compile_commands.json on Windows mixes literal backslash path
@@ -248,7 +248,7 @@ def test_split_command_empty_returns_empty() -> None:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
-def test_parse_entry_normalizes_windows_cxx_path() -> None:
+def testparse_entry_normalizes_windows_cxx_path() -> None:
     """A backslash compiler path is emitted forward-slashed; define unescaped."""
     entry = _entry(
         r"C:\b",
@@ -256,7 +256,7 @@ def test_parse_entry_normalizes_windows_cxx_path() -> None:
         r"C:\esp\bin\g++.exe -DVER=\"1.2.3\" -IC:/inc/a -c x.cpp",
     )
 
-    cxx_path, defines, includes, _ = idedata._parse_entry(entry)
+    cxx_path, defines, includes, _ = idedata.parse_entry(entry)
 
     assert cxx_path == "C:/esp/bin/g++.exe"
     assert "\\" not in cxx_path
@@ -264,7 +264,7 @@ def test_parse_entry_normalizes_windows_cxx_path() -> None:
     assert "C:/inc/a" in includes
 
 
-def test_parse_entry_strips_launcher_prefix() -> None:
+def testparse_entry_strips_launcher_prefix() -> None:
     """A launcher-wrapped compile names the compiler second; the exact
     configured launcher is stripped, not anything ccache-shaped."""
     entry = _entry(
@@ -273,18 +273,18 @@ def test_parse_entry_strips_launcher_prefix() -> None:
         "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -DUSE_ESP8266 "
         "-c app.cpp -o app.cpp.o",
     )
-    cxx_path, defines, _, _ = idedata._parse_entry(
+    cxx_path, defines, _, _ = idedata.parse_entry(
         entry, launcher="/opt/homebrew/bin/ccache"
     )
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert defines == ["USE_ESP8266"]
     # Without a configured launcher nothing is stripped, even a token that
     # happens to be named ccache -- but the surprise is warned about
-    cxx_path, _, _, _ = idedata._parse_entry(entry)
+    cxx_path, _, _, _ = idedata.parse_entry(entry)
     assert cxx_path == "/opt/homebrew/bin/ccache"
 
 
-def test_parse_entry_warns_when_first_token_is_not_a_compiler(
+def testparse_entry_warns_when_first_token_is_not_a_compiler(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     entry = _entry(
@@ -292,10 +292,10 @@ def test_parse_entry_warns_when_first_token_is_not_a_compiler(
         f"{ABS}build/src/esphome/core/application.cpp",
         "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -c a.cpp -o a.o",
     )
-    idedata._parse_entry(entry)
+    idedata.parse_entry(entry)
     assert "does not start with a compiler" in caplog.text
     caplog.clear()
-    idedata._parse_entry(entry, launcher="/opt/homebrew/bin/ccache")
+    idedata.parse_entry(entry, launcher="/opt/homebrew/bin/ccache")
     assert "does not start with a compiler" not in caplog.text
 
 
@@ -328,7 +328,7 @@ def test_load_or_build_idedata_builds_and_caches(tmp_path: Path) -> None:
     compile_commands = _write_compile_commands(tmp_path)
     cache = tmp_path / "cache" / "test.json"
     with patch.object(
-        idedata, "_get_toolchain_includes", return_value=["/toolchain/include"]
+        idedata, "get_toolchain_includes", return_value=["/toolchain/include"]
     ):
         data = idedata.load_or_build_idedata(
             compile_commands, tmp_path / "firmware.elf", cache
@@ -355,8 +355,39 @@ def test_load_or_build_idedata_rebuilds_bad_cache(tmp_path: Path) -> None:
     for bad in ("not json", json.dumps({"no_cc_path": True})):
         cache.write_text(bad)
         os.utime(cache, (compile_commands.stat().st_mtime + 10,) * 2)
-        with patch.object(idedata, "_get_toolchain_includes", return_value=[]):
+        with patch.object(idedata, "get_toolchain_includes", return_value=[]):
             data = idedata.load_or_build_idedata(
                 compile_commands, tmp_path / "f.elf", cache
             )
+        assert "cc_path" in data
+
+
+def test_load_or_build_idedata_rebuilds_when_compile_db_newer(tmp_path: Path) -> None:
+    """A compile DB newer than the cache forces regeneration."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps({"cc_path": "stale"}))
+    os.utime(compile_commands, (cache.stat().st_mtime + 10,) * 2)
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
+    assert data["cc_path"] != "stale"
+
+
+def test_load_or_build_idedata_rebuilds_non_dict_cache(tmp_path: Path) -> None:
+    """Valid JSON that is not an object is regenerated, never handed out.
+
+    A bare string would otherwise pass the cc_path check by substring.
+    """
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "cache.json"
+    for bad in ('"cc_path is a string"', "[]", "42"):
+        cache.write_text(bad)
+        os.utime(cache, (compile_commands.stat().st_mtime + 10,) * 2)
+        with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+            data = idedata.load_or_build_idedata(
+                compile_commands, tmp_path / "f.elf", cache
+            )
+        assert isinstance(data, dict)
         assert "cc_path" in data
