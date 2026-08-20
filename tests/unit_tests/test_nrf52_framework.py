@@ -158,6 +158,23 @@ class TestCheckAndInstall:
         mock_nrf52_ops.download_from_mirrors.assert_not_called()
         mock_nrf52_ops.archive_extract_all.assert_not_called()
 
+    def test_missing_interpreter_rebuilds_venv(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter (a cached venv
+        restored after a host interpreter upgrade)."""
+        requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+        (nrf52_dirs.python_env / ".ready").write_text(
+            requirements_hash, encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        check_and_install()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
+
     def test_fresh_install_runs_all_steps(
         self,
         nrf52_dirs: SimpleNamespace,
@@ -403,6 +420,22 @@ class TestSetupPlatformioPythonEnv:
 
         assert not (platformio_penv_dir / ".ready").exists()
 
+    def test_missing_interpreter_reinstalls(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
+
     def test_repeated_calls_do_not_duplicate_env_entries(
         self,
         platformio_penv_dir: Path,
@@ -412,6 +445,7 @@ class TestSetupPlatformioPythonEnv:
         (platformio_penv_dir / ".ready").write_text(
             _platformio_requirements_hash(), encoding="utf-8"
         )
+        _touch_penv_python(platformio_penv_dir)
         site_packages = str(_get_penv_site_packages(platformio_penv_dir))
         bin_dir = str(
             get_python_env_executable_path(platformio_penv_dir, "python").parent
@@ -433,6 +467,7 @@ class TestSetupPlatformioPythonEnv:
         (platformio_penv_dir / ".ready").write_text(
             _platformio_requirements_hash(), encoding="utf-8"
         )
+        _touch_penv_python(platformio_penv_dir)
         site_packages = str(_get_penv_site_packages(platformio_penv_dir))
 
         with patch.dict(os.environ, {"PYTHONPATH": "/existing/path"}):
