@@ -652,7 +652,10 @@ ESP8266_NATIVE_TRIGGER_FILES = frozenset(
 
 def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is native-ESP8266 infrastructure / harness."""
-    return _path_or_file_trigger(
+    # base_python_changed covers the top-level esphome/*.py modules the
+    # native backend imports directly (framework_helpers, helpers, writer,
+    # __main__); without it a change there would silently skip this job.
+    return base_python_changed(files) or _path_or_file_trigger(
         files, ESP8266_NATIVE_TRIGGER_FILES, ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
     )
 

@@ -90,7 +90,16 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         if tok.startswith("-I"):
             include_flags.append(tok[2:])
         elif tok.startswith("-L"):
-            lib.link_dirs.append((read_path / tok[2:]).resolve())
+            link_dir = (read_path / tok[2:]).resolve()
+            if not link_dir.is_dir():
+                # Kept anyway (the linker ignores missing -L dirs); the
+                # warning names the culprit before a bare "cannot find -lfoo"
+                _LOGGER.warning(
+                    "Library %s declares library dir %s which does not exist",
+                    name,
+                    tok[2:],
+                )
+            lib.link_dirs.append(link_dir)
         elif tok.startswith("-l"):
             lib.link_libs.append(tok[2:])
         elif tok.startswith("-Wl,"):

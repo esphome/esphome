@@ -11,6 +11,7 @@ PlatformIO toolchain produces for the same configuration.
 from __future__ import annotations
 
 from collections.abc import Generator
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -454,7 +455,9 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
     assert "len = 0x2000000" in patched
 
 
-def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
+def test_write_project_libraries_and_variant(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     from esphome.arduino8266.component import ArduinoLibrary
 
     paths = _make_framework(tmp_path)
@@ -477,14 +480,17 @@ def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
     )
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
 
-    content = _write_ninja(
-        paths, libraries=[library, headers_only], ccache="/cc/ccache"
-    )
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.arduino8266"):
+        content = _write_ninja(
+            paths, libraries=[library, headers_only], ccache="/cc/ccache"
+        )
 
     assert "build libFrameworkArduinoVariant.a: ar" in content
     assert "build libMyLib.a: ar" in content
-    # A headers-only library contributes includes but no archive
+    # A headers-only library contributes includes but no archive, with a
+    # debug log distinguishing it from a resolution failure
     assert "libHeadersOnly.a" not in content
+    assert "Library HeadersOnly has no source files" in caplog.text
     assert "  flags = -DMYLIB=1" in content
     assert "-lalgobsec" in content
     # Library link flags reach the firmware link line; .cc compiles as C++

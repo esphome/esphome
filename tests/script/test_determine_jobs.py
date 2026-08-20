@@ -3083,6 +3083,9 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
         # Shared modules the native build depends on
         ["esphome/espidf/idedata.py"],
         ["esphome/platformio/library.py"],
+        # Top-level esphome/*.py modules the backend imports directly
+        ["esphome/framework_helpers.py"],
+        ["esphome/writer.py"],
     ):
         with (
             patch.object(determine_jobs, "changed_files", return_value=changed),

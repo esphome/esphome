@@ -15,6 +15,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 import os
 from pathlib import Path
 import re
@@ -40,6 +41,8 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import join_flag_args
+
+_LOGGER = logging.getLogger(__name__)
 
 # Compile rule per source suffix; keys must cover SRC_FILE_EXTENSIONS so any
 # source a library manifest selects has a rule (pinned by a drift test).
@@ -607,6 +610,12 @@ def write_project(paths: dict[str, Path]) -> bool:
 
     for lib in libraries:
         if not lib.sources:
+            # Header-only libraries are legitimate; the log makes an empty
+            # srcFilter or broken tree traceable before link errors do.
+            _LOGGER.debug(
+                "Library %s has no source files; contributing includes only",
+                lib.name,
+            )
             continue
         lib_root = _common_parent(lib.sources)
         objs = _ninja_compile_edges(

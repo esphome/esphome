@@ -84,6 +84,18 @@ def test_library_info_flags_parsing(tmp_path: Path) -> None:
     assert lib.link_flags == ["-Wl,--wrap=malloc"]
 
 
+def test_library_info_missing_link_dir_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    read_path.mkdir()
+    data = {"build": {"flags": ["-Lmissing_blobs"]}}
+    lib = component._library_info("x", read_path, data)
+    assert "declares library dir missing_blobs which does not exist" in caplog.text
+    # Kept anyway: the linker ignores missing -L dirs
+    assert lib.link_dirs == [(read_path / "missing_blobs").resolve()]
+
+
 def test_library_info_no_src_dir(tmp_path: Path) -> None:
     read_path = tmp_path / "empty"
     read_path.mkdir()
