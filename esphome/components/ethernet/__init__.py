@@ -811,6 +811,10 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
+        "w5500_custom_spi.cpp": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
     }
 )
 
