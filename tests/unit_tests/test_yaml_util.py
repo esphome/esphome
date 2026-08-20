@@ -701,6 +701,14 @@ def test_include_file_has_unresolved_expressions(
     assert include.has_unresolved_expressions() == expected
 
 
+def test_mapping_include_non_string_file_rejected(tmp_path: Path) -> None:
+    """The mapping !include form rejects a non-string 'file' with a clear error."""
+    entry = tmp_path / "entry.yaml"
+    entry.write_text("wifi: !include\n  file: [not, a, string]\n")
+    with pytest.raises(EsphomeError, match="Include 'file' must be a string"):
+        yaml_util.load_yaml(entry)
+
+
 def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> None:
     """A templated filename keeps its verbatim text (issue #18545)."""
     parent = tmp_path / "main.yaml"
