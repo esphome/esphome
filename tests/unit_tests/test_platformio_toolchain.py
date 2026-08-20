@@ -800,9 +800,7 @@ def test_ccache_env_real_probe_runs_stripped_path(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch.object(
-            toolchain.shutil, "which", return_value="\\\\?\\" + sys.executable
-        ),
+        patch("shutil.which", return_value="\\\\?\\" + sys.executable),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         env = toolchain._ccache_env()
