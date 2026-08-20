@@ -451,3 +451,17 @@ def test_load_or_build_idedata_never_caches_bad_compiler(tmp_path: Path) -> None
         )
     assert data["cxx_path"] == "/usr/bin/python3"
     assert not cache.exists()
+
+
+def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:
+    """A valid cache newer than the compile DB is served without re-parsing."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "c.json"
+    cache.write_text(json.dumps({"cc_path": "/tools/gcc", "cached": True}))
+    os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
+    with patch.object(idedata, "idedata_from_build") as mock_build:
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
+    mock_build.assert_not_called()
+    assert data["cached"] is True
