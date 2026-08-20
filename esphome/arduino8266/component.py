@@ -64,6 +64,11 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     src_dir = build.get("srcDir") or next(
         (d for d in ("src", "Src") if (read_path / d).is_dir()), "."
     )
+    if "srcDir" in build and not (read_path / src_dir).is_dir():
+        # A silently empty source set would surface as link errors instead
+        _LOGGER.warning(
+            "Library %s declares srcDir %s which does not exist", name, src_dir
+        )
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     # PlatformIO shell-lexes each build.flags entry
@@ -100,9 +105,9 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     for d in [include_dir, src_dir, *include_flags]:
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
-        elif d in include_flags:
-            # The includeDir/srcDir defaults are probes; an explicit -I that
-            # does not resolve is a manifest or packaging error worth naming
+        elif d in include_flags or (d == include_dir and "includeDir" in build):
+            # The includeDir/srcDir defaults are probes; an explicitly
+            # declared path that does not resolve is a manifest error
             _LOGGER.warning(
                 "Library %s declares include dir %s which does not exist", name, d
             )
@@ -127,7 +132,15 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
     """Resolve every ``cg.add_library()`` entry into an :class:`ArduinoLibrary`."""
     bundled: list[ArduinoLibrary] = []
     external: list[Library] = []
+    # PlatformIO's lib_ignore covers framework-bundled libraries too; the
+    # shared converter only filters the registry/git ones.
+    lib_ignore = {
+        ignore.split("/")[-1].lower()
+        for ignore in CORE.platformio_options.get("lib_ignore", [])
+    }
     for library in CORE.platformio_libraries.values():
+        if library.name and library.name.split("/")[-1].lower() in lib_ignore:
+            continue
         # A version pin means a registry package ("pngle@1.1.0"), never a
         # framework-bundled library.
         if (
@@ -161,9 +174,15 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
                 or not (framework_path / "libraries" / name).is_dir()
             ):
                 continue
+            if name.lower() in lib_ignore:
+                continue
             try:
                 check_library_data(dep, ESP8266_PLATFORM, "arduino")
             except InvalidLibrary as err:
+                # check_library_data's only raise is the platform filter, and
+                # rejecting another platform's dependency of a cross-platform
+                # manifest is routine (every ESPAsyncWebServer build hits it);
+                # a warning here would be noise, and the reason is in the log.
                 _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
                 continue
             bundled_names.add(name)

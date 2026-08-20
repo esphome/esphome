@@ -222,3 +222,52 @@ def test_library_info_missing_explicit_include_warns(
     lib = component._library_info("x", read_path, {"build": {"flags": ["-Inope"]}})
     assert lib.include_dirs == [(read_path / "src").resolve()]
     assert "include dir nope which does not exist" in caplog.text
+
+
+def test_library_info_missing_declared_dirs_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Explicitly declared srcDir/includeDir that do not exist warn by name."""
+    read_path = tmp_path / "lib"
+    read_path.mkdir()
+    component._library_info(
+        "x", read_path, {"build": {"srcDir": "nosrc", "includeDir": "noinc"}}
+    )
+    assert "srcDir nosrc which does not exist" in caplog.text
+    assert "include dir noinc which does not exist" in caplog.text
+
+
+def test_resolve_libraries_lib_ignore_covers_bundled(tmp_path: Path) -> None:
+    """lib_ignore applies to framework-bundled libraries, as under PlatformIO."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP8266WiFi", None)
+    _add_library("Wire", None)
+    CORE.platformio_options = {"lib_ignore": ["Wire"]}
+    libs = component.resolve_libraries(framework)
+    assert [lib.name for lib in libs] == ["ESP8266WiFi"]
+
+
+def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
+    tmp_path: Path,
+) -> None:
+    framework = _make_framework(tmp_path)
+    _add_library("Some/External", "1.0.0")
+    CORE.platformio_options = {"lib_ignore": ["Wire"]}
+
+    lib_dir = tmp_path / "converted" / "external"
+    lib_dir.mkdir(parents=True)
+    converted = _converted(
+        "some__External", lib_dir, {"dependencies": [{"name": "Wire"}]}
+    )
+
+    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
+        backend.emit(converted)
+        return [converted]
+
+    with (
+        patch.object(component, "convert_libraries", side_effect=fake_convert),
+        patch.object(component, "apply_extra_script"),
+    ):
+        libs = component.resolve_libraries(framework)
+
+    assert [lib.name for lib in libs] == ["some__External"]

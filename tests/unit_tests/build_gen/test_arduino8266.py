@@ -249,6 +249,9 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "-T eagle.flash.4m.ld" in content
     # scanf float disabled: the forced-link flag must not appear
     assert "_scanf_float" not in content
+    # Compile inputs and outputs are quoted (space-containing cache paths)
+    assert '-c "$in" -o "$out"' in content
+    assert '--app "$in"' in content
     # -L/-l from esphome build_flags reach the link line, not the compiles
     assert '-L"/opt/blobs"' in content
     assert "-luser_blob" in content
@@ -545,8 +548,11 @@ def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) ->
     """build_unflags removes flags from the framework sets, as PlatformIO does."""
     paths = _make_framework(tmp_path)
     _set_flags()
-    CORE.build_unflags = {"-fipa-pta"}
+    CORE.build_unflags = {"-fipa-pta", "-Wl,--gc-sections"}
     content = _write_ninja(paths)
     for line in content.splitlines():
-        if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
+        key = line.split(" = ")[0]
+        if key in ("cflags", "cxxflags", "asflags"):
             assert "-fipa-pta" not in line
+        if key == "linkflags":
+            assert "-Wl,--gc-sections" not in line

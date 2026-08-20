@@ -92,7 +92,11 @@ def test_registry_download_bare_string_system() -> None:
     resp = _registry_response(
         [
             {"system": "linux_x86", "download_url": "http://x/x86"},
-            {"system": "linux_x86_64", "download_url": "http://x/x86_64"},
+            {
+                "system": "linux_x86_64",
+                "download_url": "http://x/x86_64",
+                "checksum": {"sha256": "abc"},
+            },
         ]
     )
     with (
@@ -103,13 +107,32 @@ def test_registry_download_bare_string_system() -> None:
 
 
 def test_registry_download_wildcard_system() -> None:
-    resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
+    resp = _registry_response(
+        [
+            {
+                "system": "*",
+                "download_url": "http://x/any",
+                "checksum": {"sha256": "abc"},
+                "size": 7,
+            }
+        ]
+    )
     with patch("requests.get", return_value=resp):
         assert framework._registry_download("pkg", "1.0.0") == (
             "http://x/any",
-            None,
-            None,
+            "abc",
+            7,
         )
+
+
+def test_registry_download_missing_checksum_raises() -> None:
+    """An unverifiable archive is refused, never silently extracted."""
+    resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
+    with (
+        patch("requests.get", return_value=resp),
+        pytest.raises(EsphomeError, match="no sha256"),
+    ):
+        framework._registry_download("pkg", "1.0.0")
 
 
 def test_registry_download_no_system_match() -> None:

@@ -139,11 +139,15 @@ def _registry_download(
             # ensure_list: a bare string would make ``in`` a substring test
             systems = ensure_list(file.get("system") or "*")
             if "*" in systems or system in systems:
-                return (
-                    file["download_url"],
-                    (file.get("checksum") or {}).get("sha256"),
-                    file.get("size"),
-                )
+                sha256 = (file.get("checksum") or {}).get("sha256")
+                if not sha256:
+                    # Never extract an unverified archive; the registry
+                    # publishes a checksum for every package file.
+                    raise EsphomeError(
+                        f"The package registry returned no sha256 for "
+                        f"{package} {version}; refusing the unverified download"
+                    )
+                return (file["download_url"], sha256, file.get("size"))
         raise EsphomeError(f"No {package} {version} build for this platform ({system})")
     raise EsphomeError(f"{package} {version} not found in the package registry")
 

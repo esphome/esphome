@@ -489,14 +489,16 @@ def write_project(paths: dict[str, Path]) -> bool:
     )
     asflags = _ASFLAGS + defines + includes + project_compile_flags
 
-    # build_unflags applies to the framework flag sets too, as it does under
-    # PlatformIO (a silently ignored ``build_unflags: -Os`` would diverge).
-    if unflags := set(CORE.build_unflags):
+    # build_unflags applies to the framework flag sets too (compile and link),
+    # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
+    # diverge between the toolchains).
+    unflags = set(CORE.build_unflags)
+    if unflags:
         cflags = [f for f in cflags if f not in unflags]
         cxxflags = [f for f in cxxflags if f not in unflags]
         asflags = [f for f in asflags if f not in unflags]
 
-    link_flags = list(_LINKFLAGS)
+    link_flags = [f for f in _LINKFLAGS if f not in unflags]
     if esp8266_data.get(KEY_SCANF_FLOAT):
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
@@ -530,35 +532,35 @@ def write_project(paths: dict[str, Path]) -> bool:
         f"ccache = {_q(ccache) if ccache else ''}",
         "",
         "rule cc",
-        "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
+        '  command = $ccache $cc -MMD -MF "$out.d" $cflags $flags -c "$in" -o "$out"',
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CC $out",
         "rule cxx",
-        "  command = $ccache $cxx -MMD -MF $out.d $cxxflags $flags -c $in -o $out",
+        '  command = $ccache $cxx -MMD -MF "$out.d" $cxxflags $flags -c "$in" -o "$out"',
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CXX $out",
         "rule asm",
-        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $asflags $flags -c $in -o $out",
+        '  command = $ccache $cc -MMD -MF "$out.d" -x assembler-with-cpp $asflags $flags -c "$in" -o "$out"',
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = AS $out",
         "rule ar",
-        f"  command = $python $buildtool ar {_q(toolchain_bin / 'xtensa-lx106-elf-ar')} $out $out.rsp",
+        f'  command = $python $buildtool ar {_q(toolchain_bin / "xtensa-lx106-elf-ar")} "$out" "$out.rsp"',
         "  rspfile = $out.rsp",
         "  rspfile_content = $in_newline",
         "  description = AR $out",
         "rule link",
-        "  command = $cxx -o $out $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
+        '  command = $cxx -o "$out" $linkflags @"$out.rsp" $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group',
         "  rspfile = $out.rsp",
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(flash_ld_name)} --path {_q(toolchain_bin)} --out $out",
+        f'  command = $python {_q(framework / "tools" / "elf2bin.py")} --eboot {_q(framework / "bootloaders" / "eboot" / "eboot.elf")} --app "$in" --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(flash_ld_name)} --path {_q(toolchain_bin)} --out "$out"',
         "  description = BIN $out",
         "rule copy",
-        "  command = $python $buildtool copy $in $out",
+        '  command = $python $buildtool copy "$in" "$out"',
         "  description = COPY $out",
         "",
         f"cflags = {' '.join(cflags)}",
