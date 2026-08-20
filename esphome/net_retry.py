@@ -73,6 +73,8 @@ def is_transient_download_error(e: Exception) -> bool:
         e
     ):
         return False
+    # SSLError (a ConnectionError subclass) stays transient on purpose: it
+    # also covers mid-handshake connection drops, not just bad certificates.
     return isinstance(
         e,
         (
