@@ -103,6 +103,7 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
 }
 
 bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
+  if (this->channels_.empty()) return false;
   if (step == 0) {
     ESP_LOGD(TAG, "Starting device setup");
     // Vendor IN read: device returns 4 chip-id bytes used below to distinguish variants.
