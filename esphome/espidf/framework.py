@@ -11,8 +11,6 @@ import re
 import shutil
 from typing import Any, NoReturn
 
-import platformdirs
-
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
@@ -26,8 +24,9 @@ from esphome.framework_helpers import (
     run_command,
     run_command_ok,
     str_to_lst_of_str,
+    tools_cache_path,
 )
-from esphome.helpers import get_bool_env, get_str_env, write_file_if_changed
+from esphome.helpers import get_bool_env, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,22 +87,10 @@ def get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
-    # resolves to the CWD, which would install into (and let clean-all delete)
-    # the working directory by accident.
-    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
-        path = Path(prefix).expanduser()
-    else:
-        # Machine-global so all projects share the multi-GB install instead of
-        # a per-config-directory copy. The user cache dir (not ~/.esphome)
-        # avoids colliding with data_dir when configs live in the home dir.
-        # appauthor=False drops the redundant <author>\ segment on Windows
-        # (which otherwise repeats "esphome\esphome\") to keep the path short.
-        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
-    # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
-    # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
-    # otherwise warns that the venv interpreter path doesn't match the install.
-    return path.resolve()
+    # Machine-global so all projects share the multi-GB install instead of
+    # a per-config-directory copy; see framework_helpers.tools_cache_path
+    # for the env-override and normalization rules.
+    return tools_cache_path("ESPHOME_ESP_IDF_PREFIX", "idf")
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply

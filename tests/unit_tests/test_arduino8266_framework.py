@@ -202,7 +202,7 @@ def test_registry_download_no_system_match() -> None:
 
 
 def test_registry_download_version_not_found() -> None:
-    resp = _registry_response([])
+    resp = MagicMock()
     resp.json.return_value = {"versions": [{"name": "2.0.0", "files": []}]}
     with (
         patch("requests.get", return_value=resp),
@@ -364,7 +364,7 @@ def test_ccache_path_explicit_skips_probe(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.platformio.toolchain._ccache_runs", side_effect=AssertionError),
+        patch("esphome.framework_helpers._ccache_runs", side_effect=AssertionError),
     ):
         assert framework.ccache_path() == "/usr/bin/ccache"
 
@@ -429,3 +429,13 @@ def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
         framework._install_package("pkg", "1.0.0", dest, ["http://m"])
     mock_download.assert_not_called()
     mock_rmdir.assert_not_called()
+
+
+def test_ccache_env_requires_build_path() -> None:
+    """Building the env before preload set build_path fails loudly."""
+    CORE.build_path = None
+    with (
+        patch.object(framework, "ccache_path", return_value="/cc/ccache"),
+        pytest.raises(ValueError, match="build_path"),
+    ):
+        framework.ccache_env()
