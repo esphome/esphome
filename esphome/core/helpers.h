@@ -985,13 +985,24 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
 bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
 
 /// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// ESP8266 internal implementation — prefer the `str_contains_ignore_case` macro which wraps
+/// needle literals with `PSTR()` automatically so they stay in flash instead of eating RAM.
+/// The needle must be a PROGMEM pointer on ESP8266; reads are plain dereferences elsewhere.
+bool str_contains_ignore_case_p(const char *haystack, const char *needle);
+
+#ifdef USE_ESP8266
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle literal is wrapped with PSTR() so it stays in flash.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
 inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   if (!needle || !haystack) {
     return false;
   }
 
 // strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
-// ESP32/ESP8266/host builds get it from their framework or from g++ on Linux;
+// ESP32/host builds get it from their framework or from g++ on Linux;
 // LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
 #if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return str_contains_ignore_case_fallback(haystack, needle);
@@ -999,11 +1010,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   return strcasestr(haystack, needle) != nullptr;
 #endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
-
-/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
-/// The needle may live in flash (PROGMEM) on ESP8266 — wrap literals with PSTR().
-/// On all other platforms PROGMEM reads are plain dereferences, so any string works.
-bool str_contains_ignore_case_p(const char *haystack, const char *needle);
+#endif  // USE_ESP8266
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
