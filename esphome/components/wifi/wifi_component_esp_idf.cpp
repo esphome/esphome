@@ -580,7 +580,14 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
-    sntp_servermode_dhcp(false);
+    {
+#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
+      // sntp_servermode_dhcp() is an empty macro unless lwIP is built with
+      // DHCP-supplied NTP servers, so only that build needs the core lock.
+      LwIPLock lock;
+#endif
+      sntp_servermode_dhcp(false);
+    }
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {

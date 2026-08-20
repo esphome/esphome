@@ -16,7 +16,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.arduino";
+static const char *const TAG = "http_request";
 #ifdef USE_ESP8266
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
 static constexpr int ESP8266_SSL_ERR_OOM = -1000;
