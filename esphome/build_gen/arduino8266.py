@@ -153,6 +153,8 @@ _CCFLAGS = [
     "-free",
     "-fipa-pta",
 ]
+# Upstream's -u _scanf_float is deliberately absent: it is re-added from
+# KEY_SCANF_FLOAT at emission (the remove_float_scanf extra script's job).
 _LINKFLAGS = [
     "-Os",
     "-nostdlib",
@@ -207,14 +209,10 @@ def _flag_defines() -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
     for flag in CORE.build_flags:
-        # Shell-lex multi-token entries the way PlatformIO does, so a knob
-        # in "-DKNOB -DOTHER" or a spaced "-D KNOB" is still detected;
-        # single tokens pass verbatim to keep quoting in their bodies intact.
-        tokens = (
-            join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
-            if " " in flag
-            else (flag,)
-        )
+        # Shell-lex every entry the way PlatformIO's ParseFlags does, so a
+        # knob in "-DKNOB -DOTHER", a spaced "-D KNOB", and quoted bodies all
+        # read identically to _project_flags (and the compile line).
+        tokens = join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
         for tok in tokens:
             if tok.startswith("-D") and len(tok) > 2:
                 body = tok[2:]
@@ -266,6 +264,15 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 body for name, body in defines.items() if name.startswith("MMU_")
             )
         else:
+            if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
+                # Same diagnostic the PlatformIO builder prints: without the
+                # knob the linker script keeps the default layout while the
+                # compile line carries the custom sizes
+                _LOGGER.warning(
+                    "Detected custom MMU flags; use "
+                    "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM to disable the "
+                    "default configuration"
+                )
             mmu = list(_MMU_DEFAULT)
 
     return _BuildConfig(

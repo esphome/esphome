@@ -459,7 +459,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
         )
 
 
-def _parse_library_json(library_json_path: PathType):
+def parse_library_json(library_json_path: PathType):
     """
     Load and parse a JSON file describing a library.
 
@@ -893,7 +893,7 @@ def convert_libraries(
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
         if has_json:
-            component.data = _parse_library_json(library_json_path)
+            component.data = parse_library_json(library_json_path)
         elif has_properties:
             component.data = parse_library_properties(library_properties_path)
         else:
