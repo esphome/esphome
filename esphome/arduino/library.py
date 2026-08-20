@@ -142,7 +142,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     else:
         manifest = lib_dir / "library.properties"
         data = parse_library_properties(manifest) if manifest.is_file() else {}
-    return _library_info(name, lib_dir, {"name": name, **data})
+    return _library_info(name, lib_dir, data)
 
 
 def resolve_libraries(
@@ -219,7 +219,9 @@ def resolve_libraries(
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
-        apply_extra_script(component, board_mcu=board_mcu, pio_platform=pio_platform)
+        apply_extra_script(
+            component, board_mcu=lambda: board_mcu, pio_platform=pio_platform
+        )
         converted.append(
             _library_info(
                 component.get_require_name(), component.source_dir, component.data
