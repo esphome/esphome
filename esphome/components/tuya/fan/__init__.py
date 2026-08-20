@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import fan
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIMISTIC, CONF_SPEED_COUNT, CONF_SWITCH_DATAPOINT
+from esphome.const import (
+    CONF_ID,
+    CONF_OPTIMISTIC,
+    CONF_SPEED_COUNT,
+    CONF_SWITCH_DATAPOINT,
+)
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
