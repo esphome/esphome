@@ -24,13 +24,23 @@ _COMMON_LD_SNIPPET = """\
   } >dram0_0_seg :dram0_0_phdr
 """
 
+# Shaped like the real SDK flash ld scripts: no iram1_0_seg (that lives in
+# the generated common ld only)
 _FLASH_LD_SNIPPET = """\
 MEMORY
 {
   dport0_0_seg :                        org = 0x3FF00000, len = 0x10
   dram0_0_seg :                         org = 0x3FFE8000, len = 0x14000
-  iram1_0_seg :                         org = 0x40100000, len = 0x8000
   irom0_0_seg :                         org = 0x40201010, len = 0xfeff0
+}
+"""
+
+# Shaped like the preprocessed common ld: MMU_IRAM_SIZE expands with a ul
+# suffix the patcher must leave in place
+_COMMON_LD_MEMORY_SNIPPET = """\
+MEMORY
+{
+  iram1_0_seg :                         org = 0x40100000, len = 0x8000ul
 }
 """
 
@@ -52,13 +62,30 @@ def test_relocate_ratetable_requires_anchor() -> None:
 
 def test_testing_memory_patches_enlarge_segments() -> None:
     patched = apply_testing_memory_patches(
-        _FLASH_LD_SNIPPET, ("iram1_0_seg", "dram0_0_seg", "irom0_0_seg")
+        _FLASH_LD_SNIPPET, ("dram0_0_seg", "irom0_0_seg")
     )
-    assert segment_length(patched, "iram1_0_seg") == 0x200000
     assert segment_length(patched, "dram0_0_seg") == 0x200000
     assert segment_length(patched, "irom0_0_seg") == 0x2000000
     # Untouched segments keep their sizes
     assert segment_length(patched, "dport0_0_seg") == 0x10
+
+
+def test_testing_memory_patches_keep_ul_suffix() -> None:
+    """The common ld's preprocessed sizes carry a ul suffix; the patch must
+    replace only the hex digits, as testing_mode.py.script does."""
+    patched = apply_testing_memory_patches(_COMMON_LD_MEMORY_SNIPPET, ("iram1_0_seg",))
+    assert "len = 0x200000ul" in patched
+    assert segment_length(patched, "iram1_0_seg") == 0x200000
+
+
+def test_segment_length_requires_whole_name() -> None:
+    """A name must match its own line, never inside a longer segment name."""
+    assert segment_length(_FLASH_LD_SNIPPET, "ram0_0_seg") is None
+
+
+def test_testing_memory_patches_unknown_segment_raises() -> None:
+    with pytest.raises(RuntimeError, match="Unknown testing-mode segment"):
+        apply_testing_memory_patches("MEMORY { }", ("bogus_seg",))
 
 
 def test_segment_length() -> None:

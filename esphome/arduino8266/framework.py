@@ -24,6 +24,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import time
 
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import (
@@ -103,9 +104,15 @@ def _pio_system() -> str:
     sysname = platform.system().lower()
     machine = platform.machine().lower()
     if sysname == "darwin":
-        return "darwin_arm64" if machine == "arm64" else "darwin_x86_64"
+        if machine == "arm64":
+            return "darwin_arm64"
+        if machine == "x86_64":
+            return "darwin_x86_64"
     if sysname == "windows":
-        return "windows_amd64" if machine in ("amd64", "arm64") else "windows_x86"
+        if machine in ("amd64", "arm64"):
+            return "windows_amd64"
+        if machine in ("x86", "i686", "i386"):
+            return "windows_x86"
     if sysname == "linux":
         if machine in ("arm64", "aarch64"):
             return "linux_aarch64"
@@ -129,7 +136,7 @@ def _registry_download(package: str, version: str) -> tuple[str, str, int | None
 
     url = _REGISTRY_URL.format(package=package)
     last_err: Exception | None = None
-    for _ in range(3):
+    for attempt in range(3):
         try:
             resp = requests.get(url, timeout=30)
             resp.raise_for_status()
@@ -137,6 +144,8 @@ def _registry_download(package: str, version: str) -> tuple[str, str, int | None
             break
         except requests.RequestException as err:
             last_err = err
+            # Back off so the retries are not one burst against a hiccup
+            time.sleep(2**attempt)
     else:
         # A clean, retried error like the other download paths in the tree
         raise EsphomeError(
@@ -186,7 +195,10 @@ def _install_package(
     # process cannot wipe the directory another is extracting into (same
     # filelock pattern as platformio/toolchain.py and git.py).
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with FileLock(f"{dest}.lock"):
+    # fallback_to_soft would silently degrade to an existence lock on a
+    # flock-less filesystem; a hard-killed run would then hang every later
+    # build forever (same hazard git.py documents).
+    with FileLock(f"{dest}.lock", fallback_to_soft=False):
         if marker.is_file():
             # Another process finished the install while we waited
             return
@@ -248,6 +260,15 @@ def _find_ninja() -> Path:
 
 def check_and_install(framework_version: Version) -> dict[str, Path]:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
+    if framework_version < MIN_FRAMEWORK_VERSION:
+        # Config validation enforces this too; keep the module honest when
+        # called directly.
+        raise EsphomeError(
+            f"The native toolchain requires the Arduino core "
+            f">= {MIN_FRAMEWORK_VERSION}, got {framework_version}"
+        )
+    # Probe the cheap local dependency before ~110 MB of downloads
+    ninja_path = _find_ninja()
     package_version = framework_package_version(framework_version)
     framework_path = get_framework_path(package_version)
     _install_package(
@@ -268,7 +289,7 @@ def check_and_install(framework_version: Version) -> dict[str, Path]:
     return {
         "framework_path": framework_path,
         "toolchain_path": toolchain_path,
-        "ninja_path": _find_ninja(),
+        "ninja_path": ninja_path,
     }
 
 
