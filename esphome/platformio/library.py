@@ -23,6 +23,7 @@ import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -555,8 +556,6 @@ def _resolve_registry_version(
 
 def split_flag_entry(entry: str, owner: str) -> list[str]:
     """``shlex.split`` with a clean error naming the offending flags entry."""
-    import shlex
-
     try:
         return shlex.split(entry)
     except ValueError as err:
@@ -769,9 +768,6 @@ def convert_libraries(
         else ""
     )
 
-    def is_ignored(name: str | None) -> bool:
-        return is_lib_ignored(name, lib_ignore)
-
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)
         node = nodes.get(key) or _LibNode(key=key, is_git=kind == "git")
@@ -820,7 +816,7 @@ def convert_libraries(
     top_level = [
         add_spec(library.name, library.version, library.repository)
         for library in libraries
-        if not is_ignored(library.name)
+        if not is_lib_ignored(library.name, lib_ignore)
     ]
 
     # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
@@ -919,7 +915,7 @@ def convert_libraries(
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")
             )
-            if is_ignored(dep_name):
+            if is_lib_ignored(dep_name, lib_ignore):
                 _LOGGER.debug("Skip ignored dependency %s", dep_name)
                 continue
             # The version field may actually be a URL (git/archive dependency).

@@ -35,6 +35,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from esphome.platformio.library import ensure_list
+
 if TYPE_CHECKING:
     from esphome.platformio.library import ConvertedLibrary
 
@@ -43,14 +45,14 @@ _LOGGER = logging.getLogger(__name__)
 
 def apply_extra_script(
     component: ConvertedLibrary,
-    idf_target: str | Callable[[], str],
-    pio_platform: str = "espressif32",
+    board_mcu: str | Callable[[], str],
+    pio_platform: str,
 ) -> None:
     """Run a library's PIO ``extraScript`` and fold its captured env vars into
     ``component.data["build"]["flags"]`` so the backend's -L/-l/-D extraction
     picks them up. Shared by the ESP-IDF and ESP8266 Arduino backends.
 
-    ``idf_target`` may be a callable so a backend whose target lookup needs
+    ``board_mcu`` may be a callable so a backend whose target lookup needs
     build state (the esp32 variant) resolves it only when a script will run.
     ``pio_platform`` is exposed to the script as PlatformIO's ``PIOPLATFORM``.
     """
@@ -78,20 +80,18 @@ def apply_extra_script(
             component.name,
         )
         return
-    if callable(idf_target):
-        idf_target = idf_target()
+    if callable(board_mcu):
+        board_mcu = board_mcu()
     result = run_extra_script(
         script_path,
         library_dir=source_path,
-        idf_target=idf_target,
+        board_mcu=board_mcu,
         pio_platform=pio_platform,
     )
     extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
         return
-    flags = component.data.setdefault("build", {}).setdefault("flags", [])
-    if isinstance(flags, str):
-        flags = [flags]
+    flags = ensure_list(component.data.setdefault("build", {}).setdefault("flags", []))
     flags.extend(extra_flags)
     component.data["build"]["flags"] = flags
 
@@ -155,12 +155,12 @@ def run_extra_script(
     script_path: Path,
     *,
     library_dir: Path,
-    idf_target: str,
-    pio_platform: str = "espressif32",
+    board_mcu: str,
+    pio_platform: str,
 ) -> ExtraScriptResult:
     """Execute ``script_path`` with a fake SCons env and return captured vars.
 
-    ``idf_target`` is the active ESP-IDF target name (e.g. ``esp32``,
+    ``board_mcu`` is the active MCU name (e.g. ``esp32``,
     ``esp32s3``); it's exposed to the script as PlatformIO's
     ``BOARD_MCU`` so chip-conditional logic resolves the same way it
     would under PIO. The script runs with ``library_dir`` as the
@@ -172,8 +172,8 @@ def run_extra_script(
     script shouldn't block the build.
     """
     env = _FakeSConsEnv(
-        board_mcu=idf_target,
-        pio_env=f"esphome_{idf_target}",
+        board_mcu=board_mcu,
+        pio_env=f"esphome_{board_mcu}",
         pio_platform=pio_platform,
     )
     code = compile(script_path.read_text(encoding="utf-8"), str(script_path), "exec")
