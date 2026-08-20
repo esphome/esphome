@@ -1,16 +1,17 @@
-"""Derive idedata from an ESP-IDF native-toolchain ``compile_commands.json``.
+"""Derive idedata from a native (non-PlatformIO) build's ``compile_commands.json``.
 
-PlatformIO exposes a curated ``pio run -t idedata`` JSON; the native ESP-IDF
-toolchain has no such command, but its CMake build emits
-``build/compile_commands.json`` (CMAKE_EXPORT_COMPILE_COMMANDS). This module
-turns that file into the same fields consumers (IDE integration, clang-tidy)
-expect:
+PlatformIO exposes a curated ``pio run -t idedata`` JSON; the native
+toolchains have no such command, but each build produces a
+``compile_commands.json`` (CMAKE_EXPORT_COMPILE_COMMANDS for ESP-IDF, ninja's
+compdb tool otherwise). This module turns that file into the same fields
+consumers (IDE integration, clang-tidy) expect:
 
     {cc_path, cxx_path, cxx_flags, defines, includes: {build, toolchain}}
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -123,7 +124,20 @@ def _pick_entry(entries: list[dict]) -> dict:
 
 # The compiler basename a compile_commands entry must lead with (an
 # optional target-triple prefix ends in one of these)
-_COMPILER_STEM = re.compile(r"(?:gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$")
+# The stem must BE a compiler name (optionally versioned), alone or after a
+# target-triple separator: "cc", "xtensa-lx106-elf-g++", "gcc-8.4.0" match;
+# "ccache" and "distcc" do not.
+_COMPILER_STEM = re.compile(
+    r"(?:^|[-_.])(?:gcc|g\+\+|cc|c\+\+|clang|clang\+\+)(?:-[\d.]+)?$"
+)
+
+
+@functools.cache
+def _warn_not_a_compiler(token: str) -> None:
+    # A stale compile DB built with a launcher the current run no longer
+    # configures would otherwise cache the launcher as the compiler path.
+    # Cached so a database of hundreds of entries warns once per path.
+    _LOGGER.warning("compile_commands entry does not start with a compiler: %s", token)
 
 
 def parse_entry(
@@ -150,12 +164,7 @@ def parse_entry(
     if launcher is not None and tokens[0] == launcher:
         tokens = tokens[1:]
     if not _COMPILER_STEM.search(Path(tokens[0]).stem):
-        # A stale compile DB built with a launcher the current run no longer
-        # configures would otherwise cache the launcher as the compiler path
-        _LOGGER.warning(
-            "compile_commands entry does not start with a compiler: %s",
-            tokens[0],
-        )
+        _warn_not_a_compiler(tokens[0])
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
     cxx_path = tokens[0].replace("\\", "/")
