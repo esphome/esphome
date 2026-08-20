@@ -93,12 +93,17 @@ def test_library_info_no_src_dir(tmp_path: Path) -> None:
     assert lib.include_dirs == [read_path.resolve()]
 
 
-def test_resolve_libraries_bundled_and_unknown(tmp_path: Path) -> None:
+def test_resolve_libraries_bundled_and_unknown(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     framework = _make_framework(tmp_path)
     _add_library("ESP8266WiFi", None)
-    _add_library("Updater", None)  # not a bundled library: skipped
+    _add_library("Updater", None)  # known-absent: skipped silently
+    _add_library("Typoo", None)  # unknown: skipped with a warning
     libs = component.resolve_libraries(framework)
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
+    assert "Typoo" in caplog.text
+    assert "Updater" not in caplog.text
 
 
 def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:

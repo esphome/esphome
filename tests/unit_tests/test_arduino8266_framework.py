@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import stat
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -63,27 +64,40 @@ def _registry_response(files: list[dict]) -> MagicMock:
     return resp
 
 
-def test_registry_download_url_matches_system() -> None:
+def test_registry_download_matches_system() -> None:
     resp = _registry_response(
         [
             {"system": ["windows_amd64"], "download_url": "http://x/win"},
-            {"system": ["linux_x86_64"], "download_url": "http://x/linux"},
+            {
+                "system": ["linux_x86_64"],
+                "download_url": "http://x/linux",
+                "checksum": {"sha256": "abc123"},
+                "size": 42,
+            },
         ]
     )
     with (
         patch("requests.get", return_value=resp),
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
     ):
-        assert framework._registry_download_url("pkg", "1.0.0") == "http://x/linux"
+        assert framework._registry_download("pkg", "1.0.0") == (
+            "http://x/linux",
+            "abc123",
+            42,
+        )
 
 
-def test_registry_download_url_wildcard_system() -> None:
+def test_registry_download_wildcard_system() -> None:
     resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
     with patch("requests.get", return_value=resp):
-        assert framework._registry_download_url("pkg", "1.0.0") == "http://x/any"
+        assert framework._registry_download("pkg", "1.0.0") == (
+            "http://x/any",
+            None,
+            None,
+        )
 
 
-def test_registry_download_url_no_system_match() -> None:
+def test_registry_download_no_system_match() -> None:
     resp = _registry_response(
         [{"system": ["windows_amd64"], "download_url": "http://x/win"}]
     )
@@ -92,17 +106,17 @@ def test_registry_download_url_no_system_match() -> None:
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
         pytest.raises(EsphomeError, match="No pkg 1.0.0 build"),
     ):
-        framework._registry_download_url("pkg", "1.0.0")
+        framework._registry_download("pkg", "1.0.0")
 
 
-def test_registry_download_url_version_not_found() -> None:
+def test_registry_download_version_not_found() -> None:
     resp = _registry_response([])
     resp.json.return_value = {"versions": [{"name": "2.0.0", "files": []}]}
     with (
         patch("requests.get", return_value=resp),
         pytest.raises(EsphomeError, match="not found"),
     ):
-        framework._registry_download_url("pkg", "1.0.0")
+        framework._registry_download("pkg", "1.0.0")
 
 
 def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
@@ -134,17 +148,21 @@ def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
 
 
 def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
+    """The registry path downloads with the registry's sha256 and size."""
     dest = tmp_path / "pkg"
     with (
-        patch.object(framework, "download_from_mirrors") as mock_download,
+        patch.object(framework, "download_with_resume") as mock_download,
         patch.object(framework, "archive_extract_all") as mock_extract,
         patch.object(
-            framework, "_registry_download_url", return_value="http://x/pkg.tar.gz"
+            framework,
+            "_registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", 42),
         ),
     ):
         mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
         framework._install_package("pkg", "1.0.0", dest, [])
-    assert mock_download.call_args[0][0] == ["http://x/pkg.tar.gz"]
+    assert mock_download.call_args[0][0] == "http://x/pkg.tar.gz"
+    assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
 
 @pytest.mark.parametrize(
@@ -187,22 +205,44 @@ def test_check_ninja_install_cached_binary(tmp_path: Path) -> None:
         assert framework._check_ninja_install() == binary
 
 
+def _fake_ninja_extract(_archive, ninja_dir, **_kw) -> None:
+    ninja_dir.mkdir(parents=True, exist_ok=True)
+    (ninja_dir / ("ninja.exe" if os.name == "nt" else "ninja")).touch()
+
+
 def test_check_ninja_install_downloads(tmp_path: Path) -> None:
-    binary_name = "ninja.exe" if os.name == "nt" else "ninja"
-
-    def fake_extract(_tmp, ninja_dir, **_kw) -> None:
-        ninja_dir.mkdir(parents=True, exist_ok=True)
-        (ninja_dir / binary_name).touch()
-
+    """The default source is integrity-checked against the pinned sha256."""
     with (
         patch("shutil.which", return_value=None),
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "download_from_mirrors"),
-        patch.object(framework, "archive_extract_all", side_effect=fake_extract),
+        patch.object(framework, "download_with_resume") as mock_download,
+        patch.object(framework, "archive_extract_all", side_effect=_fake_ninja_extract),
     ):
         binary = framework._check_ninja_install()
     assert binary.is_file()
-    assert os.access(binary, os.X_OK)
+    # X_OK would consult mount flags (fails on noexec /tmp); check mode bits
+    assert binary.stat().st_mode & stat.S_IXUSR
+    archive_name = framework._ninja_archive_name()
+    assert mock_download.call_args[1]["sha256"] == framework._NINJA_SHA256[archive_name]
+
+
+def test_check_ninja_install_mirror_override_skips_checksum(tmp_path: Path) -> None:
+    """A mirror override is trusted as configured (no pinned checksum)."""
+    with (
+        patch("shutil.which", return_value=None),
+        patch.dict(
+            os.environ,
+            {
+                "ESPHOME_ARDUINO8266_PREFIX": str(tmp_path),
+                "ESPHOME_ARDUINO8266_NINJA_MIRRORS": "http://mirror/{ARCHIVE}",
+            },
+        ),
+        patch.object(framework, "download_from_mirrors") as mock_download,
+        patch.object(framework, "archive_extract_all", side_effect=_fake_ninja_extract),
+    ):
+        binary = framework._check_ninja_install()
+    assert binary.is_file()
+    mock_download.assert_called_once()
 
 
 def test_check_ninja_install_missing_after_extract(tmp_path: Path) -> None:

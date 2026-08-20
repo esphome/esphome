@@ -7207,3 +7207,72 @@ def test_write_cpp_file_arduino_toolchain_other_platform_falls_through(
         assert main.write_cpp_file() == 0
 
     mock_pio_project.assert_called_once()
+
+
+def test_command_idedata_arduino_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the native ESP8266 Arduino toolchain, idedata is emitted as JSON."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch(
+        "esphome.arduino8266.toolchain.get_idedata", return_value=data
+    ) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
+    """A missing native build (no idedata) returns an error, not a crash."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+
+    with patch("esphome.arduino8266.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
+
+
+def test_command_analyze_memory_arduino_toolchain(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+) -> None:
+    """analyze-memory uses the native toolchain's binutils under
+    'toolchain: arduino' instead of falling into the PlatformIO branch."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.arduino8266.toolchain.get_objdump_path",
+            return_value=Path("/tc/objdump"),
+        ),
+        patch(
+            "esphome.arduino8266.toolchain.get_readelf_path",
+            return_value=Path("/tc/readelf"),
+        ),
+        patch(
+            "esphome.arduino8266.toolchain.get_elf_path",
+            return_value=Path("/build/firmware.elf"),
+        ),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        "/build/firmware.elf",
+        "/tc/objdump",
+        "/tc/readelf",
+        set(),
+        idedata=None,
+    )

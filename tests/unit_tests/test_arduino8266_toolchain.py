@@ -52,6 +52,8 @@ def test_path_getters(tmp_path: Path) -> None:
     assert toolchain.get_build_dir() == CORE.relative_pioenvs_path("test8266")
     assert toolchain.get_elf_path().name == "firmware.elf"
     assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line"
+    assert toolchain.get_objdump_path().name == "xtensa-lx106-elf-objdump"
+    assert toolchain.get_readelf_path().name == "xtensa-lx106-elf-readelf"
 
 
 def test_run_compile_build_failure(tmp_path: Path) -> None:
@@ -103,16 +105,22 @@ def test_write_compile_commands(tmp_path: Path) -> None:
     assert (build_dir / "compile_commands.json").read_text() == "[]\n"
 
 
-def test_write_compile_commands_failure(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    with patch.object(
-        toolchain.subprocess,
-        "run",
-        return_value=MagicMock(returncode=1, stderr="boom"),
+def test_write_compile_commands_failure_removes_stale_db(tmp_path: Path) -> None:
+    """A failed compdb run must not leave a stale database behind."""
+    from esphome.core import EsphomeError
+
+    stale = tmp_path / "compile_commands.json"
+    stale.write_text("[]")
+    with (
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=1, stderr="boom"),
+        ),
+        pytest.raises(EsphomeError, match="compile_commands"),
     ):
         toolchain._write_compile_commands(tmp_path / "ninja", tmp_path, {})
-    assert "Could not generate compile_commands.json" in caplog.text
+    assert not stale.exists()
 
 
 def test_parse_app_size(tmp_path: Path) -> None:

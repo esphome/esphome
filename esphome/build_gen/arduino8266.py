@@ -365,7 +365,9 @@ def generate_ld_scripts(
         flash_ld = framework / "tools" / "sdk" / "ld" / flash_ld_name
         write_file_if_changed(
             ld_dir / f"testing_{flash_ld_name}",
-            apply_testing_memory_patches(flash_ld.read_text(encoding="utf-8")),
+            apply_testing_memory_patches(
+                flash_ld.read_text(encoding="utf-8"), require=True
+            ),
         )
 
 
@@ -423,13 +425,8 @@ def write_project(paths: dict[str, Path]) -> bool:
 
     libraries = resolve_libraries(framework)
 
-    # A missing framework-owned directory is a broken install; failing here
-    # names the path instead of producing a wall of include errors.
-    for required in (sdk / "include", core_dir, sdk / "lwip2" / "include", variant_dir):
-        if not required.is_dir():
-            raise EsphomeError(
-                f"Arduino framework install is incomplete: missing {required}"
-            )
+    # A missing install directory would otherwise surface as a wall of
+    # include errors; failing here names the path instead.
     include_dirs = [
         src_dir,
         sdk / "include",
@@ -438,7 +435,11 @@ def write_project(paths: dict[str, Path]) -> bool:
         sdk / "lwip2" / "include",
         variant_dir,
     ]
-    include_dirs = [d for d in include_dirs if d.is_dir()]
+    for required in include_dirs:
+        if not required.is_dir():
+            raise EsphomeError(
+                f"Arduino toolchain install is incomplete: missing {required}"
+            )
     for lib in libraries:
         include_dirs += lib.include_dirs
 

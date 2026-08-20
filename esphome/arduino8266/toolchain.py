@@ -13,7 +13,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file_if_changed
 from esphome.types import ConfigType
 
@@ -34,8 +34,20 @@ def get_elf_path() -> Path:
     return get_build_dir() / "firmware.elf"
 
 
+def _toolchain_tool(name: str) -> Path:
+    return framework.get_toolchain_path() / "bin" / f"xtensa-lx106-elf-{name}"
+
+
 def get_addr2line_path() -> Path:
-    return framework.get_toolchain_path() / "bin" / "xtensa-lx106-elf-addr2line"
+    return _toolchain_tool("addr2line")
+
+
+def get_objdump_path() -> Path:
+    return _toolchain_tool("objdump")
+
+
+def get_readelf_path() -> Path:
+    return _toolchain_tool("readelf")
 
 
 def run_compile(config: ConfigType, verbose: bool) -> int:
@@ -77,12 +89,14 @@ def _write_compile_commands(
         check=False,
         close_fds=False,
     )
-    if result.returncode == 0:
-        # write_file_if_changed keeps the mtime stable on no-op builds so the
-        # idedata cache in get_idedata() stays valid.
-        write_file_if_changed(build_dir / "compile_commands.json", result.stdout)
-    else:
-        _LOGGER.warning("Could not generate compile_commands.json: %s", result.stderr)
+    if result.returncode != 0:
+        # Drop any stale database so consumers (IDE integration, clang-tidy,
+        # the memory analyzer) can't silently read outdated data.
+        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
+    # write_file_if_changed keeps the mtime stable on no-op builds so the
+    # idedata cache in get_idedata() stays valid.
+    write_file_if_changed(build_dir / "compile_commands.json", result.stdout)
 
 
 def _parse_app_size(build_dir: Path) -> int | None:
@@ -90,12 +104,18 @@ def _parse_app_size(build_dir: Path) -> int | None:
     from esphome.build_gen.arduino8266 import get_flash_ld_path
     from esphome.components.esp8266.build_surgery import segment_length
 
+    # Warnings, not debug: without the app size the Flash summary line is
+    # dropped and CI's memory-impact extraction loses its flash metric.
+    ld_path = get_flash_ld_path(build_dir)
     try:
-        ld_text = get_flash_ld_path(build_dir).read_text(encoding="utf-8")
+        ld_text = ld_path.read_text(encoding="utf-8")
     except OSError as err:
-        _LOGGER.debug("Cannot read linker script for the Flash summary: %s", err)
+        _LOGGER.warning("Cannot read linker script for the Flash summary: %s", err)
         return None
-    return segment_length(ld_text, "irom0_0_seg")
+    app_size = segment_length(ld_text, "irom0_0_seg")
+    if app_size is None:
+        _LOGGER.warning("irom0_0_seg not found in %s; skipping Flash summary", ld_path)
+    return app_size
 
 
 def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
@@ -124,6 +144,8 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
             try:
                 sections[parts[0]] = int(parts[1])
             except ValueError:
+                # An omitted section would silently skew the reported totals
+                _LOGGER.warning("Unparsable size output for section %s", parts[0])
                 continue
     ram = sum(sections.get(s, 0) for s in _RAM_SECTIONS)
     flash = sum(sections.get(s, 0) for s in _FLASH_SECTIONS)

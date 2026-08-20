@@ -39,6 +39,12 @@ _LOGGER = logging.getLogger(__name__)
 
 ESP8266_PLATFORM = "espressif8266"
 
+# Bare names components register that intentionally have no bundled library
+# ("Updater" is replaced by ESPHome's native OTA backend). Anything else
+# missing from the framework tree is worth a warning: it is likely a typo or
+# a library the build genuinely needs.
+_KNOWN_ABSENT_BUNDLED = frozenset({"Updater"})
+
 
 @dataclass
 class ArduinoLibrary:
@@ -133,11 +139,14 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
             external.append(library)
         elif (framework_path / "libraries" / library.name).is_dir():
             bundled.append(_bundled_library(framework_path, library.name))
+        elif library.name in _KNOWN_ABSENT_BUNDLED:
+            _LOGGER.debug("Skipping known-absent bundled library %s", library.name)
         else:
-            # A bare name that is not a bundled library ("Updater" from the
-            # ota component) has nothing to build; PlatformIO's LDF-off mode
-            # ignores it the same way.
-            _LOGGER.debug("Skipping unknown bundled library %s", library.name)
+            _LOGGER.warning(
+                "Library %s is not bundled with the Arduino framework and has "
+                "no version or repository to download it from; skipping",
+                library.name,
+            )
 
     converted: list[ArduinoLibrary] = []
     bundled_names = {lib.name for lib in bundled}
@@ -158,7 +167,8 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
                 continue
             try:
                 check_library_data(dep, ESP8266_PLATFORM, "arduino")
-            except InvalidLibrary:
+            except InvalidLibrary as err:
+                _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
                 continue
             bundled_names.add(name)
             bundled.append(_bundled_library(framework_path, name))

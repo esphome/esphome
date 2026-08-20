@@ -31,6 +31,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     archive_extract_all,
     download_from_mirrors,
+    download_with_resume,
     rmdir,
     str_to_lst_of_str,
 )
@@ -46,6 +47,17 @@ TOOLCHAIN_PACKAGE = "toolchain-xtensa"
 TOOLCHAIN_VERSION = "2.100300.220621"
 
 NINJA_VERSION = "1.12.1"
+
+# sha256 of the ninja release archives, so the binary we chmod and execute is
+# integrity-checked. Only applies to the default download source; a mirror
+# override via ESPHOME_ARDUINO8266_NINJA_MIRRORS is trusted as configured.
+_NINJA_SHA256 = {
+    "ninja-mac.zip": "89a287444b5b3e98f88a945afa50ce937b8ffd1dcc59c555ad9b1baf855298c9",
+    "ninja-win.zip": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
+    "ninja-winarm64.zip": "79c96a50e0deafec212cfa85aa57c6b74003f52d9d1673ddcd1eab1c958c5900",
+    "ninja-linux.zip": "6f98805688d19672bd699fbbfa2c2cf0fc054ac3df1f0e6a47664d963d530255",
+    "ninja-linux-aarch64.zip": "5c25c6570b0155e95fce5918cb95f1ad9870df5768653afe128db822301a05a1",
+}
 
 _REGISTRY_URL = (
     "https://api.registry.platformio.org/v3/packages/platformio/tool/{package}"
@@ -121,8 +133,10 @@ def _pio_system() -> str:
     return "linux_x86_64"
 
 
-def _registry_download_url(package: str, version: str) -> str:
-    """Resolve a package's download URL for this host via the PIO registry."""
+def _registry_download(
+    package: str, version: str
+) -> tuple[str, str | None, int | None]:
+    """Resolve a package's download URL, sha256, and size via the PIO registry."""
     import requests
 
     url = _REGISTRY_URL.format(package=package)
@@ -136,7 +150,11 @@ def _registry_download_url(package: str, version: str) -> str:
         for file in ver.get("files", []):
             systems = file.get("system") or "*"
             if systems == "*" or system in systems:
-                return file["download_url"]
+                return (
+                    file["download_url"],
+                    (file.get("checksum") or {}).get("sha256"),
+                    file.get("size"),
+                )
         raise EsphomeError(f"No {package} {version} build for this platform ({system})")
     raise EsphomeError(f"{package} {version} not found in the package registry")
 
@@ -147,21 +165,28 @@ def _install_package(
     dest: Path,
     mirrors: list[str],
 ) -> None:
-    """Download and extract one package if not already installed."""
+    """Download, verify, and extract one package if not already installed.
+
+    The registry path is integrity-checked against the sha256 the registry
+    publishes; a mirror override is trusted as configured.
+    """
     marker = dest / ".esphome_extracted"
     if marker.is_file():
         return
     rmdir(dest, msg=f"Clean up incomplete {name} install")
-    with tempfile.NamedTemporaryFile() as tmp:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        archive = Path(tmp_dir) / "package"
         _LOGGER.info("Downloading %s %s ...", name, version)
         if mirrors:
-            download_from_mirrors(
-                mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, tmp.file
-            )
+            with archive.open("wb") as file:
+                download_from_mirrors(
+                    mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, file
+                )
         else:
-            download_from_mirrors([_registry_download_url(name, version)], {}, tmp.file)
+            url, sha256, size = _registry_download(name, version)
+            download_with_resume(url, archive, sha256=sha256, size=size)
         _LOGGER.info("Extracting %s ...", name)
-        archive_extract_all(tmp.file, dest, progress_header="Extracting")
+        archive_extract_all(archive, dest, progress_header="Extracting")
     marker.touch()
 
 
@@ -186,14 +211,23 @@ def _check_ninja_install() -> Path:
     if binary.is_file():
         return binary
     rmdir(ninja_dir, msg="Clean up incomplete ninja install")
-    with tempfile.NamedTemporaryFile() as tmp:
+    archive_name = _ninja_archive_name()
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        archive = Path(tmp_dir) / archive_name
         _LOGGER.info("Downloading ninja %s ...", NINJA_VERSION)
-        download_from_mirrors(
-            ESPHOME_ARDUINO8266_NINJA_MIRRORS,
-            {"VERSION": NINJA_VERSION, "ARCHIVE": _ninja_archive_name()},
-            tmp.file,
-        )
-        archive_extract_all(tmp.file, ninja_dir)
+        if "ESPHOME_ARDUINO8266_NINJA_MIRRORS" in os.environ:
+            with archive.open("wb") as file:
+                download_from_mirrors(
+                    ESPHOME_ARDUINO8266_NINJA_MIRRORS,
+                    {"VERSION": NINJA_VERSION, "ARCHIVE": archive_name},
+                    file,
+                )
+        else:
+            url = ESPHOME_ARDUINO8266_NINJA_MIRRORS[0].format(
+                VERSION=NINJA_VERSION, ARCHIVE=archive_name
+            )
+            download_with_resume(url, archive, sha256=_NINJA_SHA256[archive_name])
+        archive_extract_all(archive, ninja_dir)
     if not binary.is_file():
         raise EsphomeError(f"ninja binary missing after extraction in {ninja_dir}")
     binary.chmod(binary.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

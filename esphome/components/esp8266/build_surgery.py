@@ -44,6 +44,13 @@ def relocate_ratetable(content: str) -> str:
     )
 
 
+_TESTING_SEGMENT_SIZES = (
+    ("iram1_0_seg", TESTING_IRAM_SIZE),
+    ("dram0_0_seg", TESTING_DRAM_SIZE),
+    ("irom0_0_seg", TESTING_FLASH_SIZE),
+)
+
+
 def _patch_segment_size(content: str, segment_name: str, new_size: str) -> str:
     pattern = (
         rf"({segment_name}\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)"
@@ -52,11 +59,26 @@ def _patch_segment_size(content: str, segment_name: str, new_size: str) -> str:
     return re.sub(pattern, rf"\g<1>{new_size}", content)
 
 
-def apply_testing_memory_patches(content: str) -> str:
-    """Enlarge IRAM/DRAM/flash segments so grouped CI test builds can link."""
-    content = _patch_segment_size(content, "iram1_0_seg", TESTING_IRAM_SIZE)
-    content = _patch_segment_size(content, "dram0_0_seg", TESTING_DRAM_SIZE)
-    return _patch_segment_size(content, "irom0_0_seg", TESTING_FLASH_SIZE)
+def apply_testing_memory_patches(content: str, require: bool = False) -> str:
+    """Enlarge IRAM/DRAM/flash segments so grouped CI test builds can link.
+
+    With ``require``, raise when a segment was not found: a silently
+    unpatched flash linker script would keep the real 32KB IRAM limits and
+    fail grouped builds far from the cause. The common linker script has no
+    MEMORY block, so its caller leaves ``require`` off.
+    """
+    missing: list[str] = []
+    for segment, size in _TESTING_SEGMENT_SIZES:
+        patched = _patch_segment_size(content, segment, size)
+        if patched == content:
+            missing.append(segment)
+        content = patched
+    if require and missing:
+        raise RuntimeError(
+            f"Testing-mode memory patch failed: segment(s) {', '.join(missing)} "
+            "not found (has the Arduino core linker script changed?)"
+        )
+    return content
 
 
 def segment_length(content: str, segment_name: str) -> int | None:

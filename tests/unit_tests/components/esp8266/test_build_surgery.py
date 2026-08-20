@@ -69,3 +69,14 @@ def test_segment_length() -> None:
 
     assert segment_length(_FLASH_LD_SNIPPET, "irom0_0_seg") == 0xFEFF0
     assert segment_length(_FLASH_LD_SNIPPET, "missing_seg") is None
+
+
+def test_testing_memory_patches_require() -> None:
+    """With require, a segment the patch could not find raises instead of
+    silently keeping the real memory limits."""
+    patched = apply_testing_memory_patches(_FLASH_LD_SNIPPET, require=True)
+    assert "0x2000000" in patched
+    with pytest.raises(RuntimeError, match="iram1_0_seg"):
+        apply_testing_memory_patches("MEMORY { }", require=True)
+    # Without require (the common linker script has no MEMORY block) it is a no-op
+    assert apply_testing_memory_patches("MEMORY { }") == "MEMORY { }"

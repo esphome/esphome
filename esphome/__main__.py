@@ -1935,6 +1935,21 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
         print(json.dumps(idedata, indent=2) + "\n")
         return 0
 
+    if CORE.is_esp8266 and CORE.using_toolchain_arduino:
+        # Same contract as the ESP-IDF branch: idedata is derived from the
+        # build's compile_commands.json, so a compile must have run.
+        from esphome.arduino8266 import toolchain as arduino8266_toolchain
+
+        idedata = arduino8266_toolchain.get_idedata()
+        if idedata is None:
+            _LOGGER.error(
+                "No idedata available; compile the configuration first",
+            )
+            return 1
+
+        print(json.dumps(idedata, indent=2) + "\n")
+        return 0
+
     if not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "The idedata command is not compatible with %s toolchain",
@@ -1977,6 +1992,13 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     idedata = None
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
+
+        objdump_path = str(toolchain.get_objdump_path())
+        readelf_path = str(toolchain.get_readelf_path())
+
+        firmware_elf = toolchain.get_elf_path()
+    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
+        from esphome.arduino8266 import toolchain
 
         objdump_path = str(toolchain.get_objdump_path())
         readelf_path = str(toolchain.get_readelf_path())

@@ -184,6 +184,7 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
     (framework / "libraries").mkdir()
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
+    (toolchain / "include").mkdir()
     return {
         "framework_path": framework,
         "toolchain_path": toolchain,
@@ -397,7 +398,11 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
     (paths["framework_path"] / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
-        "MEMORY\n{\n  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n}\n"
+        "MEMORY\n{\n"
+        "  dram0_0_seg :    org = 0x3FFE8000, len = 0x14000\n"
+        "  iram1_0_seg :    org = 0x40100000, len = 0x8000\n"
+        "  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n"
+        "}\n"
     )
     CORE.testing_mode = True
     result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT)
