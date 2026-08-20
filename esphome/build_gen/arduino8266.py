@@ -39,25 +39,19 @@ from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import join_flag_args, split_flag_entry
+from esphome.platformio.library import (
+    SOURCE_KIND_FOR_SUFFIX,
+    join_flag_args,
+    split_flag_entry,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-# Compile rule per source suffix; keys must cover SRC_FILE_EXTENSIONS so any
-# source a library manifest selects has a rule (pinned by a drift test).
+# Compile rule per source suffix, derived from the shared suffix -> kind map
+# so every source extension a library manifest can select has a rule.
+_RULE_FOR_KIND = {"c": "cc", "cxx": "cxx", "asm": "asm"}
 _RULE_FOR_SUFFIX = {
-    ".c": "cc",
-    ".cpp": "cxx",
-    ".cc": "cxx",
-    ".cxx": "cxx",
-    ".c++": "cxx",
-    ".S": "asm",
-    ".spp": "asm",
-    ".SPP": "asm",
-    ".sx": "asm",
-    ".s": "asm",
-    ".asm": "asm",
-    ".ASM": "asm",
+    suffix: _RULE_FOR_KIND[kind] for suffix, kind in SOURCE_KIND_FOR_SUFFIX.items()
 }
 
 # Always excluded from the core build: ESPHome uses its own native OTA
@@ -309,16 +303,11 @@ def _quote_arg(tok: str) -> str:
     return f'"{quoted}"'
 
 
-def _q(value) -> str:
-    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
-    return _quote_arg(str(value).replace("$", "$$"))
-
-
 _NEEDS_QUOTE = re.compile(r'[\s"\']')
 
 
-def _shell_token(tok: str) -> str:
-    """Quote a lexed token only when needed; ``_q`` force-quotes paths.
+def _shell_token(tok: str, force: bool = False) -> str:
+    """Quote a lexed token only when needed; ``force`` always quotes.
 
     Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
     token ``-DX=a b``); re-quote on the way out so the compiler receives the
@@ -328,9 +317,14 @@ def _shell_token(tok: str) -> str:
     PlatformIO parity.
     """
     tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
-    if not _NEEDS_QUOTE.search(tok):
-        return tok
-    return _quote_arg(tok)
+    if force or _NEEDS_QUOTE.search(tok):
+        return _quote_arg(tok)
+    return tok
+
+
+def _q(value) -> str:
+    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
+    return _shell_token(str(value), force=True)
 
 
 def _defines_flags(
@@ -505,7 +499,7 @@ def write_project(paths: dict[str, Path]) -> bool:
     Returns True when ``build.ninja`` changed, so the caller can skip work
     derived purely from it (the compile database) on unchanged builds.
     """
-    from esphome.arduino8266.component import resolve_libraries
+    from esphome.arduino.library import resolve_libraries
     from esphome.arduino8266.framework import ccache_path
 
     framework = paths["framework_path"]
@@ -528,7 +522,12 @@ def write_project(paths: dict[str, Path]) -> bool:
     variant_dir = framework / "variants" / board_build["variant"]
     src_dir = CORE.relative_src_path()
 
-    libraries = resolve_libraries(framework)
+    libraries = resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
 
     # A missing install directory would otherwise surface as a wall of
     # include errors; failing here names the path instead.
@@ -574,11 +573,10 @@ def write_project(paths: dict[str, Path]) -> bool:
     # build_unflags applies to the framework flag sets too (compile and link),
     # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
     # diverge between the toolchains).
-    cflags = [f for f in cflags if f not in unflags]
-    cxxflags = [f for f in cxxflags if f not in unflags]
-    asflags = [f for f in asflags if f not in unflags]
-
-    link_flags = [f for f in _LINKFLAGS if f not in unflags]
+    cflags, cxxflags, asflags, link_flags = (
+        [f for f in flags if f not in unflags]
+        for flags in (cflags, cxxflags, asflags, _LINKFLAGS)
+    )
     if esp8266_data[KEY_SCANF_FLOAT]:
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
