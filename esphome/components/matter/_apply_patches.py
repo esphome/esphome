@@ -273,7 +273,15 @@ def _apply_std_map_swap(path: Path) -> str:
             if line.startswith("#include"):
                 last_include_idx = i
         if last_include_idx < 0:
-            return f"skip (no include lines): {path.name}"
+            # Reached here only when the LazyRegisteredServerCluster/gServers
+            # pattern IS present (checked above) — returning a silent skip
+            # would let the unpatched std::unordered_map ship and reproduce
+            # the rehash/dangling-pointer bug this patch exists to fix.
+            raise PatchError(
+                f"PATCH3: {path.name} declares gServers as unordered_map but "
+                f"has no #include line to anchor the map header on — upstream "
+                f"file shape changed, update _apply_patches.py"
+            )
         lines.insert(last_include_idx + 1, f"{PATCH3_INCLUDE_NEW}\n")
         patched = "".join(lines)
 

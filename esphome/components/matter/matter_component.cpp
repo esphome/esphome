@@ -342,87 +342,97 @@ static esp_err_t attribute_update_cb(::esp_matter::attribute::callback_type_t ty
   if (self == nullptr || val == nullptr) {
     return ESP_OK;
   }
+  // Each handled cluster/attribute path calls the corresponding dispatcher
+  // and translates a dispatch miss (endpoint not owned by us for a cluster
+  // we intercept) into ESP_ERR_NOT_FOUND so CHIP does not silently accept a
+  // write that never reached an ESPHome entity. Writes to attributes we do
+  // not intercept fall through to the final `return ESP_OK`.
+  bool dispatched = true;
+  bool intercepted = false;
   // OnOff.OnOff (bool) — switch endpoints.
   if (cluster_id == chip::app::Clusters::OnOff::Id &&
       attribute_id == chip::app::Clusters::OnOff::Attributes::OnOff::Id) {
-    self->handle_attribute_write(endpoint_id, cluster_id, attribute_id, val->val.b);
-    return ESP_OK;
+    intercepted = true;
+    dispatched = self->handle_attribute_write(endpoint_id, cluster_id, attribute_id, val->val.b);
   }
   // WindowCovering.TargetPositionLiftPercent100ths (nullable uint16) — cover
   // endpoints. The CHIP window-covering server writes this attribute in
   // response to UpOrOpen / DownOrClose / GoToLiftPercentage commands, so
   // hooking the attribute path covers all three without a command delegate.
-  if (cluster_id == chip::app::Clusters::WindowCovering::Id &&
-      attribute_id == chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id) {
+  else if (cluster_id == chip::app::Clusters::WindowCovering::Id &&
+           attribute_id == chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id) {
+    intercepted = true;
     // NullableTraits sentinel for uint16 is 0xFFFF; the fabric shouldn't send
     // that as a real position but guard anyway so a bad write doesn't drive
     // the cover to an out-of-range target.
     if (!chip::app::NumericAttributeTraits<uint16_t>::IsNullValue(val->val.u16)) {
-      self->handle_cover_target_write(endpoint_id, val->val.u16);
+      dispatched = self->handle_cover_target_write(endpoint_id, val->val.u16);
     }
-    return ESP_OK;
   }
   // FanControl attributes — writes come from the fabric setting speed or
   // fan mode. PercentSetting is a nullable uint8; treat null as "no change"
   // (fabric never sends null explicitly).
-  if (cluster_id == chip::app::Clusters::FanControl::Id) {
+  else if (cluster_id == chip::app::Clusters::FanControl::Id) {
     if (attribute_id == chip::app::Clusters::FanControl::Attributes::PercentSetting::Id) {
+      intercepted = true;
       if (!chip::app::NumericAttributeTraits<uint8_t>::IsNullValue(val->val.u8)) {
-        self->handle_fan_percent_write(endpoint_id, val->val.u8);
+        dispatched = self->handle_fan_percent_write(endpoint_id, val->val.u8);
       }
-      return ESP_OK;
-    }
-    if (attribute_id == chip::app::Clusters::FanControl::Attributes::FanMode::Id) {
-      self->handle_fan_mode_write(endpoint_id, val->val.u8);
-      return ESP_OK;
+    } else if (attribute_id == chip::app::Clusters::FanControl::Attributes::FanMode::Id) {
+      intercepted = true;
+      dispatched = self->handle_fan_mode_write(endpoint_id, val->val.u8);
     }
   }
   // ModeSelect.CurrentMode (uint8) — mode_select endpoints. CHIP's
   // mode-select-server writes CurrentMode via Attributes::CurrentMode::Set
   // after validating the incoming ChangeToMode command via the
   // SupportedModesManager, so hooking the attribute path covers the command.
-  if (cluster_id == chip::app::Clusters::ModeSelect::Id &&
-      attribute_id == chip::app::Clusters::ModeSelect::Attributes::CurrentMode::Id) {
-    self->handle_select_current_mode_write(endpoint_id, val->val.u8);
-    return ESP_OK;
+  else if (cluster_id == chip::app::Clusters::ModeSelect::Id &&
+           attribute_id == chip::app::Clusters::ModeSelect::Attributes::CurrentMode::Id) {
+    intercepted = true;
+    dispatched = self->handle_select_current_mode_write(endpoint_id, val->val.u8);
   }
   // LevelControl.CurrentLevel — light endpoints (dimmable+). CHIP's
   // level-control server writes here from MoveToLevel / MoveToLevelWithOnOff
   // / Step / Move commands.
-  if (cluster_id == chip::app::Clusters::LevelControl::Id &&
-      attribute_id == chip::app::Clusters::LevelControl::Attributes::CurrentLevel::Id) {
+  else if (cluster_id == chip::app::Clusters::LevelControl::Id &&
+           attribute_id == chip::app::Clusters::LevelControl::Attributes::CurrentLevel::Id) {
+    intercepted = true;
     // CurrentLevel is nullable uint8. Skip null writes — for lights those
     // would be indeterminate anyway.
     if (!chip::app::NumericAttributeTraits<uint8_t>::IsNullValue(val->val.u8)) {
-      self->handle_light_level_write(endpoint_id, val->val.u8);
+      dispatched = self->handle_light_level_write(endpoint_id, val->val.u8);
     }
-    return ESP_OK;
   }
   // ColorControl.ColorTemperatureMireds — CT+ light endpoints. CHIP writes
   // here from MoveToColorTemperature / MoveColorTemperature / StepColorTemperature.
-  if (cluster_id == chip::app::Clusters::ColorControl::Id &&
-      attribute_id == chip::app::Clusters::ColorControl::Attributes::ColorTemperatureMireds::Id) {
-    self->handle_light_color_temp_write(endpoint_id, val->val.u16);
-    return ESP_OK;
+  else if (cluster_id == chip::app::Clusters::ColorControl::Id &&
+           attribute_id == chip::app::Clusters::ColorControl::Attributes::ColorTemperatureMireds::Id) {
+    intercepted = true;
+    dispatched = self->handle_light_color_temp_write(endpoint_id, val->val.u16);
   }
   // Thermostat cluster — three writable attributes surface here. SystemMode
   // is enum8 → uint8; the two setpoints are non-nullable int16 hundredths of
   // °C so we forward val->val.i16 directly. SetpointRaiseLower is a command,
   // handled by CHIP's thermostat server which writes the setpoint attribute
   // back to us here — no separate command hook needed for the MVP.
-  if (cluster_id == chip::app::Clusters::Thermostat::Id) {
+  else if (cluster_id == chip::app::Clusters::Thermostat::Id) {
     if (attribute_id == chip::app::Clusters::Thermostat::Attributes::SystemMode::Id) {
-      self->handle_climate_system_mode_write(endpoint_id, val->val.u8);
-      return ESP_OK;
+      intercepted = true;
+      dispatched = self->handle_climate_system_mode_write(endpoint_id, val->val.u8);
+    } else if (attribute_id == chip::app::Clusters::Thermostat::Attributes::OccupiedHeatingSetpoint::Id) {
+      intercepted = true;
+      dispatched = self->handle_climate_heating_setpoint_write(endpoint_id, val->val.i16);
+    } else if (attribute_id == chip::app::Clusters::Thermostat::Attributes::OccupiedCoolingSetpoint::Id) {
+      intercepted = true;
+      dispatched = self->handle_climate_cooling_setpoint_write(endpoint_id, val->val.i16);
     }
-    if (attribute_id == chip::app::Clusters::Thermostat::Attributes::OccupiedHeatingSetpoint::Id) {
-      self->handle_climate_heating_setpoint_write(endpoint_id, val->val.i16);
-      return ESP_OK;
-    }
-    if (attribute_id == chip::app::Clusters::Thermostat::Attributes::OccupiedCoolingSetpoint::Id) {
-      self->handle_climate_cooling_setpoint_write(endpoint_id, val->val.i16);
-      return ESP_OK;
-    }
+  }
+  if (intercepted && !dispatched) {
+    // Intercepted cluster+attribute but no ESPHome endpoint owns it: signal
+    // the error to CHIP so the write is not silently applied. The handler
+    // already logged a WARN with the concrete endpoint id.
+    return ESP_ERR_NOT_FOUND;
   }
   return ESP_OK;
 }
@@ -652,42 +662,53 @@ void MatterComponent::register_endpoint_label(void *endpoint, uint16_t endpoint_
   // fabric-side renames persist across reboots (CHIP AttributePersistence
   // path, same infrastructure that handles root's BasicInformation.NodeLabel).
   ::esp_matter::endpoint_t *ep = static_cast<::esp_matter::endpoint_t *>(endpoint);
+  // Bridge wrap is all-or-nothing: if the device type, BDBI cluster, or
+  // reparent fails, we abort the remaining steps and log an error rather than
+  // leaving the endpoint half-configured. A half-wrapped bridge is worse than
+  // no wrap: fabrics see a Bridged Node device type but the BDBI cluster is
+  // absent (or NodeLabel is missing), which some controllers refuse to
+  // enumerate; and a wrapped endpoint that is NOT reparented under the
+  // aggregator advertises Bridged semantics with no bridge in the tree.
   esp_err_t dt_err =
       ::esp_matter::endpoint::add_device_type(ep, ::esp_matter::endpoint::bridged_node::get_device_type_id(),
                                               ::esp_matter::endpoint::bridged_node::get_device_type_version());
   if (dt_err != ESP_OK) {
-    ESP_LOGW(TAG, "endpoint %u: add Bridged Node device type failed: %s", endpoint_id, esp_err_to_name(dt_err));
+    ESP_LOGE(TAG, "endpoint %u: bridge wrap aborted — add Bridged Node device type failed: %s", endpoint_id,
+             esp_err_to_name(dt_err));
+    return;
   }
   ::esp_matter::cluster::bridged_device_basic_information::config_t bdbi_config;
   bdbi_config.reachable = true;
   ::esp_matter::cluster_t *bdbi_cluster = ::esp_matter::cluster::bridged_device_basic_information::create(
       ep, &bdbi_config, ::esp_matter::CLUSTER_FLAG_SERVER);
-  if (bdbi_cluster != nullptr) {
-    // NodeLabel is capped at 32 chars per BasicInformation spec (§11.1.5.3),
-    // and esp-matter's create_node_label rejects anything longer via
-    // VerifyOrReturnValue on k_max_node_label_length.
-    constexpr size_t max_node_label = 32;
-    // Buffer must be writable — esp_matter_char_str stores a char* pointer.
-    // Wrap in unique_ptr so the std::string sits at a stable heap address,
-    // unaffected by any later push into bridged_labels_ (a bare vector of
-    // std::string could realloc and invalidate SSO buffer pointers we've
-    // already handed to esp_matter).
-    this->bridged_labels_.push_back(std::make_unique<std::string>(effective_label.substr(0, max_node_label)));
-    std::string &stored = *this->bridged_labels_.back();
-    ::esp_matter::cluster::bridged_device_basic_information::attribute::create_node_label(
-        bdbi_cluster,
-        // The API takes `char *` but esp_matter stores it internally; passing
-        // a mutable pointer into the std::string's buffer is safe as long as
-        // the string isn't modified after this point.
-        const_cast<char *>(stored.data()), static_cast<uint16_t>(stored.size()));
-  } else {
-    ESP_LOGW(TAG, "endpoint %u: BridgedDeviceBasicInformation cluster creation failed", endpoint_id);
+  if (bdbi_cluster == nullptr) {
+    ESP_LOGE(TAG, "endpoint %u: bridge wrap aborted — BridgedDeviceBasicInformation cluster creation failed",
+             endpoint_id);
+    return;
   }
+  // NodeLabel is capped at 32 chars per BasicInformation spec (§11.1.5.3),
+  // and esp-matter's create_node_label rejects anything longer via
+  // VerifyOrReturnValue on k_max_node_label_length.
+  constexpr size_t max_node_label = 32;
+  // Buffer must be writable — esp_matter_char_str stores a char* pointer.
+  // Wrap in unique_ptr so the std::string sits at a stable heap address,
+  // unaffected by any later push into bridged_labels_ (a bare vector of
+  // std::string could realloc and invalidate SSO buffer pointers we've
+  // already handed to esp_matter).
+  this->bridged_labels_.push_back(std::make_unique<std::string>(effective_label.substr(0, max_node_label)));
+  std::string &stored = *this->bridged_labels_.back();
+  ::esp_matter::cluster::bridged_device_basic_information::attribute::create_node_label(
+      bdbi_cluster,
+      // The API takes `char *` but esp_matter stores it internally; passing
+      // a mutable pointer into the std::string's buffer is safe as long as
+      // the string isn't modified after this point.
+      const_cast<char *>(stored.data()), static_cast<uint16_t>(stored.size()));
   if (this->aggregator_endpoint_ != nullptr) {
     ::esp_matter::endpoint_t *aggregator = static_cast<::esp_matter::endpoint_t *>(this->aggregator_endpoint_);
     esp_err_t pe_err = ::esp_matter::endpoint::set_parent_endpoint(ep, aggregator);
     if (pe_err != ESP_OK) {
-      ESP_LOGW(TAG, "endpoint %u: set_parent_endpoint(aggregator) failed: %s", endpoint_id, esp_err_to_name(pe_err));
+      ESP_LOGE(TAG, "endpoint %u: bridge wrap incomplete — set_parent_endpoint(aggregator) failed: %s", endpoint_id,
+               esp_err_to_name(pe_err));
     }
   }
 }
@@ -817,6 +838,15 @@ void MatterComponent::load_user_labels_() {
   }
   nvs_iterator_t it = nullptr;
   esp_err_t find_err = nvs_entry_find("nvs", USER_LABEL_NVS_NAMESPACE, NVS_TYPE_BLOB, &it);
+  // ESP_ERR_NVS_NOT_FOUND is the "namespace has no matching entries" reply and
+  // is the expected outcome on a device that has never written a UserLabel.
+  // Any other non-OK reply is a real IDF error (corruption, storage failure)
+  // that would leave user_labels_ permanently empty; log it so operators can
+  // tell that apart from "no labels were ever set".
+  if (find_err != ESP_OK && find_err != ESP_ERR_NVS_NOT_FOUND) {
+    ESP_LOGW(TAG, "nvs_entry_find(%s) failed: %s — UserLabel entries not restored", USER_LABEL_NVS_NAMESPACE,
+             esp_err_to_name(find_err));
+  }
   size_t restored_entries = 0;
   while (find_err == ESP_OK && it != nullptr) {
     nvs_entry_info_t info;
@@ -869,6 +899,14 @@ void MatterComponent::load_user_labels_() {
       }
     }
     find_err = nvs_entry_next(&it);
+  }
+  // ESP_ERR_NVS_NOT_FOUND after nvs_entry_next means the scan reached the end
+  // cleanly. Anything else non-OK means iteration bailed on a real IDF error —
+  // silently exiting the loop would let the summary log claim a successful
+  // partial restore, which is what this branch exists to prevent.
+  if (find_err != ESP_OK && find_err != ESP_ERR_NVS_NOT_FOUND) {
+    ESP_LOGW(TAG, "nvs_entry_next(%s) failed mid-iteration: %s — UserLabel restore may be incomplete",
+             USER_LABEL_NVS_NAMESPACE, esp_err_to_name(find_err));
   }
   if (it != nullptr) {
     nvs_release_iterator(it);
@@ -1215,13 +1253,15 @@ void MatterComponent::factory_reset() {
   ::esp_matter::factory_reset();
 }
 
-void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id,
+bool MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id,
                                              bool bool_value) {
   if (cluster_id != chip::app::Clusters::OnOff::Id ||
       attribute_id != chip::app::Clusters::OnOff::Attributes::OnOff::Id) {
     ESP_LOGV(TAG, "unhandled attribute write endpoint=%u cluster=0x%08lx attr=0x%08lx", endpoint_id,
              static_cast<unsigned long>(cluster_id), static_cast<unsigned long>(attribute_id));
-    return;
+    // Not our attribute — return `true` so the callback returns ESP_OK.
+    // (This is the "we do not intercept this cluster/attribute" path.)
+    return true;
   }
   // OnOff.OnOff is shared by switch endpoints AND light endpoints — the same
   // attribute id lives on both device types. Check both maps by endpoint id,
@@ -1232,19 +1272,19 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
     // from the device→fabric report path (PRE_UPDATE fires synchronously
     // during update()).
     if (wrapper->applying_report()) {
-      return;
+      return true;
     }
     wrapper->on_matter_write(bool_value);
-    return;
+    return true;
   }
 #endif
 #ifdef USE_LIGHT
   if (auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id)) {
     if (wrapper->applying_report()) {
-      return;
+      return true;
     }
     wrapper->on_matter_on_off_write(bool_value);
-    return;
+    return true;
   }
 #endif
   // Dispatch miss: OnOff.OnOff write arrived for an endpoint we don't own.
@@ -1252,152 +1292,180 @@ void MatterComponent::handle_attribute_write(uint16_t endpoint_id, uint32_t clus
   // data model, or a foreign cluster registered under the same id. Log at
   // WARN so it surfaces in default builds instead of being compiled out.
   ESP_LOGW(TAG, "OnOff write for endpoint=%u — no switch or light wrapper found", endpoint_id);
+  return false;
 }
 
-void MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths) {
+bool MatterComponent::handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths) {
 #ifdef USE_COVER
   auto *wrapper = find_endpoint_by_id(this->cover_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "cover target write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   // Same round-trip guard as the switch dispatcher: attribute::update on
   // CurrentPositionLift fires PRE_UPDATE synchronously, which would land back
   // here if the fabric wrote Target=Current simultaneously.
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_target_write(percent100ths);
+  return true;
+#else
+  (void) endpoint_id;
+  (void) percent100ths;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent) {
+bool MatterComponent::handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent) {
 #ifdef USE_FAN
   auto *wrapper = find_endpoint_by_id(this->fan_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan percent write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_percent_write(percent);
+  return true;
+#else
+  (void) endpoint_id;
+  (void) percent;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode) {
+bool MatterComponent::handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode) {
 #ifdef USE_FAN
   auto *wrapper = find_endpoint_by_id(this->fan_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "fan mode write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_fan_mode_write(fan_mode);
+  return true;
+#else
+  (void) endpoint_id;
+  (void) fan_mode;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t level) {
+bool MatterComponent::handle_light_level_write(uint16_t endpoint_id, uint8_t level) {
 #ifdef USE_LIGHT
   auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light level write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_level_write(level);
+  return true;
 #else
   (void) endpoint_id;
   (void) level;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds) {
+bool MatterComponent::handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds) {
 #ifdef USE_LIGHT
   auto *wrapper = find_endpoint_by_id(this->light_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "light color-temp write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_color_temp_write(mireds);
+  return true;
 #else
   (void) endpoint_id;
   (void) mireds;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode) {
+bool MatterComponent::handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode) {
 #ifdef USE_CLIMATE
   auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate SystemMode write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_system_mode_write(system_mode);
+  return true;
 #else
   (void) endpoint_id;
   (void) system_mode;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
+bool MatterComponent::handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
   auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate heating-setpoint write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_heating_setpoint_write(hundredths);
+  return true;
 #else
   (void) endpoint_id;
   (void) hundredths;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
+bool MatterComponent::handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths) {
 #ifdef USE_CLIMATE
   auto *wrapper = find_endpoint_by_id(this->climate_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "climate cooling-setpoint write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_cooling_setpoint_write(hundredths);
+  return true;
 #else
   (void) endpoint_id;
   (void) hundredths;
+  return false;
 #endif
 }
 
-void MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode) {
+bool MatterComponent::handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode) {
 #ifdef USE_SELECT
   auto *wrapper = find_endpoint_by_id(this->select_endpoints_by_id_, endpoint_id);
   if (wrapper == nullptr) {
     ESP_LOGW(TAG, "select CurrentMode write for unknown endpoint=%u", endpoint_id);
-    return;
+    return false;
   }
   if (wrapper->applying_report()) {
-    return;
+    return true;
   }
   wrapper->on_matter_current_mode_write(mode);
+  return true;
 #else
   (void) endpoint_id;
   (void) mode;
+  return false;
 #endif
 }
 

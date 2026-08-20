@@ -68,7 +68,10 @@ bool MatterClimateEndpoint::setup() {
   auto traits = this->climate_->get_traits();
   this->supports_heating_ = traits.supports_mode(climate::CLIMATE_MODE_HEAT);
   this->supports_cooling_ = traits.supports_mode(climate::CLIMATE_MODE_COOL);
-  this->supports_two_point_target_ = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+  // Match ClimateCall::validate_() — either flag makes the entity a
+  // two-point one whose set_target_temperature() writes are discarded.
+  this->supports_two_point_target_ = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
+                                                              climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
   // AutoMode requires both Heating and Cooling per Matter spec AND enforces
   // MinSetpointDeadBand between the two setpoints. Without a real two-point
   // target, publishing target ± spread would drift the ESPHome target on
@@ -104,21 +107,25 @@ bool MatterClimateEndpoint::setup() {
 
   ::esp_matter::endpoint::thermostat::config_t config;
 
+  // Seed setpoints from the correct source: target_temperature_low/_high on
+  // two-point climates (target_temperature is NaN there), plain target
+  // otherwise. Uses celsius_to_hundredths's NaN fallback (20.00 °C) when
+  // the source is still NaN.
+  const float initial_heat =
+      this->supports_two_point_target_ ? this->climate_->target_temperature_low : this->climate_->target_temperature;
+  const float initial_cool =
+      this->supports_two_point_target_ ? this->climate_->target_temperature_high : this->climate_->target_temperature;
   uint32_t feature_flags = 0;
   if (this->supports_heating_) {
     feature_flags |= static_cast<uint32_t>(chip::app::Clusters::Thermostat::Feature::kHeating);
-    // Seed the initial heating setpoint from the current target if we're in a
-    // heating-capable mode; otherwise use the default (20.00°C).
-    if (!std::isnan(this->climate_->target_temperature)) {
-      config.thermostat.features.heating.occupied_heating_setpoint =
-          celsius_to_hundredths(this->climate_->target_temperature);
+    if (!std::isnan(initial_heat)) {
+      config.thermostat.features.heating.occupied_heating_setpoint = celsius_to_hundredths(initial_heat);
     }
   }
   if (this->supports_cooling_) {
     feature_flags |= static_cast<uint32_t>(chip::app::Clusters::Thermostat::Feature::kCooling);
-    if (!std::isnan(this->climate_->target_temperature)) {
-      config.thermostat.features.cooling.occupied_cooling_setpoint =
-          celsius_to_hundredths(this->climate_->target_temperature);
+    if (!std::isnan(initial_cool)) {
+      config.thermostat.features.cooling.occupied_cooling_setpoint = celsius_to_hundredths(initial_cool);
     }
   }
   if (this->supports_auto_) {
@@ -258,13 +265,19 @@ void MatterClimateEndpoint::on_matter_system_mode_write(uint8_t system_mode) {
 void MatterClimateEndpoint::on_matter_heating_setpoint_write(int16_t hundredths) {
   ESP_LOGD(TAG, "matter OccupiedHeatingSetpoint write endpoint=%u value=%d (%.2f °C) climate='%s'", this->endpoint_id_,
            static_cast<int>(hundredths), hundredths_to_celsius(hundredths), this->climate_->get_name().c_str());
-  // Route to the plain single-point setter — HVAC UIs that write both
-  // setpoints separately during HEAT_COOL still end up with the "most recent
-  // wins" behavior, which matches ESPHome's single-value target semantics for
-  // the MVP. Deferred to the main loop like the other CHIP-task-driven writes.
-  MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
+  // On a two-point climate ClimateCall::validate_() discards
+  // set_target_temperature() — the setpoint would silently never move.
+  // Route to set_target_temperature_low for two-point, single-point otherwise.
+  const bool two_point = this->supports_two_point_target_;
+  MatterComponent::instance()->defer_on_main_loop([this, hundredths, two_point]() {
     this->applying_matter_write_ = true;
-    this->climate_->make_call().set_target_temperature(hundredths_to_celsius(hundredths)).perform();
+    auto call = this->climate_->make_call();
+    if (two_point) {
+      call.set_target_temperature_low(hundredths_to_celsius(hundredths));
+    } else {
+      call.set_target_temperature(hundredths_to_celsius(hundredths));
+    }
+    call.perform();
     this->applying_matter_write_ = false;
   });
 }
@@ -272,9 +285,16 @@ void MatterClimateEndpoint::on_matter_heating_setpoint_write(int16_t hundredths)
 void MatterClimateEndpoint::on_matter_cooling_setpoint_write(int16_t hundredths) {
   ESP_LOGD(TAG, "matter OccupiedCoolingSetpoint write endpoint=%u value=%d (%.2f °C) climate='%s'", this->endpoint_id_,
            static_cast<int>(hundredths), hundredths_to_celsius(hundredths), this->climate_->get_name().c_str());
-  MatterComponent::instance()->defer_on_main_loop([this, hundredths]() {
+  const bool two_point = this->supports_two_point_target_;
+  MatterComponent::instance()->defer_on_main_loop([this, hundredths, two_point]() {
     this->applying_matter_write_ = true;
-    this->climate_->make_call().set_target_temperature(hundredths_to_celsius(hundredths)).perform();
+    auto call = this->climate_->make_call();
+    if (two_point) {
+      call.set_target_temperature_high(hundredths_to_celsius(hundredths));
+    } else {
+      call.set_target_temperature(hundredths_to_celsius(hundredths));
+    }
+    call.perform();
     this->applying_matter_write_ = false;
   });
 }

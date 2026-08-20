@@ -59,15 +59,29 @@ if(EXISTS "${_matter_dir}")
         message(STATUS "matter: source patches applied to ${_matter_dir}")
     endif()
 else()
-    # AUTHOR_WARNING (not STATUS) so a genuine dir-name drift — an upstream
-    # release renaming managed_components/espressif__esp_matter to something
-    # else — is at least visible in the configure output rather than
-    # silently degrading to "no patches, no message" and compiling unpatched
-    # sources. Not FATAL because on a very first configure the component-
-    # manager sync can occasionally race the hook.
-    message(AUTHOR_WARNING
-        "matter: ${_matter_dir} missing — component-manager has not synced yet, "
-        "OR the managed-component path drifted upstream (verify against "
-        "espressif/esp_matter releases). If configure re-runs cleanly next "
-        "time, ignore; if this repeats, patches are not being applied.")
+    # Track visits so a real upstream path drift can't silently pass. First
+    # configure with a missing dir is tolerated (component-manager may not
+    # have synced yet on cold caches); the second is fatal — otherwise
+    # ninja compiles unpatched sources behind an easy-to-miss warning.
+    set(_matter_miss_stamp "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
+    if(EXISTS "${_matter_miss_stamp}")
+        message(FATAL_ERROR
+            "matter: ${_matter_dir} still missing on the second configure — "
+            "either component-manager cannot sync espressif/esp_matter, or "
+            "the managed-component path drifted upstream. Refusing to compile "
+            "unpatched sources.")
+    else()
+        file(WRITE "${_matter_miss_stamp}" "1\n")
+        message(AUTHOR_WARNING
+            "matter: ${_matter_dir} missing — component-manager has not synced "
+            "yet. If configure re-runs cleanly next time, ignore; if the next "
+            "configure still finds it missing, the build will fail.")
+    endif()
+endif()
+
+# Clear the miss stamp on any successful pass so subsequent missing-dir
+# events start a fresh two-strike counter rather than tripping on state
+# left over from a long-ago cold configure.
+if(EXISTS "${_matter_dir}" AND EXISTS "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
+    file(REMOVE "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
 endif()

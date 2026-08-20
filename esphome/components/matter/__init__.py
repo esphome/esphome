@@ -22,7 +22,7 @@ from esphome.types import ConfigType
 # VARIANT_ESP32 / get_esp32_variant are still imported: the PSRAM-override
 # coroutine below uses them to gate the NimBLE-in-PSRAM tweak, which is
 # variant-specific. The source-patch hook, in contrast, now runs on every
-# variant (see _write_executable_component_name).
+# variant (see _write_cmake_project_include).
 #
 # esp-matter 1.6.0 upstream supports these five ESP32 variants only. Other
 # variants either lack Wi-Fi/BLE on-chip (P4, S2), are too RAM-constrained
@@ -240,12 +240,44 @@ def _is_esp_idf() -> bool:
     return CORE.target_framework == "esp-idf"
 
 
+def _count_entry_endpoints(key: str, entry: dict) -> int:
+    """Return how many ESPHome entities a single platform-family entry
+    registers. Handles multi-output platforms whose sub-schemas each
+    define an entity (e.g. ``sensor: - platform: bme280_i2c`` with
+    ``temperature:``, ``humidity:``, ``pressure:`` sub-blocks).
+
+    Returns 0 if the entry itself is marked internal — the top-level
+    ``internal:`` filter still applies. Sub-block-level internal flags
+    aren't inspected: leaving those in the total is the safer bias.
+    """
+    if entry.get(CONF_INTERNAL, False):
+        return 0
+    # Platforms whose sub-keys carry their own name/id → count sub-entities.
+    # sensor and binary_sensor are the common ones (BME280 fans out to 3
+    # sensors, DHT to 2). switch/light/etc. are one entity per entry.
+    if key in ("sensor", "binary_sensor"):
+        sub_count = 0
+        for sub_val in entry.values():
+            if not isinstance(sub_val, dict):
+                continue
+            if sub_val.get(CONF_INTERNAL, False):
+                continue
+            if "name" in sub_val or "id" in sub_val:
+                sub_count += 1
+        # Some entries publish directly (template sensor with name at the
+        # entry level) and have zero name/id-bearing sub-dicts; fall back
+        # to 1 there.
+        return max(1, sub_count)
+    return 1
+
+
 def _count_matter_endpoint_entities(full_conf) -> int:
     """Count ESPHome entities the C++ scanner will turn into Matter endpoints.
 
     Mirrors scan_and_register_*() in matter_component.cpp:
     - one endpoint per non-internal entity across the platform-family keys
-      listed in ``_MATTER_ENDPOINT_ENTITY_KEYS``;
+      listed in ``_MATTER_ENDPOINT_ENTITY_KEYS``, expanding multi-output
+      sensor platforms to their sub-entity count (see _count_entry_endpoints);
     - ``button: platform: matter`` (MatterActionButton) is skipped — the
       scanner filters it out via ``MatterActionButton::is_instance``;
     - sensors without a supported unit/device_class are dropped by
@@ -259,24 +291,12 @@ def _count_matter_endpoint_entities(full_conf) -> int:
         try:
             entries = full_conf.get_config_for_path([key])
         except KeyError:
-            # Key genuinely absent from the config — expected for platforms
-            # the user is not using. Anything else (TypeError, etc.) means a
-            # real bug in path resolution; letting it propagate here makes it
-            # visible at config time instead of under-counting endpoints and
-            # aborting at boot with an opaque "too few dynamic endpoints".
             continue
         if entries is None:
             continue
-        # Platform-family blocks resolve to a list after validation. A defensive
-        # single-dict fallback covers unusual top-level shapes.
         if isinstance(entries, dict):
             entries = [entries]
         if not isinstance(entries, list):
-            # Unknown shape — refuse rather than silently counting zero
-            # endpoints for this platform. Undercounting would size
-            # CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT too low and crash
-            # at boot with an opaque abort, which is exactly what this
-            # over-counting helper exists to prevent.
             raise cv.Invalid(
                 f"matter: unexpected shape for '{key}' block "
                 f"({type(entries).__name__}) — cannot count endpoints"
@@ -287,11 +307,9 @@ def _count_matter_endpoint_entities(full_conf) -> int:
                     f"matter: unexpected entry shape under '{key}' "
                     f"({type(entry).__name__}) — cannot count endpoints"
                 )
-            if entry.get(CONF_INTERNAL, False):
-                continue
             if key == "button" and entry.get(CONF_PLATFORM) == "matter":
                 continue
-            total += 1
+            total += _count_entry_endpoints(key, entry)
     return total
 
 
@@ -307,7 +325,7 @@ def _validate_final(config: ConfigType) -> ConfigType:
     full_conf = fv.full_config.get()
     try:
         network_conf = full_conf.get_config_for_path(["network"])
-    except (KeyError, TypeError):
+    except KeyError:
         network_conf = None
     ipv6_enabled = bool(network_conf and network_conf.get(CONF_ENABLE_IPV6, False))
     if not ipv6_enabled:
@@ -330,13 +348,13 @@ def _validate_final(config: ConfigType) -> ConfigType:
     try:
         full_conf.get_config_for_path(["ethernet"])
         has_ethernet = True
-    except (KeyError, TypeError):
+    except KeyError:
         pass
     has_wifi = False
     try:
         full_conf.get_config_for_path(["wifi"])
         has_wifi = True
-    except (KeyError, TypeError):
+    except KeyError:
         pass
     if not has_ethernet and not has_wifi:
         raise cv.Invalid(
@@ -416,7 +434,19 @@ def _validate_final(config: ConfigType) -> ConfigType:
         entity_count + _MATTER_FIXED_ENDPOINT_OVERHEAD + _MATTER_ENDPOINT_HEADROOM
     )
     computed = max(computed, _MATTER_ENDPOINT_KCONFIG_DEFAULT)
-    computed = min(computed, _MATTER_ENDPOINT_KCONFIG_MAX)
+    # Refuse to silently clamp at the Kconfig ceiling: if the entity count
+    # exceeds what esp-matter can hold, the user needs to see it at config
+    # time (with the concrete numbers) rather than getting a boot-time abort
+    # in esp_matter_data_model.cpp after firmware ships.
+    if computed > _MATTER_ENDPOINT_KCONFIG_MAX:
+        raise cv.Invalid(
+            f"matter: config needs {computed} Matter endpoints "
+            f"({entity_count} entities + {_MATTER_FIXED_ENDPOINT_OVERHEAD} "
+            f"root/aggregator + {_MATTER_ENDPOINT_HEADROOM} headroom) but "
+            f"esp-matter's Kconfig ceiling is "
+            f"{_MATTER_ENDPOINT_KCONFIG_MAX}. Reduce the number of exposed "
+            f"entities or mark unused ones internal: true."
+        )
     computed = max(computed, _MATTER_ENDPOINT_KCONFIG_MIN)
     config[_CONF_MAX_DYNAMIC_ENDPOINT_COUNT] = computed
 
@@ -638,10 +668,13 @@ async def to_code(config: ConfigType) -> None:
         #   CHIP_IM_MAX_NUM_READS                       = MAX_FABRICS
         #   CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS_FOR_SUBSCRIPTIONS = SUBSC * 3
         #   CHIP_IM_SERVER_MAX_NUM_PATH_GROUPS_FOR_READS         = READS * 9
-        # Bumping 5 → 10 covers the ecosystem set the device might ever be in
-        # (Apple + Google + Alexa + Sonoff/eWeLink + SmartThings + slack for
-        # unbind/rebind cycles) and scales the derived pools linearly.
-        "CONFIG_MAX_FABRICS": 10,
+        # PSRAM boards get 10 fabrics (Apple + Google + Alexa + Sonoff/eWeLink +
+        # SmartThings + slack for unbind/rebind cycles) since the derived pools
+        # spill to PSRAM via POOL_USE_HEAP below. No-PSRAM boards stay at 6
+        # fabrics: the pools are static there and every extra fabric bakes
+        # ~3 subscriptions × ~3 path groups × per-group state permanently into
+        # internal DRAM, which a 320 KB ESP32-C6/H2 cannot spare.
+        "CONFIG_MAX_FABRICS": 10 if config.get(_CONF_PSRAM_PRESENT, False) else 6,
         # Exchange contexts track in-flight CHIP conversations. Aggressive
         # multi-controller subscription set-up saturates the default of 8
         # during commissioning + first subscribe-storm. 32 buys ~4× headroom
@@ -772,7 +805,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MATTER_VARIANT_SUPPORTED")
     cg.add_build_flag("-DCHIP_HAVE_CONFIG_H")
 
-    CORE.add_job(_write_executable_component_name)
+    CORE.add_job(_write_cmake_project_include)
 
     if config.get(_CONF_PSRAM_PRESENT, False):
         # Overriding SPIRAM_USE_* has to happen AFTER ESPHome's psram: to_code
@@ -801,64 +834,47 @@ async def to_code(config: ConfigType) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
-async def _write_executable_component_name() -> None:
-    """Extend cmake_extra_args with EXECUTABLE_COMPONENT_NAME + patch hook.
+async def _write_cmake_project_include() -> None:
+    """Append CMAKE_PROJECT_INCLUDE + EXECUTABLE_COMPONENT_NAME to cmake_extra_args.
 
-    Two -D args are appended to ``board_build.cmake_extra_args`` here:
+    esp_matter's own CMakeLists.txt (managed_components/…/CMakeLists.txt:
+    ~688) calls ``idf_component_get_property(main_lib ${EXECUTABLE_COMPONENT_NAME}
+    COMPONENT_LIB)`` and defaults ``EXECUTABLE_COMPONENT_NAME`` to ``main`` when
+    unset. ESPHome names the app component ``src``, so we must define this
+    BEFORE esp_matter's CMakeLists.txt runs, otherwise configure fails with
+    ``Failed to resolve component 'main'``.
 
-    1. ``EXECUTABLE_COMPONENT_NAME=src`` — belt-and-braces companion to the
-       identical ``set()`` in ``build_gen/espidf.py``. The template is the
-       primary source for direct ``idf.py`` invocations
-       (script/test_build_components uses that path and does not honor
-       PlatformIO's ``board_build.cmake_extra_args``); the -D here covers
-       users running ``esphome compile`` against an already-installed
-       release of ESPHome whose bundled template pre-dates the ``set()``
-       above but whose ``matter/`` component tree is this branch's copy
-       (``external_components: local``). Both paths converge on the same
-       value, so the "duplication" is a no-op when both fire.
+    Two channels set it:
+      - ``build_gen/espidf.py`` writes ``set(EXECUTABLE_COMPONENT_NAME src)``
+        at project scope (single source of truth for the dev checkout / CI).
+      - This coroutine also passes ``-DEXECUTABLE_COMPONENT_NAME=src`` via
+        ``cmake_extra_args`` so downstream builds against SHIPPED ESPHome
+        (whose espidf.py template predates the ``set()`` line) still work.
+        Same value → no conflict when both paths fire.
 
-    2. ``CMAKE_PROJECT_INCLUDE=<abs path to _patch_hook.cmake>`` patches
-       esp-matter sources so they build cleanly on every supported ESP32
-       variant (S3 with SPI PHY, classic with internal EMAC, etc.). PATCH1
-       stubs ``NetworkCommissioningDriver_Ethernet.cpp`` on every variant
-       so our ``ESPEthernetDriver::Init`` override is the sole provider —
-       no link-order dependency for ``matter_ethernet_stub.cpp``.
-       CMAKE_PROJECT_INCLUDE fires AFTER the top-level ``project()`` call
-       — which is AFTER idf-component-manager's integrity-restore pass —
-       so our patches survive to ninja. Earlier attempts at ESPHome
-       codegen time were reverted every configure by component-manager.
-       See ``_apply_patches.py`` and ``_patch_hook.cmake`` for the rest.
-
-    Priority ``FINAL - 1`` runs after esp32's own FINAL coroutine (which
-    sets EXCLUDE_COMPONENTS in the same option) so our appended value wins
-    the last-write-wins race. ``add_platformio_option`` on a str key
-    OVERWRITES rather than appends, so we read-modify-write the existing
-    value.
+    Priority FINAL - 1 runs after esp32's FINAL coroutine (which sets
+    EXCLUDE_COMPONENTS on the same option) so our appended value wins
+    the last-write-wins race; add_platformio_option on a str key
+    OVERWRITES, so we read-modify-write.
     """
     existing = CORE.platformio_options.get("board_build.cmake_extra_args", "")
     patch_hook = (Path(__file__).parent / "_patch_hook.cmake").resolve()
-    args_to_add = [
-        "-DEXECUTABLE_COMPONENT_NAME=src",
-        f"-DCMAKE_PROJECT_INCLUDE={patch_hook}",
-    ]
-    # Fail loudly on an unexpected shape: silently returning here would drop
-    # the CMAKE_PROJECT_INCLUDE flag and the source patches would never run,
-    # producing a green configure that then blows up at compile or (worse)
-    # link time with an unrelated error. This coroutine runs during codegen
-    # (long after validation), so cv.Invalid would surface as an unhandled
-    # traceback — EsphomeError is the framework's codegen-time error type.
+    patch_hook_arg = f"-DCMAKE_PROJECT_INCLUDE={patch_hook}"
+    executable_name_arg = "-DEXECUTABLE_COMPONENT_NAME=src"
     if not isinstance(existing, str):
         raise EsphomeError(
             "matter: board_build.cmake_extra_args has an unexpected shape "
             f"({type(existing).__name__}); cannot append the Matter CMake "
             f"flags safely — file an issue with this configuration."
         )
-    combined = existing
-    for arg in args_to_add:
-        if arg not in combined:
-            combined = f"{combined} {arg}".strip()
-    if combined != existing:
-        cg.add_platformio_option("board_build.cmake_extra_args", combined)
+    additions = [
+        arg for arg in (patch_hook_arg, executable_name_arg) if arg not in existing
+    ]
+    if additions:
+        cg.add_platformio_option(
+            "board_build.cmake_extra_args",
+            " ".join([existing, *additions]).strip(),
+        )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 2)
@@ -881,7 +897,7 @@ async def _apply_matter_psram_overrides() -> None:
     to PSRAM once internal is exhausted. Small allocs still prefer internal
     RAM for latency (CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL threshold).
 
-    Priority FINAL - 2 runs AFTER esp32's FINAL and _write_executable_component_name
+    Priority FINAL - 2 runs AFTER esp32's FINAL and _write_cmake_project_include
     (FINAL - 1) but crucially AFTER psram: to_code (default component priority),
     so our overwrites in the sdkconfig dict win the dict-insertion-order race.
     """

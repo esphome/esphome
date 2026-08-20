@@ -102,21 +102,21 @@ class MatterComponent : public Component {
   void factory_reset();
 
   // Global attribute-write dispatcher — the esp-matter callback set in setup()
-  // routes here. Returns ESP_OK if handled, ESP_OK if unknown (per esp-matter
-  // convention we should not return error for attributes we do not care about).
-  void handle_attribute_write(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id, bool bool_value);
+  // routes here. Returns true when the write was routed to an entity wrapper,
+  // false when no endpoint owns it (endpoint map out of sync with the CHIP
+  // data model, or a foreign cluster registered under the same id). The
+  // callback maps `false` to a non-OK esp_err_t so CHIP does not silently
+  // accept an unroutable write.
+  bool handle_attribute_write(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id, bool bool_value);
 
   // Separate dispatcher for uint16 nullable attributes (e.g. WindowCovering's
-  // TargetPositionLiftPercent100ths). The attribute_update_cb unpacks the
-  // esp_matter_attr_val_t and routes here with the raw uint16 (null already
-  // filtered out — fabric never writes null for a target).
-  void handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths);
+  // TargetPositionLiftPercent100ths). Returns true on dispatch, false on miss.
+  bool handle_cover_target_write(uint16_t endpoint_id, uint16_t percent100ths);
 
   // Dispatcher for uint8 attribute writes: FanControl.PercentSetting (nullable
-  // uint8 0..100) and FanControl.FanMode (enum8). attribute_update_cb decodes
-  // and routes to on_matter_percent_write / on_matter_fan_mode_write.
-  void handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent);
-  void handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode);
+  // uint8 0..100) and FanControl.FanMode (enum8). Returns true on dispatch.
+  bool handle_fan_percent_write(uint16_t endpoint_id, uint8_t percent);
+  bool handle_fan_mode_write(uint16_t endpoint_id, uint8_t fan_mode);
 
   // Dispatcher for DoorLock LockDoor/UnlockDoor commands. Called from the
   // weak-symbol overrides in matter_lock_endpoint.cpp — not from the
@@ -130,7 +130,7 @@ class MatterComponent : public Component {
   // command is decoded by CHIP's mode-select-server which writes CurrentMode
   // via Attributes::CurrentMode::Set — that fires PRE_UPDATE on our
   // attribute_update_cb, which routes here.
-  void handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode);
+  bool handle_select_current_mode_write(uint16_t endpoint_id, uint8_t mode);
 
   // Light dispatchers — LevelControl.CurrentLevel (dimmable+) and
   // ColorControl.ColorTemperatureMireds (CT+) writes come here after CHIP's
@@ -138,15 +138,15 @@ class MatterComponent : public Component {
   // OnOff.OnOff writes for light endpoints reuse handle_attribute_write —
   // that method falls through from the switch-endpoint lookup to the
   // light-endpoint lookup so the same OnOff attribute id routes correctly.
-  void handle_light_level_write(uint16_t endpoint_id, uint8_t level);
-  void handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds);
+  bool handle_light_level_write(uint16_t endpoint_id, uint8_t level);
+  bool handle_light_color_temp_write(uint16_t endpoint_id, uint16_t mireds);
 
   // Climate dispatchers — Thermostat.SystemMode (enum8) writes come here after
   // the fabric changes mode; Occupied{Heating,Cooling}Setpoint (int16
   // hundredths of °C) come here after the fabric moves the slider.
-  void handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode);
-  void handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths);
-  void handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths);
+  bool handle_climate_system_mode_write(uint16_t endpoint_id, uint8_t system_mode);
+  bool handle_climate_heating_setpoint_write(uint16_t endpoint_id, int16_t hundredths);
+  bool handle_climate_cooling_setpoint_write(uint16_t endpoint_id, int16_t hundredths);
 
   // Singleton accessor for the C-style esp-matter callback to find us.
   // Set in constructor. Only one MatterComponent per binary makes sense.
