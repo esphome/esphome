@@ -128,11 +128,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 def _resolve_toolchain(config: ConfigType) -> ConfigType:
     if CORE.toolchain is None:
         CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
-    if CORE.toolchain not in (Toolchain.PLATFORMIO, Toolchain.SDK_NRF):
-        raise cv.Invalid(
-            f"Unsupported toolchain '{CORE.toolchain.value}' for nRF52. "
-            "Supported toolchains are 'platformio' and 'sdk-nrf'."
-        )
+    cv.check_supported_toolchain("nRF52", (Toolchain.PLATFORMIO, Toolchain.SDK_NRF))
     return config
 
 
