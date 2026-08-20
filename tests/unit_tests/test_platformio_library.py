@@ -564,3 +564,16 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
 
     assert lex_build_flags(["-Wall -I", "-DFOO=1"], "lib x") == ["-Wall", "-DFOO=1"]
     assert "Ignoring trailing '-I'" in caplog.text
+
+
+def test_split_flag_entry_non_string_is_clean(  # type: ignore[no-untyped-def]
+) -> None:
+    """A dict or number from a third-party manifest fails naming the entry,
+    not with an opaque shlex traceback."""
+    from esphome.core import EsphomeError
+    from esphome.platformio.library import split_flag_entry
+
+    with pytest.raises(EsphomeError, match="Malformed build flag"):
+        split_flag_entry({"esp32": ["-DX"]}, "lib x")
+    with pytest.raises(EsphomeError, match="Malformed build flag 5"):
+        split_flag_entry(5, "lib x")
