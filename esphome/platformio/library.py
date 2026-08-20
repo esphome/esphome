@@ -48,20 +48,23 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-SRC_FILE_EXTENSIONS = [
-    ".c",
-    ".cpp",
-    ".cc",
-    ".cxx",
-    ".c++",
-    ".S",
-    ".spp",
-    ".SPP",
-    ".sx",
-    ".s",
-    ".asm",
-    ".ASM",
-]
+# Source suffix -> compiler kind, PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES
+# split. Native build generators map the kind to their compile rules.
+SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
+    ".c": "c",
+    ".cpp": "cxx",
+    ".cc": "cxx",
+    ".cxx": "cxx",
+    ".c++": "cxx",
+    ".S": "asm",
+    ".spp": "asm",
+    ".SPP": "asm",
+    ".sx": "asm",
+    ".s": "asm",
+    ".asm": "asm",
+    ".ASM": "asm",
+}
+SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
 
 DOMAIN = "pio_components"
 
