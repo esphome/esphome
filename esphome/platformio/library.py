@@ -562,7 +562,7 @@ def split_flag_entry(entry: str, owner: str) -> list[str]:
         raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
 
 
-def lex_build_flags(entries, owner: str) -> list[str]:
+def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     """Shell-lex a manifest ``build.flags`` list into joined tokens.
 
     The composition every backend needs: each entry is lexed the way
