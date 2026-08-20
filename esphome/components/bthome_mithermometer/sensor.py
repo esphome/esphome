@@ -20,6 +20,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from . import bthome_mithermometer_base_schema, setup_bthome_mithermometer
 
@@ -67,7 +68,7 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_bthome_mithermometer(var, config)
 
