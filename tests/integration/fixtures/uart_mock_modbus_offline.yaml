@@ -1,0 +1,95 @@
+esphome:
+  name: uart-mock-modbus-offline
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Whether the mock device answers requests. Starts false so the controller
+# runs through its retries and goes offline; the test flips it via the
+# "Serve" button to exercise the offline retry/recovery path.
+globals:
+  - id: serve
+    type: bool
+    initial_value: "false"
+
+uart_mock:
+  - id: virtual_uart
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      # While serve is false every request times out; once true, answer the
+      # (only) request - read holding register 3 on device 1 - with value 259.
+      - uart_mock.inject_rx:
+          id: virtual_uart
+          data: !lambda |-
+            if (!id(serve))
+              return {};
+            return {0x01, 0x03, 0x02, 0x01, 0x03, 0xF9, 0xD5};
+
+modbus:
+  - uart_id: virtual_uart
+    id: virtual_modbus_client
+    send_wait_time: 100ms
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_client
+    id: ctl
+    max_cmd_retries: 1
+    # offline_skip_updates and the sensor's skip_updates deliberately share a period: offline
+    # probing must follow the offline cadence alone, or phase combinations like this one can
+    # leave the device never probing again.
+    offline_skip_updates: 1
+    update_interval: never
+    on_offline:
+      then:
+        - lambda: id(link_state).publish_state(0);
+    on_online:
+      then:
+        - lambda: id(link_state).publish_state(1);
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: ctl
+    name: reg
+    id: reg
+    address: 0x03
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 1
+  # Mirrors the controller's online state so the test can await the transitions.
+  - platform: template
+    name: link_state
+    id: link_state
+    update_interval: never
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          id(ctl).set_update_interval(200);
+          id(ctl).start_poller();
+  - platform: template
+    name: "Serve"
+    id: serve_btn
+    on_press:
+      - globals.set:
+          id: serve
+          value: "true"
