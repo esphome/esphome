@@ -182,4 +182,11 @@ def FILTER_SOURCE_FILES() -> list[str]:
         for define in CORE.defines
     ):
         files.append("ota_signature_esp_idf.cpp")
+    # ota_bootloader_esp_idf.cpp and ota_partitions_esp_idf.cpp are fully
+    # #ifdef'd on USE_OTA_PARTITIONS (set by the esphome OTA platform when
+    # allow_partition_access is enabled). Filter them out otherwise for the
+    # same reason as above.
+    if not any(define.name == "USE_OTA_PARTITIONS" for define in CORE.defines):
+        files.append("ota_bootloader_esp_idf.cpp")
+        files.append("ota_partitions_esp_idf.cpp")
     return files

@@ -738,6 +738,16 @@ def include_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
+def get_excluded_builtin_components() -> list[str]:
+    """Return the sorted built-in IDF components excluded from the build.
+
+    Single accessor for both build writers: the PlatformIO path passes it as
+    ``-DEXCLUDE_COMPONENTS`` and the native ESP-IDF path emits it into the
+    generated CMakeLists.
+    """
+    return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
+
+
 def _enable_arduino_library(name: str) -> None:
     """Enable an Arduino library that is disabled by default.
 
@@ -2127,13 +2137,10 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
-    if KEY_ESP32 not in CORE.data:
-        return
-    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
-    if excluded:
-        exclude_list = ";".join(sorted(excluded))
+    if excluded := get_excluded_builtin_components():
         cg.add_platformio_option(
-            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
+            "board_build.cmake_extra_args",
+            f"-DEXCLUDE_COMPONENTS={';'.join(excluded)}",
         )
 
 
