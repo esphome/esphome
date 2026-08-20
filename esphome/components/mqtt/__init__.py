@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
@@ -73,7 +74,6 @@ def AUTO_LOAD():
     return ["json"]
 
 
-CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 

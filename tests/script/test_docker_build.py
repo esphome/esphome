@@ -71,10 +71,12 @@ def test_branch_manifest_targets_ghcr_only(
     )
 
     assert commands == [
-        "docker buildx imagetools create "
-        "--tag ghcr.io/esphome/esphome-hassio:my-branch "
-        "ghcr.io/esphome/esphome-hassio-amd64:my-branch "
-        "ghcr.io/esphome/esphome-hassio-aarch64:my-branch"
+        (
+            "docker buildx imagetools create "
+            "--tag ghcr.io/esphome/esphome-hassio:my-branch "
+            "ghcr.io/esphome/esphome-hassio-amd64:my-branch "
+            "ghcr.io/esphome/esphome-hassio-aarch64:my-branch"
+        )
     ]
 
 

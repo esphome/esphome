@@ -80,8 +80,8 @@ async def reset_energy_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("pzemdc", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemdc", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
