@@ -13,6 +13,9 @@
 #include <sendspin/config.h>
 #include <sendspin/types.h>
 
+#ifdef USE_SENDSPIN_ARTWORK
+#include <sendspin/artwork_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -69,6 +72,9 @@ struct StaticDelayPref {
 ///    (for services the library pulls; e.g., persistence, network readiness).
 ///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
 class SendspinHub final : public Component,
+#ifdef USE_SENDSPIN_ARTWORK
+                          public sendspin::ArtworkRoleListener,
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
 #endif
@@ -121,6 +127,27 @@ class SendspinHub final : public Component,
 
   // --- Sendspin role specific methods ---
 
+#ifdef USE_SENDSPIN_ARTWORK
+  void set_artwork_config(const sendspin::ArtworkRoleConfig &config) { this->artwork_config_ = config; }
+
+  /// @brief Acknowledges the most recent artwork delivery (display or clear) for a slot.
+  ///
+  /// Every slot is configured with the library's require_frame_done gate, which withholds the
+  /// next delivery for the slot until this is called. Exactly one ack is owed per delivery; a
+  /// redundant call is a safe no-op in the library. Must be called from the main loop thread.
+  void artwork_frame_done(uint8_t slot);
+
+  template<typename F> void add_image_decode_callback(F &&callback) {
+    this->artwork_image_decode_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_display_callback(F &&callback) {
+    this->artwork_image_display_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_clear_callback(F &&callback) {
+    this->artwork_image_clear_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
@@ -128,9 +155,18 @@ class SendspinHub final : public Component,
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
   }
+
+  /// @brief Registers a callback that fires when the connection is lost and the cached controller state is dropped.
+  template<typename F> void add_controller_state_clear_callback(F &&callback) {
+    this->controller_state_clear_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  /// @brief Registers a callback that fires when the server sends metadata.
+  ///
+  /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -171,19 +207,42 @@ class SendspinHub final : public Component,
 
   // --- Sendspin role specific methods/overrides/member variables ---
 
+#ifdef USE_SENDSPIN_ARTWORK
+  void on_image_decode(uint8_t slot, const uint8_t *data, size_t length, sendspin::SendspinImageFormat format) override;
+
+  void on_image_display(uint8_t slot, uint32_t lateness_ms) override;
+
+  void on_image_clear(uint8_t slot) override;
+
+  sendspin::ArtworkRoleConfig artwork_config_{};
+  sendspin::ArtworkRole *artwork_role_{nullptr};
+
+  // Callback fan-out to child components; they filter by slot as needed.
+  CallbackManager<void(uint8_t, const uint8_t *, size_t, sendspin::SendspinImageFormat)>
+      artwork_image_decode_callbacks_{};
+  CallbackManager<void(uint8_t, uint32_t)> artwork_image_display_callbacks_{};
+  CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   sendspin::ControllerRole *controller_role_{nullptr};
 
   void on_controller_state(const sendspin::ServerStateControllerObject &state) override;
 
-  // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  void on_controller_state_clear() override;
+
+  // Callback fan-out to child components; they filter as needed. Only a media_player subscribes, while the switch
+  // action and the media source enable the controller role without one, so keep the idle cost to a single pointer.
+  LazyCallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  LazyCallbackManager<void()> controller_state_clear_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
   sendspin::MetadataRole *metadata_role_{nullptr};
 
   void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  void on_metadata_clear() override;
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
