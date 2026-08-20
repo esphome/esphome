@@ -566,11 +566,9 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
     assert "Ignoring trailing '-I'" in caplog.text
 
 
-def test_split_flag_entry_non_string_is_clean(  # type: ignore[no-untyped-def]
-) -> None:
+def test_split_flag_entry_non_string_is_clean() -> None:
     """A dict or number from a third-party manifest fails naming the entry,
     not with an opaque shlex traceback."""
-    from esphome.core import EsphomeError
     from esphome.platformio.library import split_flag_entry
 
     with pytest.raises(EsphomeError, match="Malformed build flag"):
