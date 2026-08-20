@@ -530,7 +530,7 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
 # components, so the component matrix wouldn't otherwise force any esp32
 # compile. When they change we fold the `esp32` component into the matrix so
 # the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
 ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
 
 

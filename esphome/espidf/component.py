@@ -43,8 +43,8 @@ def _idf_framework() -> str:
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
+    from esphome.build_helpers.extra_script import apply_extra_script
     from esphome.components.esp32 import get_esp32_variant
-    from esphome.espidf.extra_script import apply_extra_script
 
     apply_extra_script(component, lambda: variant_to_idf_target(get_esp32_variant()))
 

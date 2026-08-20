@@ -526,7 +526,7 @@ def get_idedata() -> dict | None:
     idedata fields IDE integrations and clang-tidy expect, cached alongside the
     PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
     """
-    from esphome.espidf.idedata import load_or_build_idedata
+    from esphome.build_helpers.idedata import load_or_build_idedata
 
     # No launcher: CMake excludes CMAKE_<LANG>_COMPILER_LAUNCHER (ccache)
     # from the exported compile database, unlike ninja's compdb dump.
