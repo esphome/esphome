@@ -129,16 +129,19 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
     """Constraints of the native (non-PlatformIO) Arduino toolchain."""
     if not CORE.using_toolchain_arduino:
         return config
+    from esphome.arduino8266.framework import MIN_FRAMEWORK_VERSION
+
     conf = config[CONF_FRAMEWORK]
     version = cv.Version.parse(conf[CONF_VERSION])
-    # 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
-    if version < cv.Version(3, 1, 1):
+    if version < cv.Version.parse(MIN_FRAMEWORK_VERSION):
         raise cv.Invalid(
-            "'toolchain: arduino' requires framework version 3.1.1 or newer"
+            "'toolchain: arduino' requires framework version "
+            f"{MIN_FRAMEWORK_VERSION} or newer"
         )
-    if conf[CONF_PLATFORM_VERSION] != _parse_platform_version(
-        str(ARDUINO_4_PLATFORM_VERSION)
-    ):
+    # platform_version is a PlatformIO concept; drop it (as esp32's native
+    # toolchain does), warning when a custom pin is discarded. The floor
+    # above guarantees the schema-derived default is the ARDUINO_4 spec.
+    if conf.pop(CONF_PLATFORM_VERSION, None) != _ARDUINO_4_PLATFORM_SPEC:
         _LOGGER.warning(
             "'platform_version' is ignored by 'toolchain: arduino'; the native "
             "toolchain downloads the framework and compiler directly"
@@ -243,7 +246,7 @@ def _arduino_check_versions(value):
     platform_version = value.get(CONF_PLATFORM_VERSION)
     if platform_version is None:
         if version >= cv.Version(3, 1, 0):
-            platform_version = _parse_platform_version(str(ARDUINO_4_PLATFORM_VERSION))
+            platform_version = _ARDUINO_4_PLATFORM_SPEC
         elif version >= cv.Version(3, 0, 0):
             platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
         elif version >= cv.Version(2, 5, 0):
@@ -268,6 +271,10 @@ def _parse_platform_version(value):
         return f"platformio/espressif8266@{value}"
     except cv.Invalid:
         return value
+
+
+# The platform_version derived for every core >= 3.1.0 config
+_ARDUINO_4_PLATFORM_SPEC = _parse_platform_version(str(ARDUINO_4_PLATFORM_VERSION))
 
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(

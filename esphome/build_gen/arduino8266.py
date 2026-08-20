@@ -511,7 +511,7 @@ def write_project(paths: dict[str, Path]) -> bool:
     asflags = [f for f in asflags if f not in unflags]
 
     link_flags = [f for f in _LINKFLAGS if f not in unflags]
-    if esp8266_data.get(KEY_SCANF_FLOAT):
+    if esp8266_data[KEY_SCANF_FLOAT]:
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
     link_flags += [flag for lib in libraries for flag in lib.link_flags]

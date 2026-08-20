@@ -160,13 +160,20 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
         # it cannot be resolved from the registry.
         for dep in normalize_dependencies(component.data.get("dependencies")):
             name = dep.get("name")
-            if (
-                not name
-                or dep.get("owner")
-                or "version" in dep
-                or name in bundled_names
-                or not (framework_path / "libraries" / name).is_dir()
-            ):
+            if not name or dep.get("owner") or "version" in dep:
+                continue
+            if name in bundled_names:
+                continue
+            if not (framework_path / "libraries" / name).is_dir():
+                # The shared converter skips version-less deps too, so this
+                # is the only place the drop can be made visible before the
+                # missing sources surface as link errors.
+                _LOGGER.warning(
+                    "Dependency %s of library %s is not bundled with the "
+                    "framework and has no version to resolve; skipping",
+                    name,
+                    component.name,
+                )
                 continue
             if is_lib_ignored(name, lib_ignore):
                 continue

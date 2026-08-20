@@ -74,12 +74,16 @@ def get_arduino8266_tools_path() -> Path:
     return path.resolve()
 
 
+# 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
+MIN_FRAMEWORK_VERSION = "3.1.1"
+
+
 def framework_package_version(ver: cv.Version) -> str:
     """Map an Arduino core version (e.g. 3.1.2) to its package version.
 
     Same encoding as the PlatformIO package registry uses for core 3.x
     releases (3.1.2 -> 3.30102.0). The native toolchain only supports core
-    >= 3.1.0, so the 1.x/2.x encodings never apply here.
+    >= MIN_FRAMEWORK_VERSION, so the 1.x/2.x encodings never apply here.
     """
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
@@ -171,6 +175,11 @@ def _install_package(
     archive = _downloads_path() / f"{name}-{version}"
     _LOGGER.info("Downloading %s %s ...", name, version)
     if mirrors:
+        _LOGGER.warning(
+            "Downloading %s from a mirror override; checksum verification "
+            "is skipped for mirrors",
+            name,
+        )
         download_from_mirrors(
             mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, archive
         )
