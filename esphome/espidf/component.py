@@ -93,7 +93,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     )
     # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
     # flag and its argument (e.g. "-include cp_custom_alloc.h"); bare
-    # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
+    # -I/-L/-l/-D tokens re-glue to their argument ("-I foo" -> "-Ifoo") so
     # prefix classifiers below still route them.
     build_flags = lex_build_flags(build_flags, f"library {component.name}")
 
