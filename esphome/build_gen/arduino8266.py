@@ -481,7 +481,8 @@ def write_project(paths: dict[str, Path]) -> bool:
     for required in include_dirs:
         if not required.is_dir():
             raise EsphomeError(
-                f"Arduino toolchain install is incomplete: missing {required}"
+                f"Arduino toolchain install is incomplete: missing {required}; "
+                "run 'esphome clean-all' and retry"
             )
     for lib in libraries:
         include_dirs += lib.include_dirs

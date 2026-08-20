@@ -17,6 +17,7 @@ toolchain has always used, so the bits are identical); the
 
 from __future__ import annotations
 
+from collections.abc import Collection
 import functools
 import logging
 import os
@@ -178,6 +179,7 @@ def _install_package(
     version: str,
     dest: Path,
     mirrors: list[str],
+    expect: Collection[str] = (),
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
@@ -207,6 +209,14 @@ def _install_package(
         download_with_resume(url, archive, sha256=sha256, size=size)
     _LOGGER.info("Extracting %s ...", name)
     archive_extract_all(archive, dest, progress_header="Extracting")
+    # Validate the layout before recording success, so an unexpected package
+    # is never cached as a working install.
+    for rel in expect:
+        if not (dest / rel).is_dir():
+            raise EsphomeError(
+                f"{name} {version} extracted without the expected {rel} "
+                "directory; run 'esphome clean-all' and retry"
+            )
     marker.touch()
     archive.unlink(missing_ok=True)
 
@@ -245,6 +255,7 @@ def check_and_install(framework_version: cv.Version) -> dict[str, Path]:
         package_version,
         framework_path,
         ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+        expect=("cores/esp8266", "tools/sdk"),
     )
     toolchain_path = get_toolchain_path()
     _install_package(
@@ -252,6 +263,7 @@ def check_and_install(framework_version: cv.Version) -> dict[str, Path]:
         TOOLCHAIN_VERSION,
         toolchain_path,
         ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+        expect=("bin",),
     )
     return {
         "framework_path": framework_path,

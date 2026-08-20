@@ -9,7 +9,7 @@ import pytest
 
 from esphome.arduino8266 import component
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP8266
-from esphome.core import CORE, Library
+from esphome.core import CORE, EsphomeError, Library
 from esphome.platformio.library import ConvertedLibrary, LibraryBackend
 
 
@@ -257,16 +257,20 @@ def test_library_info_missing_explicit_include_warns(
     assert "include dir nope which does not exist" in caplog.text
 
 
-def test_library_info_missing_declared_dirs_warn(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Explicitly declared srcDir/includeDir that do not exist warn by name."""
+def test_library_info_missing_declared_src_dir_raises(tmp_path: Path) -> None:
+    """An explicitly declared srcDir that does not exist is a manifest error."""
     read_path = tmp_path / "lib"
     read_path.mkdir()
-    component._library_info(
-        "x", read_path, {"build": {"srcDir": "nosrc", "includeDir": "noinc"}}
-    )
-    assert "srcDir nosrc which does not exist" in caplog.text
+    with pytest.raises(EsphomeError, match="srcDir nosrc which does not exist"):
+        component._library_info("x", read_path, {"build": {"srcDir": "nosrc"}})
+
+
+def test_library_info_missing_declared_include_dir_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    read_path.mkdir()
+    component._library_info("x", read_path, {"build": {"includeDir": "noinc"}})
     assert "include dir noinc which does not exist" in caplog.text
 
 

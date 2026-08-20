@@ -60,7 +60,7 @@ def _patch_segment_size(content: str, segment_name: str, new_size: str) -> str:
     return re.sub(pattern, rf"\g<1>{new_size}", content)
 
 
-def apply_testing_memory_patches(content: str, require: Collection[str] = ()) -> str:
+def apply_testing_memory_patches(content: str, require: Collection[str]) -> str:
     """Enlarge IRAM/DRAM/flash segments so grouped CI test builds can link.
 
     ``require`` names the segments this file must define; a silently

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 
-from esphome.core import CORE, Library
+from esphome.core import CORE, EsphomeError, Library
 from esphome.espidf.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
@@ -68,9 +68,11 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         (d for d in ("src", "Src") if (read_path / d).is_dir()), "."
     )
     if "srcDir" in build and not (read_path / src_dir).is_dir():
-        # A silently empty source set would surface as link errors instead
-        _LOGGER.warning(
-            "Library %s declares srcDir %s which does not exist", name, src_dir
+        # Unlike the default probes, an explicitly declared srcDir that does
+        # not resolve is unambiguously a manifest/tree error; a silently
+        # empty source set would surface as link errors far from the cause
+        raise EsphomeError(
+            f"Library {name} declares srcDir {src_dir} which does not exist"
         )
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))

@@ -376,3 +376,29 @@ def test_ccache_env(tmp_path: Path) -> None:
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str(Path(CORE.build_path).resolve())
     assert env["CCACHE_DIR"].endswith("ccache")
+
+
+def test_install_package_validates_expected_layout(tmp_path: Path) -> None:
+    """The success marker is only written when the extracted tree is usable."""
+    dest = tmp_path / "pkg"
+    with (
+        patch.object(framework, "download_from_mirrors"),
+        patch.object(framework, "archive_extract_all") as mock_extract,
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "bin").mkdir(parents=True)
+        framework._install_package("pkg", "1.0.0", dest, ["http://m"], expect=("bin",))
+    assert (dest / ".esphome_extracted").is_file()
+
+
+def test_install_package_unexpected_layout_raises(tmp_path: Path) -> None:
+    dest = tmp_path / "pkg"
+    with (
+        patch.object(framework, "download_from_mirrors"),
+        patch.object(framework, "archive_extract_all") as mock_extract,
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+        pytest.raises(EsphomeError, match="without the expected bin"),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
+        framework._install_package("pkg", "1.0.0", dest, ["http://m"], expect=("bin",))
+    assert not (dest / ".esphome_extracted").exists()
