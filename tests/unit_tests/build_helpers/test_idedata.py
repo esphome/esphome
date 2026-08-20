@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_helpers import idedata
+from esphome.core import EsphomeError
 
 # An absolute, forward-slash (shlex-safe) path prefix valid on the host OS, so
 # tests exercise the same is-absolute / normalize behavior as a real compile DB
@@ -427,11 +428,9 @@ def test_load_or_build_idedata_corrupted_cache_is_logged(
     assert "Discarding unreadable idedata cache" in caplog.text
 
 
-def test_load_or_build_idedata_never_caches_a_launcher(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Idedata whose compiler path is a known launcher is served for this
-    run but not persisted, so the next build re-parses."""
+def test_load_or_build_idedata_never_caches_a_launcher(tmp_path: Path) -> None:
+    """A compile DB naming a launcher as the compiler is rejected by name,
+    before the toolchain probe could fail opaquely, and never cached."""
     compile_commands = tmp_path / "compile_commands.json"
     compile_commands.write_text(
         json.dumps(
@@ -445,13 +444,10 @@ def test_load_or_build_idedata_never_caches_a_launcher(
         )
     )
     cache = tmp_path / "c.json"
-    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
-        data = idedata.load_or_build_idedata(
-            compile_commands, tmp_path / "f.elf", cache
-        )
-    assert data is None
+    # No probe patch needed: the launcher is rejected before the probe runs
+    with pytest.raises(EsphomeError, match="compile database is unusable"):
+        idedata.load_or_build_idedata(compile_commands, tmp_path / "f.elf", cache)
     assert not cache.exists()
-    assert "no usable idedata" in caplog.text
 
 
 def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:

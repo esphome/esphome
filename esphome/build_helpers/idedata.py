@@ -18,6 +18,7 @@ from pathlib import Path
 import shlex
 import subprocess
 
+from esphome.core import EsphomeError
 from esphome.helpers import write_file
 
 _LOGGER = logging.getLogger(__name__)
@@ -278,14 +279,6 @@ def load_or_build_idedata(
 
     data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
-    if _is_launcher(data["cxx_path"]):
-        # Known-unusable: consumers must not run a launcher as the compiler,
-        # and a cached copy would outlive the timestamp check
-        _LOGGER.warning(
-            "compile_commands names the launcher %s as the compiler; no usable idedata",
-            data["cxx_path"],
-        )
-        return None
     cache.parent.mkdir(parents=True, exist_ok=True)
     # Atomic so a crash mid-write cannot leave a truncated cache
     write_file(cache, json.dumps(data, indent=2) + "\n")
@@ -315,6 +308,14 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
         return parsed[key]
 
     cxx_path, defines, _, cxx_flags = _parse(_pick_entry(entries))
+    if _is_launcher(cxx_path):
+        # Checked before the toolchain probe (which would fail opaquely on
+        # a launcher) so the unusable compile DB is named, and never
+        # cached or conflated with "nothing built yet"
+        raise EsphomeError(
+            f"compile_commands.json names the launcher {cxx_path} as the "
+            "compiler; the compile database is unusable"
+        )
 
     build_includes: dict[str, None] = {}
     for entry in entries:
