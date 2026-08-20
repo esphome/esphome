@@ -120,6 +120,12 @@ def test_has_outdated_files_detects_exclusion_change(setup_core: Path) -> None:
 
         assert toolchain.has_outdated_files()
 
+        # The flag must clear once the reference file is restamped (as
+        # run_compile does after a successful discovery reconfigure);
+        # otherwise every later build would repeat the discovery pass.
+        os.utime(cmakecache, (stamp.stat().st_mtime + 10,) * 2)
+        assert not toolchain.has_outdated_files()
+
 
 def test_get_idedata_returns_none_without_compile_commands(setup_core: Path) -> None:
     """No compile DB yet -> None (rather than an error)."""
@@ -392,6 +398,30 @@ def test_run_idf_py_jobs_sets_build_jobs_env(setup_core: Path) -> None:
         toolchain.run_idf_py("build")
         env = mock_run.call_args.kwargs["env"]
         assert "IDF_PY_BUILD_JOBS" not in env
+
+
+def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> None:
+    """After a successful discovery reconfigure the reference CMakeCache.txt
+    is restamped; cmake does not rewrite it when only properties or plain
+    variables change, so the staleness flag would otherwise never clear."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert cmakecache.stat().st_mtime > old
 
 
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:

@@ -396,6 +396,14 @@ def run_compile(config, verbose: bool) -> int:
         if rc != 0:
             _LOGGER.error("Component discovery failed")
             return rc
+        # Restamp the reference file has_outdated_files() compares against.
+        # A reconfigure that only changes properties or plain variables
+        # (sdkconfig options, the exclusion set) does not rewrite
+        # CMakeCache.txt, so without this the watched inputs stay newer
+        # forever and every subsequent build repeats the discovery pass.
+        cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+        if cmakecache.is_file():
+            os.utime(cmakecache)
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
         if CORE.testing_mode:
