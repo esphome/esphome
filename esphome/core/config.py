@@ -560,7 +560,10 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
     if CORE.using_native_toolchain:
         # The native builds don't read platformio.ini; honor the options
         # with a native equivalent and warn about the rest, which would
-        # otherwise be silently ignored.
+        # otherwise be silently ignored. __main__'s write_cpp_file and
+        # compile_program dispatch must agree with this gate: a toolchain
+        # treated as native here must not fall through to the PlatformIO
+        # project writer there.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -581,8 +584,8 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                     _add_library_str(lib)
             elif key == "lib_ignore":
                 # Read by the shared library conversion (lib_ignore_set in
-                # platformio/library.py) on both native backends; filters
-                # top-level libraries and discovered dependencies
+                # platformio/library.py); filters top-level libraries and
+                # discovered dependencies
                 cg.add_platformio_option(key, vals)
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw
