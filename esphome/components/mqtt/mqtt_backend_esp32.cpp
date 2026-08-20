@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.idf";
+static const char *const TAG = "mqtt";
 
 bool MQTTBackendESP32::initialize_() {
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
