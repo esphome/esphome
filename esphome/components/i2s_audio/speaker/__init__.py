@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_I2S_DOUT_PIN,
@@ -78,7 +79,7 @@ I2C_COMM_FMT_OPTIONS = {
 INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
-def _set_num_channels_from_config(config):
+def _set_num_channels_from_config(config: ConfigType) -> ConfigType:
     if config[CONF_CHANNEL] in (CONF_MONO, CONF_LEFT, CONF_RIGHT):
         config[CONF_NUM_CHANNELS] = 1
     else:
@@ -87,7 +88,7 @@ def _set_num_channels_from_config(config):
     return config
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
@@ -133,14 +134,14 @@ def _set_stream_limits(config):
     return config
 
 
-def _select_speaker_class(config):
+def _select_speaker_class(config: ConfigType) -> ConfigType:
     """Override ID type when SPDIF mode is enabled."""
     if config.get(CONF_SPDIF_MODE, False):
         config[CONF_ID].type = I2SAudioSpeakerSPDIF
     return config
 
 
-def _validate_esp32_variant(config):
+def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     variant = esp32.get_esp32_variant()
     if config[CONF_DAC_TYPE] == "internal":
         if variant not in INTERNAL_DAC_VARIANTS:
@@ -207,7 +208,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_DAC_TYPE] == "internal":
         raise cv.Invalid(
             "Internal DAC is no longer supported. Use an external I2S DAC instead."
@@ -238,7 +239,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_i2s_audio_component(var, config)

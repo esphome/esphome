@@ -1,6 +1,9 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -9,20 +12,23 @@ from esphome.const import (
     CONF_PHASE_ANGLE,
     CONF_PIN,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 
 
-def calc_max_frequency(bit_depth):
+def calc_max_frequency(bit_depth: int) -> float:
     return 80e6 / (2**bit_depth)
 
 
-def calc_min_frequency(bit_depth):
+def calc_min_frequency(bit_depth: int) -> float:
     max_div_num = ((2**20) - 1) / 256.0
     return 80e6 / (max_div_num * (2**bit_depth))
 
 
-def validate_frequency(value):
+def validate_frequency(value: Any) -> float:
     value = cv.frequency(value)
     min_freq = calc_min_frequency(20)
     max_freq = calc_max_frequency(1)
@@ -56,7 +62,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    # Re-enable the LEDC driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_ledc")
+
     gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
@@ -79,7 +88,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def ledc_set_frequency_to_code(config, action_id, template_arg, args):
+async def ledc_set_frequency_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)

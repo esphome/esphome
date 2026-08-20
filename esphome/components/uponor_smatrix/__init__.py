@@ -2,6 +2,8 @@ import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_TIME_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kroimon"]
 
@@ -61,7 +63,7 @@ UPONOR_SMATRIX_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(uponor_smatrix_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -74,7 +76,7 @@ async def to_code(config):
             cg.add(var.set_time_device_address(time_device_address))
 
 
-async def register_uponor_smatrix_device(var, config):
+async def register_uponor_smatrix_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_UPONOR_SMATRIX_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))

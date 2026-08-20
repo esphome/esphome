@@ -7,7 +7,8 @@ from esphome.components.image import CONF_TRANSPARENCY, add_metadata
 from esphome.components.runtime_image import CONF_FORMAT, IMAGE_FORMATS, AUTOFormat
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_ON_ERROR, CONF_TYPE, CONF_URL
-from esphome.core import Lambda
+from esphome.core import ID, Lambda
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["runtime_image"]
@@ -97,7 +98,12 @@ RELEASE_IMAGE_SCHEMA = automation.maybe_simple_id(
     RELEASE_IMAGE_SCHEMA,
     synchronous=True,
 )
-async def online_image_action_to_code(config, action_id, template_arg, args):
+async def online_image_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

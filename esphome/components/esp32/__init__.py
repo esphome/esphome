@@ -204,18 +204,32 @@ COMPILER_OPTIMIZATIONS = {
 # ESP-IDF components excluded by default to reduce compile time.
 # Components can be re-enabled by calling include_builtin_idf_component() in to_code().
 #
-# Cannot be excluded (dependencies of required components):
-# - "console": espressif/mdns unconditionally depends on it
-# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+# Note: excluding a component only removes it from the initial build set.
+# ESP-IDF's requirement expansion adds an excluded component back when any
+# component still in the build REQUIRES it (e.g. espressif/mdns pulls
+# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# exclusions here are safe for such components and simply become no-ops in
+# builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
+    "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
     "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_sdio",  # SDIO device-mode driver - unused by ESPHome
+    "esp_driver_sdm",  # Sigma-delta modulation driver - unused by ESPHome
+    "esp_driver_sdmmc",  # SD/MMC host driver - unused by ESPHome
+    "esp_driver_sdspi",  # SD-over-SPI driver - unused by ESPHome
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
@@ -227,11 +241,16 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "rt",  # POSIX realtime extensions - unused by ESPHome
+    "sdmmc",  # SD/MMC protocol layer - only used by SD drivers and fatfs (also excluded)
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "tcp_transport",  # Transport layer - esp_http_client/mqtt pull it back when re-included
     "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
@@ -736,6 +755,17 @@ def include_builtin_idf_component(name: str) -> None:
     component will be built when needed.
     """
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
+
+
+def get_excluded_builtin_components() -> list[str]:
+    """Return the sorted built-in IDF components excluded from the build.
+
+    The set reaches both build writers as the ``EXCLUDE_COMPONENTS`` CMake
+    arg (registered via ``cg.add_cmake_arg`` at FINAL priority); the native
+    ESP-IDF writer also reads it directly to filter the built-in component
+    list.
+    """
+    return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
 
 
 def _enable_arduino_library(name: str) -> None:
@@ -2119,17 +2149,16 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+def register_exclude_components_cmake_arg() -> None:
+    """Register the current exclusion set as the EXCLUDE_COMPONENTS cmake arg."""
+    if excluded := get_excluded_builtin_components():
+        cg.add_cmake_arg("EXCLUDE_COMPONENTS", ";".join(excluded))
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
-    if KEY_ESP32 not in CORE.data:
-        return
-    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
-    if excluded:
-        exclude_list = ";".join(sorted(excluded))
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
-        )
+    register_exclude_components_cmake_arg()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

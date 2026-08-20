@@ -641,6 +641,8 @@ class EsphomeCore:
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A map of CMake args to apply to build systems that use CMake.
+        self.cmake_args: dict[str, str] = {}
         # A set of build flags that apply to C++ compiles only (CXXFLAGS /
         # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
         self.cxx_build_flags: set[str] = set()
@@ -704,6 +706,7 @@ class EsphomeCore:
         self.global_statements = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cmake_args = {}
         self.cxx_build_flags = set()
         self.build_unflags = set()
         self.cpp_standard = None
@@ -1062,6 +1065,30 @@ class EsphomeCore:
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
 
+    def add_cmake_arg(self, name: str, value: str) -> None:
+        """Register a CMake variable for CMake-based toolchains.
+
+        The value must not contain whitespace or quotes (the PlatformIO
+        backend passes all args to CMake as a single space-joined string
+        of ``-DNAME=VALUE`` pairs) or ``$`` (expanded by CMake on the
+        ESP-IDF path but interpolated differently or passed through by
+        PlatformIO).
+        """
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError(f"Invalid CMake arg name: {name!r}")
+        if re.search(r"[\s\"'$]", value):
+            raise ValueError(
+                f"CMake arg {name} value {value!r} must not contain "
+                "whitespace, quotes, or '$'"
+            )
+        old = self.cmake_args.get(name)
+        if old is not None and old != value:
+            _LOGGER.warning(
+                "CMake arg %s already set to %s; overwriting with %s", name, old, value
+            )
+        self.cmake_args[name] = value
+        _LOGGER.debug("Adding CMake arg: %s=%s", name, value)
+
     def add_cxx_build_flag(self, build_flag: str) -> str:
         self.cxx_build_flags.add(build_flag)
         _LOGGER.debug("Adding C++ build flag: %s", build_flag)
@@ -1091,10 +1118,14 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: str | list[str]) -> None:
+    def add_platformio_option(
+        self, key: str, value: str | list[str], *, replace: bool = False
+    ) -> None:
+        """Set a platformio.ini option; list values append to an existing list
+        unless ``replace`` is True, which overwrites any existing value."""
         new_val = value
         old_val = self.platformio_options.get(key)
-        if isinstance(old_val, list):
+        if not replace and isinstance(old_val, list):
             assert isinstance(value, list)
             new_val = old_val + value
         self.platformio_options[key] = new_val

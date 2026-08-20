@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MAX_VALUE, CONF_MIN_VALUE
+from esphome.types import ConfigType
 
 from .. import (
     CONF_WAVESHARE_IO_CH32V003_ID,
@@ -23,7 +24,7 @@ DUTY_DEFAULT_MIN = 1
 DUTY_DEFAULT_MAX = 247
 
 
-def validate_pwm_limits(config):
+def validate_pwm_limits(config: ConfigType) -> ConfigType:
     """Validate that safe_pwm_levels.min_value <= safe_pwm_levels.max_value."""
 
     min_val = config.get(CONF_SAFE_PWM_LEVELS, {}).get(CONF_MIN_VALUE, DUTY_DEFAULT_MIN)
@@ -61,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
     await cg.register_parented(var, config[CONF_WAVESHARE_IO_CH32V003_ID])
