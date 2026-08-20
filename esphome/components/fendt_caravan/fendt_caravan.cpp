@@ -1,5 +1,5 @@
-#include "fendt_caravan.h"
 #include "esphome/core/application.h"
+#include "fendt_caravan.h"
 
 #ifdef USE_ESP32
 
@@ -16,6 +16,11 @@ void FendtCaravan::dump_config() {
                 "Fendt Caravan\n"
                 "  Fendt Address: %s",
                 this->parent()->address_str());
+}
+
+void FendtCaravan::send_command(const std::string &command) {
+  ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
+  this->add_command_(command);
 }
 
 void FendtCaravan::loop() {
@@ -134,16 +139,11 @@ void FendtCaravan::on_data_received_(const std::string &data) {
   size_t end = data.find(':');
   key = data.substr(start, end);
   value = data.substr(end + 1);
-  if (this->mcu_device_) {
-    bool result = this->mcu_device_->decode(key, value);
+  if (this->mcu_hub_) {
+    bool result = this->mcu_hub_->decode(key, value);
     if (result)
       return;
   }
-}
-
-void FendtCaravan::on_command_send(const std::string &command) {
-  ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
-  this->add_command_(command);
 }
 
 }  // namespace esphome::fendt_caravan

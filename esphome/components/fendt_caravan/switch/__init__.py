@@ -3,32 +3,32 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE
 
-from .. import CONF_KEY_NAME, CONF_PARENT_ID, CaravanDeviceComponent, fendt_caravan_ns
+from .. import CONF_PARENT_ID, FendtCaravanHubBase, fendt_caravan_ns
 
 FendtSwitch = fendt_caravan_ns.class_(
     "FendtSwitch",
     switch.Switch,
-    cg.Component,
-    cg.Parented.template(CaravanDeviceComponent),
+    cg.Parented.template(FendtCaravanHubBase),
 )
 
+CONF_MAIN_SWITCH = "main_switch"
+CONF_ALL_LIGHTS = "all_lights"
+CONF_FLOOR_HEATER = "floor_heater"
 
-def _switch_schema(icon: str = cv.UNDEFINED, key_name_=cv.UNDEFINED) -> cv.Schema:
+
+def _switch_schema(icon: str = cv.UNDEFINED) -> cv.Schema:
     return switch.switch_schema(FendtSwitch).extend(
         {
-            cv.Required(CONF_PARENT_ID): cv.use_id(CaravanDeviceComponent),
-            cv.Optional(CONF_KEY_NAME, default=key_name_): cv.string,
+            cv.Required(CONF_PARENT_ID): cv.use_id(FendtCaravanHubBase),
         }
     )
 
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "main_switch": _switch_schema(icon="mdi:switch", key_name_="MAIN_SWITCH"),
-        "all_lights": _switch_schema(icon="mdi:lamp", key_name_="ALL_LIGHTS_SWITCH"),
-        "floor_heater": _switch_schema(
-            icon="mdi:heat-wave", key_name_="FLOOR_HEATER_ON"
-        ),
+        CONF_MAIN_SWITCH: _switch_schema(icon="mdi:switch"),
+        CONF_ALL_LIGHTS: _switch_schema(icon="mdi:lamp"),
+        CONF_FLOOR_HEATER: _switch_schema(icon="mdi:heat-wave"),
     }
 )
 
@@ -36,8 +36,5 @@ CONFIG_SCHEMA = cv.typed_schema(
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_PARENT_ID])
     var = await switch.new_switch(config)
-    if CONF_KEY_NAME in config:
-        cg.add(var.set_key_name(config[CONF_KEY_NAME]))
-    await cg.register_component(var, config)
     await cg.register_parented(var, parent)
     cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_switch")(var))

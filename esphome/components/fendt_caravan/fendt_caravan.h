@@ -3,7 +3,7 @@
 
 #ifdef USE_ESP32
 #include "esphome/core/log.h"
-#include "caravan_device_component.h"
+#include "fendt_caravan_hub_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/ble_client/ble_client.h"
@@ -21,12 +21,9 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
                            esp_ble_gattc_cb_param_t *param) override;
 
   void set_address(uint64_t address) { address_ = address; };
-  void set_mcu_device_sensor(CaravanDeviceComponent *mcu_device_sensor) {
-    this->mcu_device_ = mcu_device_sensor;
-    this->mcu_device_->set_command_send_callback([this](const std::string &cmd) { this->on_command_send(cmd); });
-  }
+  void set_mcu_hub(FendtCaravanHubBase *mcu_hub) { this->mcu_hub_ = mcu_hub; };
   void dump_config() override;
-  void on_command_send(const std::string &command);
+  void send_command(const std::string &command);
 
  protected:
   void add_command_(const std::string &cmd);
@@ -41,7 +38,7 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   std::vector<std::string> commands_{};
   uint32_t last_command_time_ = 0;
   std::string last_response_ = {};
-  CaravanDeviceComponent *mcu_device_{nullptr};
+  FendtCaravanHubBase *mcu_hub_{nullptr};
 };
 }  // namespace esphome::fendt_caravan
 #endif

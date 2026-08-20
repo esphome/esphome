@@ -56,22 +56,17 @@ template<class T> class Variable : public IVariable {
     }
     return "";
   }
-  void set_on_decode_callback(std::function<void(const T &value)> &&callback) {
-    this->on_decode_.add(std::move(callback));
-  }
 
   void decode(const std::string &value) override {
     raw_value_ = value;
     this->value_ = this->decode_funct_(value);
     this->is_active_ = true;
-    this->on_decode_.call(this->value_);
   }
 
  protected:
   std::function<T(const std::string &)> decode_funct_;
   std::function<const std::string(const std::string &, T val)> command_funct_;
   std::function<const std::string(const std::string &, T val)> alt_command_funct_;
-  CallbackManager<void(const T &value)> on_decode_{};
   T value_;
 };
 
