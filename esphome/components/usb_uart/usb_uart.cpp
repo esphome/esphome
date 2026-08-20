@@ -10,6 +10,18 @@
 
 namespace esphome::usb_uart {
 
+#ifdef USE_UART_DEBUGGER
+  void log_tx_debug_(uint8_t *data, size_t len) {
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+    }
+  }
+#endif
+
 /**
  *
  * Given a configuration, look for the required interfaces defining a CDC-ACM device
