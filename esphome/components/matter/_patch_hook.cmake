@@ -29,7 +29,15 @@ else()
     set(_matter_python "python3")
 endif()
 set(_matter_stamp "${_matter_dir}/.esphome-matter-patched")
-if(EXISTS "${_matter_dir}")
+# esp_matter's own CMakeLists.txt is the definitive "component-manager
+# finished syncing this dir" marker. Just checking whether _matter_dir
+# exists is not enough — a partial or aborted sync can leave the top
+# level around with only ``connectedhomeip/`` inside (observed on some
+# component-manager runs), which then blows PATCH3 up ambiguously.
+# Requiring the CMakeLists file forces us onto the two-strike branch
+# below when the dir is not really ready yet.
+set(_matter_marker "${_matter_dir}/CMakeLists.txt")
+if(EXISTS "${_matter_marker}")
     execute_process(
         COMMAND "${_matter_python}" "${CMAKE_CURRENT_LIST_DIR}/_apply_patches.py" "${_matter_dir}"
         RESULT_VARIABLE _matter_patches_rc
@@ -60,28 +68,31 @@ if(EXISTS "${_matter_dir}")
     endif()
 else()
     # Track visits so a real upstream path drift can't silently pass. First
-    # configure with a missing dir is tolerated (component-manager may not
-    # have synced yet on cold caches); the second is fatal — otherwise
-    # ninja compiles unpatched sources behind an easy-to-miss warning.
+    # configure with a missing/incomplete dir is tolerated (component-manager
+    # may not have synced yet on cold caches, or a previous sync left the
+    # dir half-populated); the second is fatal — otherwise ninja compiles
+    # unpatched sources behind an easy-to-miss warning.
     set(_matter_miss_stamp "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
     if(EXISTS "${_matter_miss_stamp}")
         message(FATAL_ERROR
-            "matter: ${_matter_dir} still missing on the second configure — "
+            "matter: ${_matter_marker} still missing on the second configure — "
             "either component-manager cannot sync espressif/esp_matter, or "
             "the managed-component path drifted upstream. Refusing to compile "
-            "unpatched sources.")
+            "unpatched sources. To recover from a stale partial sync, delete "
+            "${_matter_dir} and re-run the build.")
     else()
         file(WRITE "${_matter_miss_stamp}" "1\n")
         message(AUTHOR_WARNING
-            "matter: ${_matter_dir} missing — component-manager has not synced "
-            "yet. If configure re-runs cleanly next time, ignore; if the next "
+            "matter: ${_matter_marker} missing — component-manager has not "
+            "synced esp_matter yet (or the last sync was interrupted). If "
+            "configure re-runs cleanly next time, ignore; if the next "
             "configure still finds it missing, the build will fail.")
     endif()
 endif()
 
-# Clear the miss stamp on any successful pass so subsequent missing-dir
+# Clear the miss stamp on any successful pass so subsequent missing-marker
 # events start a fresh two-strike counter rather than tripping on state
 # left over from a long-ago cold configure.
-if(EXISTS "${_matter_dir}" AND EXISTS "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
+if(EXISTS "${_matter_marker}" AND EXISTS "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
     file(REMOVE "${CMAKE_BINARY_DIR}/.esphome-matter-dir-missing")
 endif()

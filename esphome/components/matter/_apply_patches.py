@@ -21,18 +21,18 @@ Patches:
   components/matter/external_platform/, whose external_platform.cmake
   excludes the upstream Ethernet driver from the esp_matter component
   entirely. Same effect, no source edit.)
-  2. esp_matter_core.cpp — comment out the ``InitWiFiStack()`` call inside
-     ``esp_matter::start()``. On Wi-Fi builds this helper calls
-     ``esp_wifi_init()``, which fails with ``ESP_ERR_INVALID_STATE`` because
-     ESPHome's ``wifi:`` component already inited the driver — the failure
-     aborts ``esp_matter::start()``. On Ethernet-only builds the surrounding
-     ``#if CHIP_DEVICE_CONFIG_ENABLE_WIFI`` is off and the call was already
-     going to be compiled out; the textual patch is still applied so the
-     source is uniform across variants. The one thing ``InitWiFiStack``
-     also did — ``esp_event_handler_register(WIFI_EVENT, …,
-     PlatformManagerImpl::HandleESPSystemEvent, …)`` — is reproduced from
-     ``matter_component.cpp::setup()`` when ``USE_WIFI`` is defined, so
-     CHIP still sees ``WIFI_EVENT_STA_DISCONNECTED`` / ``WIFI_EVENT_SCAN_DONE``.
+  (PATCH2 removed 2026-08 — no longer necessary. esp-matter's
+  ``ESP32Utils::InitWiFiStack`` (esp32/src/platform/ESP32/ESP32Utils.cpp
+  ~L265 in 1.6) is defensively guarded on every ESP-IDF call it makes:
+  ``esp_netif_init()`` is idempotent; ``esp_netif_create_default_wifi_sta``
+  is guarded by ``esp_netif_get_handle_from_ifkey`` on
+  ``kDefaultWiFiStationNetifKey``; ``esp_wifi_init`` is guarded by
+  ``esp_wifi_get_mode() == ESP_ERR_WIFI_NOT_INIT``. The historical
+  ``ESP_ERR_INVALID_STATE`` failure that motivated PATCH2 was on an older
+  esp-matter release that lacked the mode guard. Letting the upstream
+  helper run also removes the reason the ESPHome side had to re-register
+  the WIFI_EVENT handler manually — matter_component.cpp now leaves that
+  entirely to upstream.)
   3. Every ``*_integration.cpp`` (or ``clusters/*/integration.cpp``) that
      declares
      ``std::unordered_map<EndpointId, LazyRegisteredServerCluster<...>> gServers``
@@ -60,16 +60,11 @@ Patches:
   flags instead of flipping CONFIG_DISABLE_IPV4 — same effect, no CMake
   arm involved.)
 
-Errors: PATCH2 is file-specific and load-bearing. If their target file
-is missing, or the marker string the patch anchors on is not present in the
-current esp-matter release, the script exits non-zero — the CMake hook
-surfaces that as a warning and downstream compilation will still fail hard.
-Silent-skip on those was masking upstream drift where our patch was quietly
-no-op'd but the code was actually broken. PATCH3 iterates across many
-integration files; each file may or may not carry the buggy pattern
-(``LazyRegisteredServerCluster<…> gServers``), so per-file skips are
-legitimate — but if the sweep patches ZERO files, that's fatal too
-(esp-matter 1.5+ always has some).
+Errors: PATCH3 iterates across many integration files; each file may or
+may not carry the buggy pattern (``LazyRegisteredServerCluster<…>
+gServers``), so per-file skips are legitimate — but if the sweep patches
+ZERO files, that's fatal (esp-matter 1.5+ always has some), so the script
+exits non-zero and the CMake hook surfaces the failure.
 """
 
 from pathlib import Path
@@ -85,15 +80,6 @@ class PatchError(Exception):
     silently-broken binary.
     """
 
-
-PATCH2_OLD = (
-    "VerifyOrReturnError(chip::DeviceLayer::Internal::ESP32Utils::InitWiFiStack() "
-    '== CHIP_NO_ERROR, ESP_FAIL, ESP_LOGE(TAG, "Error initializing Wi-Fi stack"));'
-)
-PATCH2_NEW = (
-    "// ESPHOME-MATTER-PATCH-WIFI: InitWiFiStack skipped — ESPHome owns "
-    "esp_wifi_init; WIFI_EVENT handler re-registered from matter_component.cpp"
-)
 
 PATCH3_MARKER = "// ESPHOME-MATTER-PATCH-MAP"
 
@@ -228,16 +214,6 @@ def apply_patches(matter_dir: Path) -> list:
     catch it themselves.
     """
     results = []
-
-    results.append(
-        _apply_string_replace(
-            matter_dir / "components" / "esp_matter" / "esp_matter_core.cpp",
-            "ESPHOME-MATTER-PATCH-WIFI",
-            PATCH2_OLD,
-            PATCH2_NEW,
-            legacy_markers=("PATCHED-BY-UNISEC-MATTER-WIFI",),
-        )
-    )
 
     # Patch 3: every integration.cpp under data_model_provider/clusters/
     # that has the unordered_map<EndpointId, LazyRegisteredServerCluster<>> gServers

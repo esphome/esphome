@@ -21,6 +21,10 @@
 #include <esp_matter_providers.h>
 #include <esp_wifi.h>
 #include <nvs.h>
+
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 #include <setup_payload/ManualSetupPayloadGenerator.h>
 #include <setup_payload/QRCodeSetupPayloadGenerator.h>
 #include <setup_payload/SetupPayload.h>
@@ -437,6 +441,93 @@ static esp_err_t attribute_update_cb(::esp_matter::attribute::callback_type_t ty
   return ESP_OK;
 }
 
+#ifdef USE_WIFI
+// Copy the fabric-provisioned Wi-Fi credentials from the ESP-IDF WiFi driver
+// into ESPHome's own SavedWifiSettings preference so the next boot's
+// WiFiComponent::start() picks them up via its pref_.load() path and
+// dynamically populates sta_. Without this, a yaml with `wifi: ap:` only
+// (typical for BLE-commissioned devices) has has_sta()==false at boot and
+// forces the wifi component into WIFI_COMPONENT_STATE_AP even though CHIP
+// already persisted the credentials into nvs.net80211 via
+// esp_wifi_set_config() at commissioning time.
+//
+// Deferred onto the ESPHome main loop because matter_event_cb runs in
+// CHIP's event-loop task, and preferences save + WiFiComponent::set_sta /
+// connect_soon_ touch main-thread state.
+static void persist_ble_provisioned_wifi_creds_() {
+  MatterComponent *self = MatterComponent::instance();
+  if (self == nullptr) {
+    return;
+  }
+  self->defer_on_main_loop([]() {
+    // Read credentials from the ESP-IDF WiFi driver's runtime config —
+    // ``esp_wifi_get_config`` returns exactly the ``wifi_config_t`` that
+    // CHIP's NetworkCommissioning delegate set via ``esp_wifi_set_config``
+    // during BLE commissioning. On IDF 5.x this returns the passphrase
+    // verbatim (verified with a hex dump: byte-for-byte match against the
+    // known-good WPA2-PSK). We do NOT read ``nvs.net80211/sta.pswd`` as
+    // a fallback because ESPHome's ``wifi:`` component has set the driver
+    // storage mode to ``WIFI_STORAGE_RAM`` (see ``matter::setup``
+    // rationale) and we intentionally leave it that way, so that NVS
+    // blob is never populated in the first place.
+    wifi_config_t conf = {};
+    esp_err_t err = esp_wifi_get_config(WIFI_IF_STA, &conf);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG,
+               "esp_wifi_get_config(STA) failed: %s — Wi-Fi credentials "
+               "will not persist across reboot",
+               esp_err_to_name(err));
+      return;
+    }
+    if (conf.sta.ssid[0] == '\0') {
+      ESP_LOGW(TAG, "post-commissioning STA config has empty SSID — nothing to persist");
+      return;
+    }
+    if (wifi::global_wifi_component == nullptr) {
+      ESP_LOGW(TAG, "wifi:global_wifi_component null — cannot persist BLE-provisioned credentials");
+      return;
+    }
+    const std::string ssid(reinterpret_cast<const char *>(conf.sta.ssid),
+                           strnlen(reinterpret_cast<const char *>(conf.sta.ssid), sizeof(conf.sta.ssid)));
+    const std::string password(reinterpret_cast<const char *>(conf.sta.password),
+                               strnlen(reinterpret_cast<const char *>(conf.sta.password), sizeof(conf.sta.password)));
+
+    ESP_LOGI(TAG,
+             "persisting BLE-provisioned Wi-Fi credentials to ESPHome preferences "
+             "(ssid='%s' pw_len=%u)",
+             ssid.c_str(), static_cast<unsigned>(password.length()));
+    if (password.empty()) {
+      ESP_LOGW(TAG, "post-commissioning Wi-Fi password came back empty from "
+                    "esp_wifi_get_config — the next boot will attempt to "
+                    "associate without a passphrase and likely fail");
+    }
+    // Write to the SavedWifiSettings preference slot directly, WITHOUT
+    // going through wifi::WiFiComponent::save_wifi_sta — that path also
+    // calls set_sta() + connect_soon_(), which pushes ESPHome's wifi
+    // component into a station-connect state machine that races with
+    // CHIP's ConnectivityManager on the current boot. CHIP has the
+    // driver associated with the just-commissioned SSID; ESPHome's
+    // subsequent esp_wifi_disconnect + esp_wifi_set_config drops that
+    // association ("Association Leave" in the logs) and the two stacks
+    // start fighting for STA control.
+    //
+    // The next-boot restore path in WiFiComponent::start() reads this
+    // same slot (hash=kMagic when the yaml has no `networks:` block,
+    // which is the standard BLE-commissioned shape) and populates sta_
+    // dynamically BEFORE the wifi component's state machine engages —
+    // no race, no fight. See wifi_component.cpp:648-673 for the read
+    // path.
+    constexpr uint32_t kMagic = 88491487UL;
+    auto pref = global_preferences->make_preference<wifi::SavedWifiSettings>(kMagic, true);
+    wifi::SavedWifiSettings save{};
+    strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);
+    strncpy(save.password, password.c_str(), sizeof(save.password) - 1);
+    pref.save(&save);
+    global_preferences->sync();
+  });
+}
+#endif  // USE_WIFI
+
 static void matter_event_cb(const ChipDeviceEvent *event, intptr_t /*arg*/) {
   switch (event->Type) {
     case chip::DeviceLayer::DeviceEventType::kInterfaceIpAddressChanged:
@@ -476,6 +567,16 @@ static void matter_event_cb(const ChipDeviceEvent *event, intptr_t /*arg*/) {
       // stricter commissioner), the fix belongs at the esp-matter/CHIP
       // BLE-deinit level, not here.
       ESP_LOGI(TAG, "commissioning complete");
+#ifdef USE_WIFI
+      // Copy the fabric-provisioned Wi-Fi credentials into ESPHome's
+      // SavedWifiSettings preference so the next boot's
+      // WiFiComponent::start() reads them and populates sta_ dynamically —
+      // without this a yaml with only `wifi: ap:` (typical for BLE
+      // commissioning) has has_sta()==false at boot and never triggers
+      // a station connect, even though the credentials were written to
+      // nvs.net80211 by CHIP during commissioning.
+      persist_ble_provisioned_wifi_creds_();
+#endif
       break;
     case chip::DeviceLayer::DeviceEventType::kFabricRemoved:
       ESP_LOGW(TAG, "fabric removed — device is no longer commissioned");
@@ -1011,31 +1112,37 @@ int MatterComponent::delete_user_label_at(uint16_t endpoint_id, size_t index) {
 void MatterComponent::setup() {
   ESP_LOGI(TAG, "setting up Matter (vendor=0x%04x product=0x%04x)", this->vendor_id_, this->product_id_);
 
-  // Undo ESPHome's `esp_wifi_set_storage(WIFI_STORAGE_RAM)` — it wants to own
-  // the SSID list from YAML and treats persistent Wi-Fi NVS as its problem.
-  // But CHIP's NetworkCommissioning delegate calls `esp_wifi_set_config(...)`
-  // during BLE commissioning to store the operator-provided credentials, and
-  // with RAM storage that write only lives until the next reboot: the device
-  // completes commissioning, connects to the AP, we proactively `esp_restart()`
-  // right after `kCommissioningComplete`, and the next boot has an empty
-  // station config → `Haven't to connect to a suitable AP now!` forever.
+  // Keep ESPHome's ``esp_wifi_set_storage(WIFI_STORAGE_RAM)`` in place —
+  // we deliberately do NOT flip storage to FLASH here.
   //
-  // Flipping storage back to FLASH here — before esp_matter::start() runs
-  // ESPWiFiDriver::Init, and long before commissioning writes credentials —
-  // makes every subsequent `esp_wifi_set_config()` persist to the nvs.net80211
-  // namespace so IDF auto-restores the config on the next boot.
+  // Rationale: with FLASH storage, CHIP's NetworkCommissioning delegate
+  // persists the BLE-provisioned credentials into the ``nvs.net80211``
+  // driver namespace via ``esp_wifi_set_config``. On the next boot the
+  // ESP-IDF driver auto-restores that config during ``esp_wifi_init``,
+  // and CHIP's ConnectivityManagerImpl::DriveStationState sees
+  // ``IsStationProvisioned() == true`` (SSID non-empty in the runtime
+  // config), so it calls ``esp_wifi_connect()`` on its own. That races
+  // ESPHome's wifi_component, which is also trying to connect using the
+  // credentials we stashed into ESPHome preferences via
+  // ``persist_ble_provisioned_wifi_creds_()``. Both stacks then fight
+  // over the STA slot — ESPHome sends ``esp_wifi_disconnect`` because
+  // its config differs from CHIP's runtime config, CHIP reconnects,
+  // repeat. In that state ESPHome's wifi_component never fully
+  // ``connects`` from its own POV, mDNS keeps advertising on the AP
+  // fallback netif, and the ``.local`` name of the device is
+  // unreachable from the home network.
   //
-  // Only relevant when `ble_commissioning: true`; the Ethernet / Wi-Fi-on-
-  // network PoCs pre-declare the SSID in YAML and let ESPHome handle it.
-  if (this->ble_commissioning_) {
-    esp_err_t err = esp_wifi_set_storage(WIFI_STORAGE_FLASH);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG,
-               "esp_wifi_set_storage(FLASH) failed: %s — BLE-provisioned "
-               "Wi-Fi credentials will not survive reboot",
-               esp_err_to_name(err));
-    }
-  }
+  // With RAM storage, ``esp_wifi_set_config`` during commissioning
+  // affects the driver's live runtime only; ``nvs.net80211`` stays
+  // empty. On the next boot ``esp_wifi_init`` finds no station config
+  // to restore; ``IsStationProvisioned()`` returns false; CHIP does
+  // not auto-connect. ESPHome's wifi_component reads our
+  // SavedWifiSettings preference during ``start()``, populates sta_,
+  // does the normal STA connect flow, wins the driver uncontended,
+  // and mDNS advertises on the home network. When ``esp_matter::start()``
+  // later runs its ConnectivityManagerImpl, CHIP observes the already-
+  // established STA connection and joins it instead of driving a new
+  // connect.
 
   // Write identity strings BEFORE any CHIP init runs — CHIP's ConfigurationMgr
   // reads chip-factory NVS on first attribute query and caches. Writing after
@@ -1139,42 +1246,14 @@ void MatterComponent::setup() {
   // runs from esp_matter::start and reads s_custom_device_info_provider.
   this->install_device_info_provider_();
 
-#ifdef USE_WIFI
-  // PATCH2 (see components/matter/_apply_patches.py) removes esp-matter's
-  // upstream call to ESP32Utils::InitWiFiStack() from esp_matter_core.cpp
-  // because that helper calls esp_wifi_init(), which fails with
-  // ESP_ERR_INVALID_STATE when ESPHome's `wifi:` component has already
-  // initialised the driver — and the failure aborts esp_matter::start().
-  //
-  // InitWiFiStack() also does one more thing we DO need: it registers
-  // CHIP's WIFI_EVENT handler so the CHIP DeviceLayer observes
-  // WIFI_EVENT_STA_DISCONNECTED / WIFI_EVENT_SCAN_DONE /
-  // WIFI_EVENT_STA_CONNECTED. NetworkCommissioningDriver.cpp relies on
-  // WIFI_EVENT_STA_DISCONNECTED to report commissioning-time association
-  // failures back to the commissioner (wrong SSID / wrong password on
-  // BLE-provisioned Wi-Fi), and ConnectivityManagerImpl relies on the
-  // same handler to drive its reconnect state machine when the AP
-  // temporarily disappears. IP_EVENT is registered separately by
-  // PlatformManagerImpl::_InitChipStack (see connectedhomeip
-  // src/platform/ESP32/PlatformManagerImpl.cpp) so the happy path (device
-  // gets IP → CHIP sees IP_EVENT_STA_GOT_IP → declares Wi-Fi up) already
-  // works without WIFI_EVENT, which is why the wifi PoC has been passing
-  // the smoke test. But the failure paths above stay broken until we
-  // reproduce this one call.
-  esp_err_t wifi_evt_err = esp_event_handler_register(
-      WIFI_EVENT, ESP_EVENT_ANY_ID, chip::DeviceLayer::PlatformManagerImpl::HandleESPSystemEvent, nullptr);
-  if (wifi_evt_err != ESP_OK && wifi_evt_err != ESP_ERR_INVALID_STATE) {
-    // ESP_ERR_INVALID_STATE means "already registered" — harmless if some
-    // other path in ESPHome or a future esp-matter build re-registers the
-    // same callback.
-    ESP_LOGW(TAG,
-             "esp_event_handler_register(WIFI_EVENT) failed: %s — "
-             "Matter will miss Wi-Fi state transitions "
-             "(commissioning failure + disconnect recovery)",
-             esp_err_to_name(wifi_evt_err));
-  }
-#endif  // USE_WIFI
-
+  // WIFI_EVENT handler for CHIP's DeviceLayer is registered from
+  // esp-matter's own ESP32Utils::InitWiFiStack (called by
+  // esp_matter::start below on Wi-Fi builds) — the ESP-IDF's
+  // esp_wifi_get_mode / esp_netif_get_handle_from_ifkey guards inside
+  // that helper make it safe even when ESPHome's `wifi:` already
+  // initialised the driver, so we no longer need to reproduce that
+  // registration here. See the PATCH2-removed comment in
+  // _apply_patches.py for the timeline.
   esp_err_t err = ::esp_matter::start(matter_event_cb);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_matter::start failed: %s", esp_err_to_name(err));
