@@ -37,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     set_core_data,
+    cv.require_platformio_toolchain("host"),
 )
 
 

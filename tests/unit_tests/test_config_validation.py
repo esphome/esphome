@@ -3165,3 +3165,19 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
 
     with pytest.raises(Invalid, match="is not a file"):
         cv.file_("/original/config/headers")
+
+
+def test_require_platformio_toolchain() -> None:
+    """Platforms with only the PlatformIO backend reject other toolchains."""
+    from esphome.const import Toolchain
+    from esphome.core import CORE
+
+    validator = cv.require_platformio_toolchain("RP2")
+    CORE.toolchain = None
+    config: dict = {}
+    assert validator(config) is config
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino' for RP2"):
+        validator(config)

@@ -96,6 +96,27 @@ def test_library_info_missing_link_dir_warns(
     assert lib.link_dirs == [(read_path / "missing_blobs").resolve()]
 
 
+def test_library_info_declared_filter_matches_nothing_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    data = {"build": {"srcFilter": ["+<nothing/*>"]}}
+    lib = component._library_info("x", read_path, data)
+    assert not lib.sources
+    assert "declares srcFilter/srcDir but no source files matched" in caplog.text
+
+
+def test_library_info_header_only_does_not_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    lib = component._library_info("x", read_path, {})
+    assert not lib.sources
+    assert "no source files matched" not in caplog.text
+
+
 def test_library_info_no_src_dir(tmp_path: Path) -> None:
     read_path = tmp_path / "empty"
     read_path.mkdir()

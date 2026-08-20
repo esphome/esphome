@@ -315,6 +315,7 @@ BASE_SCHEMA = cv.Schema(
 
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(_update_core_data)
+BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 
 
 def _configure_lwip(config: dict) -> None:

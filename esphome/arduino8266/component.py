@@ -123,6 +123,13 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         for f in collect_filtered_files(read_path / src_dir, src_filter)
         if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
     )
+    if not lib.sources and ("srcFilter" in build or "srcDir" in build):
+        # A default probe finding nothing is a header-only library; a
+        # declared filter matching nothing is a manifest/tree problem.
+        _LOGGER.warning(
+            "Library %s declares srcFilter/srcDir but no source files matched",
+            name,
+        )
     return lib
 
 
