@@ -129,14 +129,15 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
-  uint32_t version = 0;
-  esp_now_get_version(&version);
-
   ESP_LOGCONFIG(TAG, "espnow:");
   if (this->is_disabled()) {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+  // Only query the version once enabled; with enable_on_boot: false the Wi-Fi
+  // driver is not initialized yet and esp_now_get_version() would crash.
+  uint32_t version = 0;
+  esp_now_get_version(&version);
   char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(this->own_address_, own_addr_buf);
   ESP_LOGCONFIG(TAG,
