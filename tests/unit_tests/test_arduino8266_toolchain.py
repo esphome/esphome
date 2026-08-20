@@ -101,6 +101,24 @@ def test_run_compile_success(tmp_path: Path) -> None:
     mock_idedata.assert_called_once()
 
 
+def test_run_compile_warns_when_idedata_fails(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed idedata generation right after a successful build is visible,
+    not deferred to a misleading error in a later command."""
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(toolchain.subprocess, "run", return_value=MagicMock(returncode=0)),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata", return_value=None),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "Could not generate idedata" in caplog.text
+
+
 def test_write_compile_commands(tmp_path: Path) -> None:
     build_dir = tmp_path / "build"
     build_dir.mkdir()
