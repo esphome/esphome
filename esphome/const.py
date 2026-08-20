@@ -1151,6 +1151,7 @@ CONF_YEAR = "year"
 CONF_ZERO = "zero"
 CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"

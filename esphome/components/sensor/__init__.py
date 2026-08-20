@@ -3,7 +3,6 @@ import math
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
 from esphome.const import (
@@ -44,7 +43,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -110,10 +108,12 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -314,12 +314,14 @@ validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_SENSOR_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSensorComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.Optional(
                 CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
@@ -359,7 +361,7 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
-_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
+_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
 def sensor_schema(
@@ -979,22 +981,20 @@ async def setup_sensor_core_(var, config):
 
     CORE.add_job(_build_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None and (
+        (expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED))
+        is not cv.UNDEFINED
+    ):
+        if expire_after is None:
+            cg.add(mqtt_.disable_expire_after())
+        else:
+            cg.add(mqtt_.set_expire_after(expire_after))
 
-        if (
-            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
-        ) is not cv.UNDEFINED:
-            if expire_after is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(expire_after))
+    if "zigbee" in CORE.loaded_integrations:
+        from esphome.components import zigbee
 
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
-
-    await zigbee.setup_sensor(var, config)
+        await zigbee.setup_sensor(var, config)
 
 
 async def register_sensor(var, config):
