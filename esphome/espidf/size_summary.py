@@ -28,7 +28,7 @@ import json
 import logging
 from pathlib import Path
 
-from esphome.build_helpers.size_summary import format_bar
+from esphome.build_helpers.size_summary import print_size_line
 
 _LOGGER = logging.getLogger(__name__)
 _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
@@ -89,7 +89,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        print(f"RAM:   {format_bar(ram_used, ram_total)}")
+        print_size_line("RAM", ram_used, ram_total)
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
@@ -99,4 +99,4 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     except ValueError as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
-    print(f"Flash: {format_bar(image_size, app_size)}")
+    print_size_line("Flash", image_size, app_size)
