@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 
-from esphome.build_helpers.extra_script import apply_extra_script
 from esphome.core import CORE, EsphomeError, Library
+from esphome.platformio.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,
@@ -210,7 +210,9 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
-        apply_extra_script(component, "esp8266", pio_platform=ESP8266_PLATFORM)
+        apply_extra_script(
+            component, board_mcu="esp8266", pio_platform=ESP8266_PLATFORM
+        )
         converted.append(
             _library_info(
                 component.get_require_name(), component.source_dir, component.data
