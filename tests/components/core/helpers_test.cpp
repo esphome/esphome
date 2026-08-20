@@ -90,6 +90,10 @@ TEST(StringContainsIgnoreCaseTest, NullPointerAlwaysFalse) {
   EXPECT_FALSE(str_contains_ignore_case(haystack, needle));
   EXPECT_FALSE(str_contains_ignore_case("Hello World", needle));
   EXPECT_FALSE(str_contains_ignore_case(haystack, "anything"));
+
+  EXPECT_FALSE(str_contains_ignore_case_p(haystack, needle));
+  EXPECT_FALSE(str_contains_ignore_case_p("Hello World", needle));
+  EXPECT_FALSE(str_contains_ignore_case_p(haystack, "anything"));
 }
 
 TEST(StringContainsIgnoreCaseTest, EmptySearchMatches) {
@@ -121,29 +125,14 @@ TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
 
 TEST(StringContainsIgnoreCaseTest, FallbackMatchesLibc) {
   const char *haystack = "Hello World";
-  for (const char *needle : {"", "Hello", "hELLO", "Hell", "world", "Heaven", "Hello!", "d"}) {
+  for (const char *needle : {"", "Hello", "hELLO", "HELLO", "Hell", "world", "World", "Heaven", "Hello!", "d"}) {
     EXPECT_EQ(str_contains_ignore_case_fallback(haystack, needle), str_contains_ignore_case(haystack, needle))
+        << "needle: " << needle;
+    EXPECT_EQ(str_contains_ignore_case_p(haystack, needle), str_contains_ignore_case(haystack, needle))
         << "needle: " << needle;
   }
   EXPECT_EQ(str_contains_ignore_case_fallback("", ""), str_contains_ignore_case("", ""));
   EXPECT_EQ(str_contains_ignore_case_fallback("ab", "abc"), str_contains_ignore_case("ab", "abc"));
-}
-
-TEST(StringContainsIgnoreCaseTest, ProgmemVariantNullPointerAlwaysFalse) {
-  const char *haystack = nullptr;
-  const char *needle = nullptr;
-
-  EXPECT_FALSE(str_contains_ignore_case_p(haystack, needle));
-  EXPECT_FALSE(str_contains_ignore_case_p("Hello World", needle));
-  EXPECT_FALSE(str_contains_ignore_case_p(haystack, "anything"));
-}
-
-TEST(StringContainsIgnoreCaseTest, ProgmemVariantMatchesFallback) {
-  const char *haystack = "Hello World";
-  for (const char *needle : {"", "Hello", "hELLO", "HELLO", "Hell", "world", "World", "Heaven", "Hello!", "d"}) {
-    EXPECT_EQ(str_contains_ignore_case_p(haystack, needle), str_contains_ignore_case_fallback(haystack, needle))
-        << "needle: " << needle;
-  }
   EXPECT_TRUE(str_contains_ignore_case_p("", ""));
   EXPECT_FALSE(str_contains_ignore_case_p("", "a"));
   EXPECT_FALSE(str_contains_ignore_case_p("ab", "abc"));
