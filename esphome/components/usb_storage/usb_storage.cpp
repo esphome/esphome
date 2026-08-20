@@ -395,7 +395,7 @@ void USBStorageClient::on_connected() {
   // requested filesystem mismatches what is on the medium, reformat first -- the mount then
   // happens on the correct filesystem from the start.
   if (!storage::ensure_requested_filesystem(TAG, this->fatfs_drive_, drive_path, this->requested_file_system_,
-                                            this->format_on_mismatch_)) {
+                                            device->format_on_mismatch_)) {
     this->disk_ready_ = false;
     this->disconnect();
     return;
