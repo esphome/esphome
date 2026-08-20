@@ -26,10 +26,10 @@ sensor:
       name: PM <10µm Weight concentration
       id: sen6x_pm_10_0
       accuracy_decimals: 1
-    nox:
-      name: NOx
-    voc:
-      name: VOC
+    nox_index:
+      name: NOx Index
+    voc_index:
+      name: VOC Index
     co2:
       name: Carbon Dioxide
     formaldehyde:

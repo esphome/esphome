@@ -1,4 +1,4 @@
-const { DOCS_PR_PATTERNS } = require('./constants');
+const { DOCS_PR_PATTERNS, DEVELOPER_DOCS_PR_PATTERNS, DEV_DOCS_EXEMPT_FILES } = require('./constants');
 const {
   COMPONENT_REGEX,
   detectComponents,
@@ -33,16 +33,54 @@ async function fetchPrFileContent(github, context, path) {
   }
 }
 
+// Check whether a pull request is part of a GitHub stack.
+//
+// GitHub's stacked pull request feature adds a `stack` object to the pull
+// request resource. It is present on every pull request in the stack -
+// including the bottom one, whose base is already `dev` - and is absent
+// entirely on standalone pull requests.
+//
+// The `pull_request_target` webhook payload is not guaranteed to carry this
+// field, so fall back to asking the API when it is missing. Guessing wrong
+// here is costly: a stacked pull request mistaken for a manually chained one
+// gets a label that blocks merging.
+async function isStackedPr(github, context) {
+  const pr = context.payload.pull_request;
+  if (pr.stack != null) {
+    return true;
+  }
+
+  try {
+    const { owner, repo } = context.repo;
+    const { data } = await github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: pr.number,
+    });
+    return data.stack != null;
+  } catch (error) {
+    // Treat an API failure as "not stacked" so a chained pull request still
+    // gets its blocking label rather than silently slipping through.
+    console.log('Failed to check stack membership:', error.message);
+    return false;
+  }
+}
+
 // Strategy: Merge branch detection
-async function detectMergeBranch(context) {
+async function detectMergeBranch(github, context) {
   const labels = new Set();
   const baseRef = context.payload.pull_request.base.ref;
+  const defaultBranch = context.payload.repository.default_branch;
 
   if (baseRef === 'release') {
     labels.add('merging-to-release');
   } else if (baseRef === 'beta') {
     labels.add('merging-to-beta');
-  } else if (baseRef !== 'dev') {
+  } else if (await isStackedPr(github, context)) {
+    // GitHub manages the merge order for a stack, so these are not blocked.
+    labels.add('stacked-pr');
+  } else if (baseRef !== defaultBranch) {
+    // A chain built by hand: it must not merge until its base branch does.
     labels.add('chained-pr');
   }
 
@@ -245,6 +283,7 @@ async function detectPRTemplateCheckboxes(context) {
   const checkboxPatterns = [
     { pattern: /- \[x\] Bugfix \(non-breaking change which fixes an issue\)/i, label: 'bugfix' },
     { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
+    { pattern: /- \[x\] New developer-facing feature \(adds functionality for component developers; no end-user configuration change\)/i, label: 'new-feature-developer' },
     { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
     { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
     { pattern: /- \[x\] Undocumented C\+\+ API change \(removal or change of undocumented public methods that lambda users may depend on\)/i, label: 'undocumented-api-change' },
@@ -355,12 +394,14 @@ async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) 
   const labels = new Set();
 
   // Check for missing tests
-  if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) && !allLabels.has('has-tests')) {
+  if ((allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature') || allLabels.has('new-feature-developer')) && !allLabels.has('has-tests')) {
     labels.add('needs-tests');
   }
 
   // Check for missing docs.
-  // `new-feature` (PR-body checkbox) always counts. `new-component` / `new-platform`
+  // `new-feature` (PR-body checkbox) always counts. `new-feature-developer` is
+  // deliberately excluded here: its docs live on developers.esphome.io and are
+  // checked separately below. `new-component` / `new-platform`
   // only count when at least one newly added file defines a top-level CONFIG_SCHEMA,
   // i.e. the new component/platform is actually loadable from YAML.
   const docsEligible =
@@ -373,6 +414,22 @@ async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) 
 
     if (!hasDocsLink) {
       labels.add('needs-docs');
+    }
+  }
+
+  // Check for missing developer docs. `new-feature-developer` requires a
+  // developers.esphome.io PR link, unless every changed file outside tests/ is
+  // in DEV_DOCS_EXEMPT_FILES (core validators documented via docstrings only).
+  if (allLabels.has('new-feature-developer')) {
+    const prBody = context.payload.pull_request.body || '';
+    const nonTestFiles = prFiles
+      .map(file => file.filename)
+      .filter(file => !file.startsWith('tests/'));
+    const onlyExemptFiles = nonTestFiles.every(file => DEV_DOCS_EXEMPT_FILES.includes(file));
+    const hasDevDocsLink = DEVELOPER_DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
+
+    if (!onlyExemptFiles && !hasDevDocsLink) {
+      labels.add('needs-developer-docs');
     }
   }
 
