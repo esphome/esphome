@@ -43,18 +43,23 @@ class TestIsTransientDownloadError:
         offline builds must fall back to their cache without sleeping first.
         requests can surface the gaierror via the cause chain or via
         urllib3's MaxRetryError.reason attribute."""
+        from urllib3.exceptions import MaxRetryError, NameResolutionError
+
         gai = socket.gaierror(socket.EAI_NONAME, "nodename nor servname provided")
 
         chained = req.ConnectionError("resolution failed")
         chained.__cause__ = gai
         assert not is_transient_download_error(chained)
 
-        class _FakeMaxRetryError(Exception):
-            def __init__(self, reason: BaseException) -> None:
-                super().__init__("max retries exceeded")
-                self.reason = reason
-
-        wrapped = req.ConnectionError(_FakeMaxRetryError(gai))
+        # The real urllib3 shape, raised the way urllib3 raises it: the
+        # gaierror is NameResolutionError.__cause__ (set at the raise
+        # site), which MaxRetryError carries in its reason attribute.
+        try:
+            raise NameResolutionError("example.invalid", None, gai) from gai
+        except NameResolutionError as nre:
+            wrapped = req.ConnectionError(
+                MaxRetryError(None, "http://example.invalid/", reason=nre)
+            )
         assert not is_transient_download_error(wrapped)
 
         # A garden-variety connection reset stays transient.

@@ -38,11 +38,15 @@ def _is_permanent_dns_failure(e: BaseException) -> bool:
         if id(exc) in seen:
             continue
         if isinstance(exc, socket.gaierror):
-            # Everything except EAI_AGAIN is treated as permanent. Codes
-            # like EAI_NONAME can occur during a brief network outage too,
-            # but a 6s backoff rarely outlives one, and permanent means
-            # callers fall back to their cache immediately instead of
-            # sleeping first (the offline-build case).
+            # Everything except EAI_AGAIN is treated as permanent. This is
+            # deliberately narrower than git.py, which retries NXDOMAIN
+            # too: codes like EAI_NONAME can occur during a brief network
+            # outage, but a 6s backoff rarely outlives one, and permanent
+            # means callers with a cached copy fall back to it immediately
+            # instead of sleeping first (the offline-build case). The
+            # trade-off is that a hard resolver failure on a first
+            # download fails without retrying, same as before retries
+            # existed.
             return exc.errno != socket.EAI_AGAIN
         seen.add(id(exc))
         stack.extend(
