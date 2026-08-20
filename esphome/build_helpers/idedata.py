@@ -279,18 +279,16 @@ def load_or_build_idedata(
     data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
     if _is_launcher(data["cxx_path"]):
-        # Serve the data for this run but never persist a launcher as the
-        # compiler path (the cache would outlive the timestamp check and
-        # hide the fault)
+        # Known-unusable: consumers must not run a launcher as the compiler,
+        # and a cached copy would outlive the timestamp check
         _LOGGER.warning(
-            "compile_commands names the launcher %s as the compiler; "
-            "not caching idedata",
+            "compile_commands names the launcher %s as the compiler; no usable idedata",
             data["cxx_path"],
         )
-    else:
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic so a crash mid-write cannot leave a truncated cache
-        write_file(cache, json.dumps(data, indent=2) + "\n")
+        return None
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic so a crash mid-write cannot leave a truncated cache
+    write_file(cache, json.dumps(data, indent=2) + "\n")
     return data
 
 
