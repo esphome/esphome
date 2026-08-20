@@ -560,7 +560,7 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def split_flag_entry(entry: str, owner: str) -> list[str]:
+def split_flag_entry(entry: Any, owner: str) -> list[str]:
     """``shlex.split`` with a clean error naming the offending flags entry."""
     try:
         return shlex.split(entry)
