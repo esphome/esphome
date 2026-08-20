@@ -23,6 +23,8 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from esphome.build_helpers.idedata import _get_toolchain_includes, _parse_entry
+
 TIDY_PROJECT_NAME = "esphome_tidy"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
@@ -414,8 +416,6 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     already carries the full include set, so we parse it directly.
     """
     import json
-
-    from esphome.build_helpers.idedata import _get_toolchain_includes, _parse_entry
 
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
     entry = next((e for e in entries if e["file"].endswith("tidy.cpp")), None)
