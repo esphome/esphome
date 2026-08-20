@@ -1796,7 +1796,8 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
       static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_minor, std::numeric_limits<uint8_t>::max()));
   char peername[socket::SOCKADDR_STR_LEN];
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %u.%u", this->helper_->get_client_name(),
-           this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
+           this->helper_->get_peername_to(peername), static_cast<unsigned>(this->client_api_version_major_),
+           static_cast<unsigned>(this->client_api_version_minor_));
 
   HelloResponse resp;
   resp.api_version_major = 1;
