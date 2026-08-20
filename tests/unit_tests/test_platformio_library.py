@@ -553,3 +553,16 @@ def test_join_flag_args_trailing_bare_flag_warns(
 
     assert join_flag_args(["-Os", "-l"], "library x") == ["-Os"]
     assert "Ignoring trailing '-l'" in caplog.text
+
+
+def test_split_flag_entry_non_string_is_clean(  # type: ignore[no-untyped-def]
+) -> None:
+    """A dict or number from a third-party manifest fails naming the entry,
+    not with an opaque shlex traceback."""
+    from esphome.core import EsphomeError
+    from esphome.platformio.library import split_flag_entry
+
+    with pytest.raises(EsphomeError, match="Malformed build flag"):
+        split_flag_entry({"esp32": ["-DX"]}, "lib x")
+    with pytest.raises(EsphomeError, match="Malformed build flag 5"):
+        split_flag_entry(5, "lib x")

@@ -224,7 +224,7 @@ def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
     c.data = {"build": {"extraScript": "extra.py"}}
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
     assert "flags" not in c.data["build"]
-    assert "skipping" in caplog.text
+    assert "keeping the partial capture" in caplog.text
 
 
 def test_apply_extra_script_pio_platform(tmp_path) -> None:
@@ -250,3 +250,16 @@ def test_apply_extra_script_missing_script_logged(tmp_path, caplog) -> None:
     c.data = {"build": {"extraScript": "nope.py"}}
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
     assert "not found" in caplog.text
+
+
+def test_run_extra_script_keeps_partial_capture(tmp_path, caplog) -> None:
+    """Flags appended before a script fails are kept, not dropped."""
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=['algobsec'])\nraise RuntimeError('boom')\n")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
+    assert result.libs == ["algobsec"]
+    assert "keeping the partial capture" in caplog.text
