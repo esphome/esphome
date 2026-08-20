@@ -7168,3 +7168,21 @@ def test_write_cpp_file_arduino_toolchain_writes_no_project(tmp_path: Path) -> N
 
     mock_write_cpp.assert_called_once()
     mock_pio_project.assert_not_called()
+
+
+def test_write_cpp_file_platformio_toolchain_writes_project(tmp_path: Path) -> None:
+    """The default toolchain writes the PlatformIO project files."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+
+    with (
+        patch("esphome.writer.write_cpp") as mock_write_cpp,
+        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
+        patch.object(
+            type(CORE), "cpp_main_section", new_callable=PropertyMock
+        ) as mock_section,
+    ):
+        mock_section.return_value = ""
+        assert main.write_cpp_file() == 0
+
+    mock_write_cpp.assert_called_once()
+    mock_pio_project.assert_called_once()

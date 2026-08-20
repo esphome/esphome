@@ -93,9 +93,9 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
             lib.include_dirs.append(path.resolve())
 
     lib.sources = sorted(
-        Path(f).resolve()
+        path.resolve()
         for f in collect_filtered_files(read_path / src_dir, src_filter)
-        if Path(f).suffix in SRC_FILE_EXTENSIONS
+        if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
     )
     return lib
 

@@ -499,7 +499,7 @@ def test_parse_library_json(tmp_path):
     assert result["name"] == "test"
 
 
-def testparse_library_properties(tmp_path):
+def test_parse_library_properties(tmp_path):
     f = tmp_path / "library.properties"
     f.write_text(
         """
@@ -679,22 +679,22 @@ def test_node_key_registry_bare_name():
     assert (key, kind, locator) == ("bar", "registry", (None, "bar"))
 
 
-def testnormalize_dependencies_none():
+def test_normalize_dependencies_none():
     assert normalize_dependencies(None) == []
 
 
-def testnormalize_dependencies_list_form():
+def test_normalize_dependencies_list_form():
     deps = [{"name": "foo", "version": "1.0"}]
     assert normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
 
 
-def testnormalize_dependencies_dict_form():
+def test_normalize_dependencies_dict_form():
     out = normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
     assert {"name": "Nanopb", "owner": "nanopb", "version": "^0.4.91"} in out
     assert {"name": "BareName", "owner": None, "version": "1.2.3"} in out
 
 
-def testnormalize_dependencies_dict_form_nested_spec():
+def test_normalize_dependencies_dict_form_nested_spec():
     out = normalize_dependencies(
         {"nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"}}
     )

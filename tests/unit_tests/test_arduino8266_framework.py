@@ -245,12 +245,9 @@ def test_ccache_path_disabled_by_env() -> None:
         assert framework.ccache_path() is None
 
 
-def test_ccache_path_no_binary() -> None:
-    with (
-        patch.dict(os.environ, {}, clear=False),
-        patch("shutil.which", return_value=None),
-    ):
-        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
+def test_ccache_path_no_binary(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
+    with patch("shutil.which", return_value=None):
         assert framework.ccache_path() is None
 
 
@@ -263,12 +260,12 @@ def test_ccache_path_probe_failure() -> None:
         assert framework.ccache_path() is None
 
 
-def test_ccache_path_ok() -> None:
+def test_ccache_path_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch("subprocess.run"),
     ):
-        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         assert framework.ccache_path() == "/usr/bin/ccache"
 
 

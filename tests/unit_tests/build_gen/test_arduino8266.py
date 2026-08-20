@@ -16,7 +16,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.build_gen import arduino8266
+from esphome.build_gen.arduino8266 import (
+    _defines_flags,
+    _flag_defines,
+    _flash_size_str,
+    _resolve_build_config,
+    get_flash_ld_path,
+)
 from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import (
     KEY_BOARD,
     KEY_ESP8266,
@@ -55,7 +64,6 @@ def test_board_build_covers_every_board() -> None:
 
 
 def test_build_config_defaults() -> None:
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags()
     config = _resolve_build_config(_flag_defines())
@@ -75,7 +83,6 @@ def test_build_config_defaults() -> None:
 def test_build_config_esphome_lwip_knob() -> None:
     """The lwIP variant ESPHome selects maps to the same defines and library
     as the PlatformIO builder."""
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     config = _resolve_build_config(_flag_defines())
@@ -86,7 +93,6 @@ def test_build_config_esphome_lwip_knob() -> None:
 
 
 def test_build_config_knobs() -> None:
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags(
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
@@ -102,7 +108,6 @@ def test_build_config_knobs() -> None:
 
 
 def test_build_config_mmu_custom_requires_sizes() -> None:
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE"):
@@ -122,11 +127,6 @@ def test_build_config_mmu_custom_requires_sizes() -> None:
 
 def test_defines_match_platformio_builder() -> None:
     """The exact define set the PlatformIO builder passes for nodemcuv2/dout."""
-    from esphome.build_gen.arduino8266 import (
-        _defines_flags,
-        _flag_defines,
-        _resolve_build_config,
-    )
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     assert _defines_flags(
@@ -183,9 +183,11 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-def _write_ninja(paths: dict[str, Path]) -> str:
-    from esphome.build_gen import arduino8266
-
+def _write_ninja(
+    paths: dict[str, Path],
+    libraries: list | None = None,
+    ccache: str | None = None,
+) -> str:
     src = CORE.relative_src_path()
     (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
     (src / "main.cpp").write_text("")
@@ -193,7 +195,11 @@ def _write_ninja(paths: dict[str, Path]) -> str:
 
     with (
         patch.object(arduino8266, "generate_ld_scripts"),
-        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
+        patch(
+            "esphome.arduino8266.component.resolve_libraries",
+            return_value=libraries or [],
+        ),
+        patch("esphome.arduino8266.framework.ccache_path", return_value=ccache),
     ):
         arduino8266.write_project(paths)
     return (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
@@ -284,7 +290,6 @@ def test_build_config_lwip_variants(
     knob: str, lib: str, mss: int, features: int, ipv6: int
 ) -> None:
     """Every lwIP knob maps to the same defines and library as the PIO builder."""
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags(f"-D{knob}")
     config = _resolve_build_config(_flag_defines())
@@ -321,14 +326,12 @@ def test_build_config_lwip_variants(
     ],
 )
 def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags(f"-D{knob}")
     assert _resolve_build_config(_flag_defines()).mmu_defines == expected
 
 
 def test_build_config_waveform_locked_phase() -> None:
-    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
     config = _resolve_build_config(_flag_defines())
@@ -345,16 +348,13 @@ _COMMON_LD_H_OUTPUT = """\
 
 
 def _run_generate_ld_scripts(paths: dict[str, Path]) -> Path:
-    from esphome.build_gen import arduino8266
 
-    config = arduino8266._resolve_build_config(arduino8266._flag_defines())
+    config = _resolve_build_config(_flag_defines())
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
     return CORE.relative_pioenvs_path(CORE.name, "ld")
 
 
 def test_generate_ld_scripts(tmp_path: Path) -> None:
-    from esphome.build_gen import arduino8266
-    from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 
     paths = _make_framework(tmp_path)
     _set_flags("-DFP_IN_IROM")
@@ -375,7 +375,6 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
 
 
 def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
-    from esphome.build_gen import arduino8266
 
     paths = _make_framework(tmp_path)
     result = MagicMock(returncode=1, stderr="nope")
@@ -387,7 +386,6 @@ def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
 
 
 def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
-    from esphome.build_gen import arduino8266
 
     paths = _make_framework(tmp_path)
     (paths["framework_path"] / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
@@ -403,7 +401,6 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 
 def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
     from esphome.arduino8266.component import ArduinoLibrary
-    from esphome.build_gen import arduino8266
 
     paths = _make_framework(tmp_path)
     variant_src = paths["framework_path"] / "variants" / "nodemcu" / "variant.cpp"
@@ -423,20 +420,9 @@ def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
     )
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
 
-    src = CORE.relative_src_path()
-    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
-    (src / "main.cpp").write_text("")
-
-    with (
-        patch.object(arduino8266, "generate_ld_scripts"),
-        patch(
-            "esphome.arduino8266.component.resolve_libraries",
-            return_value=[library, headers_only],
-        ),
-        patch("esphome.arduino8266.framework.ccache_path", return_value="/cc/ccache"),
-    ):
-        arduino8266.write_project(paths)
-    content = (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
+    content = _write_ninja(
+        paths, libraries=[library, headers_only], ccache="/cc/ccache"
+    )
 
     assert "build libFrameworkArduinoVariant.a: ar" in content
     assert "build libMyLib.a: ar" in content
@@ -452,10 +438,9 @@ def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
-    from esphome.build_gen import arduino8266
 
     CORE.testing_mode = True
-    assert arduino8266.get_flash_ld_path(tmp_path) == (
+    assert get_flash_ld_path(tmp_path) == (
         tmp_path / "ld" / "testing_eagle.flash.4m.ld"
     )
 
@@ -470,13 +455,12 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
             return_value="3.30102.0",
         ),
     ):
-        assert arduino8266.get_flash_ld_path(tmp_path) == (
+        assert get_flash_ld_path(tmp_path) == (
             tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
         )
 
 
 def test_flash_size_str() -> None:
-    from esphome.build_gen.arduino8266 import _flash_size_str
 
     assert _flash_size_str("eagle.flash.4m.ld") == "4M"
     assert _flash_size_str("eagle.flash.512k.ld") == "512K"

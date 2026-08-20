@@ -57,3 +57,12 @@ def apply_testing_memory_patches(content: str) -> str:
     content = _patch_segment_size(content, "iram1_0_seg", TESTING_IRAM_SIZE)
     content = _patch_segment_size(content, "dram0_0_seg", TESTING_DRAM_SIZE)
     return _patch_segment_size(content, "irom0_0_seg", TESTING_FLASH_SIZE)
+
+
+def segment_length(content: str, segment_name: str) -> int | None:
+    """Read a memory segment's length from linker script content."""
+    match = re.search(
+        rf"{segment_name}\s*:.+len\s*=\s*(0x[\da-fA-F]+)",
+        content,
+    )
+    return int(match.group(1), 16) if match else None

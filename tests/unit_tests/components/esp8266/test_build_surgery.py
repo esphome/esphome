@@ -62,3 +62,10 @@ def test_testing_memory_patches_enlarge_segments() -> None:
         "irom0_0_seg :                         org = 0x40201010, len = 0x2000000"
         in patched
     )
+
+
+def test_segment_length() -> None:
+    from esphome.components.esp8266.build_surgery import segment_length
+
+    assert segment_length(_FLASH_LD_SNIPPET, "irom0_0_seg") == 0xFEFF0
+    assert segment_length(_FLASH_LD_SNIPPET, "missing_seg") is None

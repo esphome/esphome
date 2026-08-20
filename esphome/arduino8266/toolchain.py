@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-import re
 import subprocess
 
 from esphome.arduino8266 import framework
@@ -43,7 +42,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.build_gen import arduino8266 as build_gen
 
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
-    build_gen.write_project(paths)
+    ninja_changed = build_gen.write_project(paths)
 
     build_dir = get_build_dir()
     env = framework.get_build_env(paths["toolchain_path"])
@@ -58,7 +57,10 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     if rc != 0:
         return rc
 
-    _write_compile_commands(paths["ninja_path"], build_dir, env)
+    # The compile database is a pure function of build.ninja; skip its
+    # regeneration (a ninja spawn plus MBs of text) on unchanged builds.
+    if ninja_changed or not (build_dir / "compile_commands.json").is_file():
+        _write_compile_commands(paths["ninja_path"], build_dir, env)
     _print_size_summary(build_dir, paths["toolchain_path"])
     get_idedata()
     return 0
@@ -86,16 +88,13 @@ def _write_compile_commands(
 def _parse_app_size(build_dir: Path) -> int | None:
     """Read the app flash budget (irom0_0_seg length) from the linker script."""
     from esphome.build_gen.arduino8266 import get_flash_ld_path
+    from esphome.components.esp8266.build_surgery import segment_length
 
-    appsize_re = re.compile(r"irom0_0_seg\s*:.+len\s*=\s*(0x[\da-f]+)", re.IGNORECASE)
     try:
         ld_text = get_flash_ld_path(build_dir).read_text(encoding="utf-8")
     except OSError:
         return None
-    for line in ld_text.splitlines():
-        if match := appsize_re.search(line):
-            return int(match.group(1), 16)
-    return None
+    return segment_length(ld_text, "irom0_0_seg")
 
 
 def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:

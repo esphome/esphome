@@ -184,3 +184,30 @@ def test_get_idedata_delegates(tmp_path: Path) -> None:
     assert compile_commands.name == "compile_commands.json"
     assert elf.name == "firmware.elf"
     assert cache.name == "test8266.json"
+
+
+def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
+    """An unchanged build.ninja means the compile DB is already current."""
+    build_dir = toolchain.get_build_dir()
+    build_dir.mkdir(parents=True)
+
+    def run(regenerate_expected: bool) -> None:
+        with (
+            patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+            patch.object(framework, "get_build_env", return_value={}),
+            patch("esphome.build_gen.arduino8266.write_project", return_value=False),
+            patch.object(
+                toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+            ),
+            patch.object(toolchain, "_write_compile_commands") as mock_compdb,
+            patch.object(toolchain, "_print_size_summary"),
+            patch.object(toolchain, "get_idedata"),
+        ):
+            assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+        assert mock_compdb.called == regenerate_expected
+
+    # Missing compile DB: regenerated even though build.ninja is unchanged
+    run(regenerate_expected=True)
+    # Present compile DB + unchanged build.ninja: skipped
+    (build_dir / "compile_commands.json").write_text("[]")
+    run(regenerate_expected=False)

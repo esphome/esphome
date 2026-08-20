@@ -373,8 +373,12 @@ def _common_parent(paths: list[Path]) -> Path:
     return Path(os.path.commonpath([str(p.parent) for p in paths]))
 
 
-def write_project(paths: dict[str, Path]) -> None:
-    """Write the ninja build for the current configuration."""
+def write_project(paths: dict[str, Path]) -> bool:
+    """Write the ninja build for the current configuration.
+
+    Returns True when ``build.ninja`` changed, so the caller can skip work
+    derived purely from it (the compile database) on unchanged builds.
+    """
     from esphome.arduino8266.component import resolve_libraries
     from esphome.arduino8266.framework import ccache_path
 
@@ -551,7 +555,7 @@ def write_project(paths: dict[str, Path]) -> None:
     lines.append("default firmware.factory.bin firmware.ota.bin")
     lines.append("")
 
-    write_file_if_changed(build_dir / "build.ninja", "\n".join(lines))
+    return write_file_if_changed(build_dir / "build.ninja", "\n".join(lines))
 
 
 def get_flash_ld_path(build_dir: Path) -> Path:

@@ -513,16 +513,31 @@ ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
 )
 
 
+def _path_or_file_trigger(
+    files: list[str],
+    trigger_files: frozenset[str],
+    trigger_prefixes: tuple[str, ...],
+) -> bool:
+    """Whether any changed file matches the given infrastructure triggers."""
+    return any(
+        file in trigger_files or file.startswith(trigger_prefixes) for file in files
+    )
+
+
+@cache
+def _changed_components_closure(branch: str | None) -> frozenset[str]:
+    """Dependency closure of the changed components (shared by the
+    per-toolchain narrowing functions and cached per branch)."""
+    files = changed_files(branch)
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    return frozenset(get_components_with_dependencies(component_files, True))
+
+
 def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is a PlatformIO infrastructure / harness trigger."""
-    for file in files:
-        if file in ESP32_PLATFORMIO_TRIGGER_FILES:
-            return True
-        if any(
-            file.startswith(prefix) for prefix in ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
-        ):
-            return True
-    return False
+    return _path_or_file_trigger(
+        files, ESP32_PLATFORMIO_TRIGGER_FILES, ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
+    )
 
 
 # ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
@@ -536,14 +551,9 @@ ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
-    for file in files:
-        if file in ESP_IDF_INFRA_TRIGGER_FILES:
-            return True
-        if any(
-            file.startswith(prefix) for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
-        ):
-            return True
-    return False
+    return _path_or_file_trigger(
+        files, ESP_IDF_INFRA_TRIGGER_FILES, ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+    )
 
 
 def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
@@ -586,10 +596,9 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
         return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
 
-    component_files = [f for f in files if filter_component_and_test_files(f)]
-    changed = get_components_with_dependencies(component_files, True)
-
-    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & set(changed))
+    return sorted(
+        ESP32_PLATFORMIO_TEST_COMPONENTS & _changed_components_closure(branch)
+    )
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
@@ -645,14 +654,9 @@ ESP8266_NATIVE_TRIGGER_FILES = frozenset(
 
 def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is native-ESP8266 infrastructure / harness."""
-    for file in files:
-        if file in ESP8266_NATIVE_TRIGGER_FILES:
-            return True
-        if any(
-            file.startswith(prefix) for prefix in ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
-        ):
-            return True
-    return False
+    return _path_or_file_trigger(
+        files, ESP8266_NATIVE_TRIGGER_FILES, ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
+    )
 
 
 def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
@@ -667,10 +671,7 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
     if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
         return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
 
-    component_files = [f for f in files if filter_component_and_test_files(f)]
-    changed = get_components_with_dependencies(component_files, True)
-
-    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & set(changed))
+    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & _changed_components_closure(branch))
 
 
 def determine_cpp_unit_tests(
