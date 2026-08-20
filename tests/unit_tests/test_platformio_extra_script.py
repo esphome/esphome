@@ -263,3 +263,17 @@ def test_run_extra_script_keeps_partial_capture(tmp_path, caplog) -> None:
     )
     assert result.libs == ["algobsec"]
     assert "keeping the partial capture" in caplog.text
+
+
+def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
+    """A vendored script that does not even compile warns and skips instead
+    of aborting the build."""
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("def broken(:\n")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
+    assert result.libs == []
+    assert "keeping the partial capture" in caplog.text
