@@ -135,3 +135,39 @@ def test_metadata_records_rotation(
 
     config = CONFIG_SCHEMA({**base, "id": "unrotated"})
     assert get_display_metadata(config["id"]).rotation == 0
+
+
+def test_guition_4848_supports_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The hardware-tested Guition model exposes display sleep actions."""
+    _set_s3(set_core_config)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA({"model": "GUITION-4848S040", "id": "guition"})
+    assert get_display_metadata(config["id"]).supports_sleep is True
+
+
+def test_guition_4848_shared_bus_pin_does_not_support_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A shared RGB/control pin makes the SPI control path unusable for sleep."""
+    _set_s3(set_core_config)
+
+    from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
+
+    # A control pin marked allow_other_uses is shared with another peripheral, so
+    # the SPI control path cannot be reused to send sleep commands.
+    config = CONFIG_SCHEMA(
+        {
+            "model": "GUITION-4848S040",
+            "id": "shared_pin",
+            "de_pin": {"number": 18, "allow_other_uses": True},
+        }
+    )
+    metadata = get_display_metadata(config["id"])
+    assert metadata.supports_sleep is False
+    assert metadata.sleep_unsupported_reason == (
+        "Display sleep cannot be used because RGB/control pin GPIO18 is shared with another function"
+    )

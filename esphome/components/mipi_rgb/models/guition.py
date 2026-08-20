@@ -2,6 +2,7 @@ from .st7701s import st7701s
 
 st7701s.extend(
     "GUITION-4848S040",
+    supports_sleep=True,
     width=480,
     height=480,
     data_rate="2MHz",
