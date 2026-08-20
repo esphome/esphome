@@ -65,6 +65,14 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
 
     build_dir = get_build_dir()
     env = framework.get_build_env(paths["toolchain_path"])
+
+    # The compile database is a pure function of build.ninja (no compilation
+    # involved), so regenerate it before the build: a failed build can then
+    # never leave a stale database behind. Skip the ninja spawn plus MBs of
+    # text on unchanged builds.
+    if ninja_changed or not (build_dir / "compile_commands.json").is_file():
+        _write_compile_commands(paths["ninja_path"], build_dir, env)
+
     cmd = [str(paths["ninja_path"]), "-C", str(build_dir)]
     if verbose:
         cmd.append("-v")
@@ -76,10 +84,6 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     if rc != 0:
         return rc
 
-    # The compile database is a pure function of build.ninja; skip its
-    # regeneration (a ninja spawn plus MBs of text) on unchanged builds.
-    if ninja_changed or not (build_dir / "compile_commands.json").is_file():
-        _write_compile_commands(paths["ninja_path"], build_dir, env)
     _print_size_summary(build_dir)
     get_idedata()
     return 0

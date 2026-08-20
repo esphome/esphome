@@ -18,9 +18,11 @@ from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 
+from esphome.arduino8266.component import join_flag_args
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -308,10 +310,19 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
     for flag in flags:
         if flag.startswith("-Wl,"):
             link_flags.append(flag)
-        elif flag.startswith("-L") and len(flag) > 2:
-            lib_dirs.append(Path(flag[2:]))
-        elif flag.startswith("-l") and len(flag) > 2:
-            libs.append(flag[2:])
+        elif flag.startswith(("-L", "-l")):
+            # Shell-lex only linker entries so forms like "-L /opt/blobs"
+            # work as they do under PlatformIO. Other entries pass verbatim:
+            # lexing them would strip the quotes in defines like -DBOARD="...".
+            for tok in join_flag_args(shlex.split(flag), "esphome"):
+                if tok.startswith("-L") and len(tok) > 2:
+                    lib_dirs.append(Path(tok[2:]))
+                elif tok.startswith("-l") and len(tok) > 2:
+                    libs.append(tok[2:])
+                elif tok.startswith("-Wl,"):
+                    link_flags.append(tok)
+                else:
+                    compile_flags.append(tok)
         else:
             compile_flags.append(flag)
     return compile_flags, link_flags, lib_dirs, libs

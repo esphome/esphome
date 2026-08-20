@@ -66,10 +66,14 @@ def test_run_compile_build_failure(tmp_path: Path) -> None:
         patch.object(
             toolchain.subprocess, "run", return_value=MagicMock(returncode=2)
         ) as mock_run,
+        patch.object(toolchain, "_write_compile_commands") as mock_compdb,
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=True) == 2
     cmd = mock_run.call_args[0][0]
     assert "-v" in cmd
+    # The compile database is generated before the build runs, so a failed
+    # build cannot leave a stale database behind.
+    mock_compdb.assert_called_once()
 
 
 def test_run_compile_success(tmp_path: Path) -> None:

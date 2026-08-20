@@ -224,6 +224,7 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         "-Wno-nonnull-compare",
         "-L/opt/blobs",
         "-luser_blob",
+        "-L /spc/blobs -l spaced_blob",
     )
     content = _write_ninja(paths)
 
@@ -256,17 +257,23 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "--app $in --flash_mode" in content
     assert '"$in"' not in content
     assert '"$out"' not in content
-    # -L/-l from esphome build_flags reach the link line, not the compiles
+    # -L/-l from esphome build_flags reach the link line, not the compiles;
+    # spaced forms ("-L /path") are shell-lexed the way PlatformIO does
     assert '-L"/opt/blobs"' in content
     assert "-luser_blob" in content
+    assert '-L"/spc/blobs"' in content
+    assert "-lspaced_blob" in content
     for line in content.splitlines():
         if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
             assert "user_blob" not in line
             assert "/opt/blobs" not in line
+            assert "spaced_blob" not in line
+            assert "/spc/blobs" not in line
     # System libraries with the selected lwIP variant, in the builder's order
     assert (
         "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
-        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -luser_blob "
+        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -lspaced_blob "
+        "-luser_blob "
         "-lstdc++ -lm -lc -lgcc" in content
     )
     # Core exclusions: native OTA backend and waveform stubs
@@ -560,3 +567,24 @@ def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) ->
             assert "-fipa-pta" not in line
         if key == "linkflags":
             assert "-Wl,--gc-sections" not in line
+
+
+def test_project_flags_trailing_bare_linker_flag_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _set_flags("-l")
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    assert "Ignoring trailing '-l'" in caplog.text
+    assert not libs
+    assert not lib_dirs
+    assert "-l" not in compile_flags
+    assert "-l" not in link_flags
+
+
+def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
+    _set_flags("-L /d -Wl,-Map=m stray")
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    assert lib_dirs == [Path("/d")]
+    assert link_flags == ["-Wl,-Map=m"]
+    assert "stray" in compile_flags
+    assert not libs

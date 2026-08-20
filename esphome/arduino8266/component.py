@@ -13,6 +13,7 @@ include path.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
@@ -58,6 +59,21 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
+def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
+    """Join a bare ``-I``/``-L``/``-l`` with its following token (PIO lexing)."""
+    out: list[str] = []
+    it = iter(tokens)
+    for tok in it:
+        if tok in ("-I", "-L", "-l"):
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
+                break
+            tok += arg
+        out.append(tok)
+    return out
+
+
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
     build = data.get("build", {})
@@ -74,24 +90,18 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     # PlatformIO shell-lexes each build.flags entry
-    raw_flags = [
-        token
-        for entry in ensure_list(build.get("flags", []))
-        for token in shlex.split(entry)
-    ]
+    raw_flags = join_flag_args(
+        (
+            token
+            for entry in ensure_list(build.get("flags", []))
+            for token in shlex.split(entry)
+        ),
+        f"library {name}",
+    )
 
     lib = ArduinoLibrary(name=name)
-    it = iter(raw_flags)
     include_flags: list[str] = []
-    for tok in it:
-        if tok in ("-I", "-L", "-l"):
-            arg = next(it, None)
-            if arg is None:
-                _LOGGER.warning(
-                    "Ignoring trailing '%s' in library %s build flags", tok, name
-                )
-                break
-            tok += arg
+    for tok in raw_flags:
         if tok.startswith("-I"):
             include_flags.append(tok[2:])
         elif tok.startswith("-L"):
