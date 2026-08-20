@@ -46,14 +46,11 @@ Patches:
      ``EspDnssd*`` symbols defined in that file, so the exclusion breaks
      linking on Ethernet-only builds. Those symbols only touch
      ``esp_netif`` and ``mdns`` — safe to link without Wi-Fi.
-  5. connectedhomeip's chip/Kconfig — the ``SEC_CERT_DAC_PROVIDER`` symbol
-     is declared standalone here with a ``bool "..."`` prompt and a
-     ``default n`` while ALSO being a member of the
-     ``ESP_MATTER_DAC_PROVIDER`` choice declared in esp_matter/Kconfig.
-     Kconfig warns because (a) defaults on choice symbols have no effect
-     and (b) prompts on choice symbols must live inside the choice. Both
-     warnings are cosmetic but noisy — remove the two offending property
-     lines and keep the accumulated help text.
+  (PATCH5 removed 2026-08 — the SEC_CERT_DAC_PROVIDER duplicate declaration
+  warnings from chip/Kconfig are purely cosmetic; the two "Multiple
+  Symbol/Choice Definitions" lines in the configure log are the only
+  observable side effect. Dropping the patch cuts one more source of
+  upstream-drift breakage in exchange for those warnings.)
 
 Errors: PATCH1/2/4 are file-specific and load-bearing. If their target file
 is missing, or the marker string the patch anchors on is not present in the
@@ -131,33 +128,6 @@ PATCH4_NEW = (
     '"${MATTER_SDK_PATH}/src/platform/ESP32/ESP32DnssdImpl.cpp")\n'
     "    endif()"
 )
-
-PATCH5_MARKER_V2 = "# ESPHOME-MATTER-PATCH-KCONFIG-V2"
-PATCH5_MARKER_V1 = "ESPHOME-MATTER-PATCH-KCONFIG"
-PATCH5_REPLACEMENT = (
-    "        # ESPHOME-MATTER-PATCH-KCONFIG-V2: standalone declaration of\n"
-    "        # SEC_CERT_DAC_PROVIDER removed. The symbol is a member of the\n"
-    "        # ESP_MATTER_DAC_PROVIDER choice defined at esp_matter/Kconfig:48;\n"
-    "        # every reference below (`depends on SEC_CERT_DAC_PROVIDER`) and\n"
-    "        # every `#ifdef CONFIG_SEC_CERT_DAC_PROVIDER` guard in the .cpp\n"
-    "        # sources binds to that choice definition just fine. Keeping a\n"
-    "        # second standalone `config` here tripped three separate lints:\n"
-    "        # prompt-outside-choice, default-on-choice-symbol, and (with\n"
-    '        # esp-idf-kconfig 1.x) "Multiple Symbol/Choice Definitions".'
-)
-
-
-PATCH5_ORIGINAL_BLOCK = (
-    "        config SEC_CERT_DAC_PROVIDER\n"
-    '            bool "Use Secure Cert DAC Provider"\n'
-    "            default n\n"
-    "            help\n"
-    "                Use ESP32 Secure Cert DAC Provider which is  "
-    "ESP32 DeviceAttestationCredentialsProvider implementation which "
-    "reads attestation\n"
-    "                information from the esp_secure_cert partition"
-)
-
 
 PATCH6_OLD = (
     "if(CONFIG_DISABLE_IPV4)\n"
@@ -290,82 +260,6 @@ def _apply_std_map_swap(path: Path) -> str:
     return f"map-swap: {path.name}"
 
 
-def _apply_patch5_kconfig(path: Path) -> str:
-    """Delete the standalone SEC_CERT_DAC_PROVIDER declaration in chip/Kconfig.
-
-    Handles three input states:
-
-    1. Fresh upstream: exact ORIGINAL block present → replace with V2 marker.
-    2. V1 leftover: a prior version of this patch removed the ``bool`` and
-       ``default`` but left ``config SEC_CERT_DAC_PROVIDER + help`` (and a
-       V1 marker comment). That leftover still trips the
-       "Multiple Symbol/Choice Definitions" lint from esp-idf-kconfig 1.x.
-       Detect via the V1 marker + the vestigial ``config`` block, strip the
-       whole thing (V1 marker comment block + config + help), leave only
-       the V2 marker.
-    3. Already V2: noop.
-
-    Any other state (someone hand-edited, or upstream drifted mid-migration)
-    is fatal — we don't guess.
-    """
-    if not path.exists():
-        raise PatchError(
-            f"required patch target missing: {path} — esp-matter version "
-            f"drift? update _apply_patches.py"
-        )
-    content = path.read_text(encoding="utf-8")
-
-    # Recognise the pre-rename marker names too: a build that ran an earlier
-    # version of this script (before the PATCHED-BY-UNISEC-MATTER → ESPHOME-
-    # MATTER-PATCH sweep) will have stamped `PATCHED-BY-UNISEC-MATTER-KCONFIG*`
-    # into the file. Treat legacy V2 as already patched; legacy V1 flows into
-    # the V1→V2 migration branch below.
-    _LEGACY_PATCH5_MARKER_V2 = "PATCHED-BY-UNISEC-MATTER-KCONFIG-V2"
-    _LEGACY_PATCH5_MARKER_V1 = "PATCHED-BY-UNISEC-MATTER-KCONFIG"
-
-    if PATCH5_MARKER_V2 in content or _LEGACY_PATCH5_MARKER_V2 in content:
-        return f"noop (already patched V2): {path.name}"
-
-    if PATCH5_MARKER_V1 in content or _LEGACY_PATCH5_MARKER_V1 in content:
-        # V1-patched shape: the V1 marker sits as a comment block, followed
-        # by `config SEC_CERT_DAC_PROVIDER` with only `help` (no bool/default).
-        # Find the V1 marker comment line and delete everything from there
-        # through the closing help paragraph (blank line terminator).
-        lines = content.splitlines(keepends=True)
-        v1_start = None
-        for i, line in enumerate(lines):
-            if PATCH5_MARKER_V1 in line or _LEGACY_PATCH5_MARKER_V1 in line:
-                v1_start = i
-                break
-        if v1_start is None:
-            raise PatchError(f"PATCH5: V1 marker in {path.name} but line lookup failed")
-        # Walk back to the leading whitespace / previous blank so we drop the
-        # comment block cleanly; walk forward to the blank line that ends
-        # the `help` paragraph.
-        v1_end = v1_start
-        while v1_end < len(lines) and lines[v1_end].strip() != "":
-            v1_end += 1
-        # v1_end now points at the blank line after `help`; keep that blank.
-        del lines[v1_start:v1_end]
-        # Insert V2 replacement + a blank line to match surrounding style.
-        lines.insert(v1_start, PATCH5_REPLACEMENT + "\n")
-        path.write_text("".join(lines), encoding="utf-8")
-        return f"migrate V1→V2: {path.name}"
-
-    if PATCH5_ORIGINAL_BLOCK in content:
-        path.write_text(
-            content.replace(PATCH5_ORIGINAL_BLOCK, PATCH5_REPLACEMENT),
-            encoding="utf-8",
-        )
-        return f"replace: {path.name}"
-
-    raise PatchError(
-        f"PATCH5: neither V2 marker nor V1 marker nor original block found "
-        f"in {path.name} — esp-matter release changed. Update PATCH5 in "
-        f"_apply_patches.py."
-    )
-
-
 def _apply_string_replace(
     path: Path, marker: str, old: str, new: str, legacy_markers: tuple = ()
 ) -> str:
@@ -440,19 +334,6 @@ def apply_patches(matter_dir: Path) -> list:
             PATCH4_OLD,
             PATCH4_NEW,
             legacy_markers=("PATCHED-BY-UNISEC-MATTER-DNSSD",),
-        )
-    )
-
-    results.append(
-        _apply_patch5_kconfig(
-            matter_dir
-            / "connectedhomeip"
-            / "connectedhomeip"
-            / "config"
-            / "esp32"
-            / "components"
-            / "chip"
-            / "Kconfig"
         )
     )
 
