@@ -109,18 +109,9 @@ def set_core_data(config):
     return config
 
 
-def _validate_toolchain(value: str) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ARDUINO, lower=True)(value)
-    )
-
-
-def _resolve_toolchain(config: ConfigType) -> ConfigType:
-    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
-    cv.check_supported_toolchain("ESP8266", (Toolchain.PLATFORMIO, Toolchain.ARDUINO))
-    return config
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.ARDUINO)
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+_resolve_toolchain = cv.resolve_toolchain("ESP8266", _TOOLCHAINS, Toolchain.PLATFORMIO)
 
 
 def _validate_native_toolchain(config: ConfigType) -> ConfigType:
@@ -319,6 +310,18 @@ CONFIG_SCHEMA = cv.All(
     _validate_native_toolchain,
     set_core_data,
 )
+
+
+def native_toolchain_module():
+    """The native build backend for the resolved toolchain, if any.
+
+    Hook for ``__main__``'s shared dispatch (idedata, analyze_memory).
+    """
+    if not CORE.using_toolchain_arduino:
+        return None
+    from esphome.arduino8266 import toolchain
+
+    return toolchain
 
 
 def check_rosetta() -> None:
@@ -627,12 +630,12 @@ def _decode_pc(config, addr):
 
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
-        missing = addr2line if not addr2line.is_file() else elf
-        if not missing.is_file():
-            _warn_decode_problem(
-                str(missing), "Cannot decode crash addresses: %s missing", missing
-            )
-            return
+        for path in (addr2line, elf):
+            if not path.is_file():
+                _warn_decode_problem(
+                    str(path), "Cannot decode crash addresses: %s missing", path
+                )
+                return
         addr2line, elf = str(addr2line), str(elf)
     else:
         from esphome.platformio import toolchain

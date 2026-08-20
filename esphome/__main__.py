@@ -1920,18 +1920,17 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def _native_toolchain_module():
     """The native build backend module for the resolved toolchain, if any.
 
-    Platform toolchain validation rejects values a platform cannot serve, so
-    using_toolchain_arduino by itself implies the native ESP8266 build.
+    Platform-owned toolchains resolve through the target platform's
+    ``native_toolchain_module`` hook (the same per-platform module seam
+    ``compile_program`` uses), so shared dispatch never names a backend.
     """
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
         return toolchain
-    if CORE.using_toolchain_arduino:
-        from esphome.arduino8266 import toolchain
-
-        return toolchain
-    return None
+    module = importlib.import_module("esphome.components." + CORE.target_platform)
+    get_native = getattr(module, "native_toolchain_module", None)
+    return get_native() if get_native is not None else None
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.arduino8266 import framework, toolchain
+from esphome.build_helpers.pio_options import warn_ignored_platformio_options
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -39,12 +40,12 @@ def _setup_core(tmp_path: Path) -> None:
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 1, 2)}
 
 
-def _paths(tmp_path: Path) -> dict[str, Path]:
-    return {
-        "framework_path": tmp_path / "framework",
-        "toolchain_path": tmp_path / "toolchain",
-        "ninja_path": tmp_path / "ninja",
-    }
+def _paths(tmp_path: Path) -> framework.InstalledPaths:
+    return framework.InstalledPaths(
+        framework=tmp_path / "framework",
+        toolchain=tmp_path / "toolchain",
+        ninja=tmp_path / "ninja",
+    )
 
 
 def test_path_getters(tmp_path: Path) -> None:
@@ -331,7 +332,8 @@ def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> No
         "lib_ignore": ["Updater"],
         "upload_speed": "460800",
     }
-    toolchain._warn_ignored_platformio_options()
+    warn_ignored_platformio_options(toolchain._CONSUMED_PIO_OPTIONS, "arduino")
     assert "platformio_options->board_build.ldscript is ignored" in caplog.text
+    assert "native 'arduino' toolchain" in caplog.text
     assert "lib_ignore" not in caplog.text
     assert "upload_speed" not in caplog.text

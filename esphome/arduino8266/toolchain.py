@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 
 from esphome.arduino8266 import framework
+from esphome.build_helpers.pio_options import warn_ignored_platformio_options
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
@@ -25,23 +26,6 @@ _MAX_RAM_SIZE = 81920
 # platformio_options keys the native build consumes (lib_ignore) or that are
 # read from the raw config elsewhere (upload_speed, at upload time)
 _CONSUMED_PIO_OPTIONS = frozenset({"lib_ignore", "upload_speed"})
-
-
-def _warn_ignored_platformio_options() -> None:
-    """Warn for component-added platformio options the native build drops.
-
-    YAML ``esphome: platformio_options:`` keys are warned about during code
-    generation and never reach ``CORE.platformio_options`` under the native
-    toolchain, so anything left here came from ``cg.add_platformio_option()``
-    calls (e.g. an external component) and would be silently ignored.
-    """
-    for key in sorted(CORE.platformio_options or {}):
-        if key not in _CONSUMED_PIO_OPTIONS:
-            _LOGGER.warning(
-                "platformio_options->%s is ignored when building with the "
-                "native 'arduino' toolchain",
-                key,
-            )
 
 
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
@@ -81,21 +65,21 @@ def get_readelf_path() -> Path:
 def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.build_gen import arduino8266 as build_gen
 
-    _warn_ignored_platformio_options()
+    warn_ignored_platformio_options(_CONSUMED_PIO_OPTIONS, "arduino")
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     ninja_changed = build_gen.write_project(paths)
 
     build_dir = get_build_dir()
-    env = framework.get_build_env(paths["toolchain_path"])
+    env = framework.get_build_env(paths.toolchain)
 
     # The compile database is a pure function of build.ninja (no compilation
     # involved), so regenerate it before the build: a failed build can then
     # never leave a stale database behind. Skip the ninja spawn plus MBs of
     # text on unchanged builds.
     if ninja_changed or not (build_dir / "compile_commands.json").is_file():
-        _write_compile_commands(paths["ninja_path"], build_dir, env)
+        _write_compile_commands(paths.ninja, build_dir, env)
 
-    cmd = [str(paths["ninja_path"]), "-C", str(build_dir)]
+    cmd = [str(paths.ninja), "-C", str(build_dir)]
     if verbose:
         cmd.append("-v")
     if jobs := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT):
@@ -186,11 +170,9 @@ def _print_size_summary(build_dir: Path) -> None:
             try:
                 sections[parts[0]] = int(parts[1])
             except ValueError:
+                # An unparsed RAM/Flash section trips the missing-sections
+                # guard below, so no total is built on a dropped value
                 _LOGGER.warning("Unparsable size output for section %s", parts[0])
-                if parts[0] in _RAM_SECTIONS or parts[0] in _FLASH_SECTIONS:
-                    # A confident total built on a dropped section would feed
-                    # a wrong number to CI's memory-impact metric
-                    return
     if missing := set(_RAM_SECTIONS + _FLASH_SECTIONS) - set(sections):
         # A defaulted 0 would print a confidently wrong total for CI's metric
         _LOGGER.warning(
