@@ -531,3 +531,14 @@ def testget_tools_path_default_is_global_cache(
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     ).resolve()
     assert get_sdk_nrf_tools_path() == expected
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
+    from esphome.components.nrf52 import _resolve_toolchain
+    import esphome.config_validation as cv
+    from esphome.const import Toolchain
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        _resolve_toolchain({})

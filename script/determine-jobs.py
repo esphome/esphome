@@ -644,6 +644,7 @@ ESP8266_NATIVE_TRIGGER_FILES = frozenset(
         "esphome/components/esp8266/build_surgery.py",
         "esphome/components/esp8266/boards.py",
         "esphome/platformio/library.py",
+        "esphome/platformio/toolchain.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }

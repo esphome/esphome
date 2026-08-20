@@ -3086,6 +3086,8 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
         # Top-level esphome/*.py modules the backend imports directly
         ["esphome/framework_helpers.py"],
         ["esphome/writer.py"],
+        # ccache_path imports from platformio/toolchain.py
+        ["esphome/platformio/toolchain.py"],
     ):
         with (
             patch.object(determine_jobs, "changed_files", return_value=changed),
