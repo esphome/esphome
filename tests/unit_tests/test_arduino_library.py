@@ -86,10 +86,10 @@ def test_library_info_flags_parsing(tmp_path: Path) -> None:
                 "-lalgobsec",
                 "-fno-lto",
                 "-Wl,--wrap=malloc",
-                "-l",
-                "m",
-                "-L",
-                "blobs",
+                # Bare flags join their argument within one entry only, as
+                # ParseFlags lexes each entry independently
+                "-l m",
+                "-L blobs",
             ],
         }
     }
