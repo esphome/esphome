@@ -198,10 +198,14 @@ def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
     assert "flags" not in c.data["build"]
 
 
-def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
-    """Un-captured env vars and unsupported env methods are silent no-ops."""
+def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path, caplog) -> None:
+    """Un-captured env vars and unsupported env methods are skipped but
+    diagnosable from the build log."""
+    import logging
+
     from esphome.platformio.extra_script import apply_extra_script
 
+    caplog.set_level(logging.DEBUG)
     script = tmp_path / "extra.py"
     script.write_text(
         "env.Replace(CC='clang')\nenv.Append(UNCAPTURED=['x'], LIBS='single')\n"
@@ -211,6 +215,8 @@ def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
     c.data = {"build": {"extraScript": "extra.py"}}
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
     assert c.data["build"]["flags"] == ["-lsingle"]
+    assert "env.Append(UNCAPTURED=...) is not captured" in caplog.text
+    assert "env.Replace(...) is a no-op here" in caplog.text
 
 
 def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
