@@ -582,13 +582,17 @@ def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     )
 
 
+# Flags whose argument may follow as a separate token; ParseFlags glues them
+BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
+
+
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
     the way PlatformIO's ParseFlags lexes them."""
     out: list[str] = []
     it = iter(tokens)
     for tok in it:
-        if tok in ("-I", "-L", "-l", "-D"):
+        if tok in BARE_ARG_FLAGS:
             arg = next(it, None)
             if arg is None:
                 _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
