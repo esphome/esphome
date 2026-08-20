@@ -307,6 +307,11 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
                 "--checks=-clang-analyzer-core.FixedAddressDereference,"
                 "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
             )
+        elif args.environment.startswith("nrf52"):
+            # Zephyr's generated autoconf.h defines unparenthesized negative Kconfig
+            # values (e.g. `-1`); this isn't source we control or can NOLINT.
+            invocation.append("--checks=-bugprone-macro-parentheses")
+
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")

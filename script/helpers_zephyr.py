@@ -61,7 +61,10 @@ def load_idedata(environment, temp_folder, platformio_ini):
         for line in result.stderr.splitlines():
             if start_collecting:
                 if line.startswith(" "):
-                    include_paths.append(line.strip())
+                    path = line.strip()
+                    # GCC's arm_acle.h uses builtins Clang doesn't implement; let Clang's own win.
+                    if "/lib/gcc/" not in path:
+                        include_paths.append(path)
                 else:
                     break
             if "#include <...> search starts here:" in line:
