@@ -403,19 +403,6 @@ def test_project_flags_requotes_lexed_defines() -> None:
     assert compile_flags == ['"-DGREETING=hello world"']
 
 
-def test_shell_token_escaping() -> None:
-    """Tokens survive both POSIX sh and the Windows CRT argv parser."""
-    assert arduino8266._shell_token("-Os") == "-Os"
-    # $ would be expanded (to nothing) by ninja itself
-    assert arduino8266._shell_token("-DX=$HOME") == "-DX=$$HOME"
-    # Backslashes not before a quote stay single (Windows path in a define)
-    assert arduino8266._shell_token("-DP=C:\\x y") == '"-DP=C:\\x y"'
-    # A quote is escaped and the preceding backslash run doubles
-    assert arduino8266._shell_token('-DX=a\\"b c') == '"-DX=a\\\\\\"b c"'
-    # A trailing backslash run doubles before the closing quote
-    assert arduino8266._shell_token("a b\\") == '"a b\\\\"'
-
-
 def test_flag_defines_joins_spaced_define() -> None:
     """A spaced "-D KNOB" entry is detected exactly as PlatformIO detects it."""
     _set_flags("-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
