@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor"]
@@ -38,7 +40,7 @@ RC522_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_rc522(var, config):
+async def setup_rc522(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     if CONF_RESET_PIN in config:
