@@ -1000,6 +1000,11 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
 #endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
 
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// The needle may live in flash (PROGMEM) on ESP8266 — wrap literals with PSTR().
+/// On all other platforms PROGMEM reads are plain dereferences, so any string works.
+bool str_contains_ignore_case_p(const char *haystack, const char *needle);
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0

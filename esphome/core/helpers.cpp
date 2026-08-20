@@ -233,6 +233,28 @@ bool str_contains_ignore_case_fallback(const char *haystack, const char *needle)
   return false;
 }
 
+bool str_contains_ignore_case_p(const char *haystack, const char *needle) {
+  if (haystack == nullptr || needle == nullptr) {
+    return false;
+  }
+  const auto *needle_p = reinterpret_cast<const uint8_t *>(needle);
+  if (progmem_read_byte(needle_p) == '\0') {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    size_t i = 0;
+    uint8_t n;
+    // Never reads past the haystack terminator: comparing '\0' against a non-'\0' needle byte fails
+    while ((n = progmem_read_byte(needle_p + i)) != '\0' && ::tolower(static_cast<uint8_t>(p[i])) == ::tolower(n)) {
+      i++;
+    }
+    if (n == '\0') {
+      return true;
+    }
+  }
+  return false;
+}
+
 // str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
