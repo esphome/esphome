@@ -7277,3 +7277,50 @@ def test_command_analyze_memory_arduino_toolchain(
         set(),
         idedata=None,
     )
+
+
+def test_command_analyze_memory_esp_idf_toolchain(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+) -> None:
+    """analyze-memory uses the ESP-IDF toolchain's binutils natively."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ESP_IDF
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.espidf.toolchain.get_objdump_path",
+            return_value=Path("/tc/objdump"),
+        ),
+        patch(
+            "esphome.espidf.toolchain.get_readelf_path",
+            return_value=Path("/tc/readelf"),
+        ),
+        patch(
+            "esphome.espidf.toolchain.get_elf_path",
+            return_value=Path("/build/firmware.elf"),
+        ),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(Path("/build/firmware.elf")),
+        str(Path("/tc/objdump")),
+        str(Path("/tc/readelf")),
+        set(),
+        idedata=None,
+    )
+
+
+def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
+    """A non-native, non-platformio toolchain errors out cleanly."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+
+    assert command_idedata(MagicMock(), CORE.config) == 1
