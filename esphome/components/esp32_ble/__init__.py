@@ -1,12 +1,19 @@
 from collections.abc import Callable, MutableMapping
-from dataclasses import dataclass
 from enum import Enum
 import logging
-import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+
+# bt_uuid validation lives in the platform-neutral ble_device_base; re-exported
+# here for backward compatibility.
+from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disable=unused-import
+    BT_UUID16_FORMAT as bt_uuid16_format,
+    BT_UUID32_FORMAT as bt_uuid32_format,
+    BT_UUID128_FORMAT as bt_uuid128_format,
+    bt_uuid,
+)
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -24,10 +31,11 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
+from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
@@ -125,18 +133,21 @@ def _get_required_loggers() -> set[BTLoggers]:
     return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
 
 
-# Dataclass for handler registration counts
-@dataclass
-class HandlerCounts:
-    gap_event: int = 0
-    gap_scan_event: int = 0
-    gattc_event: int = 0
-    gatts_event: int = 0
-    ble_status_event: int = 0
-
-
-# Track handler registration counts for StaticVector sizing
-_handler_counts = HandlerCounts()
+# Handler slot counters sizing the StaticCallbackManager storage in ble.h;
+# one request per register_* call below.
+_request_gap_event_slot = cg.slot_counter("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT")
+_request_gap_scan_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT"
+)
+_request_gattc_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT"
+)
+_request_gatts_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT"
+)
+_request_ble_status_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT"
+)
 
 
 def _add_callback(
@@ -162,8 +173,8 @@ def _add_callback(
 
 
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
-    """Register a GAP event handler and track the count."""
-    _handler_counts.gap_event += 1
+    """Register a GAP event handler and request a handler slot."""
+    _request_gap_event_slot()
     _add_callback(
         parent_var,
         "add_gap_event_callback",
@@ -176,8 +187,8 @@ def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) 
 def register_gap_scan_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GAP scan event handler and track the count."""
-    _handler_counts.gap_scan_event += 1
+    """Register a GAP scan event handler and request a handler slot."""
+    _request_gap_scan_event_slot()
     _add_callback(
         parent_var,
         "add_gap_scan_event_callback",
@@ -190,8 +201,8 @@ def register_gap_scan_event_handler(
 def register_gattc_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTc event handler and track the count."""
-    _handler_counts.gattc_event += 1
+    """Register a GATTc event handler and request a handler slot."""
+    _request_gattc_event_slot()
     _add_callback(
         parent_var,
         "add_gattc_event_callback",
@@ -204,8 +215,8 @@ def register_gattc_event_handler(
 def register_gatts_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTs event handler and track the count."""
-    _handler_counts.gatts_event += 1
+    """Register a GATTs event handler and request a handler slot."""
+    _request_gatts_event_slot()
     _add_callback(
         parent_var,
         "add_gatts_event_callback",
@@ -218,8 +229,8 @@ def register_gatts_event_handler(
 def register_ble_status_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a BLE status event handler and track the count."""
-    _handler_counts.ble_status_event += 1
+    """Register a BLE status event handler and request a handler slot."""
+    _request_ble_status_event_slot()
     _add_callback(
         parent_var,
         "add_ble_status_event_callback",
@@ -372,43 +383,6 @@ def _validate_key_sizes(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
-bt_uuid16_format = "XXXX"
-bt_uuid32_format = "XXXXXXXX"
-bt_uuid128_format = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-
-
-def bt_uuid(value):
-    in_value = cv.string_strict(value)
-    value = in_value.upper()
-
-    if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F0-9]{4,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F0-9]{8,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid128_format):
-        pattern = re.compile(
-            "^[A-F0-9]{8,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{12,}$"
-        )
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 128 UUID format: '{in_value}'"
-            )
-        return value
-    raise cv.Invalid(
-        f"Bluetooth UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
-    )
-
-
 def validate_variant(_):
     variant = get_esp32_variant()
     if variant in NO_BLUETOOTH_VARIANTS:
@@ -469,7 +443,7 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
-def final_validation(config):
+def final_validation(config) -> None:
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
@@ -540,40 +514,8 @@ def final_validation(config):
     # For newer chips (C3/S3/etc), different configs are used automatically
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = final_validation
-
-
-# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
-# a chance to register their handlers before the counts are added to defines.
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_ble_handler_defines():
-    # Add defines for StaticVector sizing based on handler registration counts
-    # Only define if count > 0 to avoid allocating unnecessary memory
-    if _handler_counts.gap_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT", _handler_counts.gap_event
-        )
-    if _handler_counts.gap_scan_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT",
-            _handler_counts.gap_scan_event,
-        )
-    if _handler_counts.gattc_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT", _handler_counts.gattc_event
-        )
-    if _handler_counts.gatts_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT", _handler_counts.gatts_event
-        )
-    if _handler_counts.ble_status_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
-            _handler_counts.ble_status_event,
-        )
 
 
 async def to_code(config):
@@ -604,7 +546,7 @@ async def to_code(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
-    request_bluetooth(ble_42=True)
+    request_bluetooth()
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -660,9 +602,6 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
-
-    # Schedule the handler defines to be added after all components register
-    CORE.add_job(_add_ble_handler_defines)
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))

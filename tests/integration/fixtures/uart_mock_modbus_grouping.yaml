@@ -1,0 +1,234 @@
+esphome:
+  name: uart-mock-modbus-group
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    auto_start: false
+    debug:
+    responses:
+      # One entry per range the controller polls. A frame the controller does not send goes unanswered,
+      # so these also pin the grouping: an extra or differently shaped read fails the test.
+      - expect_tx: [0x01, 0x01, 0x00, 0x10, 0x00, 0x02, 0xBC, 0x0E] # coils 0x10 count 2
+        inject_rx: [0x01, 0x01, 0x01, 0x01, 0x90, 0x48] # bit0 set, bit1 clear
+      - expect_tx: [0x01, 0x03, 0x01, 0x60, 0x00, 0x01, 0x85, 0xE8] # holding 0x160 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x60, 0xB9, 0xFC] # 352
+      - expect_tx: [0x01, 0x03, 0x01, 0x00, 0x00, 0x01, 0x85, 0xF6] # holding 0x100 count 1
+        inject_rx: [0x01, 0x03, 0x04, 0x01, 0x11, 0x02, 0x22, 0x2A, 0xB3] # 4 bytes: 273 then 546
+      - expect_tx: [0x01, 0x03, 0x01, 0x20, 0x00, 0x04, 0x44, 0x3F] # holding 0x120 count 4
+        inject_rx: [0x01, 0x03, 0x08, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x7A, 0x25]
+      - expect_tx: [0x01, 0x03, 0x01, 0x30, 0x00, 0x02, 0xC5, 0xF8] # holding 0x130 count 2
+        inject_rx: [0x01, 0x03, 0x06, 0x0A, 0xAA, 0xFF, 0xFF, 0x0B, 0xBB, 0x7E, 0xA0] # 6 bytes
+      - expect_tx: [0x01, 0x03, 0x01, 0x40, 0x00, 0x01, 0x84, 0x22] # holding 0x140 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x40, 0xB8, 0x24] # 320
+      - expect_tx: [0x01, 0x03, 0x01, 0x45, 0x00, 0x01, 0x94, 0x23] # holding 0x145 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x45, 0x78, 0x27] # 325
+      - expect_tx: [0x01, 0x03, 0x01, 0x50, 0x00, 0x02, 0xC5, 0xE6] # holding 0x150 count 2
+        inject_rx: [0x01, 0x03, 0x04, 0x01, 0x50, 0x01, 0x51, 0x3B, 0xB2] # 336, 337
+      - expect_tx: [0x01, 0x03, 0x01, 0x80, 0x00, 0x02, 0xC4, 0x1F] # holding 0x180 count 2
+        inject_rx: [0x01, 0x03, 0x06, 0x11, 0x11, 0x22, 0x22, 0x33, 0x33, 0x20, 0xA0] # 6 bytes
+      # 0x181 answers with the same value whether it is read on its own or as part of the block above,
+      # so the sensor there is pinned to one value regardless of which range it lands in.
+      - expect_tx: [0x01, 0x03, 0x01, 0x81, 0x00, 0x01, 0xD5, 0xDE] # holding 0x181 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x33, 0x33, 0xEC, 0xA1] # 13107
+      - expect_tx: [0x01, 0x03, 0x01, 0x70, 0x00, 0x03, 0x05, 0xEC] # holding 0x170 count 3
+        inject_rx: [0x01, 0x03, 0x06, 0x00, 0x2A, 0x1B, 0x2C, 0x03, 0x0D, 0x3E, 0xAB] # 6 bytes
+      - expect_tx: [0x01, 0x03, 0x01, 0x61, 0x00, 0x01, 0xD4, 0x28] # holding 0x161 count 1
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x61, 0x78, 0x3C] # 353
+
+modbus:
+  uart_id: virtual_uart_dev
+  send_wait_time: 200ms
+  turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    id: modbus_controller_ok
+    max_cmd_retries: 2
+    update_interval: never
+
+# Each block below is a distinct address range exercising one grouping relationship. The blocks are far
+# enough apart that they never merge into each other.
+sensor:
+  # A - two sensors on one register that returns more bytes than its count implies (response_size),
+  # reading different halves of it.
+  - platform: modbus_controller
+    name: "reuse_lo"
+    address: 0x100
+    register_type: holding
+    value_type: U_WORD
+    response_size: 4
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "reuse_hi"
+    address: 0x100
+    register_type: holding
+    value_type: U_WORD
+    offset: 2
+    response_size: 4
+    modbus_controller_id: modbus_controller_ok
+
+  # C - plain contiguous registers of differing widths.
+  - platform: modbus_controller
+    name: "ext_word"
+    address: 0x120
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "ext_next"
+    address: 0x121
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "ext_dword"
+    address: 0x122
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+
+  # D - a wide (response_size) register followed by a contiguous one: the follower must start after the
+  # bytes the wide register actually returned, not after 2 * register_count.
+  - platform: modbus_controller
+    name: "wide_first"
+    address: 0x130
+    register_type: holding
+    value_type: U_WORD
+    response_size: 4
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "wide_next"
+    address: 0x131
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+  # E - a gap: these must never share a range.
+  - platform: modbus_controller
+    name: "gap_low"
+    address: 0x140
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "gap_high"
+    address: 0x145
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+  # F - contiguous registers where the second asks for a slower rate.
+  - platform: modbus_controller
+    name: "rate_first"
+    address: 0x150
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "rate_slow"
+    address: 0x151
+    register_type: holding
+    value_type: U_WORD
+    skip_updates: 5
+    modbus_controller_id: modbus_controller_ok
+
+  # B - a wide value and one of its halves share a start address, with a contiguous sensor after them.
+  # The differing offsets give these a defined order, unlike two sensors that differ only in width.
+  - platform: modbus_controller
+    name: "shared_dword"
+    address: 0x170
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "shared_high"
+    address: 0x170
+    register_type: holding
+    value_type: U_WORD
+    offset: 2
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "shared_after"
+    address: 0x172
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+  # I - a register that returns more bytes than its count implies, sharing its address with a plain
+  # wider sensor. Whether the sensor after them is read as part of that block or on its own, it must
+  # decode 0x181 - never the bytes that lie two into the block, which is where the widened register
+  # count alone would put it.
+  - platform: modbus_controller
+    name: "masked_wide"
+    address: 0x180
+    register_type: holding
+    value_type: U_WORD
+    response_size: 4
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "masked_pair"
+    address: 0x180
+    register_type: holding
+    value_type: U_DWORD
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "masked_after"
+    address: 0x181
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+  # H - a sensor pinned to its own range, followed by a contiguous one.
+  - platform: modbus_controller
+    name: "forced_first"
+    address: 0x160
+    register_type: holding
+    value_type: U_WORD
+    force_new_range: true
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "forced_next"
+    address: 0x161
+    register_type: holding
+    value_type: U_WORD
+    modbus_controller_id: modbus_controller_ok
+
+binary_sensor:
+  # G - contiguous coils, addressed by bit.
+  - platform: modbus_controller
+    name: "coil_first"
+    address: 0x10
+    register_type: coil
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "coil_next"
+    address: 0x11
+    register_type: coil
+    modbus_controller_id: modbus_controller_ok
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          id(virtual_uart_dev).start_scenario();
+          id(modbus_controller_ok).set_update_interval(1000);
+          id(modbus_controller_ok).start_poller();
