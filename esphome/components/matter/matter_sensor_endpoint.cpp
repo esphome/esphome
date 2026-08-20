@@ -239,7 +239,7 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
   // Cases share the same shape (nullable value + cluster/attribute id assignment)
   // but each targets a distinct cluster — clang-tidy's bugprone-branch-clone
   // would flag the pattern despite the semantic differences.
-  // NOLINTNEXTLINE(bugprone-branch-clone)
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch (this->kind_) {
     case Kind::KIND_TEMPERATURE:
       val = ::esp_matter_nullable_int16(::nullable<int16_t>());
@@ -270,6 +270,7 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
     case Kind::KIND_UNKNOWN:
       return;
   }
+  // NOLINTEND(bugprone-branch-clone)
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "attribute::update null endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));

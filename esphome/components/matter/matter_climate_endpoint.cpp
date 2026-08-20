@@ -142,7 +142,7 @@ bool MatterClimateEndpoint::setup() {
   // structurally identical (each is a single assignment of a different enum
   // value); clang-tidy's bugprone-branch-clone flags that pattern even
   // though the enum values are semantically distinct.
-  // NOLINTNEXTLINE(bugprone-branch-clone)
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch (this->climate_->mode) {
     case climate::CLIMATE_MODE_OFF:
     default:
@@ -162,6 +162,7 @@ bool MatterClimateEndpoint::setup() {
       config.thermostat.system_mode = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kAuto);
       break;
   }
+  // NOLINTEND(bugprone-branch-clone)
 
   ::esp_matter::endpoint_t *endpoint =
       ::esp_matter::endpoint::thermostat::create(node, &config, ::esp_matter::ENDPOINT_FLAG_NONE, this);
@@ -362,7 +363,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   // used twice" branch-clone but the remaining cases still each pick a
   // distinct value — the NOLINT covers that intentional shape.
   uint8_t sys;
-  // NOLINTNEXTLINE(bugprone-branch-clone)
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch (this->climate_->mode) {
     case climate::CLIMATE_MODE_OFF:
     default:
@@ -385,6 +386,7 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
       sys = static_cast<uint8_t>(chip::app::Clusters::Thermostat::SystemModeEnum::kDry);
       break;
   }
+  // NOLINTEND(bugprone-branch-clone)
   ::esp_matter_attr_val_t v_mode = ::esp_matter_enum8(sys);
   esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
                                                   chip::app::Clusters::Thermostat::Attributes::SystemMode::Id, &v_mode);
