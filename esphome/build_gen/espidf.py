@@ -6,6 +6,7 @@ from pathlib import Path
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
+    get_managed_component_require_names,
     idf_version,
 )
 import esphome.config_validation as cv
@@ -123,8 +124,6 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # runs as a separate CMake script invocation that doesn't load the
     # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
     # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
-    from esphome.components.esp32 import get_managed_component_require_names
-
     managed_components_property = "\n".join(
         f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
         for name in get_managed_component_require_names()
@@ -157,7 +156,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(get_available_components() or []) - set(excluded_components)
+                set(get_available_components() or []).difference(excluded_components)
             )
         )
     )
