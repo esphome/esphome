@@ -21,9 +21,11 @@ def main() -> int:
         # Remove first: ``ar rc`` replaces members but never drops ones whose
         # source was removed from the build, which would leak stale objects.
         Path(archive).unlink(missing_ok=True)
-        return subprocess.run(
-            [ar, "rc", archive, f"@{rspfile}"], check=False
-        ).returncode
+        # Expand the response file here instead of passing @rspfile: GNU ar
+        # treats backslashes in response files as escapes, corrupting Windows
+        # paths ("sub\a.o" -> "suba.o").
+        objects = Path(rspfile).read_text(encoding="utf-8").split()
+        return subprocess.run([ar, "rc", archive, *objects], check=False).returncode
     if mode == "copy":
         src, dst = sys.argv[2:4]
         shutil.copyfile(src, dst)

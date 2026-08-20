@@ -64,6 +64,9 @@ def test_pio_system(system: str, machine: str, expected: str) -> None:
     [
         ("FreeBSD", "amd64"),
         ("Linux", "ppc64le"),
+        ("Darwin", "ppc"),
+        ("Darwin", ""),
+        ("Windows", "ia64"),
     ],
 )
 def test_pio_system_unsupported_host_raises(system: str, machine: str) -> None:
@@ -88,10 +91,13 @@ def test_registry_download_network_error_is_clean_and_retried() -> None:
 
     with (
         patch("requests.get", side_effect=requests.ConnectionError("boom")) as mock_get,
+        patch.object(framework.time, "sleep") as mock_sleep,
         pytest.raises(EsphomeError, match="Could not query the package registry"),
     ):
         framework._registry_download("pkg", "1.0.0")
     assert mock_get.call_count == 3
+    # Backed-off retries, not one burst
+    assert mock_sleep.call_count == 3
 
 
 def test_registry_download_retries_transient_error() -> None:
@@ -109,6 +115,7 @@ def test_registry_download_retries_transient_error() -> None:
     )
     with (
         patch("requests.get", side_effect=[requests.ConnectionError("boom"), resp]),
+        patch.object(framework.time, "sleep"),
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
     ):
         assert framework._registry_download("pkg", "1.0.0") == (
@@ -439,3 +446,23 @@ def test_ccache_env_requires_build_path() -> None:
         pytest.raises(ValueError, match="build_path"),
     ):
         framework.ccache_env()
+
+
+def test_check_and_install_rejects_old_core(tmp_path: Path) -> None:
+    """Calling the installer below the floor fails before any download."""
+    with pytest.raises(EsphomeError, match=">= 3.1.1"):
+        framework.check_and_install(cv.Version(3, 0, 2))
+
+
+def test_install_package_uses_hard_lock(tmp_path: Path) -> None:
+    """The install lock must never degrade to a soft (existence) lock."""
+    dest = tmp_path / "pkg"
+    with (
+        patch("filelock.FileLock") as mock_lock,
+        patch.object(framework, "download_from_mirrors"),
+        patch.object(framework, "archive_extract_all") as mock_extract,
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir(exist_ok=True)
+        framework._install_package("pkg", "1.0.0", dest, ["http://m"])
+    assert mock_lock.call_args.kwargs["fallback_to_soft"] is False

@@ -304,3 +304,18 @@ def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
         libs = component.resolve_libraries(framework)
 
     assert [lib.name for lib in libs] == ["some__External"]
+
+
+def test_bundled_library_prefers_library_json(tmp_path: Path) -> None:
+    """A bundled library.json wins over library.properties (PIO semantics);
+    its build section is honored."""
+    framework = _make_framework(tmp_path)
+    lib_dir = framework / "libraries" / "GDBStub"
+    (lib_dir / "custom").mkdir(parents=True)
+    (lib_dir / "custom" / "gdb.cpp").write_text("")
+    (lib_dir / "library.properties").write_text("name=GDBStub\n")
+    (lib_dir / "library.json").write_text(
+        '{"name": "GDBStub", "build": {"srcDir": "custom"}}'
+    )
+    lib = component._bundled_library(framework, "GDBStub")
+    assert [s.name for s in lib.sources] == ["gdb.cpp"]
