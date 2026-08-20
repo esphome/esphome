@@ -310,7 +310,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     # The layout checks cover the directories write_project needs, including
     # the bundled libraries/ tree
     fw_expect = mock_install.call_args_list[0].kwargs["expect"]
-    assert set(fw_expect) == {"cores/esp8266", "tools/sdk", "libraries"}
+    assert fw_expect == ("cores/esp8266", "tools/sdk", "libraries")
     assert mock_install.call_args_list[1].kwargs["expect"] == ("bin",)
 
 

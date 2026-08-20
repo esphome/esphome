@@ -582,9 +582,7 @@ def test_project_flags_trailing_bare_linker_flag_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     _set_flags("-l")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
     assert "Ignoring trailing '-l'" in caplog.text
     assert not libs
     assert not lib_dirs
@@ -594,9 +592,7 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 
 def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     _set_flags("-L /d -Wl,-Map=m stray")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
     assert lib_dirs == [Path("/d")]
     assert link_flags == ["-Wl,-Map=m"]
     assert "stray" in compile_flags
@@ -616,9 +612,7 @@ def test_flag_defines_lexes_multi_token_entries() -> None:
 def test_project_flags_lexes_every_entry() -> None:
     """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
     _set_flags("-DFOO=1 -lbar")
-    compile_flags, _link, _dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags()
     assert libs == ["bar"]
     assert "-DFOO=1" in compile_flags
 
@@ -627,9 +621,7 @@ def test_project_flags_unflags_match_tokens() -> None:
     """build_unflags removes a token embedded in a multi-token entry."""
     _set_flags("-Os -g3")
     CORE.build_unflags = {"-Os"}
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
     assert "-g3" in compile_flags
     assert "-Os" not in compile_flags
 
@@ -637,9 +629,7 @@ def test_project_flags_unflags_match_tokens() -> None:
 def test_project_flags_requotes_lexed_defines() -> None:
     """A quoted spaced value stays one compiler argument after lex/emit."""
     _set_flags('-DGREETING="hello world"')
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
     assert compile_flags == ['"-DGREETING=hello world"']

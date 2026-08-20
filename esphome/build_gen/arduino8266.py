@@ -269,33 +269,41 @@ def _e(value) -> str:
     return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
 
 
-def _q(value) -> str:
-    """Quote a path for use inside a ninja command line (shell/CreateProcess).
+def _quote_arg(tok: str) -> str:
+    """Wrap a token in double quotes with the Windows argv rule.
 
-    ``$`` doubles so ninja passes it through literally instead of expanding
-    an (empty) ninja variable.
+    Same escaping rule as ``subprocess.list2cmdline``: a backslash run
+    doubles only immediately before a quote (or the closing quote), and the
+    quote itself is escaped. POSIX sh parses the result identically for
+    backslashes and quotes. ``$`` must already be doubled for ninja.
     """
-    return '"' + str(value).replace("$", "$$") + '"'
+    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
+    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
+    return f'"{quoted}"'
+
+
+def _q(value) -> str:
+    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
+    return _quote_arg(str(value).replace("$", "$$"))
 
 
 _NEEDS_QUOTE = re.compile(r'[\s"\']')
 
 
 def _shell_token(tok: str) -> str:
-    """Quote a lexed token for the ninja command line; ``_q`` is for paths.
+    """Quote a lexed token only when needed; ``_q`` force-quotes paths.
 
     Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
     token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO. Uses the Windows
-    argv quoting rule, which POSIX sh parses identically inside double
-    quotes: a backslash run doubles only immediately before a quote.
+    same argv element SCons would pass under PlatformIO. After ninja
+    un-doubles ``$$``, sh still expands ``$VAR`` while CreateProcess passes
+    it literally -- the same divergence SCons-under-sh has, so this stays
+    PlatformIO parity.
     """
     tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
     if not _NEEDS_QUOTE.search(tok):
         return tok
-    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
-    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
-    return f'"{quoted}"'
+    return _quote_arg(tok)
 
 
 def _defines_flags(
@@ -333,7 +341,7 @@ def _unflag_tokens() -> set[str]:
 
 
 def _project_flags(
-    unflags: set[str],
+    unflags: set[str] | None = None,
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
@@ -342,6 +350,8 @@ def _project_flags(
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
     Lexed tokens are re-quoted at emission via ``_shell_token``.
     """
+    if unflags is None:
+        unflags = _unflag_tokens()
     compile_flags: list[str] = []
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
