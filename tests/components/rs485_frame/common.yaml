@@ -71,6 +71,24 @@ rs485_frame:
           - lambda: |-
               if (!payload.empty())
                 id(g_led_mask) = payload[0];
+    # Live trigger -> response confirmation. Exercises button_id: trigger resolution,
+    # named field: references, the changed+mask signature mode, and the response_*
+    # sensor decodes below.
+    response_fields:
+      led_mask_01_02:
+        frame_type: [0x01, 0x02]
+        offset: 2
+        length: 4
+        endian: little
+    response_monitor:
+      - name: lights_confirm
+        trigger:
+          button_id: lights_toggle_button
+        window: 200ms
+        signature:
+          - field: led_mask_01_02
+            type: changed
+            mask: 0x40
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
@@ -223,9 +241,28 @@ sensor:
     name: "Queue Depth"
     decode: queue_depth
 
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Success"
+    decode: response_success
+    monitor_id: lights_confirm
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Fail"
+    decode: response_fail
+    monitor_id: lights_confirm
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Timeout"
+    decode: response_timeout
+    monitor_id: lights_confirm
+
 button:
   # value: form — encodes via the hub's command_format.
   - platform: rs485_frame
+    id: lights_toggle_button
     rs485_frame_id: rs485_frame_hub
     name: "Lights Toggle"
     value: 0x00010000

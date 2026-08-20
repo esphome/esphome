@@ -12,6 +12,9 @@
 #ifdef USE_RS485_FRAME_DISCOVERY
 #include "discovery.h"
 #endif
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+#include "response_monitor.h"
+#endif
 
 #include <memory>
 #include <vector>
@@ -197,6 +200,38 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
 #endif
 
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+  // Owns the response_fields:/response_monitor: matcher. Called once from to_code when
+  // either block is present in YAML, before any of the add_response_* calls below.
+  void enable_response_monitor() { this->response_monitor_ = std::make_unique<ResponseMonitor>(); }
+  void add_response_field(const std::vector<uint8_t> &frame_type, const std::vector<uint8_t> &frame_type_mask,
+                          uint8_t offset, uint8_t length, bool big_endian) {
+    this->response_monitor_->add_field(frame_type, frame_type_mask, offset, length, big_endian);
+  }
+  uint8_t add_response_monitor_entry(const std::vector<uint8_t> &trigger, uint32_t window_ms) {
+    return this->response_monitor_->add_entry(trigger, window_ms);
+  }
+  void add_response_monitor_masked_int_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask,
+                                           const std::vector<uint32_t> &values) {
+    this->response_monitor_->add_masked_int_alt(entry_index, field_index, mask, values);
+  }
+  void add_response_monitor_text_enum_alt(uint8_t entry_index, uint8_t field_index,
+                                          const std::vector<std::string> &values) {
+    this->response_monitor_->add_text_enum_alt(entry_index, field_index, values);
+  }
+  void add_response_monitor_changed_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask) {
+    this->response_monitor_->add_changed_alt(entry_index, field_index, mask);
+  }
+  void add_response_monitor_changed_gated_alt(uint8_t entry_index, uint8_t field_index, uint32_t mask,
+                                              uint8_t gate_field_index, uint32_t gate_mask, uint32_t gate_value) {
+    this->response_monitor_->add_changed_gated_alt(entry_index, field_index, mask, gate_field_index, gate_mask,
+                                                   gate_value);
+  }
+  uint32_t get_response_monitor_stat(uint8_t entry_index, ResponseMonitorStat stat) const {
+    return this->response_monitor_->get_stat(entry_index, stat);
+  }
+#endif
+
   bool queue_command_value(uint32_t command) { return this->queue_command_values(&command, 1); }
   // Queue one or more values encoded back-to-back using this hub's command_format.
   bool queue_command_values(const uint32_t *commands, size_t count);
@@ -243,11 +278,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   size_t queue_size_() const { return this->tx_queue_count_; }
   void queue_pop_front_();
   void write_frame_(const std::vector<uint8_t> &frame, uint32_t now);
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
+#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
   // Recovers the payload-relative view (frame_type at [0..N-1], no CRC) from a frame this hub
-  // just built, for sniffer_stats' record_tx(). Mirrors validate_frame_'s unescape loop but
-  // skips CRC verification — build_frame_ only ever emits well-formed frames, so trusting the
-  // shape is safe here in a way it would not be for untrusted RX bytes.
+  // just built, for sniffer_stats' record_tx() and response_monitor's on_trigger_sent().
+  // Mirrors validate_frame_'s unescape loop but skips CRC verification — build_frame_ only
+  // ever emits well-formed frames, so trusting the shape is safe here in a way it would not
+  // be for untrusted RX bytes.
   void extract_tx_payload_(const std::vector<uint8_t> &frame, std::vector<uint8_t> &out) const;
 #endif
   // Record a transmission: advances last_tx_time_ and the bus-activity timestamp, and
@@ -339,7 +375,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // to max_frame_length_ in setup() so the send_frame action / raw button never allocate.
   std::vector<uint8_t> send_assembly_buf_;
 
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
+#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
   // Scratch buffer for extract_tx_payload_()'s output, reserved to max_frame_length_ in
   // setup() so recording a TX event never allocates on the hot path.
   std::vector<uint8_t> tx_stats_payload_buf_;
@@ -371,6 +407,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // nullptr unless discovery: was present in YAML. When set, loop() routes raw bytes here and
   // skips framing/validation/TX entirely. Production builds (without the define) pay no cost.
   std::unique_ptr<RS485FrameDiscovery> discovery_;
+#endif
+
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+  // nullptr unless response_fields:/response_monitor: was present in YAML. Production builds
+  // (without the define) pay no cost at all.
+  std::unique_ptr<ResponseMonitor> response_monitor_;
 #endif
 };
 

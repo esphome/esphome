@@ -3,16 +3,22 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
     CONF_DELAY,
     CONF_DISCOVERY,
     CONF_ID,
     CONF_INTERVAL,
+    CONF_LENGTH,
     CONF_MODE,
+    CONF_NAME,
+    CONF_OFFSET,
     CONF_PAYLOAD,
     CONF_TRIGGER_ID,
     CONF_TYPE,
+    CONF_VALUE,
 )
-from esphome.core import HexInt
+from esphome.core import ID as CoreID, HexInt
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@b3nj1"]
 DEPENDENCIES = ["uart"]
@@ -85,6 +91,18 @@ CONF_ON_FRAME = "on_frame"
 CONF_IDLE_COMMAND = "idle_command"
 CONF_TX = "tx"
 CONF_TX_VARIANT = "tx_variant"
+
+# response_fields: / response_monitor: — live trigger -> response confirmation.
+CONF_RESPONSE_FIELDS = "response_fields"
+CONF_RESPONSE_MONITOR = "response_monitor"
+CONF_FRAME_TYPE_MASK = "frame_type_mask"
+CONF_TRIGGER = "trigger"
+CONF_BUTTON_ID = "button_id"
+CONF_WINDOW = "window"
+CONF_SIGNATURE = "signature"
+CONF_FIELD = "field"
+CONF_MASK = "mask"
+CONF_VALUES = "values"
 
 CRC_VARIANTS = {
     "header_inclusive": CrcVariant.CRC_HEADER_INCLUSIVE,
@@ -406,6 +424,193 @@ DISCOVERY_SCHEMA = cv.Schema(
 )
 
 
+# response_fields:/response_monitor: schema caps. Must agree with the matching C++ constants
+# in response_monitor.h (MAX_RESPONSE_FIELD_PREFIX_LEN, MAX_RESPONSE_FIELD_LEN,
+# MAX_RESPONSE_FIELDS, MAX_RESPONSE_TRIGGER_LEN, MAX_RESPONSE_MONITOR_ENTRIES,
+# MAX_SIGNATURE_ALTS, MAX_MASKED_INT_VALUES, MAX_TEXT_ENUM_VALUES, MAX_TEXT_ENUM_LEN).
+MAX_RESPONSE_FIELD_PREFIX_LEN = 16
+MAX_RESPONSE_FIELD_LEN = 40
+MAX_RESPONSE_FIELDS = 16
+MAX_RESPONSE_TRIGGER_LEN = 48
+MAX_RESPONSE_MONITOR_ENTRIES = 16
+MAX_SIGNATURE_ALTS = 4
+MAX_MASKED_INT_VALUES = 4
+MAX_TEXT_ENUM_VALUES = 8
+MAX_TEXT_ENUM_LEN = 32
+
+SIGNATURE_TYPE_MASKED_INT = "masked_int"
+SIGNATURE_TYPE_TEXT_ENUM = "text_enum"
+SIGNATURE_TYPE_CHANGED = "changed"
+SIGNATURE_TYPE_CHANGED_GATED = "changed_gated"
+SIGNATURE_TYPES = [
+    SIGNATURE_TYPE_MASKED_INT,
+    SIGNATURE_TYPE_TEXT_ENUM,
+    SIGNATURE_TYPE_CHANGED,
+    SIGNATURE_TYPE_CHANGED_GATED,
+]
+
+
+def _validate_response_field_prefix(value):
+    return cv.All(
+        cv.ensure_list(validate_byte), cv.Length(max=MAX_RESPONSE_FIELD_PREFIX_LEN)
+    )(value)
+
+
+def _validate_response_field(value):
+    value = cv.Schema(
+        {
+            cv.Required(CONF_FRAME_TYPE): _validate_response_field_prefix,
+            cv.Optional(CONF_FRAME_TYPE_MASK): _validate_response_field_prefix,
+            cv.Required(CONF_OFFSET): cv.int_range(min=0, max=255),
+            cv.Required(CONF_LENGTH): cv.int_range(min=1, max=MAX_RESPONSE_FIELD_LEN),
+            cv.Optional(CONF_ENDIAN, default="big"): cv.one_of(
+                "big", "little", lower=True
+            ),
+        }
+    )(value)
+    mask = value.get(CONF_FRAME_TYPE_MASK)
+    if mask is not None and len(mask) != len(value[CONF_FRAME_TYPE]):
+        raise cv.Invalid(
+            "response_fields entry: frame_type_mask must be the same length as frame_type "
+            f"({len(value[CONF_FRAME_TYPE])} bytes)"
+        )
+    return value
+
+
+def _validate_response_fields(value):
+    value = cv.Schema({cv.string: _validate_response_field})(value)
+    if len(value) > MAX_RESPONSE_FIELDS:
+        raise cv.Invalid(
+            f"response_fields: supports at most {MAX_RESPONSE_FIELDS} entries, got {len(value)}"
+        )
+    return value
+
+
+def _validate_button_id(value):
+    # Deliberately untyped (unlike cv.use_id(SomeType)): this component's own button
+    # sub-platform package is named "button", so `from esphome.components import button`
+    # at module scope here resolves to this file's own .button subpackage rather than the
+    # core button component under this loader's import scheme — importing the core button
+    # component to type-check against is unsafe from this file.
+    # cv.use_id's "type" argument is metadata only (see config_validation.py's use_id()); the
+    # actual cross-reference is by id name, resolved and checked in FINAL_VALIDATE_SCHEMA.
+    cv.check_not_templatable(value)
+    return CoreID(cv.validate_id_name(value), is_declaration=False, type=None)
+
+
+def _validate_trigger(value):
+    value = cv.Schema(
+        {
+            cv.Optional(CONF_BUTTON_ID): _validate_button_id,
+            cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
+        }
+    )(value)
+    if CONF_BUTTON_ID in value and CONF_FRAME_TYPE in value:
+        raise cv.Invalid(
+            "response_monitor trigger: specify either 'button_id' or 'frame_type', not both"
+        )
+    if CONF_BUTTON_ID not in value and CONF_FRAME_TYPE not in value:
+        raise cv.Invalid(
+            "response_monitor trigger requires either 'button_id' or 'frame_type'"
+        )
+    return value
+
+
+MASKED_INT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.string,
+        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_MASKED_INT),
+        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
+        cv.Required(CONF_VALUE): cv.All(
+            cv.ensure_list(validate_u32), cv.Length(min=1, max=MAX_MASKED_INT_VALUES)
+        ),
+    }
+)
+
+TEXT_ENUM_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.string,
+        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_TEXT_ENUM),
+        cv.Required(CONF_VALUES): cv.All(
+            cv.ensure_list(cv.All(cv.string_strict, cv.Length(max=MAX_TEXT_ENUM_LEN))),
+            cv.Length(min=1, max=MAX_TEXT_ENUM_VALUES),
+        ),
+    }
+)
+
+CHANGED_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.string,
+        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED),
+        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
+    }
+)
+
+# changed_gated's gate: a second, independent field read at trigger time. Reuses CONF_GATE
+# (already "gate") from tx.gate.
+GATE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.string,
+        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
+        cv.Required(CONF_VALUE): validate_u32,
+    }
+)
+
+CHANGED_GATED_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.string,
+        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED_GATED),
+        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
+        cv.Required(CONF_GATE): GATE_SCHEMA,
+    }
+)
+
+_SIGNATURE_ALT_SCHEMAS = {
+    SIGNATURE_TYPE_MASKED_INT: MASKED_INT_SCHEMA,
+    SIGNATURE_TYPE_TEXT_ENUM: TEXT_ENUM_SCHEMA,
+    SIGNATURE_TYPE_CHANGED: CHANGED_SCHEMA,
+    SIGNATURE_TYPE_CHANGED_GATED: CHANGED_GATED_SCHEMA,
+}
+
+
+def _validate_signature_alt(value):
+    # The type: key determines which of the four mode schemas applies; peek at it first
+    # (with cv.ALLOW_EXTRA so the type-specific keys don't fail this preliminary pass)
+    # before dispatching to the schema that actually validates every key.
+    peek = cv.Schema(
+        {cv.Required(CONF_TYPE): cv.one_of(*SIGNATURE_TYPES, lower=True)},
+        extra=cv.ALLOW_EXTRA,
+    )(value)
+    return _SIGNATURE_ALT_SCHEMAS[peek[CONF_TYPE]](value)
+
+
+RESPONSE_MONITOR_ENTRY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.string,
+        cv.Required(CONF_TRIGGER): _validate_trigger,
+        # No default: like framing.escape and crc.type, a wrong guess here silently breaks
+        # the feature (too short: real presses reported as failures; too long: unrelated
+        # later traffic wrongly credited as a confirmation).
+        cv.Required(CONF_WINDOW): cv.positive_time_period_milliseconds,
+        cv.Required(CONF_SIGNATURE): cv.All(
+            cv.ensure_list(_validate_signature_alt),
+            cv.Length(min=1, max=MAX_SIGNATURE_ALTS),
+        ),
+    }
+)
+
+
+def _validate_response_monitor(value):
+    value = cv.All(
+        cv.ensure_list(RESPONSE_MONITOR_ENTRY_SCHEMA),
+        cv.Length(max=MAX_RESPONSE_MONITOR_ENTRIES),
+    )(value)
+    names = [entry[CONF_NAME] for entry in value]
+    if len(names) != len(set(names)):
+        raise cv.Invalid("response_monitor entry names must be unique")
+    return value
+
+
 def validate_hub(config):
     # Framing-byte distinctness. The framer uses DLE as the escape introducer: in-frame,
     # DLE+STX starts a frame, DLE+ETX ends it, and DLE+escape_byte is a literal DLE. If any
@@ -439,6 +644,11 @@ def validate_hub(config):
             raise cv.Invalid(
                 "discovery: cannot be combined with sniffer_stats: — discovery bypasses the "
                 "framing/validation path that sniffer_stats: records from"
+            )
+        if CONF_RESPONSE_MONITOR in config or CONF_RESPONSE_FIELDS in config:
+            raise cv.Invalid(
+                "discovery: cannot be combined with response_fields:/response_monitor: — "
+                "discovery bypasses the framing/validation and TX path they match against"
             )
         return config
 
@@ -488,6 +698,29 @@ def validate_hub(config):
             f"value has a defined on-wire encoding. See {DOC_COMMAND_FORMAT_URL}"
         )
 
+    # response_monitor: signature entries (and changed_gated's gate) reference response_fields:
+    # by name — cross-check every reference resolves, listing the valid names on a miss (same
+    # style as light: effect: reporting an unknown effect name). button_id: trigger resolution
+    # is handled separately in a FINAL_VALIDATE_SCHEMA, since it needs to walk to another
+    # entity's config elsewhere in the tree.
+    field_names = config.get(CONF_RESPONSE_FIELDS, {})
+    for entry in config.get(CONF_RESPONSE_MONITOR, []):
+        for alt in entry[CONF_SIGNATURE]:
+            if alt[CONF_FIELD] not in field_names:
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': unknown field "
+                    f"'{alt[CONF_FIELD]}' — valid response_fields names are "
+                    f"{sorted(field_names) or '(none declared)'}"
+                )
+            if alt[CONF_TYPE] == SIGNATURE_TYPE_CHANGED_GATED:
+                gate_field = alt[CONF_GATE][CONF_FIELD]
+                if gate_field not in field_names:
+                    raise cv.Invalid(
+                        f"response_monitor entry '{entry[CONF_NAME]}': unknown gate field "
+                        f"'{gate_field}' — valid response_fields names are "
+                        f"{sorted(field_names) or '(none declared)'}"
+                    )
+
     return config
 
 
@@ -519,12 +752,101 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_SNIFFER_STATS): SNIFFER_STATS_SCHEMA,
+            cv.Optional(CONF_RESPONSE_FIELDS): _validate_response_fields,
+            cv.Optional(CONF_RESPONSE_MONITOR): _validate_response_monitor,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     validate_hub,
 )
+
+
+def _resolve_button_trigger(button_config: dict) -> list[int]:
+    # Mirrors RS485FrameHub::build_key_payload_ / queue_raw_frame's on-wire byte layout so
+    # button_id: resolves to the SAME bytes the button will actually transmit, keeping a
+    # single source of truth instead of a hand-copied byte sequence that can drift. Only
+    # covers the button forms that exist today (button/__init__.py's _validate_button);
+    # anything else is a bug in that platform's own validation, not something this function
+    # needs to re-guard against.
+    if CONF_VALUE in button_config:
+        if CONF_COMMAND_FORMAT in button_config:
+            cf = button_config[CONF_COMMAND_FORMAT]
+        else:
+            cf = button_config["_response_monitor_hub_command_format"]
+        preamble = list(cf[CONF_PREAMBLE])
+        postamble = list(cf[CONF_POSTAMBLE])
+        element_bytes = button_config.get(
+            CONF_VALUE_ELEMENT_BYTES, cf[CONF_VALUE_ELEMENT_BYTES]
+        )
+        big_endian = cf[CONF_ENDIAN] == "big"
+        trigger = list(preamble)
+        for value in button_config[CONF_VALUE]:
+            value = int(value)
+            byte_range = (
+                range(element_bytes - 1, -1, -1) if big_endian else range(element_bytes)
+            )
+            trigger.extend((value >> (byte * 8)) & 0xFF for byte in byte_range)
+        trigger.extend(postamble)
+        return trigger
+    # Raw form: frame_type + payload, concatenated verbatim (queue_raw_frame's layout).
+    return list(button_config[CONF_FRAME_TYPE]) + list(button_config[CONF_PAYLOAD])
+
+
+def _final_validate_response_monitor(config):
+    if CONF_RESPONSE_MONITOR not in config:
+        return config
+    full_config = fv.full_config.get()
+    hub_id = config[CONF_ID]
+    for entry in config[CONF_RESPONSE_MONITOR]:
+        trigger = entry[CONF_TRIGGER]
+        button_id = trigger.get(CONF_BUTTON_ID)
+        if button_id is None:
+            continue
+        button_path = full_config.get_path_for_id(button_id)[:-1]
+        # button_path[0] is the top-level YAML domain key the id was declared under (e.g.
+        # "button", "sensor", "number") — button_id: must point at an actual button: entry,
+        # not merely any entity that happens to share this hub's rs485_frame_id (a sensor,
+        # number, or text_sensor config has no CONF_FRAME_TYPE/CONF_PAYLOAD/CONF_VALUE for
+        # _resolve_button_trigger to read, which would otherwise raise an unhandled KeyError
+        # instead of this clean cv.Invalid).
+        button_config = full_config.get_config_for_path(button_path)
+        if (
+            button_path[0] != CONF_BUTTON
+            or button_config.get(CONF_RS485_FRAME_ID) != hub_id
+        ):
+            raise cv.Invalid(
+                f"response_monitor entry '{entry[CONF_NAME]}': button_id "
+                f"'{button_id}' is not a button on this hub"
+            )
+        if CONF_VALUE in button_config and CONF_COMMAND_FORMAT not in button_config:
+            if CONF_COMMAND_FORMAT not in config:
+                # Mirrors button/__init__.py's own _final_validate error for this exact
+                # condition — reached first here because this hub-level validator runs
+                # before the button platform's own final_validate does when rs485_frame: is
+                # declared before button: in YAML (the typical order).
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': button_id '{button_id}' "
+                    "uses 'value:' but neither the button nor the referenced hub has a "
+                    "'command_format:' block, so the value has no defined on-wire encoding"
+                )
+            # Stash the hub's own command_format so _resolve_button_trigger doesn't need a
+            # second full_config walk — mirrors the button platform's own _final_validate,
+            # which already proved a command_format exists somewhere by this point.
+            button_config["_response_monitor_hub_command_format"] = config[
+                CONF_COMMAND_FORMAT
+            ]
+        entry["_resolved_trigger"] = _resolve_button_trigger(button_config)
+        if len(entry["_resolved_trigger"]) > MAX_RESPONSE_TRIGGER_LEN:
+            raise cv.Invalid(
+                f"response_monitor entry '{entry[CONF_NAME]}': button_id '{button_id}' "
+                f"resolves to a {len(entry['_resolved_trigger'])}-byte trigger, exceeding the "
+                f"{MAX_RESPONSE_TRIGGER_LEN}-byte cap"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate_response_monitor
 
 
 async def to_code(config):
@@ -632,6 +954,83 @@ async def to_code(config):
                     disc[CONF_DWELL].total_milliseconds,
                 )
             )
+
+    if CONF_RESPONSE_FIELDS in config or CONF_RESPONSE_MONITOR in config:
+        # Gates the ResponseMonitor field, includes, and the TX/RX hooks out of builds that
+        # don't use it. Production builds (without the define) pay no cost at all.
+        cg.add_define("USE_RS485_FRAME_RESPONSE_MONITOR")
+        cg.add(var.enable_response_monitor())
+
+        # response_fields: is an ordered YAML mapping (Python dicts preserve insertion order);
+        # that order IS each field's runtime index — field_index below is a plain position
+        # lookup, no ID registry involved.
+        field_names = list(config.get(CONF_RESPONSE_FIELDS, {}))
+        for name in field_names:
+            field = config[CONF_RESPONSE_FIELDS][name]
+            frame_type = list(field[CONF_FRAME_TYPE])
+            # frame_type_mask defaults to all-0xFF (today's exact-match behavior) when
+            # omitted — resolved here so the C++ side never needs to special-case "no mask".
+            mask = list(field.get(CONF_FRAME_TYPE_MASK, [0xFF] * len(frame_type)))
+            cg.add(
+                var.add_response_field(
+                    frame_type,
+                    mask,
+                    field[CONF_OFFSET],
+                    field[CONF_LENGTH],
+                    field[CONF_ENDIAN] == "big",
+                )
+            )
+
+        for entry_index, entry in enumerate(config.get(CONF_RESPONSE_MONITOR, [])):
+            # button_id: resolution happened in FINAL_VALIDATE_SCHEMA (needs a full_config
+            # walk to another entity); the literal frame_type: form needs no resolution.
+            trigger_bytes = entry.get("_resolved_trigger") or list(
+                entry[CONF_TRIGGER].get(CONF_FRAME_TYPE, [])
+            )
+            # add_response_monitor_entry's runtime return value is this same entry_index —
+            # entries are added in this exact order, so the Python-side enumerate() index and
+            # the C++-side StaticVector position always agree; no need for the call's return.
+            cg.add(
+                var.add_response_monitor_entry(
+                    trigger_bytes, entry[CONF_WINDOW].total_milliseconds
+                )
+            )
+            for alt in entry[CONF_SIGNATURE]:
+                field_index = field_names.index(alt[CONF_FIELD])
+                if alt[CONF_TYPE] == SIGNATURE_TYPE_MASKED_INT:
+                    cg.add(
+                        var.add_response_monitor_masked_int_alt(
+                            entry_index,
+                            field_index,
+                            alt[CONF_MASK],
+                            list(alt[CONF_VALUE]),
+                        )
+                    )
+                elif alt[CONF_TYPE] == SIGNATURE_TYPE_TEXT_ENUM:
+                    cg.add(
+                        var.add_response_monitor_text_enum_alt(
+                            entry_index, field_index, list(alt[CONF_VALUES])
+                        )
+                    )
+                elif alt[CONF_TYPE] == SIGNATURE_TYPE_CHANGED:
+                    cg.add(
+                        var.add_response_monitor_changed_alt(
+                            entry_index, field_index, alt[CONF_MASK]
+                        )
+                    )
+                else:  # changed_gated
+                    gate = alt[CONF_GATE]
+                    gate_field_index = field_names.index(gate[CONF_FIELD])
+                    cg.add(
+                        var.add_response_monitor_changed_gated_alt(
+                            entry_index,
+                            field_index,
+                            alt[CONF_MASK],
+                            gate_field_index,
+                            gate[CONF_MASK],
+                            gate[CONF_VALUE],
+                        )
+                    )
 
     for conf in config.get(CONF_ON_FRAME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

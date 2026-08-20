@@ -93,7 +93,7 @@ void RS485FrameHub::setup() {
   // send_assembly_buf_ holds an assembled frame_type+payload before framing; it can never
   // legitimately exceed max_frame_length_ (queue_raw_frame rejects anything larger).
   this->send_assembly_buf_.reserve(this->max_frame_length_);
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
+#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
   this->tx_stats_payload_buf_.reserve(this->max_frame_length_);
 #endif
   // tx_escaped_buf_ worst case: every payload byte is DLE and requires an escape byte.
@@ -158,6 +158,10 @@ void RS485FrameHub::loop() {
 #ifdef USE_RS485_FRAME_SNIFFER_STATS
   if (this->sniffer_stats_ != nullptr)
     this->sniffer_stats_->tick(now);
+#endif
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+  if (this->response_monitor_ != nullptr)
+    this->response_monitor_->process_timeouts(now);
 #endif
 }
 
@@ -347,6 +351,10 @@ void RS485FrameHub::process_raw_frame_(uint32_t now) {
 #ifdef USE_RS485_FRAME_SNIFFER_STATS
   if (this->sniffer_stats_ != nullptr)
     this->sniffer_stats_->record(this->rx_payload_, now);
+#endif
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+  if (this->response_monitor_ != nullptr)
+    this->response_monitor_->on_frame_received(this->rx_payload_, now);
 #endif
 
   for (auto *trigger : this->triggers_) {
@@ -610,15 +618,29 @@ void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame, uint32_t now
     format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, frame.data(), frame.size());
     ESP_LOGD(TAG, "TX %s", this->hex_log_buf_.get());
   }
+#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
+  bool need_tx_payload = false;
 #ifdef USE_RS485_FRAME_SNIFFER_STATS
-  if (this->sniffer_stats_ != nullptr) {
+  need_tx_payload = need_tx_payload || this->sniffer_stats_ != nullptr;
+#endif
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+  need_tx_payload = need_tx_payload || this->response_monitor_ != nullptr;
+#endif
+  if (need_tx_payload) {
     this->extract_tx_payload_(frame, this->tx_stats_payload_buf_);
-    this->sniffer_stats_->record_tx(this->tx_stats_payload_buf_, now);
+#ifdef USE_RS485_FRAME_SNIFFER_STATS
+    if (this->sniffer_stats_ != nullptr)
+      this->sniffer_stats_->record_tx(this->tx_stats_payload_buf_, now);
+#endif
+#ifdef USE_RS485_FRAME_RESPONSE_MONITOR
+    if (this->response_monitor_ != nullptr)
+      this->response_monitor_->on_trigger_sent(this->tx_stats_payload_buf_, now);
+#endif
   }
 #endif
 }
 
-#ifdef USE_RS485_FRAME_SNIFFER_STATS
+#if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
 void RS485FrameHub::extract_tx_payload_(const std::vector<uint8_t> &frame, std::vector<uint8_t> &out) const {
   out.clear();
   if (frame.size() < 4)
