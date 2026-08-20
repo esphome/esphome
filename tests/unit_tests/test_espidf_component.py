@@ -1084,3 +1084,18 @@ def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
     c.data = {"build": {"extraScript": "extra.py"}}
     _emit_idf_component(c)
     assert c.data["build"]["flags"] == ["-lesp32"]
+
+
+def test_build_flags_dangling_flag_does_not_cross_entries(
+    tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Each entry is lexed independently, as ParseFlags does: a dangling -I ending one
+    entry warns instead of absorbing the next entry's first token."""
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"flags": ["-Wall -I", "-DFOO=1"]}}
+    content = generate_cmakelists_txt(c)
+    assert "FOO=1" in content
+    assert "-I-DFOO" not in content
+    assert "Ignoring trailing '-I'" in caplog.text

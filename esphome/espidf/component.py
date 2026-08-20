@@ -96,14 +96,17 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # flag and its argument (e.g. "-include cp_custom_alloc.h"); bare
     # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
     # prefix classifiers below still route them.
-    build_flags = join_flag_args(
-        (
-            token
-            for entry in build_flags
-            for token in split_flag_entry(entry, f"library {component.name}")
-        ),
-        f"library {component.name}",
-    )
+    # Joined per entry, as SCons's ParseFlags lexes each string
+    # independently: a dangling -I ending one entry must warn, not absorb
+    # the next entry's first token.
+    build_flags = [
+        token
+        for entry in build_flags
+        for token in join_flag_args(
+            split_flag_entry(entry, f"library {component.name}"),
+            f"library {component.name}",
+        )
+    ]
 
     # List all sources files
     build_src_files = collect_filtered_files(
