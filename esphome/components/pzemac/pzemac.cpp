@@ -14,6 +14,7 @@ void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const u
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
   }
+
   this->last_update_time_ = millis();
 
   // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
@@ -89,9 +90,8 @@ void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const u
   }
 }
 
-void PZEMAC::update() {
-  this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT);
-  // void PZEMAC::update() {  this->read_input_registers(0, PZEM_REGISTER_COUNT);
+void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT);
+
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
       (millis() - this->last_update_time_) > this->get_update_interval() * 2) {
     ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!!!", int(this->address_));
@@ -129,7 +129,7 @@ void PZEMAC::dump_config() {
 
 void PZEMAC::reset_energy_() {
   const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY};
-  this->send_pdu(pdu);
+  this->queue_pdu(pdu);
 }
 
 }  // namespace esphome::pzemac
