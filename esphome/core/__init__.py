@@ -21,6 +21,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    NATIVE_TOOLCHAINS,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -991,6 +992,12 @@ class EsphomeCore:
         choice, like its ``using_toolchain_*`` siblings.
         """
         return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_native_toolchain(self):
+        """Whether the selected toolchain builds natively, without reading
+        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``)."""
+        return self.toolchain in NATIVE_TOOLCHAINS
 
     @property
     def using_zephyr(self):
