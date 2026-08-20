@@ -5,7 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <span>
+#include <vector>
 
 namespace esphome::pzemac {
 
