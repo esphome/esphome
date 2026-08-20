@@ -74,6 +74,39 @@ class TestIsTransientDownloadError:
 
         assert is_transient_download_error(chained)
 
+    def test_implicit_context_does_not_reclassify(self) -> None:
+        """A resolution failure from an unrelated earlier attempt reaches the
+        final error only via implicit __context__ (raise inside an except
+        block); it must not turn a genuine connection reset permanent."""
+        try:
+            try:
+                raise socket.gaierror(socket.EAI_NONAME, "first attempt")
+            except socket.gaierror:
+                raise req.ConnectionError("reset by peer") from None
+        except req.ConnectionError as reset:
+            assert reset.__context__ is not None
+            assert is_transient_download_error(reset)
+
+    def test_gaierror_without_errno_stays_transient(self) -> None:
+        """A gaierror carrying no EAI code cannot prove a hard failure."""
+        chained = req.ConnectionError("resolution failed")
+        chained.__cause__ = socket.gaierror("no errno")
+
+        assert is_transient_download_error(chained)
+
+    def test_mixed_chain_hard_failure_wins(self) -> None:
+        """EAI_AGAIN in the chain does not mask a hard failure elsewhere."""
+        again = socket.gaierror(socket.EAI_AGAIN, "temporary failure")
+        hard = socket.gaierror(socket.EAI_NONAME, "unknown host")
+
+        outer = req.ConnectionError(hard)
+        outer.__cause__ = again
+        assert not is_transient_download_error(outer)
+
+        outer = req.ConnectionError(again)
+        outer.__cause__ = hard
+        assert not is_transient_download_error(outer)
+
     def test_dns_walk_survives_exception_cycles(self) -> None:
         """A cyclic cause chain must terminate (and stay transient when no
         resolution failure is present)."""

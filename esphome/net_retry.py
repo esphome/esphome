@@ -25,9 +25,21 @@ def _is_permanent_dns_failure(e: BaseException) -> bool:
 
     EAI_AGAIN ("temporary failure in name resolution", the flaky container
     resolver case) stays retryable; only hard resolution failures like
-    NXDOMAIN count. requests wraps urllib3's MaxRetryError, which carries
-    the underlying NameResolutionError in its ``reason`` attribute rather
-    than the __cause__ chain, so attributes and args are walked as well.
+    NXDOMAIN count. Everything except EAI_AGAIN is treated as permanent:
+    deliberately narrower than git.py, which retries NXDOMAIN too. Codes
+    like EAI_NONAME can occur during a brief network outage, but a 6s
+    backoff rarely outlives one, and permanent means callers with a cached
+    copy fall back to it immediately instead of sleeping first (the
+    offline-build case). The trade-off is that a hard resolver failure on
+    a first download fails without retrying, same as before retries
+    existed.
+
+    Only the deliberate chain is walked: ``__cause__``, ``args`` (requests
+    wraps MaxRetryError as ``ConnectionError(e)`` without ``from``) and
+    urllib3 MaxRetryError's ``reason`` attribute (NameResolutionError never
+    lands on the cause chain). Implicit ``__context__`` is skipped so a
+    resolution failure from an unrelated earlier attempt cannot reclassify
+    an error it did not cause.
     """
     import socket
 
@@ -37,23 +49,17 @@ def _is_permanent_dns_failure(e: BaseException) -> bool:
         exc = stack.pop()
         if id(exc) in seen:
             continue
-        if isinstance(exc, socket.gaierror):
-            # Everything except EAI_AGAIN is treated as permanent. This is
-            # deliberately narrower than git.py, which retries NXDOMAIN
-            # too: codes like EAI_NONAME can occur during a brief network
-            # outage, but a 6s backoff rarely outlives one, and permanent
-            # means callers with a cached copy fall back to it immediately
-            # instead of sleeping first (the offline-build case). The
-            # trade-off is that a hard resolver failure on a first
-            # download fails without retrying, same as before retries
-            # existed.
-            return exc.errno != socket.EAI_AGAIN
+        if (
+            isinstance(exc, socket.gaierror)
+            and exc.errno is not None
+            and exc.errno != socket.EAI_AGAIN
+        ):
+            return True
         seen.add(id(exc))
         stack.extend(
             nxt
             for nxt in (
                 exc.__cause__,
-                exc.__context__,
                 getattr(exc, "reason", None),  # urllib3 MaxRetryError
                 *exc.args,
             )
