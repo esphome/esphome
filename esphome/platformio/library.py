@@ -562,6 +562,23 @@ def split_flag_entry(entry: str, owner: str) -> list[str]:
         raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
 
 
+def lex_build_flags(entries, owner: str) -> list[str]:
+    """Shell-lex a manifest ``build.flags`` list into joined tokens.
+
+    The composition every backend needs: each entry is lexed the way
+    PlatformIO's ParseFlags does, and bare ``-I``/``-L``/``-l``/``-D``
+    tokens re-glue to their argument across the whole stream.
+    """
+    return join_flag_args(
+        (
+            token
+            for entry in ensure_list(entries)
+            for token in split_flag_entry(entry, owner)
+        ),
+        owner,
+    )
+
+
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
     the way PlatformIO's ParseFlags lexes them."""

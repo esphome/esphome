@@ -414,7 +414,9 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
     # An edit to the surgery constants invalidates the stamp (a stale linker
     # script would otherwise persist until an esphome clean)
     with (
-        patch.object(arduino8266.build_surgery, "TESTING_FLASH_SIZE", "0x3000000"),
+        patch.object(
+            arduino8266.build_surgery, "surgery_fingerprint", return_value="changed"
+        ),
         patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run,
     ):
         _run_generate_ld_scripts(paths)

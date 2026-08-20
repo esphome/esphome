@@ -31,11 +31,10 @@ from esphome.platformio.library import (
     convert_libraries,
     ensure_list,
     is_lib_ignored,
-    join_flag_args,
+    lex_build_flags,
     lib_ignore_set,
     normalize_dependencies,
     parse_library_properties,
-    split_flag_entry,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,14 +76,7 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     # PlatformIO shell-lexes each build.flags entry
-    flag_tokens = join_flag_args(
-        (
-            token
-            for entry in ensure_list(build.get("flags", []))
-            for token in split_flag_entry(entry, f"library {name}")
-        ),
-        f"library {name}",
-    )
+    flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
     lib = ArduinoLibrary(name=name)
     include_flags: list[str] = []
@@ -153,20 +145,20 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
     for library in CORE.platformio_libraries.values():
         if is_lib_ignored(library.name, lib_ignore):
             continue
-        # A version pin means a registry package ("pngle@1.1.0"), never a
-        # framework-bundled library.
+        # Only a bare name with a matching framework directory is bundled: a
+        # version pin means a registry package ("pngle@1.1.0"), and a bare
+        # name without the directory resolves from the registry at the
+        # latest version, matching PlatformIO (a typo fails loudly as a
+        # registry lookup error).
         if (
-            library.repository
-            or library.version
-            or not library.name
-            or "/" in library.name
+            not library.repository
+            and not library.version
+            and library.name
+            and "/" not in library.name
+            and (framework_path / "libraries" / library.name).is_dir()
         ):
-            external.append(library)
-        elif (framework_path / "libraries" / library.name).is_dir():
             bundled.append(_bundled_library(framework_path, library.name))
         else:
-            # A bare registry name; resolved at the latest version, matching
-            # PlatformIO (a typo fails loudly as a registry lookup error).
             external.append(library)
 
     converted: list[ArduinoLibrary] = []

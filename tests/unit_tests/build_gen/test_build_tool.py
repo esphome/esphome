@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.arduino8266 import build_tool
+from esphome.build_gen import build_tool
 
 
 def test_ar_removes_stale_archive(tmp_path: Path) -> None:
