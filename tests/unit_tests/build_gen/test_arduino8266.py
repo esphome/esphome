@@ -1,11 +1,11 @@
-"""Drift tests for the native ESP8266 Arduino build generator.
+"""Drift tests for the native ESP8266 Arduino build spec.
 
 These pin the build spec transliterated from the PlatformIO builder
 (framework-arduinoespressif8266/tools/platformio-build.py and
 platform-espressif8266/builder/main.py) so a change on either side of the
 toolchain seam is caught: the knob-define precedence, the define/flag sets,
-the link line, and the core source exclusions must keep matching what the
-PlatformIO toolchain produces for the same configuration.
+and the linker-script generation must keep matching what the PlatformIO
+toolchain produces for the same configuration.
 """
 
 from __future__ import annotations
@@ -20,9 +20,7 @@ from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
     _flag_defines,
-    _flash_size_str,
     _resolve_build_config,
-    get_flash_ld_path,
 )
 from esphome.components.esp8266.boards import ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
@@ -289,10 +287,12 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
         _run_generate_ld_scripts(paths)
     mock_run.assert_not_called()
 
-    # An edit to the surgery constants invalidates the stamp (a stale linker
-    # script would otherwise persist until an esphome clean)
+    # A surgery edit invalidates the stamp via the fingerprint (a stale
+    # linker script would otherwise persist until an esphome clean)
     with (
-        patch.object(arduino8266.build_surgery, "TESTING_FLASH_SIZE", "0x3000000"),
+        patch.object(
+            arduino8266.build_surgery, "surgery_fingerprint", return_value="changed"
+        ),
         patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run,
     ):
         _run_generate_ld_scripts(paths)
@@ -326,37 +326,6 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
         ld_dir = _run_generate_ld_scripts(paths)
     patched = (ld_dir / "testing_eagle.flash.4m.ld").read_text()
     assert "len = 0x2000000" in patched
-
-
-def test_get_flash_ld_path(tmp_path: Path) -> None:
-
-    CORE.testing_mode = True
-    assert get_flash_ld_path(tmp_path) == (
-        tmp_path / "ld" / "testing_eagle.flash.4m.ld"
-    )
-
-    CORE.testing_mode = False
-    with (
-        patch(
-            "esphome.arduino8266.framework.get_framework_path",
-            return_value=tmp_path / "framework",
-        ),
-        patch(
-            "esphome.arduino8266.framework.framework_package_version",
-            return_value="3.30102.0",
-        ),
-    ):
-        assert get_flash_ld_path(tmp_path) == (
-            tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
-        )
-
-
-def test_flash_size_str() -> None:
-
-    assert _flash_size_str("eagle.flash.4m.ld") == "4M"
-    assert _flash_size_str("eagle.flash.512k.ld") == "512K"
-    with pytest.raises(EsphomeError, match="Cannot parse flash size"):
-        _flash_size_str("bogus.ld")
 
 
 def test_build_config_nonosdk_precedence() -> None:
@@ -447,9 +416,3 @@ def test_flag_defines_joins_spaced_define() -> None:
     defines = _flag_defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
-
-
-def test_ninja_path_escaping() -> None:
-    """Build-statement paths and command-line paths escape differently."""
-    assert arduino8266._e("a b:$c") == "a$ b$:$$c"
-    assert arduino8266._q("/a b/$x") == '"/a b/$$x"'

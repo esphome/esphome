@@ -1,11 +1,11 @@
-"""Native ninja build generator for the ESP8266 Arduino core.
+"""Build specification for the native ESP8266 Arduino toolchain.
 
 Transliterates the PlatformIO build spec for the Arduino ESP8266 framework
 (``framework-arduinoespressif8266/tools/platformio-build.py`` plus
-``platform-espressif8266/builder/main.py``) into a ``build.ninja`` under
-``.pioenvs/<name>/``. The flag sets, defines, link line, linker-script
-generation, and ``elf2bin`` invocation deliberately match what PlatformIO
-produces so the binaries stay near-identical between the two toolchains.
+``platform-espressif8266/builder/main.py``): the flag sets, defines, and
+linker-script generation deliberately match what PlatformIO produces so the
+binaries stay near-identical between the two toolchains. The ninja emission
+(``write_project``) builds on these pieces.
 
 The ``PIO_FRAMEWORK_ARDUINO_*`` knob defines (lwIP variant, NONOS SDK
 version, MMU layout, exceptions, waveform phase) keep working: they are read
@@ -21,9 +21,6 @@ import re
 import subprocess
 
 from esphome.components.esp8266 import build_surgery
-from esphome.components.esp8266.boards import BOARDS, ESP8266_LD_SCRIPTS
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_FLASH_SIZE
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import join_flag_args, split_flag_entry
@@ -58,6 +55,36 @@ _LWIP_VARIANTS = (
     ),
 )
 _LWIP_DEFAULT = (536, 1, 0, "lwip2-536-feat")
+
+# knob define -> MMU_* defines, first match wins (as in platformio-build.py)
+_MMU_VARIANTS = (
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
+        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED",
+        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED",
+        [
+            "MMU_IRAM_SIZE=0x8000",
+            "MMU_ICACHE_SIZE=0x4000",
+            "MMU_SEC_HEAP_SIZE=0x4000",
+            "MMU_SEC_HEAP=0x40108000",
+        ],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K",
+        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
+        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"],
+    ),
+)
+_MMU_DEFAULT = ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000")
 
 _ASFLAGS = ["-mlongcalls", "-mtext-section-literals"]
 _CFLAGS = [
@@ -179,40 +206,22 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         "VTABLES_IN_FLASH",
     )
 
-    if "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48" in defines:
-        mmu = ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED" in defines:
-        mmu = ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x4000",
-            "MMU_SEC_HEAP_SIZE=0x4000",
-            "MMU_SEC_HEAP=0x40108000",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x8000",
-            "MMU_EXTERNAL_HEAP=128",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x8000",
-            "MMU_EXTERNAL_HEAP=256",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
-        if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
-            raise EsphomeError(
-                "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
-                "MMU_ICACHE_SIZE build flags"
+    mmu = next((variant for knob, variant in _MMU_VARIANTS if knob in defines), None)
+    if mmu is None:
+        if "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
+            if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
+                raise EsphomeError(
+                    "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
+                    "MMU_ICACHE_SIZE build flags"
+                )
+            # Sorted so build.ninja and the linker-script stamp stay
+            # byte-stable across runs (the flag set has no deterministic
+            # iteration order).
+            mmu = sorted(
+                body for name, body in defines.items() if name.startswith("MMU_")
             )
-        # Sorted so build.ninja and the linker-script stamp stay byte-stable
-        # across runs (the flag set has no deterministic iteration order).
-        mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
-    else:
-        mmu = ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
+        else:
+            mmu = list(_MMU_DEFAULT)
 
     return _BuildConfig(
         nonosdk=nonosdk,
@@ -223,15 +232,6 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         knob_defines=knob_defines,
         mmu_defines=mmu,
     )
-
-
-def _flash_ld_name(board: str) -> str:
-    return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
-
-
-def _e(value) -> str:
-    """Escape a path or token for a ninja file."""
-    return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
 
 
 def _quote_arg(tok: str) -> str:
@@ -245,11 +245,6 @@ def _quote_arg(tok: str) -> str:
     quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
     quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
     return f'"{quoted}"'
-
-
-def _q(value) -> str:
-    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
-    return _quote_arg(str(value).replace("$", "$$"))
 
 
 _NEEDS_QUOTE = re.compile(r'[\s"\']')
@@ -370,10 +365,9 @@ def generate_ld_scripts(
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
-        + f" {build_surgery.RATETABLE_RULE}"
-        + f" {build_surgery.TESTING_IRAM_SIZE}"
-        + f" {build_surgery.TESTING_DRAM_SIZE}"
-        + f" {build_surgery.TESTING_FLASH_SIZE}"
+        # One fingerprint instead of enumerating surgery internals here, so
+        # any behavioral edit in build_surgery self-invalidates the cache
+        + f" {build_surgery.surgery_fingerprint()}"
     )
     if not (
         output.is_file()
@@ -404,25 +398,3 @@ def generate_ld_scripts(
                 ("dram0_0_seg", "irom0_0_seg"),
             ),
         )
-
-
-def get_flash_ld_path(build_dir: Path) -> Path:
-    """The flash linker script the link actually uses (for size reporting)."""
-    from esphome.arduino8266.framework import (
-        framework_package_version,
-        get_framework_path,
-    )
-
-    name = _flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD])
-    if CORE.testing_mode:
-        return build_dir / "ld" / f"testing_{name}"
-    version = framework_package_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
-    return get_framework_path(version) / "tools" / "sdk" / "ld" / name
-
-
-def _flash_size_str(flash_ld_name: str) -> str:
-    """Flash size for elf2bin, derived from the ld script name (PIO logic)."""
-    match = re.search(r"\.flash\.(\d+)([mk])", flash_ld_name)
-    if not match:
-        raise EsphomeError(f"Cannot parse flash size from {flash_ld_name}")
-    return f"{match.group(1)}{match.group(2).upper()}"
