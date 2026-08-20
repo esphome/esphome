@@ -231,18 +231,22 @@ class IncludeFile:
     def __init__(
         self,
         parent_file: Path,
-        file: Path | str,
+        file: str,
         vars: dict[str, Any] | None,
         yaml_loader: Callable[[Path], Any],
     ) -> None:
         self.parent_file = parent_file
-        self.file = Path(file)
+        # The raw include text may be a substitution/Jinja expression, so it
+        # must never round-trip through Path(): on Windows, WindowsPath str()
+        # rewrites "/" to "\", which Jinja then decodes as escapes like
+        # "\b" -> backspace (issue #18545).
+        self.file = file
         self.vars = vars
         self.yaml_loader = yaml_loader
         self._content: Any = _UNSET
 
     def __repr__(self) -> str:
-        return f"IncludeFile({self.file.as_posix()})"
+        return f"IncludeFile({self.file})"
 
     def load(self) -> Any:
         """Load and cache the included file content.
@@ -258,15 +262,15 @@ class IncludeFile:
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
-        self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self._content = self.yaml_loader(self.parent_file.parent / self.file)
         self._content = add_context(self._content, self.vars)
         return self._content
 
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
-        return has_substitution_or_expression(str(self.file))
+        return has_substitution_or_expression(self.file)
 
-    def with_file(self, file: Path | str) -> IncludeFile:
+    def with_file(self, file: str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
         return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
 
@@ -313,7 +317,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[Path]:
     parent_dir = include.parent_file.parent
     parent_resolved = include.parent_file.resolve()
     candidates: list[Path] = []
-    for pattern in include_candidate_patterns(str(include.file)):
+    for pattern in include_candidate_patterns(include.file):
         if "*" in pattern:
             matches = sorted(_glob_include_candidates(parent_dir, pattern))
         else:
@@ -362,7 +366,7 @@ def _load_include_candidates(
             continue
         expanded_paths.add(candidate)
         try:
-            loaded = include.with_file(candidate).load()
+            loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
             # Unlike an unresolved pattern (expected during the discovery
             # re-parse), a matched on-disk candidate that fails to load is a
@@ -794,6 +798,10 @@ class ESPHomeLoaderMixin:
             file = fields.get("file")
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
+            if not isinstance(file, str):
+                raise yaml.MarkedYAMLError(
+                    "Include 'file' must be a string", node.start_mark
+                )
             vars = fields.get(CONF_VARS)
             return file, vars
 
@@ -1333,11 +1341,11 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_include_file(self, value):
         if value.vars:
-            mapping = {"file": value.file.as_posix(), "vars": value.vars}
+            mapping = {"file": value.file, "vars": value.vars}
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
-        return self.represent_scalar(tag="!include", value=value.file.as_posix())
+        return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
         if is_secret(value.id):
