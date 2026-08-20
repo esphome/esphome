@@ -3189,6 +3189,8 @@ def test_require_platformio_toolchain() -> None:
         ("host", {}),
         ("rp2", {"board": "rpipicow"}),
         ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+        # The legacy stub platform must reject too, not just the chip families
+        ("libretiny", {}),
     ],
 )
 def test_every_platformio_only_platform_rejects_arduino_toolchain(
