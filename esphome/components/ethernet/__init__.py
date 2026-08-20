@@ -767,7 +767,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
             raise cv.Invalid(error_msg, path=pin_path)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
     if "wifi" in fv.full_config.get():
@@ -787,7 +787,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

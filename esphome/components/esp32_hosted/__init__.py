@@ -126,7 +126,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # The esp_hosted releases compatible with older ESP-IDF versions crash at
     # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
     # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
@@ -136,7 +136,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.3."
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
