@@ -50,9 +50,11 @@ def _paths(tmp_path: Path) -> dict[str, Path]:
 def test_path_getters(tmp_path: Path) -> None:
     assert toolchain.get_build_dir() == CORE.relative_pioenvs_path("test8266")
     assert toolchain.get_elf_path().name == "firmware.elf"
-    assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line"
-    assert toolchain.get_objdump_path().name == "xtensa-lx106-elf-objdump"
-    assert toolchain.get_readelf_path().name == "xtensa-lx106-elf-readelf"
+    # Pin both suffix variants so the test passes on every host platform
+    with patch.object(toolchain, "_EXE_SUFFIX", ""):
+        assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line"
+        assert toolchain.get_objdump_path().name == "xtensa-lx106-elf-objdump"
+        assert toolchain.get_readelf_path().name == "xtensa-lx106-elf-readelf"
     # Windows binutils carry the executable suffix
     with patch.object(toolchain, "_EXE_SUFFIX", ".exe"):
         assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line.exe"

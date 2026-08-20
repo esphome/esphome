@@ -258,17 +258,20 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert '"$in"' not in content
     assert '"$out"' not in content
     # -L/-l from esphome build_flags reach the link line, not the compiles;
-    # spaced forms ("-L /path") are shell-lexed the way PlatformIO does
-    assert '-L"/opt/blobs"' in content
+    # spaced forms ("-L /path") are shell-lexed the way PlatformIO does.
+    # str(Path(...)) so the separator matches the host platform.
+    opt_blobs = str(Path("/opt/blobs"))
+    spc_blobs = str(Path("/spc/blobs"))
+    assert f'-L"{opt_blobs}"' in content
     assert "-luser_blob" in content
-    assert '-L"/spc/blobs"' in content
+    assert f'-L"{spc_blobs}"' in content
     assert "-lspaced_blob" in content
     for line in content.splitlines():
         if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
             assert "user_blob" not in line
-            assert "/opt/blobs" not in line
+            assert opt_blobs not in line
             assert "spaced_blob" not in line
-            assert "/spc/blobs" not in line
+            assert spc_blobs not in line
     # System libraries with the selected lwIP variant, in the builder's order
     assert (
         "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
