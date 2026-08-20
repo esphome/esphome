@@ -396,16 +396,18 @@ def run_compile(config, verbose: bool) -> int:
         if rc != 0:
             _LOGGER.error("Component discovery failed")
             return rc
+        _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
+        write_project(minimal=False)
         # Restamp the reference file has_outdated_files() compares against.
         # A reconfigure that only changes properties or plain variables
         # (sdkconfig options, the exclusion set) does not rewrite
         # CMakeCache.txt, so without this the watched inputs stay newer
         # forever and every subsequent build repeats the discovery pass.
+        # Done after the full write so an interrupt cannot leave a minimal
+        # CMakeLists behind that is already marked fresh.
         cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
         if cmakecache.is_file():
             os.utime(cmakecache)
-        _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
-        write_project(minimal=False)
         if CORE.testing_mode:
             # Reconfigure again so cmake is up to date with the full
             # component list before the build's idf.py invocation runs --
