@@ -335,6 +335,72 @@ char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
 }
 
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes) {
+  if (buf.empty())
+    return "";
+  // Reserve one byte for the null terminator.
+  const size_t limit = buf.size() - 1;
+  size_t pos = 0;
+  for (char ch : value) {
+    auto c = static_cast<unsigned char>(ch);
+    // Every short form is a backslash followed by a single character, so only that character is needed here. Keeping
+    // it a char rather than a string avoids putting the sequences in read only data, which is RAM on the ESP8266.
+    char escape = '\0';
+    switch (c) {
+      case '"':
+        escape = '"';
+        break;
+      case '\\':
+        escape = '\\';
+        break;
+      case '\n':
+        escape = 'n';
+        break;
+      case '\r':
+        escape = 'r';
+        break;
+      case '\t':
+        escape = 't';
+        break;
+      case '\b':
+        escape = 'b';
+        break;
+      case '\f':
+        escape = 'f';
+        break;
+      default:
+        break;
+    }
+    // " and \ are always written as two characters, but the control characters fall through to \u00XX when the
+    // caller did not ask for the short forms.
+    if (!short_control_escapes && c < 0x20)
+      escape = '\0';
+    if (escape != '\0') {
+      if (pos + 2 > limit)
+        break;
+      buf[pos++] = '\\';
+      buf[pos++] = escape;
+    } else if (c < 0x20) {
+      // Remaining control characters have no short form and must be written as \u00XX. The value is below 0x20, so
+      // the two high hex digits are always zero.
+      if (pos + JSON_ESCAPE_MAX_EXPANSION > limit)
+        break;
+      buf[pos++] = '\\';
+      buf[pos++] = 'u';
+      buf[pos++] = '0';
+      buf[pos++] = '0';
+      buf[pos++] = format_hex_char(static_cast<uint8_t>(c >> 4));
+      buf[pos++] = format_hex_char(static_cast<uint8_t>(c & 0x0F));
+    } else {
+      if (pos + 1 > limit)
+        break;
+      buf[pos++] = static_cast<char>(c);
+    }
+  }
+  buf[pos] = '\0';
+  return buf.data();
+}
+
 // format_hex (std::string returning overloads) moved to alloc_helpers.cpp
 
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
@@ -513,13 +579,8 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
-static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz"
-                                            "0123456789+/";
-
-// Helper function to find the index of a base64/base64url character in the lookup table.
-// Returns the character's position (0-63) if found, or 0 if not found.
+// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
+// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
 // Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
@@ -527,13 +588,18 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
-  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
-  if (c == '-')
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 26;
+  if (c >= '0' && c <= '9')
+    return c - '0' + 52;
+  // base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '+' || c == '-')
     return 62;
-  if (c == '_')
+  if (c == '/' || c == '_')
     return 63;
-  const char *pos = strchr(BASE64_CHARS, c);
-  return pos ? (pos - BASE64_CHARS) : 0;
+  return 0;
 }
 
 // Check if character is valid base64 or base64url
@@ -742,13 +808,13 @@ void HighFrequencyLoopRequester::stop() {
 // get_mac_address, get_mac_address_pretty moved to alloc_helpers.cpp
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_lower_no_sep(mac, buf.data());
 }
 
 const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

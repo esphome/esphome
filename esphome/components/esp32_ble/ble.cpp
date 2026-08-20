@@ -58,6 +58,7 @@ static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
   case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_START_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT
 
@@ -647,6 +648,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_LOCAL_IR_EVT:                  // Local identity root key generated at security init
+    case ESP_GAP_BLE_LOCAL_ER_EVT:                  // Local encryption root key generated at security init
       return;
 
     default:
@@ -673,11 +676,23 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 }
 #endif
 
+void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
+  // The running stack owns the address (on hosted controllers it lives in
+  // the remote chip's efuse); null before init becomes all-zero.
+  const uint8_t *mac = esp_bt_dev_get_address();
+  if (mac != nullptr) {
+    memcpy(out, mac, MAC_ADDRESS_SIZE);
+  } else {
+    memset(out, 0, MAC_ADDRESS_SIZE);
+  }
+}
+
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() {
-  const uint8_t *mac_address = esp_bt_dev_get_address();
-  if (mac_address) {
+  uint8_t mac_address[MAC_ADDRESS_SIZE];
+  this->get_mac_msb_first(mac_address);
+  if (mac_address_is_valid(mac_address)) {
     const char *io_capability_s;
     switch (this->io_cap_) {
       case ESP_IO_CAP_OUT:
@@ -700,7 +715,7 @@ void ESP32BLE::dump_config() {
         break;
     }
 
-    char mac_s[18];
+    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
