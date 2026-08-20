@@ -48,3 +48,31 @@ def test_find_ninja_missing_everywhere(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="ninja not found"),
     ):
         ninja_helper.find_ninja()
+
+
+def test_escape_ninja_specials() -> None:
+    assert ninja_helper.escape("a b:c$d") == "a$ b$:c$$d"
+
+
+def test_quote_arg_windows_argv_rule() -> None:
+    # Backslash runs double only before a quote (subprocess.list2cmdline rule)
+    assert ninja_helper.quote_arg('-DX=a\\"b c') == '"-DX=a\\\\\\"b c"'
+    assert ninja_helper.quote_arg("a b\\") == '"a b\\\\"'
+
+
+def test_shell_token_quotes_only_when_needed() -> None:
+    assert ninja_helper.shell_token("-Os") == "-Os"
+    assert ninja_helper.shell_token("-DP=C:\\x y") == '"-DP=C:\\x y"'
+    assert ninja_helper.shell_token("plain", force=True) == '"plain"'
+
+
+def test_shell_token_quotes_shell_metacharacters() -> None:
+    """Tokens like -DMASK=(1<<3) must not reach /bin/sh -c bare."""
+    assert ninja_helper.shell_token("-DMASK=(1<<3)") == '"-DMASK=(1<<3)"'
+    assert ninja_helper.shell_token("-DX=a;b") == '"-DX=a;b"'
+    assert ninja_helper.shell_token("-DX=$HOME") == '"-DX=$$HOME"'
+
+
+def test_quote_path_force_quotes() -> None:
+    assert ninja_helper.quote_path(Path("a b")) == '"a b"'
+    assert ninja_helper.quote_path("simple") == '"simple"'

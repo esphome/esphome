@@ -153,6 +153,8 @@ _CCFLAGS = [
     "-free",
     "-fipa-pta",
 ]
+# Upstream's -u _scanf_float is deliberately absent: it is re-added from
+# KEY_SCANF_FLOAT at emission (the remove_float_scanf extra script's job).
 _LINKFLAGS = [
     "-Os",
     "-nostdlib",
@@ -207,14 +209,10 @@ def _flag_defines() -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
     for flag in CORE.build_flags:
-        # Shell-lex multi-token entries the way PlatformIO does, so a knob
-        # in "-DKNOB -DOTHER" or a spaced "-D KNOB" is still detected;
-        # single tokens pass verbatim to keep quoting in their bodies intact.
-        tokens = (
-            join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
-            if " " in flag
-            else (flag,)
-        )
+        # Shell-lex every entry the way PlatformIO's ParseFlags does, so a
+        # knob in "-DKNOB -DOTHER", a spaced "-D KNOB", and quoted bodies all
+        # read identically to _project_flags (and the compile line).
+        tokens = join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
         for tok in tokens:
             if tok.startswith("-D") and len(tok) > 2:
                 body = tok[2:]
@@ -266,6 +264,15 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 body for name, body in defines.items() if name.startswith("MMU_")
             )
         else:
+            if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
+                # Same diagnostic the PlatformIO builder prints: without the
+                # knob the linker script keeps the default layout while the
+                # compile line carries the custom sizes
+                _LOGGER.warning(
+                    "Detected custom MMU flags; use "
+                    "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM to disable the "
+                    "default configuration"
+                )
             mmu = list(_MMU_DEFAULT)
 
     return _BuildConfig(
@@ -495,6 +502,9 @@ def write_project(paths: InstalledPaths) -> bool:
         cache_key="arduino8266",
     )
 
+    if not src_dir.is_dir():
+        # Generated project state, not install state: clean-all would not help
+        raise EsphomeError(f"Generated source directory {src_dir} is missing")
     # A missing install directory would otherwise surface as a wall of
     # include errors; failing here names the path instead.
     include_dirs = [
@@ -505,7 +515,7 @@ def write_project(paths: InstalledPaths) -> bool:
         sdk / "lwip2" / "include",
         variant_dir,
     ]
-    for required in include_dirs:
+    for required in include_dirs[1:]:
         if not required.is_dir():
             raise EsphomeError(
                 f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
@@ -534,7 +544,14 @@ def write_project(paths: InstalledPaths) -> bool:
         + common
         + get_project_cxx_compile_flags()
     )
-    asflags = _ASFLAGS + defines + includes + project_compile_flags
+    # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
+    # so only -D/-I user flags reach assembly there; match it.
+    asflags = (
+        _ASFLAGS
+        + defines
+        + includes
+        + [f for f in project_compile_flags if f.startswith(("-D", "-I"))]
+    )
 
     # build_unflags applies to the framework flag sets too (compile and link),
     # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
@@ -546,7 +563,7 @@ def write_project(paths: InstalledPaths) -> bool:
     if esp8266_data[KEY_SCANF_FLOAT]:
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
-    link_flags += [flag for lib in libraries for flag in lib.link_flags]
+    link_flags += [_shell_token(flag) for lib in libraries for flag in lib.link_flags]
     flash_ld = _active_flash_ld_name(flash_ld_name)
     link_flags += ["-T", flash_ld]
 
@@ -616,7 +633,7 @@ def write_project(paths: InstalledPaths) -> bool:
         f"asflags = {' '.join(asflags)}",
         f"linkflags = {' '.join(link_flags)}",
         f"libdirflags = {' '.join(f'-L{_q(d)}' for d in lib_dirs)}",
-        f"libflags = {' '.join(f'-l{lib}' for lib in system_libs)}",
+        f"libflags = {' '.join(_shell_token(f'-l{lib}') for lib in system_libs)}",
         "",
     ]
 
@@ -625,7 +642,8 @@ def write_project(paths: InstalledPaths) -> bool:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
     archives = []
-    variant_sources = _collect_sources(variant_dir) if variant_dir.is_dir() else []
+    # variant_dir existence was already enforced with the include dirs
+    variant_sources = _collect_sources(variant_dir)
     if variant_sources:
         objs = _ninja_compile_edges(lines, variant_sources, variant_dir, "variant")
         lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")

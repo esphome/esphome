@@ -24,9 +24,13 @@ def main() -> int:
         # Expand the response file here instead of passing @rspfile: GNU ar
         # treats backslashes in response files as escapes, corrupting Windows
         # paths ("sub\a.o" -> "suba.o").
-        objects = Path(rspfile).read_text(encoding="utf-8").split()
+        # One path per line (rspfile_content = $in_newline, written without
+        # escaping), so a path containing a space survives. Expanding into
+        # argv trades away the OS command-line length limit rspfiles dodge;
+        # the relative object paths used here stay far below it.
+        objects = Path(rspfile).read_text(encoding="utf-8").splitlines()
         return subprocess.run(
-            [ar, "rc", archive, *objects], check=False, close_fds=False
+            [ar, "rc", archive, *filter(None, objects)], check=False, close_fds=False
         ).returncode
     if mode == "copy":
         src, dst = sys.argv[2:4]
