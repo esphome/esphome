@@ -17,13 +17,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
-import re
 import subprocess
+from typing import TYPE_CHECKING
 
+from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import join_flag_args, split_flag_entry
+
+if TYPE_CHECKING:
+    from esphome.arduino8266.framework import InstalledPaths
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -234,38 +238,6 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     )
 
 
-def _quote_arg(tok: str) -> str:
-    """Wrap a token in double quotes with the Windows argv rule.
-
-    Same escaping rule as ``subprocess.list2cmdline``: a backslash run
-    doubles only immediately before a quote (or the closing quote), and the
-    quote itself is escaped. POSIX sh parses the result identically for
-    backslashes and quotes. ``$`` must already be doubled for ninja.
-    """
-    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
-    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
-    return f'"{quoted}"'
-
-
-_NEEDS_QUOTE = re.compile(r'[\s"\']')
-
-
-def _shell_token(tok: str) -> str:
-    """Quote a lexed token only when needed; ``_q`` force-quotes paths.
-
-    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
-    token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO. After ninja
-    un-doubles ``$$``, sh still expands ``$VAR`` while CreateProcess passes
-    it literally -- the same divergence SCons-under-sh has, so this stays
-    PlatformIO parity.
-    """
-    tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
-    if not _NEEDS_QUOTE.search(tok):
-        return tok
-    return _quote_arg(tok)
-
-
 def _defines_flags(
     config: _BuildConfig, flash_mode: str, board: str, board_defines: tuple[str, ...]
 ) -> list[str]:
@@ -301,7 +273,7 @@ def _unflag_tokens() -> set[str]:
 
 
 def _project_flags(
-    unflags: set[str] | None = None,
+    unflags: set[str],
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
@@ -310,8 +282,6 @@ def _project_flags(
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
     Lexed tokens are re-quoted at emission via ``_shell_token``.
     """
-    if unflags is None:
-        unflags = _unflag_tokens()
     compile_flags: list[str] = []
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
@@ -332,7 +302,7 @@ def _project_flags(
 
 
 def generate_ld_scripts(
-    paths: dict[str, Path], config: _BuildConfig, flash_ld_name: str
+    paths: InstalledPaths, config: _BuildConfig, flash_ld_name: str
 ) -> None:
     """Generate the common linker script (and testing-mode flash ld copy).
 
@@ -340,8 +310,8 @@ def generate_ld_scripts(
     ``eagle.app.v6.common.ld.h``, then applies ESPHome's surgeries: the wifi
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
-    framework = paths["framework_path"]
-    gcc = paths["toolchain_path"] / "bin" / "xtensa-lx106-elf-gcc"
+    framework = paths.framework
+    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
     ld_dir = CORE.relative_pioenvs_path(CORE.name, "ld")
     mkdir_p(ld_dir)
 

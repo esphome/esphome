@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.arduino8266.framework import InstalledPaths
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
@@ -171,11 +172,7 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "include").mkdir()
-    return {
-        "framework_path": framework,
-        "toolchain_path": toolchain,
-        "ninja_path": Path("ninja"),
-    }
+    return InstalledPaths(framework=framework, toolchain=toolchain, ninja=Path("ninja"))
 
 
 @pytest.mark.parametrize(
@@ -261,7 +258,7 @@ SECTIONS
 """
 
 
-def _run_generate_ld_scripts(paths: dict[str, Path]) -> Path:
+def _run_generate_ld_scripts(paths: InstalledPaths) -> Path:
 
     config = _resolve_build_config(_flag_defines())
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
@@ -313,10 +310,11 @@ def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
 def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
-    (paths["framework_path"] / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
+    (paths.framework / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
+        # Real flash ld scripts carry no iram1_0_seg (that lives in the
+        # generated common ld); the surgery rejects one it was not asked about
         "MEMORY\n{\n"
         "  dram0_0_seg :    org = 0x3FFE8000, len = 0x14000\n"
-        "  iram1_0_seg :    org = 0x40100000, len = 0x8000\n"
         "  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n"
         "}\n"
     )
@@ -342,7 +340,9 @@ def test_project_flags_trailing_bare_linker_flag_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     _set_flags("-l")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert "Ignoring trailing '-l'" in caplog.text
     assert not libs
     assert not lib_dirs
@@ -352,7 +352,9 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 
 def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     _set_flags("-L /d -Wl,-Map=m stray")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert lib_dirs == [Path("/d")]
     assert link_flags == ["-Wl,-Map=m"]
     assert "stray" in compile_flags
@@ -372,7 +374,9 @@ def test_flag_defines_lexes_multi_token_entries() -> None:
 def test_project_flags_lexes_every_entry() -> None:
     """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
     _set_flags("-DFOO=1 -lbar")
-    compile_flags, _link, _dirs, libs = arduino8266._project_flags()
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert libs == ["bar"]
     assert "-DFOO=1" in compile_flags
 
@@ -391,7 +395,9 @@ def test_project_flags_unflags_match_tokens() -> None:
 def test_project_flags_requotes_lexed_defines() -> None:
     """A quoted spaced value stays one compiler argument after lex/emit."""
     _set_flags('-DGREETING="hello world"')
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
     assert compile_flags == ['"-DGREETING=hello world"']
