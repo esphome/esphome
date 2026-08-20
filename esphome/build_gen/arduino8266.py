@@ -277,6 +277,16 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     )
 
 
+_INCOMPLETE_INSTALL = "Arduino toolchain install is incomplete"
+_CLEAN_HINT = "run 'esphome clean-all' and retry"
+
+
+def _active_flash_ld_name(flash_ld_name: str) -> str:
+    """The flash linker-script filename the link uses (testing mode renames
+    the surgically patched copy)."""
+    return f"testing_{flash_ld_name}" if CORE.testing_mode else flash_ld_name
+
+
 def _flash_ld_name(board: str) -> str:
     return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
 
@@ -358,7 +368,7 @@ def _unflag_tokens() -> set[str]:
 
 
 def _project_flags(
-    unflags: set[str] | None = None,
+    unflags: set[str],
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
@@ -367,8 +377,6 @@ def _project_flags(
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
     Lexed tokens are re-quoted at emission via ``_shell_token``.
     """
-    if unflags is None:
-        unflags = _unflag_tokens()
     compile_flags: list[str] = []
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
@@ -477,12 +485,13 @@ def _ninja_compile_edges(
     for src in sources:
         rel = src.relative_to(root).as_posix()
         obj = f"obj/{group}/{rel}.o"
-        lines.append(f"build {_e(obj)}: {_RULE_FOR_SUFFIX[src.suffix]} {_e(src)}")
+        escaped_obj = _e(obj)
+        lines.append(f"build {escaped_obj}: {_RULE_FOR_SUFFIX[src.suffix]} {_e(src)}")
         if flags:
             lines.append(f"  flags = {flags}")
         # Escaped once here: the returned paths only ever appear in build
         # statements (archive/link inputs), which use ninja escaping.
-        objects.append(_e(obj))
+        objects.append(escaped_obj)
     return objects
 
 
@@ -534,8 +543,7 @@ def write_project(paths: dict[str, Path]) -> bool:
     for required in include_dirs:
         if not required.is_dir():
             raise EsphomeError(
-                f"Arduino toolchain install is incomplete: missing {required}; "
-                "run 'esphome clean-all' and retry"
+                f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
             )
     for lib in libraries:
         include_dirs += lib.include_dirs
@@ -575,7 +583,7 @@ def write_project(paths: dict[str, Path]) -> bool:
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
     link_flags += [flag for lib in libraries for flag in lib.link_flags]
-    flash_ld = f"testing_{flash_ld_name}" if CORE.testing_mode else flash_ld_name
+    flash_ld = _active_flash_ld_name(flash_ld_name)
     link_flags += ["-T", flash_ld]
 
     lib_dirs = [Path("ld"), sdk / "lib", sdk / "ld", sdk / "lib" / config.nonosdk]
@@ -666,8 +674,7 @@ def write_project(paths: dict[str, Path]) -> bool:
         # An empty archive would link into a wall of undefined references
         # (app_entry, the exception vectors) far from the cause
         raise EsphomeError(
-            f"Arduino toolchain install is incomplete: no core sources in "
-            f"{core_dir}; run 'esphome clean-all' and retry"
+            f"{_INCOMPLETE_INSTALL}: no core sources in {core_dir}; {_CLEAN_HINT}"
         )
     lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
     archives.append("libFrameworkArduino.a")
@@ -694,8 +701,11 @@ def write_project(paths: dict[str, Path]) -> bool:
         archives.append(archive)
 
     src_extra = f"-include {_q(src_dir / 'esphome' / 'components' / 'esp8266' / 'throw_stubs.h')}"
+    # One shared variable instead of repeating the flags line on every src
+    # edge (hundreds of edges in a real project)
+    lines.append(f"srcflags = {src_extra}")
     src_objs = _ninja_compile_edges(
-        lines, _collect_sources(src_dir), src_dir, "src", flags=src_extra
+        lines, _collect_sources(src_dir), src_dir, "src", flags="$srcflags"
     )
 
     ld_deps = ["ld/local.eagle.app.v6.common.ld"]
@@ -722,9 +732,9 @@ def get_flash_ld_path(build_dir: Path) -> Path:
         get_framework_path,
     )
 
-    name = _flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD])
+    name = _active_flash_ld_name(_flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD]))
     if CORE.testing_mode:
-        return build_dir / "ld" / f"testing_{name}"
+        return build_dir / "ld" / name
     version = framework_package_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     return get_framework_path(version) / "tools" / "sdk" / "ld" / name
 
