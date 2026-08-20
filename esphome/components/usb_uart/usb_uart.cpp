@@ -10,18 +10,6 @@
 
 namespace esphome::usb_uart {
 
-#ifdef USE_UART_DEBUGGER
-  void log_tx_debug_(uint8_t *data, size_t len) {
-    constexpr size_t batch = 16;
-    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
-    for (size_t off = 0; off < len; off += batch) {
-      size_t n = std::min(len - off, batch);
-      format_hex_pretty_to(buf, data + off, n, ',');
-      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
-    }
-  }
-#endif
-
 /**
  *
  * Given a configuration, look for the required interfaces defining a CDC-ACM device
@@ -72,6 +60,18 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
       return eps;
   }
 }
+
+#ifdef USE_UART_DEBUGGER
+static void log_tx_debug_(uint8_t *data, size_t len) {
+  constexpr size_t batch = 16;
+  char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+  for (size_t off = 0; off < len; off += batch) {
+    size_t n = std::min(len - off, batch);
+    format_hex_pretty_to(buf, data + off, n, ',');
+    ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+  }
+}
+#endif
 
 std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
@@ -148,6 +148,7 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
+
 void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGD(TAG, "Channel not initialised - write ignored");
@@ -155,7 +156,13 @@ void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-     log_tx_debug_(data, len);
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+    }
   }
 #endif
   while (len > 0) {
@@ -399,6 +406,20 @@ void USBUartComponent::start_output(USBUartChannelBase *channel) {
   ESP_LOGV(TAG, "Output %u bytes started", len);
 }
 
+/**
+ * Hacky fix for some devices that report incorrect MPS values
+ * @param ep The endpoint descriptor
+ */
+static void fix_mps(const usb_ep_desc_t *ep) {
+  if (ep != nullptr) {
+    auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
+    }
+  }
+}
 void USBUartTypeCdcAcm::on_connected() {
   auto cdc_devs = this->parse_descriptors(this->device_handle_);
   if (cdc_devs.empty()) {
@@ -415,8 +436,8 @@ void USBUartTypeCdcAcm::on_connected() {
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
-    USBUartChannelBase::fix_mps(channel->cdc_dev_.in_ep);
-    USBUartChannelBase::fix_mps(channel->cdc_dev_.out_ep);
+    fix_mps_(channel->cdc_dev_.in_ep);
+    fix_mps_(channel->cdc_dev_.out_ep);
     channel->initialised_.store(true);
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before

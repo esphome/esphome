@@ -56,6 +56,7 @@ class Type:
         cls: str | None,
         max_channels: int = 1,
         baud_rate_required: bool = True,
+        channel_cls=None,
         max_baud: int = 1_000_000,
     ) -> None:
         self.name = name

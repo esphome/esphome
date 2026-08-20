@@ -103,7 +103,8 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
 }
 
 bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
-  if (this->channels_.empty()) return false;
+  if (this->channels_.empty())
+    return false;
   if (step == 0) {
     ESP_LOGD(TAG, "Starting device setup");
     // Vendor IN read: device returns 4 chip-id bytes used below to distinguish variants.
@@ -564,7 +565,13 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
   auto *shared = this->tx_shared_channel_;
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-     usb_uart::log_tx_debug_(data, len);
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+    }
   }
 #endif
   while (len > 0) {
@@ -603,6 +610,20 @@ uart::UARTFlushResult CH934XChannel::flush() {
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
+/**
+ * Hacky fix for some devices that report incorrect MPS values
+ * @param ep The endpoint descriptor
+ */
+static void fix_mps(const usb_ep_desc_t *ep) {
+  if (ep != nullptr) {
+    auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
+    }
+  }
+}
 void USBUartTypeCH934X::on_connected() {
   ESP_LOGI(TAG, "CH934X connected (VID=%04X, PID=%04X)", this->vid_, this->pid_);
 
@@ -613,10 +634,10 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
-  USBUartChannelBase::fix_mps(this->uart_host_dev_.in_ep);
-  USBUartChannelBase::fix_mps(this->uart_host_dev_.out_ep);
-  USBUartChannelBase::fix_mps(this->uart_host_dev_.ep_cmd_read);
-  USBUartChannelBase::fix_mps(this->uart_host_dev_.ep_cmd_write);
+  fix_mps(this->uart_host_dev_.in_ep);
+  fix_mps(this->uart_host_dev_.out_ep);
+  fix_mps(this->uart_host_dev_.ep_cmd_read);
+  fix_mps(this->uart_host_dev_.ep_cmd_write);
 
   auto err = usb_host_interface_claim(this->handle_, this->device_handle_, this->uart_host_dev_.data_interface, 0);
   if (err != ESP_OK) {
