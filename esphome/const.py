@@ -25,6 +25,12 @@ class Toolchain(StrEnum):
     ARDUINO = "arduino"
 
 
+# Toolchains that drive their build natively and never read platformio.ini.
+# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
+# platformio_options.
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
+
+
 class Platform(StrEnum):
     """Platform identifiers for ESPHome."""
 

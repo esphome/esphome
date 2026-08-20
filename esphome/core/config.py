@@ -557,9 +557,7 @@ def _add_library_str(lib: str) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
-    # Every platform's toolchain validation rejects values it cannot serve,
-    # so using_toolchain_arduino by itself implies the native ESP8266 build.
-    if CORE.using_toolchain_esp_idf or CORE.using_toolchain_arduino:
+    if CORE.using_native_toolchain:
         # The native builds don't read platformio.ini; honor the options
         # with a native equivalent and warn about the rest, which would
         # otherwise be silently ignored.
