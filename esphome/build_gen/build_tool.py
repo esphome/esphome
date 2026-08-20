@@ -25,7 +25,9 @@ def main() -> int:
         # treats backslashes in response files as escapes, corrupting Windows
         # paths ("sub\a.o" -> "suba.o").
         objects = Path(rspfile).read_text(encoding="utf-8").split()
-        return subprocess.run([ar, "rc", archive, *objects], check=False).returncode
+        return subprocess.run(
+            [ar, "rc", archive, *objects], check=False, close_fds=False
+        ).returncode
     if mode == "copy":
         src, dst = sys.argv[2:4]
         shutil.copyfile(src, dst)
