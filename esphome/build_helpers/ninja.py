@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import shutil
 
 from esphome.core import EsphomeError
@@ -31,3 +32,45 @@ def find_ninja() -> Path:
             "esphome Python environment"
         )
     return wheel_binary
+
+
+def escape(value) -> str:
+    """Escape a path or token for a ninja file."""
+    return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
+
+
+def quote_arg(tok: str) -> str:
+    """Wrap a token in double quotes with the Windows argv rule.
+
+    Same escaping rule as ``subprocess.list2cmdline``: a backslash run
+    doubles only immediately before a quote (or the closing quote), and the
+    quote itself is escaped. POSIX sh parses the result identically for
+    backslashes and quotes. ``$`` must already be doubled for ninja.
+    """
+    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
+    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
+    return f'"{quoted}"'
+
+
+_NEEDS_QUOTE = re.compile(r'[\s"\']')
+
+
+def shell_token(tok: str, force: bool = False) -> str:
+    """Quote a lexed token only when needed; ``force`` always quotes.
+
+    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
+    token ``-DX=a b``); re-quote on the way out so the compiler receives the
+    same argv element SCons would pass under PlatformIO. After ninja
+    un-doubles ``$$``, sh still expands ``$VAR`` while CreateProcess passes
+    it literally -- the same divergence SCons-under-sh has, so this stays
+    PlatformIO parity.
+    """
+    tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
+    if force or _NEEDS_QUOTE.search(tok):
+        return quote_arg(tok)
+    return tok
+
+
+def quote_path(value) -> str:
+    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
+    return shell_token(str(value), force=True)
