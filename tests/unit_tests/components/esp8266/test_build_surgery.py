@@ -49,7 +49,8 @@ def test_relocate_ratetable_inserts_after_data_start() -> None:
     patched = relocate_ratetable(_COMMON_LD_SNIPPET)
     assert RATETABLE_RULE in patched
     # Inserted after the .data section's anchor, not the .dport0.data one
-    assert patched.index("_data_start = ABSOLUTE(.);") < patched.index(RATETABLE_RULE)
+    # (whose closing brace bounds the decoy block)
+    assert RATETABLE_RULE not in patched[: patched.index("} >dport0_0_seg")]
     assert patched.index(RATETABLE_RULE) < patched.index("*(.data)")
     # Idempotent on an already-patched script
     assert relocate_ratetable(patched) == patched
@@ -106,14 +107,20 @@ def test_board_build_covers_every_board() -> None:
     assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
 
 
-def test_surgery_fingerprint_tracks_inputs() -> None:
-    """The fingerprint changes with any behavioral input, so linker-script
-    caches stamped with it self-invalidate on surgery edits."""
-    from unittest.mock import patch
+def test_surgery_fingerprint_covers_module_source() -> None:
+    """The fingerprint hashes the module source, so any surgery edit
+    invalidates linker-script caches stamped with it."""
+    import hashlib
+    import inspect
 
     from esphome.components.esp8266 import build_surgery
 
-    base = build_surgery.surgery_fingerprint()
-    assert base == build_surgery.surgery_fingerprint()
-    with patch.object(build_surgery, "_TESTING_SEGMENT_SIZES", {"iram1_0_seg": "0x1"}):
-        assert build_surgery.surgery_fingerprint() != base
+    expected = hashlib.sha256(inspect.getsource(build_surgery).encode()).hexdigest()
+    assert build_surgery.surgery_fingerprint() == expected
+
+
+def test_testing_memory_patches_present_but_unselected_raises() -> None:
+    """A known segment left off the caller's list must fail, not silently
+    keep its real memory limit."""
+    with pytest.raises(RuntimeError, match="not selected"):
+        apply_testing_memory_patches(_FLASH_LD_SNIPPET, ("dram0_0_seg",))
