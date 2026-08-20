@@ -1,0 +1,148 @@
+# The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
+# is a single modbus client hub) and a templatable device address; no component block is needed. The
+# address is not passed back to reply handlers - recompute the configured expression if needed.
+# The hub does not bound retries, so a retry lambda must (here: a counter capped at 3), or a dead
+# device is retried forever. Reset the counter before the send or on a terminal outcome (on_response)
+# so the cap is per transaction, not per device lifetime. Never reset in on_sent: it fires again on
+# every retry, so the cap would never be reached.
+
+# The standalone component: a bare hub device with nothing but an address, so a lambda can drive the
+# device directly. Two entries cover both hub-binding paths - the auto-resolved single hub and an
+# explicit modbus_id - and the button below calls them, so the generated device has to be usable
+# rather than merely constructed (an unreferenced one is optimised away entirely).
+modbus_client:
+  - id: bare_client
+    address: 0x01
+  - id: bare_client_explicit_hub
+    modbus_id: modbus_bus
+    address: 0x02
+
+globals:
+  - id: read_retries
+    type: int
+    initial_value: "0"
+  - id: combined_retries
+    type: int
+    initial_value: "0"
+
+button:
+  # The bare modbus_client devices: no handlers, so nothing reports the outcome - see the component
+  # comment. Calls here only pin that the device is bound to its hub and the helpers are reachable.
+  - platform: template
+    name: "Bare Client"
+    on_press:
+      - lambda: |-
+          id(bare_client).write_single_register(0x10, 42);
+          id(bare_client).write_single_coil(0x01, true);
+          id(bare_client_explicit_hub).read_holding_registers(0x20, 4);
+          const uint16_t rw_vals[] = {1, 2};
+          id(bare_client).read_write_multiple_registers(0x0400, 2, 0x0300, rw_vals);
+  - platform: template
+    name: "Send Read"
+    on_press:
+      - lambda: "id(read_retries) = 0;"
+      - modbus_client.send:
+          address: 0x01
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          # on_no_response lambda form: return true to retry. `request` is the timed-out PDU.
+          on_no_response: !lambda "return !request.empty() && request[0] == 0x03 && id(read_retries)++ < 3;"
+      # Per-send inline reply handlers (fire-and-continue): they run when this send's outcome is known;
+      # the targeted address is not passed back - recompute the configured expression if needed.
+      # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
+      - modbus_client.send:
+          address: 0x01
+          pdu: !lambda "return modbus::helpers::create_read_pdu(modbus::FunctionCode::READ_HOLDING_REGISTERS, 0x0010, 1);"
+      - modbus_client.send:
+          address: !lambda "return 1;"
+          pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
+          on_sent:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X", request.empty() ? 0 : request[0]);'
+          on_response:
+            then:
+              - lambda: |-
+                  id(combined_retries) = 0;
+                  ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+          # on_no_response combined form: run actions on timeout AND decide the retry via nested retry:.
+          on_no_response:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "no reply for fc 0x%X", request.empty() ? 0 : request[0]);'
+            retry: !lambda "return !request.empty() && request[0] == 0x03 && id(combined_retries)++ < 3;"
+          on_not_sent:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "not sent fc 0x%X", request.empty() ? 0 : request[0]);'
+  - platform: template
+    name: "Typed Actions"
+    on_press:
+      - modbus_client.write_single_register:
+          address: 0x01
+          start_address: 0x0102
+          value: !lambda "return 42;"
+          on_response:
+            then:
+              - logger.log: "write acked"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "write exception %d", (int) exception_code);'
+      - modbus_client.read_holding_registers:
+          address: !lambda "return 1;"
+          start_address: 0x10
+          count: 2
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
+          on_no_response:
+            then:
+              - logger.log: "typed read timeout"
+      - modbus_client.read_input_registers:
+          address: 0x01
+          start_address: 0x20
+          on_custom_response:
+            then:
+              - lambda: |-
+                  ESP_LOGW("modbus_client.test", "non-standard reply: fc 0x%02X, %u byte request",
+                           response.empty() ? 0 : response[0], (unsigned) request.size());
+      - modbus_client.write_single_coil:
+          address: 0x01
+          start_address: 0x01
+          value: true
+      - modbus_client.read_coils:
+          address: 0x01
+          start_address: 0x03
+          count: 16
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "coil0=%d n=%u", bits[0], (unsigned) bits.size());'
+      - modbus_client.read_discrete_inputs:
+          address: 0x01
+          start_address: 0x00
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0200
+          values: !lambda "return {1, 2, 3};"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "multi write acked");'
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0010
+          values: [true, false, true]
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0300
+          values: !lambda "return {1, 2};"
+          read_address: 0x0400
+          read_count: 2
+          on_response:
+            then:
+              # `values` here is the READ-BACK block, not the written block above
+              - lambda: 'ESP_LOGI("modbus_client.test", "rw read0=%u n=%u", values[0], (unsigned) values.size());'

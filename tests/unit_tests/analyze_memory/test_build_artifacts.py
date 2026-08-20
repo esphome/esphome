@@ -22,7 +22,7 @@ def _make_build_dir(tmp_path: Path, name: str = "mydevice") -> Path:
 
 def _touch(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
     return path
 
 
@@ -143,8 +143,8 @@ def test_cc_path_from_cxx(cxx_path: str, expected: str) -> None:
 def test_native_idedata_resolves_toolchain_tools() -> None:
     """The binutils paths are derived from the native ESP-IDF cc_path.
 
-    Without cc_path, IDEData.objdump_path raises KeyError and the memory
-    analysis silently degrades to no component or symbol detail.
+    Without cc_path, IDEData.objdump_path raises EsphomeError and the
+    memory analysis silently degrades to no component or symbol detail.
     """
     idedata = IDEData(
         {

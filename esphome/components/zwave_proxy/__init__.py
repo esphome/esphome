@@ -11,7 +11,7 @@ zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
 ZWaveProxy = zwave_proxy_ns.class_("ZWaveProxy", cg.Component, uart.UARTDevice)
 
 
-def final_validate(config):
+def final_validate(config) -> None:
     full_config = fv.full_config.get()
     if (wifi_conf := full_config.get(CONF_WIFI)) and (
         wifi_conf.get(CONF_POWER_SAVE_MODE).lower() != "none"
@@ -19,8 +19,6 @@ def final_validate(config):
         raise cv.Invalid(
             f"{CONF_WIFI} {CONF_POWER_SAVE_MODE} must be set to 'none' when using Z-Wave proxy"
         )
-
-    return config
 
 
 CONFIG_SCHEMA = (

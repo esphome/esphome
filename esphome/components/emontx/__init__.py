@@ -59,7 +59,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Count sensors registered to this hub (IDs are resolved at final_validate stage)
@@ -95,7 +95,7 @@ def final_validate(config: ConfigType) -> ConfigType:
         parity="NONE",
         stop_bits=1,
     )
-    return schema(config)
+    schema(config)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
