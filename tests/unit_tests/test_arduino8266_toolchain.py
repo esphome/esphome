@@ -337,3 +337,24 @@ def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> No
     assert "native 'arduino' toolchain" in caplog.text
     assert "lib_ignore" not in caplog.text
     assert "upload_speed" not in caplog.text
+
+
+def test_run_compile_idedata_error_does_not_fail_build(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unusable compile DB after a successful build warns, never fails."""
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(toolchain.subprocess, "run", return_value=MagicMock(returncode=0)),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(
+            toolchain,
+            "get_idedata",
+            side_effect=EsphomeError("compile database is unusable"),
+        ),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "Could not generate idedata: compile database is unusable" in caplog.text

@@ -91,11 +91,17 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         return rc
 
     _print_size_summary(build_dir)
-    if get_idedata() is None:
-        _LOGGER.warning(
-            "Could not generate idedata from %s",
-            build_dir / "compile_commands.json",
-        )
+    try:
+        idedata = get_idedata()
+    except EsphomeError as err:
+        # The firmware already built; idedata is a bonus artifact here
+        _LOGGER.warning("Could not generate idedata: %s", err)
+    else:
+        if idedata is None:
+            _LOGGER.warning(
+                "Could not generate idedata from %s",
+                build_dir / "compile_commands.json",
+            )
     return 0
 
 
