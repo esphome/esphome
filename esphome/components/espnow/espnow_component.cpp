@@ -130,12 +130,13 @@ ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "espnow:");
-  if (this->is_disabled()) {
+  // Only report driver details once enabled; with enable_on_boot: false the
+  // Wi-Fi driver is not initialized yet and esp_now_get_version() would crash,
+  // and after a failed enable_() the values would be meaningless.
+  if (this->state_ != ESPNOW_STATE_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
-  // Only query the version once enabled; with enable_on_boot: false the Wi-Fi
-  // driver is not initialized yet and esp_now_get_version() would crash.
   uint32_t version = 0;
   esp_now_get_version(&version);
   char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
