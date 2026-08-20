@@ -28,7 +28,6 @@ from esphome.platformio.library import (
     ConvertedLibrary,
     InvalidLibrary,
     LibraryBackend,
-    _parse_library_json,
     check_library_data,
     collect_filtered_files,
     convert_libraries,
@@ -37,6 +36,7 @@ from esphome.platformio.library import (
     lex_build_flags,
     lib_ignore_set,
     normalize_dependencies,
+    parse_library_json,
     parse_library_properties,
 )
 
@@ -138,7 +138,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     lib_dir = framework_path / "libraries" / name
     manifest_json = lib_dir / "library.json"
     if manifest_json.is_file():
-        data = _parse_library_json(manifest_json)
+        data = parse_library_json(manifest_json)
     else:
         manifest = lib_dir / "library.properties"
         data = parse_library_properties(manifest) if manifest.is_file() else {}
@@ -174,6 +174,9 @@ def resolve_libraries(
             and "/" not in library.name
             and (framework_path / "libraries" / library.name).is_dir()
         ):
+            # A bundled library's own manifest dependencies are deliberately
+            # not walked (PlatformIO's lib_ldf_mode=off does not either);
+            # core add_library() calls list what they need explicitly.
             bundled.append(_bundled_library(framework_path, library.name))
         else:
             external.append(library)
