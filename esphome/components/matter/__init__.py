@@ -788,8 +788,73 @@ async def to_code(config: ConfigType) -> None:
     if config.get(_CONF_PSRAM_PRESENT, False):
         sdkconfig["CONFIG_CHIP_SYSTEM_CONFIG_POOL_USE_HEAP"] = True
 
+    # External Platform: replace esp-matter's "else()" branch (which folds
+    # $MATTER_SDK_PATH/src/platform/ESP32 into the build with hard-coded
+    # includes) with our own manifest. Our external_platform.cmake mirrors
+    # the same conditionals Espressif ships in
+    # examples/common/blemesh_platform/platform/ESP32_custom/, plus one
+    # unconditional exclusion of NetworkCommissioningDriver_Ethernet.cpp
+    # (its IP101-hardcoded Init fights with ESPHome's ethernet: component;
+    # the replacement lives in matter_ethernet_stub.cpp). Path is absolute
+    # so the resolver in esp_matter's CMakeLists (which falls back to
+    # ${CMAKE_SOURCE_DIR}/... for relative paths) always finds it,
+    # regardless of the .esphome build layout.
+    external_platform_dir = (Path(__file__).parent / "external_platform").resolve()
+    sdkconfig["CONFIG_CHIP_ENABLE_EXTERNAL_PLATFORM"] = True
+    sdkconfig["CONFIG_CHIP_EXTERNAL_PLATFORM_DIR"] = str(external_platform_dir)
+
     for key, value in sdkconfig.items():
         add_idf_sdkconfig_option(key, value)
+
+    # EXTERNAL_*_HEADER macros are required by esp_matter core sources when
+    # CHIP_ENABLE_EXTERNAL_PLATFORM=y — each names the header that replaces
+    # a default ``<platform/ESP32/XXX.h>`` include. We are NOT renaming the
+    # platform layer (unlike blemesh_platform's ESP32_custom mirror), so
+    # every value points back at the standard CHIP path.
+    #
+    # Use the quoted form ("..." instead of <...>) because PlatformIO
+    # writes build_flags to platformio.ini and re-splits them through the
+    # shell before ninja sees them; ``<...>`` there is interpreted as
+    # input redirection and the compile aborts with "No such file or
+    # directory". Escaped double-quotes survive PIO's parsing and CHIP's
+    # ``#include EXTERNAL_..._HEADER`` accepts either delimiter (K&R
+    # quoted vs. angle-bracket).
+    _EXTERNAL_HEADER_MAP = {
+        "EXTERNAL_ESP32UTILS_HEADER": "platform/ESP32/ESP32Utils.h",
+        "EXTERNAL_ESP32OTAIMAGEPROCESSORIMPL_HEADER": (
+            "platform/ESP32/OTAImageProcessorImpl.h"
+        ),
+        "EXTERNAL_ESP32DEVICEINFOPROVIDER_HEADER": (
+            "platform/ESP32/ESP32DeviceInfoProvider.h"
+        ),
+        "EXTERNAL_ESP32FACTORYDATAPROVIDER_HEADER": (
+            "platform/ESP32/ESP32FactoryDataProvider.h"
+        ),
+        "EXTERNAL_ESP32SECURECERTDACPROVIDER_HEADER": (
+            "platform/ESP32/ESP32SecureCertDACProvider.h"
+        ),
+        "EXTERNAL_ESP32SECURECERTDATAPROVIDER_HEADER": (
+            "platform/ESP32/ESP32SecureCertDataProvider.h"
+        ),
+        # Platform-config includes that the *BuildConfig.h headers would set
+        # for us if we were NOT in external-platform mode. See
+        # external_platform/external_platform.cmake for the rationale — the
+        # generated headers guard these on ``#ifndef
+        # CONFIG_CHIP_ENABLE_EXTERNAL_PLATFORM``, so we compensate here so
+        # the ESP32 platform is picked up regardless of the guard.
+        "CHIP_PLATFORM_CONFIG_INCLUDE": "platform/ESP32/CHIPPlatformConfig.h",
+        "SYSTEM_PLATFORM_CONFIG_INCLUDE": "platform/ESP32/SystemPlatformConfig.h",
+        "CHIP_DEVICE_PLATFORM_CONFIG_INCLUDE": (
+            "platform/ESP32/CHIPDevicePlatformConfig.h"
+        ),
+        "BLE_PLATFORM_CONFIG_INCLUDE": "platform/ESP32/BlePlatformConfig.h",
+        "INET_PLATFORM_CONFIG_INCLUDE": "platform/ESP32/InetPlatformConfig.h",
+    }
+    for _macro, _header in _EXTERNAL_HEADER_MAP.items():
+        cg.add_build_flag(f'-D{_macro}=\\"{_header}\\"')
+    # CHIP_DEVICE_LAYER_TARGET is an identifier (not a header path); pass as
+    # a plain -D.
+    cg.add_build_flag("-DCHIP_DEVICE_LAYER_TARGET=ESP32")
 
     cg.add_define("USE_MATTER")
     # Companion symbol referenced in the compile-time guard at the top of

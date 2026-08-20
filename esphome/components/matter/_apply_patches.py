@@ -12,12 +12,15 @@ All patches are idempotent — each writes a marker string on first
 application and short-circuits on subsequent runs.
 
 Patches:
-  1. NetworkCommissioningDriver_Ethernet.cpp — replace body with empty stub;
-     the internal ESP32 EMAC APIs it hardcodes don't exist on S3/S2/C3/C6/H2
-     with external SPI PHYs, and even on classic ESP32 we don't want it
-     driving the PHY because ESPHome's ``ethernet:`` already installed the
-     driver. ``ESPEthernetDriver::Init`` is provided by
-     ``matter_ethernet_stub.cpp``.
+  (PATCH1 removed 2026-08 — replaced by External Platform. The old patch
+  overwrote NetworkCommissioningDriver_Ethernet.cpp with an empty stub so
+  ESPEthernetDriver::Init could be provided by matter_ethernet_stub.cpp
+  without a multiple-definition link error. The new mechanism sets
+  CONFIG_CHIP_ENABLE_EXTERNAL_PLATFORM=y and points
+  CONFIG_CHIP_EXTERNAL_PLATFORM_DIR at
+  components/matter/external_platform/, whose external_platform.cmake
+  excludes the upstream Ethernet driver from the esp_matter component
+  entirely. Same effect, no source edit.)
   2. esp_matter_core.cpp — comment out the ``InitWiFiStack()`` call inside
      ``esp_matter::start()``. On Wi-Fi builds this helper calls
      ``esp_wifi_init()``, which fails with ``ESP_ERR_INVALID_STATE`` because
@@ -52,7 +55,7 @@ Patches:
   observable side effect. Dropping the patch cuts one more source of
   upstream-drift breakage in exchange for those warnings.)
 
-Errors: PATCH1/2/4 are file-specific and load-bearing. If their target file
+Errors: PATCH2/4 are file-specific and load-bearing. If their target file
 is missing, or the marker string the patch anchors on is not present in the
 current esp-matter release, the script exits non-zero — the CMake hook
 surfaces that as a warning and downstream compilation will still fail hard.
@@ -77,17 +80,6 @@ class PatchError(Exception):
     silently-broken binary.
     """
 
-
-PATCH1_STUB = """// ESPHOME-MATTER-PATCH
-//
-// Original file hardcoded internal ESP32 EMAC APIs (esp_eth_mac_new_esp32,
-// eth_esp32_emac_config_t) that do not exist on ESP32-S3/S2/C3/C6/H2 with
-// external SPI PHYs (W5500, DM9051). Even on the classic ESP32 where those
-// APIs do exist, ESPHome's ethernet: component already installed the PHY
-// driver, so letting this TU run would fight it. Neutralized at build time
-// by components/matter/_apply_patches.py invoked from CMakeLists.txt.
-// ESPEthernetDriver::Init is provided by components/matter/matter_ethernet_stub.cpp.
-"""
 
 PATCH2_OLD = (
     "VerifyOrReturnError(chip::DeviceLayer::Internal::ESP32Utils::InitWiFiStack() "
@@ -163,23 +155,6 @@ PATCH3_INCLUDE_OLD = "#include <unordered_map>"
 PATCH3_INCLUDE_NEW = f"#include <map>  {PATCH3_MARKER}"
 PATCH3_TYPE_OLD = "std::unordered_map"
 PATCH3_TYPE_NEW = "std::map"
-
-
-def _apply_stub_overwrite(path: Path, marker: str, stub: str) -> str:
-    if not path.exists():
-        raise PatchError(
-            f"required patch target missing: {path} — esp-matter version "
-            f"drift? update _apply_patches.py"
-        )
-    head = path.read_bytes()[:128].decode(errors="replace")
-    # Accept the pre-rename marker (PATCHED-BY-UNISEC-MATTER) as "already
-    # patched" so a file stubbed by an older version of this script isn't
-    # rewritten every configure. The stub content itself may differ slightly
-    # (comment wording) — that difference alone is not worth re-writing.
-    if marker in head or "PATCHED-BY-UNISEC-MATTER" in head:
-        return f"noop (already patched): {path.name}"
-    path.write_text(stub, encoding="utf-8")
-    return f"stub: {path.name}"
 
 
 def _apply_std_map_swap(path: Path) -> str:
@@ -302,20 +277,6 @@ def apply_patches(matter_dir: Path) -> list:
     catch it themselves.
     """
     results = []
-
-    results.append(
-        _apply_stub_overwrite(
-            matter_dir
-            / "connectedhomeip"
-            / "connectedhomeip"
-            / "src"
-            / "platform"
-            / "ESP32"
-            / "NetworkCommissioningDriver_Ethernet.cpp",
-            "ESPHOME-MATTER-PATCH",
-            PATCH1_STUB,
-        )
-    )
 
     results.append(
         _apply_string_replace(
