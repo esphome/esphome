@@ -45,15 +45,15 @@ _LOGGER = logging.getLogger(__name__)
 
 def apply_extra_script(
     component: ConvertedLibrary,
-    board_mcu: str | Callable[[], str],
+    board_mcu: Callable[[], str],
     pio_platform: str,
 ) -> None:
     """Run a library's PIO ``extraScript`` and fold its captured env vars into
     ``component.data["build"]["flags"]`` so the backend's -L/-l/-D extraction
     picks them up. Shared by the ESP-IDF and ESP8266 Arduino backends.
 
-    ``board_mcu`` may be a callable so a backend whose target lookup needs
-    build state (the esp32 variant) resolves it only when a script will run.
+    ``board_mcu`` is a callable so a backend whose target lookup needs build
+    state (the esp32 variant) resolves it only when a script will run.
     ``pio_platform`` is exposed to the script as PlatformIO's ``PIOPLATFORM``.
     """
     extra_script = component.data.get("build", {}).get("extraScript")
@@ -80,12 +80,10 @@ def apply_extra_script(
             component.name,
         )
         return
-    if callable(board_mcu):
-        board_mcu = board_mcu()
     result = run_extra_script(
         script_path,
         library_dir=source_path,
-        board_mcu=board_mcu,
+        board_mcu=board_mcu(),
         pio_platform=pio_platform,
     )
     extra_flags = captured_as_build_flags(result, library_dir=source_path)
