@@ -173,9 +173,9 @@ def run_extra_script(
     process CWD so relative-path lookups (``join``, ``realpath``,
     ``open``) resolve against the library tree.
 
-    On any exception inside the script we log at debug level and return
-    an empty result — extra-scripts are best-effort, and an unsupported
-    script shouldn't block the build.
+    On any exception inside the script we warn and return whatever the
+    script captured before failing — extra-scripts are best-effort, and an
+    unsupported script shouldn't block the build.
     """
     env = _FakeSConsEnv(
         board_mcu=board_mcu,
@@ -196,8 +196,15 @@ def run_extra_script(
             },
         )
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        _LOGGER.warning("PIO extra-script %s raised %s; skipping", script_path, e)
-        return ExtraScriptResult()
+        # Keep what the script captured before failing: dropping flags it
+        # already appended would fail later at link time, far from the cause
+        _LOGGER.warning(
+            "PIO extra-script %s (in %s) raised %s; keeping the partial capture",
+            script_path,
+            library_dir.name,
+            e,
+        )
+        return env.result
     finally:
         os.chdir(old_cwd)
     return env.result
