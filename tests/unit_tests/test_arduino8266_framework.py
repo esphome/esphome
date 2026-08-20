@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -79,66 +80,59 @@ def test_pio_system_unsupported_host_raises(system: str, machine: str) -> None:
         framework._pio_system()
 
 
-def _registry_response(files: list[dict]) -> MagicMock:
-    resp = MagicMock()
-    resp.json.return_value = {"versions": [{"name": "1.0.0", "files": files}]}
-    return resp
+def _registry_response(files: list[dict]):
+    """Patch the shared downloader to serve a canned registry response."""
+    payload = {"versions": [{"name": "1.0.0", "files": files}]}
+
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(json.dumps(payload).encode())
+        return mirrors[0].format(**substitutions)
+
+    return patch.object(framework, "download_from_mirrors", side_effect=fake_download)
 
 
-def test_registry_download_network_error_is_clean_and_retried() -> None:
-    """Registry failures raise EsphomeError after retries, not a traceback."""
-    import requests
-
+def test_registry_download_uses_shared_downloader() -> None:
+    """The metadata fetch delegates its retries and error reporting to
+    download_from_mirrors; failures surface unchanged."""
     with (
-        patch("requests.get", side_effect=requests.ConnectionError("boom")) as mock_get,
-        patch.object(framework.time, "sleep") as mock_sleep,
-        pytest.raises(EsphomeError, match="Could not query the package registry"),
+        patch.object(
+            framework,
+            "download_from_mirrors",
+            side_effect=EsphomeError("Failed to download from all mirrors"),
+        ) as mock_download,
+        pytest.raises(EsphomeError, match="Failed to download from all mirrors"),
     ):
         framework._registry_download("pkg", "1.0.0")
-    assert mock_get.call_count == 3
-    # Backed-off retries, not one burst
-    assert mock_sleep.call_count == 3
+    (mirrors, substitutions, _), _ = mock_download.call_args
+    assert mirrors == [framework._REGISTRY_URL]
+    assert substitutions == {"package": "pkg"}
 
 
-def test_registry_download_retries_transient_error() -> None:
-    import requests
+def test_registry_download_invalid_json_is_clean() -> None:
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(b"<html>not json</html>")
+        return "http://x"
 
-    resp = _registry_response(
-        [
-            {
-                "system": ["linux_x86_64"],
-                "download_url": "http://x/linux",
-                "checksum": {"sha256": "abc123"},
-                "size": 42,
-            }
-        ]
-    )
     with (
-        patch("requests.get", side_effect=[requests.ConnectionError("boom"), resp]),
-        patch.object(framework.time, "sleep"),
-        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+        patch.object(framework, "download_from_mirrors", side_effect=fake_download),
+        pytest.raises(EsphomeError, match="invalid JSON"),
     ):
-        assert framework._registry_download("pkg", "1.0.0") == (
-            "http://x/linux",
-            "abc123",
-            42,
-        )
+        framework._registry_download("pkg", "1.0.0")
 
 
 def test_registry_download_matches_system() -> None:
-    resp = _registry_response(
-        [
-            {"system": ["windows_amd64"], "download_url": "http://x/win"},
-            {
-                "system": ["linux_x86_64"],
-                "download_url": "http://x/linux",
-                "checksum": {"sha256": "abc123"},
-                "size": 42,
-            },
-        ]
-    )
     with (
-        patch("requests.get", return_value=resp),
+        _registry_response(
+            [
+                {"system": ["windows_amd64"], "download_url": "http://x/win"},
+                {
+                    "system": ["linux_x86_64"],
+                    "download_url": "http://x/linux",
+                    "checksum": {"sha256": "abc123"},
+                    "size": 42,
+                },
+            ]
+        ),
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
     ):
         assert framework._registry_download("pkg", "1.0.0") == (
@@ -150,25 +144,24 @@ def test_registry_download_matches_system() -> None:
 
 def test_registry_download_bare_string_system() -> None:
     """A bare-string system tag is an exact match, not a substring test."""
-    resp = _registry_response(
-        [
-            {"system": "linux_x86", "download_url": "http://x/x86"},
-            {
-                "system": "linux_x86_64",
-                "download_url": "http://x/x86_64",
-                "checksum": {"sha256": "abc"},
-            },
-        ]
-    )
     with (
-        patch("requests.get", return_value=resp),
+        _registry_response(
+            [
+                {"system": "linux_x86", "download_url": "http://x/x86"},
+                {
+                    "system": "linux_x86_64",
+                    "download_url": "http://x/x86_64",
+                    "checksum": {"sha256": "abc"},
+                },
+            ]
+        ),
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
     ):
         assert framework._registry_download("pkg", "1.0.0")[0] == "http://x/x86_64"
 
 
 def test_registry_download_wildcard_system() -> None:
-    resp = _registry_response(
+    with _registry_response(
         [
             {
                 "system": "*",
@@ -177,8 +170,7 @@ def test_registry_download_wildcard_system() -> None:
                 "size": 7,
             }
         ]
-    )
-    with patch("requests.get", return_value=resp):
+    ):
         assert framework._registry_download("pkg", "1.0.0") == (
             "http://x/any",
             "abc",
@@ -188,20 +180,18 @@ def test_registry_download_wildcard_system() -> None:
 
 def test_registry_download_missing_checksum_raises() -> None:
     """An unverifiable archive is refused, never silently extracted."""
-    resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
     with (
-        patch("requests.get", return_value=resp),
+        _registry_response([{"system": "*", "download_url": "http://x/any"}]),
         pytest.raises(EsphomeError, match="no sha256"),
     ):
         framework._registry_download("pkg", "1.0.0")
 
 
 def test_registry_download_no_system_match() -> None:
-    resp = _registry_response(
-        [{"system": ["windows_amd64"], "download_url": "http://x/win"}]
-    )
     with (
-        patch("requests.get", return_value=resp),
+        _registry_response(
+            [{"system": ["windows_amd64"], "download_url": "http://x/win"}]
+        ),
         patch.object(framework, "_pio_system", return_value="linux_x86_64"),
         pytest.raises(EsphomeError, match="No pkg 1.0.0 build"),
     ):
@@ -209,10 +199,14 @@ def test_registry_download_no_system_match() -> None:
 
 
 def test_registry_download_version_not_found() -> None:
-    resp = MagicMock()
-    resp.json.return_value = {"versions": [{"name": "2.0.0", "files": []}]}
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(
+            json.dumps({"versions": [{"name": "2.0.0", "files": []}]}).encode()
+        )
+        return "http://x"
+
     with (
-        patch("requests.get", return_value=resp),
+        patch.object(framework, "download_from_mirrors", side_effect=fake_download),
         pytest.raises(EsphomeError, match="not found"),
     ):
         framework._registry_download("pkg", "1.0.0")
