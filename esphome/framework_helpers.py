@@ -15,7 +15,7 @@ from typing import IO, TYPE_CHECKING
 
 from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import ProgressBar, rmtree
-from esphome.net_retry import is_transient_download_error
+from esphome.net_retry import NETWORK_MAX_ATTEMPTS, is_transient_download_error
 
 if TYPE_CHECKING:
     import requests
@@ -30,8 +30,9 @@ _LOGGER = logging.getLogger(__name__)
 _MIRROR_ATTEMPTS = 3
 
 # Passes over the whole mirror list when a transient network error is in
-# the mix; matches git.py's _NETWORK_MAX_ATTEMPTS (3 tries, 2s/4s backoff).
-_MIRROR_SWEEP_ATTEMPTS = 3
+# the mix; shares net_retry's policy (3 tries, 2s/4s backoff), which in
+# turn matches git.py's _NETWORK_MAX_ATTEMPTS.
+_MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
 def get_project_link_flags() -> list[str]:

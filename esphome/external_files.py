@@ -161,12 +161,17 @@ def has_remote_file_changed(
             # Retried even though a failure degrades gracefully to the
             # cached copy below: allow_stale=False consumers reject an
             # unverified copy, so for them a healed flake avoids a hard
-            # failure in download_content.
+            # failure in download_content. Only connection-level failures
+            # are retryable here; HEAD never raises on an HTTP status
+            # (deliberately: servers that reject HEAD with 405/501 fall
+            # through to "changed" and the GET below handles them), so a
+            # 5xx lands in the != 304 branch and the GET's retry covers it.
             response = fetch_with_retry(
                 url,
                 lambda: requests.head(
                     url, headers=headers, timeout=timeout, allow_redirects=True
                 ),
+                what="Revalidation",
             )
 
             _LOGGER.debug(

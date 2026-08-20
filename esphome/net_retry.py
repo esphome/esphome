@@ -38,6 +38,11 @@ def _is_permanent_dns_failure(e: BaseException) -> bool:
         if id(exc) in seen:
             continue
         if isinstance(exc, socket.gaierror):
+            # Everything except EAI_AGAIN is treated as permanent. Codes
+            # like EAI_NONAME can occur during a brief network outage too,
+            # but a 6s backoff rarely outlives one, and permanent means
+            # callers fall back to their cache immediately instead of
+            # sleeping first (the offline-build case).
             return exc.errno != socket.EAI_AGAIN
         seen.add(id(exc))
         stack.extend(
@@ -83,10 +88,11 @@ def is_transient_download_error(e: Exception) -> bool:
     )
 
 
-def fetch_with_retry[T](url: str, fetch: Callable[[], T]) -> T:
+def fetch_with_retry[T](url: str, fetch: Callable[[], T], what: str = "Download") -> T:
     """Run ``fetch``, retrying failures that ``is_transient_download_error``
     classifies as transient with 2s/4s backoff. Other failures and the
     final attempt's failure propagate to the caller's fallback handling.
+    ``what`` names the operation in the retry warning.
     """
     import requests
 
@@ -98,7 +104,8 @@ def fetch_with_retry[T](url: str, fetch: Callable[[], T]) -> T:
                 raise
             delay = 2**attempt
             _LOGGER.warning(
-                "Download of %s failed: %s. Retrying in %d seconds... (attempt %d/%d)",
+                "%s of %s failed: %s. Retrying in %d seconds... (attempt %d/%d)",
+                what,
                 url,
                 e,
                 delay,

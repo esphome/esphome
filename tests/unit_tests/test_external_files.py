@@ -647,9 +647,10 @@ def test_has_remote_file_changed_retries_transient_error(
     mock_requests_head: MagicMock,
     mock_retry_sleep: MagicMock,
     setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A HEAD revalidation that fails transiently then returns 304 does not
-    mark the cached copy stale."""
+    mark the cached copy stale, and the retry warning names the operation."""
     test_file = setup_core / "cached.txt"
     test_file.write_bytes(b"cached content")
 
@@ -669,6 +670,7 @@ def test_has_remote_file_changed_retries_transient_error(
     assert test_file not in external_files._run_data().stale_paths
     assert mock_requests_head.call_count == 2
     assert mock_retry_sleep.call_args_list == [call(2)]
+    assert "Revalidation of" in caplog.text
 
 
 def test_download_content_skip_external_update_uses_cache(
