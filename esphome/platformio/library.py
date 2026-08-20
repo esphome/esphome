@@ -49,7 +49,10 @@ DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
 # Source suffix -> compiler kind, PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES
-# split. Native build generators map the kind to their compile rules.
+# split. Native build generators map the kind to their compile rules. "asm"
+# deliberately merges SCons's AS (.s/.asm) and ASPP (.S/.spp/.sx) sets: the
+# ninja rules compile all of them as assembler-with-cpp, whose asm-mode
+# preprocessor passes non-directive text through unchanged.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -572,14 +575,14 @@ def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     PlatformIO's ParseFlags does, and bare ``-I``/``-L``/``-l``/``-D``
     tokens re-glue to their argument across the whole stream.
     """
-    return join_flag_args(
-        (
-            token
-            for entry in ensure_list(entries)
-            for token in split_flag_entry(entry, owner)
-        ),
-        owner,
-    )
+    # Join per entry, as SCons's ParseFlags lexes each string independently:
+    # a dangling -I ending one entry must warn, not absorb the next entry's
+    # first token.
+    return [
+        token
+        for entry in ensure_list(entries)
+        for token in join_flag_args(split_flag_entry(entry, owner), owner)
+    ]
 
 
 # Flags whose argument may follow as a separate token; ParseFlags glues them

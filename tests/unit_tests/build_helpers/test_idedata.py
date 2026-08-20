@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -290,9 +291,10 @@ def test_parse_entry_recovers_from_unconfigured_launcher(
         f"{ABS}build/src/esphome/core/application.cpp",
         "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -c a.cpp -o a.o",
     )
+    caplog.set_level(logging.DEBUG)
     cxx_path, _, _, _ = idedata.parse_entry(entry)
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
-    assert "WARNING" not in caplog.text
+    assert "Stripping unconfigured launcher" in caplog.text
 
 
 def test_parse_entry_keeps_launcher_without_program() -> None:
