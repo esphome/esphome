@@ -11,10 +11,12 @@ import pytest
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
+    register_exclude_components_cmake_arg,
 )
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE
@@ -28,6 +30,7 @@ def _reset_core(tmp_path: Path) -> None:
     CORE.data.setdefault(KEY_CORE, {})
     CORE.data[KEY_ESP32] = {
         KEY_COMPONENTS: {},
+        KEY_EXCLUDE_COMPONENTS: set(),
         KEY_IDF_VERSION: cv.Version(5, 5, 4),
     }
 
@@ -45,6 +48,17 @@ def _write_project_description(tmp_path: Path, components: dict[str, str]) -> No
             }
         )
     )
+
+
+def _render(minimal: bool = False) -> str:
+    """Render the top-level CMakeLists with the standard variant/name patches."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        return get_project_cmakelists(minimal=minimal)
 
 
 def test_get_available_components_returns_none_without_build_path() -> None:
@@ -88,13 +102,7 @@ def test_get_project_cmakelists_minimal_omits_builtin_components_property(
     first write before the discovery pass refreshes it)."""
     _write_project_description(tmp_path, {"esp_lcd": "/idf/components/esp_lcd"})
 
-    with (
-        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
-        patch.object(CORE, "name", "test"),
-    ):
-        from esphome.build_gen.espidf import get_project_cmakelists
-
-        content = get_project_cmakelists(minimal=True)
+    content = _render(minimal=True)
 
     assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS" not in content
 
@@ -115,13 +123,7 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
         },
     )
 
-    with (
-        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
-        patch.object(CORE, "name", "test"),
-    ):
-        from esphome.build_gen.espidf import get_project_cmakelists
-
-        content = get_project_cmakelists(minimal=False)
+    content = _render()
 
     assert (
         "idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd APPEND)"
@@ -134,6 +136,118 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     # Excluded by get_available_components filtering.
     assert "espressif__esp-dsp APPEND" not in content
     assert "JPEGDEC APPEND" not in content
+
+
+def test_get_project_cmakelists_emits_cmake_args() -> None:
+    """Args registered via CORE.add_cmake_arg() are emitted as set() lines,
+    on minimal writes too."""
+    CORE.add_cmake_arg("EXECUTABLE_COMPONENT_NAME", "src")
+
+    content = _render(minimal=True)
+
+    assert 'set(EXECUTABLE_COMPONENT_NAME "src")' in content
+
+
+def test_get_project_cmakelists_escapes_backslashes_in_cmake_args() -> None:
+    """Backslashes (the only character escaping applies to; the rest are
+    rejected at registration) are doubled so CMake reads the value back
+    verbatim."""
+    CORE.add_cmake_arg("MY_PATH", r"C:\esp\idf")
+
+    content = _render(minimal=True)
+
+    assert r'set(MY_PATH "C:\\esp\\idf")' in content
+
+
+def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None:
+    """Excluded components are passed to IDF via EXCLUDE_COMPONENTS and are
+    dropped from ESPHOME_PROJECT_BUILTIN_COMPONENTS even when a stale
+    project_description.json still lists them (requiring an excluded
+    component would pull it back into the build)."""
+    _write_project_description(
+        tmp_path,
+        {
+            "esp_lcd": "/idf/components/esp_lcd",
+            "freertos": "/idf/components/freertos",
+            "unity": "/idf/components/unity",
+        },
+    )
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+    register_exclude_components_cmake_arg()
+
+    content = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "esp_lcd;unity")' in content
+    # Must be set before project() so project.cmake sees it.
+    assert content.index("set(EXCLUDE_COMPONENTS") < content.index("project(test)")
+    assert (
+        "idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS freertos APPEND)"
+        in content
+    )
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS unity" not in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
+
+
+def test_get_project_cmakelists_minimal_emits_exclude_components() -> None:
+    """The discovery (minimal) write also excludes components so they never
+    register in project_description.json."""
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+    register_exclude_components_cmake_arg()
+
+    content = _render(minimal=True)
+
+    assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_no_exclude_components_line_when_empty() -> None:
+    """No EXCLUDE_COMPONENTS line at all when nothing is excluded."""
+    register_exclude_components_cmake_arg()
+
+    content = _render()
+
+    assert "EXCLUDE_COMPONENTS" not in content
+
+
+def test_include_builtin_idf_component_removes_exclusion() -> None:
+    """include_builtin_idf_component() drops a name from the exclusion set so
+    a component a config actually uses is not passed to EXCLUDE_COMPONENTS."""
+    from esphome.components.esp32 import (
+        exclude_builtin_idf_component,
+        get_excluded_builtin_components,
+        include_builtin_idf_component,
+    )
+
+    exclude_builtin_idf_component("esp_eth")
+    exclude_builtin_idf_component("unity")
+    include_builtin_idf_component("esp_eth")
+
+    assert get_excluded_builtin_components() == ["unity"]
+
+    register_exclude_components_cmake_arg()
+    content = _render()
+
+    assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+    assert "esp_eth" not in content
+
+
+def test_write_project_writes_exclude_components_stamp(tmp_path: Path) -> None:
+    """write_project() snapshots the exclusion set; the toolchain watches the
+    stamp to trigger a discovery reconfigure when the set changes (excluded
+    components never register in project_description.json)."""
+    CORE.build_flags = set()
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import write_project
+
+        write_project()
+
+    stamp = tmp_path / "exclude_components.esphomeinternal"
+    assert stamp.read_text() == "esp_lcd;unity"
 
 
 def test_get_component_cmakelists_no_link_flags() -> None:
