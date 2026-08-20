@@ -24,14 +24,11 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
+from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
 from esphome.build_helpers.ninja import find_ninja
+from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import EsphomeError, Version
-from esphome.framework_helpers import (
-    ccache_defaults_env,
-    resolve_ccache_path,
-    str_to_lst_of_str,
-    tools_cache_path,
-)
+from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import install_package
 
 _LOGGER = logging.getLogger(__name__)

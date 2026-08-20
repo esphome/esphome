@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 
+from esphome.build_helpers.tools_cache import tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -18,7 +19,6 @@ from esphome.framework_helpers import (
     rmdir,
     run_command_ok,
     str_to_lst_of_str,
-    tools_cache_path,
 )
 
 _LOGGER = logging.getLogger(__name__)

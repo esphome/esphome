@@ -82,6 +82,14 @@ def apply_testing_memory_patches(content: str, segments: Collection[str]) -> str
     raises, since a silently kept real memory limit would fail grouped
     builds far from the cause.
     """
+    for segment in _TESTING_SEGMENT_SIZES:
+        if segment not in segments and _segment_line_re(segment).search(content):
+            # A known segment left unpatched would keep its real memory limit
+            # and silently under-provision the testing build
+            raise RuntimeError(
+                f"Testing-mode segment {segment} is present in the linker "
+                "script but was not selected for patching"
+            )
     for segment in segments:
         if segment not in _TESTING_SEGMENT_SIZES:
             raise RuntimeError(f"Unknown testing-mode segment {segment!r}")
@@ -103,15 +111,14 @@ def segment_length(content: str, segment_name: str) -> int | None:
 
 
 def surgery_fingerprint() -> str:
-    """Fingerprint of every behavioral input to the surgeries.
+    """Fingerprint of this module's source, covering every behavioral input.
 
-    Linker-script caches include it so an edit here invalidates them.
+    Linker-script caches include it so an edit here invalidates them; hashing
+    the source over-invalidates on comment edits, which is the safe direction.
     Native-toolchain-only, like ``segment_length``; no script twin.
     """
-    parts = (
-        RATETABLE_RULE,
-        _RATETABLE_COMMENT,
-        _RATETABLE_ANCHOR.pattern,
-        repr(sorted(_TESTING_SEGMENT_SIZES.items())),
-    )
-    return hashlib.sha256("|".join(parts).encode()).hexdigest()
+    import inspect
+    import sys
+
+    source = inspect.getsource(sys.modules[__name__])
+    return hashlib.sha256(source.encode()).hexdigest()
