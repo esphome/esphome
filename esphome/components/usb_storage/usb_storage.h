@@ -143,7 +143,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   void set_vid(uint16_t vid) { this->vid_ = vid; }
   void set_pid(uint16_t pid) { this->pid_ = pid; }
   void set_storage_id(const char *id) { this->storage_id_ = id; }
-  voud set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
+  void set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
 
   // Called by USBStorageClient on connect/disconnect events
   void on_device_connected(const char *mount_path);
