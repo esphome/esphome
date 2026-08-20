@@ -107,6 +107,9 @@ from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
+if typing.TYPE_CHECKING:
+    from esphome.types import ConfigType
+
 _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name
@@ -2533,17 +2536,21 @@ def platformio_version_constraint(value):
     return constraints
 
 
-def check_supported_toolchain(platform_name: str, supported: tuple) -> None:
+def check_supported_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...]
+) -> None:
     """Raise when the resolved ``CORE.toolchain`` is not in ``supported``.
 
     One message shape for every platform, so a ``--toolchain`` a platform
     cannot serve always fails by name instead of silently building with a
     different backend.
     """
-    if CORE.toolchain not in supported:
+    toolchain = CORE.toolchain
+    if toolchain is None or toolchain not in supported:
         names = ", ".join(f"'{tc.value}'" for tc in supported)
         raise Invalid(
-            f"Unsupported toolchain '{CORE.toolchain.value}' for "
+            f"Unsupported toolchain "
+            f"'{toolchain.value if toolchain else 'unresolved'}' for "
             f"{platform_name}. Supported: {names}."
         )
 
@@ -2555,7 +2562,7 @@ def require_platformio_toolchain(platform_name: str):
     ``--toolchain`` they cannot serve would silently build with PlatformIO.
     """
 
-    def validator(config):
+    def validator(config: ConfigType) -> ConfigType:
         if CORE.toolchain is None:
             CORE.toolchain = Toolchain.PLATFORMIO
         check_supported_toolchain(platform_name, (Toolchain.PLATFORMIO,))

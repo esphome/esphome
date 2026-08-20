@@ -576,14 +576,15 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 for flag in vals:
                     cg.add_build_flag(flag)
             elif key == "lib_deps":
-                # Routed through the regular library mechanism so the libraries
-                # are converted to IDF components like any other PIO library
+                # Routed through the regular library mechanism so the
+                # libraries reach the native backend's converter (IDF
+                # components, or the ESP8266 native library resolution)
                 for lib in vals:
                     _add_library_str(lib)
             elif key == "lib_ignore":
-                # Read by the PIO-library-to-IDF-component conversion
-                # (generate_idf_components); filters both top-level libraries
-                # and dependencies discovered during conversion
+                # Read by the shared library conversion (lib_ignore_set in
+                # platformio/library.py) on both native backends; filters
+                # top-level libraries and discovered dependencies
                 cg.add_platformio_option(key, vals)
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw

@@ -26,6 +26,7 @@ from esphome.platformio.library import (
     ConvertedLibrary,
     InvalidLibrary,
     LibraryBackend,
+    _parse_library_json,
     check_library_data,
     collect_filtered_files,
     convert_libraries,
@@ -128,10 +129,19 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
 
 
 def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
-    """A library bundled with the Arduino core, read from the framework tree."""
+    """A library bundled with the Arduino core, read from the framework tree.
+
+    ``library.json`` wins over ``library.properties`` when both exist, as in
+    PlatformIO's LibBuilderFactory; only the JSON manifest can carry a
+    ``build`` section (srcDir, srcFilter, flags).
+    """
     lib_dir = framework_path / "libraries" / name
-    manifest = lib_dir / "library.properties"
-    data = parse_library_properties(manifest) if manifest.is_file() else {}
+    manifest_json = lib_dir / "library.json"
+    if manifest_json.is_file():
+        data = _parse_library_json(manifest_json)
+    else:
+        manifest = lib_dir / "library.properties"
+        data = parse_library_properties(manifest) if manifest.is_file() else {}
     return _library_info(name, lib_dir, {"name": name, **data})
 
 
