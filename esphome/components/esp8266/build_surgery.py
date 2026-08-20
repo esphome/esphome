@@ -5,6 +5,7 @@ These mirror the PlatformIO extra scripts in this directory
 inside SCons and must stay self-contained. The native build generator applies
 the same patches to the linker scripts it generates, so the logic lives here
 as plain functions. Keep both in sync when changing either.
+``segment_length`` is native-toolchain-only and has no script twin.
 """
 
 from __future__ import annotations
@@ -45,48 +46,41 @@ def relocate_ratetable(content: str) -> str:
     )
 
 
-_TESTING_SEGMENT_SIZES = (
-    ("iram1_0_seg", TESTING_IRAM_SIZE),
-    ("dram0_0_seg", TESTING_DRAM_SIZE),
-    ("irom0_0_seg", TESTING_FLASH_SIZE),
-)
+_TESTING_SEGMENT_SIZES = {
+    "iram1_0_seg": TESTING_IRAM_SIZE,
+    "dram0_0_seg": TESTING_DRAM_SIZE,
+    "irom0_0_seg": TESTING_FLASH_SIZE,
+}
 
 
-def _patch_segment_size(content: str, segment_name: str, new_size: str) -> str:
-    pattern = (
+def _segment_line_re(segment_name: str) -> re.Pattern[str]:
+    """The MEMORY line for one segment: ``<seg> : org = 0x..., len = 0x...``."""
+    return re.compile(
         rf"({segment_name}\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)"
-        r"0x[0-9a-fA-F]+"
+        r"(0x[0-9a-fA-F]+)"
     )
-    return re.sub(pattern, rf"\g<1>{new_size}", content)
 
 
-def apply_testing_memory_patches(content: str, require: Collection[str]) -> str:
-    """Enlarge IRAM/DRAM/flash segments so grouped CI test builds can link.
+def apply_testing_memory_patches(content: str, segments: Collection[str]) -> str:
+    """Enlarge the named memory segments so grouped CI test builds can link.
 
-    ``require`` names the segments this file must define; a silently
-    unpatched segment would keep the real memory limits and fail grouped
-    builds far from the cause. The segments are split across the two linker
-    scripts (iram1_0_seg in the generated common one, dram0_0_seg and
-    irom0_0_seg in the flash one), so each caller requires only its own.
+    Each caller passes the segments its linker script defines; a segment
+    that fails to match raises, since a silently kept real memory limit
+    would fail grouped builds far from the cause.
     """
-    missing = set(require)
-    for segment, size in _TESTING_SEGMENT_SIZES:
-        patched = _patch_segment_size(content, segment, size)
-        if patched != content:
-            missing.discard(segment)
-        content = patched
-    if missing:
-        raise RuntimeError(
-            f"Testing-mode memory patch failed: segment(s) {', '.join(sorted(missing))} "
-            "not found (has the Arduino core linker script changed?)"
+    for segment in segments:
+        content, count = _segment_line_re(segment).subn(
+            rf"\g<1>{_TESTING_SEGMENT_SIZES[segment]}", content
         )
+        if count == 0:
+            raise RuntimeError(
+                f"Testing-mode memory patch failed: segment {segment} "
+                "not found (has the Arduino core linker script changed?)"
+            )
     return content
 
 
 def segment_length(content: str, segment_name: str) -> int | None:
     """Read a memory segment's length from linker script content."""
-    match = re.search(
-        rf"{segment_name}\s*:.+len\s*=\s*(0x[\da-fA-F]+)",
-        content,
-    )
-    return int(match.group(1), 16) if match else None
+    match = _segment_line_re(segment_name).search(content)
+    return int(match.group(2), 16) if match else None
