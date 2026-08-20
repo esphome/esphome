@@ -283,8 +283,11 @@ DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
 void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
 optional<float> DeltaFilter::new_value(float value) {
-  // Always yield the first value.
-  if (std::isnan(this->last_value_)) {
+  const bool no_value = std::isnan(value);
+  const bool no_reference = std::isnan(this->last_value_);
+  if (no_value && no_reference)
+    return {};
+  if (no_value || no_reference) {
     this->last_value_ = value;
     return value;
   }
@@ -293,8 +296,7 @@ optional<float> DeltaFilter::new_value(float value) {
   float min = fabsf(this->min_a0_ + ref * this->min_a1_);
   float max = fabsf(this->max_a0_ + ref * this->max_a1_);
   float delta = fabsf(value - ref);
-  // if there is no reference, e.g. for the first value, just accept this one,
-  // otherwise accept only if within range.
+  // accept only if within range
   if (delta > min && delta <= max) {
     this->last_value_ = value;
     return value;

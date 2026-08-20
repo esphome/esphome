@@ -135,10 +135,8 @@ def validate_modbus_register(config):
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("modbus_controller", role="client")(
-        config
-    )
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("modbus_controller", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

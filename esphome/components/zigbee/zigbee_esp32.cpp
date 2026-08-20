@@ -307,6 +307,11 @@ void ZigbeeComponent::setup() {
     return;
   }
 #endif
+
+#ifdef CONFIG_ZB_ZCZR
+  ezb_bdb_set_router_rejoin_required(true);
+#endif
+
   ezb_aps_secur_enable_distributed_security(false);
   ezb_nwk_set_min_join_lqi(32);
   if (ezb_app_signal_add_handler(ZigbeeComponent::app_signal_handler) != ESP_OK) {
