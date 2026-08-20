@@ -574,7 +574,10 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
-  climate->mode = this->mode;
+  // Drop a saved mode the device no longer supports; mode then stays at its default of CLIMATE_MODE_OFF
+  if (traits.supports_mode(this->mode)) {
+    climate->mode = this->mode;
+  }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     climate->target_temperature_low = this->target_temperature_low;

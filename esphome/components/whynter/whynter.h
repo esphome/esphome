@@ -16,7 +16,10 @@ class Whynter final : public climate_ir::ClimateIR {
  public:
   Whynter()
       : climate_ir::ClimateIR(TEMP_MIN_C, TEMP_MAX_C, 1.0, true, true,
-                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH}, {}) {}
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH}, {}) {
+    // The Whynter protocol has no auto mode, so HEAT_COOL can never be sent.
+    this->supports_heat_cool_ = false;
+  }
 
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override { climate_ir::ClimateIR::control(call); }
