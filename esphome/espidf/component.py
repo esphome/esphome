@@ -41,34 +41,10 @@ def _idf_framework() -> str:
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
-    """Run a PIO ``extraScript`` and fold its captured env vars into
-    ``component.data["build"]["flags"]`` so the existing -L/-l/-D
-    extraction in ``generate_cmakelists_txt`` picks them up."""
-    extra_script = component.data.get("build", {}).get("extraScript")
-    if not extra_script:
-        return
-    # Resolve and confine to the library's source dir so a malicious
-    # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
-    source_path = component.source_dir
-    library_root = source_path.resolve()
-    script_path = (source_path / extra_script).resolve()
-    if not script_path.is_relative_to(library_root) or not script_path.is_file():
-        return
     from esphome.components.esp32 import get_esp32_variant
-    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
+    from esphome.espidf.extra_script import apply_extra_script
 
-    idf_target = variant_to_idf_target(get_esp32_variant())
-    result = run_extra_script(
-        script_path, library_dir=source_path, idf_target=idf_target
-    )
-    extra_flags = captured_as_build_flags(result, library_dir=source_path)
-    if not extra_flags:
-        return
-    flags = component.data.setdefault("build", {}).setdefault("flags", [])
-    if isinstance(flags, str):
-        flags = [flags]
-    flags.extend(extra_flags)
-    component.data["build"]["flags"] = flags
+    apply_extra_script(component, lambda: variant_to_idf_target(get_esp32_variant()))
 
 
 def generate_cmakelists_txt(component: IDFComponent) -> str:

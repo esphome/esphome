@@ -610,6 +610,69 @@ def should_run_esp32_platformio(branch: str | None = None) -> bool:
     return bool(esp32_platformio_components_to_test(branch))
 
 
+# Components tested by the native (PlatformIO-free) ESP8266 Arduino toolchain
+# compile-test job. The regular component matrix builds esp8266 with the
+# default platformio toolchain; this list is the `--toolchain arduino` smoke
+# test, chosen to exercise the core, the bundled libraries (ESP8266WiFi,
+# ESP8266mDNS, Wire, SPI, DNSServer, Hash), the converted registry libraries
+# (ESPAsyncTCP/WebServer, AsyncMqttClient, NeoPixelBus), and the waveform path.
+ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
+    {
+        "esp8266",
+        "api",
+        "web_server",
+        "captive_portal",
+        "mqtt",
+        "esp8266_pwm",
+        "neopixelbus",
+        "bme280_i2c",
+        "uart",
+    }
+)
+
+# Infrastructure whose changes always trigger the native ESP8266 compile test.
+ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = ("esphome/arduino8266/",)
+ESP8266_NATIVE_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/arduino8266.py",
+        "esphome/components/esp8266/build_surgery.py",
+        "esphome/components/esp8266/boards.py",
+        "script/test_build_components.py",
+        ".github/workflows/ci.yml",
+    }
+)
+
+
+def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
+    """Whether any changed file is native-ESP8266 infrastructure / harness."""
+    for file in files:
+        if file in ESP8266_NATIVE_TRIGGER_FILES:
+            return True
+        if any(
+            file.startswith(prefix) for prefix in ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
+        ):
+            return True
+    return False
+
+
+def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
+    """Subset of ``ESP8266_NATIVE_TEST_COMPONENTS`` the job needs to compile.
+
+    Same narrowing logic as ``esp32_platformio_components_to_test``: the full
+    list on core or infrastructure changes, otherwise the intersection with
+    the changed-component dependency closure (empty list skips the job).
+    """
+    files = changed_files(branch)
+
+    if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
+        return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    changed = get_components_with_dependencies(component_files, True)
+
+    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & set(changed))
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -1205,6 +1268,8 @@ def main() -> None:
         run_device_builder = True
         esp32_platformio_components = sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
         run_esp32_platformio = True
+        esp8266_native_components = sorted(ESP8266_NATIVE_TEST_COMPONENTS)
+        run_esp8266_native = True
     else:
         integration_run_all, integration_test_files = determine_integration_tests(
             args.branch
@@ -1216,6 +1281,8 @@ def main() -> None:
         run_device_builder = should_run_device_builder(args.branch)
         esp32_platformio_components = esp32_platformio_components_to_test(args.branch)
         run_esp32_platformio = bool(esp32_platformio_components)
+        esp8266_native_components = esp8266_native_components_to_test(args.branch)
+        run_esp8266_native = bool(esp8266_native_components)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
@@ -1410,6 +1477,8 @@ def main() -> None:
         "device_builder": run_device_builder,
         "esp32_platformio": run_esp32_platformio,
         "esp32_platformio_components": ",".join(esp32_platformio_components),
+        "esp8266_native": run_esp8266_native,
+        "esp8266_native_components": ",".join(esp8266_native_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),

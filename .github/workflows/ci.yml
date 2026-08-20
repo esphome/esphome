@@ -101,6 +101,8 @@ jobs:
       device-builder: ${{ steps.determine.outputs.device-builder }}
       esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
       esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
+      esp8266-native: ${{ steps.determine.outputs.esp8266-native }}
+      esp8266-native-components: ${{ steps.determine.outputs.esp8266-native-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -155,6 +157,8 @@ jobs:
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
           echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
           echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
+          echo "esp8266-native=$(echo "$output" | jq -r '.esp8266_native')" >> $GITHUB_OUTPUT
+          echo "esp8266-native-components=$(echo "$output" | jq -r '.esp8266_native_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -1125,6 +1129,40 @@ jobs:
           # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
           python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
 
+  test-esp8266-native:
+    name: Test esp8266 components with the native toolchain
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
+    env:
+      # Comma-joined subset of the native-ESP8266 representative component list,
+      # computed by script/determine-jobs.py (esp8266_native_components_to_test).
+      # Single source of truth -- the full list lives in
+      # script/determine-jobs.py::ESP8266_NATIVE_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp8266-native-components }}
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Run native toolchain compile test
+        run: |
+          . venv/bin/activate
+
+          echo "Testing components: $TEST_COMPONENTS"
+          echo ""
+
+          # ESP8266 Arduino built directly (no PlatformIO); compile validates
+          # config first, so a separate config pass is redundant.
+          python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino
+
   device-builder:
     name: Test downstream esphome/device-builder
     runs-on: ubuntu-24.04
@@ -1502,6 +1540,7 @@ jobs:
       - clang-tidy-esp32-variants
       - test-build-components-split
       - test-esp32-platformio
+      - test-esp8266-native
       - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch

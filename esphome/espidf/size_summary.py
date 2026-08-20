@@ -67,7 +67,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def _format_bar(used: int, total: int) -> str:
+def format_bar(used: int, total: int) -> str:
     """Match PlatformIO's ``_format_availale_bytes`` (pioupload.py) exactly."""
     pct_raw = used / total if total else 0
     blocks = 10
@@ -99,7 +99,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+        print(f"RAM:   {format_bar(ram_used, ram_total)}")
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
@@ -109,4 +109,4 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     except ValueError as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
-    print(f"Flash: {_format_bar(image_size, app_size)}")
+    print(f"Flash: {format_bar(image_size, app_size)}")

@@ -469,7 +469,7 @@ def _parse_library_json(library_json_path: PathType):
         return json.load(fp)
 
 
-def _parse_library_properties(library_properties_path: PathType):
+def parse_library_properties(library_properties_path: PathType):
     """
     Parse a key-value platformio .properties style file into a dictionary.
 
@@ -553,7 +553,7 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def _normalize_dependencies(dependencies: Any) -> list[dict]:
+def normalize_dependencies(dependencies: Any) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
     PIO's library.json accepts both the list-of-dicts form and the shorthand
@@ -840,7 +840,7 @@ def convert_libraries(
         if has_json:
             component.data = _parse_library_json(library_json_path)
         elif has_properties:
-            component.data = _parse_library_properties(library_properties_path)
+            component.data = parse_library_properties(library_properties_path)
         else:
             # For a local library a missing manifest is user input, so raise
             # EsphomeError (clean CLI message) like the missing-directory case;
@@ -869,7 +869,7 @@ def convert_libraries(
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in _normalize_dependencies(component.data.get("dependencies")):
+        for dependency in normalize_dependencies(component.data.get("dependencies")):
             if "name" not in dependency or "version" not in dependency:
                 continue
             try:
