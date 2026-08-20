@@ -1102,9 +1102,7 @@ void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat) {
            want_exfat ? "exFAT" : "FAT32");
 }
 
-void fatfs_log_unreadable(const char *tag) {
-  ESP_LOGW(tag, "file_system not readable, aborting");
-}
+void fatfs_log_unreadable(const char *tag) { ESP_LOGW(tag, "file_system not readable, aborting"); }
 
 void fatfs_log_no_reformat(const char *tag) {
   ESP_LOGW(tag, "file_system : mismatch detected, not formatted as format on mismatch is false");
