@@ -143,7 +143,7 @@ void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-     this->log_tx_debug_(data, len);
+    this->log_tx_debug_(data, len);
   }
 #endif
   while (len > 0) {
