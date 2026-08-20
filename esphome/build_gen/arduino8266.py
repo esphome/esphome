@@ -131,6 +131,9 @@ _MMU_VARIANTS = (
 )
 _MMU_DEFAULT = ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000")
 
+# Upstream's CXXFLAGS (-fno-rtti, the -std level, -f(no-)exceptions) and the
+# trailing stdc++/m/c/gcc system libs are composed at emission
+# (write_project) from CORE.cpp_standard and _BuildConfig.exceptions.
 _ASFLAGS = ["-mlongcalls", "-mtext-section-literals"]
 _CFLAGS = [
     "-std=gnu17",
@@ -208,7 +211,10 @@ class _BuildConfig:
 def _flag_defines() -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
-    for flag in CORE.build_flags:
+    # Sorted so duplicate defines resolve the same way every run: the
+    # winner feeds the linker-script preprocessor line, which is also the
+    # cache stamp
+    for flag in sorted(CORE.build_flags):
         # Shell-lex every entry the way PlatformIO's ParseFlags does, so a
         # knob in "-DKNOB -DOTHER", a spaced "-D KNOB", and quoted bodies all
         # read identically to _project_flags (and the compile line).
@@ -414,9 +420,15 @@ def generate_ld_scripts(
         and stamp.is_file()
         and stamp.read_text(encoding="utf-8") == stamp_content
     ):
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, check=False, close_fds=False
-        )
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, close_fds=False
+            )
+        except OSError as err:
+            # A half-extracted or half-deleted toolchain cache reaches here
+            raise EsphomeError(
+                f"Could not run {gcc}: {err}; run 'esphome clean-all' and retry"
+            ) from err
         if result.returncode != 0:
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
         content = build_surgery.relocate_ratetable(result.stdout)
