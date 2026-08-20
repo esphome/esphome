@@ -3,7 +3,12 @@
 import json
 from pathlib import Path
 
-from esphome.components.esp32 import get_esp32_variant, idf_version
+from esphome.components.esp32 import (
+    get_esp32_variant,
+    get_excluded_builtin_components,
+    get_managed_component_require_names,
+    idf_version,
+)
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.framework_helpers import (
@@ -119,11 +124,21 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # runs as a separate CMake script invocation that doesn't load the
     # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
     # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
-    from esphome.components.esp32 import get_managed_component_require_names
-
     managed_components_property = "\n".join(
         f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
         for name in get_managed_component_require_names()
+    )
+
+    # Components excluded from the build (DEFAULT_EXCLUDED_IDF_COMPONENTS
+    # minus per-component re-includes). project.cmake reads the plain
+    # EXCLUDE_COMPONENTS variable when seeding the component list, so this
+    # must be set before project(). Emitted on minimal writes too so the
+    # discovery reconfigure never registers the excluded components.
+    excluded_components = get_excluded_builtin_components()
+    exclude_components_var = (
+        f'set(EXCLUDE_COMPONENTS "{";".join(excluded_components)}")'
+        if excluded_components
+        else ""
     )
 
     # Built-in IDF components exposed via our own property (not IDF's
@@ -131,12 +146,18 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # component's REQUIRES including real IDF components). Referenced by
     # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
     # on minimal writes because project_description.json may be stale.
+    # Excluded components are dropped here as well: a stale
+    # project_description.json from a build without exclusions may still
+    # list them, and requiring an excluded component pulls it back into
+    # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
     builtin_components_property = (
         ""
         if minimal
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
-            for name in sorted(get_available_components() or [])
+            for name in sorted(
+                set(get_available_components() or []).difference(excluded_components)
+            )
         )
     )
 
@@ -164,6 +185,8 @@ set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
+
+{exclude_components_var}
 
 {cpp_standard_options}
 
@@ -263,4 +286,14 @@ def write_project(minimal: bool = False) -> None:
     write_file_if_changed(
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(),
+    )
+
+    # Snapshot the exclusion set so has_outdated_files() can trigger a
+    # discovery reconfigure when it changes. Excluded components never
+    # register in project_description.json, so re-including one (e.g. a
+    # config gains mqtt) requires a fresh discovery pass before the
+    # ESPHOME_PROJECT_BUILTIN_COMPONENTS property can list it.
+    write_file_if_changed(
+        CORE.relative_build_path("exclude_components.esphomeinternal"),
+        ";".join(get_excluded_builtin_components()),
     )
