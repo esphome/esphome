@@ -287,3 +287,13 @@ def write_project(minimal: bool = False) -> None:
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(),
     )
+
+    # Snapshot the exclusion set so has_outdated_files() can trigger a
+    # discovery reconfigure when it changes. Excluded components never
+    # register in project_description.json, so re-including one (e.g. a
+    # config gains mqtt) requires a fresh discovery pass before the
+    # ESPHOME_PROJECT_BUILTIN_COMPONENTS property can list it.
+    write_file_if_changed(
+        CORE.relative_build_path("exclude_components.esphomeinternal"),
+        ";".join(get_excluded_builtin_components()),
+    )

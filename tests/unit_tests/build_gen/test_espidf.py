@@ -203,6 +203,26 @@ def test_include_builtin_idf_component_removes_exclusion() -> None:
     assert "esp_eth" not in content
 
 
+def test_write_project_writes_exclude_components_stamp(tmp_path: Path) -> None:
+    """write_project() snapshots the exclusion set; the toolchain watches the
+    stamp to trigger a discovery reconfigure when the set changes (excluded
+    components never register in project_description.json)."""
+    CORE.build_flags = set()
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import write_project
+
+        write_project()
+
+    stamp = tmp_path / "exclude_components.esphomeinternal"
+    assert stamp.read_text() == "esp_lcd;unity"
+
+
 def test_get_component_cmakelists_no_link_flags() -> None:
     """With no -Wl, flags the target_link_options block is emitted with an empty body."""
     CORE.build_flags = set()
