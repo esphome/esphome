@@ -6,10 +6,6 @@ esp32:
   framework:
     type: esp-idf
 
-wifi:
-  ssid: "test_ssid"
-  password: "test_password"
-
 i2c:
   sda: 21
   scl: 22
@@ -22,12 +18,3 @@ output:
     id: dimmer_out
     gate_pin: 26
     zero_cross_pin: 27
-
-mqtt:
-  broker: "10.0.0.1"
-
-http_request:
-  verify_ssl: false
-
-web_server:
-  version: 3
