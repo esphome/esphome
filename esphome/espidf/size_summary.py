@@ -92,10 +92,16 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
     else:
-        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
+        _LOGGER.warning(
+            "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
+        )
 
     image_size = data.get("image_size")
-    if image_size is None or partitions_csv is None:
+    if image_size is None:
+        _LOGGER.warning("Skipping Flash summary: no image_size in %s", size_json)
+        return
+    if partitions_csv is None:
+        _LOGGER.warning("Skipping Flash summary: no partition table given")
         return
     try:
         app_size = _find_app_partition_size(partitions_csv)
