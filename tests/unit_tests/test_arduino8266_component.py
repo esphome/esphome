@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -36,6 +37,25 @@ def _make_framework(tmp_path: Path) -> Path:
     (root_lib / "examples").mkdir()
     (root_lib / "examples" / "scan.ino").write_text("")
     return framework
+
+
+@contextmanager
+def _emitting_converter(*converted):
+    """Patch convert_libraries to emit the given components via the backend."""
+
+    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
+        assert backend.platform == "espressif8266"
+        assert backend.framework == "arduino"
+        assert backend.cache_key == "arduino8266"
+        for c in converted:
+            backend.emit(c)
+        return list(converted)
+
+    with (
+        patch.object(component, "convert_libraries", side_effect=fake_convert),
+        patch.object(component, "apply_extra_script") as mock_extra,
+    ):
+        yield mock_extra
 
 
 def test_library_info_src_layout(tmp_path: Path) -> None:
@@ -176,17 +196,7 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
         },
     )
 
-    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
-        assert backend.platform == "espressif8266"
-        assert backend.framework == "arduino"
-        assert backend.cache_key == "arduino8266"
-        backend.emit(converted)
-        return [converted]
-
-    with (
-        patch.object(component, "convert_libraries", side_effect=fake_convert),
-        patch.object(component, "apply_extra_script") as mock_extra,
-    ):
+    with _emitting_converter(converted) as mock_extra:
         libs = component.resolve_libraries(framework)
 
     mock_extra.assert_called_once_with(
@@ -209,14 +219,7 @@ def test_resolve_libraries_bundled_dep_already_present(tmp_path: Path) -> None:
         "some__External", lib_dir, {"dependencies": [{"name": "Wire"}]}
     )
 
-    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
-        backend.emit(converted)
-        return [converted]
-
-    with (
-        patch.object(component, "convert_libraries", side_effect=fake_convert),
-        patch.object(component, "apply_extra_script"),
-    ):
+    with _emitting_converter(converted):
         libs = component.resolve_libraries(framework)
 
     # Wire appears once (from the explicit registration), not twice
@@ -297,14 +300,7 @@ def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
         "some__External", lib_dir, {"dependencies": [{"name": "Wire"}]}
     )
 
-    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
-        backend.emit(converted)
-        return [converted]
-
-    with (
-        patch.object(component, "convert_libraries", side_effect=fake_convert),
-        patch.object(component, "apply_extra_script"),
-    ):
+    with _emitting_converter(converted):
         libs = component.resolve_libraries(framework)
 
     assert [lib.name for lib in libs] == ["some__External"]

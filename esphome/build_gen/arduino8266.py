@@ -99,6 +99,36 @@ _LWIP_VARIANTS = (
 )
 _LWIP_DEFAULT = (536, 1, 0, "lwip2-536-feat")
 
+# knob define -> MMU_* defines, first match wins (as in platformio-build.py)
+_MMU_VARIANTS = (
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
+        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED",
+        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED",
+        [
+            "MMU_IRAM_SIZE=0x8000",
+            "MMU_ICACHE_SIZE=0x4000",
+            "MMU_SEC_HEAP_SIZE=0x4000",
+            "MMU_SEC_HEAP=0x40108000",
+        ],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K",
+        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"],
+    ),
+    (
+        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
+        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"],
+    ),
+)
+_MMU_DEFAULT = ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000")
+
 _ASFLAGS = ["-mlongcalls", "-mtext-section-literals"]
 _CFLAGS = [
     "-std=gnu17",
@@ -219,40 +249,22 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         "VTABLES_IN_FLASH",
     )
 
-    if "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48" in defines:
-        mmu = ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED" in defines:
-        mmu = ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x4000",
-            "MMU_SEC_HEAP_SIZE=0x4000",
-            "MMU_SEC_HEAP=0x40108000",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x8000",
-            "MMU_EXTERNAL_HEAP=128",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K" in defines:
-        mmu = [
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x8000",
-            "MMU_EXTERNAL_HEAP=256",
-        ]
-    elif "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
-        if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
-            raise EsphomeError(
-                "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
-                "MMU_ICACHE_SIZE build flags"
+    mmu = next((variant for knob, variant in _MMU_VARIANTS if knob in defines), None)
+    if mmu is None:
+        if "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
+            if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
+                raise EsphomeError(
+                    "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
+                    "MMU_ICACHE_SIZE build flags"
+                )
+            # Sorted so build.ninja and the linker-script stamp stay
+            # byte-stable across runs (the flag set has no deterministic
+            # iteration order).
+            mmu = sorted(
+                body for name, body in defines.items() if name.startswith("MMU_")
             )
-        # Sorted so build.ninja and the linker-script stamp stay byte-stable
-        # across runs (the flag set has no deterministic iteration order).
-        mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
-    else:
-        mmu = ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
+        else:
+            mmu = list(_MMU_DEFAULT)
 
     return _BuildConfig(
         nonosdk=nonosdk,
@@ -418,10 +430,9 @@ def generate_ld_scripts(
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
-        + f" {build_surgery.RATETABLE_RULE}"
-        + f" {build_surgery.TESTING_IRAM_SIZE}"
-        + f" {build_surgery.TESTING_DRAM_SIZE}"
-        + f" {build_surgery.TESTING_FLASH_SIZE}"
+        # One fingerprint instead of enumerating surgery internals here, so
+        # any behavioral edit in build_surgery self-invalidates the cache
+        + f" {build_surgery.surgery_fingerprint()}"
     )
     if not (
         output.is_file()
@@ -580,7 +591,7 @@ def write_project(paths: dict[str, Path]) -> bool:
         + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
     )
 
-    build_tool = Path(__file__).parent.parent / "arduino8266" / "build_tool.py"
+    build_tool = Path(__file__).parent / "build_tool.py"
     ccache = ccache_path()
 
     # $in/$out stay unquoted in the rule commands: ninja shell-escapes its
