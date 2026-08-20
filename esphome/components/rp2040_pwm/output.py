@@ -3,6 +3,9 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_PIN
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["rp2"]
@@ -22,7 +25,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
@@ -44,7 +47,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def rp2040_set_frequency_to_code(config, action_id, template_arg, args):
+async def rp2040_set_frequency_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)

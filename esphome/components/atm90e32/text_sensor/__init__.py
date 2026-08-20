@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
+from esphome.types import ConfigType
 
 from ..sensor import ATM90E32Component
 
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_ID])
 
     if phase_cfg := config.get(CONF_PHASE_STATUS):

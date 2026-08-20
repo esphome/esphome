@@ -15,8 +15,11 @@ from esphome.const import (
     CONF_TIMEOUT,
     PLATFORM_ESP32,
 )
+from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
@@ -48,7 +51,7 @@ SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
 )
 
 
-def _validate_source_speaker(config):
+def _validate_source_speaker(config: ConfigType) -> ConfigType:
     fconf = fv.full_config.get()
 
     # Get ID for the output speaker and add it to the source speakers config to easily inherit properties
@@ -70,7 +73,7 @@ def _validate_source_speaker(config):
     return config
 
 
-def _validate_output_speaker(config):
+def _validate_output_speaker(config: ConfigType) -> ConfigType:
     audio.final_validate_audio_schema(
         "mixer",
         audio_device=CONF_OUTPUT_SPEAKER,
@@ -112,7 +115,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -161,7 +164,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def ducking_set_to_code(config, action_id, template_arg, args):
+async def ducking_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     decibel_reduction = await cg.templatable(
