@@ -210,6 +210,28 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
+  static void fix_mps(const usb_ep_desc_t *ep) {
+    if (ep != nullptr) {
+      auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
+      if (ep->wMaxPacketSize > esphome::usb_host::USB_MAX_PACKET_SIZE) {
+        ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+                 ep->wMaxPacketSize, esphome::usb_host::USB_MAX_PACKET_SIZE);
+        ep_mutable->wMaxPacketSize = esphome::usb_host::USB_MAX_PACKET_SIZE;
+      }
+    }
+  }
+
+#ifdef USE_UART_DEBUGGER
+  void log_tx_debug_(uint8_t *data, size_t len) {
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+    }
+  }
+#endif
 };
 
 // Concrete channel type for CDC-style USB serial devices (2 bulk endpoints per

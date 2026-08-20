@@ -561,20 +561,11 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
     return;
 
   auto *shared = this->tx_shared_channel_;
-
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-    constexpr size_t batch = 16;
-    char buf[4 + format_hex_pretty_size(batch)];
-    for (size_t off = 0; off < len; off += batch) {
-      size_t n = std::min(len - off, batch);
-      strcpy(buf, ">>> ");
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
-    }
+     this->log_tx_debug_(data, len);
   }
 #endif
-
   while (len > 0) {
     UsbOutputChunk *chunk = shared->output_pool_.allocate();
     if (chunk == nullptr) {
@@ -611,17 +602,6 @@ uart::UARTFlushResult CH934XChannel::flush() {
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
-static void fix_mps(const usb_ep_desc_t *ep) {
-  if (ep != nullptr) {
-    auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > esphome::usb_host::USB_MAX_PACKET_SIZE) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize, esphome::usb_host::USB_MAX_PACKET_SIZE);
-      ep_mutable->wMaxPacketSize = esphome::usb_host::USB_MAX_PACKET_SIZE;
-    }
-  }
-}
-
 void USBUartTypeCH934X::on_connected() {
   ESP_LOGI(TAG, "CH934X connected (VID=%04X, PID=%04X)", this->vid_, this->pid_);
 
@@ -632,10 +612,10 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
-  fix_mps(this->uart_host_dev_.in_ep);
-  fix_mps(this->uart_host_dev_.out_ep);
-  fix_mps(this->uart_host_dev_.ep_cmd_read);
-  fix_mps(this->uart_host_dev_.ep_cmd_write);
+  USBUartChannelBase::fix_mps(this->uart_host_dev_.in_ep);
+  USBUartChannelBase::fix_mps(this->uart_host_dev_.out_ep);
+  USBUartChannelBase::fix_mps(this->uart_host_dev_.ep_cmd_read);
+  USBUartChannelBase::fix_mps(this->uart_host_dev_.ep_cmd_write);
 
   auto err = usb_host_interface_claim(this->handle_, this->device_handle_, this->uart_host_dev_.data_interface, 0);
   if (err != ESP_OK) {
@@ -689,4 +669,6 @@ void USBUartTypeCH934X::on_disconnected() {
 }
 
 }  // namespace esphome::usb_uart
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4
+
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4
