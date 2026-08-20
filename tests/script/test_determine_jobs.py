@@ -3072,3 +3072,60 @@ def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
         elf.write_text("")
 
         assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
+
+
+def test_esp8266_native_components_full_list_on_infra_change() -> None:
+    """Native-ESP8266 infrastructure changes run the full test list."""
+    for changed in (
+        ["esphome/arduino8266/framework.py"],
+        ["esphome/build_gen/arduino8266.py"],
+        ["esphome/components/esp8266/build_surgery.py"],
+    ):
+        with (
+            patch.object(determine_jobs, "changed_files", return_value=changed),
+            patch.object(
+                determine_jobs,
+                "get_components_with_dependencies",
+                return_value=["wifi"],
+            ),
+        ):
+            result = determine_jobs.esp8266_native_components_to_test()
+            assert result == sorted(determine_jobs.ESP8266_NATIVE_TEST_COMPONENTS)
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "dependency_closure", "expected"),
+    [
+        # Tested component changed -- narrow to the intersection.
+        (
+            ["esphome/components/mqtt/mqtt_client.cpp"],
+            ["mqtt", "json"],
+            ["mqtt"],
+        ),
+        # Components outside the test set return an empty list (job skipped).
+        (
+            ["esphome/components/wifi/wifi_component.cpp"],
+            ["wifi", "network"],
+            [],
+        ),
+        # ESP-IDF infra is not an esp8266-native trigger.
+        (["esphome/build_gen/espidf.py"], [], []),
+        (["README.md"], [], []),
+    ],
+)
+def test_esp8266_native_components_to_test_narrowing(
+    changed_files: list[str],
+    dependency_closure: list[str],
+    expected: list[str],
+) -> None:
+    """Component changes narrow the native-ESP8266 test list."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=dependency_closure,
+        ),
+    ):
+        result = determine_jobs.esp8266_native_components_to_test()
+        assert result == expected

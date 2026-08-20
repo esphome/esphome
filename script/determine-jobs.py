@@ -524,13 +524,10 @@ def _path_or_file_trigger(
     )
 
 
-@cache
-def _changed_components_closure(branch: str | None) -> frozenset[str]:
-    """Dependency closure of the changed components (shared by the
-    per-toolchain narrowing functions and cached per branch)."""
-    files = changed_files(branch)
+def _changed_components_closure(files: list[str]) -> set[str]:
+    """Dependency closure of the changed components, from the changed files."""
     component_files = [f for f in files if filter_component_and_test_files(f)]
-    return frozenset(get_components_with_dependencies(component_files, True))
+    return set(get_components_with_dependencies(component_files, True))
 
 
 def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
@@ -596,9 +593,7 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
         return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
 
-    return sorted(
-        ESP32_PLATFORMIO_TEST_COMPONENTS & _changed_components_closure(branch)
-    )
+    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & _changed_components_closure(files))
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
@@ -671,7 +666,7 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
     if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
         return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
 
-    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & _changed_components_closure(branch))
+    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & _changed_components_closure(files))
 
 
 def determine_cpp_unit_tests(
