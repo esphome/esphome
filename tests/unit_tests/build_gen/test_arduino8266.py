@@ -283,12 +283,17 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # Assembly and C sources compile through their own rules
     assert "cont.S.o: asm" in content
     assert "abi.c.o: cc" in content
-    # throw_stubs is force-included for ESPHome sources only
+    # throw_stubs is force-included for ESPHome sources only, via one shared
+    # srcflags variable rather than a copy of the flags line per edge
     src_lines = [line for line in content.splitlines() if "obj/src/" in line]
     assert any("main.cpp.o: cxx" in line for line in src_lines)
-    assert content.count("throw_stubs.h") == len(
-        [line for line in content.splitlines() if line.startswith("  flags = ")]
-    )
+    assert content.count("throw_stubs.h") == 1
+    assert "srcflags = -include" in content
+    flags_lines = [
+        line for line in content.splitlines() if line.startswith("  flags = ")
+    ]
+    assert flags_lines
+    assert all(line == "  flags = $srcflags" for line in flags_lines)
 
 
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
@@ -579,7 +584,9 @@ def test_project_flags_trailing_bare_linker_flag_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     _set_flags("-l")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert "Ignoring trailing '-l'" in caplog.text
     assert not libs
     assert not lib_dirs
@@ -589,7 +596,9 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 
 def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     _set_flags("-L /d -Wl,-Map=m stray")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags()
+    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert lib_dirs == [Path("/d")]
     assert link_flags == ["-Wl,-Map=m"]
     assert "stray" in compile_flags
@@ -609,7 +618,9 @@ def test_flag_defines_lexes_multi_token_entries() -> None:
 def test_project_flags_lexes_every_entry() -> None:
     """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
     _set_flags("-DFOO=1 -lbar")
-    compile_flags, _link, _dirs, libs = arduino8266._project_flags()
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert libs == ["bar"]
     assert "-DFOO=1" in compile_flags
 
@@ -618,7 +629,9 @@ def test_project_flags_unflags_match_tokens() -> None:
     """build_unflags removes a token embedded in a multi-token entry."""
     _set_flags("-Os -g3")
     CORE.build_unflags = {"-Os"}
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     assert "-g3" in compile_flags
     assert "-Os" not in compile_flags
 
@@ -626,7 +639,9 @@ def test_project_flags_unflags_match_tokens() -> None:
 def test_project_flags_requotes_lexed_defines() -> None:
     """A quoted spaced value stays one compiler argument after lex/emit."""
     _set_flags('-DGREETING="hello world"')
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
+        arduino8266._unflag_tokens()
+    )
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
     assert compile_flags == ['"-DGREETING=hello world"']
@@ -652,16 +667,8 @@ def test_write_project_empty_core_raises(tmp_path: Path) -> None:
     for f in core.iterdir():
         f.unlink()
     _set_flags()
-    src = CORE.relative_src_path()
-    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
-    (src / "main.cpp").write_text("")
-    with (
-        patch.object(arduino8266, "generate_ld_scripts"),
-        patch("esphome.arduino8266.component.resolve_libraries", return_value=[]),
-        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
-        pytest.raises(EsphomeError, match="no core sources"),
-    ):
-        arduino8266.write_project(paths)
+    with pytest.raises(EsphomeError, match="no core sources"):
+        _write_ninja(paths)
 
 
 def test_flag_defines_joins_spaced_define() -> None:
