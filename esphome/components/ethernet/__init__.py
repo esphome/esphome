@@ -834,7 +834,8 @@ def _filter_source_files() -> list[str]:
         # to avoid shadowing. Native IDF builds always need the custom driver.
         if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
             excluded.append("esp_eth_phy_jl1101.c")
-    # The custom W5500 SPI driver is fully #ifdef'd on USE_ETHERNET_W5500;
+    # The custom W5500 SPI driver is fully #ifdef'd on USE_ESP32 and
+    # USE_ETHERNET_W5500 (the platform filter map above handles non-ESP32);
     # skip it entirely for the other ethernet types.
     if eth_type != "W5500":
         excluded.append("w5500_custom_spi.cpp")
