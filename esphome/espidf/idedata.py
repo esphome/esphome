@@ -15,6 +15,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 
@@ -120,6 +121,11 @@ def _pick_entry(entries: list[dict]) -> dict:
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
 
+# The compiler basename a compile_commands entry must lead with (an
+# optional target-triple prefix ends in one of these)
+_COMPILER_STEM = re.compile(r"(?:gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$")
+
+
 def _parse_entry(
     entry: dict, launcher: str | None = None
 ) -> tuple[str, list[str], list[str], list[str]]:
@@ -143,6 +149,13 @@ def _parse_entry(
     # build, so this is a comparison, not a guess by name.
     if launcher is not None and tokens[0] == launcher:
         tokens = tokens[1:]
+    if not _COMPILER_STEM.search(Path(tokens[0]).stem):
+        # A stale compile DB built with a launcher the current run no longer
+        # configures would otherwise cache the launcher as the compiler path
+        _LOGGER.warning(
+            "compile_commands entry does not start with a compiler: %s",
+            tokens[0],
+        )
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
     cxx_path = tokens[0].replace("\\", "/")

@@ -646,3 +646,22 @@ def test_shell_token_escaping() -> None:
     assert arduino8266._shell_token('-DX=a\\"b c') == '"-DX=a\\\\\\"b c"'
     # A trailing backslash run doubles before the closing quote
     assert arduino8266._shell_token("a b\\") == '"a b\\\\"'
+
+
+def test_write_project_empty_core_raises(tmp_path: Path) -> None:
+    """A framework tree with no core sources fails at generation, not link."""
+    paths = _make_framework(tmp_path)
+    core = paths["framework_path"] / "cores" / "esp8266"
+    for f in core.iterdir():
+        f.unlink()
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino8266.component.resolve_libraries", return_value=[]),
+        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
+        pytest.raises(EsphomeError, match="no core sources"),
+    ):
+        arduino8266.write_project(paths)

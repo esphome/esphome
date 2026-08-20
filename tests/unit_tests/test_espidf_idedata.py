@@ -279,9 +279,24 @@ def test_parse_entry_strips_launcher_prefix() -> None:
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert defines == ["USE_ESP8266"]
     # Without a configured launcher nothing is stripped, even a token that
-    # happens to be named ccache
+    # happens to be named ccache -- but the surprise is warned about
     cxx_path, _, _, _ = idedata._parse_entry(entry)
     assert cxx_path == "/opt/homebrew/bin/ccache"
+
+
+def test_parse_entry_warns_when_first_token_is_not_a_compiler(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entry = _entry(
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/core/application.cpp",
+        "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -c a.cpp -o a.o",
+    )
+    idedata._parse_entry(entry)
+    assert "does not start with a compiler" in caplog.text
+    caplog.clear()
+    idedata._parse_entry(entry, launcher="/opt/homebrew/bin/ccache")
+    assert "does not start with a compiler" not in caplog.text
 
 
 def _write_compile_commands(tmp_path: Path) -> Path:

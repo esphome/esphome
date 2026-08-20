@@ -646,6 +646,13 @@ def write_project(paths: dict[str, Path]) -> bool:
     core_objs = _ninja_compile_edges(
         lines, _collect_sources(core_dir, core_exclude), core_dir, "core"
     )
+    if not core_objs:
+        # An empty archive would link into a wall of undefined references
+        # (app_entry, the exception vectors) far from the cause
+        raise EsphomeError(
+            f"Arduino toolchain install is incomplete: no core sources in "
+            f"{core_dir}; run 'esphome clean-all' and retry"
+        )
     lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
     archives.append("libFrameworkArduino.a")
 
