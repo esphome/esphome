@@ -43,19 +43,24 @@ Patches:
      threshold. On a bridge with 76 endpoints (root + aggregator + 74
      bridged entities) this reproducibly corrupted
      ``DefaultServerCluster::Startup`` mid-boot.
-  4. esp_matter's top-level CMakeLists.txt — drop the arm that excludes
-     ``ESP32DnssdImpl.cpp`` when both ``ENABLE_WIFI_STATION`` and
-     ``ENABLE_WIFI_AP`` are off. ``DnssdImpl.cpp`` still calls the
-     ``EspDnssd*`` symbols defined in that file, so the exclusion breaks
-     linking on Ethernet-only builds. Those symbols only touch
-     ``esp_netif`` and ``mdns`` — safe to link without Wi-Fi.
+  (PATCH4 removed 2026-08 — the DnssdImpl.cpp exclusion never fires under
+  External Platform. Our external_platform.cmake mirrors the else()-branch
+  of esp_matter's CMakeLists but simply does not add the
+  ``!WIFI_STATION && !WIFI_AP`` exclusion, so ESP32DnssdImpl.cpp is always
+  compiled and the EspDnssd* symbols stay linkable on Ethernet-only builds.)
   (PATCH5 removed 2026-08 — the SEC_CERT_DAC_PROVIDER duplicate declaration
   warnings from chip/Kconfig are purely cosmetic; the two "Multiple
   Symbol/Choice Definitions" lines in the configure log are the only
   observable side effect. Dropping the patch cuts one more source of
   upstream-drift breakage in exchange for those warnings.)
+  (PATCH6 removed 2026-08 — CONFIG_DISABLE_IPV4 defaults to n in our
+  sdkconfig and no test/yaml opts in, so the FATAL_ERROR was defensive
+  against a code path never taken. Advanced users who want CHIP compiled
+  IPv6-only should pass -DCHIP_DEVICE_CONFIG_ENABLE_IPV4=false via build
+  flags instead of flipping CONFIG_DISABLE_IPV4 — same effect, no CMake
+  arm involved.)
 
-Errors: PATCH2/4 are file-specific and load-bearing. If their target file
+Errors: PATCH2 is file-specific and load-bearing. If their target file
 is missing, or the marker string the patch anchors on is not present in the
 current esp-matter release, the script exits non-zero — the CMake hook
 surfaces that as a warning and downstream compilation will still fail hard.
@@ -89,60 +94,6 @@ PATCH2_NEW = (
     "// ESPHOME-MATTER-PATCH-WIFI: InitWiFiStack skipped — ESPHome owns "
     "esp_wifi_init; WIFI_EVENT handler re-registered from matter_component.cpp"
 )
-
-# PATCH 4: keep ESP32DnssdImpl.cpp in the esp-matter component build even
-# when WIFI_STATION and WIFI_AP are both off. The upstream CMakeLists.txt
-# excludes that .cpp on !WIFI_STATION && !WIFI_AP (line 441 in 1.6.0), but
-# DnssdImpl.cpp keeps compiling and calls into `chip::Dnssd::Esp*` symbols
-# defined only inside ESP32DnssdImpl.cpp — the exclusion breaks linking on
-# our Ethernet-only builds. Those Esp* functions only touch esp_netif +
-# mdns (no direct esp_wifi calls in the exported symbols), so keeping the
-# file compiled is safe under Ethernet. The exclusion still applies when
-# USE_MINIMAL_MDNS is on — that path swaps the whole mDNS backend and
-# doesn't need ESP32DnssdImpl at all.
-PATCH4_OLD = (
-    "    if((CONFIG_USE_MINIMAL_MDNS) OR "
-    "((NOT CONFIG_ENABLE_WIFI_STATION) AND (NOT CONFIG_ENABLE_WIFI_AP)))\n"
-    "        list(APPEND EXCLUDE_SRCS_LIST "
-    '"${MATTER_SDK_PATH}/src/platform/ESP32/ESP32DnssdImpl.cpp")\n'
-    "    endif()"
-)
-PATCH4_NEW = (
-    "    # ESPHOME-MATTER-PATCH-DNSSD: dropped the "
-    "!WIFI_STATION && !WIFI_AP arm.\n"
-    "    # DnssdImpl.cpp references EspDnssd* symbols defined in "
-    "ESP32DnssdImpl.cpp;\n"
-    "    # excluding that .cpp on Ethernet-only builds breaks linking. The\n"
-    "    # exported EspDnssd* functions only use esp_netif + mdns and are\n"
-    "    # safe to link without Wi-Fi.\n"
-    "    if(CONFIG_USE_MINIMAL_MDNS)\n"
-    "        list(APPEND EXCLUDE_SRCS_LIST "
-    '"${MATTER_SDK_PATH}/src/platform/ESP32/ESP32DnssdImpl.cpp")\n'
-    "    endif()"
-)
-
-PATCH6_OLD = (
-    "if(CONFIG_DISABLE_IPV4)\n"
-    "    if(CONFIG_LWIP_IPV4)\n"
-    '        message(FATAL_ERROR "Please also disable config option CONFIG_LWIP_IPV4")\n'
-    "    else()\n"
-    '        target_compile_options(${COMPONENT_LIB} PRIVATE "-DCHIP_DEVICE_CONFIG_ENABLE_IPV4=false")\n'
-    "    endif()"
-)
-PATCH6_NEW = (
-    "# ESPHOME-MATTER-PATCH-IPV4-GUARD: keep LwIP IPv4 available for the\n"
-    "# outer ESPHome application (api / ota / captive_portal / non-Matter mdns)\n"
-    "# while still forcing CHIP itself onto IPv6 only. INET_CONFIG_ENABLE_IPV4=0\n"
-    "# (set by CONFIG_DISABLE_IPV4=y via Kconfig) strips every IPv4 code path\n"
-    "# inside CHIP at compile time; the FATAL_ERROR here was defensive against\n"
-    "# a nonexistent runtime interaction.\n"
-    "if(CONFIG_DISABLE_IPV4)\n"
-    "    if(CONFIG_LWIP_IPV4)\n"
-    '        message(STATUS "esp_matter: CHIP IPv4 disabled; LwIP IPv4 kept enabled for the outer application")\n'
-    "    endif()\n"
-    '    target_compile_options(${COMPONENT_LIB} PRIVATE "-DCHIP_DEVICE_CONFIG_ENABLE_IPV4=false")'
-)
-
 
 PATCH3_MARKER = "// ESPHOME-MATTER-PATCH-MAP"
 
@@ -285,34 +236,6 @@ def apply_patches(matter_dir: Path) -> list:
             PATCH2_OLD,
             PATCH2_NEW,
             legacy_markers=("PATCHED-BY-UNISEC-MATTER-WIFI",),
-        )
-    )
-
-    results.append(
-        _apply_string_replace(
-            matter_dir / "CMakeLists.txt",
-            "ESPHOME-MATTER-PATCH-DNSSD",
-            PATCH4_OLD,
-            PATCH4_NEW,
-            legacy_markers=("PATCHED-BY-UNISEC-MATTER-DNSSD",),
-        )
-    )
-
-    # PATCH 6: esp-matter's own CMakeLists guards CONFIG_DISABLE_IPV4 with a
-    # FATAL_ERROR unless CONFIG_LWIP_IPV4=n. That is defensive over-reach —
-    # CHIP with INET_CONFIG_ENABLE_IPV4=0 does not construct IPv4
-    # PeerAddresses, does not bind IPv4 sockets, and does not advertise A
-    # records; incoming IPv4 traffic simply has no listener. LwIP's IPv4
-    # stack stays live for ESPHome's own components (api / ota /
-    # captive_portal / native mdns), which is exactly what we want. Downgrade
-    # the guard to a status message so both stacks coexist.
-    results.append(
-        _apply_string_replace(
-            matter_dir / "CMakeLists.txt",
-            "ESPHOME-MATTER-PATCH-IPV4-GUARD",
-            PATCH6_OLD,
-            PATCH6_NEW,
-            legacy_markers=("PATCHED-BY-UNISEC-MATTER-IPV4-GUARD",),
         )
     )
 

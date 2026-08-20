@@ -559,12 +559,18 @@ async def to_code(config: ConfigType) -> None:
         # Setting CONFIG_DISABLE_IPV4=y silenced sporadic LwIP `ERR_IF`
         # (0x0300000c) on the report path — but also cut NS Panel Gen2 off
         # the bridge entirely (device import stopped). Keep IPv4 enabled in
-        # CHIP by default so those hubs stay reachable; users on an all-
-        # v6-clean fabric can flip it via
-        # `esp32.framework.sdkconfig_options.CONFIG_DISABLE_IPV4: y`
-        # (the CMakeLists FATAL_ERROR on LWIP_IPV4 is already downgraded by
-        # PATCH6 in _apply_patches.py, so a user opt-in doesn't need any
-        # further hoop-jumping).
+        # CHIP by default so those hubs stay reachable.
+        #
+        # Advanced users on an all-v6-clean fabric who want to drop IPv4
+        # from CHIP for flash savings should NOT set
+        # `CONFIG_DISABLE_IPV4=y` — that path in esp_matter's CMakeLists
+        # hits a FATAL_ERROR unless CONFIG_LWIP_IPV4=n, which would also
+        # break ESPHome's own api/ota/web-server. Instead, pass the
+        # C-preprocessor macro directly via
+        # `esphome.build_flags: ["-DCHIP_DEVICE_CONFIG_ENABLE_IPV4=false"]`
+        # or the equivalent framework flag — CHIP compiles IPv6-only,
+        # LwIP IPv4 stays live for the rest of the application, no CMake
+        # gate involved.
         "CONFIG_DISABLE_IPV4": False,
         # Matter-native BLE commissioning path. When enabled, the device
         # advertises via BLE, the fabric-side commissioner picks up the payload
