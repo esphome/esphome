@@ -1,0 +1,55 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+sx127x:
+  - id: transceiver_long_fixed
+    cs_pin: GPIO5
+    rst_pin: GPIO4
+    dio0_pin: GPIO16
+    dio1_pin: GPIO17
+    frequency: 433920000
+    modulation: FSK
+    bitrate: 4800
+    deviation: 5000
+    bandwidth: 50_0kHz
+    bitsync: true
+    packet_mode: true
+    # Above the 64-byte RX FIFO: exercises the unlimited length packet format
+    # and FifoLevel/FifoEmpty-driven draining (SX1276/77/78 datasheet section
+    # 4.2.13.3, "Unlimited Length Packet Format", and 4.2.13.5, "Handling Large
+    # Packets"). Requires dio1_pin, since FifoLevel/FifoEmpty are only
+    # selectable on DIO1 in packet mode, not on DIO0.
+    payload_length: 1024
+    sync_value: [0x33, 0x33]
+    crc_enable: false
+    on_packet:
+      then:
+        - lambda: |-
+            ESP_LOGD("sx127x", "long fixed packet %u bytes rssi %.1f dBm snr %.1f dB", x.size(), rssi, snr);
+
+  - id: transceiver_long_lambda
+    cs_pin: GPIO25
+    rst_pin: GPIO26
+    dio0_pin: GPIO27
+    dio1_pin: GPIO14
+    frequency: 868950000
+    modulation: FSK
+    bitrate: 4800
+    deviation: 5000
+    bandwidth: 50_0kHz
+    bitsync: true
+    packet_mode: true
+    # payload_length: 0 with payload_length_lambda exercises the arbitrary
+    # length field configuration: the length is not known upfront and is
+    # derived at runtime from the bytes received so far.
+    payload_length: 0
+    payload_length_lambda: |-
+      if (x.size() < 3) return 0;
+      if (x[0] != 0x54) return -1;
+      return x[2] + 12;
+    sync_value: [0x54, 0x3D]
+    crc_enable: false
+    on_packet:
+      then:
+        - lambda: |-
+            ESP_LOGD("sx127x", "long lambda packet %u bytes rssi %.1f dBm snr %.1f dB", x.size(), rssi, snr);
