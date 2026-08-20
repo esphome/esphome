@@ -25,19 +25,17 @@ from pathlib import Path
 import platform
 import shutil
 
-import platformdirs
-
-import esphome.config_validation as cv
-from esphome.core import CORE, EsphomeError
+from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import (
     archive_extract_all,
+    ccache_defaults_env,
     download_from_mirrors,
     download_with_resume,
+    resolve_ccache_path,
     rmdir,
     str_to_lst_of_str,
+    tools_cache_path,
 )
-from esphome.helpers import get_bool_env, get_str_env
-from esphome.platformio.library import ensure_list
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,25 +59,16 @@ ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
 
 
 def get_arduino8266_tools_path() -> Path:
-    # Treat an empty/whitespace prefix as unset: Path("") resolves to the CWD,
-    # which clean-all would then delete.
-    if prefix := get_str_env("ESPHOME_ARDUINO8266_PREFIX", "").strip():
-        path = Path(prefix).expanduser()
-    else:
-        # Machine-global so all projects share one install; see
-        # espidf.framework.get_idf_tools_path for the location rationale.
-        path = (
-            Path(platformdirs.user_cache_dir("esphome", appauthor=False))
-            / "arduino8266"
-        )
-    return path.resolve()
+    # Machine-global so all projects share one install; see
+    # espidf.framework.get_idf_tools_path for the location rationale.
+    return tools_cache_path("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
 
 
 # 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
-MIN_FRAMEWORK_VERSION = cv.Version(3, 1, 1)
+MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
 
 
-def framework_package_version(ver: cv.Version) -> str:
+def framework_package_version(ver: Version) -> str:
     """Map an Arduino core version (e.g. 3.1.2) to its package version.
 
     Same encoding as the PlatformIO package registry uses for core 3.x
@@ -158,8 +147,10 @@ def _registry_download(package: str, version: str) -> tuple[str, str, int | None
         if ver.get("name") != version:
             continue
         for file in ver.get("files", []):
-            # ensure_list: a bare string would make ``in`` a substring test
-            systems = ensure_list(file.get("system") or "*")
+            # A bare string would make ``in`` a substring test
+            systems = file.get("system") or "*"
+            if isinstance(systems, str):
+                systems = [systems]
             if "*" in systems or system in systems:
                 sha256 = (file.get("checksum") or {}).get("sha256")
                 if not sha256:
@@ -241,22 +232,21 @@ def _find_ninja() -> Path:
         return Path(binary)
     try:
         import ninja
-    except ImportError as err:
-        raise EsphomeError(
-            "ninja not found on PATH or in the ninja package; reinstall the "
-            "esphome Python environment"
-        ) from err
-
-    binary = Path(ninja.BIN_DIR) / ("ninja.exe" if os.name == "nt" else "ninja")
-    if not binary.is_file():
+    except ImportError:
+        wheel_binary = None
+    else:
+        wheel_binary = Path(ninja.BIN_DIR) / (
+            "ninja.exe" if os.name == "nt" else "ninja"
+        )
+    if wheel_binary is None or not wheel_binary.is_file():
         raise EsphomeError(
             "ninja not found on PATH or in the ninja package; reinstall the "
             "esphome Python environment"
         )
-    return binary
+    return wheel_binary
 
 
-def check_and_install(framework_version: cv.Version) -> dict[str, Path]:
+def check_and_install(framework_version: Version) -> dict[str, Path]:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
     package_version = framework_package_version(framework_version)
     framework_path = get_framework_path(package_version)
@@ -291,29 +281,8 @@ def get_build_env(toolchain_path: Path) -> dict[str, str]:
 
 @functools.cache
 def ccache_path() -> str | None:
-    """The ccache binary to prefix compiles with, or None when disabled.
-
-    Same convention as the PlatformIO path: on by default when the binary is
-    on PATH, ``ESPHOME_CCACHE_ENABLE=0`` disables it, and an explicit ``=1``
-    warns when no binary is found and skips the runnability probe.
-    """
-    from esphome.platformio.toolchain import _ccache_runs, _strip_win_long_path_prefix
-
-    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
-    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
-        return None
-    ccache = shutil.which("ccache")
-    if ccache is None:
-        if explicit:
-            _LOGGER.warning(
-                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
-                "compiling without ccache"
-            )
-        return None
-    ccache = _strip_win_long_path_prefix(ccache)
-    if not explicit and not _ccache_runs(ccache):
-        return None
-    return ccache
+    """The ccache binary to prefix compiles with, or None when disabled."""
+    return resolve_ccache_path()
 
 
 def ccache_env() -> dict[str, str]:
@@ -326,10 +295,4 @@ def ccache_env() -> dict[str, str]:
     """
     if ccache_path() is None:
         return {}
-    defaults = {
-        "CCACHE_DIR": str(get_arduino8266_tools_path() / "ccache"),
-        "CCACHE_NOHASHDIR": "true",
-        "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
-    }
-    return {k: v for k, v in defaults.items() if k not in os.environ}
+    return ccache_defaults_env(get_arduino8266_tools_path() / "ccache")
