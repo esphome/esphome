@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_TYPE,
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
@@ -202,7 +203,14 @@ async def to_code(config: list[ConfigType]) -> None:
         for device in config
         for channel in device[CONF_CHANNELS]
     )
-    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    if isinstance(device[CONF_TYPE], MpxType):
+        output_chunk_count = (
+            ceil(max_buffer_size / (get_max_packet_size() - 3))
+            * len(device[CONF_CHANNELS])
+            + 1
+        )
+    else:
+        output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
