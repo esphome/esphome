@@ -75,7 +75,7 @@ def get_arduino8266_tools_path() -> Path:
 
 
 # 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
-MIN_FRAMEWORK_VERSION = "3.1.1"
+MIN_FRAMEWORK_VERSION = cv.Version(3, 1, 1)
 
 
 def framework_package_version(ver: cv.Version) -> str:

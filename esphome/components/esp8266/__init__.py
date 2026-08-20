@@ -133,7 +133,7 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
 
     conf = config[CONF_FRAMEWORK]
     version = cv.Version.parse(conf[CONF_VERSION])
-    if version < cv.Version.parse(MIN_FRAMEWORK_VERSION):
+    if version < MIN_FRAMEWORK_VERSION:
         raise cv.Invalid(
             "'toolchain: arduino' requires framework version "
             f"{MIN_FRAMEWORK_VERSION} or newer"

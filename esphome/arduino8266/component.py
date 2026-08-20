@@ -160,9 +160,13 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
         # it cannot be resolved from the registry.
         for dep in normalize_dependencies(component.data.get("dependencies")):
             name = dep.get("name")
-            if not name or dep.get("owner") or "version" in dep:
-                continue
-            if name in bundled_names:
+            if (
+                not name
+                or dep.get("owner")
+                or "version" in dep
+                or name in bundled_names
+                or is_lib_ignored(name, lib_ignore)
+            ):
                 continue
             if not (framework_path / "libraries" / name).is_dir():
                 # The shared converter skips version-less deps too, so this
@@ -174,8 +178,6 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
                     name,
                     component.name,
                 )
-                continue
-            if is_lib_ignored(name, lib_ignore):
                 continue
             try:
                 check_library_data(dep, ESP8266_PLATFORM, "arduino")
