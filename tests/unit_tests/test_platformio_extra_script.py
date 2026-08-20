@@ -141,6 +141,24 @@ def test_apply_extra_script_merges_into_existing_flags(tmp_path):
     assert "-lalgobsec" in c.data["build"]["flags"]
 
 
+def test_apply_extra_script_malformed_flags_raises(tmp_path) -> None:
+    """A null/dict build.flags fails naming the library instead of injecting
+    a non-string into the compiler command line."""
+    from esphome.core import EsphomeError
+    from esphome.platformio.extra_script import apply_extra_script
+
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=['algobsec'])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py", "flags": None}}
+
+    with pytest.raises(EsphomeError, match="malformed build.flags"):
+        apply_extra_script(c, board_mcu=lambda: "esp32", pio_platform="espressif32")
+
+
 def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     """The shared helper resolves the board_mcu callable lazily and normalizes
     a string ``build.flags`` value into a list before extending it."""
