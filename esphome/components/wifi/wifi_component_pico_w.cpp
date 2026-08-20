@@ -109,10 +109,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // setup depends on begin() succeeding. beginNoBlock() skips the outer wait loop, saving
   // up to 20 additional seconds of blocking per attempt.
   auto ret = WiFi.beginNoBlock(ap.ssid_.c_str(), ap.password_.c_str());
-  if (ret == WL_IDLE_STATUS)
-    return false;
-
-  return true;
+  return ret != WL_IDLE_STATUS;
 }
 
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
@@ -169,11 +166,11 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
 }
 
 int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
-  global_wifi_component->wifi_scan_result(env, result);
+  global_wifi_component->wifi_scan_result_(env, result);
   return 0;
 }
 
-void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+void WiFiComponent::wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result) {
   s_scan_result_count++;
 
   // CYW43 scan results have ssid as a 32-byte buffer that is NOT null-terminated.
@@ -286,7 +283,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   // Filter out AP interface addresses — addrList includes all lwIP netifs.
   // The AP netif IP lingers even after the AP radio is disabled.
   IPAddress ap_ip = WiFi.softAPIP();
-  for (auto addr : addrList) {
+  for (const auto &addr : addrList) {
     IPAddress ip(addr.ipFromNetifNum());
     if (ip == ap_ip) {
       continue;
@@ -355,12 +352,11 @@ bool WiFiComponent::wifi_loop_() {
 
   // Detect IP address changes (only when connected)
   if (is_connected) {
-    bool has_ip = false;
-    // Check for any IP address (IPv4 or IPv6)
-    for (auto addr : addrList) {
-      has_ip = true;
-      break;
-    }
+    // Check for any IP address (IPv4 or IPv6). The iterator comparison
+    // operators take non-const references, so the temporaries need names.
+    auto addr_it = addrList.begin();
+    auto addr_end = addrList.end();
+    bool has_ip = addr_it != addr_end;
 
     if (has_ip && !s_sta_had_ip) {
       // Just got IP address

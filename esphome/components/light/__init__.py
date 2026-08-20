@@ -1,9 +1,12 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import enum
+import logging
 
 import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
+from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -23,6 +26,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INITIAL_STATE,
+    CONF_IS_RGBW,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_ON_STATE,
@@ -32,6 +36,7 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
     CONF_RED,
     CONF_RESTORE_MODE,
+    CONF_RGB_ORDER,
     CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE,
@@ -61,6 +66,7 @@ from .effects import (
 from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
+    ChannelColors,
     ColorMode,
     LightOutput,
     LightState,
@@ -70,6 +76,8 @@ from .types import (  # noqa: F401
     LightTurnOnTrigger,
     light_ns,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -165,7 +173,105 @@ def available_effects_str(effects: list) -> str:
     return ", ".join(f"'{name}'" for name in available) if available else "none"
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+# Accepted values of the deprecated `rgb_order` key.
+RGB_ORDERS = ("RGB", "RBG", "GRB", "GBR", "BGR", "BRG")
+
+_RGB_CHANNELS = frozenset("RGB")
+_RGBW_CHANNELS = frozenset("RGBW")
+
+
+def validate_channel_colors(value: str) -> str:
+    """Validate the channel order of an addressable strip, e.g. "GRB" or "WRGB"."""
+    value = cv.string_strict(value).upper()
+    channels = frozenset(value)
+    if len(channels) != len(value) or channels not in (_RGB_CHANNELS, _RGBW_CHANNELS):
+        raise cv.Invalid(
+            f"'{value}' is not a valid channel order. List each of R, G and B exactly "
+            "once, optionally with a single W, in the order the strip expects them "
+            "(for example GRB, GRBW or WRGB)"
+        )
+    return value
+
+
+def channel_colors_struct(value: str) -> cg.StructInitializer:
+    """Build the C++ `light::ChannelColors` for a validated channel order string."""
+    return cg.StructInitializer(
+        ChannelColors,
+        ("r", value.index("R")),
+        ("g", value.index("G")),
+        ("b", value.index("B")),
+        (
+            "w",
+            value.index("W")
+            if "W" in value
+            else cg.RawExpression(f"{ChannelColors}::NO_WHITE"),
+        ),
+    )
+
+
+def _quote_and_join(keys: list[str]) -> str:
+    """Quote each key and join them into a readable list, e.g. "'a', 'b' and 'c'"."""
+    quoted = [f"'{key}'" for key in keys]
+    if len(quoted) == 1:
+        return quoted[0]
+    return f"{', '.join(quoted[:-1])} and {quoted[-1]}"
+
+
+def migrate_channel_colors(
+    *, removed_in: str, component: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Fold the deprecated `rgb_order`, `is_rgbw` and `is_wrgb` keys into `channel_colors`.
+
+    This also enforces that `channel_colors` is set, which the schema cannot do on its
+    own while the deprecated keys are still accepted. After this runs, `to_code` only
+    ever sees `channel_colors`.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        config = config.copy()
+        deprecated = [
+            key for key in (CONF_RGB_ORDER, CONF_IS_RGBW, CONF_IS_WRGB) if key in config
+        ]
+        if CONF_CHANNEL_COLORS in config:
+            if deprecated:
+                raise cv.Invalid(
+                    f"'{CONF_CHANNEL_COLORS}' cannot be combined with "
+                    f"{_quote_and_join(deprecated)}"
+                )
+            return config
+        if CONF_RGB_ORDER not in config:
+            raise cv.Invalid(
+                f"'{CONF_CHANNEL_COLORS}' is required", path=[CONF_CHANNEL_COLORS]
+            )
+        rgb_order = config.pop(CONF_RGB_ORDER)
+        is_rgbw = config.pop(CONF_IS_RGBW, False)
+        is_wrgb = config.pop(CONF_IS_WRGB, False)
+        if is_rgbw and is_wrgb:
+            raise cv.Invalid(
+                f"'{CONF_IS_RGBW}' and '{CONF_IS_WRGB}' cannot both be enabled"
+            )
+        if is_wrgb:
+            channel_colors = f"W{rgb_order}"
+        elif is_rgbw:
+            channel_colors = f"{rgb_order}W"
+        else:
+            channel_colors = rgb_order
+        _LOGGER.warning(
+            "[%s] %s %s deprecated, use '%s: %s'. Will be removed in %s",
+            component,
+            _quote_and_join(deprecated),
+            "are" if len(deprecated) > 1 else "is",
+            CONF_CHANNEL_COLORS,
+            channel_colors,
+            removed_in,
+        )
+        config[CONF_CHANNEL_COLORS] = channel_colors
+        return config
+
+    return validator
+
+
+def _final_validate(config: ConfigType) -> None:
     """Validate all recorded effect name references against their target lights.
 
     This runs once per light platform instance. If no light platform is configured,

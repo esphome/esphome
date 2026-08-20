@@ -9,12 +9,11 @@ from pathlib import Path
 import platform
 import re
 import shutil
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import platformdirs
 
-from esphome.config_validation import Version
-from esphome.core import CORE
+from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
     archive_extract_all,
@@ -49,6 +48,10 @@ STAMP_SCHEMA_VERSION = "0"
 ESPHOME_IDF_DEFAULT_TARGETS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
+# An explicitly set ESPHOME_IDF_DEFAULT_TARGETS overrides the per-variant
+# targets a caller requests, so a builder image can still pre-warm every
+# target with one env var.
+_IDF_DEFAULT_TARGETS_EXPLICIT = bool(os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS"))
 
 ESPHOME_IDF_DEFAULT_TOOLS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS", "cmake;ninja")
@@ -199,7 +202,35 @@ def _get_python_env_path(version: str) -> Path:
     return get_idf_tools_path() / "penvs" / f"{version}"
 
 
-def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
+def _read_stamp(file: PathType) -> dict | None:
+    """Return a stamp file's dict contents, or None if missing or invalid.
+
+    A missing stamp is the normal first-install case and stays silent; the
+    other branches indicate a real fault that forces a full reinstall on
+    every build, so they warn.
+    """
+    try:
+        with Path(file).open(encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError as e:
+        _LOGGER.warning("Ignoring corrupt stamp file %s: %s", file, e)
+        return None
+    except OSError as e:
+        _LOGGER.warning("Could not read stamp file %s: %s", file, e)
+        return None
+    if not isinstance(data, dict):
+        _LOGGER.warning(
+            "Ignoring stamp file %s with unexpected type %s",
+            file,
+            type(data).__name__,
+        )
+        return None
+    return data
+
+
+def _check_stamp(file: PathType, data: dict[str, Any]) -> bool:
     """
     Check if a stamp file contains the expected data.
 
@@ -210,17 +241,43 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
     Returns:
         True if file exists and contains expected data, False otherwise
     """
-    if not Path(file).is_file():
+    return _read_stamp(file) == data
+
+
+def _stamps_match_except_targets(stored: dict, requested: dict) -> bool:
+    """Whether two stamps agree on every field other than ``targets``.
+
+    Compares whole dicts (minus ``targets``) rather than named keys so any
+    stamp field added later participates in invalidation by default instead
+    of being silently ignored.
+    """
+
+    def _strip(stamp: dict) -> dict:
+        return {k: v for k, v in stamp.items() if k != "targets"}
+
+    return _strip(stored) == _strip(requested)
+
+
+def _stamp_covers(stored: dict | None, requested: dict) -> bool:
+    """Return True if a stored framework stamp already covers this request.
+
+    Every field except ``targets`` must match exactly. ``targets`` may be a
+    superset of the requested ones: ``idf_tools.py install`` accumulates
+    targets in idf-env.json across runs, so a framework installed for more
+    targets than this build needs is still valid. A stored ``all`` covers
+    every target.
+    """
+    if stored is None:
         return False
-
-    try:
-        with Path(file).open(encoding="utf-8") as f:
-            return json.load(f) == data
-    except (json.JSONDecodeError, OSError):
+    if not _stamps_match_except_targets(stored, requested):
         return False
+    stored_targets = stored.get("targets")
+    if not isinstance(stored_targets, list):
+        return False
+    return "all" in stored_targets or set(requested["targets"]) <= set(stored_targets)
 
 
-def _write_stamp(file: PathType, data: dict[str, str]):
+def _write_stamp(file: PathType, data: dict[str, Any]):
     """
     Write data to a stamp file in JSON format.
 
@@ -401,11 +458,16 @@ def _clone_idf_with_submodules(
 
     key = f"{git_url}@{ref}" if ref else git_url
     _LOGGER.info("Cloning ESP-IDF from %s", key)
-    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    run_git_command(
+        ["git", "clone", "--depth=1", "--", git_url, str(framework_path)],
+        network=True,
+        retry_cleanup=framework_path,
+    )
     if ref:
         run_git_command(
             ["git", "fetch", "--depth=1", "--", "origin", ref],
             git_dir=framework_path,
+            network=True,
         )
         run_git_command(
             ["git", "reset", "--hard", "FETCH_HEAD"],
@@ -541,40 +603,90 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     )
 
 
-def _patch_tools_json_demote_openocd(framework_path: Path) -> None:
-    """Demote openocd-esp32 from ``install: always`` to ``install: on_request``.
+# Tools marked ``install: always`` in tools.json that no ESPHome build ever
+# runs. openocd-esp32 is a JTAG debug server (its post-install check also
+# fails outright on systems without libusb-1.0, #17685). The gdb bundles are
+# debuggers used only by ``idf.py gdb``/``idf.py monitor`` flows ESPHome never
+# invokes; stack decoding uses addr2line from the compiler toolchains instead.
+# esp32ulp-elf is the ULP coprocessor toolchain, and ESPHome excludes the IDF
+# ``ulp`` component from every build. esp-rom-elfs stays required: the cmake
+# gdbinit generation reads ESP_ROM_ELF_DIR during every configure and warns
+# when it is missing.
+_UNUSED_IDF_TOOLS: tuple[str, ...] = (
+    "esp32ulp-elf",
+    "openocd-esp32",
+    "riscv32-esp-elf-gdb",
+    "xtensa-esp-elf-gdb",
+)
 
-    ``idf_tools.py install required`` installs every tool marked ``always`` in
-    tools.json and validates each one after extraction by running its version
-    command. openocd links against libusb-1.0, which minimal systems (bare LXC
-    containers, slim images) often lack, so that one validation aborted the
-    whole framework install and left it permanently retrying (#17685) — even
-    though ESPHome never runs openocd (it is a JTAG debugging tool). Demoting
-    it drops it from the ``required`` set: it is no longer downloaded or
-    validated, and the tool-path export treats a missing ``on_request`` tool
-    as fine. A user who wants it can still name ``openocd-esp32`` explicitly
-    in ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type
-    filtering.
+# tools.json also lists riscv32-esp-elf as supported on the xtensa chips
+# because the S2/S3 ULP coprocessor is a RISC-V core, so installing for an
+# S2/S3 target pulls in the whole riscv compiler (~290MB download, 2GB disk)
+# just for ULP programs — which ESPHome never builds (the IDF ``ulp``
+# component is excluded by default; a user who re-enables it via
+# ``include_builtin_idf_components: [ulp]`` on an S2/S3 and hits a missing
+# riscv compiler can set ESPHOME_IDF_DEFAULT_TARGETS=all to install it).
+# Removing the xtensa chips from its supported targets keeps it out of
+# xtensa-only installs; building a RISC-V variant still installs it. Add any
+# future Xtensa chip here; a missing entry only costs the download, while a
+# wrongly listed RISC-V chip would strip its own compiler.
+_XTENSA_TARGETS: tuple[str, ...] = ("esp32", "esp32s2", "esp32s3")
 
-    Because this runs on every install check, an install stuck in the
-    failing state (which never wrote its stamp file) heals on the next
-    build without a clean.
+
+def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
+    """Demote tools ESPHome never runs from ``install: always`` to ``on_request``.
+
+    ``idf_tools.py install required`` downloads every tool marked ``always``
+    in tools.json and validates each one after extraction by running its
+    version command. Demoting the tools in ``_UNUSED_IDF_TOOLS`` drops them
+    from the ``required`` set: they are no longer downloaded or validated,
+    and the tool-path export treats a missing ``on_request`` tool as fine.
+    Besides the download and disk savings, this makes the openocd libusb
+    validation failure (#17685) impossible; because this runs on every
+    install check, an install stuck in that failing state (which never wrote
+    its stamp file) heals on the next build without a clean. A user who
+    wants one of these tools can still name it explicitly in
+    ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type filtering.
+
+    Also removes the xtensa chips from riscv32-esp-elf's supported targets
+    (see ``_XTENSA_TARGETS``) so xtensa-only installs don't pull in the
+    RISC-V compiler for ULP programs ESPHome never builds.
     """
 
     def apply_patch(data: dict) -> bool:
         changed = False
         for tool in data.get("tools", []):
-            if tool.get("name") == "openocd-esp32" and tool.get("install") == "always":
+            if (
+                tool.get("name") in _UNUSED_IDF_TOOLS
+                and tool.get("install") == "always"
+            ):
                 tool["install"] = "on_request"
                 changed = True
+            if tool.get("name") == "riscv32-esp-elf":
+                targets = tool.get("supported_targets")
+                # Guard the type so unexpected JSON here cannot abort the
+                # other demotions; this patch is best-effort. Log it so a
+                # silently resumed riscv download is diagnosable.
+                if not isinstance(targets, list):
+                    _LOGGER.warning(
+                        "Unexpected supported_targets for riscv32-esp-elf "
+                        "in tools.json (%s); not excluding it from xtensa "
+                        "installs",
+                        type(targets).__name__,
+                    )
+                    continue
+                if any(t in targets for t in _XTENSA_TARGETS):
+                    tool["supported_targets"] = [
+                        t for t in targets if t not in _XTENSA_TARGETS
+                    ]
+                    changed = True
         return changed
 
     _patch_tools_json(
         framework_path,
         apply_patch,
-        "Patched %s to make openocd-esp32 optional (not needed for "
-        "building, and its install check fails on systems without "
-        "libusb-1.0).",
+        "Patched %s to skip installing tools ESPHome does not use "
+        "(openocd, gdb, ULP toolchains).",
     )
 
 
@@ -670,7 +782,9 @@ def _check_esphome_idf_framework_install(
             the URL.
 
     Returns:
-        tuple of (framework_path, install_flag)
+        tuple of (framework_path, fresh_extract_flag). The flag is True only
+        when the framework tree was downloaded and extracted this run, not
+        when tools were installed into an existing tree.
     """
 
     # Sanitize inputs
@@ -703,8 +817,8 @@ def _check_esphome_idf_framework_install(
     # avoids post-extraction renames that race with antivirus on Windows.
     # Tool install state is tracked separately by the stamp file in step 3,
     # so we only re-extract when extraction itself is missing or incomplete.
-    install = force or not extracted_marker.is_file()
-    if install:
+    fresh_extract = force or not extracted_marker.is_file()
+    if fresh_extract:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
         git_source = _parse_git_source(source_url) if source_url else None
@@ -769,15 +883,17 @@ def _check_esphome_idf_framework_install(
     # a pre-patch tools.json get fixed up without forcing a clean.
     _patch_tools_json_for_linux_arm64(framework_path)
 
-    # Drop openocd-esp32 from the required tool set on every invocation so
-    # an install that previously failed on its libusb check recovers on the
-    # next build.
-    _patch_tools_json_demote_openocd(framework_path)
+    # Drop tools ESPHome never runs from the required tool set on every
+    # invocation, so an install that previously failed on the openocd libusb
+    # check recovers on the next build.
+    _patch_tools_json_demote_unused_tools(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
+    stored_stamp = None if fresh_extract else _read_stamp(env_stamp_file)
+    install = fresh_extract
     if not install:
         install = True
-        if _check_stamp(env_stamp_file, stamp_info):
+        if _stamp_covers(stored_stamp, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
             # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
             # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
@@ -818,9 +934,35 @@ def _check_esphome_idf_framework_install(
                 )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
 
+        # idf_tools.py extracts tool archives from <IDF_TOOLS_PATH>/dist into tools/; the
+        # archives are not needed afterward and, already compressed, dominate the cached install.
+        # Best-effort: a failure to prune must not fail an otherwise successful install.
+        try:
+            rmdir(
+                get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
+            )
+        except RuntimeError as err:
+            _LOGGER.debug("Could not remove ESP-IDF tool download cache: %s", err)
+
+        # Record the union of every target installed so far, not just this
+        # build's. idf_tools.py accumulates targets in idf-env.json and the
+        # ``required`` metapackage installs tools for all of them, so the
+        # union is what is actually on disk — and it keeps two variants
+        # alternating between builds from re-running the installer each time.
+        # Merge only when everything except targets matches: a reinstall
+        # triggered by a schema or tools change ran the installer for this
+        # build's targets alone, so carrying the old targets forward would
+        # let later builds of those variants skip the reinstall they need.
+        if (
+            stored_stamp
+            and isinstance(stored_stamp.get("targets"), list)
+            and _stamps_match_except_targets(stored_stamp, stamp_info)
+        ):
+            merged = set(stamp_info["targets"]) | set(stored_stamp["targets"])
+            stamp_info["targets"] = ["all"] if "all" in merged else sorted(merged)
         _write_stamp(env_stamp_file, stamp_info)
 
-    return framework_path, install
+    return framework_path, fresh_extract
 
 
 def _check_esp_idf_python_env_install(
@@ -966,7 +1108,11 @@ def check_esp_idf_install(
     env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
-    targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
+    # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
+    # per-variant request (builder-image pre-warm); otherwise the caller's
+    # targets are used, falling back to the default when none were given.
+    if _IDF_DEFAULT_TARGETS_EXPLICIT or not targets:
+        targets = ESPHOME_IDF_DEFAULT_TARGETS
 
     # Determine which tools need to be installed if not provided
     if tools is None:
@@ -979,15 +1125,18 @@ def check_esp_idf_install(
                 tools.append(tool)
 
     # 1) Framework
-    framework_path, installed = _check_esphome_idf_framework_install(
+    framework_path, fresh_extract = _check_esphome_idf_framework_install(
         version, targets, tools, force=force, env=env, source_url=source_url
     )
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
 
-    # 2) Python env
-    python_env_path, installed = _check_esp_idf_python_env_install(
-        version, features, force=force or installed, env=env
+    # 2) Python env. Only a freshly extracted framework forces a rebuild —
+    # the venv depends on the framework version and features, not on which
+    # toolchains are installed, so adding a target to an existing tree must
+    # not wipe it. It still self-validates against its own stamp.
+    python_env_path, _ = _check_esp_idf_python_env_install(
+        version, features, force=force or fresh_extract, env=env
     )
 
     return framework_path, python_env_path

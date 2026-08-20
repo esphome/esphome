@@ -65,6 +65,12 @@ extern "C" {
 #include <freertos/semphr.h>
 #endif
 
+#ifdef USE_ESP32
+// Forward declaration matching esp_netif's own typedef; avoids pulling esp_netif.h
+// into this widely-included header.
+using esp_netif_t = struct esp_netif_obj;
+#endif
+
 namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
@@ -469,6 +475,12 @@ class WiFiComponent final : public Component {
 
   bool is_connected() const { return this->connected_; }
 
+#ifdef USE_ESP32
+  /// esp_netif handle of the station interface, used by network for default-route
+  /// arbitration. nullptr until wifi_lazy_init_() has run.
+  esp_netif_t *get_esp_netif_sta();
+#endif
+
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
@@ -781,13 +793,19 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
-  void save_fast_connect_settings_();
+  void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
 #endif
 
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
   void clear_roaming_state_();
+#ifdef USE_ESP32
+  /// Redo post-connect bookkeeping after a driver-initiated roam (e.g. 802.11v BTM)
+  /// @param bssid The new AP's BSSID, taken from the connected event
+  /// @param channel The new AP's channel, taken from the connected event
+  void handle_driver_roam_(const bssid_t &bssid, uint8_t channel);
+#endif
 
   /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
   bool roaming_suppressed_() const {
@@ -831,7 +849,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
-  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
 #ifdef USE_LIBRETINY

@@ -1,0 +1,15 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+exposure_notifications:
+  on_exposure_notification:
+    # Explicit ble_hub_id: pins the neutral binding as a declared key.
+    ble_hub_id: ble_tracker_hub
+    then:
+      - lambda: |
+          ESP_LOGD("main", "Got notification:");
+          ESP_LOGD("main", "  RPI: %s", format_hex(x.rolling_proximity_identifier).c_str());
+          ESP_LOGD("main", "  RSSI: %d", x.rssi);
