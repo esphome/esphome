@@ -149,3 +149,32 @@ def test_print_summary_flash_line(
     out = capsys.readouterr().out
     assert "RAM:   [=====     ]  50.0% (used 100 bytes from 200 bytes)" in out
     assert "Flash: [          ]   0.0% (used 500 bytes from 1048576 bytes)" in out
+
+
+def test_print_summary_missing_ram_region_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A missing RAM line is diagnosable, not a silently absent CI metric."""
+    size_json = _write_size_json(tmp_path, {"memory_types": {}, "image_size": 100})
+    print_summary(size_json, partitions_csv=None)
+    assert "Skipping RAM summary" in caplog.text
+
+
+def test_print_summary_bad_partitions_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparseable partition table skips the Flash line with a warning."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("not,a,valid,partition,table\n")
+    print_summary(size_json, partitions_csv=partitions)
+    assert "Skipping Flash summary" in caplog.text
+
+
+def test_print_summary_corrupt_json_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    size_json = tmp_path / "size.json"
+    size_json.write_text("{not json")
+    print_summary(size_json, partitions_csv=None)
+    assert "Skipping size summary" in caplog.text

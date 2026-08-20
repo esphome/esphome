@@ -73,15 +73,16 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
-    summarize. Logs the cause at debug level.
+    summarize. Logs the cause at warning level, so a missing RAM/Flash line
+    (which CI's memory-impact extraction greps for) is diagnosable.
     """
     if not size_json.is_file():
-        _LOGGER.debug("Skipping size summary: %s not found", size_json)
+        _LOGGER.warning("Skipping size summary: %s not found", size_json)
         return
     try:
         data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        _LOGGER.debug("Skipping size summary: %s", e)
+        _LOGGER.warning("Skipping size summary: %s", e)
         return
 
     memory_types = data.get("memory_types", {})
@@ -90,6 +91,8 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
+    else:
+        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
@@ -97,6 +100,6 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     try:
         app_size = _find_app_partition_size(partitions_csv)
     except ValueError as e:
-        _LOGGER.debug("Skipping Flash summary: %s", e)
+        _LOGGER.warning("Skipping Flash summary: %s", e)
         return
     print_size_line("Flash", image_size, app_size)
