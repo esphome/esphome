@@ -16,14 +16,15 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nohat"]
 IS_PLATFORM_COMPONENT = True
@@ -93,7 +94,9 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @setup_entity("event")
-async def setup_event_core_(var, config, *, event_types: list[str]):
+async def setup_event_core_(
+    var: MockObj, config: ConfigType, *, event_types: list[str]
+) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_event_types(event_types))
@@ -108,7 +111,9 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_event(var, config, *, event_types: list[str]):
+async def register_event(
+    var: MockObj, config: ConfigType, *, event_types: list[str]
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("event", config)
@@ -116,7 +121,7 @@ async def register_event(var, config, *, event_types: list[str]):
     await setup_event_core_(var, config, event_types=event_types)
 
 
-async def new_event(config, *, event_types: list[str]):
+async def new_event(config: ConfigType, *, event_types: list[str]) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_event(var, config, event_types=event_types)
     return var
@@ -133,7 +138,12 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 @automation.register_action(
     "event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA, synchronous=True
 )
-async def event_fire_to_code(config, action_id, template_arg, args):
+async def event_fire_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     templ = await cg.templatable(config[CONF_EVENT_TYPE], args, cg.std_string)
@@ -142,5 +152,5 @@ async def event_fire_to_code(config, action_id, template_arg, args):
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(event_ns.using)
