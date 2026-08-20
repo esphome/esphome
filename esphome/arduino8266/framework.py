@@ -189,6 +189,27 @@ def _install_package(
     marker = dest / ".esphome_extracted"
     if marker.is_file():
         return
+    from filelock import FileLock
+
+    # The cache is machine-global; serialize concurrent cold builds so one
+    # process cannot wipe the directory another is extracting into (same
+    # filelock pattern as platformio/toolchain.py and git.py).
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(f"{dest}.lock"):
+        _install_package_locked(name, version, dest, mirrors, expect, marker)
+
+
+def _install_package_locked(
+    name: str,
+    version: str,
+    dest: Path,
+    mirrors: list[str],
+    expect: Collection[str],
+    marker: Path,
+) -> None:
+    if marker.is_file():
+        # Another process finished the install while we waited for the lock
+        return
     rmdir(dest, msg=f"Clean up incomplete {name} install")
     # A persistent download location (not a temp dir) so an interrupted
     # download resumes across esphome runs via download_with_resume's .part

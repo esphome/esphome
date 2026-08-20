@@ -299,30 +299,44 @@ def _defines_flags(
     ]
 
 
+def _unflag_tokens() -> set[str]:
+    """``build_unflags`` entries shell-lexed to tokens, as PlatformIO matches."""
+    return {
+        tok
+        for entry in CORE.build_unflags
+        for tok in split_flag_entry(entry, "esphome build_unflags")
+    }
+
+
+def _shell_token(tok: str) -> str:
+    """Quote a lexed token for the shell-expanded ninja command line.
+
+    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
+    token ``-DX=a b``); re-quote on the way out so the compiler receives the
+    same argv element SCons would pass under PlatformIO.
+    """
+    if not re.search(r'[\s"\']', tok):
+        return tok
+    return '"' + tok.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
-    Unlike ``framework_helpers.get_project_compile_flags`` this keeps every
-    non-linker flag, matching how PlatformIO passes ``build_flags`` to the
-    compiler verbatim, and applies ``build_unflags``. ``-L``/``-l`` are
-    classified out so they reach the link line as they do under PlatformIO.
+    Every entry is shell-lexed the way PlatformIO's ``ParseFlags`` does, so a
+    linker flag anywhere in an entry reaches the link line and
+    ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
+    Lexed tokens are re-quoted at emission via ``_shell_token``.
     """
-    unflags = set(CORE.build_unflags)
-    flags = [f for f in sorted(CORE.build_flags) if f not in unflags]
+    unflags = _unflag_tokens()
     compile_flags: list[str] = []
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
     libs: list[str] = []
-    for flag in flags:
-        # Shell-lex only linker entries so forms like "-L /opt/blobs" work as
-        # they do under PlatformIO. Other entries pass verbatim: lexing them
-        # would strip the quotes in defines like -DBOARD="...".
-        tokens = (
-            join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
-            if flag.startswith(("-L", "-l"))
-            else [flag]
-        )
-        for tok in tokens:
+    for flag in sorted(CORE.build_flags):
+        for tok in join_flag_args(split_flag_entry(flag, "esphome"), "esphome"):
+            if tok in unflags:
+                continue
             if tok.startswith("-Wl,"):
                 link_flags.append(tok)
             elif tok.startswith("-L"):
@@ -330,8 +344,8 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
             elif tok.startswith("-l"):
                 libs.append(tok[2:])
             else:
-                compile_flags.append(tok)
-    return compile_flags, link_flags, lib_dirs, libs
+                compile_flags.append(_shell_token(tok))
+    return compile_flags, [_shell_token(t) for t in link_flags], lib_dirs, libs
 
 
 def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
@@ -512,7 +526,7 @@ def write_project(paths: dict[str, Path]) -> bool:
     # build_unflags applies to the framework flag sets too (compile and link),
     # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
     # diverge between the toolchains).
-    unflags = set(CORE.build_unflags)
+    unflags = _unflag_tokens()
     cflags = [f for f in cflags if f not in unflags]
     cxxflags = [f for f in cxxflags if f not in unflags]
     asflags = [f for f in asflags if f not in unflags]
@@ -627,7 +641,7 @@ def write_project(paths: dict[str, Path]) -> bool:
             lib.sources,
             lib_root,
             f"lib/{lib.name}",
-            flags=" ".join(lib.flags),
+            flags=" ".join(_shell_token(f) for f in lib.flags),
         )
         archive = f"lib{lib.name}.a"
         lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")

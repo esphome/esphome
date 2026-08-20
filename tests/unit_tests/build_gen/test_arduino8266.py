@@ -607,3 +607,29 @@ def test_flag_defines_lexes_multi_token_entries() -> None:
     assert defines["FOO"] == "FOO=1"
     config = _resolve_build_config(defines)
     assert config.lwip_lib == "lwip2-1460"
+
+
+def test_project_flags_lexes_every_entry() -> None:
+    """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
+    _set_flags("-DFOO=1 -lbar")
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags()
+    assert libs == ["bar"]
+    assert "-DFOO=1" in compile_flags
+
+
+def test_project_flags_unflags_match_tokens() -> None:
+    """build_unflags removes a token embedded in a multi-token entry."""
+    _set_flags("-Os -g3")
+    CORE.build_unflags = {"-Os"}
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
+    assert "-g3" in compile_flags
+    assert "-Os" not in compile_flags
+
+
+def test_project_flags_requotes_lexed_defines() -> None:
+    """A quoted spaced value stays one compiler argument after lex/emit."""
+    _set_flags('-DGREETING="hello world"')
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
+    # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
+    # re-quotes the spaced token so the shell passes one argv element
+    assert compile_flags == ['"-DGREETING=hello world"']

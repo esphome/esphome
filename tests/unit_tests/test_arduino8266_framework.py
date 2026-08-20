@@ -402,3 +402,30 @@ def test_install_package_unexpected_layout_raises(tmp_path: Path) -> None:
         mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
         framework._install_package("pkg", "1.0.0", dest, ["http://m"], expect=("bin",))
     assert not (dest / ".esphome_extracted").exists()
+
+
+def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
+    """A concurrent install finishing while we wait for the lock is detected."""
+    dest = tmp_path / "pkg"
+    marker = dest / ".esphome_extracted"
+
+    class _FakeLock:
+        def __init__(self, *_a, **_kw) -> None:
+            pass
+
+        def __enter__(self):
+            dest.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+            return self
+
+        def __exit__(self, *args) -> None:
+            pass
+
+    with (
+        patch("filelock.FileLock", _FakeLock),
+        patch.object(framework, "download_from_mirrors") as mock_download,
+        patch.object(framework, "rmdir") as mock_rmdir,
+    ):
+        framework._install_package("pkg", "1.0.0", dest, ["http://m"])
+    mock_download.assert_not_called()
+    mock_rmdir.assert_not_called()
