@@ -387,8 +387,9 @@ class SensorStateCollector:
 class SensorTracker:
     """Data-driven sensor state tracker with expected-value futures.
 
-    Tracks sensor state updates and resolves futures when sensors report
-    specific expected values. Eliminates per-sensor future boilerplate.
+    Tracks sensor and binary sensor state updates and resolves futures when
+    they report specific expected values. Eliminates per-sensor future
+    boilerplate.
 
     Usage::
 
@@ -419,19 +420,31 @@ class SensorTracker:
         """Call ``expect`` for every entry and return a dict of futures."""
         return {name: self.expect(name, value) for name, value in expected.items()}
 
-    def on_state(self, state: EntityState) -> None:
-        """State callback suitable for ``subscribe_states``."""
-        if not isinstance(state, SensorState) or state.missing_state:
+    def on_state(self, state: EntityState, first_pending_only: bool = False) -> None:
+        """State callback suitable for ``subscribe_states``.
+
+        Args:
+            state: The state update to record
+            first_pending_only: Only allow the first pending expectation for this
+                sensor to match, instead of the first matching one. Used for
+                connect-time states so they cannot satisfy a later phase.
+        """
+        if (
+            not isinstance(state, (SensorState, BinarySensorState))
+            or state.missing_state
+        ):
             return
         sensor_name = self.key_to_sensor.get(state.key)
         if not sensor_name or sensor_name not in self.sensor_states:
             return
         self.sensor_states[sensor_name].append(state.state)
         for expected_value, future in self._expectations.get(sensor_name, []):
-            if not future.done() and (
-                expected_value is self._ANY or state.state == expected_value
-            ):
+            if future.done():
+                continue
+            if expected_value is self._ANY or state.state == expected_value:
                 future.set_result(True)
+                break
+            if first_pending_only:
                 break
 
     async def await_change(
@@ -470,8 +483,22 @@ class SensorTracker:
         for name, future in futures.items():
             await self.await_change(future, name, timeout=timeout)
 
-    async def setup_and_start_scenario(self, client) -> list:
-        """Wire up subscriptions, wait for initial states, press Start Scenario."""
+    async def setup_and_start_scenario(
+        self, client: APIClient, match_initial_states: bool = False
+    ) -> list[EntityInfo]:
+        """Wire up subscriptions, wait for initial states, press Start Scenario.
+
+        Args:
+            client: The connected API client
+            match_initial_states: Also match expectations against the states the
+                device sends when the client connects, so a value published before
+                the client subscribed still counts. Binary sensors need this: they
+                drop repeats, so a value that lands in the connect-time dump is
+                never sent again. Plain sensors publish on every poll, so there it
+                only saves waiting for the next one. Only the first pending
+                expectation per sensor can match, so a connect-time value cannot
+                satisfy a later phase.
+        """
         entities, _ = await client.list_entities_services()
         self.key_to_sensor.update(
             build_key_to_entity_mapping(entities, list(self.sensor_states.keys()))
@@ -484,6 +511,9 @@ class SensorTracker:
             import pytest
 
             pytest.fail("Timeout waiting for initial states")
+        if match_initial_states:
+            for state in initial_state_helper.initial_states.values():
+                self.on_state(state, first_pending_only=True)
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)

@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -23,6 +24,13 @@ static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
 
 static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
+
+// Upper bound on how long flush() may block in total: the TX ring buffer drain and
+// the final TinyUSB flush share this budget.
+static constexpr uint32_t FLUSH_TIMEOUT_MS = 100;
+
+// Minimum interval between repeated warnings while a host stall persists.
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 
 static USBCDCACMInstance *get_instance_by_itf(int itf) {
   if (global_usb_cdc_component == nullptr) {
@@ -186,10 +194,20 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 void USBCDCACMInstance::usb_tx_task() {
   uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
   size_t tx_data_size = 0;
+  // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
+  // immediately (unsigned arithmetic keeps this wrap-safe).
+  uint32_t stall_log_ms = millis() - LOG_THROTTLE_MS;
 
   while (true) {
+    // Not holding any data while blocked waiting for more.
+    this->usb_tx_busy_ = 0;
+
     // Wait for a notification from the bridge component
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Raise the busy flag before pulling data out of the ring buffer, so at every
+    // instant flush() sees pending bytes in the ring buffer count or in this flag.
+    this->usb_tx_busy_ = 1;
 
     // When we do wake up, we can be sure there is data in the ring buffer
     esp_err_t ret = ringbuf_read_bytes(this->usb_tx_ringbuf_, data, CONFIG_TINYUSB_CDC_TX_BUFSIZE, &tx_data_size, 0);
@@ -224,11 +242,50 @@ void USBCDCACMInstance::usb_tx_task() {
       esp_err_t flush_ret =
           tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(10));
 
-      if (flush_ret != ESP_OK) {
-        ESP_LOGE(TAG, "USB TX itf=%d: flush failed", this->itf_);
-        tud_cdc_n_write_clear(this->itf_);
-        break;
+      if (flush_ret == ESP_OK) {
+        continue;
       }
+
+      // Bytes not yet handed to TinyUSB plus bytes still sitting in its transmit FIFO.
+      // tud_cdc_n_write_occupied() is not public API in the pinned TinyUSB release, so
+      // derive the occupancy from the FIFO depth TinyUSB itself is configured with.
+      const size_t pending = tx_data_size + (CFG_TUD_CDC_TX_BUFSIZE - tud_cdc_n_write_available(this->itf_));
+
+      // A flush timeout only means TinyUSB's transmit FIFO did not fully drain within
+      // the wait window; the queued bytes are untouched and TinyUSB keeps sending them
+      // from its transfer-complete callback once the host polls again. Clearing the
+      // FIFO here would discard the tail of a frame whose head is already on the wire,
+      // corrupting the stream mid-frame. Hold the data and retry instead; sustained
+      // backpressure then propagates to the ring buffer, which drops whole writes with
+      // a warning instead of splitting a frame.
+      //
+      // Gate the retry on DTR (tud_cdc_n_connected()) rather than tud_ready(): an
+      // enumerated-but-idle host (no application holding the port open) never polls
+      // the IN endpoint, so retrying on tud_ready() alone would wedge this task -- and
+      // stall every write_array()/flush() caller behind a full ring buffer -- for as
+      // long as the board sits plugged into an idle PC. DTR means an application has
+      // the port open and is expected to eventually read.
+      if (flush_ret == ESP_ERR_TIMEOUT && tud_cdc_n_connected(this->itf_)) {
+        const uint32_t now = millis();
+        if ((now - stall_log_ms) >= LOG_THROTTLE_MS) {
+          stall_log_ms = now;
+          ESP_LOGW(TAG, "USB TX itf=%d: host not reading; %zu bytes pending", this->itf_, pending);
+        }
+        continue;
+      }
+
+      if (flush_ret == ESP_ERR_TIMEOUT) {
+        // No application has the port open (DTR deasserted) or the device is detached,
+        // so the data cannot be delivered. TinyUSB does not clear its transmit FIFO on
+        // bus reset; drop the data here so a stale partial frame is not replayed when
+        // the port is (re)opened.
+        ESP_LOGW(TAG, "USB TX itf=%d: not connected; dropping %zu bytes", this->itf_, pending);
+      } else {
+        ESP_LOGE(TAG, "USB TX itf=%d: flush failed (%s); dropping %zu bytes", this->itf_, esp_err_to_name(flush_ret),
+                 pending);
+      }
+      tud_cdc_n_write_clear(this->itf_);
+      break;
     }
   }
 }
@@ -245,7 +302,19 @@ void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
   // Write data to TX ring buffer
   BaseType_t send_res = xRingbufferSend(this->usb_tx_ringbuf_, data, len, 0);
   if (send_res != pdTRUE) {
-    ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %u bytes dropped", this->itf_, len);
+    // During a sustained host stall the ring buffer stays full (that is the intended
+    // backpressure), so this path runs for every write; throttle the warning so the
+    // log stays readable. The counter is a running total that is never reset: each
+    // line reports all bytes dropped so far, so bytes dropped in the tail of one
+    // stall are still accounted for by the next line, whenever that is. It also makes
+    // the very first drop since boot detectable, which is logged unthrottled.
+    const bool first_drop = this->tx_dropped_bytes_ == 0;
+    this->tx_dropped_bytes_ += len;
+    const uint32_t now = millis();
+    if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+      this->tx_dropped_log_ms_ = now;
+      ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %" PRIu32 " bytes dropped total", this->itf_, this->tx_dropped_bytes_);
+    }
     return;
   }
 
@@ -326,27 +395,54 @@ size_t USBCDCACMInstance::available() {
   return waiting + (this->has_peek_ ? 1 : 0);
 }
 
+// True while TX bytes have not yet reached TinyUSB's FIFO: still counted in the ring
+// buffer, or held by the TX task (usb_tx_busy_) between pulling them from the ring
+// buffer and handing them to TinyUSB -- there they are in neither the ring buffer
+// count nor TinyUSB's FIFO.
+bool USBCDCACMInstance::tx_pending_() {
+  UBaseType_t waiting = 0;
+  vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
+  return waiting != 0 || this->usb_tx_busy_ != 0;
+}
+
 uart::UARTFlushResult USBCDCACMInstance::flush() {
-  // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
 
-  UBaseType_t waiting = 1;
-  while (waiting > 0) {
-    vRingbufferGetInfo(this->usb_tx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
-    if (waiting > 0) {
-      vTaskDelay(pdMS_TO_TICKS(1));
+  // Bound the wait: when the host stalls or disconnects, the TX task holds on to
+  // pending data rather than discarding it, so the ring buffer may not drain for as
+  // long as the host stays away. flush() runs on the caller's (typically the main
+  // loop) task and must not block indefinitely. Signed tick differences keep the
+  // deadline arithmetic wrap-safe.
+  TickType_t now = xTaskGetTickCount();
+  const TickType_t deadline = now + pdMS_TO_TICKS(FLUSH_TIMEOUT_MS);
+  while (this->tx_pending_()) {
+    if (static_cast<int32_t>(now - deadline) >= 0) {
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
+    vTaskDelay(pdMS_TO_TICKS(1));
+    now = xTaskGetTickCount();
   }
 
-  // Also wait for USB to finish transmitting
-  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
-  if (err == ESP_OK)
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
-  if (err == ESP_ERR_TIMEOUT)
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
-  return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  // Also wait for USB to finish transmitting, within whatever remains of the budget.
+  // Floor at one tick: a zero-tick timeout takes esp_tinyusb's non-blocking branch,
+  // whose return contract is that library's internal detail and may differ between
+  // releases. One tick keeps the call on the blocking branch (ESP_OK/ESP_ERR_TIMEOUT)
+  // at the cost of at most one tick over budget.
+  const int32_t remaining = static_cast<int32_t>(deadline - now);
+  const TickType_t flush_ticks = remaining > 0 ? static_cast<TickType_t>(remaining) : 1;
+  switch (tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), flush_ticks)) {
+    case ESP_OK:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+    case ESP_ERR_TIMEOUT:
+    // ESP_ERR_NOT_FINISHED is the non-blocking branch's "still draining" result;
+    // mapped like a timeout in case a future esp_tinyusb release returns it here.
+    case ESP_ERR_NOT_FINISHED:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+    default:
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_LOOP
+from esphome.components.file import image as file_image
 from esphome.components.file.image import image_schema, write_image
 from esphome.components.image import Image_, validate_settings
 import esphome.config_validation as cv
@@ -8,6 +9,10 @@ from esphome.const import CONF_ID, CONF_REPEAT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@syndlex"]
+
+# The animation platform shares the file platform's remote file handling,
+# including its batch-download hook.
+PREFETCH_FILES = file_image.PREFETCH_FILES
 AUTO_LOAD = ["file"]
 DEPENDENCIES = ["display"]
 
