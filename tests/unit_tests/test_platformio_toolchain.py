@@ -874,7 +874,7 @@ def test_strip_win_long_path_prefix(
 ) -> None:
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
     with patch("esphome.platformio.toolchain.sys.platform", platform):
-        assert toolchain._strip_win_long_path_prefix(input_path) == expected
+        assert toolchain.strip_win_long_path_prefix(input_path) == expected
 
 
 def test_run_platformio_cli_strips_win_long_path_prefix(
