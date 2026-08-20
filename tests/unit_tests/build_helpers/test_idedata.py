@@ -292,23 +292,19 @@ def test_parse_entry_recovers_from_unconfigured_launcher(
     )
     cxx_path, _, _, _ = idedata.parse_entry(entry)
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
-    assert "does not start with a compiler" not in caplog.text
+    assert "WARNING" not in caplog.text
 
 
-def test_parse_entry_warns_when_first_token_is_not_a_compiler(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """An unrecoverable non-compiler leading token is warned about, once per
-    path however many entries the compile DB has."""
-    idedata._warned_not_a_compiler.clear()
+def test_parse_entry_keeps_launcher_without_program() -> None:
+    """A launcher followed only by flags (no program to recover) stays as
+    token zero; the cache layer refuses to persist it."""
     entry = _entry(
         f"{ABS}build",
         f"{ABS}build/src/esphome/core/application.cpp",
-        "/usr/bin/python3 wrapper.py -c a.cpp -o a.o",
+        "/opt/homebrew/bin/ccache -c a.cpp -o a.o",
     )
-    idedata.parse_entry(entry)
-    idedata.parse_entry(entry)
-    assert caplog.text.count("does not start with a compiler") == 1
+    cxx_path, _, _, _ = idedata.parse_entry(entry)
+    assert cxx_path == "/opt/homebrew/bin/ccache"
 
 
 def _write_compile_commands(tmp_path: Path) -> Path:
@@ -405,12 +401,12 @@ def test_load_or_build_idedata_rebuilds_non_dict_cache(tmp_path: Path) -> None:
         assert "cc_path" in data
 
 
-def test_parse_entry_accepts_versioned_compilers() -> None:
-    """Versioned compiler names (g++-13, gcc-8.4.0) are not warned about."""
-    for stem in ("g++-13", "gcc-8.4.0", "clang++-17"):
-        assert idedata._COMPILER_STEM.search(stem)
-    assert not idedata._COMPILER_STEM.search("ccache")
-    assert not idedata._COMPILER_STEM.search("distcc")
+def test_is_launcher_matches_only_known_launchers() -> None:
+    """Compilers of any shape pass; only the closed launcher set matches."""
+    for token in ("/t/g++-13", "gcc-8.4.0", "clang++-17", "armcc", "icx", "cc"):
+        assert not idedata._is_launcher(token)
+    for token in ("/opt/homebrew/bin/ccache", "CCACHE.EXE", "distcc", "sccache"):
+        assert idedata._is_launcher(token)
 
 
 def test_load_or_build_idedata_corrupted_cache_is_logged(
@@ -429,8 +425,10 @@ def test_load_or_build_idedata_corrupted_cache_is_logged(
     assert "Discarding unreadable idedata cache" in caplog.text
 
 
-def test_load_or_build_idedata_never_caches_bad_compiler(tmp_path: Path) -> None:
-    """Idedata whose compiler path failed the sanity check is served for this
+def test_load_or_build_idedata_never_caches_a_launcher(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Idedata whose compiler path is a known launcher is served for this
     run but not persisted, so the next build re-parses."""
     compile_commands = tmp_path / "compile_commands.json"
     compile_commands.write_text(
@@ -439,7 +437,7 @@ def test_load_or_build_idedata_never_caches_bad_compiler(tmp_path: Path) -> None
                 _entry(
                     f"{ABS}build",
                     f"{ABS}build/src/esphome/core/application.cpp",
-                    "/usr/bin/python3 wrapper.py -c app.cpp -o app.cpp.o",
+                    "/opt/homebrew/bin/ccache -c app.cpp -o app.cpp.o",
                 )
             ]
         )
@@ -449,8 +447,9 @@ def test_load_or_build_idedata_never_caches_bad_compiler(tmp_path: Path) -> None
         data = idedata.load_or_build_idedata(
             compile_commands, tmp_path / "f.elf", cache
         )
-    assert data["cxx_path"] == "/usr/bin/python3"
+    assert data["cxx_path"] == "/opt/homebrew/bin/ccache"
     assert not cache.exists()
+    assert "not caching idedata" in caplog.text
 
 
 def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:
