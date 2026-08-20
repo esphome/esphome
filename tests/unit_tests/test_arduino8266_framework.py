@@ -237,6 +237,16 @@ def test_find_ninja_falls_back_to_wheel(tmp_path: Path) -> None:
         assert framework._find_ninja() == tmp_path / binary_name
 
 
+def test_find_ninja_package_not_installed() -> None:
+    """A missing ninja package raises the actionable message, not ImportError."""
+    with (
+        patch("shutil.which", return_value=None),
+        patch.dict(sys.modules, {"ninja": None}),
+        pytest.raises(EsphomeError, match="ninja not found"),
+    ):
+        framework._find_ninja()
+
+
 def test_find_ninja_missing_everywhere(tmp_path: Path) -> None:
     wheel = MagicMock(BIN_DIR=str(tmp_path))
     with (

@@ -208,7 +208,13 @@ def _find_ninja() -> Path:
     """
     if binary := shutil.which("ninja"):
         return Path(binary)
-    import ninja
+    try:
+        import ninja
+    except ImportError as err:
+        raise EsphomeError(
+            "ninja not found on PATH or in the ninja package; reinstall the "
+            "esphome Python environment"
+        ) from err
 
     binary = Path(ninja.BIN_DIR) / ("ninja.exe" if os.name == "nt" else "ninja")
     if not binary.is_file():
