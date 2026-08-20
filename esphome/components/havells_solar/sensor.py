@@ -217,8 +217,8 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("havells_solar", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("havells_solar", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
