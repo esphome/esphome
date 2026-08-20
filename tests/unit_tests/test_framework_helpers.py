@@ -23,7 +23,6 @@ from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     _7z_extract_all,
     _detect_archive_root,
-    _is_transient_download_error,
     _rename_with_retry,
     _tar_extract_all,
     _zip_extract_all,
@@ -1592,43 +1591,6 @@ class TestDownloadFromMirrors:
             download_from_mirrors(["https://mirror1.com/f"], {}, buf)
         assert mock_get.call_count == 2
         mock_sleep.assert_not_called()
-
-
-def _http_error(status: int) -> req.HTTPError:
-    """An HTTPError carrying a response with the given status, as raised by
-    ``raise_for_status`` on a real response."""
-    resp = MagicMock()
-    resp.status_code = status
-    return req.HTTPError(str(status), response=resp)
-
-
-class TestIsTransientDownloadError:
-    def test_connection_errors_are_transient(self) -> None:
-        assert _is_transient_download_error(req.ConnectionError("reset"))
-        assert _is_transient_download_error(req.Timeout("timed out"))
-        assert _is_transient_download_error(
-            req.exceptions.ChunkedEncodingError("dropped")
-        )
-
-    def test_http_statuses(self) -> None:
-        assert not _is_transient_download_error(_http_error(404))
-        assert not _is_transient_download_error(_http_error(403))
-        assert _is_transient_download_error(_http_error(429))
-        assert _is_transient_download_error(_http_error(503))
-
-    def test_http_error_without_response_is_permanent(self) -> None:
-        assert not _is_transient_download_error(req.HTTPError("boom"))
-
-    def test_exhausted_resume_attempts_are_permanent(self) -> None:
-        """download_with_resume already spent its own resume attempts; its
-        EsphomeError wrapper is not retried again at the sweep level."""
-        wrapped = EsphomeError("Failed to download after 3 attempts")
-        wrapped.__cause__ = req.ConnectionError("down")
-        assert not _is_transient_download_error(wrapped)
-
-    def test_unrelated_errors_are_permanent(self) -> None:
-        assert not _is_transient_download_error(OSError("disk full"))
-        assert not _is_transient_download_error(EsphomeError("size mismatch"))
 
 
 def test_importing_framework_helpers_does_not_import_requests() -> None:

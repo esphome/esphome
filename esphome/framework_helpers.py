@@ -15,6 +15,7 @@ from typing import IO, TYPE_CHECKING
 
 from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import ProgressBar, rmtree
+from esphome.net_retry import is_transient_download_error
 
 if TYPE_CHECKING:
     import requests
@@ -903,30 +904,6 @@ def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
     return err
 
 
-def _is_transient_download_error(e: Exception) -> bool:
-    """Return True when a download failure is worth retrying.
-
-    Connection-level failures and HTTP 429/5xx are transient. Other HTTP
-    errors, local errors, and exhausted-attempts EsphomeError wrappers
-    (their per-mirror retries are already spent) are permanent.
-    """
-    # Imported lazily: requests is a heavy import (~85ms) and is only
-    # needed when actually downloading, never during config validation.
-    import requests
-
-    if isinstance(e, requests.exceptions.HTTPError):
-        resp = e.response
-        return resp is not None and (resp.status_code == 429 or resp.status_code >= 500)
-    return isinstance(
-        e,
-        (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-            requests.exceptions.ChunkedEncodingError,
-        ),
-    )
-
-
 def _try_mirrors_once(
     urls: list[str],
     path_target: Path | None,
@@ -1131,7 +1108,7 @@ def download_from_mirrors(
         # Permanent failures (404, verification mismatch) won't heal;
         # only retry when a transient error is in the mix (as git.py does).
         transient = next(
-            ((u, e) for u, e in sweep_failures if _is_transient_download_error(e)),
+            ((u, e) for u, e in sweep_failures if is_transient_download_error(e)),
             None,
         )
         if transient is None:
