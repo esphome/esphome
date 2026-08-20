@@ -196,50 +196,39 @@ def _install_package(
     # filelock pattern as platformio/toolchain.py and git.py).
     dest.parent.mkdir(parents=True, exist_ok=True)
     with FileLock(f"{dest}.lock"):
-        _install_package_locked(name, version, dest, mirrors, expect, marker)
-
-
-def _install_package_locked(
-    name: str,
-    version: str,
-    dest: Path,
-    mirrors: list[str],
-    expect: Collection[str],
-    marker: Path,
-) -> None:
-    if marker.is_file():
-        # Another process finished the install while we waited for the lock
-        return
-    rmdir(dest, msg=f"Clean up incomplete {name} install")
-    # A persistent download location (not a temp dir) so an interrupted
-    # download resumes across esphome runs via download_with_resume's .part
-    # file, mirroring the espidf dist/ convention.
-    archive = _downloads_path() / f"{name}-{version}"
-    _LOGGER.info("Downloading %s %s ...", name, version)
-    if mirrors:
-        _LOGGER.warning(
-            "Downloading %s from a mirror override; checksum verification "
-            "is skipped for mirrors",
-            name,
-        )
-        download_from_mirrors(
-            mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, archive
-        )
-    else:
-        url, sha256, size = _registry_download(name, version)
-        download_with_resume(url, archive, sha256=sha256, size=size)
-    _LOGGER.info("Extracting %s ...", name)
-    archive_extract_all(archive, dest, progress_header="Extracting")
-    # Validate the layout before recording success, so an unexpected package
-    # is never cached as a working install.
-    for rel in expect:
-        if not (dest / rel).is_dir():
-            raise EsphomeError(
-                f"{name} {version} extracted without the expected {rel} "
-                "directory; run 'esphome clean-all' and retry"
+        if marker.is_file():
+            # Another process finished the install while we waited
+            return
+        rmdir(dest, msg=f"Clean up incomplete {name} install")
+        # A persistent download location (not a temp dir) so an interrupted
+        # download resumes across esphome runs via download_with_resume's
+        # .part file, mirroring the espidf dist/ convention.
+        archive = _downloads_path() / f"{name}-{version}"
+        _LOGGER.info("Downloading %s %s ...", name, version)
+        if mirrors:
+            _LOGGER.warning(
+                "Downloading %s from a mirror override; checksum verification "
+                "is skipped for mirrors",
+                name,
             )
-    marker.touch()
-    archive.unlink(missing_ok=True)
+            download_from_mirrors(
+                mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, archive
+            )
+        else:
+            url, sha256, size = _registry_download(name, version)
+            download_with_resume(url, archive, sha256=sha256, size=size)
+        _LOGGER.info("Extracting %s ...", name)
+        archive_extract_all(archive, dest, progress_header="Extracting")
+        # Validate the layout before recording success, so an unexpected
+        # package is never cached as a working install.
+        for rel in expect:
+            if not (dest / rel).is_dir():
+                raise EsphomeError(
+                    f"{name} {version} extracted without the expected {rel} "
+                    "directory; run 'esphome clean-all' and retry"
+                )
+        marker.touch()
+        archive.unlink(missing_ok=True)
 
 
 def _find_ninja() -> Path:
@@ -276,7 +265,7 @@ def check_and_install(framework_version: cv.Version) -> dict[str, Path]:
         package_version,
         framework_path,
         ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
-        expect=("cores/esp8266", "tools/sdk"),
+        expect=("cores/esp8266", "tools/sdk", "libraries"),
     )
     toolchain_path = get_toolchain_path()
     _install_package(

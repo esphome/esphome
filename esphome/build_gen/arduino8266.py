@@ -270,8 +270,32 @@ def _e(value) -> str:
 
 
 def _q(value) -> str:
-    """Quote a path for use inside a ninja command line (shell/CreateProcess)."""
-    return f'"{value}"'
+    """Quote a path for use inside a ninja command line (shell/CreateProcess).
+
+    ``$`` doubles so ninja passes it through literally instead of expanding
+    an (empty) ninja variable.
+    """
+    return '"' + str(value).replace("$", "$$") + '"'
+
+
+_NEEDS_QUOTE = re.compile(r'[\s"\']')
+
+
+def _shell_token(tok: str) -> str:
+    """Quote a lexed token for the ninja command line; ``_q`` is for paths.
+
+    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
+    token ``-DX=a b``); re-quote on the way out so the compiler receives the
+    same argv element SCons would pass under PlatformIO. Uses the Windows
+    argv quoting rule, which POSIX sh parses identically inside double
+    quotes: a backslash run doubles only immediately before a quote.
+    """
+    tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
+    if not _NEEDS_QUOTE.search(tok):
+        return tok
+    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
+    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
+    return f'"{quoted}"'
 
 
 def _defines_flags(
@@ -308,19 +332,9 @@ def _unflag_tokens() -> set[str]:
     }
 
 
-def _shell_token(tok: str) -> str:
-    """Quote a lexed token for the shell-expanded ninja command line.
-
-    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
-    token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO.
-    """
-    if not re.search(r'[\s"\']', tok):
-        return tok
-    return '"' + tok.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
+def _project_flags(
+    unflags: set[str],
+) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
     Every entry is shell-lexed the way PlatformIO's ``ParseFlags`` does, so a
@@ -328,7 +342,6 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
     Lexed tokens are re-quoted at emission via ``_shell_token``.
     """
-    unflags = _unflag_tokens()
     compile_flags: list[str] = []
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
@@ -338,14 +351,14 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
             if tok in unflags:
                 continue
             if tok.startswith("-Wl,"):
-                link_flags.append(tok)
+                link_flags.append(_shell_token(tok))
             elif tok.startswith("-L"):
                 lib_dirs.append(Path(tok[2:]))
             elif tok.startswith("-l"):
                 libs.append(tok[2:])
             else:
                 compile_flags.append(_shell_token(tok))
-    return compile_flags, [_shell_token(t) for t in link_flags], lib_dirs, libs
+    return compile_flags, link_flags, lib_dirs, libs
 
 
 def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
@@ -501,12 +514,13 @@ def write_project(paths: dict[str, Path]) -> bool:
     for lib in libraries:
         include_dirs += lib.include_dirs
 
+    unflags = _unflag_tokens()
     (
         project_compile_flags,
         project_link_flags,
         project_lib_dirs,
         project_libs,
-    ) = _project_flags()
+    ) = _project_flags(unflags)
     defines = _defines_flags(
         config, esp8266_data[KEY_FLASH_MODE], board, board_build["defines"]
     )
@@ -526,7 +540,6 @@ def write_project(paths: dict[str, Path]) -> bool:
     # build_unflags applies to the framework flag sets too (compile and link),
     # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
     # diverge between the toolchains).
-    unflags = _unflag_tokens()
     cflags = [f for f in cflags if f not in unflags]
     cxxflags = [f for f in cxxflags if f not in unflags]
     asflags = [f for f in asflags if f not in unflags]

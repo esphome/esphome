@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import subprocess
@@ -306,6 +307,11 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     )
     assert paths["ninja_path"] == tmp_path / "ninja"
     assert mock_install.call_count == 2
+    # The layout checks cover the directories write_project needs, including
+    # the bundled libraries/ tree
+    fw_expect = mock_install.call_args_list[0].kwargs["expect"]
+    assert set(fw_expect) == {"cores/esp8266", "tools/sdk", "libraries"}
+    assert mock_install.call_args_list[1].kwargs["expect"] == ("bin",)
 
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
@@ -409,20 +415,14 @@ def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
     dest = tmp_path / "pkg"
     marker = dest / ".esphome_extracted"
 
-    class _FakeLock:
-        def __init__(self, *_a, **_kw) -> None:
-            pass
-
-        def __enter__(self):
-            dest.mkdir(parents=True, exist_ok=True)
-            marker.touch()
-            return self
-
-        def __exit__(self, *args) -> None:
-            pass
+    @contextmanager
+    def _fake_lock(*_a, **_kw):
+        dest.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+        yield
 
     with (
-        patch("filelock.FileLock", _FakeLock),
+        patch("filelock.FileLock", _fake_lock),
         patch.object(framework, "download_from_mirrors") as mock_download,
         patch.object(framework, "rmdir") as mock_rmdir,
     ):
