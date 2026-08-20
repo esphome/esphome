@@ -747,11 +747,7 @@ def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
 def test_include_filename_jinja_expression_with_path_separator(
     tmp_path: Path,
 ) -> None:
-    """A jinja !include whose string literals contain "/" resolves correctly.
-
-    Guards against the raw expression text being mangled by path
-    normalization before Jinja evaluates it (issue #18545).
-    """
+    """A jinja !include whose string literals contain "/" resolves correctly (issue #18545)."""
     main_file = tmp_path / "main.yaml"
     main_file.write_text(
         "substitutions:\n"

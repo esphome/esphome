@@ -702,37 +702,20 @@ def test_include_file_has_unresolved_expressions(
 
 
 def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> None:
-    r"""A templated filename is never coerced through Path().
-
-    On Windows, Path() rewrites "/" to "\" inside the expression text and
-    Jinja then decodes sequences like "\b" as string escapes, corrupting
-    the filename (issue #18545).
-    """
+    """A templated filename keeps its verbatim text (issue #18545)."""
     parent = tmp_path / "main.yaml"
     expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
     include = yaml_util.IncludeFile(parent, expr, None, lambda _: {})
     assert include.file == expr
-    assert isinstance(include.file, str)
     assert include.has_unresolved_expressions()
     assert repr(include) == f"IncludeFile({expr})"
-
-
-def test_include_file_plain_filename_becomes_path(tmp_path: Path) -> None:
-    """A concrete filename is stored as a Path."""
-    parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "path/to/device.yaml", None, lambda _: {})
-    assert isinstance(include.file, Path)
-    assert include.file == Path("path/to/device.yaml")
-    assert not include.has_unresolved_expressions()
 
 
 def test_represent_include_file_templated() -> None:
     """Dumping a templated IncludeFile emits the raw expression unchanged."""
     expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
     include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, None, lambda _: {})
-    dumped = yaml_util.dump({"key": include})
-    assert "!include" in dumped
-    assert expr in dumped
+    assert yaml_util.dump({"key": include}) == f"key: !include '{expr}'\n"
 
 
 def test_include_in_list_context() -> None:
@@ -1085,7 +1068,7 @@ class _StubInclude:
     ) -> None:
         # Default parent lives in a nonexistent directory so unresolved
         # stubs never glob real files during candidate expansion.
-        self.file = Path(file)
+        self.file = file
         self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
         self._unresolved = unresolved
         self._load_result = load_result if load_result is not None else {}

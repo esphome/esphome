@@ -236,24 +236,17 @@ class IncludeFile:
         yaml_loader: Callable[[Path], Any],
     ) -> None:
         self.parent_file = parent_file
-        # A templated filename stays a raw string: Path() corrupts the
-        # expression on Windows (WindowsPath str() rewrites "/" to "\",
-        # which Jinja then decodes as escapes like "\b" -> backspace).
-        file_str = file if isinstance(file, str) else file.as_posix()
-        self.file: Path | str = (
-            file_str if has_substitution_or_expression(file_str) else Path(file)
-        )
+        # The raw include text may be a substitution/Jinja expression, so it
+        # must never round-trip through Path(): on Windows, WindowsPath str()
+        # rewrites "/" to "\", which Jinja then decodes as escapes like
+        # "\b" -> backspace (issue #18545).
+        self.file: str = file if isinstance(file, str) else file.as_posix()
         self.vars = vars
         self.yaml_loader = yaml_loader
         self._content: Any = _UNSET
 
-    @property
-    def posix_file(self) -> str:
-        """Include target as text: the raw expression, or the path in POSIX form."""
-        return self.file if isinstance(self.file, str) else self.file.as_posix()
-
     def __repr__(self) -> str:
-        return f"IncludeFile({self.posix_file})"
+        return f"IncludeFile({self.file})"
 
     def load(self) -> Any:
         """Load and cache the included file content.
@@ -269,14 +262,13 @@ class IncludeFile:
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
-        self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self._content = self.yaml_loader(self.parent_file.parent / self.file)
         self._content = add_context(self._content, self.vars)
         return self._content
 
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
-        # The constructor keeps the filename a str exactly when it is templated.
-        return isinstance(self.file, str)
+        return has_substitution_or_expression(self.file)
 
     def with_file(self, file: Path | str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
@@ -325,7 +317,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[Path]:
     parent_dir = include.parent_file.parent
     parent_resolved = include.parent_file.resolve()
     candidates: list[Path] = []
-    for pattern in include_candidate_patterns(str(include.file)):
+    for pattern in include_candidate_patterns(include.file):
         if "*" in pattern:
             matches = sorted(_glob_include_candidates(parent_dir, pattern))
         else:
@@ -1345,11 +1337,11 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_include_file(self, value):
         if value.vars:
-            mapping = {"file": value.posix_file, "vars": value.vars}
+            mapping = {"file": value.file, "vars": value.vars}
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
-        return self.represent_scalar(tag="!include", value=value.posix_file)
+        return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
         if is_secret(value.id):
