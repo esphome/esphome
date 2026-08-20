@@ -193,7 +193,7 @@ def _validate_no_sorting_component(
                     )
 
 
-def _final_validate_sorting(config: ConfigType) -> ConfigType:
+def _final_validate_sorting(config: ConfigType) -> None:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
@@ -201,7 +201,6 @@ def _final_validate_sorting(config: ConfigType) -> ConfigType:
         _validate_no_sorting_component(
             CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting

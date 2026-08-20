@@ -5,6 +5,7 @@ from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
@@ -128,9 +129,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
-                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
-            ),
+            cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
             cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         }
