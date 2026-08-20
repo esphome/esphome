@@ -106,7 +106,8 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
 // reformatted to the requested one right here -- destructive by configured contract, and the
 // subsequent mount is then already on the correct filesystem. Returns false only when the
 // reformat itself failed.
-inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested, bool format_on_mismatch) {
+inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested,
+                                        bool format_on_mismatch) {
   if (requested == FS_SELECT_AUTO)
     return true;
   const bool want_exfat = requested == FS_SELECT_EXFAT;
@@ -128,7 +129,7 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
       fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
     } else {
       return false;
-    } 
+    }
   }
   auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
   MKFS_PARM parm{};

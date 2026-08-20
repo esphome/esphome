@@ -153,7 +153,8 @@ esp_err_t SdSpi::mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_c
   ff_diskio_register_sdmmc(pdrv, card);
   char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
 
-  if (!storage::ensure_requested_filesystem(TAG_SPI, pdrv, drv, this->requested_file_system_, this->format_on_mismatch_)) {
+  if (!storage::ensure_requested_filesystem(TAG_SPI, pdrv, drv, this->requested_file_system_,
+                                            this->format_on_mismatch_)) {
     ff_diskio_register(pdrv, nullptr);
     sdspi_host_remove_device(this->sdspi_handle_);
     this->sdspi_handle_ = -1;
