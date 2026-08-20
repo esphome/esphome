@@ -18,10 +18,15 @@ from dataclasses import dataclass, field
 import logging
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
+from typing import TYPE_CHECKING
 
+from esphome.build_helpers.ninja import (
+    escape as _e,
+    quote_path as _q,
+    shell_token as _shell_token,
+)
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -44,6 +49,9 @@ from esphome.platformio.library import (
     join_flag_args,
     split_flag_entry,
 )
+
+if TYPE_CHECKING:
+    from esphome.arduino8266.framework import InstalledPaths
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -285,48 +293,6 @@ def _flash_ld_name(board: str) -> str:
     return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
 
 
-def _e(value) -> str:
-    """Escape a path or token for a ninja file."""
-    return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
-
-
-def _quote_arg(tok: str) -> str:
-    """Wrap a token in double quotes with the Windows argv rule.
-
-    Same escaping rule as ``subprocess.list2cmdline``: a backslash run
-    doubles only immediately before a quote (or the closing quote), and the
-    quote itself is escaped. POSIX sh parses the result identically for
-    backslashes and quotes. ``$`` must already be doubled for ninja.
-    """
-    quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
-    quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
-    return f'"{quoted}"'
-
-
-_NEEDS_QUOTE = re.compile(r'[\s"\']')
-
-
-def _shell_token(tok: str, force: bool = False) -> str:
-    """Quote a lexed token only when needed; ``force`` always quotes.
-
-    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
-    token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO. After ninja
-    un-doubles ``$$``, sh still expands ``$VAR`` while CreateProcess passes
-    it literally -- the same divergence SCons-under-sh has, so this stays
-    PlatformIO parity.
-    """
-    tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
-    if force or _NEEDS_QUOTE.search(tok):
-        return _quote_arg(tok)
-    return tok
-
-
-def _q(value) -> str:
-    """Force-quote a path for the ninja command line (shell/CreateProcess)."""
-    return _shell_token(str(value), force=True)
-
-
 def _defines_flags(
     config: _BuildConfig, flash_mode: str, board: str, board_defines: tuple[str, ...]
 ) -> list[str]:
@@ -399,7 +365,7 @@ def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
 
 
 def generate_ld_scripts(
-    paths: dict[str, Path], config: _BuildConfig, flash_ld_name: str
+    paths: InstalledPaths, config: _BuildConfig, flash_ld_name: str
 ) -> None:
     """Generate the common linker script (and testing-mode flash ld copy).
 
@@ -407,8 +373,8 @@ def generate_ld_scripts(
     ``eagle.app.v6.common.ld.h``, then applies ESPHome's surgeries: the wifi
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
-    framework = paths["framework_path"]
-    gcc = paths["toolchain_path"] / "bin" / "xtensa-lx106-elf-gcc"
+    framework = paths.framework
+    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
     ld_dir = CORE.relative_pioenvs_path(CORE.name, "ld")
     mkdir_p(ld_dir)
 
@@ -493,7 +459,7 @@ def _common_parent(paths: list[Path]) -> Path:
     return Path(os.path.commonpath([str(p.parent) for p in paths]))
 
 
-def write_project(paths: dict[str, Path]) -> bool:
+def write_project(paths: InstalledPaths) -> bool:
     """Write the ninja build for the current configuration.
 
     Returns True when ``build.ninja`` changed, so the caller can skip work
@@ -502,8 +468,8 @@ def write_project(paths: dict[str, Path]) -> bool:
     from esphome.arduino.library import resolve_libraries
     from esphome.arduino8266.framework import ccache_path
 
-    framework = paths["framework_path"]
-    toolchain_bin = paths["toolchain_path"] / "bin"
+    framework = paths.framework
+    toolchain_bin = paths.toolchain / "bin"
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     mkdir_p(build_dir)
 
@@ -535,7 +501,7 @@ def write_project(paths: dict[str, Path]) -> bool:
         src_dir,
         sdk / "include",
         core_dir,
-        paths["toolchain_path"] / "include",
+        paths.toolchain / "include",
         sdk / "lwip2" / "include",
         variant_dir,
     ]
@@ -639,7 +605,7 @@ def write_project(paths: dict[str, Path]) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(flash_ld_name)} --path {_q(toolchain_bin)} --out $out",
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -737,9 +703,7 @@ def get_flash_ld_path(build_dir: Path) -> Path:
     return get_framework_path(version) / "tools" / "sdk" / "ld" / name
 
 
-def _flash_size_str(flash_ld_name: str) -> str:
-    """Flash size for elf2bin, derived from the ld script name (PIO logic)."""
-    match = re.search(r"\.flash\.(\d+)([mk])", flash_ld_name)
-    if not match:
-        raise EsphomeError(f"Cannot parse flash size from {flash_ld_name}")
-    return f"{match.group(1)}{match.group(2).upper()}"
+def _flash_size_str(flash_size: int) -> str:
+    """Flash size argument for elf2bin (e.g. ``4M``, ``512K``)."""
+    mb = 1024 * 1024
+    return f"{flash_size // mb}M" if flash_size >= mb else f"{flash_size // 1024}K"
