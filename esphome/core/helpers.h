@@ -990,7 +990,7 @@ bool str_contains_ignore_case_fallback(const char *haystack, const char *needle)
 bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
 /// Case-insensitive check if needle string is contained in haystack (no heap allocation).
 /// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
-/// a string literal; pass a runtime needle to str_contains_ignore_case_p directly instead.
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
 #define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
 #else
 /// Case-insensitive check if needle string is contained in haystack (no heap allocation).
