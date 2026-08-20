@@ -203,7 +203,7 @@ def test_print_size_summary_size_tool_failure(
 def test_get_idedata_delegates(tmp_path: Path) -> None:
     with (
         patch(
-            "esphome.espidf.idedata.load_or_build_idedata",
+            "esphome.build_helpers.idedata.load_or_build_idedata",
             return_value={"cc_path": "x"},
         ) as mock_load,
         patch.object(framework, "ccache_path", return_value=Path("/cc/ccache")),
@@ -220,7 +220,7 @@ def test_get_idedata_delegates(tmp_path: Path) -> None:
 def test_get_idedata_no_ccache(tmp_path: Path) -> None:
     with (
         patch(
-            "esphome.espidf.idedata.load_or_build_idedata", return_value={}
+            "esphome.build_helpers.idedata.load_or_build_idedata", return_value={}
         ) as mock_load,
         patch.object(framework, "ccache_path", return_value=None),
     ):

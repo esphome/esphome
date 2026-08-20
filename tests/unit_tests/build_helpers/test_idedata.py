@@ -1,4 +1,4 @@
-"""Tests for esphome.espidf.idedata (compile_commands.json -> idedata)."""
+"""Tests for esphome.build_helpers.idedata (compile_commands.json -> idedata)."""
 
 # pylint: disable=protected-access
 
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.espidf import idedata
+from esphome.build_helpers import idedata
 
 # An absolute, forward-slash (shlex-safe) path prefix valid on the host OS, so
 # tests exercise the same is-absolute / normalize behavior as a real compile DB

@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 
+from esphome.build_helpers.extra_script import apply_extra_script
 from esphome.core import CORE, EsphomeError, Library
-from esphome.espidf.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,

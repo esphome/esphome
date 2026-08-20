@@ -415,7 +415,7 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     """
     import json
 
-    from esphome.espidf.idedata import _get_toolchain_includes, _parse_entry
+    from esphome.build_helpers.idedata import _get_toolchain_includes, _parse_entry
 
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
     entry = next((e for e in entries if e["file"].endswith("tidy.cpp")), None)

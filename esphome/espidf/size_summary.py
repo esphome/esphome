@@ -28,6 +28,8 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers.size_summary import format_bar
+
 _LOGGER = logging.getLogger(__name__)
 _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 
@@ -65,18 +67,6 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
         if ptype in ("app", "0") and psubtype in ("factory", "ota_0"):
             return _parse_size(psize)
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
-
-
-def format_bar(used: int, total: int) -> str:
-    """Match PlatformIO's ``_format_availale_bytes`` (pioupload.py) exactly."""
-    pct_raw = used / total if total else 0
-    blocks = 10
-    filled = min(int(round(blocks * pct_raw)), blocks)
-    progress = "=" * filled
-    return (
-        f"[{progress:<{blocks}}] {pct_raw: 6.1%} "
-        f"(used {used:d} bytes from {total:d} bytes)"
-    )
 
 
 def print_summary(size_json: Path, partitions_csv: Path | None) -> None:

@@ -3081,7 +3081,7 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
         ["esphome/build_gen/arduino8266.py"],
         ["esphome/components/esp8266/build_surgery.py"],
         # Shared modules the native build depends on
-        ["esphome/espidf/idedata.py"],
+        ["esphome/build_helpers/idedata.py"],
         ["esphome/platformio/library.py"],
         # Top-level esphome/*.py modules the backend imports directly
         ["esphome/framework_helpers.py"],
@@ -3116,9 +3116,10 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
             ["wifi", "network"],
             [],
         ),
-        # The espidf build generator is not an esp8266-native trigger
-        # (only the shared esphome/espidf/ package is).
+        # espidf infrastructure is not an esp8266-native trigger; the
+        # native backend depends on esphome/build_helpers/ instead.
         (["esphome/build_gen/espidf.py"], [], []),
+        (["esphome/espidf/toolchain.py"], [], []),
         (["README.md"], [], []),
     ],
 )

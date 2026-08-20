@@ -163,7 +163,7 @@ def _print_size_summary(build_dir: Path) -> None:
     The exact shape (including the bar) is parsed by
     ``script/ci_memory_impact_extract.py``; ``format_bar`` matches it.
     """
-    from esphome.espidf.size_summary import format_bar
+    from esphome.build_helpers.size_summary import format_bar
 
     size_tool = _toolchain_tool("size")
     result = subprocess.run(
@@ -213,7 +213,7 @@ def get_idedata() -> dict | None:
     Same contract as ``espidf.toolchain.get_idedata``: the fields IDE
     integrations, clang-tidy, and the memory analyzer expect.
     """
-    from esphome.espidf.idedata import load_or_build_idedata
+    from esphome.build_helpers.idedata import load_or_build_idedata
 
     ccache = framework.ccache_path()
     return load_or_build_idedata(

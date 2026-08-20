@@ -544,3 +544,12 @@ def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
     assert join_flag_args(["-D", "FOO=1", "-Os"], "x") == ["-DFOO=1", "-Os"]
     with pytest.raises(EsphomeError, match=r"Malformed build flag.*library x"):
         split_flag_entry('-DX="unclosed', "library x")
+
+
+def test_join_flag_args_trailing_bare_flag_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from esphome.platformio.library import join_flag_args
+
+    assert join_flag_args(["-Os", "-l"], "library x") == ["-Os"]
+    assert "Ignoring trailing '-l'" in caplog.text
