@@ -131,9 +131,17 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
         return config
     conf = config[CONF_FRAMEWORK]
     version = cv.Version.parse(conf[CONF_VERSION])
-    if version < cv.Version(3, 1, 0):
+    # 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
+    if version < cv.Version(3, 1, 1):
         raise cv.Invalid(
-            "'toolchain: arduino' requires framework version 3.1.0 or newer"
+            "'toolchain: arduino' requires framework version 3.1.1 or newer"
+        )
+    if conf[CONF_PLATFORM_VERSION] != _parse_platform_version(
+        str(ARDUINO_4_PLATFORM_VERSION)
+    ):
+        _LOGGER.warning(
+            "'platform_version' is ignored by 'toolchain: arduino'; the native "
+            "toolchain downloads the framework and compiler directly"
         )
     if conf[CONF_SOURCE] != _format_framework_arduino_version(version):
         raise cv.Invalid(
