@@ -115,7 +115,7 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
   FatfsDetected found = fatfs_probe(tag, pdrv);
   // only reformat if explicitly desired by user
   if (found == FatfsDetected::UNREADABLE) {
-    fatfs_log_no_reformat(tag);
+    fatfs_log_unreadable(tag);
     return false;
   }
   if ((found == FatfsDetected::EXFAT) == want_exfat)
