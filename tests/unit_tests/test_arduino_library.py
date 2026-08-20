@@ -1,4 +1,4 @@
-"""Tests for esphome.arduino8266.component (library resolution)."""
+"""Tests for esphome.arduino.library (Arduino-core library resolution)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.arduino8266 import component
+from esphome.arduino import library as component
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP8266
 from esphome.core import CORE, EsphomeError, Library
 from esphome.platformio.library import ConvertedLibrary, LibraryBackend
@@ -149,7 +149,12 @@ def test_library_info_no_src_dir(tmp_path: Path) -> None:
 def test_resolve_libraries_bundled(tmp_path: Path) -> None:
     framework = _make_framework(tmp_path)
     _add_library("ESP8266WiFi", None)
-    libs = component.resolve_libraries(framework)
+    libs = component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
 
 
@@ -159,7 +164,12 @@ def test_resolve_libraries_bare_registry_name_is_external(tmp_path: Path) -> Non
     framework = _make_framework(tmp_path)
     _add_library("pngle", None)
     with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
-        component.resolve_libraries(framework)
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
     (libraries, _backend), _ = mock_convert.call_args
     assert [lib.name for lib in libraries] == ["pngle"]
 
@@ -197,7 +207,12 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
     )
 
     with _emitting_converter(converted) as mock_extra:
-        libs = component.resolve_libraries(framework)
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
     mock_extra.assert_called_once_with(
         converted, board_mcu="esp8266", pio_platform="espressif8266"
@@ -220,7 +235,12 @@ def test_resolve_libraries_bundled_dep_already_present(tmp_path: Path) -> None:
     )
 
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(framework)
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
     # Wire appears once (from the explicit registration), not twice
     assert [lib.name for lib in libs] == ["Wire", "some__External"]
@@ -233,7 +253,12 @@ def test_resolve_libraries_versioned_bare_name_is_external(tmp_path: Path) -> No
     _add_library("pngle", "1.1.0")
 
     with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
-        component.resolve_libraries(framework)
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
     (libraries, _backend), _ = mock_convert.call_args
     assert [lib.name for lib in libraries] == ["pngle"]
@@ -283,7 +308,12 @@ def test_resolve_libraries_lib_ignore_covers_bundled(tmp_path: Path) -> None:
     _add_library("ESP8266WiFi", None)
     _add_library("Wire", None)
     CORE.platformio_options = {"lib_ignore": ["Wire"]}
-    libs = component.resolve_libraries(framework)
+    libs = component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
 
 
@@ -301,7 +331,12 @@ def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
     )
 
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(framework)
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
     assert [lib.name for lib in libs] == ["some__External"]
 
