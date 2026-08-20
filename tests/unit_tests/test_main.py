@@ -7269,10 +7269,11 @@ def test_command_analyze_memory_arduino_toolchain(
         result = command_analyze_memory(MockArgs(), config)
 
     assert result == 0
+    # str(Path(...)) so the expectation matches the platform's separators
     mock_memory_analyzer_cli.assert_called_once_with(
-        "/build/firmware.elf",
-        "/tc/objdump",
-        "/tc/readelf",
+        str(Path("/build/firmware.elf")),
+        str(Path("/tc/objdump")),
+        str(Path("/tc/readelf")),
         set(),
         idedata=None,
     )
