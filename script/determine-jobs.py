@@ -646,6 +646,7 @@ ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
 # the backend shares with the native ESP-IDF build.
 ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino8266/",
+    "esphome/arduino/",
     "esphome/build_helpers/",
 )
 ESP8266_NATIVE_TRIGGER_FILES = frozenset(
@@ -656,6 +657,7 @@ ESP8266_NATIVE_TRIGGER_FILES = frozenset(
         "esphome/components/esp8266/build_surgery.py",
         "esphome/components/esp8266/boards.py",
         "esphome/platformio/library.py",
+        "esphome/platformio/registry.py",
         "esphome/platformio/toolchain.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",

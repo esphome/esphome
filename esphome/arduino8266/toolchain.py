@@ -164,9 +164,9 @@ def _print_size_summary(build_dir: Path) -> None:
     """Print the PlatformIO-shaped RAM/Flash lines.
 
     The exact shape (including the bar) is parsed by
-    ``script/ci_memory_impact_extract.py``; ``format_bar`` matches it.
+    ``script/ci_memory_impact_extract.py``; ``print_size_line`` matches it.
     """
-    from esphome.build_helpers.size_summary import format_bar
+    from esphome.build_helpers.size_summary import print_size_line
 
     size_tool = _toolchain_tool("size")
     result = subprocess.run(
@@ -206,8 +206,8 @@ def _print_size_summary(build_dir: Path) -> None:
         return
     ram = sum(sections[s] for s in _RAM_SECTIONS)
     flash = sum(sections[s] for s in _FLASH_SECTIONS)
-    print(f"RAM:   {format_bar(ram, _MAX_RAM_SIZE)}")
-    print(f"Flash: {format_bar(flash, app_size)}")
+    print_size_line("RAM", ram, _MAX_RAM_SIZE)
+    print_size_line("Flash", flash, app_size)
 
 
 def get_idedata() -> dict | None:
