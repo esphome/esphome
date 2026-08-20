@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG, ICON_ACCELERATION_Z
+from esphome.types import ConfigType
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr60fda2_component = await cg.get_variable(config[CONF_MR60FDA2_ID])
     if install_height_config := config.get(CONF_INSTALL_HEIGHT):
         s = await select.new_select(

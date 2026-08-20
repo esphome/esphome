@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
@@ -60,7 +61,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if custompresenceofdetection_config := config.get(
         CONF_CUSTOM_PRESENCE_OF_DETECTION
