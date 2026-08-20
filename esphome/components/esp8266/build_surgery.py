@@ -11,11 +11,15 @@ as plain functions. Keep both in sync when changing either.
 from __future__ import annotations
 
 from collections.abc import Collection
+import hashlib
 import re
 
 # Move the NONOS SDK wifi rate tables from flash to DRAM; see
 # relocate_ratetable.py.script for the full background (NONOS SDK issue 320).
 RATETABLE_RULE = "*libnet80211.a:ieee80211_phy.o(.irom.text .irom.text.*)"
+_RATETABLE_COMMENT = (
+    "/* ESPHome: wifi rate tables must live in DRAM, see NONOS SDK issue 320 */"
+)
 # Match the whole line: "_data_start" is also a substring of the
 # "_dport0_data_start" line in the earlier .dport0.data section
 _RATETABLE_ANCHOR = re.compile(r"^\s*_data_start = ABSOLUTE\(\.\);", re.MULTILINE)
@@ -40,7 +44,7 @@ def relocate_ratetable(content: str) -> str:
     insert_pos = match.end()
     return (
         content[:insert_pos]
-        + "\n    /* ESPHome: wifi rate tables must live in DRAM, see NONOS SDK issue 320 */"
+        + f"\n    {_RATETABLE_COMMENT}"
         + f"\n    {RATETABLE_RULE}"
         + content[insert_pos:]
     )
@@ -84,3 +88,18 @@ def segment_length(content: str, segment_name: str) -> int | None:
     """Read a memory segment's length from linker script content."""
     match = _segment_line_re(segment_name).search(content)
     return int(match.group(2), 16) if match else None
+
+
+def surgery_fingerprint() -> str:
+    """Fingerprint of every behavioral input to the surgeries.
+
+    Linker-script caches include it so an edit here invalidates them.
+    Native-toolchain-only, like ``segment_length``; no script twin.
+    """
+    parts = (
+        RATETABLE_RULE,
+        _RATETABLE_COMMENT,
+        _RATETABLE_ANCHOR.pattern,
+        repr(sorted(_TESTING_SEGMENT_SIZES.items())),
+    )
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()

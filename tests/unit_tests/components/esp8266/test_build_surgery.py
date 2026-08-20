@@ -77,3 +77,16 @@ def test_board_build_covers_every_board() -> None:
     """Every supported board has native build metadata (the table may carry
     extras that BOARDS does not expose)."""
     assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
+
+
+def test_surgery_fingerprint_tracks_inputs() -> None:
+    """The fingerprint changes with any behavioral input, so linker-script
+    caches stamped with it self-invalidate on surgery edits."""
+    from unittest.mock import patch
+
+    from esphome.components.esp8266 import build_surgery
+
+    base = build_surgery.surgery_fingerprint()
+    assert base == build_surgery.surgery_fingerprint()
+    with patch.object(build_surgery, "_TESTING_SEGMENT_SIZES", {"iram1_0_seg": "0x1"}):
+        assert build_surgery.surgery_fingerprint() != base
