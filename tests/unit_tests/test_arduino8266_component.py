@@ -100,14 +100,15 @@ def test_resolve_libraries_bundled(tmp_path: Path) -> None:
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
 
 
-def test_resolve_libraries_unknown_bare_name_raises(tmp_path: Path) -> None:
-    """An unresolvable library fails the build by name, as PlatformIO does."""
-    from esphome.core import EsphomeError
-
+def test_resolve_libraries_bare_registry_name_is_external(tmp_path: Path) -> None:
+    """A bare name that is not bundled resolves from the registry at the
+    latest version, matching PlatformIO and the documented libraries: key."""
     framework = _make_framework(tmp_path)
-    _add_library("Typoo", None)
-    with pytest.raises(EsphomeError, match="Typoo"):
+    _add_library("pngle", None)
+    with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
         component.resolve_libraries(framework)
+    (libraries, _backend), _ = mock_convert.call_args
+    assert [lib.name for lib in libraries] == ["pngle"]
 
 
 def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:

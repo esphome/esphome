@@ -36,6 +36,7 @@ from esphome.framework_helpers import (
     str_to_lst_of_str,
 )
 from esphome.helpers import get_bool_env, get_str_env
+from esphome.platformio.library import ensure_list
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -135,11 +136,9 @@ def _registry_download(
         if ver.get("name") != version:
             continue
         for file in ver.get("files", []):
-            systems = file.get("system") or "*"
-            # A bare string would make ``in`` a substring test
-            if isinstance(systems, str) and systems != "*":
-                systems = [systems]
-            if systems == "*" or system in systems:
+            # ensure_list: a bare string would make ``in`` a substring test
+            systems = ensure_list(file.get("system") or "*")
+            if "*" in systems or system in systems:
                 return (
                     file["download_url"],
                     (file.get("checksum") or {}).get("sha256"),

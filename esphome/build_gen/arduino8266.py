@@ -69,7 +69,9 @@ _CORE_EXCLUDE_WAVEFORM = {
     "core_esp8266_waveform_phase.cpp",
 }
 
-# From platformio-build.py, in its order of precedence (first is the default).
+# From platformio-build.py. The first entry is the default; with multiple SDK
+# knobs set (a pathological config) ties break by table order, since
+# upstream's tie-break depends on define order and is not reproducible here.
 _NONOSDK_VERSIONS = (
     ("SDK22x_190703", "NONOSDK22x_190703"),
     ("SDK221", "NONOSDK221"),

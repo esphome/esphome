@@ -223,13 +223,14 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     run(regenerate_expected=False)
 
 
-def test_print_size_summary_unparsable_section_skips_summary(
+def test_print_size_summary_unparsable_section(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A section that fails to parse must not produce a confident wrong total."""
-    bad = _SIZE_OUTPUT + ".broken   abc   0\n"
+    """A totals-relevant section that fails to parse must not produce a
+    confident wrong number; an irrelevant one only warns."""
+    bad = _SIZE_OUTPUT.replace(".bss          26504", ".bss          abc")
     with patch.object(
         toolchain.subprocess,
         "run",
@@ -237,4 +238,18 @@ def test_print_size_summary_unparsable_section_skips_summary(
     ):
         toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
     assert capsys.readouterr().out == ""
+    assert "Unparsable size output" in caplog.text
+
+    caplog.clear()
+    harmless = _SIZE_OUTPUT + ".broken   abc   0\n"
+    with (
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout=harmless),
+        ),
+        patch.object(toolchain, "_parse_app_size", return_value=1044464),
+    ):
+        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+    assert "RAM:" in capsys.readouterr().out
     assert "Unparsable size output" in caplog.text

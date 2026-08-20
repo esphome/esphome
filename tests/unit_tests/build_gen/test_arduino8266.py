@@ -252,11 +252,10 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # -L/-l from esphome build_flags reach the link line, not the compiles
     assert '-L"/opt/blobs"' in content
     assert "-luser_blob" in content
-    assert "cflags" not in [
-        line.split(" = ")[0].strip()
-        for line in content.splitlines()
-        if "user_blob" in line
-    ]
+    for line in content.splitlines():
+        if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
+            assert "user_blob" not in line
+            assert "/opt/blobs" not in line
     # System libraries with the selected lwIP variant, in the builder's order
     assert (
         "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
@@ -524,7 +523,8 @@ def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
 
 
 def test_build_config_nonosdk_precedence() -> None:
-    """With two SDK knobs set, the first table entry wins (documented order)."""
+    """With two SDK knobs set (a pathological config), ties break
+    deterministically by table order."""
     _set_flags(
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
