@@ -3181,3 +3181,28 @@ def test_require_platformio_toolchain() -> None:
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(Invalid, match="Unsupported toolchain 'arduino' for RP2"):
         validator(config)
+
+
+@pytest.mark.parametrize(
+    ("platform", "minimal_config"),
+    [
+        ("host", {}),
+        ("rp2", {"board": "rpipicow"}),
+        ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+    ],
+)
+def test_every_platformio_only_platform_rejects_arduino_toolchain(
+    platform: str, minimal_config: dict
+) -> None:
+    """The invariant every native-toolchain gate relies on: a platform that
+    cannot serve a CLI toolchain rejects it at validation (esp32, esp8266,
+    and nrf52 pin this in their own suites)."""
+    import importlib
+
+    from esphome.const import Toolchain
+    from esphome.core import CORE
+
+    module = importlib.import_module(f"esphome.components.{platform}")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):
+        module.CONFIG_SCHEMA(dict(minimal_config))

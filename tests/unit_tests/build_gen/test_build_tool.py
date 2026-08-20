@@ -27,7 +27,8 @@ def test_ar_removes_stale_archive(tmp_path: Path) -> None:
     ):
         assert build_tool.main() == 0
     assert not archive.exists()
-    assert mock_run.call_args[0][0] == ["ar-bin", "rc", str(archive), f"@{rsp}"]
+    # The rspfile is expanded by the shim (GNU ar would escape backslashes)
+    assert mock_run.call_args[0][0] == ["ar-bin", "rc", str(archive), "a.o"]
 
 
 def test_copy(tmp_path: Path) -> None:
@@ -61,3 +62,28 @@ def test_runs_as_script(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert dst.read_text() == "x"
+
+
+def test_ar_expands_rspfile_without_escaping(tmp_path) -> None:
+    """Backslash paths survive: the shim expands the rspfile itself instead
+    of letting GNU ar treat backslashes as escapes."""
+    rsp = tmp_path / "objs.rsp"
+    rsp.write_text("obj/a.o\nsub\\b.o\n")
+    with (
+        patch.object(
+            build_tool.sys,
+            "argv",
+            ["build_tool", "ar", "ar-bin", str(tmp_path / "lib.a"), str(rsp)],
+        ),
+        patch.object(
+            build_tool.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        assert build_tool.main() == 0
+    assert mock_run.call_args[0][0] == [
+        "ar-bin",
+        "rc",
+        str(tmp_path / "lib.a"),
+        "obj/a.o",
+        "sub\\b.o",
+    ]

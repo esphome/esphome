@@ -984,6 +984,12 @@ class EsphomeCore:
 
     @property
     def using_toolchain_arduino(self):
+        """The native (PlatformIO-free) ESP8266 Arduino build backend.
+
+        Unlike ``using_arduino`` (the target *framework*, true for any
+        platform compiling Arduino code), this is a build *toolchain*
+        choice, like its ``using_toolchain_*`` siblings.
+        """
         return self.toolchain == Toolchain.ARDUINO
 
     @property
@@ -1099,6 +1105,8 @@ class EsphomeCore:
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
+        # No warning for using_toolchain_arduino: the native ESP8266 build
+        # honors build_unflags (token-level, matching PlatformIO).
         if self.using_toolchain_esp_idf:
             # The native ESP-IDF build generator does not consume build_unflags
             _LOGGER.warning(
