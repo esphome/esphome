@@ -39,6 +39,12 @@ KEY_NETWORK_PRIORITY = "network_priority"
 # NETWORK_PLAN.md for the full multi-interface roadmap.
 VALID_NETWORK_TYPES = ["ethernet", "wifi"]
 
+# Interfaces NetworkComponent::loop() knows how to arbitrate the default route
+# for. Deliberately NOT derived from VALID_NETWORK_TYPES: extending that list
+# without extending the C++ arbitration (and then this set) is caught in
+# _final_validate() as a config error instead of a silently mis-routed interface.
+ARBITRATED_NETWORK_TYPES = frozenset({"ethernet", "wifi"})
+
 # Setup priority base values — first in list gets the highest priority.
 #
 # The base equals the historical setup_priority::WIFI / ::ETHERNET default
@@ -310,7 +316,8 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config: ConfigType) -> None:
     """Check that every interface named in 'priority' has a corresponding component block."""
     full = fv.full_config.get()
-    for entry in config.get(CONF_PRIORITY, []):
+    priority_list = config.get(CONF_PRIORITY, [])
+    for entry in priority_list:
         iface = entry["interface"]
         if iface not in full:
             raise cv.Invalid(
@@ -318,6 +325,24 @@ def _final_validate(config: ConfigType) -> None:
                 f"component is configured",
                 [CONF_PRIORITY],
             )
+
+    # Tripwire for future interface types (openthread, modem): the C++ default-route
+    # arbitration pivots on USE_NETWORK_PRIMARY_INTERFACE_WIFI and only knows
+    # ethernet and wifi. Extend NetworkComponent::loop() before allowing another
+    # type here. Unreachable until VALID_NETWORK_TYPES grows.
+    if (
+        len(priority_list) > 1
+        and (
+            unsupported := {e["interface"] for e in priority_list}
+            - ARBITRATED_NETWORK_TYPES
+        )
+        and CORE.is_esp32
+    ):
+        raise cv.Invalid(
+            "Default-route arbitration does not support: "
+            f"{', '.join(sorted(unsupported))}",
+            [CONF_PRIORITY],
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -337,9 +362,21 @@ async def to_code(config):
         # network/util.cpp resolves the reported address (get_use_address_to,
         # get_ip_addresses) in a fixed ethernet-first order; a wifi-first priority
         # list is the only case that deviates from it, so it is the only case that
-        # needs a define. Runtime (active-interface) selection is a planned follow-up.
+        # needs a define.
         if priority_list[0]["interface"] == "wifi":
             cg.add_define("USE_NETWORK_PRIMARY_INTERFACE_WIFI")
+
+        # With more than one interface, NetworkComponent::loop() arbitrates the
+        # default route (ESP-IDF's fixed route_prio values would always favor
+        # WiFi). ESP32 only: the arbitration needs esp_netif, which both
+        # frameworks build from source.
+        # The ethernet/wifi-only assumption behind the arbitration is enforced in
+        # _final_validate() so a future unsupported type fails as a config error.
+        if len(priority_list) > 1 and CORE.is_esp32:
+            cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
+            # Have lwIP switch to the DNS servers of the netif that owns the
+            # default route whenever the arbitration changes it.
+            add_idf_sdkconfig_option("CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF", True)
 
         _LOGGER.info(
             "Network interface priority: %s",
