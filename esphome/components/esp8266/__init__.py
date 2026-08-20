@@ -596,7 +596,10 @@ def _decode_pc(config, addr):
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
         if not addr2line.is_file() or not elf.is_file():
-            _LOGGER.debug("decode_pc no addr2line")
+            _LOGGER.warning(
+                "Cannot decode crash addresses: %s missing",
+                addr2line if not addr2line.is_file() else elf,
+            )
             return
         addr2line, elf = str(addr2line), str(elf)
     else:

@@ -53,6 +53,9 @@ def test_path_getters(tmp_path: Path) -> None:
     assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line"
     assert toolchain.get_objdump_path().name == "xtensa-lx106-elf-objdump"
     assert toolchain.get_readelf_path().name == "xtensa-lx106-elf-readelf"
+    # Windows binutils carry the executable suffix
+    with patch.object(toolchain, "_EXE_SUFFIX", ".exe"):
+        assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line.exe"
 
 
 def test_run_compile_build_failure(tmp_path: Path) -> None:

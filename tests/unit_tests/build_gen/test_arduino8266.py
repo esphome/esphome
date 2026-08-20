@@ -539,3 +539,14 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
     assert _resolve_build_config(_flag_defines()).nonosdk == "NONOSDK221"
+
+
+def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
+    """build_unflags removes flags from the framework sets, as PlatformIO does."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-fipa-pta"}
+    content = _write_ninja(paths)
+    for line in content.splitlines():
+        if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
+            assert "-fipa-pta" not in line

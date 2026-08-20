@@ -489,6 +489,13 @@ def write_project(paths: dict[str, Path]) -> bool:
     )
     asflags = _ASFLAGS + defines + includes + project_compile_flags
 
+    # build_unflags applies to the framework flag sets too, as it does under
+    # PlatformIO (a silently ignored ``build_unflags: -Os`` would diverge).
+    if unflags := set(CORE.build_unflags):
+        cflags = [f for f in cflags if f not in unflags]
+        cxxflags = [f for f in cxxflags if f not in unflags]
+        asflags = [f for f in asflags if f not in unflags]
+
     link_flags = list(_LINKFLAGS)
     if esp8266_data.get(KEY_SCANF_FLOAT):
         link_flags += ["-u", "_scanf_float"]

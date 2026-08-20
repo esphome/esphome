@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 import subprocess
 
@@ -34,8 +35,14 @@ def get_elf_path() -> Path:
     return get_build_dir() / "firmware.elf"
 
 
+# Windows binutils carry the executable suffix; is_file() checks need it
+_EXE_SUFFIX = ".exe" if os.name == "nt" else ""
+
+
 def _toolchain_tool(name: str) -> Path:
-    return framework.get_toolchain_path() / "bin" / f"xtensa-lx106-elf-{name}"
+    return (
+        framework.get_toolchain_path() / "bin" / f"xtensa-lx106-elf-{name}{_EXE_SUFFIX}"
+    )
 
 
 def get_addr2line_path() -> Path:
@@ -126,7 +133,7 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
     """
     from esphome.espidf.size_summary import format_bar
 
-    size_tool = toolchain_path / "bin" / "xtensa-lx106-elf-size"
+    size_tool = _toolchain_tool("size")
     result = subprocess.run(
         [str(size_tool), "-A", "-d", str(get_elf_path())],
         capture_output=True,
