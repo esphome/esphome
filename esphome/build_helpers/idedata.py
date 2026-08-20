@@ -15,7 +15,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import re
 import shlex
 import subprocess
 
@@ -123,27 +122,15 @@ def _pick_entry(entries: list[dict]) -> dict:
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
 
-# The compiler basename a compile_commands entry must lead with (an
-# optional target-triple prefix ends in one of these)
-# The stem must BE a compiler name (optionally versioned), alone or after a
-# target-triple separator: "cc", "xtensa-lx106-elf-g++", "gcc-8.4.0" match;
-# "ccache" and "distcc" do not.
-_COMPILER_STEM = re.compile(
-    r"(?:^|[-_.])(?:gcc|g\+\+|cc|c\+\+|clang|clang\+\+)(?:-[\d.]+)?$"
-)
+# Compiler launchers that may prefix a compile command. A closed denylist is
+# sturdier than trying to enumerate compiler names: launchers are few and
+# stable, while compilers (cross prefixes, versioned names, icx, armcc, ...)
+# are an open set.
+_LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
 
 
-# Deduplicates the warning across a compile DB of hundreds of entries;
-# cleared per idedata build (a module-level functools.cache would suppress
-# the warning for the process lifetime in non-forking hosts).
-_warned_not_a_compiler: set[str] = set()
-
-
-def _warn_not_a_compiler(token: str) -> None:
-    if token in _warned_not_a_compiler:
-        return
-    _warned_not_a_compiler.add(token)
-    _LOGGER.warning("compile_commands entry does not start with a compiler: %s", token)
+def _is_launcher(token: str) -> bool:
+    return Path(token).stem.lower() in _LAUNCHER_STEMS
 
 
 def parse_entry(
@@ -169,16 +156,11 @@ def parse_entry(
     # build, so this is a comparison, not a guess by name.
     if launcher is not None and tokens[0] == launcher:
         tokens = tokens[1:]
-    if (
-        not _COMPILER_STEM.search(Path(tokens[0]).stem)
-        and len(tokens) > 1
-        and _COMPILER_STEM.search(Path(tokens[1]).stem)
-    ):
+    if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
         # A stale compile DB built with a launcher the current run no longer
         # configures: the real compiler is the next token.
+        _LOGGER.debug("Stripping unconfigured launcher %s", tokens[0])
         tokens = tokens[1:]
-    if not _COMPILER_STEM.search(Path(tokens[0]).stem):
-        _warn_not_a_compiler(tokens[0])
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
     cxx_path = tokens[0].replace("\\", "/")
@@ -296,15 +278,19 @@ def load_or_build_idedata(
 
     data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
-    if _COMPILER_STEM.search(Path(data["cxx_path"]).stem):
+    if _is_launcher(data["cxx_path"]):
+        # Serve the data for this run but never persist a launcher as the
+        # compiler path (the cache would outlive the timestamp check and
+        # hide the fault)
+        _LOGGER.warning(
+            "compile_commands names the launcher %s as the compiler; "
+            "not caching idedata",
+            data["cxx_path"],
+        )
+    else:
         cache.parent.mkdir(parents=True, exist_ok=True)
         # Atomic so a crash mid-write cannot leave a truncated cache
         write_file(cache, json.dumps(data, indent=2) + "\n")
-    else:
-        # parse_entry already warned; serve the data for this run but never
-        # persist a known-bad compiler path (the cache would outlive the
-        # timestamp check and hide the fault)
-        _LOGGER.debug("Not caching idedata with unrecognized compiler path")
     return data
 
 
@@ -318,7 +304,6 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     ESPHome TU, but union the include dirs across all ESPHome TUs to get a
     project-wide superset (as PlatformIO's idedata provides).
     """
-    _warned_not_a_compiler.clear()
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
 
     # ninja-generated compile DBs repeat one identical multi-KB command per
