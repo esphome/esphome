@@ -116,13 +116,21 @@ def _pio_system() -> str:
         return "darwin_arm64" if machine == "arm64" else "darwin_x86_64"
     if sysname == "windows":
         return "windows_amd64" if machine in ("amd64", "arm64") else "windows_x86"
-    if machine in ("arm64", "aarch64"):
-        return "linux_aarch64"
-    if machine in ("i686", "i386", "x86"):
-        return "linux_i686"
-    if machine.startswith("arm"):
-        return f"linux_{machine}"
-    return "linux_x86_64"
+    if sysname == "linux":
+        if machine in ("arm64", "aarch64"):
+            return "linux_aarch64"
+        if machine in ("i686", "i386", "x86"):
+            return "linux_i686"
+        if machine.startswith("arm"):
+            return f"linux_{machine}"
+        if machine in ("x86_64", "amd64"):
+            return "linux_x86_64"
+    # Fail here, near the cause, rather than installing a toolchain whose
+    # binaries cannot execute on this host.
+    raise EsphomeError(
+        f"No {sysname}/{machine} build of the ESP8266 toolchain exists; "
+        "use 'toolchain: platformio'"
+    )
 
 
 def _registry_download(package: str, version: str) -> tuple[str, str, int | None]:

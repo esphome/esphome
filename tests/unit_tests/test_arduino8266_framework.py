@@ -58,6 +58,23 @@ def test_pio_system(system: str, machine: str, expected: str) -> None:
         assert framework._pio_system() == expected
 
 
+@pytest.mark.parametrize(
+    ("system", "machine"),
+    [
+        ("FreeBSD", "amd64"),
+        ("Linux", "ppc64le"),
+    ],
+)
+def test_pio_system_unsupported_host_raises(system: str, machine: str) -> None:
+    # Fails at resolution rather than installing a toolchain that can't run
+    with (
+        patch("platform.system", return_value=system),
+        patch("platform.machine", return_value=machine),
+        pytest.raises(EsphomeError, match="use 'toolchain: platformio'"),
+    ):
+        framework._pio_system()
+
+
 def _registry_response(files: list[dict]) -> MagicMock:
     resp = MagicMock()
     resp.json.return_value = {"versions": [{"name": "1.0.0", "files": files}]}
