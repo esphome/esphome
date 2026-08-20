@@ -368,7 +368,7 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
         generate_idf_component_yml(tmp_component)
 
 
-def testparse_library_json(tmp_path):
+def test_parse_library_json(tmp_path):
     f = tmp_path / "library.json"
     f.write_text(json.dumps({"name": "test"}))
 
