@@ -1102,6 +1102,10 @@ void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat) {
            want_exfat ? "exFAT" : "FAT32");
 }
 
+void fatfs_log_no_reformat(const char *tag) {
+  ESP_LOGW(tag, "file_system : mismatch detected, not formatted as format on mismatch is false");
+}
+
 void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat) {
   ESP_LOGW(tag, "file_system: found %s but %s is configured - REFORMATTING, all data on the medium is erased",
            found_exfat ? "exFAT" : "FAT", want_exfat ? "exFAT" : "FAT32");

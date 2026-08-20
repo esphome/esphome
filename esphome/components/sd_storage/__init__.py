@@ -72,6 +72,7 @@ CONF_ON_MOUNTED = "on_mounted"
 CONF_ON_REMOVED = "on_removed"
 CONF_ON_INSERTED = "on_inserted"
 CONF_CD_PIN = "cd_pin"
+CONF_FORMAT_ON_MISMATCH = "format_on_mismatch"
 CONF_SPI_INTERFACE = "spi_interface"
 CONF_ASSUME_EXCLUSIVE_BUS = "assume_exclusive_bus"
 
@@ -150,6 +151,7 @@ SD_MMC_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MOUNT_PATH, default="/sdcard"): validate_mount_path,
         cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
+        cv.Optional(CONF_FORMAT_ON_MISMATCH, default=False): cv.boolean,
         cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CardMountedTrigger)}
         ),
@@ -178,6 +180,7 @@ SD_SPI_SCHEMA = (
             cv.Optional(CONF_SLOT, default=0): cv.int_range(min=0, max=1),
             cv.Optional(CONF_MOUNT_PATH, default="/sdcard"): validate_mount_path,
             cv.Optional(CONF_CD_PIN): pins.gpio_input_pullup_pin_schema,
+            cv.Optional(CONF_FORMAT_ON_MISMATCH, default=False): cv.boolean,
             # Opt in to task-safe I/O when this card is the only device on its SPI bus. Enforced
             # in FINAL_VALIDATE (Check A: alone on the bus). Off by default; esp32-only because
             # the background worker task that would use it exists only there.
@@ -384,6 +387,7 @@ async def to_code(config):
 
     if cd_pin := config.get(CONF_CD_PIN):
         cg.add(var.set_cd_pin(await cg.gpio_pin_expression(cd_pin)))
+    cg.add(var.set_format_on_mismatch(config[CONF_FORMAT_ON_MISMATCH]))
 
     request_storage_device()
     # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN -- resolved at codegen

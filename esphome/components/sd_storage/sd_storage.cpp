@@ -130,7 +130,7 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
   char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
 
   // The point of this path: the requested filesystem is enforced BEFORE the mount.
-  if (!storage::ensure_requested_filesystem(TAG, pdrv, drv, this->requested_file_system_)) {
+  if (!storage::ensure_requested_filesystem(TAG, pdrv, drv, this->requested_file_system_, this->format_on_mismatch_)) {
     ff_diskio_register(pdrv, nullptr);
     delete card;  // NOLINT(cppcoreguidelines-owning-memory)
     return ESP_FAIL;
