@@ -564,11 +564,12 @@ def split_flag_entry(entry: str, owner: str) -> list[str]:
 
 
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
-    """Join a bare ``-I``/``-L``/``-l`` with its following token (PIO lexing)."""
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
+    the way PlatformIO's ParseFlags lexes them."""
     out: list[str] = []
     it = iter(tokens)
     for tok in it:
-        if tok in ("-I", "-L", "-l"):
+        if tok in ("-I", "-L", "-l", "-D"):
             arg = next(it, None)
             if arg is None:
                 _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)

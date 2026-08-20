@@ -665,3 +665,11 @@ def test_write_project_empty_core_raises(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="no core sources"),
     ):
         arduino8266.write_project(paths)
+
+
+def test_flag_defines_joins_spaced_define() -> None:
+    """A spaced "-D KNOB" entry is detected exactly as PlatformIO detects it."""
+    _set_flags("-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    defines = _flag_defines()
+    assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
+    assert "" not in defines

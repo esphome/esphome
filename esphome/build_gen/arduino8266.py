@@ -176,10 +176,15 @@ def _flag_defines() -> dict[str, str]:
     defines: dict[str, str] = {}
     for flag in CORE.build_flags:
         # Shell-lex multi-token entries the way PlatformIO does, so a knob
-        # in "-DKNOB -DOTHER" is still detected; single tokens pass verbatim
-        # to keep any quoting in their bodies intact.
-        for tok in split_flag_entry(flag, "esphome") if " " in flag else (flag,):
-            if tok.startswith("-D"):
+        # in "-DKNOB -DOTHER" or a spaced "-D KNOB" is still detected;
+        # single tokens pass verbatim to keep quoting in their bodies intact.
+        tokens = (
+            join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
+            if " " in flag
+            else (flag,)
+        )
+        for tok in tokens:
+            if tok.startswith("-D") and len(tok) > 2:
                 body = tok[2:]
                 defines[body.split("=", 1)[0]] = body
     return defines
