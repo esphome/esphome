@@ -59,12 +59,10 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
     build = data.get("build", {})
 
-    src_dir = build.get("srcDir")
-    if not src_dir:
-        for d in ("src", "Src", "."):
-            if (read_path / d).is_dir():
-                src_dir = d
-                break
+    # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
+    src_dir = build.get("srcDir") or next(
+        (d for d in ("src", "Src") if (read_path / d).is_dir()), "."
+    )
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     # PlatformIO shell-lexes each build.flags entry
@@ -91,15 +89,14 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
 
     include_dir = build.get("includeDir", DEFAULT_BUILD_INCLUDE_DIR)
     for d in [include_dir, src_dir, *include_flags]:
-        if d and (path := (read_path / d)).is_dir():
+        if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
 
-    if src_dir:
-        lib.sources = sorted(
-            Path(f).resolve()
-            for f in collect_filtered_files(read_path / src_dir, src_filter)
-            if Path(f).suffix in SRC_FILE_EXTENSIONS
-        )
+    lib.sources = sorted(
+        Path(f).resolve()
+        for f in collect_filtered_files(read_path / src_dir, src_filter)
+        if Path(f).suffix in SRC_FILE_EXTENSIONS
+    )
     return lib
 
 

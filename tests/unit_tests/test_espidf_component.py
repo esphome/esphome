@@ -1190,3 +1190,67 @@ def test_idf_component_download_passes_salt() -> None:
         "owner/name", force=True, salt="abcd1234", namespace="idf"
     )
     assert c.path == Path("/converted/owner/name")
+
+
+def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
+    """The shared helper resolves a callable idf_target lazily and normalizes
+    a string ``build.flags`` value into a list before extending it."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('BOARD_MCU')])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py", "flags": "-DBASE=1"}}
+
+    apply_extra_script(c, lambda: "esp8266")
+
+    assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
+
+
+def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
+    from esphome.espidf.extra_script import apply_extra_script
+
+    # No extraScript declared: nothing happens, the target is never resolved
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {}}
+    apply_extra_script(c, lambda: pytest.fail("target resolved without a script"))
+
+    # A script that captures nothing leaves the flags untouched
+    script = tmp_path / "noop.py"
+    script.write_text("pass\n")
+    c.data = {"build": {"extraScript": "noop.py"}}
+    apply_extra_script(c, "esp8266")
+    assert "flags" not in c.data["build"]
+
+
+def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
+    """Un-captured env vars and unsupported env methods are silent no-ops."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text(
+        "env.Replace(CC='clang')\nenv.Append(UNCAPTURED=['x'], LIBS='single')\n"
+    )
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266")
+    assert c.data["build"]["flags"] == ["-lsingle"]
+
+
+def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
+    """A raising extra-script is best-effort: logged and skipped."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("raise RuntimeError('boom')\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266")
+    assert "flags" not in c.data["build"]
+    assert "skipping" in caplog.text

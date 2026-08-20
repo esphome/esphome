@@ -1,0 +1,287 @@
+"""Tests for esphome.arduino8266.framework (downloads and environment)."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import subprocess
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from esphome.arduino8266 import framework
+import esphome.config_validation as cv
+from esphome.core import CORE, EsphomeError
+
+
+@pytest.fixture(autouse=True)
+def _clear_caches(tmp_path: Path) -> None:
+    framework.ccache_path.cache_clear()
+    CORE.build_path = tmp_path
+
+
+def test_framework_package_version() -> None:
+    assert framework.framework_package_version(cv.Version(3, 1, 2)) == "3.30102.0"
+    assert framework.framework_package_version(cv.Version(3, 2, 0)) == "3.30200.0"
+
+
+def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
+    with patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}):
+        assert framework.get_arduino8266_tools_path() == tmp_path.resolve()
+    # A blank prefix must be treated as unset, not as the CWD
+    with patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": "  "}):
+        path = framework.get_arduino8266_tools_path()
+    assert path.name == "arduino8266"
+    assert path != Path.cwd()
+
+
+@pytest.mark.parametrize(
+    ("system", "machine", "expected"),
+    [
+        ("Darwin", "arm64", "darwin_arm64"),
+        ("Darwin", "x86_64", "darwin_x86_64"),
+        ("Windows", "AMD64", "windows_amd64"),
+        ("Windows", "ARM64", "windows_amd64"),
+        ("Windows", "x86", "windows_x86"),
+        ("Linux", "x86_64", "linux_x86_64"),
+        ("Linux", "aarch64", "linux_aarch64"),
+        ("Linux", "i686", "linux_i686"),
+        ("Linux", "armv7l", "linux_armv7l"),
+    ],
+)
+def test_pio_system(system: str, machine: str, expected: str) -> None:
+    with (
+        patch("platform.system", return_value=system),
+        patch("platform.machine", return_value=machine),
+    ):
+        assert framework._pio_system() == expected
+
+
+def _registry_response(files: list[dict]) -> MagicMock:
+    resp = MagicMock()
+    resp.json.return_value = {"versions": [{"name": "1.0.0", "files": files}]}
+    return resp
+
+
+def test_registry_download_url_matches_system() -> None:
+    resp = _registry_response(
+        [
+            {"system": ["windows_amd64"], "download_url": "http://x/win"},
+            {"system": ["linux_x86_64"], "download_url": "http://x/linux"},
+        ]
+    )
+    with (
+        patch("requests.get", return_value=resp),
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        assert framework._registry_download_url("pkg", "1.0.0") == "http://x/linux"
+
+
+def test_registry_download_url_wildcard_system() -> None:
+    resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
+    with patch("requests.get", return_value=resp):
+        assert framework._registry_download_url("pkg", "1.0.0") == "http://x/any"
+
+
+def test_registry_download_url_no_system_match() -> None:
+    resp = _registry_response(
+        [{"system": ["windows_amd64"], "download_url": "http://x/win"}]
+    )
+    with (
+        patch("requests.get", return_value=resp),
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+        pytest.raises(EsphomeError, match="No pkg 1.0.0 build"),
+    ):
+        framework._registry_download_url("pkg", "1.0.0")
+
+
+def test_registry_download_url_version_not_found() -> None:
+    resp = _registry_response([])
+    resp.json.return_value = {"versions": [{"name": "2.0.0", "files": []}]}
+    with (
+        patch("requests.get", return_value=resp),
+        pytest.raises(EsphomeError, match="not found"),
+    ):
+        framework._registry_download_url("pkg", "1.0.0")
+
+
+def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
+    dest = tmp_path / "pkg"
+    dest.mkdir()
+    (dest / ".esphome_extracted").touch()
+    with patch.object(framework, "download_from_mirrors") as mock_download:
+        framework._install_package("pkg", "1.0.0", dest, [])
+    mock_download.assert_not_called()
+
+
+def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
+    dest = tmp_path / "pkg"
+    mirrors = ["http://mirror/{VERSION}/{SYSTEM}.tar.gz"]
+    with (
+        patch.object(framework, "download_from_mirrors") as mock_download,
+        patch.object(framework, "archive_extract_all") as mock_extract,
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        # Extraction is expected to create the directory
+        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
+        framework._install_package("pkg", "1.0.0", dest, mirrors)
+    assert mock_download.call_args[0][0] is mirrors
+    assert mock_download.call_args[0][1] == {
+        "VERSION": "1.0.0",
+        "SYSTEM": "linux_x86_64",
+    }
+    assert (dest / ".esphome_extracted").is_file()
+
+
+def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
+    dest = tmp_path / "pkg"
+    with (
+        patch.object(framework, "download_from_mirrors") as mock_download,
+        patch.object(framework, "archive_extract_all") as mock_extract,
+        patch.object(
+            framework, "_registry_download_url", return_value="http://x/pkg.tar.gz"
+        ),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
+        framework._install_package("pkg", "1.0.0", dest, [])
+    assert mock_download.call_args[0][0] == ["http://x/pkg.tar.gz"]
+
+
+@pytest.mark.parametrize(
+    ("system", "machine", "expected"),
+    [
+        ("Darwin", "arm64", "ninja-mac.zip"),
+        ("Windows", "AMD64", "ninja-win.zip"),
+        ("Windows", "arm64", "ninja-winarm64.zip"),
+        ("Linux", "x86_64", "ninja-linux.zip"),
+        ("Linux", "aarch64", "ninja-linux-aarch64.zip"),
+    ],
+)
+def test_ninja_archive_name(system: str, machine: str, expected: str) -> None:
+    with (
+        patch("platform.system", return_value=system),
+        patch("platform.machine", return_value=machine),
+    ):
+        assert framework._ninja_archive_name() == expected
+
+
+def test_check_ninja_install_prefers_path(tmp_path: Path) -> None:
+    with patch("shutil.which", return_value=str(tmp_path / "ninja")):
+        assert framework._check_ninja_install() == tmp_path / "ninja"
+
+
+def test_check_ninja_install_cached_binary(tmp_path: Path) -> None:
+    binary = (
+        tmp_path
+        / "tools"
+        / "ninja"
+        / framework.NINJA_VERSION
+        / ("ninja.exe" if os.name == "nt" else "ninja")
+    )
+    binary.parent.mkdir(parents=True)
+    binary.touch()
+    with (
+        patch("shutil.which", return_value=None),
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+    ):
+        assert framework._check_ninja_install() == binary
+
+
+def test_check_ninja_install_downloads(tmp_path: Path) -> None:
+    binary_name = "ninja.exe" if os.name == "nt" else "ninja"
+
+    def fake_extract(_tmp, ninja_dir, **_kw) -> None:
+        ninja_dir.mkdir(parents=True, exist_ok=True)
+        (ninja_dir / binary_name).touch()
+
+    with (
+        patch("shutil.which", return_value=None),
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "download_from_mirrors"),
+        patch.object(framework, "archive_extract_all", side_effect=fake_extract),
+    ):
+        binary = framework._check_ninja_install()
+    assert binary.is_file()
+    assert os.access(binary, os.X_OK)
+
+
+def test_check_ninja_install_missing_after_extract(tmp_path: Path) -> None:
+    with (
+        patch("shutil.which", return_value=None),
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "download_from_mirrors"),
+        patch.object(framework, "archive_extract_all"),
+        pytest.raises(EsphomeError, match="ninja binary missing"),
+    ):
+        framework._check_ninja_install()
+
+
+def test_check_and_install_returns_paths(tmp_path: Path) -> None:
+    with (
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(framework, "_install_package") as mock_install,
+        patch.object(
+            framework, "_check_ninja_install", return_value=tmp_path / "ninja"
+        ),
+    ):
+        paths = framework.check_and_install(cv.Version(3, 1, 2))
+    assert paths["framework_path"] == tmp_path / "frameworks" / "3.30102.0"
+    assert (
+        paths["toolchain_path"] == tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
+    )
+    assert paths["ninja_path"] == tmp_path / "ninja"
+    assert mock_install.call_count == 2
+
+
+def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
+    with patch.object(framework, "ccache_env", return_value={"CCACHE_DIR": "x"}):
+        env = framework.get_build_env(tmp_path)
+    assert env["PATH"].startswith(str(tmp_path / "bin") + os.pathsep)
+    assert env["CCACHE_DIR"] == "x"
+
+
+def test_ccache_path_disabled_by_env() -> None:
+    with patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}):
+        assert framework.ccache_path() is None
+
+
+def test_ccache_path_no_binary() -> None:
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch("shutil.which", return_value=None),
+    ):
+        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
+        assert framework.ccache_path() is None
+
+
+def test_ccache_path_probe_failure() -> None:
+    with (
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("subprocess.run", side_effect=subprocess.SubprocessError),
+    ):
+        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
+        assert framework.ccache_path() is None
+
+
+def test_ccache_path_ok() -> None:
+    with (
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("subprocess.run"),
+    ):
+        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
+        assert framework.ccache_path() == "/usr/bin/ccache"
+
+
+def test_ccache_env(tmp_path: Path) -> None:
+    with patch.object(framework, "ccache_path", return_value=None):
+        assert framework.ccache_env() == {}
+    with (
+        patch.object(framework, "ccache_path", return_value="/usr/bin/ccache"),
+        patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}),
+    ):
+        env = framework.ccache_env()
+    # User-set values are respected; the rest get defaults
+    assert "CCACHE_NOHASHDIR" not in env
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str(Path(CORE.build_path).resolve())
+    assert env["CCACHE_DIR"].endswith("ccache")

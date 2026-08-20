@@ -12,7 +12,7 @@ import re
 import sys
 import time
 from typing import Any, Self
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
 
 import pytest
 from pytest import CaptureFixture
@@ -7130,3 +7130,41 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
 
     # Same tree, so the path comparison still finds them equal and stays silent
     assert not caplog.text
+
+
+def test_upload_using_esptool_arduino_toolchain(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+) -> None:
+    """The native ESP8266 Arduino toolchain flashes CORE.firmware_bin at 0x0."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    firmware_offset_idx = cmd_list.index("write-flash") + 4
+    assert cmd_list[firmware_offset_idx] == "0x0"
+    assert cmd_list[firmware_offset_idx + 1] == str(CORE.firmware_bin)
+
+
+def test_write_cpp_file_arduino_toolchain_writes_no_project(tmp_path: Path) -> None:
+    """The native ESP8266 Arduino toolchain generates its project at compile
+    time, so write_cpp_file must not write a platformio.ini."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    with (
+        patch("esphome.writer.write_cpp") as mock_write_cpp,
+        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
+        patch.object(
+            type(CORE), "cpp_main_section", new_callable=PropertyMock
+        ) as mock_section,
+    ):
+        mock_section.return_value = ""
+        assert main.write_cpp_file() == 0
+
+    mock_write_cpp.assert_called_once()
+    mock_pio_project.assert_not_called()

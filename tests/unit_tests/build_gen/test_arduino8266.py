@@ -10,8 +10,9 @@ PlatformIO toolchain produces for the same configuration.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -28,7 +29,7 @@ from esphome.core import CORE, EsphomeError
 
 
 @pytest.fixture(autouse=True)
-def _setup_core(tmp_path: Path) -> None:
+def _setup_core(tmp_path: Path) -> Generator[None]:
     CORE.name = "test8266"
     CORE.build_path = tmp_path
     CORE.testing_mode = False
@@ -39,6 +40,9 @@ def _setup_core(tmp_path: Path) -> None:
         KEY_FLASH_MODE: "dout",
         KEY_SCANF_FLOAT: False,
     }
+    yield
+    # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
+    CORE.testing_mode = False
 
 
 def _set_flags(*flags: str) -> None:
@@ -259,3 +263,231 @@ def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
     # Waveform not stubbed out: both implementations stay in the archive
     assert "core_esp8266_waveform_pwm.cpp.o" in content
     assert "core_esp8266_waveform_phase.cpp.o" in content
+
+
+@pytest.mark.parametrize(
+    ("knob", "lib", "mss", "features", "ipv6"),
+    [
+        ("PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY", "lwip6-536-feat", 536, 1, 1),
+        (
+            "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_HIGHER_BANDWIDTH",
+            "lwip6-1460-feat",
+            1460,
+            1,
+            1,
+        ),
+        ("PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH", "lwip2-1460-feat", 1460, 1, 0),
+        ("PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH", "lwip2-536", 536, 0, 0),
+    ],
+)
+def test_build_config_lwip_variants(
+    knob: str, lib: str, mss: int, features: int, ipv6: int
+) -> None:
+    """Every lwIP knob maps to the same defines and library as the PIO builder."""
+    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
+
+    _set_flags(f"-D{knob}")
+    config = _resolve_build_config(_flag_defines())
+    assert config.lwip_lib == lib
+    assert f"TCP_MSS={mss}" in config.knob_defines
+    assert f"LWIP_FEATURES={features}" in config.knob_defines
+    assert f"LWIP_IPV6={ipv6}" in config.knob_defines
+
+
+@pytest.mark.parametrize(
+    ("knob", "expected"),
+    [
+        (
+            "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED",
+            ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"],
+        ),
+        (
+            "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED",
+            [
+                "MMU_IRAM_SIZE=0x8000",
+                "MMU_ICACHE_SIZE=0x4000",
+                "MMU_SEC_HEAP_SIZE=0x4000",
+                "MMU_SEC_HEAP=0x40108000",
+            ],
+        ),
+        (
+            "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K",
+            ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"],
+        ),
+        (
+            "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
+            ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"],
+        ),
+    ],
+)
+def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
+    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
+
+    _set_flags(f"-D{knob}")
+    assert _resolve_build_config(_flag_defines()).mmu_defines == expected
+
+
+def test_build_config_waveform_locked_phase() -> None:
+    from esphome.build_gen.arduino8266 import _flag_defines, _resolve_build_config
+
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
+    config = _resolve_build_config(_flag_defines())
+    assert "WAVEFORM_LOCKED_PHASE=1" in config.knob_defines
+    assert config.fp_in_irom
+
+
+_COMMON_LD_H_OUTPUT = """\
+  .data : ALIGN(4)
+  {
+    _data_start = ABSOLUTE(.);
+  } >dram0_0_seg :dram0_0_phdr
+"""
+
+
+def _run_generate_ld_scripts(paths: dict[str, Path]) -> Path:
+    from esphome.build_gen import arduino8266
+
+    config = arduino8266._resolve_build_config(arduino8266._flag_defines())
+    arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
+    return CORE.relative_pioenvs_path(CORE.name, "ld")
+
+
+def test_generate_ld_scripts(tmp_path: Path) -> None:
+    from esphome.build_gen import arduino8266
+    from esphome.components.esp8266.build_surgery import RATETABLE_RULE
+
+    paths = _make_framework(tmp_path)
+    _set_flags("-DFP_IN_IROM")
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT)
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        ld_dir = _run_generate_ld_scripts(paths)
+    content = (ld_dir / "local.eagle.app.v6.common.ld").read_text()
+    assert RATETABLE_RULE in content
+    cmd = mock_run.call_args[0][0]
+    assert "-DVTABLES_IN_FLASH" in cmd
+    assert "-DMMU_IRAM_SIZE=0x8000" in cmd
+    assert "-DFP_IN_IROM" in cmd
+
+    # Unchanged inputs skip the preprocessor spawn on the next run
+    with patch.object(arduino8266.subprocess, "run") as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_not_called()
+
+
+def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
+    from esphome.build_gen import arduino8266
+
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=1, stderr="nope")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        pytest.raises(EsphomeError, match="linker script failed"),
+    ):
+        _run_generate_ld_scripts(paths)
+
+
+def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
+    from esphome.build_gen import arduino8266
+
+    paths = _make_framework(tmp_path)
+    (paths["framework_path"] / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
+        "MEMORY\n{\n  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n}\n"
+    )
+    CORE.testing_mode = True
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT)
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    patched = (ld_dir / "testing_eagle.flash.4m.ld").read_text()
+    assert "len = 0x2000000" in patched
+
+
+def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
+    from esphome.arduino8266.component import ArduinoLibrary
+    from esphome.build_gen import arduino8266
+
+    paths = _make_framework(tmp_path)
+    variant_src = paths["framework_path"] / "variants" / "nodemcu" / "variant.cpp"
+    variant_src.write_text("")
+
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    headers_only = ArduinoLibrary(name="HeadersOnly", include_dirs=[lib_dir])
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+        link_dirs=[lib_dir / "blobs"],
+        link_libs=["algobsec"],
+    )
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
+
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch(
+            "esphome.arduino8266.component.resolve_libraries",
+            return_value=[library, headers_only],
+        ),
+        patch("esphome.arduino8266.framework.ccache_path", return_value="/cc/ccache"),
+    ):
+        arduino8266.write_project(paths)
+    content = (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
+
+    assert "build libFrameworkArduinoVariant.a: ar" in content
+    assert "build libMyLib.a: ar" in content
+    # A headers-only library contributes includes but no archive
+    assert "libHeadersOnly.a" not in content
+    assert "  flags = -DMYLIB=1" in content
+    assert "-lalgobsec" in content
+    assert f'-L"{lib_dir / "blobs"}"' in content
+    # Exceptions knob: -fexceptions and the exception-enabled stdc++
+    assert "-fexceptions" in content
+    assert "-lstdc++-exc" in content
+    assert 'ccache = "/cc/ccache"' in content
+
+
+def test_get_flash_ld_path(tmp_path: Path) -> None:
+    from esphome.build_gen import arduino8266
+
+    CORE.testing_mode = True
+    assert arduino8266.get_flash_ld_path(tmp_path) == (
+        tmp_path / "ld" / "testing_eagle.flash.4m.ld"
+    )
+
+    CORE.testing_mode = False
+    with (
+        patch(
+            "esphome.arduino8266.framework.get_framework_path",
+            return_value=tmp_path / "framework",
+        ),
+        patch(
+            "esphome.arduino8266.framework.framework_package_version",
+            return_value="3.30102.0",
+        ),
+    ):
+        assert arduino8266.get_flash_ld_path(tmp_path) == (
+            tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
+        )
+
+
+def test_flash_size_str() -> None:
+    from esphome.build_gen.arduino8266 import _flash_size_str
+
+    assert _flash_size_str("eagle.flash.4m.ld") == "4M"
+    assert _flash_size_str("eagle.flash.512k.ld") == "512K"
+    with pytest.raises(EsphomeError, match="Cannot parse flash size"):
+        _flash_size_str("bogus.ld")
+
+
+def test_write_project_testing_mode(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    CORE.testing_mode = True
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "-T testing_eagle.flash.4m.ld" in content
+    assert "ld/testing_eagle.flash.4m.ld" in content
