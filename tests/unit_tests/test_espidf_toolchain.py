@@ -424,6 +424,24 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
     assert cmakecache.stat().st_mtime > old
 
 
+def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
+    """A discovery pass that produced no CMakeCache.txt (nothing to restamp)
+    still completes normally."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     """compile_process_limit is forwarded to run_idf_py as the job limit."""
     _setup_build(setup_core)
