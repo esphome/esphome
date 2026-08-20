@@ -422,3 +422,20 @@ def test_flag_defines_joins_spaced_define() -> None:
     defines = _flag_defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
+
+
+def test_build_config_custom_mmu_without_knob_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Custom MMU sizes without the CUSTOM knob keep the default layout and
+    warn, as the PlatformIO builder does."""
+    _set_flags("-DMMU_IRAM_SIZE=0xC000")
+    config = _resolve_build_config(_flag_defines())
+    assert config.mmu_defines == ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
+    assert "Detected custom MMU flags" in caplog.text
+
+
+def test_flag_defines_lexes_quoted_single_tokens() -> None:
+    """A quoted single-token define reads the same as on the compile line."""
+    _set_flags('-DMMU_SEC_HEAP="0x40108000"')
+    assert _flag_defines()["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
