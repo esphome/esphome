@@ -361,31 +361,30 @@ BOARDS = {
     },
 }
 
-"""
-ESP8266_BOARD_BUILD generate with (v4.2.1 is the platform version the
-native toolchain mirrors; regenerate against the tag when bumping it):
-
-git clone -b v4.2.1 https://github.com/platformio/platform-espressif8266
-python3 - <<'EOF'
-import json, glob, os
-for f in sorted(glob.glob("platform-espressif8266/boards/*.json")):
-    b = json.load(open(f))["build"]
-    extra = b["extra_flags"]
-    extra = extra.split() if isinstance(extra, str) else extra
-    defines = [
-        e[2:] for e in extra if e not in ("-DESP8266", "-DARDUINO_ARCH_ESP8266")
-    ]
-    entries = ", ".join(f'"{d}"' for d in defines) + ("," if len(defines) == 1 else "")
-    board = os.path.splitext(os.path.basename(f))[0]
-    print(f'    "{board}": {{"variant": "{b["variant"]}", "defines": ({entries})}},')
-EOF
-"""
 
 # Per-board Arduino core build metadata for the native (PlatformIO-free)
 # toolchain: the variant directory (supplies pins_arduino.h) and the
 # board-identity defines the PlatformIO builder passes via build.extra_flags.
 # -DESP8266 and -DARDUINO_ARCH_ESP8266 are shared by every board and added by
 # the generator; only the per-board defines are listed here.
+#
+# ESP8266_BOARD_BUILD generate with (v4.2.1 is the platform version the
+# native toolchain mirrors; regenerate against the tag when bumping it):
+#
+# git clone -b v4.2.1 https://github.com/platformio/platform-espressif8266
+# python3 - <<'EOF'
+# import json, glob, os
+# for f in sorted(glob.glob("platform-espressif8266/boards/*.json")):
+#     b = json.load(open(f))["build"]
+#     extra = b["extra_flags"]
+#     extra = extra.split() if isinstance(extra, str) else extra
+#     defines = [
+#         e[2:] for e in extra if e not in ("-DESP8266", "-DARDUINO_ARCH_ESP8266")
+#     ]
+#     entries = ", ".join(f'"{d}"' for d in defines) + ("," if len(defines) == 1 else "")
+#     board = os.path.splitext(os.path.basename(f))[0]
+#     print(f'    "{board}": {{"variant": "{b["variant"]}", "defines": ({entries})}},')
+# EOF
 ESP8266_BOARD_BUILD = {
     "agruminolemon": {
         "variant": "agruminolemonv4",
