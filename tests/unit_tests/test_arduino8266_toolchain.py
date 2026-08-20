@@ -139,6 +139,11 @@ def test_parse_app_size(tmp_path: Path) -> None:
     with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
         assert toolchain._parse_app_size(tmp_path) is None
 
+    # A zero-length segment is bad data, not a budget; warn and drop it
+    ld.write_text("MEMORY\n{\n  irom0_0_seg :  org = 0x40201010, len = 0x0\n}\n")
+    with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
+        assert toolchain._parse_app_size(tmp_path) is None
+
     with patch(
         "esphome.build_gen.arduino8266.get_flash_ld_path",
         return_value=tmp_path / "missing.ld",

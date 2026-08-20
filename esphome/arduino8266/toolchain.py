@@ -126,6 +126,11 @@ def _parse_app_size(build_dir: Path) -> int | None:
     app_size = segment_length(ld_text, "irom0_0_seg")
     if app_size is None:
         _LOGGER.warning("irom0_0_seg not found in %s; skipping Flash summary", ld_path)
+    elif app_size == 0:
+        _LOGGER.warning(
+            "irom0_0_seg has zero length in %s; skipping Flash summary", ld_path
+        )
+        return None
     return app_size
 
 

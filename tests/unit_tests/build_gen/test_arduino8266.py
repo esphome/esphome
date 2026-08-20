@@ -597,3 +597,13 @@ def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     assert link_flags == ["-Wl,-Map=m"]
     assert "stray" in compile_flags
     assert not libs
+
+
+def test_flag_defines_lexes_multi_token_entries() -> None:
+    """A knob inside a multi-token entry is detected like PlatformIO does."""
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1")
+    defines = _flag_defines()
+    assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
+    assert defines["FOO"] == "FOO=1"
+    config = _resolve_build_config(defines)
+    assert config.lwip_lib == "lwip2-1460"

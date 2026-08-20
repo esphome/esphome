@@ -176,9 +176,13 @@ def _flag_defines() -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
     for flag in CORE.build_flags:
-        if flag.startswith("-D"):
-            body = flag[2:]
-            defines[body.split("=", 1)[0]] = body
+        # Shell-lex multi-token entries the way PlatformIO does, so a knob
+        # in "-DKNOB -DOTHER" is still detected; single tokens pass verbatim
+        # to keep any quoting in their bodies intact.
+        for tok in shlex.split(flag) if " " in flag else (flag,):
+            if tok.startswith("-D"):
+                body = tok[2:]
+                defines[body.split("=", 1)[0]] = body
     return defines
 
 
