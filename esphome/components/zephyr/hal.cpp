@@ -71,13 +71,18 @@ void arch_init() {
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
-    // Timeout value is a codegen decision (see each variant's to_code()), not
-    // a platform #ifdef here -- nrf52/__init__.py sets a longer one for zigbee.
+    // Timeout value is a codegen decision (see each variant's to_code()), not a platform
+    // #ifdef here -- except platform: nrf52/__init__.py sets a longer one for zigbee.
 #ifdef USE_ZEPHYR_WATCHDOG_TIMEOUT_MS
     wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
+    // some families can't handle the callback, review periodically for correctness
+    // since this is behavior is driven by zephyr
 #if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
     wdt_config.callback = wdt_warning_cb;
 #endif
+#elif defined(USE_ZIGBEE)
+    // zboss (zigbee) drives default
+    wdt_config.window.max = 10000;
 #else
     wdt_config.window.max = 2000;
 #endif
