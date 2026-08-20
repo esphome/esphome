@@ -62,9 +62,15 @@ def test_quote_arg_windows_argv_rule() -> None:
 
 def test_shell_token_quotes_only_when_needed() -> None:
     assert ninja_helper.shell_token("-Os") == "-Os"
-    assert ninja_helper.shell_token("-DX=$HOME") == "-DX=$$HOME"
     assert ninja_helper.shell_token("-DP=C:\\x y") == '"-DP=C:\\x y"'
     assert ninja_helper.shell_token("plain", force=True) == '"plain"'
+
+
+def test_shell_token_quotes_shell_metacharacters() -> None:
+    """Tokens like -DMASK=(1<<3) must not reach /bin/sh -c bare."""
+    assert ninja_helper.shell_token("-DMASK=(1<<3)") == '"-DMASK=(1<<3)"'
+    assert ninja_helper.shell_token("-DX=a;b") == '"-DX=a;b"'
+    assert ninja_helper.shell_token("-DX=$HOME") == '"-DX=$$HOME"'
 
 
 def test_quote_path_force_quotes() -> None:

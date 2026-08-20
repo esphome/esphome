@@ -52,7 +52,10 @@ def quote_arg(tok: str) -> str:
     return f'"{quoted}"'
 
 
-_NEEDS_QUOTE = re.compile(r'[\s"\']')
+# Force-quote any token containing a character outside the shlex.quote-style
+# safe set: ninja hands POSIX commands to /bin/sh -c, so bare (, ;, <, *, `
+# and friends would be re-parsed as shell syntax.
+_NEEDS_QUOTE = re.compile(r"[^\w@%+=:,./-]")
 
 
 def shell_token(tok: str, force: bool = False) -> str:
