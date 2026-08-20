@@ -300,7 +300,7 @@ FRAMEWORK_SCHEMA = cv.All(
     _check_debug_order,
 )
 
-CONFIG_SCHEMA = cv.All(_notify_old_style)
+CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
 BASE_SCHEMA = cv.Schema(
     {
