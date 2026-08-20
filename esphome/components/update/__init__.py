@@ -14,14 +14,15 @@ from esphome.const import (
     DEVICE_CLASS_FIRMWARE,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 IS_PLATFORM_COMPONENT = True
@@ -95,7 +96,7 @@ def update_schema(
 
 
 @setup_entity("update")
-async def setup_update_core_(var, config):
+async def setup_update_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
     if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
@@ -113,7 +114,7 @@ async def setup_update_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_update(var, config):
+async def register_update(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("update", config)
@@ -121,14 +122,14 @@ async def register_update(var, config):
     await setup_update_core_(var, config)
 
 
-async def new_update(config):
+async def new_update(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_update(var, config)
     return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(update_ns.using)
 
 
@@ -145,7 +146,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def update_perform_action_to_code(config, action_id, template_arg, args):
+async def update_perform_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -164,7 +170,12 @@ async def update_perform_action_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def update_check_action_to_code(config, action_id, template_arg, args):
+async def update_check_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -180,8 +191,11 @@ async def update_check_action_to_code(config, action_id, template_arg, args):
     ),
 )
 async def update_is_available_condition_to_code(
-    config, condition_id, template_arg, args
-):
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -72,6 +73,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import models
 from .models import RgbDriverChip
@@ -97,7 +99,7 @@ for module_info in pkgutil.iter_modules(models.__path__):
 MODELS = DriverChip.get_models()
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -112,14 +114,14 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> cv.All:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
     )
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.Schema:
     model = MODELS[config[CONF_MODEL].upper()]
     transform = model.transform_schema()
     # RPI model does not use an init sequence, indicates with empty list
@@ -213,7 +215,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema)
-def _config_schema(config):
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
@@ -248,7 +250,7 @@ def _config_schema(config):
 CONFIG_SCHEMA = _config_schema
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -265,7 +267,7 @@ def _final_validate(config) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)

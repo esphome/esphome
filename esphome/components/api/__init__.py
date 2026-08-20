@@ -497,7 +497,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.19")
+        cg.add_library("esphome/noise-c", "0.1.21")
         # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
         cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
         cg.add_build_flag("-DHAVE_INLINE_ASM=1")
