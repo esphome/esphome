@@ -114,6 +114,7 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
   FatfsDetected found = fatfs_probe(tag, pdrv);
   // only reformat if explicitly desired by user
   if (found == FatfsDetected::UNREADABLE && !format_on_mismatch) {
+    fatfs_log_no_reformat(tag);
     return false;
   }
   if ((found == FatfsDetected::EXFAT) == want_exfat)
@@ -122,12 +123,14 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
     if (format_on_mismatch) {
       fatfs_log_reformat_no_filesystem(tag, want_exfat);
     } else {
+      fatfs_log_no_reformat(tag);
       return false;
     }
   } else {
     if (format_on_mismatch) {
       fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
     } else {
+      fatfs_log_no_reformat(tag);
       return false;
     }
   }
