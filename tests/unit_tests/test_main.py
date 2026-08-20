@@ -7130,3 +7130,35 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
 
     # Same tree, so the path comparison still finds them equal and stays silent
     assert not caplog.text
+
+
+def test_compile_program_espidf_idedata_failure_does_not_fail_build(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A post-compile idedata error is a warning: the firmware already built."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        Toolchain,
+    )
+    from esphome.core import CORE, EsphomeError
+
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch(
+            "esphome.espidf.toolchain.get_idedata",
+            side_effect=EsphomeError("compile database is unusable"),
+        ),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "Could not generate idedata" in caplog.text

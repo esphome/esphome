@@ -855,7 +855,11 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        try:
+            toolchain.get_idedata()
+        except EsphomeError as err:
+            # The firmware already built; idedata is a bonus artifact here
+            _LOGGER.warning("Could not generate idedata: %s", err)
     else:
         from esphome.platformio import toolchain
 
