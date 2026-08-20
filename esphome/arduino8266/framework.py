@@ -7,7 +7,8 @@ ESP-IDF install in ``esphome.espidf.framework``):
     <cache>/arduino8266/toolchains/<version>/   toolchain-xtensa (gcc 10.3)
 
 ninja itself comes from PATH or the ninja PyPI wheel (a requirements.txt
-dependency), so only the two packages above are downloaded here.
+dependency), so only the two packages above are downloaded, via the shared
+PlatformIO-registry installer in ``esphome.platformio.registry``.
 
 Sources default to the PlatformIO registry (the exact packages the PlatformIO
 toolchain has always used, so the bits are identical); the
@@ -17,27 +18,20 @@ toolchain has always used, so the bits are identical); the
 
 from __future__ import annotations
 
-from collections.abc import Collection
 import functools
-import io
-import json
 import logging
 import os
 from pathlib import Path
-import platform
 import shutil
 
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import (
-    archive_extract_all,
     ccache_defaults_env,
-    download_from_mirrors,
-    download_with_resume,
     resolve_ccache_path,
-    rmdir,
     str_to_lst_of_str,
     tools_cache_path,
 )
+from esphome.platformio.registry import install_package
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,10 +41,6 @@ TOOLCHAIN_PACKAGE = "toolchain-xtensa"
 # the build generator are tuned to it; treat version changes as a full
 # reinstall (the install dir is keyed on the version).
 TOOLCHAIN_VERSION = "2.100300.220621"
-
-_REGISTRY_URL = (
-    "https://api.registry.platformio.org/v3/packages/platformio/tool/{package}"
-)
 
 ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS", "")
@@ -86,151 +76,6 @@ def get_framework_path(package_version: str) -> Path:
 
 def get_toolchain_path() -> Path:
     return get_arduino8266_tools_path() / "toolchains" / TOOLCHAIN_VERSION
-
-
-def _downloads_path() -> Path:
-    path = get_arduino8266_tools_path() / "downloads"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-# (system, machine) -> registry tag, both lowercased. The windows-arm64 and
-# darwin-arm64 mappings are deliberate: the toolchain packages ship x86_64
-# binaries for those hosts (Rosetta / x86 emulation).
-_SYSTEM_TAGS: dict[tuple[str, str], str] = {
-    ("darwin", "arm64"): "darwin_arm64",
-    ("darwin", "x86_64"): "darwin_x86_64",
-    ("windows", "amd64"): "windows_amd64",
-    ("windows", "arm64"): "windows_amd64",
-    ("windows", "x86"): "windows_x86",
-    ("windows", "i686"): "windows_x86",
-    ("windows", "i386"): "windows_x86",
-    ("linux", "x86_64"): "linux_x86_64",
-    ("linux", "amd64"): "linux_x86_64",
-    ("linux", "aarch64"): "linux_aarch64",
-    ("linux", "arm64"): "linux_aarch64",
-    ("linux", "i686"): "linux_i686",
-    ("linux", "i386"): "linux_i686",
-    ("linux", "x86"): "linux_i686",
-}
-
-
-def _pio_system() -> str:
-    """The PlatformIO registry system tag for the current host.
-
-    A local table instead of ``platformio.util.get_systype()`` so this
-    backend never imports the PlatformIO package.
-    """
-    sysname = platform.system().lower()
-    machine = platform.machine().lower()
-    if tag := _SYSTEM_TAGS.get((sysname, machine)):
-        return tag
-    if sysname == "linux" and machine.startswith("arm"):
-        # 32-bit arm tags carry the exact machine name (armv6l, armv7l, ...)
-        return f"linux_{machine}"
-    # Fail here, near the cause, rather than installing a toolchain whose
-    # binaries cannot execute on this host.
-    raise EsphomeError(
-        f"No {sysname}/{machine} build of the ESP8266 toolchain exists; "
-        "use 'toolchain: platformio'"
-    )
-
-
-def _registry_download(package: str, version: str) -> tuple[str, str, int | None]:
-    """Resolve a package's download URL, sha256, and size via the PIO registry.
-
-    The metadata fetch goes through ``download_from_mirrors`` so it shares
-    the retry, backoff, and error reporting of every other download here.
-    """
-    buf = io.BytesIO()
-    download_from_mirrors([_REGISTRY_URL], {"package": package}, buf)
-    try:
-        data = json.loads(buf.getvalue())
-    except ValueError as err:
-        raise EsphomeError(
-            f"The package registry returned invalid JSON for {package}: {err}"
-        ) from err
-    system = _pio_system()
-    for ver in data.get("versions", []):
-        if ver.get("name") != version:
-            continue
-        for file in ver.get("files", []):
-            # A bare string would make ``in`` a substring test
-            systems = file.get("system") or "*"
-            if isinstance(systems, str):
-                systems = [systems]
-            if "*" in systems or system in systems:
-                sha256 = (file.get("checksum") or {}).get("sha256")
-                if not sha256:
-                    # Never extract an unverified archive; the registry
-                    # publishes a checksum for every package file.
-                    raise EsphomeError(
-                        f"The package registry returned no sha256 for "
-                        f"{package} {version}; refusing the unverified download"
-                    )
-                return (file["download_url"], sha256, file.get("size"))
-        raise EsphomeError(f"No {package} {version} build for this platform ({system})")
-    raise EsphomeError(f"{package} {version} not found in the package registry")
-
-
-def _install_package(
-    name: str,
-    version: str,
-    dest: Path,
-    mirrors: list[str],
-    expect: Collection[str] = (),
-) -> None:
-    """Download, verify, and extract one package if not already installed.
-
-    The registry path is integrity-checked against the sha256 the registry
-    publishes; a mirror override is trusted as configured.
-    """
-    marker = dest / ".esphome_extracted"
-    if marker.is_file():
-        return
-    from filelock import FileLock
-
-    # The cache is machine-global; serialize concurrent cold builds so one
-    # process cannot wipe the directory another is extracting into (same
-    # filelock pattern as platformio/toolchain.py and git.py).
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    # fallback_to_soft would silently degrade to an existence lock on a
-    # flock-less filesystem; a hard-killed run would then hang every later
-    # build forever (same hazard git.py documents).
-    with FileLock(f"{dest}.lock", fallback_to_soft=False):
-        if marker.is_file():
-            # Another process finished the install while we waited
-            return
-        rmdir(dest, msg=f"Clean up incomplete {name} install")
-        # A persistent download location (not a temp dir) so an interrupted
-        # download resumes across esphome runs via download_with_resume's
-        # .part file, mirroring the espidf dist/ convention.
-        archive = _downloads_path() / f"{name}-{version}"
-        _LOGGER.info("Downloading %s %s ...", name, version)
-        if mirrors:
-            _LOGGER.warning(
-                "Downloading %s from a mirror override; checksum verification "
-                "is skipped for mirrors",
-                name,
-            )
-            download_from_mirrors(
-                mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, archive
-            )
-        else:
-            url, sha256, size = _registry_download(name, version)
-            download_with_resume(url, archive, sha256=sha256, size=size)
-        _LOGGER.info("Extracting %s ...", name)
-        archive_extract_all(archive, dest, progress_header="Extracting")
-        # Validate the layout before recording success, so an unexpected
-        # package is never cached as a working install.
-        for rel in expect:
-            if not (dest / rel).is_dir():
-                raise EsphomeError(
-                    f"{name} {version} extracted without the expected {rel} "
-                    "directory; run 'esphome clean-all' and retry"
-                )
-        marker.touch()
-        archive.unlink(missing_ok=True)
 
 
 def _find_ninja() -> Path:
@@ -270,19 +115,22 @@ def check_and_install(framework_version: Version) -> dict[str, Path]:
     ninja_path = _find_ninja()
     package_version = framework_package_version(framework_version)
     framework_path = get_framework_path(package_version)
-    _install_package(
+    downloads_dir = get_arduino8266_tools_path() / "downloads"
+    install_package(
         FRAMEWORK_PACKAGE,
         package_version,
         framework_path,
         ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+        downloads_dir,
         expect=("cores/esp8266", "tools/sdk", "libraries"),
     )
     toolchain_path = get_toolchain_path()
-    _install_package(
+    install_package(
         TOOLCHAIN_PACKAGE,
         TOOLCHAIN_VERSION,
         toolchain_path,
         ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+        downloads_dir,
         expect=("bin",),
     )
     return {
