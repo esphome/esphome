@@ -11,11 +11,12 @@ import re
 import shutil
 from typing import Any, NoReturn
 
+from esphome.build_helpers.ccache import ccache_defaults_env
+from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
     PathType,
     archive_extract_all,
-    ccache_defaults_env,
     create_venv,
     download_from_mirrors,
     download_with_resume,
@@ -25,7 +26,6 @@ from esphome.framework_helpers import (
     run_command,
     run_command_ok,
     str_to_lst_of_str,
-    tools_cache_path,
 )
 from esphome.helpers import get_bool_env, write_file_if_changed
 
@@ -89,7 +89,7 @@ def get_idf_tools_path() -> Path:
         Path object pointing to the ESP-IDF tools directory
     """
     # Machine-global so all projects share the multi-GB install instead of
-    # a per-config-directory copy; see framework_helpers.tools_cache_path
+    # a per-config-directory copy; see build_helpers.tools_cache.tools_cache_path
     # for the env-override and normalization rules.
     return tools_cache_path("ESPHOME_ESP_IDF_PREFIX", "idf")
 
