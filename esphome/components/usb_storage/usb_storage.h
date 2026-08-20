@@ -66,6 +66,7 @@ class USBStorageClient : public usb_host::USBClient {
   uint32_t get_sector_size() const { return this->sector_size_; }
   bool is_disk_ready() const { return this->disk_ready_; }
   int get_fatfs_drive() const { return this->fatfs_drive_; }
+  void set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
 
  protected:
   void on_connected() override;
@@ -102,6 +103,7 @@ class USBStorageClient : public usb_host::USBClient {
   int fatfs_drive_{-1};
   bool disk_ready_{false};
   bool mounted_{false};
+  bool format_on_mismatch_{false};
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
   uint8_t requested_file_system_{0};  // FS_SELECT_AUTO
 #endif
@@ -143,7 +145,6 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   void set_vid(uint16_t vid) { this->vid_ = vid; }
   void set_pid(uint16_t pid) { this->pid_ = pid; }
   void set_storage_id(const char *id) { this->storage_id_ = id; }
-  void set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
 
   // Called by USBStorageClient on connect/disconnect events
   void on_device_connected(const char *mount_path);
@@ -193,7 +194,6 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   USBFileHandle *alloc_handle_();
   void free_handle_(USBFileHandle *handle);
   void build_path_(char *out, size_t out_size, const char *path) const;
-  bool format_on_mismatch_{false};
 
   // Builds a FATFS-native path ("N:/dir/file") from a path relative to this device's mount
   // point, using fatfs_drive_ (captured from the client at connect time -- see

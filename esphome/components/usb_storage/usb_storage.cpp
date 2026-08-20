@@ -380,11 +380,9 @@ void USBStorageClient::on_connected() {
 
   // Pick mount path from first matching device, fall back to /usb
   this->mount_path_ = "/usb";
-  bool format_on_mismatch = false;
   for (auto *device : this->devices_) {
     if ((device->vid_ == 0 && device->pid_ == 0) || (device->vid_ == vid && device->pid_ == pid)) {
       this->mount_path_ = device->get_mount_path();
-      format_on_mismatch = device->format_on_mismatch_;
       break;
     }
   }
@@ -397,7 +395,7 @@ void USBStorageClient::on_connected() {
   // requested filesystem mismatches what is on the medium, reformat first -- the mount then
   // happens on the correct filesystem from the start.
   if (!storage::ensure_requested_filesystem(TAG, this->fatfs_drive_, drive_path, this->requested_file_system_,
-                                            format_on_mismatch)) {
+                                            this->format_on_mismatch_)) {
     this->disk_ready_ = false;
     this->disconnect();
     return;
