@@ -182,9 +182,13 @@ def run_extra_script(
         pio_env=f"esphome_{board_mcu}",
         pio_platform=pio_platform,
     )
-    code = compile(script_path.read_text(encoding="utf-8"), str(script_path), "exec")
     old_cwd = Path.cwd()
     try:
+        # Inside the try: a SyntaxError or bad encoding in a vendored script
+        # is just as best-effort as a runtime failure
+        code = compile(
+            script_path.read_text(encoding="utf-8"), str(script_path), "exec"
+        )
         os.chdir(library_dir)
         exec(  # noqa: S102 pylint: disable=exec-used
             code,

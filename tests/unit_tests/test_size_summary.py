@@ -178,3 +178,18 @@ def test_print_summary_corrupt_json_warns(
     size_json.write_text("{not json")
     print_summary(size_json, partitions_csv=None)
     assert "Skipping size summary" in caplog.text
+
+
+def test_print_summary_missing_flash_inputs_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Both absent-input paths for the Flash line name their cause."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    print_summary(size_json, partitions_csv=None)
+    assert "no partition table given" in caplog.text
+    caplog.clear()
+    data = _esp32_size_data()
+    data.pop("image_size", None)
+    size_json = _write_size_json(tmp_path, data)
+    print_summary(size_json, partitions_csv=tmp_path / "partitions.cssv")
+    assert "no image_size" in caplog.text
