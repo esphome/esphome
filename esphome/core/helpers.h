@@ -1007,10 +1007,6 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   return strcasestr(haystack, needle) != nullptr;
 #endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
-/// PROGMEM is a no-op on this platform, so the flash-needle variant is the plain check.
-inline bool str_contains_ignore_case_p(const char *haystack, const char *needle) {
-  return str_contains_ignore_case(haystack, needle);
-}
 #endif  // USE_ESP8266
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
