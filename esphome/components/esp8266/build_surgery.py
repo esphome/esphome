@@ -58,21 +58,33 @@ _TESTING_SEGMENT_SIZES = {
 
 
 def _segment_line_re(segment_name: str) -> re.Pattern[str]:
-    """The MEMORY line for one segment: ``<seg> : org = 0x..., len = 0x...``."""
+    """The MEMORY line for one segment: ``<seg> : org = 0x..., len = 0x...``.
+
+    Anchored to the start of the line so a name never matches inside a
+    longer one (``ram0_0_seg`` must not read ``dram0_0_seg``). The size
+    group stops at the hex digits, leaving any ``ul`` suffix (from the
+    preprocessed ``MMU_IRAM_SIZE``) in place.
+    """
     return re.compile(
-        rf"({segment_name}\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)"
-        r"(0x[0-9a-fA-F]+)"
+        rf"(^[ \t]*{re.escape(segment_name)}"
+        r"\s*:\s*org\s*=\s*0x[0-9a-fA-F]+\s*,\s*len\s*=\s*)"
+        r"(0x[0-9a-fA-F]+)",
+        re.MULTILINE,
     )
 
 
 def apply_testing_memory_patches(content: str, segments: Collection[str]) -> str:
     """Enlarge the named memory segments so grouped CI test builds can link.
 
-    Each caller passes the segments its linker script defines; a segment
-    that fails to match raises, since a silently kept real memory limit
-    would fail grouped builds far from the cause.
+    Each caller passes the segments its linker script defines: the
+    generated common ld carries ``iram1_0_seg``; the flash ld carries
+    ``dram0_0_seg`` and ``irom0_0_seg``. A segment that fails to match
+    raises, since a silently kept real memory limit would fail grouped
+    builds far from the cause.
     """
     for segment in segments:
+        if segment not in _TESTING_SEGMENT_SIZES:
+            raise RuntimeError(f"Unknown testing-mode segment {segment!r}")
         content, count = _segment_line_re(segment).subn(
             rf"\g<1>{_TESTING_SEGMENT_SIZES[segment]}", content
         )

@@ -362,9 +362,10 @@ BOARDS = {
 }
 
 """
-ESP8266_BOARD_BUILD generate with:
+ESP8266_BOARD_BUILD generate with (v4.2.1 is the platform version the
+native toolchain mirrors; regenerate against the tag when bumping it):
 
-git clone https://github.com/platformio/platform-espressif8266
+git clone -b v4.2.1 https://github.com/platformio/platform-espressif8266
 python3 - <<'EOF'
 import json, glob, os
 for f in sorted(glob.glob("platform-espressif8266/boards/*.json")):
