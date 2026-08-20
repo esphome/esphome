@@ -5,7 +5,9 @@ ESP-IDF install in ``esphome.espidf.framework``):
 
     <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
     <cache>/arduino8266/toolchains/<version>/   toolchain-xtensa (gcc 10.3)
-    <cache>/arduino8266/tools/ninja/            ninja (only if not on PATH)
+
+ninja itself comes from PATH or the ninja PyPI wheel (a requirements.txt
+dependency), so only the two packages above are downloaded here.
 
 Sources default to the PlatformIO registry (the exact packages the PlatformIO
 toolchain has always used, so the bits are identical); the
@@ -21,7 +23,6 @@ import os
 from pathlib import Path
 import platform
 import shutil
-import stat
 
 import platformdirs
 
@@ -44,19 +45,6 @@ TOOLCHAIN_PACKAGE = "toolchain-xtensa"
 # the build generator are tuned to it; treat version changes as a full
 # reinstall (the install dir is keyed on the version).
 TOOLCHAIN_VERSION = "2.100300.220621"
-
-NINJA_VERSION = "1.12.1"
-
-# sha256 of the ninja release archives, so the binary we chmod and execute is
-# integrity-checked. Only applies to the default download source; a mirror
-# override via ESPHOME_ARDUINO8266_NINJA_MIRRORS is trusted as configured.
-_NINJA_SHA256 = {
-    "ninja-mac.zip": "89a287444b5b3e98f88a945afa50ce937b8ffd1dcc59c555ad9b1baf855298c9",
-    "ninja-win.zip": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
-    "ninja-winarm64.zip": "79c96a50e0deafec212cfa85aa57c6b74003f52d9d1673ddcd1eab1c958c5900",
-    "ninja-linux.zip": "6f98805688d19672bd699fbbfa2c2cf0fc054ac3df1f0e6a47664d963d530255",
-    "ninja-linux-aarch64.zip": "5c25c6570b0155e95fce5918cb95f1ad9870df5768653afe128db822301a05a1",
-}
 
 _REGISTRY_URL = (
     "https://api.registry.platformio.org/v3/packages/platformio/tool/{package}"
@@ -198,44 +186,22 @@ def _install_package(
     archive.unlink(missing_ok=True)
 
 
-def _ninja_archive_name() -> str:
-    sysname = platform.system().lower()
-    machine = platform.machine().lower()
-    if sysname == "darwin":
-        return "ninja-mac.zip"
-    if sysname == "windows":
-        return "ninja-winarm64.zip" if machine == "arm64" else "ninja-win.zip"
-    if machine in ("arm64", "aarch64"):
-        return "ninja-linux-aarch64.zip"
-    return "ninja-linux.zip"
+def _find_ninja() -> Path:
+    """Locate the ninja binary: PATH first, else the ninja PyPI wheel.
 
+    The wheel is a requirements.txt dependency, so pip has already
+    integrity-checked it; no download logic is needed here.
+    """
+    if binary := shutil.which("ninja"):
+        return Path(binary)
+    import ninja
 
-def _check_ninja_install() -> Path:
-    """Return a usable ninja binary, downloading one if none is on PATH."""
-    if ninja := shutil.which("ninja"):
-        return Path(ninja)
-    ninja_dir = get_arduino8266_tools_path() / "tools" / "ninja" / NINJA_VERSION
-    binary = ninja_dir / ("ninja.exe" if os.name == "nt" else "ninja")
-    if binary.is_file():
-        return binary
-    rmdir(ninja_dir, msg="Clean up incomplete ninja install")
-    archive_name = _ninja_archive_name()
-    archive = _downloads_path() / archive_name
-    _LOGGER.info("Downloading ninja %s ...", NINJA_VERSION)
-    if ESPHOME_ARDUINO8266_NINJA_MIRRORS:
-        download_from_mirrors(
-            ESPHOME_ARDUINO8266_NINJA_MIRRORS,
-            {"VERSION": NINJA_VERSION, "ARCHIVE": archive_name},
-            archive,
-        )
-    else:
-        url = _NINJA_URL.format(VERSION=NINJA_VERSION, ARCHIVE=archive_name)
-        download_with_resume(url, archive, sha256=_NINJA_SHA256[archive_name])
-    archive_extract_all(archive, ninja_dir)
-    archive.unlink(missing_ok=True)
+    binary = Path(ninja.BIN_DIR) / ("ninja.exe" if os.name == "nt" else "ninja")
     if not binary.is_file():
-        raise EsphomeError(f"ninja binary missing after extraction in {ninja_dir}")
-    binary.chmod(binary.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        raise EsphomeError(
+            "ninja not found on PATH or in the ninja package; reinstall the "
+            "esphome Python environment"
+        )
     return binary
 
 
@@ -259,7 +225,7 @@ def check_and_install(framework_version: cv.Version) -> dict[str, Path]:
     return {
         "framework_path": framework_path,
         "toolchain_path": toolchain_path,
-        "ninja_path": _check_ninja_install(),
+        "ninja_path": _find_ninja(),
     }
 
 

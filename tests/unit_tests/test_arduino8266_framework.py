@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import stat
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -165,103 +165,38 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
     assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
 
-@pytest.mark.parametrize(
-    ("system", "machine", "expected"),
-    [
-        ("Darwin", "arm64", "ninja-mac.zip"),
-        ("Windows", "AMD64", "ninja-win.zip"),
-        ("Windows", "arm64", "ninja-winarm64.zip"),
-        ("Linux", "x86_64", "ninja-linux.zip"),
-        ("Linux", "aarch64", "ninja-linux-aarch64.zip"),
-    ],
-)
-def test_ninja_archive_name(system: str, machine: str, expected: str) -> None:
-    with (
-        patch("platform.system", return_value=system),
-        patch("platform.machine", return_value=machine),
-    ):
-        assert framework._ninja_archive_name() == expected
-
-
-def test_check_ninja_install_prefers_path(tmp_path: Path) -> None:
+def test_find_ninja_prefers_path(tmp_path: Path) -> None:
     with patch("shutil.which", return_value=str(tmp_path / "ninja")):
-        assert framework._check_ninja_install() == tmp_path / "ninja"
+        assert framework._find_ninja() == tmp_path / "ninja"
 
 
-def test_check_ninja_install_cached_binary(tmp_path: Path) -> None:
-    binary = (
-        tmp_path
-        / "tools"
-        / "ninja"
-        / framework.NINJA_VERSION
-        / ("ninja.exe" if os.name == "nt" else "ninja")
-    )
-    binary.parent.mkdir(parents=True)
-    binary.touch()
+def test_find_ninja_falls_back_to_wheel(tmp_path: Path) -> None:
+    """Without a PATH entry, the ninja PyPI wheel's binary is used."""
+    binary_name = "ninja.exe" if os.name == "nt" else "ninja"
+    (tmp_path / binary_name).touch()
+    wheel = MagicMock(BIN_DIR=str(tmp_path))
     with (
         patch("shutil.which", return_value=None),
-        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.dict(sys.modules, {"ninja": wheel}),
     ):
-        assert framework._check_ninja_install() == binary
+        assert framework._find_ninja() == tmp_path / binary_name
 
 
-def _fake_ninja_extract(_archive, ninja_dir, **_kw) -> None:
-    ninja_dir.mkdir(parents=True, exist_ok=True)
-    (ninja_dir / ("ninja.exe" if os.name == "nt" else "ninja")).touch()
-
-
-def test_check_ninja_install_downloads(tmp_path: Path) -> None:
-    """The default source is integrity-checked against the pinned sha256."""
+def test_find_ninja_missing_everywhere(tmp_path: Path) -> None:
+    wheel = MagicMock(BIN_DIR=str(tmp_path))
     with (
         patch("shutil.which", return_value=None),
-        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "download_with_resume") as mock_download,
-        patch.object(framework, "archive_extract_all", side_effect=_fake_ninja_extract),
+        patch.dict(sys.modules, {"ninja": wheel}),
+        pytest.raises(EsphomeError, match="ninja not found"),
     ):
-        binary = framework._check_ninja_install()
-    assert binary.is_file()
-    # X_OK would consult mount flags (fails on noexec /tmp); check mode bits
-    assert binary.stat().st_mode & stat.S_IXUSR
-    archive_name = framework._ninja_archive_name()
-    assert mock_download.call_args[1]["sha256"] == framework._NINJA_SHA256[archive_name]
-
-
-def test_check_ninja_install_mirror_override_skips_checksum(tmp_path: Path) -> None:
-    """A mirror override is trusted as configured (no pinned checksum)."""
-    with (
-        patch("shutil.which", return_value=None),
-        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(
-            framework,
-            "ESPHOME_ARDUINO8266_NINJA_MIRRORS",
-            ["http://mirror/{ARCHIVE}"],
-        ),
-        patch.object(framework, "download_from_mirrors") as mock_download,
-        patch.object(framework, "archive_extract_all", side_effect=_fake_ninja_extract),
-    ):
-        binary = framework._check_ninja_install()
-    assert binary.is_file()
-    mock_download.assert_called_once()
-
-
-def test_check_ninja_install_missing_after_extract(tmp_path: Path) -> None:
-    with (
-        patch("shutil.which", return_value=None),
-        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "download_from_mirrors"),
-        patch.object(framework, "archive_extract_all"),
-        pytest.raises(EsphomeError, match="ninja binary missing"),
-    ):
-        framework._check_ninja_install()
+        framework._find_ninja()
 
 
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "_install_package") as mock_install,
-        patch.object(
-            framework, "_check_ninja_install", return_value=tmp_path / "ninja"
-        ),
+        patch.object(framework, "_find_ninja", return_value=tmp_path / "ninja"),
     ):
         paths = framework.check_and_install(cv.Version(3, 1, 2))
     assert paths["framework_path"] == tmp_path / "frameworks" / "3.30102.0"
