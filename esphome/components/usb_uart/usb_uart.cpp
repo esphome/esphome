@@ -436,8 +436,8 @@ void USBUartTypeCdcAcm::on_connected() {
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
-    fix_mps_(channel->cdc_dev_.in_ep);
-    fix_mps_(channel->cdc_dev_.out_ep);
+    fix_mps(channel->cdc_dev_.in_ep);
+    fix_mps(channel->cdc_dev_.out_ep);
     channel->initialised_.store(true);
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
