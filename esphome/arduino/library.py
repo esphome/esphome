@@ -1,10 +1,12 @@
-"""Arduino ESP8266 backend for the shared PlatformIO library converter.
+"""Arduino-core backend for the shared PlatformIO library converter.
 
 Turns the libraries registered via ``cg.add_library()`` into build inputs for
-the ninja generator. Bare names that exist under the framework's bundled
+a native Arduino build. Bare names that exist under the framework's bundled
 ``libraries/`` directory (ESP8266WiFi, Wire, SPI, ...) are read straight from
 the framework tree; everything else goes through the shared
-resolution/download pipeline in ``esphome.platformio.library``.
+resolution/download pipeline in ``esphome.platformio.library``. Nothing here
+is core-specific: the caller names the PlatformIO platform, MCU, and cache
+key of the Arduino core it builds.
 
 Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
 its own static archive and every library's include dir joins one global
@@ -39,8 +41,6 @@ from esphome.platformio.library import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-ESP8266_PLATFORM = "espressif8266"
 
 
 @dataclass
@@ -145,8 +145,15 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     return _library_info(name, lib_dir, {"name": name, **data})
 
 
-def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
-    """Resolve every ``cg.add_library()`` entry into an :class:`ArduinoLibrary`."""
+def resolve_libraries(
+    framework_path: Path, *, pio_platform: str, board_mcu: str, cache_key: str
+) -> list[ArduinoLibrary]:
+    """Resolve every ``cg.add_library()`` entry into an :class:`ArduinoLibrary`.
+
+    ``pio_platform``/``board_mcu`` filter manifests the way PlatformIO would
+    for that core (e.g. ``espressif8266``/``esp8266``); ``cache_key`` keys the
+    shared converter's download cache.
+    """
     bundled: list[ArduinoLibrary] = []
     external: list[Library] = []
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
@@ -200,7 +207,7 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
                 )
                 continue
             try:
-                check_library_data(dep, ESP8266_PLATFORM, "arduino")
+                check_library_data(dep, pio_platform, "arduino")
             except InvalidLibrary as err:
                 # check_library_data's only raise is the platform filter, and
                 # rejecting another platform's dependency of a cross-platform
@@ -212,9 +219,7 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
-        apply_extra_script(
-            component, board_mcu="esp8266", pio_platform=ESP8266_PLATFORM
-        )
+        apply_extra_script(component, board_mcu=board_mcu, pio_platform=pio_platform)
         converted.append(
             _library_info(
                 component.get_require_name(), component.source_dir, component.data
@@ -226,10 +231,10 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
         convert_libraries(
             external,
             LibraryBackend(
-                platform=ESP8266_PLATFORM,
+                platform=pio_platform,
                 framework="arduino",
                 emit=_emit,
-                cache_key="arduino8266",
+                cache_key=cache_key,
             ),
         )
 

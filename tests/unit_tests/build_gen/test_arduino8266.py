@@ -201,7 +201,7 @@ def _write_ninja(
     with (
         patch.object(arduino8266, "generate_ld_scripts"),
         patch(
-            "esphome.arduino8266.component.resolve_libraries",
+            "esphome.arduino.library.resolve_libraries",
             return_value=libraries or [],
         ),
         patch("esphome.arduino8266.framework.ccache_path", return_value=ccache),
@@ -460,7 +460,7 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 def test_write_project_libraries_and_variant(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    from esphome.arduino8266.component import ArduinoLibrary
+    from esphome.arduino.library import ArduinoLibrary
 
     paths = _make_framework(tmp_path)
     variant_src = paths["framework_path"] / "variants" / "nodemcu" / "variant.cpp"
