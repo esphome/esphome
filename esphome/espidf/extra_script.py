@@ -42,7 +42,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def apply_extra_script(
-    component: ConvertedLibrary, idf_target: str | Callable[[], str]
+    component: ConvertedLibrary,
+    idf_target: str | Callable[[], str],
+    pio_platform: str = "espressif32",
 ) -> None:
     """Run a library's PIO ``extraScript`` and fold its captured env vars into
     ``component.data["build"]["flags"]`` so the backend's -L/-l/-D extraction
@@ -50,6 +52,7 @@ def apply_extra_script(
 
     ``idf_target`` may be a callable so a backend whose target lookup needs
     build state (the esp32 variant) resolves it only when a script will run.
+    ``pio_platform`` is exposed to the script as PlatformIO's ``PIOPLATFORM``.
     """
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
@@ -64,7 +67,10 @@ def apply_extra_script(
     if callable(idf_target):
         idf_target = idf_target()
     result = run_extra_script(
-        script_path, library_dir=source_path, idf_target=idf_target
+        script_path,
+        library_dir=source_path,
+        idf_target=idf_target,
+        pio_platform=pio_platform,
     )
     extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
@@ -101,10 +107,10 @@ class _FakeSConsEnv:
     ``AttributeError`` and abort the script.
     """
 
-    def __init__(self, *, board_mcu: str, pio_env: str) -> None:
+    def __init__(self, *, board_mcu: str, pio_env: str, pio_platform: str) -> None:
         self._vars: dict[str, str] = {
             "BOARD_MCU": board_mcu,
-            "PIOPLATFORM": "espressif32",
+            "PIOPLATFORM": pio_platform,
             "PIOENV": pio_env,
         }
         self.result = ExtraScriptResult()
@@ -132,7 +138,11 @@ class _FakeSConsEnv:
 
 
 def run_extra_script(
-    script_path: Path, *, library_dir: Path, idf_target: str
+    script_path: Path,
+    *,
+    library_dir: Path,
+    idf_target: str,
+    pio_platform: str = "espressif32",
 ) -> ExtraScriptResult:
     """Execute ``script_path`` with a fake SCons env and return captured vars.
 
@@ -147,7 +157,11 @@ def run_extra_script(
     an empty result — extra-scripts are best-effort, and an unsupported
     script shouldn't block the build.
     """
-    env = _FakeSConsEnv(board_mcu=idf_target, pio_env=f"esphome_{idf_target}")
+    env = _FakeSConsEnv(
+        board_mcu=idf_target,
+        pio_env=f"esphome_{idf_target}",
+        pio_platform=pio_platform,
+    )
     code = compile(script_path.read_text(encoding="utf-8"), str(script_path), "exec")
     old_cwd = Path.cwd()
     try:

@@ -1254,3 +1254,16 @@ def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
     apply_extra_script(c, "esp8266")
     assert "flags" not in c.data["build"]
     assert "skipping" in caplog.text
+
+
+def test_apply_extra_script_pio_platform(tmp_path) -> None:
+    """The backend's platform token is exposed to the script as PIOPLATFORM."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('PIOPLATFORM')])\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266", pio_platform="espressif8266")
+    assert c.data["build"]["flags"] == ["-lespressif8266"]

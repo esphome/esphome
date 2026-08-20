@@ -65,6 +65,7 @@ def test_library_info_flags_parsing(tmp_path: Path) -> None:
                 "-DFOO=1 -I inc",
                 "-lalgobsec",
                 "-fno-lto",
+                "-Wl,--wrap=malloc",
                 "-l",
                 "m",
                 "-L",
@@ -80,6 +81,7 @@ def test_library_info_flags_parsing(tmp_path: Path) -> None:
     ]
     assert lib.link_dirs == [(read_path / "blobs").resolve()]
     assert lib.link_libs == ["algobsec", "m"]
+    assert lib.link_flags == ["-Wl,--wrap=malloc"]
 
 
 def test_library_info_no_src_dir(tmp_path: Path) -> None:
@@ -144,7 +146,9 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
     ):
         libs = component.resolve_libraries(framework)
 
-    mock_extra.assert_called_once_with(converted, "esp8266")
+    mock_extra.assert_called_once_with(
+        converted, "esp8266", pio_platform="espressif8266"
+    )
     assert [lib.name for lib in libs] == [
         "Wire",
         "esp32async__ESPAsyncWebServer",

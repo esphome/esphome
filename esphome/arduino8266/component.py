@@ -50,9 +50,10 @@ class ArduinoLibrary:
     # Extra compile flags private to this library's own sources
     flags: list[str] = field(default_factory=list)
     # Link inputs the library contributes (-L dirs / -l libs, e.g. from
-    # precompiled vendor blobs)
+    # precompiled vendor blobs) and -Wl, options for the firmware link
     link_dirs: list[Path] = field(default_factory=list)
     link_libs: list[str] = field(default_factory=list)
+    link_flags: list[str] = field(default_factory=list)
 
 
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
@@ -84,6 +85,8 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
             lib.link_dirs.append((read_path / tok[2:]).resolve())
         elif tok.startswith("-l"):
             lib.link_libs.append(tok[2:])
+        elif tok.startswith("-Wl,"):
+            lib.link_flags.append(tok)
         else:
             lib.flags.append(tok)
 
@@ -148,7 +151,7 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
-        apply_extra_script(component, "esp8266")
+        apply_extra_script(component, "esp8266", pio_platform=ESP8266_PLATFORM)
         converted.append(
             _library_info(
                 component.get_require_name(), component.source_dir, component.data

@@ -63,6 +63,13 @@ def test_board_build_covers_every_board() -> None:
     assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
 
 
+def test_rule_map_covers_all_source_suffixes() -> None:
+    """Every suffix a library manifest can select must map to a ninja rule."""
+    from esphome.platformio.library import SRC_FILE_EXTENSIONS
+
+    assert set(arduino8266._RULE_FOR_SUFFIX) == set(SRC_FILE_EXTENSIONS)
+
+
 def test_build_config_defaults() -> None:
 
     _set_flags()
@@ -409,14 +416,16 @@ def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
     lib_dir = tmp_path / "libsrc"
     lib_dir.mkdir()
     (lib_dir / "lib.cpp").write_text("")
+    (lib_dir / "impl.cc").write_text("")
     headers_only = ArduinoLibrary(name="HeadersOnly", include_dirs=[lib_dir])
     library = ArduinoLibrary(
         name="MyLib",
-        sources=[lib_dir / "lib.cpp"],
+        sources=[lib_dir / "impl.cc", lib_dir / "lib.cpp"],
         include_dirs=[lib_dir],
         flags=["-DMYLIB=1"],
         link_dirs=[lib_dir / "blobs"],
         link_libs=["algobsec"],
+        link_flags=["-Wl,--wrap=malloc"],
     )
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
 
@@ -430,6 +439,9 @@ def test_write_project_libraries_and_variant(tmp_path: Path) -> None:
     assert "libHeadersOnly.a" not in content
     assert "  flags = -DMYLIB=1" in content
     assert "-lalgobsec" in content
+    # Library link flags reach the firmware link line; .cc compiles as C++
+    assert "-Wl,--wrap=malloc" in content
+    assert "impl.cc.o: cxx" in content
     assert f'-L"{lib_dir / "blobs"}"' in content
     # Exceptions knob: -fexceptions and the exception-enabled stdc++
     assert "-fexceptions" in content

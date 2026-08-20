@@ -42,7 +42,22 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
 
-_RULE_FOR_SUFFIX = {".c": "cc", ".cpp": "cxx", ".S": "asm"}
+# Compile rule per source suffix; keys must cover SRC_FILE_EXTENSIONS so any
+# source a library manifest selects has a rule (pinned by a drift test).
+_RULE_FOR_SUFFIX = {
+    ".c": "cc",
+    ".cpp": "cxx",
+    ".cc": "cxx",
+    ".cxx": "cxx",
+    ".c++": "cxx",
+    ".S": "asm",
+    ".spp": "asm",
+    ".SPP": "asm",
+    ".sx": "asm",
+    ".s": "asm",
+    ".asm": "asm",
+    ".ASM": "asm",
+}
 
 # Always excluded from the core build: ESPHome uses its own native OTA
 # backend, so the Arduino Updater (and its 228-byte global) never links.
@@ -437,6 +452,7 @@ def write_project(paths: dict[str, Path]) -> bool:
     if esp8266_data.get(KEY_SCANF_FLOAT):
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags
+    link_flags += [flag for lib in libraries for flag in lib.link_flags]
     flash_ld = f"testing_{flash_ld_name}" if CORE.testing_mode else flash_ld_name
     link_flags += ["-T", flash_ld]
 
