@@ -16,19 +16,59 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 from esphome.components.esp8266 import build_surgery
-from esphome.components.esp8266.boards import BOARDS, ESP8266_LD_SCRIPTS
-from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_FLASH_SIZE
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    ESP8266_LD_SCRIPTS,
+)
+from esphome.components.esp8266.const import (
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_FLASH_MODE,
+    KEY_FLASH_SIZE,
+    KEY_SCANF_FLOAT,
+)
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import join_flag_args, split_flag_entry
 
 _LOGGER = logging.getLogger(__name__)
+
+# Compile rule per source suffix; keys must cover SRC_FILE_EXTENSIONS so any
+# source a library manifest selects has a rule (pinned by a drift test).
+_RULE_FOR_SUFFIX = {
+    ".c": "cc",
+    ".cpp": "cxx",
+    ".cc": "cxx",
+    ".cxx": "cxx",
+    ".c++": "cxx",
+    ".S": "asm",
+    ".spp": "asm",
+    ".SPP": "asm",
+    ".sx": "asm",
+    ".s": "asm",
+    ".asm": "asm",
+    ".ASM": "asm",
+}
+
+# Always excluded from the core build: ESPHome uses its own native OTA
+# backend, so the Arduino Updater (and its 228-byte global) never links.
+_CORE_EXCLUDE_ALWAYS = {"Updater.cpp"}
+# Excluded when no component called require_waveform(); waveform_stubs.cpp
+# supplies the stopWaveform()/_stopPWM() stubs digitalWrite needs.
+_CORE_EXCLUDE_WAVEFORM = {
+    "core_esp8266_waveform_pwm.cpp",
+    "core_esp8266_waveform_phase.cpp",
+}
 
 # From platformio-build.py. The first entry is the default; with multiple SDK
 # knobs set (a pathological config) ties break by table order, since
@@ -336,6 +376,14 @@ def _project_flags(
     return compile_flags, link_flags, lib_dirs, libs
 
 
+def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
+    return sorted(
+        p
+        for p in root.rglob("*")
+        if p.suffix in _RULE_FOR_SUFFIX and p.name not in exclude
+    )
+
+
 def generate_ld_scripts(
     paths: dict[str, Path], config: _BuildConfig, flash_ld_name: str
 ) -> None:
@@ -404,6 +452,256 @@ def generate_ld_scripts(
                 require=("dram0_0_seg", "irom0_0_seg"),
             ),
         )
+
+
+def _ninja_compile_edges(
+    lines: list[str],
+    sources: list[Path],
+    root: Path,
+    group: str,
+    flags: str = "",
+) -> list[str]:
+    """Emit compile edges for ``sources``; return the object paths."""
+    objects = []
+    for src in sources:
+        rel = src.relative_to(root).as_posix()
+        obj = f"obj/{group}/{rel}.o"
+        lines.append(f"build {_e(obj)}: {_RULE_FOR_SUFFIX[src.suffix]} {_e(src)}")
+        if flags:
+            lines.append(f"  flags = {flags}")
+        # Escaped once here: the returned paths only ever appear in build
+        # statements (archive/link inputs), which use ninja escaping.
+        objects.append(_e(obj))
+    return objects
+
+
+def _common_parent(paths: list[Path]) -> Path:
+    return Path(os.path.commonpath([str(p.parent) for p in paths]))
+
+
+def write_project(paths: dict[str, Path]) -> bool:
+    """Write the ninja build for the current configuration.
+
+    Returns True when ``build.ninja`` changed, so the caller can skip work
+    derived purely from it (the compile database) on unchanged builds.
+    """
+    from esphome.arduino8266.component import resolve_libraries
+    from esphome.arduino8266.framework import ccache_path
+
+    framework = paths["framework_path"]
+    toolchain_bin = paths["toolchain_path"] / "bin"
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    mkdir_p(build_dir)
+
+    flag_defines = _flag_defines()
+    config = _resolve_build_config(flag_defines)
+    esp8266_data = CORE.data[KEY_ESP8266]
+    # Board support was validated at config time (_validate_native_toolchain).
+    board = esp8266_data[KEY_BOARD]
+    board_build = ESP8266_BOARD_BUILD[board]
+    flash_ld_name = _flash_ld_name(board)
+
+    generate_ld_scripts(paths, config, flash_ld_name)
+
+    sdk = framework / "tools" / "sdk"
+    core_dir = framework / "cores" / "esp8266"
+    variant_dir = framework / "variants" / board_build["variant"]
+    src_dir = CORE.relative_src_path()
+
+    libraries = resolve_libraries(framework)
+
+    # A missing install directory would otherwise surface as a wall of
+    # include errors; failing here names the path instead.
+    include_dirs = [
+        src_dir,
+        sdk / "include",
+        core_dir,
+        paths["toolchain_path"] / "include",
+        sdk / "lwip2" / "include",
+        variant_dir,
+    ]
+    for required in include_dirs:
+        if not required.is_dir():
+            raise EsphomeError(
+                f"Arduino toolchain install is incomplete: missing {required}; "
+                "run 'esphome clean-all' and retry"
+            )
+    for lib in libraries:
+        include_dirs += lib.include_dirs
+
+    unflags = _unflag_tokens()
+    (
+        project_compile_flags,
+        project_link_flags,
+        project_lib_dirs,
+        project_libs,
+    ) = _project_flags(unflags)
+    defines = _defines_flags(
+        config, esp8266_data[KEY_FLASH_MODE], board, board_build["defines"]
+    )
+    includes = [f"-I{_q(d)}" for d in include_dirs]
+
+    common = _CCFLAGS + defines + includes + project_compile_flags
+    cflags = _CFLAGS + common
+    cpp_standard = CORE.cpp_standard or "gnu++17"
+    cxxflags = (
+        ["-fno-rtti", f"-std={cpp_standard}"]
+        + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
+        + common
+        + get_project_cxx_compile_flags()
+    )
+    asflags = _ASFLAGS + defines + includes + project_compile_flags
+
+    # build_unflags applies to the framework flag sets too (compile and link),
+    # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
+    # diverge between the toolchains).
+    cflags = [f for f in cflags if f not in unflags]
+    cxxflags = [f for f in cxxflags if f not in unflags]
+    asflags = [f for f in asflags if f not in unflags]
+
+    link_flags = [f for f in _LINKFLAGS if f not in unflags]
+    if esp8266_data[KEY_SCANF_FLOAT]:
+        link_flags += ["-u", "_scanf_float"]
+    link_flags += project_link_flags
+    link_flags += [flag for lib in libraries for flag in lib.link_flags]
+    flash_ld = f"testing_{flash_ld_name}" if CORE.testing_mode else flash_ld_name
+    link_flags += ["-T", flash_ld]
+
+    lib_dirs = [Path("ld"), sdk / "lib", sdk / "ld", sdk / "lib" / config.nonosdk]
+    lib_dirs += project_lib_dirs
+    for lib in libraries:
+        lib_dirs += lib.link_dirs
+    system_libs = (
+        _SYSTEM_LIBS_PRE_LWIP
+        + [config.lwip_lib]
+        + _SYSTEM_LIBS_POST_LWIP
+        + project_libs
+        + [lib_name for lib in libraries for lib_name in lib.link_libs]
+        + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
+    )
+
+    build_tool = Path(__file__).parent.parent / "arduino8266" / "build_tool.py"
+    ccache = ccache_path()
+
+    # $in/$out stay unquoted in the rule commands: ninja shell-escapes its
+    # built-in path variables itself when expanding a command (POSIX and
+    # Windows), so adding quotes would wrap ninja's own quoting and break
+    # space-containing paths. Only literal paths need _q().
+    lines = [
+        "# Auto-generated by ESPHome",
+        "ninja_required_version = 1.5",
+        f"cc = {_q(toolchain_bin / 'xtensa-lx106-elf-gcc')}",
+        f"cxx = {_q(toolchain_bin / 'xtensa-lx106-elf-g++')}",
+        f"python = {_q(sys.executable)}",
+        f"buildtool = {_q(build_tool)}",
+        f"ccache = {_q(ccache) if ccache else ''}",
+        "",
+        "rule cc",
+        "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = CC $out",
+        "rule cxx",
+        "  command = $ccache $cxx -MMD -MF $out.d $cxxflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = CXX $out",
+        "rule asm",
+        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $asflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = AS $out",
+        "rule ar",
+        f"  command = $python $buildtool ar {_q(toolchain_bin / 'xtensa-lx106-elf-ar')} $out $out.rsp",
+        "  rspfile = $out.rsp",
+        "  rspfile_content = $in_newline",
+        "  description = AR $out",
+        "rule link",
+        "  command = $cxx -o $out $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
+        "  rspfile = $out.rsp",
+        "  rspfile_content = $in_newline",
+        "  description = LINK $out",
+        "rule elf2bin",
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(flash_ld_name)} --path {_q(toolchain_bin)} --out $out",
+        "  description = BIN $out",
+        "rule copy",
+        "  command = $python $buildtool copy $in $out",
+        "  description = COPY $out",
+        "",
+        f"cflags = {' '.join(cflags)}",
+        f"cxxflags = {' '.join(cxxflags)}",
+        f"asflags = {' '.join(asflags)}",
+        f"linkflags = {' '.join(link_flags)}",
+        f"libdirflags = {' '.join(f'-L{_q(d)}' for d in lib_dirs)}",
+        f"libflags = {' '.join(f'-l{lib}' for lib in system_libs)}",
+        "",
+    ]
+
+    core_exclude = set(_CORE_EXCLUDE_ALWAYS)
+    if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
+        core_exclude |= _CORE_EXCLUDE_WAVEFORM
+
+    archives = []
+    variant_sources = _collect_sources(variant_dir) if variant_dir.is_dir() else []
+    if variant_sources:
+        objs = _ninja_compile_edges(lines, variant_sources, variant_dir, "variant")
+        lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")
+        archives.append("libFrameworkArduinoVariant.a")
+
+    core_objs = _ninja_compile_edges(
+        lines, _collect_sources(core_dir, core_exclude), core_dir, "core"
+    )
+    if not core_objs:
+        # An empty archive would link into a wall of undefined references
+        # (app_entry, the exception vectors) far from the cause
+        raise EsphomeError(
+            f"Arduino toolchain install is incomplete: no core sources in "
+            f"{core_dir}; run 'esphome clean-all' and retry"
+        )
+    lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
+    archives.append("libFrameworkArduino.a")
+
+    for lib in libraries:
+        if not lib.sources:
+            # Header-only libraries are legitimate; the log makes an empty
+            # srcFilter or broken tree traceable before link errors do.
+            _LOGGER.debug(
+                "Library %s has no source files; contributing includes only",
+                lib.name,
+            )
+            continue
+        lib_root = _common_parent(lib.sources)
+        objs = _ninja_compile_edges(
+            lines,
+            lib.sources,
+            lib_root,
+            f"lib/{lib.name}",
+            flags=" ".join(_shell_token(f) for f in lib.flags),
+        )
+        archive = f"lib{lib.name}.a"
+        lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")
+        archives.append(archive)
+
+    src_extra = f"-include {_q(src_dir / 'esphome' / 'components' / 'esp8266' / 'throw_stubs.h')}"
+    src_objs = _ninja_compile_edges(
+        lines, _collect_sources(src_dir), src_dir, "src", flags=src_extra
+    )
+
+    ld_deps = ["ld/local.eagle.app.v6.common.ld"]
+    if CORE.testing_mode:
+        ld_deps.append(f"ld/{flash_ld}")
+    lines.append(
+        f"build firmware.elf: link {' '.join(src_objs)} | "
+        f"{' '.join(_e(a) for a in archives)} {' '.join(_e(d) for d in ld_deps)}"
+    )
+    lines.append(f"  archives = {' '.join(archives)}")
+    lines.append("build firmware.bin: elf2bin firmware.elf")
+    lines.append("build firmware.factory.bin: copy firmware.bin")
+    lines.append("build firmware.ota.bin: copy firmware.bin")
+    lines.append("default firmware.factory.bin firmware.ota.bin")
+    lines.append("")
+
+    return write_file_if_changed(build_dir / "build.ninja", "\n".join(lines))
 
 
 def get_flash_ld_path(build_dir: Path) -> Path:

@@ -11,6 +11,7 @@ PlatformIO toolchain produces for the same configuration.
 from __future__ import annotations
 
 from collections.abc import Generator
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -61,6 +62,13 @@ def _set_flags(*flags: str) -> None:
 def test_board_build_covers_every_board() -> None:
     """Every supported board must have variant/define metadata."""
     assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
+
+
+def test_rule_map_covers_all_source_suffixes() -> None:
+    """Every suffix a library manifest can select must map to a ninja rule."""
+    from esphome.platformio.library import SRC_FILE_EXTENSIONS
+
+    assert set(arduino8266._RULE_FOR_SUFFIX) == set(SRC_FILE_EXTENSIONS)
 
 
 def test_build_config_defaults() -> None:
@@ -183,6 +191,120 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
         "toolchain_path": toolchain,
         "ninja_path": Path("ninja"),
     }
+
+
+def _write_ninja(
+    paths: dict[str, Path],
+    libraries: list | None = None,
+    ccache: str | None = None,
+) -> str:
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    (src / "esphome" / "vendor.c").write_text("")
+
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch(
+            "esphome.arduino8266.component.resolve_libraries",
+            return_value=libraries or [],
+        ),
+        patch("esphome.arduino8266.framework.ccache_path", return_value=ccache),
+    ):
+        arduino8266.write_project(paths)
+    return (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
+
+
+def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH",
+        "-DUSE_ESP8266_WAVEFORM_STUBS",
+        "-Wl,--wrap=millis",
+        "-Wl,--wrap=printf",
+        "-Wno-nonnull-compare",
+        "-L/opt/blobs",
+        "-luser_blob",
+        "-L /spc/blobs -l spaced_blob",
+    )
+    content = _write_ninja(paths)
+
+    # Base link flags from the PlatformIO builder
+    for flag in (
+        "-Wl,--no-check-sections",
+        "-Wl,-static",
+        "-Wl,--gc-sections",
+        "-Wl,-wrap,system_restart_local",
+        "-Wl,-wrap,spi_flash_read",
+        "-u app_entry",
+        "-u _printf_float",
+        "-u _DebugExceptionVector",
+        "-u _DoubleExceptionVector",
+        "-u _KernelExceptionVector",
+        "-u _NMIExceptionVector",
+        "-u _UserExceptionVector",
+    ):
+        assert flag in content
+    # ESPHome's link flags and the board linker script
+    assert "-Wl,--wrap=millis" in content
+    assert "-Wl,--wrap=printf" in content
+    assert "-T eagle.flash.4m.ld" in content
+    # scanf float disabled: the forced-link flag must not appear
+    assert "_scanf_float" not in content
+    # $in/$out must stay UNQUOTED: ninja shell-escapes its built-in path
+    # variables itself, so added quotes would wrap ninja's quoting and break
+    # space-containing paths.
+    assert "-c $in -o $out" in content
+    assert "--app $in --flash_mode" in content
+    assert '"$in"' not in content
+    assert '"$out"' not in content
+    # -L/-l from esphome build_flags reach the link line, not the compiles;
+    # spaced forms ("-L /path") are shell-lexed the way PlatformIO does.
+    # str(Path(...)) so the separator matches the host platform.
+    opt_blobs = str(Path("/opt/blobs"))
+    spc_blobs = str(Path("/spc/blobs"))
+    assert f'-L"{opt_blobs}"' in content
+    assert "-luser_blob" in content
+    assert f'-L"{spc_blobs}"' in content
+    assert "-lspaced_blob" in content
+    for line in content.splitlines():
+        if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
+            assert "user_blob" not in line
+            assert opt_blobs not in line
+            assert "spaced_blob" not in line
+            assert spc_blobs not in line
+    # System libraries with the selected lwIP variant, in the builder's order
+    assert (
+        "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
+        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -lspaced_blob "
+        "-luser_blob "
+        "-lstdc++ -lm -lc -lgcc" in content
+    )
+    # Core exclusions: native OTA backend and waveform stubs
+    assert "Updater.cpp" not in content
+    assert "core_esp8266_waveform_pwm.cpp" not in content
+    assert "core_esp8266_waveform_phase.cpp" not in content
+    assert "core_esp8266_main.cpp.o" in content
+    # Assembly and C sources compile through their own rules
+    assert "cont.S.o: asm" in content
+    assert "abi.c.o: cc" in content
+    # throw_stubs is force-included for ESPHome sources only
+    src_lines = [line for line in content.splitlines() if "obj/src/" in line]
+    assert any("main.cpp.o: cxx" in line for line in src_lines)
+    assert content.count("throw_stubs.h") == len(
+        [line for line in content.splitlines() if line.startswith("  flags = ")]
+    )
+
+
+def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = True
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "-u _scanf_float" in content
+    # Waveform not stubbed out: both implementations stay in the archive
+    assert "core_esp8266_waveform_pwm.cpp.o" in content
+    assert "core_esp8266_waveform_phase.cpp.o" in content
 
 
 @pytest.mark.parametrize(
@@ -333,6 +455,54 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
     assert "len = 0x2000000" in patched
 
 
+def test_write_project_libraries_and_variant(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from esphome.arduino8266.component import ArduinoLibrary
+
+    paths = _make_framework(tmp_path)
+    variant_src = paths["framework_path"] / "variants" / "nodemcu" / "variant.cpp"
+    variant_src.write_text("")
+
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    (lib_dir / "impl.cc").write_text("")
+    headers_only = ArduinoLibrary(name="HeadersOnly", include_dirs=[lib_dir])
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "impl.cc", lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+        link_dirs=[lib_dir / "blobs"],
+        link_libs=["algobsec"],
+        link_flags=["-Wl,--wrap=malloc"],
+    )
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
+
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.arduino8266"):
+        content = _write_ninja(
+            paths, libraries=[library, headers_only], ccache="/cc/ccache"
+        )
+
+    assert "build libFrameworkArduinoVariant.a: ar" in content
+    assert "build libMyLib.a: ar" in content
+    # A headers-only library contributes includes but no archive, with a
+    # debug log distinguishing it from a resolution failure
+    assert "libHeadersOnly.a" not in content
+    assert "Library HeadersOnly has no source files" in caplog.text
+    assert "  flags = -DMYLIB=1" in content
+    assert "-lalgobsec" in content
+    # Library link flags reach the firmware link line; .cc compiles as C++
+    assert "-Wl,--wrap=malloc" in content
+    assert "impl.cc.o: cxx" in content
+    assert f'-L"{lib_dir / "blobs"}"' in content
+    # Exceptions knob: -fexceptions and the exception-enabled stdc++
+    assert "-fexceptions" in content
+    assert "-lstdc++-exc" in content
+    assert 'ccache = "/cc/ccache"' in content
+
+
 def test_get_flash_ld_path(tmp_path: Path) -> None:
 
     CORE.testing_mode = True
@@ -364,6 +534,26 @@ def test_flash_size_str() -> None:
         _flash_size_str("bogus.ld")
 
 
+def test_write_project_testing_mode(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    CORE.testing_mode = True
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "-T testing_eagle.flash.4m.ld" in content
+    assert "ld/testing_eagle.flash.4m.ld" in content
+
+
+def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
+    """An incomplete framework install fails naming the missing path."""
+    import shutil
+
+    paths = _make_framework(tmp_path)
+    shutil.rmtree(paths["framework_path"] / "tools" / "sdk" / "lwip2")
+    _set_flags()
+    with pytest.raises(EsphomeError, match="incomplete.*lwip2"):
+        _write_ninja(paths)
+
+
 def test_build_config_nonosdk_precedence() -> None:
     """With two SDK knobs set (a pathological config), ties break
     deterministically by table order."""
@@ -372,6 +562,20 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
     assert _resolve_build_config(_flag_defines()).nonosdk == "NONOSDK221"
+
+
+def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
+    """build_unflags removes flags from the framework sets, as PlatformIO does."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-fipa-pta", "-Wl,--gc-sections"}
+    content = _write_ninja(paths)
+    for line in content.splitlines():
+        key = line.split(" = ")[0]
+        if key in ("cflags", "cxxflags", "asflags"):
+            assert "-fipa-pta" not in line
+        if key == "linkflags":
+            assert "-Wl,--gc-sections" not in line
 
 
 def test_project_flags_trailing_bare_linker_flag_warns(
@@ -417,9 +621,7 @@ def test_project_flags_unflags_match_tokens() -> None:
     """build_unflags removes a token embedded in a multi-token entry."""
     _set_flags("-Os -g3")
     CORE.build_unflags = {"-Os"}
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
-    )
+    compile_flags, _link, _dirs, _libs = arduino8266._project_flags()
     assert "-g3" in compile_flags
     assert "-Os" not in compile_flags
 
@@ -444,6 +646,25 @@ def test_shell_token_escaping() -> None:
     assert arduino8266._shell_token('-DX=a\\"b c') == '"-DX=a\\\\\\"b c"'
     # A trailing backslash run doubles before the closing quote
     assert arduino8266._shell_token("a b\\") == '"a b\\\\"'
+
+
+def test_write_project_empty_core_raises(tmp_path: Path) -> None:
+    """A framework tree with no core sources fails at generation, not link."""
+    paths = _make_framework(tmp_path)
+    core = paths["framework_path"] / "cores" / "esp8266"
+    for f in core.iterdir():
+        f.unlink()
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino8266.component.resolve_libraries", return_value=[]),
+        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
+        pytest.raises(EsphomeError, match="no core sources"),
+    ):
+        arduino8266.write_project(paths)
 
 
 def test_flag_defines_joins_spaced_define() -> None:
