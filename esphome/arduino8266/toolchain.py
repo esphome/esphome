@@ -92,7 +92,8 @@ def _parse_app_size(build_dir: Path) -> int | None:
 
     try:
         ld_text = get_flash_ld_path(build_dir).read_text(encoding="utf-8")
-    except OSError:
+    except OSError as err:
+        _LOGGER.debug("Cannot read linker script for the Flash summary: %s", err)
         return None
     return segment_length(ld_text, "irom0_0_seg")
 
@@ -114,6 +115,7 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
         close_fds=False,
     )
     if result.returncode != 0:
+        _LOGGER.warning("Could not summarize firmware size: %s", result.stderr)
         return
     sections: dict[str, int] = {}
     for line in result.stdout.splitlines():

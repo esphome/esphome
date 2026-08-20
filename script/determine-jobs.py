@@ -634,13 +634,16 @@ ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
     }
 )
 
-# Infrastructure whose changes always trigger the native ESP8266 compile test.
-ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = ("esphome/arduino8266/",)
+# Infrastructure whose changes always trigger the native ESP8266 compile
+# test. esphome/espidf/ is included because the backend shares its idedata,
+# extra-script, and size-summary helpers.
+ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = ("esphome/arduino8266/", "esphome/espidf/")
 ESP8266_NATIVE_TRIGGER_FILES = frozenset(
     {
         "esphome/build_gen/arduino8266.py",
         "esphome/components/esp8266/build_surgery.py",
         "esphome/components/esp8266/boards.py",
+        "esphome/platformio/library.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }

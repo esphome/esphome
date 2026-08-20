@@ -3080,6 +3080,9 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
         ["esphome/arduino8266/framework.py"],
         ["esphome/build_gen/arduino8266.py"],
         ["esphome/components/esp8266/build_surgery.py"],
+        # Shared modules the native build depends on
+        ["esphome/espidf/idedata.py"],
+        ["esphome/platformio/library.py"],
     ):
         with (
             patch.object(determine_jobs, "changed_files", return_value=changed),
@@ -3108,7 +3111,8 @@ def test_esp8266_native_components_full_list_on_infra_change() -> None:
             ["wifi", "network"],
             [],
         ),
-        # ESP-IDF infra is not an esp8266-native trigger.
+        # The espidf build generator is not an esp8266-native trigger
+        # (only the shared esphome/espidf/ package is).
         (["esphome/build_gen/espidf.py"], [], []),
         (["README.md"], [], []),
     ],

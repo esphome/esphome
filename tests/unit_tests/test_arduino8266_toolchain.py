@@ -166,13 +166,18 @@ def test_print_size_summary_no_app_size(
 
 
 def test_print_size_summary_size_tool_failure(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     with patch.object(
-        toolchain.subprocess, "run", return_value=MagicMock(returncode=1, stdout="")
+        toolchain.subprocess,
+        "run",
+        return_value=MagicMock(returncode=1, stdout="", stderr="bad elf"),
     ):
         toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
     assert capsys.readouterr().out == ""
+    assert "Could not summarize firmware size" in caplog.text
 
 
 def test_get_idedata_delegates(tmp_path: Path) -> None:

@@ -78,7 +78,13 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     include_flags: list[str] = []
     for tok in it:
         if tok in ("-I", "-L", "-l"):
-            tok += next(it, "")
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning(
+                    "Ignoring trailing '%s' in library %s build flags", tok, name
+                )
+                break
+            tok += arg
         if tok.startswith("-I"):
             include_flags.append(tok[2:])
         elif tok.startswith("-L"):
@@ -116,7 +122,14 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
     bundled: list[ArduinoLibrary] = []
     external: list[Library] = []
     for library in CORE.platformio_libraries.values():
-        if library.repository or not library.name or "/" in library.name:
+        # A version pin means a registry package ("pngle@1.1.0"), never a
+        # framework-bundled library.
+        if (
+            library.repository
+            or library.version
+            or not library.name
+            or "/" in library.name
+        ):
             external.append(library)
         elif (framework_path / "libraries" / library.name).is_dir():
             bundled.append(_bundled_library(framework_path, library.name))

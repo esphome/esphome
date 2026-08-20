@@ -199,8 +199,10 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     if "PIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE" in defines:
         knob_defines.append("WAVEFORM_LOCKED_PHASE=1")
 
+    # Sorted so the pick is deterministic: the dict is built from a set of
+    # build flags, whose iteration order varies between processes.
     vtables = next(
-        (name for name in defines if name.startswith("VTABLES_IN_")),
+        (name for name in sorted(defines) if name.startswith("VTABLES_IN_")),
         "VTABLES_IN_FLASH",
     )
 
@@ -233,7 +235,9 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
                 "MMU_ICACHE_SIZE build flags"
             )
-        mmu = [body for name, body in defines.items() if name.startswith("MMU_")]
+        # Sorted so build.ninja and the linker-script stamp stay byte-stable
+        # across runs (the flag set has no deterministic iteration order).
+        mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
     else:
         mmu = ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
 
@@ -419,6 +423,13 @@ def write_project(paths: dict[str, Path]) -> bool:
 
     libraries = resolve_libraries(framework)
 
+    # A missing framework-owned directory is a broken install; failing here
+    # names the path instead of producing a wall of include errors.
+    for required in (sdk / "include", core_dir, sdk / "lwip2" / "include", variant_dir):
+        if not required.is_dir():
+            raise EsphomeError(
+                f"Arduino framework install is incomplete: missing {required}"
+            )
     include_dirs = [
         src_dir,
         sdk / "include",

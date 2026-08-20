@@ -7186,3 +7186,24 @@ def test_write_cpp_file_platformio_toolchain_writes_project(tmp_path: Path) -> N
 
     mock_write_cpp.assert_called_once()
     mock_pio_project.assert_called_once()
+
+
+def test_write_cpp_file_arduino_toolchain_other_platform_falls_through(
+    tmp_path: Path,
+) -> None:
+    """The 'arduino' toolchain is ESP8266-only; other platforms keep the
+    PlatformIO project generation."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    with (
+        patch("esphome.writer.write_cpp"),
+        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
+        patch.object(
+            type(CORE), "cpp_main_section", new_callable=PropertyMock
+        ) as mock_section,
+    ):
+        mock_section.return_value = ""
+        assert main.write_cpp_file() == 0
+
+    mock_pio_project.assert_called_once()

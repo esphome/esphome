@@ -178,3 +178,27 @@ def test_resolve_libraries_bundled_dep_already_present(tmp_path: Path) -> None:
 
     # Wire appears once (from the explicit registration), not twice
     assert [lib.name for lib in libs] == ["Wire", "some__External"]
+
+
+def test_resolve_libraries_versioned_bare_name_is_external(tmp_path: Path) -> None:
+    """A bare name with a version pin ("pngle@1.1.0") is a registry package,
+    not a bundled library, and must reach the converter."""
+    framework = _make_framework(tmp_path)
+    _add_library("pngle", "1.1.0")
+
+    with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
+        component.resolve_libraries(framework)
+
+    (libraries, _backend), _ = mock_convert.call_args
+    assert [lib.name for lib in libraries] == ["pngle"]
+
+
+def test_library_info_trailing_bare_flag_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    lib = component._library_info("x", read_path, {"build": {"flags": ["-DA=1 -l"]}})
+    assert lib.flags == ["-DA=1"]
+    assert lib.link_libs == []
+    assert "Ignoring trailing '-l'" in caplog.text

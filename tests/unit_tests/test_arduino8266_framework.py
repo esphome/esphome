@@ -251,12 +251,12 @@ def test_ccache_path_no_binary(monkeypatch: pytest.MonkeyPatch) -> None:
         assert framework.ccache_path() is None
 
 
-def test_ccache_path_probe_failure() -> None:
+def test_ccache_path_probe_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch("subprocess.run", side_effect=subprocess.SubprocessError),
     ):
-        os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         assert framework.ccache_path() is None
 
 

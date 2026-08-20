@@ -126,7 +126,8 @@ def test_build_config_mmu_custom_requires_sizes() -> None:
         "-DMMU_ICACHE_SIZE=0x4000",
     )
     config = _resolve_build_config(_flag_defines())
-    assert sorted(config.mmu_defines) == [
+    # Emitted pre-sorted so build.ninja stays byte-stable across runs
+    assert config.mmu_defines == [
         "MMU_ICACHE_SIZE=0x4000",
         "MMU_IRAM_SIZE=0xC000",
     ]
@@ -487,3 +488,14 @@ def test_write_project_testing_mode(tmp_path: Path) -> None:
     content = _write_ninja(paths)
     assert "-T testing_eagle.flash.4m.ld" in content
     assert "ld/testing_eagle.flash.4m.ld" in content
+
+
+def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
+    """An incomplete framework install fails naming the missing path."""
+    import shutil
+
+    paths = _make_framework(tmp_path)
+    shutil.rmtree(paths["framework_path"] / "tools" / "sdk" / "lwip2")
+    _set_flags()
+    with pytest.raises(EsphomeError, match="incomplete.*lwip2"):
+        _write_ninja(paths)

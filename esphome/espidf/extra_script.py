@@ -62,7 +62,19 @@ def apply_extra_script(
     source_path = component.source_dir
     library_root = source_path.resolve()
     script_path = (source_path / extra_script).resolve()
-    if not script_path.is_relative_to(library_root) or not script_path.is_file():
+    if not script_path.is_relative_to(library_root):
+        _LOGGER.warning(
+            "Ignoring extraScript %s of library %s: it escapes the library directory",
+            extra_script,
+            component.name,
+        )
+        return
+    if not script_path.is_file():
+        _LOGGER.debug(
+            "extraScript %s of library %s not found; skipping",
+            extra_script,
+            component.name,
+        )
         return
     if callable(idf_target):
         idf_target = idf_target()

@@ -813,7 +813,7 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif CORE.using_toolchain_arduino:
+    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
         # The ninja project is generated at compile time by
         # esphome.arduino8266.toolchain (it needs the downloaded framework).
         pass
@@ -968,7 +968,7 @@ def upload_using_esptool(
         flash_images = [
             FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
         ]
-    elif CORE.using_toolchain_arduino:
+    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
         # The native backend writes PlatformIO-compatible output paths, so the
         # shared property already points at the right file.
         flash_images = [FlashImage(path=CORE.firmware_bin, offset="0x0")]
