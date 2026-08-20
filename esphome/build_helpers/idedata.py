@@ -126,7 +126,7 @@ def _pick_entry(entries: list[dict]) -> dict:
 _COMPILER_STEM = re.compile(r"(?:gcc|g\+\+|cc|c\+\+|clang|clang\+\+)$")
 
 
-def _parse_entry(
+def parse_entry(
     entry: dict, launcher: str | None = None
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
@@ -188,7 +188,7 @@ def _parse_entry(
     return cxx_path, defines, includes, cxx_flags
 
 
-def _get_toolchain_includes(cxx_path: str) -> list[str]:
+def get_toolchain_includes(cxx_path: str) -> list[str]:
     """Query the compiler for its builtin ``#include <...>`` search dirs."""
     result = subprocess.run(
         [cxx_path, "-E", "-x", "c++", "-", "-v"],
@@ -287,13 +287,13 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     provides).
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    cxx_path, defines, _, cxx_flags = _parse_entry(_pick_entry(entries), launcher)
+    cxx_path, defines, _, cxx_flags = parse_entry(_pick_entry(entries), launcher)
 
     build_includes: dict[str, None] = {}
     for entry in entries:
         if not _is_esphome_src(entry["file"]):
             continue
-        for inc in _parse_entry(entry, launcher)[2]:
+        for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
     return {
@@ -303,6 +303,6 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
         "defines": defines,
         "includes": {
             "build": list(build_includes),
-            "toolchain": _get_toolchain_includes(cxx_path),
+            "toolchain": get_toolchain_includes(cxx_path),
         },
     }

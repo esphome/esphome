@@ -1,4 +1,4 @@
-"""Tests for the shared extraScript machinery (build_helpers.extra_script)."""
+"""Tests for the shared extraScript machinery (platformio.extra_script)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from esphome.platformio.library import ConvertedLibrary as IDFComponent, URLSour
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
-    from esphome.build_helpers.extra_script import (
+    from esphome.platformio.extra_script import (
         captured_as_build_flags,
         run_extra_script,
     )
@@ -33,7 +33,9 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
     # shim's exec namespace can resolve it.
     script.write_text("from os.path import join\n" + script.read_text())
 
-    result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
 
     assert result.libpath == [str(Path("src") / "esp32")]
     assert result.libs == ["algobsec"]
@@ -56,7 +58,7 @@ def test_extra_script_libpath_relative_resolves_against_library_dir(
     """Relative LIBPATH entries must resolve against ``library_dir``, not the
     caller's CWD (the shim restores CWD before ``captured_as_build_flags``
     runs)."""
-    from esphome.build_helpers.extra_script import (
+    from esphome.platformio.extra_script import (
         ExtraScriptResult,
         captured_as_build_flags,
     )
@@ -74,7 +76,7 @@ def test_extra_script_libpath_relative_resolves_against_library_dir(
 
 
 def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
-    from esphome.build_helpers.extra_script import (
+    from esphome.platformio.extra_script import (
         ExtraScriptResult,
         captured_as_build_flags,
     )
@@ -88,13 +90,15 @@ def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
 
 
 def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
-    from esphome.build_helpers.extra_script import run_extra_script
+    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "broken.py"
     script.write_text("raise RuntimeError('boom')\n")
 
     with caplog.at_level("WARNING"):
-        result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
+        result = run_extra_script(
+            script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+        )
 
     assert result.libpath == []
     assert result.libs == []
@@ -102,7 +106,7 @@ def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
 
 
 def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
-    from esphome.espidf.component import _apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     library_dir = tmp_path / "lib"
     library_dir.mkdir()
@@ -113,19 +117,15 @@ def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
     c.path = library_dir
     c.data = {"build": {"extraScript": "../evil.py"}}
 
-    _apply_extra_script(c)
+    apply_extra_script(c, board_mcu="esp32", pio_platform="espressif32")
 
     # Nothing was folded into flags: the traversal was rejected before
     # the script could run.
     assert "flags" not in c.data["build"]
 
 
-def test_apply_extra_script_merges_into_existing_flags(tmp_path, monkeypatch):
-    from esphome.components import esp32 as esp32_module
-
-    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
-
-    from esphome.espidf.component import _apply_extra_script
+def test_apply_extra_script_merges_into_existing_flags(tmp_path):
+    from esphome.platformio.extra_script import apply_extra_script
 
     (tmp_path / "src").mkdir()
     script = tmp_path / "extra.py"
@@ -135,16 +135,16 @@ def test_apply_extra_script_merges_into_existing_flags(tmp_path, monkeypatch):
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py", "flags": ["-DEXISTING"]}}
 
-    _apply_extra_script(c)
+    apply_extra_script(c, board_mcu="esp32", pio_platform="espressif32")
 
     assert "-DEXISTING" in c.data["build"]["flags"]
     assert "-lalgobsec" in c.data["build"]["flags"]
 
 
 def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
-    """The shared helper resolves a callable idf_target lazily and normalizes
+    """The shared helper resolves a callable board_mcu lazily and normalizes
     a string ``build.flags`` value into a list before extending it."""
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     (tmp_path / "src").mkdir()
     script = tmp_path / "extra.py"
@@ -154,31 +154,35 @@ def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py", "flags": "-DBASE=1"}}
 
-    apply_extra_script(c, lambda: "esp8266")
+    apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
 
     assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
 
 
 def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     # No extraScript declared: nothing happens, the target is never resolved
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {}}
-    apply_extra_script(c, lambda: pytest.fail("target resolved without a script"))
+    apply_extra_script(
+        c,
+        board_mcu=lambda: pytest.fail("target resolved without a script"),
+        pio_platform="espressif8266",
+    )
 
     # A script that captures nothing leaves the flags untouched
     script = tmp_path / "noop.py"
     script.write_text("pass\n")
     c.data = {"build": {"extraScript": "noop.py"}}
-    apply_extra_script(c, "esp8266")
+    apply_extra_script(c, board_mcu="esp8266", pio_platform="espressif8266")
     assert "flags" not in c.data["build"]
 
 
 def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
     """Un-captured env vars and unsupported env methods are silent no-ops."""
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text(
@@ -187,44 +191,44 @@ def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py"}}
-    apply_extra_script(c, "esp8266")
+    apply_extra_script(c, board_mcu="esp8266", pio_platform="espressif8266")
     assert c.data["build"]["flags"] == ["-lsingle"]
 
 
 def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
     """A raising extra-script is best-effort: logged and skipped."""
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("raise RuntimeError('boom')\n")
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py"}}
-    apply_extra_script(c, "esp8266")
+    apply_extra_script(c, board_mcu="esp8266", pio_platform="espressif8266")
     assert "flags" not in c.data["build"]
     assert "skipping" in caplog.text
 
 
 def test_apply_extra_script_pio_platform(tmp_path) -> None:
     """The backend's platform token is exposed to the script as PIOPLATFORM."""
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("env.Append(LIBS=[env.get('PIOPLATFORM')])\n")
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "extra.py"}}
-    apply_extra_script(c, "esp8266", pio_platform="espressif8266")
+    apply_extra_script(c, board_mcu="esp8266", pio_platform="espressif8266")
     assert c.data["build"]["flags"] == ["-lespressif8266"]
 
 
 def test_apply_extra_script_missing_script_logged(tmp_path, caplog) -> None:
     """A declared but absent extraScript is skipped with a visible warning:
     its captured link flags are lost."""
-    from esphome.build_helpers.extra_script import apply_extra_script
+    from esphome.platformio.extra_script import apply_extra_script
 
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
     c.data = {"build": {"extraScript": "nope.py"}}
-    apply_extra_script(c, "esp8266")
+    apply_extra_script(c, board_mcu="esp8266", pio_platform="espressif8266")
     assert "not found" in caplog.text
