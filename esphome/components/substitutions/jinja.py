@@ -43,23 +43,23 @@ SAFE_GLOBALS = {
 
 
 class JinjaError(Exception):
-    def __init__(self, context_trace: dict, expr: str):
+    def __init__(self, context_trace: dict, expr: str) -> None:
         self.context_trace = context_trace
         self.eval_stack = [expr]
 
-    def parent(self):
+    def parent(self) -> BaseException | None:
         return self.__context__
 
-    def error_name(self):
+    def error_name(self) -> str:
         return type(self.parent()).__name__
 
-    def context_trace_str(self):
+    def context_trace_str(self) -> str:
         return "\n".join(
             f"  {k} = {repr(v)} ({type(v).__name__})"
             for k, v in self.context_trace.items()
         )
 
-    def stack_trace_str(self):
+    def stack_trace_str(self) -> str:
         return "\n".join(
             f" {len(self.eval_stack) - i}: {expr}{i == 0 and ' <-- ' + self.error_name() or ''}"
             for i, expr in enumerate(self.eval_stack)
@@ -67,7 +67,7 @@ class JinjaError(Exception):
 
 
 class TrackerContext(jinja.runtime.Context):
-    def resolve_or_missing(self, key):
+    def resolve_or_missing(self, key: str) -> Any:
         val = super().resolve_or_missing(key)
         if val is Missing:
             # Variable not in the template context — check if a resolver callback

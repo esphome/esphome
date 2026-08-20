@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
@@ -24,6 +26,7 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_MILLISECOND,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -87,17 +90,17 @@ PS_GAINS = {
 }
 
 
-def validate_integration_time(value):
+def validate_integration_time(value: Any) -> Any:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
 
-def validate_repeat_rate(value):
+def validate_repeat_rate(value: Any) -> Any:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(MEASUREMENT_REPEAT_RATES, int=True)(value)
 
 
-def validate_time_and_repeat_rate(config):
+def validate_time_and_repeat_rate(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     repeat_rate = config[CONF_REPEAT]
     if integraton_time > repeat_rate:
@@ -107,7 +110,7 @@ def validate_time_and_repeat_rate(config):
     return config
 
 
-def validate_als_gain_and_integration_time(config):
+def validate_als_gain_and_integration_time(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     if config[CONF_GAIN] == "1X" and integraton_time > 100:
         raise cv.Invalid(
@@ -221,7 +224,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
