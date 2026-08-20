@@ -4,7 +4,13 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 
-from .. import CONF_DLMS_METER_ID, CONF_OBIS_CODE, DlmsMeterComponent, obis_code
+from .. import (
+    CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
+    DlmsMeterComponent,
+    obis_string_to_byte_list,
+    to_obis_id_struct,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +24,7 @@ TEXT_KEYS = {
 DYNAMIC_SCHEMA = text_sensor.text_sensor_schema().extend(
     {
         cv.GenerateID(CONF_DLMS_METER_ID): cv.use_id(DlmsMeterComponent),
-        cv.Required(CONF_OBIS_CODE): obis_code,
+        cv.Required(CONF_OBIS_CODE): obis_string_to_byte_list,
     }
 )
 
@@ -51,9 +57,9 @@ async def to_code(config):
 
     if obis := config.get(CONF_OBIS_CODE):
         var = await text_sensor.new_text_sensor(config)
-        cg.add(hub.register_text_sensor(obis, var))
+        cg.add(hub.register_text_sensor(to_obis_id_struct(obis), var))
     else:
         for key, obis_val in TEXT_KEYS.items():
             if text_sensor_config := config.get(key):
                 sens = await text_sensor.new_text_sensor(text_sensor_config)
-                cg.add(hub.register_text_sensor(obis_val, sens))
+                cg.add(hub.register_text_sensor(to_obis_id_struct(obis_val), sens))
