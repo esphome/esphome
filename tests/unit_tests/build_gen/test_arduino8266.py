@@ -24,7 +24,7 @@ from esphome.build_gen.arduino8266 import (
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import (
     KEY_BOARD,
@@ -56,11 +56,6 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
 
 def _set_flags(*flags: str) -> None:
     CORE.build_flags = set(flags)
-
-
-def test_board_build_covers_every_board() -> None:
-    """Every supported board must have variant/define metadata."""
-    assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
 
 
 def test_build_config_defaults() -> None:

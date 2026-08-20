@@ -388,7 +388,7 @@ def generate_ld_scripts(
         content = build_surgery.relocate_ratetable(result.stdout)
         if CORE.testing_mode:
             content = build_surgery.apply_testing_memory_patches(
-                content, require=("iram1_0_seg",)
+                content, ("iram1_0_seg",)
             )
         write_file_if_changed(output, content)
         stamp.write_text(stamp_content, encoding="utf-8")
@@ -401,7 +401,7 @@ def generate_ld_scripts(
             ld_dir / f"testing_{flash_ld_name}",
             build_surgery.apply_testing_memory_patches(
                 flash_ld.read_text(encoding="utf-8"),
-                require=("dram0_0_seg", "irom0_0_seg"),
+                ("dram0_0_seg", "irom0_0_seg"),
             ),
         )
 
