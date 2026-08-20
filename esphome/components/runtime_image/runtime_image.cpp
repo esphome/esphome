@@ -177,6 +177,12 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
     return false;
   }
 
+  if (format == AUTO && this->format_ != AUTO) {
+    // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
+    // Must happen before the reuse check below so a kept decoder is not evicted for a format "mismatch".
+    format = this->format_;
+  }
+
   // An idle decoder for a different format cannot be reused
   if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
     ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
@@ -350,10 +356,6 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
 std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
-  if (format == AUTO && this->format_ != AUTO) {
-    // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
-    format = this->format_;
-  }
   ESP_LOGV(TAG, "Creating decoder for format %d", format);
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
