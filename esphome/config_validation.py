@@ -75,6 +75,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     Framework,
+    Toolchain,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -2532,6 +2533,21 @@ def platformio_version_constraint(value):
     return constraints
 
 
+def check_supported_toolchain(platform_name: str, supported: tuple) -> None:
+    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``.
+
+    One message shape for every platform, so a ``--toolchain`` a platform
+    cannot serve always fails by name instead of silently building with a
+    different backend.
+    """
+    if CORE.toolchain not in supported:
+        names = ", ".join(f"'{tc.value}'" for tc in supported)
+        raise Invalid(
+            f"Unsupported toolchain '{CORE.toolchain.value}' for "
+            f"{platform_name}. Supported: {names}."
+        )
+
+
 def require_platformio_toolchain(platform_name: str):
     """Reject a CLI-selected toolchain other than PlatformIO.
 
@@ -2540,15 +2556,9 @@ def require_platformio_toolchain(platform_name: str):
     """
 
     def validator(config):
-        from esphome.const import Toolchain
-
         if CORE.toolchain is None:
             CORE.toolchain = Toolchain.PLATFORMIO
-        if CORE.toolchain != Toolchain.PLATFORMIO:
-            raise Invalid(
-                f"Unsupported toolchain '{CORE.toolchain.value}' for "
-                f"{platform_name}. The only supported toolchain is 'platformio'."
-            )
+        check_supported_toolchain(platform_name, (Toolchain.PLATFORMIO,))
         return config
 
     return validator
