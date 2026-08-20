@@ -738,6 +738,17 @@ def include_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
+def get_excluded_builtin_components() -> list[str]:
+    """Return the sorted list of built-in IDF components excluded from the build.
+
+    The build_gen layer (``build_gen.espidf.get_project_cmakelists``) feeds
+    this list into ESP-IDF's ``EXCLUDE_COMPONENTS`` cmake variable so the
+    native toolchain skips compiling them, mirroring what
+    ``_write_exclude_components`` does for PlatformIO builds.
+    """
+    return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
+
+
 def _enable_arduino_library(name: str) -> None:
     """Enable an Arduino library that is disabled by default.
 

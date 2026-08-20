@@ -11,6 +11,7 @@ import pytest
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
@@ -134,6 +135,73 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     # Excluded by get_available_components filtering.
     assert "espressif__esp-dsp APPEND" not in content
     assert "JPEGDEC APPEND" not in content
+
+
+def test_get_project_cmakelists_emits_exclude_components(tmp_path: Path) -> None:
+    """Excluded components are passed to IDF via EXCLUDE_COMPONENTS and are
+    dropped from ESPHOME_PROJECT_BUILTIN_COMPONENTS even when a stale
+    project_description.json still lists them (requiring an excluded
+    component would pull it back into the build)."""
+    _write_project_description(
+        tmp_path,
+        {
+            "esp_lcd": "/idf/components/esp_lcd",
+            "freertos": "/idf/components/freertos",
+            "unity": "/idf/components/unity",
+        },
+    )
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity", "esp_lcd"}
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=False)
+
+    assert 'set(EXCLUDE_COMPONENTS "esp_lcd;unity")' in content
+    # Must be set before project() so project.cmake sees it.
+    assert content.index("set(EXCLUDE_COMPONENTS") < content.index("project(test)")
+    assert (
+        "idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS freertos APPEND)"
+        in content
+    )
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS unity" not in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_lcd" not in content
+
+
+def test_get_project_cmakelists_minimal_emits_exclude_components(
+    tmp_path: Path,
+) -> None:
+    """The discovery (minimal) write also excludes components so they never
+    register in project_description.json."""
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = {"unity"}
+
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert 'set(EXCLUDE_COMPONENTS "unity")' in content
+
+
+def test_get_project_cmakelists_no_exclude_components_line_when_empty(
+    tmp_path: Path,
+) -> None:
+    """No EXCLUDE_COMPONENTS line at all when nothing is excluded."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=False)
+
+    assert "EXCLUDE_COMPONENTS" not in content
 
 
 def test_get_component_cmakelists_no_link_flags() -> None:
