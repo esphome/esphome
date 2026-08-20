@@ -286,3 +286,16 @@ def test_print_size_summary_missing_section_skips_summary(
         toolchain._print_size_summary(tmp_path)
     assert capsys.readouterr().out == ""
     assert "missing section(s) .bss" in caplog.text
+
+
+def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> None:
+    """Component-added options the native build drops are warned by name."""
+    CORE.platformio_options = {
+        "board_build.ldscript": "eagle.flash.4m.ld",
+        "lib_ignore": ["Updater"],
+        "upload_speed": "460800",
+    }
+    toolchain._warn_ignored_platformio_options()
+    assert "platformio_options->board_build.ldscript is ignored" in caplog.text
+    assert "lib_ignore" not in caplog.text
+    assert "upload_speed" not in caplog.text

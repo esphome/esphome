@@ -23,6 +23,28 @@ _LOGGER = logging.getLogger(__name__)
 # ESP8266 user RAM (matches upload.maximum_ram_size in every board manifest)
 _MAX_RAM_SIZE = 81920
 
+# platformio_options keys the native build consumes (lib_ignore) or that are
+# read from the raw config elsewhere (upload_speed, at upload time)
+_CONSUMED_PIO_OPTIONS = frozenset({"lib_ignore", "upload_speed"})
+
+
+def _warn_ignored_platformio_options() -> None:
+    """Warn for component-added platformio options the native build drops.
+
+    YAML ``esphome: platformio_options:`` keys are warned about during code
+    generation and never reach ``CORE.platformio_options`` under the native
+    toolchain, so anything left here came from ``cg.add_platformio_option()``
+    calls (e.g. an external component) and would be silently ignored.
+    """
+    for key in sorted(CORE.platformio_options or {}):
+        if key not in _CONSUMED_PIO_OPTIONS:
+            _LOGGER.warning(
+                "platformio_options->%s is ignored when building with the "
+                "native 'arduino' toolchain",
+                key,
+            )
+
+
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
 _FLASH_SECTIONS = (".irom0.text", ".text", ".text1", ".data", ".rodata")
 
@@ -60,6 +82,7 @@ def get_readelf_path() -> Path:
 def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.build_gen import arduino8266 as build_gen
 
+    _warn_ignored_platformio_options()
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     ninja_changed = build_gen.write_project(paths)
 
