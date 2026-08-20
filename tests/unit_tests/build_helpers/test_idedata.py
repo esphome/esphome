@@ -449,9 +449,9 @@ def test_load_or_build_idedata_never_caches_a_launcher(
         data = idedata.load_or_build_idedata(
             compile_commands, tmp_path / "f.elf", cache
         )
-    assert data["cxx_path"] == "/opt/homebrew/bin/ccache"
+    assert data is None
     assert not cache.exists()
-    assert "not caching idedata" in caplog.text
+    assert "no usable idedata" in caplog.text
 
 
 def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:
