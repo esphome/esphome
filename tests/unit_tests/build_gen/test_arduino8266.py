@@ -349,10 +349,17 @@ def test_build_config_waveform_locked_phase() -> None:
 
 
 _COMMON_LD_H_OUTPUT = """\
+MEMORY
+{
+  iram1_0_seg :    org = 0x40100000, len = 0x8000
+}
+SECTIONS
+{
   .data : ALIGN(4)
   {
     _data_start = ABSOLUTE(.);
   } >dram0_0_seg :dram0_0_phdr
+}
 """
 
 

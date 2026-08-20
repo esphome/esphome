@@ -72,11 +72,15 @@ def test_segment_length() -> None:
 
 
 def test_testing_memory_patches_require() -> None:
-    """With require, a segment the patch could not find raises instead of
+    """A required segment the patch could not find raises instead of
     silently keeping the real memory limits."""
-    patched = apply_testing_memory_patches(_FLASH_LD_SNIPPET, require=True)
+    patched = apply_testing_memory_patches(
+        _FLASH_LD_SNIPPET, require=("dram0_0_seg", "irom0_0_seg")
+    )
     assert "0x2000000" in patched
-    with pytest.raises(RuntimeError, match="iram1_0_seg"):
-        apply_testing_memory_patches("MEMORY { }", require=True)
-    # Without require (the common linker script has no MEMORY block) it is a no-op
+    with pytest.raises(RuntimeError, match="dram0_0_seg, irom0_0_seg"):
+        apply_testing_memory_patches(
+            "MEMORY { }", require=("dram0_0_seg", "irom0_0_seg")
+        )
+    # Segments a file does not require are patched opportunistically only
     assert apply_testing_memory_patches("MEMORY { }") == "MEMORY { }"

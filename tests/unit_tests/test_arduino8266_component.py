@@ -98,12 +98,10 @@ def test_resolve_libraries_bundled_and_unknown(
 ) -> None:
     framework = _make_framework(tmp_path)
     _add_library("ESP8266WiFi", None)
-    _add_library("Updater", None)  # known-absent: skipped silently
-    _add_library("Typoo", None)  # unknown: skipped with a warning
+    _add_library("Typoo", None)  # unknown bare name: skipped with a warning
     libs = component.resolve_libraries(framework)
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
     assert "Typoo" in caplog.text
-    assert "Updater" not in caplog.text
 
 
 def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:

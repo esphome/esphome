@@ -230,12 +230,11 @@ def test_check_ninja_install_mirror_override_skips_checksum(tmp_path: Path) -> N
     """A mirror override is trusted as configured (no pinned checksum)."""
     with (
         patch("shutil.which", return_value=None),
-        patch.dict(
-            os.environ,
-            {
-                "ESPHOME_ARDUINO8266_PREFIX": str(tmp_path),
-                "ESPHOME_ARDUINO8266_NINJA_MIRRORS": "http://mirror/{ARCHIVE}",
-            },
+        patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
+        patch.object(
+            framework,
+            "ESPHOME_ARDUINO8266_NINJA_MIRRORS",
+            ["http://mirror/{ARCHIVE}"],
         ),
         patch.object(framework, "download_from_mirrors") as mock_download,
         patch.object(framework, "archive_extract_all", side_effect=_fake_ninja_extract),

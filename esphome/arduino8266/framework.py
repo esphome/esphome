@@ -22,7 +22,6 @@ from pathlib import Path
 import platform
 import shutil
 import stat
-import tempfile
 
 import platformdirs
 
@@ -69,11 +68,12 @@ ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
 ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", "")
 )
+# Default ninja source; downloads from it verify against _NINJA_SHA256.
+_NINJA_URL = (
+    "https://github.com/ninja-build/ninja/releases/download/v{VERSION}/{ARCHIVE}"
+)
 ESPHOME_ARDUINO8266_NINJA_MIRRORS = str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_ARDUINO8266_NINJA_MIRRORS",
-        "https://github.com/ninja-build/ninja/releases/download/v{VERSION}/{ARCHIVE}",
-    )
+    os.environ.get("ESPHOME_ARDUINO8266_NINJA_MIRRORS", "")
 )
 
 
@@ -108,6 +108,12 @@ def get_framework_path(package_version: str) -> Path:
 
 def get_toolchain_path() -> Path:
     return get_arduino8266_tools_path() / "toolchains" / TOOLCHAIN_VERSION
+
+
+def _downloads_path() -> Path:
+    path = get_arduino8266_tools_path() / "downloads"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _pio_system() -> str:
@@ -174,20 +180,22 @@ def _install_package(
     if marker.is_file():
         return
     rmdir(dest, msg=f"Clean up incomplete {name} install")
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        archive = Path(tmp_dir) / "package"
-        _LOGGER.info("Downloading %s %s ...", name, version)
-        if mirrors:
-            with archive.open("wb") as file:
-                download_from_mirrors(
-                    mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, file
-                )
-        else:
-            url, sha256, size = _registry_download(name, version)
-            download_with_resume(url, archive, sha256=sha256, size=size)
-        _LOGGER.info("Extracting %s ...", name)
-        archive_extract_all(archive, dest, progress_header="Extracting")
+    # A persistent download location (not a temp dir) so an interrupted
+    # download resumes across esphome runs via download_with_resume's .part
+    # file, mirroring the espidf dist/ convention.
+    archive = _downloads_path() / f"{name}-{version}"
+    _LOGGER.info("Downloading %s %s ...", name, version)
+    if mirrors:
+        download_from_mirrors(
+            mirrors, {"VERSION": version, "SYSTEM": _pio_system()}, archive
+        )
+    else:
+        url, sha256, size = _registry_download(name, version)
+        download_with_resume(url, archive, sha256=sha256, size=size)
+    _LOGGER.info("Extracting %s ...", name)
+    archive_extract_all(archive, dest, progress_header="Extracting")
     marker.touch()
+    archive.unlink(missing_ok=True)
 
 
 def _ninja_archive_name() -> str:
@@ -212,22 +220,19 @@ def _check_ninja_install() -> Path:
         return binary
     rmdir(ninja_dir, msg="Clean up incomplete ninja install")
     archive_name = _ninja_archive_name()
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        archive = Path(tmp_dir) / archive_name
-        _LOGGER.info("Downloading ninja %s ...", NINJA_VERSION)
-        if "ESPHOME_ARDUINO8266_NINJA_MIRRORS" in os.environ:
-            with archive.open("wb") as file:
-                download_from_mirrors(
-                    ESPHOME_ARDUINO8266_NINJA_MIRRORS,
-                    {"VERSION": NINJA_VERSION, "ARCHIVE": archive_name},
-                    file,
-                )
-        else:
-            url = ESPHOME_ARDUINO8266_NINJA_MIRRORS[0].format(
-                VERSION=NINJA_VERSION, ARCHIVE=archive_name
-            )
-            download_with_resume(url, archive, sha256=_NINJA_SHA256[archive_name])
-        archive_extract_all(archive, ninja_dir)
+    archive = _downloads_path() / archive_name
+    _LOGGER.info("Downloading ninja %s ...", NINJA_VERSION)
+    if ESPHOME_ARDUINO8266_NINJA_MIRRORS:
+        download_from_mirrors(
+            ESPHOME_ARDUINO8266_NINJA_MIRRORS,
+            {"VERSION": NINJA_VERSION, "ARCHIVE": archive_name},
+            archive,
+        )
+    else:
+        url = _NINJA_URL.format(VERSION=NINJA_VERSION, ARCHIVE=archive_name)
+        download_with_resume(url, archive, sha256=_NINJA_SHA256[archive_name])
+    archive_extract_all(archive, ninja_dir)
+    archive.unlink(missing_ok=True)
     if not binary.is_file():
         raise EsphomeError(f"ninja binary missing after extraction in {ninja_dir}")
     binary.chmod(binary.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

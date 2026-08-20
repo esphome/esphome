@@ -813,7 +813,7 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
+    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
         # The ninja project is generated at compile time by
         # esphome.arduino8266.toolchain (it needs the downloaded framework).
         pass
@@ -968,7 +968,7 @@ def upload_using_esptool(
         flash_images = [
             FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
         ]
-    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
+    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
         # The native backend writes PlatformIO-compatible output paths, so the
         # shared property already points at the right file.
         flash_images = [FlashImage(path=CORE.firmware_bin, offset="0x0")]
@@ -1920,27 +1920,16 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
+    native_toolchain = None
     if CORE.using_toolchain_esp_idf:
-        # Native ESP-IDF derives idedata from the build's compile_commands.json,
-        # so the configuration must already be compiled.
-        from esphome.espidf import toolchain as espidf_toolchain
+        from esphome.espidf import toolchain as native_toolchain
+    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
+        from esphome.arduino8266 import toolchain as native_toolchain
 
-        idedata = espidf_toolchain.get_idedata()
-        if idedata is None:
-            _LOGGER.error(
-                "No idedata available; compile the configuration first",
-            )
-            return 1
-
-        print(json.dumps(idedata, indent=2) + "\n")
-        return 0
-
-    if CORE.is_esp8266 and CORE.using_toolchain_arduino:
-        # Same contract as the ESP-IDF branch: idedata is derived from the
-        # build's compile_commands.json, so a compile must have run.
-        from esphome.arduino8266 import toolchain as arduino8266_toolchain
-
-        idedata = arduino8266_toolchain.get_idedata()
+    if native_toolchain is not None:
+        # Native toolchains derive idedata from the build's
+        # compile_commands.json, so the configuration must already be compiled.
+        idedata = native_toolchain.get_idedata()
         if idedata is None:
             _LOGGER.error(
                 "No idedata available; compile the configuration first",
@@ -1990,20 +1979,17 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
+    native_toolchain = None
     if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
+        from esphome.espidf import toolchain as native_toolchain
+    elif CORE.using_toolchain_arduino and CORE.is_esp8266:
+        from esphome.arduino8266 import toolchain as native_toolchain
 
-        objdump_path = str(toolchain.get_objdump_path())
-        readelf_path = str(toolchain.get_readelf_path())
+    if native_toolchain is not None:
+        objdump_path = str(native_toolchain.get_objdump_path())
+        readelf_path = str(native_toolchain.get_readelf_path())
 
-        firmware_elf = toolchain.get_elf_path()
-    elif CORE.is_esp8266 and CORE.using_toolchain_arduino:
-        from esphome.arduino8266 import toolchain
-
-        objdump_path = str(toolchain.get_objdump_path())
-        readelf_path = str(toolchain.get_readelf_path())
-
-        firmware_elf = toolchain.get_elf_path()
+        firmware_elf = native_toolchain.get_elf_path()
     else:
         from esphome.platformio import toolchain
 

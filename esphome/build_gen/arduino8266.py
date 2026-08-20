@@ -355,7 +355,7 @@ def generate_ld_scripts(
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
         content = relocate_ratetable(result.stdout)
         if CORE.testing_mode:
-            content = apply_testing_memory_patches(content)
+            content = apply_testing_memory_patches(content, require=("iram1_0_seg",))
         write_file_if_changed(output, content)
         stamp.write_text(stamp_content, encoding="utf-8")
 
@@ -366,7 +366,8 @@ def generate_ld_scripts(
         write_file_if_changed(
             ld_dir / f"testing_{flash_ld_name}",
             apply_testing_memory_patches(
-                flash_ld.read_text(encoding="utf-8"), require=True
+                flash_ld.read_text(encoding="utf-8"),
+                require=("dram0_0_seg", "irom0_0_seg"),
             ),
         )
 

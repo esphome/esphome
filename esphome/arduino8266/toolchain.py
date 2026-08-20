@@ -146,7 +146,6 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
             except ValueError:
                 # An omitted section would silently skew the reported totals
                 _LOGGER.warning("Unparsable size output for section %s", parts[0])
-                continue
     ram = sum(sections.get(s, 0) for s in _RAM_SECTIONS)
     flash = sum(sections.get(s, 0) for s in _FLASH_SECTIONS)
     print(f"RAM:   {format_bar(ram, _MAX_RAM_SIZE)}")

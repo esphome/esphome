@@ -15,7 +15,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 _SIZE_OUTPUT = """\
 firmware.elf  :
@@ -107,8 +107,6 @@ def test_write_compile_commands(tmp_path: Path) -> None:
 
 def test_write_compile_commands_failure_removes_stale_db(tmp_path: Path) -> None:
     """A failed compdb run must not leave a stale database behind."""
-    from esphome.core import EsphomeError
-
     stale = tmp_path / "compile_commands.json"
     stale.write_text("[]")
     with (
