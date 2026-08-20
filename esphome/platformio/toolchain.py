@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
+from esphome.build_helpers.ccache import resolve_ccache_path
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
-from esphome.framework_helpers import resolve_ccache_path, strip_win_long_path_prefix
+from esphome.framework_helpers import strip_win_long_path_prefix
 from esphome.helpers import (
     add_git_ceiling_directory,
     copy_file_if_changed,

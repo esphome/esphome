@@ -442,7 +442,6 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
     (paths.framework / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
         "MEMORY\n{\n"
         "  dram0_0_seg :    org = 0x3FFE8000, len = 0x14000\n"
-        "  iram1_0_seg :    org = 0x40100000, len = 0x8000\n"
         "  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n"
         "}\n"
     )
