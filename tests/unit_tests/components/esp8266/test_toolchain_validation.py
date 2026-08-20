@@ -122,7 +122,7 @@ def test_decode_pc_native_missing_tools_warns_once(
     """A stack dump of many addresses produces one missing-tool warning."""
     from esphome.components import esp8266
 
-    esp8266._warn_missing_decode_tool.cache_clear()
+    esp8266._DECODE_WARNED_AT.clear()
     with (
         patch(
             "esphome.arduino8266.toolchain.get_addr2line_path",
@@ -136,4 +136,13 @@ def test_decode_pc_native_missing_tools_warns_once(
         esp8266._decode_pc({}, "40201234")
         esp8266._decode_pc({}, "40201238")
     assert caplog.text.count("Cannot decode crash addresses") == 1
-    esp8266._warn_missing_decode_tool.cache_clear()
+    esp8266._DECODE_WARNED_AT.clear()
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """ESP8266 rejects a CLI toolchain it cannot serve, like every platform."""
+    from esphome.components.esp8266 import _resolve_toolchain
+
+    CORE.toolchain = Toolchain.SDK_NRF
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'sdk-nrf'"):
+        _resolve_toolchain({})

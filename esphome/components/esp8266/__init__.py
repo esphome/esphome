@@ -1,9 +1,10 @@
-import functools
 import logging
+import math
 from pathlib import Path
 import platform
 import re
 import subprocess
+import time
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -603,10 +604,21 @@ ESP8266_EXCEPTION_CODES = {
 }
 
 
-@functools.cache
-def _warn_missing_decode_tool(path: str) -> None:
-    # Cached so a stack dump of dozens of addresses warns once, not per line
-    _LOGGER.warning("Cannot decode crash addresses: %s missing", path)
+_DECODE_WARNED_AT: dict[str, float] = {}
+
+
+def _warn_decode_problem(key: str, message: str, *args) -> None:
+    """Warn, deduplicated per stack dump but not per process.
+
+    A dump decodes dozens of addresses in a burst; one warning per burst is
+    enough. A long-running dashboard must still warn on the next dump, so
+    the suppression expires instead of living for the process lifetime.
+    """
+    now = time.monotonic()
+    if now - _DECODE_WARNED_AT.get(key, -math.inf) < 30:
+        return
+    _DECODE_WARNED_AT[key] = now
+    _LOGGER.warning(message, *args)
 
 
 def _decode_pc(config, addr):
@@ -617,7 +629,9 @@ def _decode_pc(config, addr):
         elf = native_toolchain.get_elf_path()
         missing = addr2line if not addr2line.is_file() else elf
         if not missing.is_file():
-            _warn_missing_decode_tool(str(missing))
+            _warn_decode_problem(
+                str(missing), "Cannot decode crash addresses: %s missing", missing
+            )
             return
         addr2line, elf = str(addr2line), str(elf)
     else:
@@ -632,6 +646,12 @@ def _decode_pc(config, addr):
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        if CORE.using_toolchain_arduino:
+            # A present-but-failing addr2line (stale ELF, bad install) must
+            # be visible, matching the missing-tool warning above
+            _warn_decode_problem(
+                "addr2line-failed", "Could not decode crash address %s", addr
+            )
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

@@ -212,7 +212,7 @@ def test_get_idedata_delegates(tmp_path: Path) -> None:
     compile_commands, elf, cache = mock_load.call_args[0]
     assert compile_commands.name == "compile_commands.json"
     assert elf.name == "firmware.elf"
-    assert cache.name == "test8266.json"
+    assert cache.name == "test8266.arduino.json"
     # The exact configured launcher is passed for compile DB parsing
     assert mock_load.call_args.kwargs["launcher"] == str(Path("/cc/ccache"))
 

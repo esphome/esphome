@@ -107,7 +107,11 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         return rc
 
     _print_size_summary(build_dir)
-    get_idedata()
+    if get_idedata() is None:
+        _LOGGER.warning(
+            "Could not generate idedata from %s",
+            build_dir / "compile_commands.json",
+        )
     return 0
 
 
@@ -218,7 +222,9 @@ def get_idedata() -> dict | None:
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),
-        CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+        # Suffixed so a platformio->arduino->platformio round trip on one
+        # config never serves the other toolchain's cache shape
+        CORE.relative_internal_path("idedata", f"{CORE.name}.arduino.json"),
         # The compile DB's commands carry the same ccache prefix the ninja
         # rules were generated with
         launcher=str(ccache) if ccache else None,
