@@ -1,0 +1,41 @@
+usb_host:
+  max_transfer_requests: 32
+
+usb_uart:
+  - id: uart_9
+    type: ch9344
+    channels:
+      - id: channel_9_1
+        baud_rate: 115200
+      - id: channel_9_2
+        baud_rate: 115200
+      - id: channel_9_3
+        baud_rate: 115200
+      - id: channel_9_4
+        baud_rate: 9600
+        stop_bits: 2
+        data_bits: 7
+        parity: even
+      - id: channel_9_5
+        baud_rate: 115200
+  - id: uart_10
+    type: ch348
+    channels:
+      - id: channel_10_1
+        baud_rate: 115200
+      - id: channel_10_2
+        baud_rate: 115200
+      - id: channel_10_3
+        baud_rate: 115200
+      - id: channel_10_4
+        baud_rate: 115200
+      - id: channel_10_5
+        baud_rate: 115200
+      - id: channel_10_6
+        baud_rate: 115200
+      - id: channel_10_7
+        baud_rate: 115200
+      - id: channel_10_8
+        baud_rate: 9600
+      - id: channel_10_9
+        baud_rate: 115200

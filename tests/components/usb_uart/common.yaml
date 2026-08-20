@@ -71,6 +71,10 @@ usb_uart:
       - id: channel_9_1
         baud_rate: 115200
       - id: channel_9_2
+        baud_rate: 115200
+      - id: channel_9_3
+        baud_rate: 115200
+      - id: channel_9_4
         baud_rate: 9600
         stop_bits: 2
         data_bits: 7
@@ -81,4 +85,16 @@ usb_uart:
       - id: channel_10_1
         baud_rate: 115200
       - id: channel_10_2
+        baud_rate: 115200
+      - id: channel_10_3
+        baud_rate: 115200
+      - id: channel_10_4
+        baud_rate: 115200
+      - id: channel_10_5
+        baud_rate: 115200
+      - id: channel_10_6
+        baud_rate: 115200
+      - id: channel_10_7
+        baud_rate: 115200
+      - id: channel_10_8
         baud_rate: 9600
