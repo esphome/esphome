@@ -28,12 +28,73 @@ Caveats
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from esphome.platformio.library import ConvertedLibrary
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def apply_extra_script(
+    component: ConvertedLibrary,
+    idf_target: str | Callable[[], str],
+    pio_platform: str = "espressif32",
+) -> None:
+    """Run a library's PIO ``extraScript`` and fold its captured env vars into
+    ``component.data["build"]["flags"]`` so the backend's -L/-l/-D extraction
+    picks them up. Shared by the ESP-IDF and ESP8266 Arduino backends.
+
+    ``idf_target`` may be a callable so a backend whose target lookup needs
+    build state (the esp32 variant) resolves it only when a script will run.
+    ``pio_platform`` is exposed to the script as PlatformIO's ``PIOPLATFORM``.
+    """
+    extra_script = component.data.get("build", {}).get("extraScript")
+    if not extra_script:
+        return
+    # Resolve and confine to the library's source dir so a malicious
+    # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
+    source_path = component.source_dir
+    library_root = source_path.resolve()
+    script_path = (source_path / extra_script).resolve()
+    if not script_path.is_relative_to(library_root):
+        _LOGGER.warning(
+            "Ignoring extraScript %s of library %s: it escapes the library directory",
+            extra_script,
+            component.name,
+        )
+        return
+    if not script_path.is_file():
+        # The script's captured -L/-l/-D flags are lost; surface that here
+        # instead of as undefined references at link time
+        _LOGGER.warning(
+            "extraScript %s of library %s not found; skipping",
+            extra_script,
+            component.name,
+        )
+        return
+    if callable(idf_target):
+        idf_target = idf_target()
+    result = run_extra_script(
+        script_path,
+        library_dir=source_path,
+        idf_target=idf_target,
+        pio_platform=pio_platform,
+    )
+    extra_flags = captured_as_build_flags(result, library_dir=source_path)
+    if not extra_flags:
+        return
+    flags = component.data.setdefault("build", {}).setdefault("flags", [])
+    if isinstance(flags, str):
+        flags = [flags]
+    flags.extend(extra_flags)
+    component.data["build"]["flags"] = flags
+
 
 # Keys we know how to translate back into ESPHome's build-flag pipeline.
 # Other env.Append kwargs are recorded but ignored downstream.
@@ -60,10 +121,10 @@ class _FakeSConsEnv:
     ``AttributeError`` and abort the script.
     """
 
-    def __init__(self, *, board_mcu: str, pio_env: str) -> None:
+    def __init__(self, *, board_mcu: str, pio_env: str, pio_platform: str) -> None:
         self._vars: dict[str, str] = {
             "BOARD_MCU": board_mcu,
-            "PIOPLATFORM": "espressif32",
+            "PIOPLATFORM": pio_platform,
             "PIOENV": pio_env,
         }
         self.result = ExtraScriptResult()
@@ -91,7 +152,11 @@ class _FakeSConsEnv:
 
 
 def run_extra_script(
-    script_path: Path, *, library_dir: Path, idf_target: str
+    script_path: Path,
+    *,
+    library_dir: Path,
+    idf_target: str,
+    pio_platform: str = "espressif32",
 ) -> ExtraScriptResult:
     """Execute ``script_path`` with a fake SCons env and return captured vars.
 
@@ -106,7 +171,11 @@ def run_extra_script(
     an empty result — extra-scripts are best-effort, and an unsupported
     script shouldn't block the build.
     """
-    env = _FakeSConsEnv(board_mcu=idf_target, pio_env=f"esphome_{idf_target}")
+    env = _FakeSConsEnv(
+        board_mcu=idf_target,
+        pio_env=f"esphome_{idf_target}",
+        pio_platform=pio_platform,
+    )
     code = compile(script_path.read_text(encoding="utf-8"), str(script_path), "exec")
     old_cwd = Path.cwd()
     try:

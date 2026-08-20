@@ -26,11 +26,11 @@ from esphome.platformio.library import (
     GitSource,
     URLSource,
     _node_key,
-    _normalize_dependencies,
     _parse_library_json,
-    _parse_library_properties,
     _resolve_registry_version,
     collect_filtered_files,
+    normalize_dependencies,
+    parse_library_properties,
     split_list_by_condition,
 )
 
@@ -510,7 +510,7 @@ empty=
 """
     )
 
-    result = _parse_library_properties(f)
+    result = parse_library_properties(f)
 
     assert result["name"] == "Test"
     assert result["version"] == "1.0"
@@ -680,22 +680,22 @@ def test_node_key_registry_bare_name():
 
 
 def test_normalize_dependencies_none():
-    assert _normalize_dependencies(None) == []
+    assert normalize_dependencies(None) == []
 
 
 def test_normalize_dependencies_list_form():
     deps = [{"name": "foo", "version": "1.0"}]
-    assert _normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
+    assert normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
 
 
 def test_normalize_dependencies_dict_form():
-    out = _normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
+    out = normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
     assert {"name": "Nanopb", "owner": "nanopb", "version": "^0.4.91"} in out
     assert {"name": "BareName", "owner": None, "version": "1.2.3"} in out
 
 
 def test_normalize_dependencies_dict_form_nested_spec():
-    out = _normalize_dependencies(
+    out = normalize_dependencies(
         {"nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"}}
     )
     assert out == [
@@ -1190,3 +1190,92 @@ def test_idf_component_download_passes_salt() -> None:
         "owner/name", force=True, salt="abcd1234", namespace="idf"
     )
     assert c.path == Path("/converted/owner/name")
+
+
+def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
+    """The shared helper resolves a callable idf_target lazily and normalizes
+    a string ``build.flags`` value into a list before extending it."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('BOARD_MCU')])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py", "flags": "-DBASE=1"}}
+
+    apply_extra_script(c, lambda: "esp8266")
+
+    assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
+
+
+def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
+    from esphome.espidf.extra_script import apply_extra_script
+
+    # No extraScript declared: nothing happens, the target is never resolved
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {}}
+    apply_extra_script(c, lambda: pytest.fail("target resolved without a script"))
+
+    # A script that captures nothing leaves the flags untouched
+    script = tmp_path / "noop.py"
+    script.write_text("pass\n")
+    c.data = {"build": {"extraScript": "noop.py"}}
+    apply_extra_script(c, "esp8266")
+    assert "flags" not in c.data["build"]
+
+
+def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path) -> None:
+    """Un-captured env vars and unsupported env methods are silent no-ops."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text(
+        "env.Replace(CC='clang')\nenv.Append(UNCAPTURED=['x'], LIBS='single')\n"
+    )
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266")
+    assert c.data["build"]["flags"] == ["-lsingle"]
+
+
+def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
+    """A raising extra-script is best-effort: logged and skipped."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("raise RuntimeError('boom')\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266")
+    assert "flags" not in c.data["build"]
+    assert "skipping" in caplog.text
+
+
+def test_apply_extra_script_pio_platform(tmp_path) -> None:
+    """The backend's platform token is exposed to the script as PIOPLATFORM."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('PIOPLATFORM')])\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    apply_extra_script(c, "esp8266", pio_platform="espressif8266")
+    assert c.data["build"]["flags"] == ["-lespressif8266"]
+
+
+def test_apply_extra_script_missing_script_logged(tmp_path, caplog) -> None:
+    """A declared but absent extraScript is skipped with a visible warning:
+    its captured link flags are lost."""
+    from esphome.espidf.extra_script import apply_extra_script
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "nope.py"}}
+    apply_extra_script(c, "esp8266")
+    assert "not found" in caplog.text

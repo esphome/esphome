@@ -27,6 +27,8 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
+    join_flag_args,
+    split_flag_entry,
     split_list_by_condition,
 )
 
@@ -41,34 +43,10 @@ def _idf_framework() -> str:
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
-    """Run a PIO ``extraScript`` and fold its captured env vars into
-    ``component.data["build"]["flags"]`` so the existing -L/-l/-D
-    extraction in ``generate_cmakelists_txt`` picks them up."""
-    extra_script = component.data.get("build", {}).get("extraScript")
-    if not extra_script:
-        return
-    # Resolve and confine to the library's source dir so a malicious
-    # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
-    source_path = component.source_dir
-    library_root = source_path.resolve()
-    script_path = (source_path / extra_script).resolve()
-    if not script_path.is_relative_to(library_root) or not script_path.is_file():
-        return
     from esphome.components.esp32 import get_esp32_variant
-    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
+    from esphome.espidf.extra_script import apply_extra_script
 
-    idf_target = variant_to_idf_target(get_esp32_variant())
-    result = run_extra_script(
-        script_path, library_dir=source_path, idf_target=idf_target
-    )
-    extra_flags = captured_as_build_flags(result, library_dir=source_path)
-    if not extra_flags:
-        return
-    flags = component.data.setdefault("build", {}).setdefault("flags", [])
-    if isinstance(flags, str):
-        flags = [flags]
-    flags.extend(extra_flags)
-    component.data["build"]["flags"] = flags
+    apply_extra_script(component, lambda: variant_to_idf_target(get_esp32_variant()))
 
 
 def generate_cmakelists_txt(component: IDFComponent) -> str:
@@ -85,10 +63,6 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
-    # Late import: this module loads with the esp32 platform on every
-    # validate/compile, but shlex is only needed when generating component
-    # CMakeLists.
-    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
@@ -126,22 +100,17 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
     # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
-    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
-    # same way; emitting such an entry as a single quoted compile option
-    # hands the compiler one argv with an embedded space.
-    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
-    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
-    # the prefix classifiers below still route them to INCLUDE_DIRS and the
-    # link handling.
-    tokens, build_flags = build_flags, []
-    i = 0
-    while i < len(tokens):
-        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
-            build_flags.append(tokens[i] + tokens[i + 1])
-            i += 2
-        else:
-            build_flags.append(tokens[i])
-            i += 1
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"); bare
+    # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
+    # prefix classifiers below still route them.
+    build_flags = join_flag_args(
+        (
+            token
+            for entry in build_flags
+            for token in split_flag_entry(entry, f"library {component.name}")
+        ),
+        f"library {component.name}",
+    )
 
     # List all sources files
     build_src_files = collect_filtered_files(

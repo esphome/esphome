@@ -262,3 +262,101 @@ def test_parse_entry_normalizes_windows_cxx_path() -> None:
     assert "\\" not in cxx_path
     assert 'VER="1.2.3"' in defines
     assert "C:/inc/a" in includes
+
+
+def test_parse_entry_strips_launcher_prefix() -> None:
+    """A launcher-wrapped compile names the compiler second; the exact
+    configured launcher is stripped, not anything ccache-shaped."""
+    entry = _entry(
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/core/application.cpp",
+        "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -DUSE_ESP8266 "
+        "-c app.cpp -o app.cpp.o",
+    )
+    cxx_path, defines, _, _ = idedata._parse_entry(
+        entry, launcher="/opt/homebrew/bin/ccache"
+    )
+    assert cxx_path == "/tools/xtensa-lx106-elf-g++"
+    assert defines == ["USE_ESP8266"]
+    # Without a configured launcher nothing is stripped, even a token that
+    # happens to be named ccache -- but the surprise is warned about
+    cxx_path, _, _, _ = idedata._parse_entry(entry)
+    assert cxx_path == "/opt/homebrew/bin/ccache"
+
+
+def test_parse_entry_warns_when_first_token_is_not_a_compiler(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entry = _entry(
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/core/application.cpp",
+        "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -c a.cpp -o a.o",
+    )
+    idedata._parse_entry(entry)
+    assert "does not start with a compiler" in caplog.text
+    caplog.clear()
+    idedata._parse_entry(entry, launcher="/opt/homebrew/bin/ccache")
+    assert "does not start with a compiler" not in caplog.text
+
+
+def _write_compile_commands(tmp_path: Path) -> Path:
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(
+        json.dumps(
+            [
+                _entry(
+                    f"{ABS}build",
+                    f"{ABS}build/src/esphome/core/application.cpp",
+                    "/tools/g++ -DUSE_ESP8266 -c app.cpp -o app.cpp.o",
+                )
+            ]
+        )
+    )
+    return compile_commands
+
+
+def test_load_or_build_idedata_missing_compile_db(tmp_path: Path) -> None:
+    assert (
+        idedata.load_or_build_idedata(
+            tmp_path / "compile_commands.json", tmp_path / "f.elf", tmp_path / "c.json"
+        )
+        is None
+    )
+
+
+def test_load_or_build_idedata_builds_and_caches(tmp_path: Path) -> None:
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "cache" / "test.json"
+    with patch.object(
+        idedata, "_get_toolchain_includes", return_value=["/toolchain/include"]
+    ):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "firmware.elf", cache
+        )
+    assert data["cc_path"] == "/tools/gcc"
+    assert data["prog_path"] == str(tmp_path / "firmware.elf")
+    assert json.loads(cache.read_text()) == data
+
+    # A fresh cache is served without re-parsing the compile DB
+    os.utime(cache, (compile_commands.stat().st_mtime + 10,) * 2)
+    with patch.object(idedata, "idedata_from_build") as mock_build:
+        assert (
+            idedata.load_or_build_idedata(
+                compile_commands, tmp_path / "firmware.elf", cache
+            )
+            == data
+        )
+    mock_build.assert_not_called()
+
+
+def test_load_or_build_idedata_rebuilds_bad_cache(tmp_path: Path) -> None:
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "cache.json"
+    for bad in ("not json", json.dumps({"no_cc_path": True})):
+        cache.write_text(bad)
+        os.utime(cache, (compile_commands.stat().st_mtime + 10,) * 2)
+        with patch.object(idedata, "_get_toolchain_includes", return_value=[]):
+            data = idedata.load_or_build_idedata(
+                compile_commands, tmp_path / "f.elf", cache
+            )
+        assert "cc_path" in data

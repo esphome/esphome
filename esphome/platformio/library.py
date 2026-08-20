@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -469,7 +469,7 @@ def _parse_library_json(library_json_path: PathType):
         return json.load(fp)
 
 
-def _parse_library_properties(library_properties_path: PathType):
+def parse_library_properties(library_properties_path: PathType):
     """
     Parse a key-value platformio .properties style file into a dictionary.
 
@@ -553,7 +553,33 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def _normalize_dependencies(dependencies: Any) -> list[dict]:
+def split_flag_entry(entry: str, owner: str) -> list[str]:
+    """``shlex.split`` with a clean error naming the offending flags entry."""
+    import shlex
+
+    try:
+        return shlex.split(entry)
+    except ValueError as err:
+        raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
+
+
+def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
+    the way PlatformIO's ParseFlags lexes them."""
+    out: list[str] = []
+    it = iter(tokens)
+    for tok in it:
+        if tok in ("-I", "-L", "-l", "-D"):
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
+                break
+            tok += arg
+        out.append(tok)
+    return out
+
+
+def normalize_dependencies(dependencies: Any) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
     PIO's library.json accepts both the list-of-dicts form and the shorthand
@@ -688,6 +714,24 @@ def _node_key(
     return name, "registry", (owner, pkgname)
 
 
+def lib_ignore_set() -> set[str]:
+    """The ``lib_ignore`` names from ``esphome->platformio_options``,
+    normalized to lowercase short names (the part after the ``/``)."""
+    return {
+        name.split("/")[-1].lower()
+        for name in CORE.platformio_options.get("lib_ignore", [])
+    }
+
+
+def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
+    """Whether ``name`` matches the normalized ``lib_ignore`` set."""
+    return (
+        bool(lib_ignore)
+        and name is not None
+        and (name.split("/")[-1].lower() in lib_ignore)
+    )
+
+
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
@@ -713,10 +757,7 @@ def convert_libraries(
     """
     nodes: dict[str, _LibNode] = {}
 
-    lib_ignore = {
-        name.split("/")[-1].lower()
-        for name in CORE.platformio_options.get("lib_ignore", [])
-    }
+    lib_ignore = lib_ignore_set()
 
     # The generated build files inside the shared cache bake in the dependency
     # wiring, which lib_ignore changes; salt the cache path so configs with
@@ -729,9 +770,7 @@ def convert_libraries(
     )
 
     def is_ignored(name: str | None) -> bool:
-        if not lib_ignore or name is None:
-            return False
-        return name.split("/")[-1].lower() in lib_ignore
+        return is_lib_ignored(name, lib_ignore)
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)
@@ -840,7 +879,7 @@ def convert_libraries(
         if has_json:
             component.data = _parse_library_json(library_json_path)
         elif has_properties:
-            component.data = _parse_library_properties(library_properties_path)
+            component.data = parse_library_properties(library_properties_path)
         else:
             # For a local library a missing manifest is user input, so raise
             # EsphomeError (clean CLI message) like the missing-directory case;
@@ -869,7 +908,7 @@ def convert_libraries(
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in _normalize_dependencies(component.data.get("dependencies")):
+        for dependency in normalize_dependencies(component.data.get("dependencies")):
             if "name" not in dependency or "version" not in dependency:
                 continue
             try:
