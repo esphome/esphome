@@ -1,4 +1,5 @@
-<<: !include common.yaml
+packages:
+  matter_network: !include common.yaml
 
 matter:
   vendor_id: 0xFFF1
@@ -29,6 +30,18 @@ sensor:
     unit_of_measurement: "°C"
     lambda: return 22.5;
 
+# Exercise BOTH `button: platform: matter` actions so the compile test
+# covers open_commissioning_window (with `timeout:`) and factory_reset
+# (which must reject `timeout:`) — see button/__init__.py.
 button:
   - platform: template
     name: Matter Test Button
+  - platform: matter
+    id: open_pairing_window
+    name: Matter Open Pairing
+    action: open_commissioning_window
+    timeout: 300s
+  - platform: matter
+    id: matter_factory_reset
+    name: Matter Factory Reset
+    action: factory_reset
