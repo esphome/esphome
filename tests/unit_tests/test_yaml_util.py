@@ -701,6 +701,40 @@ def test_include_file_has_unresolved_expressions(
     assert include.has_unresolved_expressions() == expected
 
 
+def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> None:
+    r"""A templated filename is never coerced through Path().
+
+    On Windows, Path() rewrites "/" to "\" inside the expression text and
+    Jinja then decodes sequences like "\b" as string escapes, corrupting
+    the filename (issue #18545).
+    """
+    parent = tmp_path / "main.yaml"
+    expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
+    include = yaml_util.IncludeFile(parent, expr, None, lambda _: {})
+    assert include.file == expr
+    assert isinstance(include.file, str)
+    assert include.has_unresolved_expressions()
+    assert repr(include) == f"IncludeFile({expr})"
+
+
+def test_include_file_plain_filename_becomes_path(tmp_path: Path) -> None:
+    """A concrete filename is stored as a Path."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, "path/to/device.yaml", None, lambda _: {})
+    assert isinstance(include.file, Path)
+    assert include.file == Path("path/to/device.yaml")
+    assert not include.has_unresolved_expressions()
+
+
+def test_represent_include_file_templated() -> None:
+    """Dumping a templated IncludeFile emits the raw expression unchanged."""
+    expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, None, lambda _: {})
+    dumped = yaml_util.dump({"key": include})
+    assert "!include" in dumped
+    assert expr in dumped
+
+
 def test_include_in_list_context() -> None:
     """!include of a file returning a list is handled correctly,
     including when that list itself contains a nested IncludeFile."""

@@ -236,13 +236,24 @@ class IncludeFile:
         yaml_loader: Callable[[Path], Any],
     ) -> None:
         self.parent_file = parent_file
-        self.file = Path(file)
+        # A templated filename stays a raw string: Path() corrupts the
+        # expression on Windows (WindowsPath str() rewrites "/" to "\",
+        # which Jinja then decodes as escapes like "\b" -> backspace).
+        file_str = file if isinstance(file, str) else file.as_posix()
+        self.file: Path | str = (
+            file_str if has_substitution_or_expression(file_str) else Path(file)
+        )
         self.vars = vars
         self.yaml_loader = yaml_loader
         self._content: Any = _UNSET
 
+    @property
+    def posix_file(self) -> str:
+        """Include target as text: the raw expression, or the path in POSIX form."""
+        return self.file if isinstance(self.file, str) else self.file.as_posix()
+
     def __repr__(self) -> str:
-        return f"IncludeFile({self.file.as_posix()})"
+        return f"IncludeFile({self.posix_file})"
 
     def load(self) -> Any:
         """Load and cache the included file content.
@@ -264,7 +275,8 @@ class IncludeFile:
 
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
-        return has_substitution_or_expression(str(self.file))
+        # The constructor keeps the filename a str exactly when it is templated.
+        return isinstance(self.file, str)
 
     def with_file(self, file: Path | str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
@@ -1333,11 +1345,11 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_include_file(self, value):
         if value.vars:
-            mapping = {"file": value.file.as_posix(), "vars": value.vars}
+            mapping = {"file": value.posix_file, "vars": value.vars}
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
-        return self.represent_scalar(tag="!include", value=value.file.as_posix())
+        return self.represent_scalar(tag="!include", value=value.posix_file)
 
     def represent_id(self, value):
         if is_secret(value.id):
