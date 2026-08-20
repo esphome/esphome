@@ -121,9 +121,7 @@ def _pio_system() -> str:
     return "linux_x86_64"
 
 
-def _registry_download(
-    package: str, version: str
-) -> tuple[str, str | None, int | None]:
+def _registry_download(package: str, version: str) -> tuple[str, str, int | None]:
     """Resolve a package's download URL, sha256, and size via the PIO registry."""
     import requests
 

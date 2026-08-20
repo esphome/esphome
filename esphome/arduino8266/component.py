@@ -31,6 +31,8 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
+    is_lib_ignored,
+    lib_ignore_set,
     normalize_dependencies,
     parse_library_properties,
 )
@@ -134,12 +136,9 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
     external: list[Library] = []
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
-    lib_ignore = {
-        ignore.split("/")[-1].lower()
-        for ignore in CORE.platformio_options.get("lib_ignore", [])
-    }
+    lib_ignore = lib_ignore_set()
     for library in CORE.platformio_libraries.values():
-        if library.name and library.name.split("/")[-1].lower() in lib_ignore:
+        if is_lib_ignored(library.name, lib_ignore):
             continue
         # A version pin means a registry package ("pngle@1.1.0"), never a
         # framework-bundled library.
@@ -174,7 +173,7 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
                 or not (framework_path / "libraries" / name).is_dir()
             ):
                 continue
-            if name.lower() in lib_ignore:
+            if is_lib_ignored(name, lib_ignore):
                 continue
             try:
                 check_library_data(dep, ESP8266_PLATFORM, "arduino")

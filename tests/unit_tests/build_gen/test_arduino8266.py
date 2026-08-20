@@ -249,9 +249,13 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "-T eagle.flash.4m.ld" in content
     # scanf float disabled: the forced-link flag must not appear
     assert "_scanf_float" not in content
-    # Compile inputs and outputs are quoted (space-containing cache paths)
-    assert '-c "$in" -o "$out"' in content
-    assert '--app "$in"' in content
+    # $in/$out must stay UNQUOTED: ninja shell-escapes its built-in path
+    # variables itself, so added quotes would wrap ninja's quoting and break
+    # space-containing paths.
+    assert "-c $in -o $out" in content
+    assert "--app $in --flash_mode" in content
+    assert '"$in"' not in content
+    assert '"$out"' not in content
     # -L/-l from esphome build_flags reach the link line, not the compiles
     assert '-L"/opt/blobs"' in content
     assert "-luser_blob" in content
