@@ -564,7 +564,7 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
   auto *shared = this->tx_shared_channel_;
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-     this->log_tx_debug_(data, len);
+     usb_uart::log_tx_debug_(data, len);
   }
 #endif
   while (len > 0) {
