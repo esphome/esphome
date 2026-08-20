@@ -61,18 +61,6 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   }
 }
 
-#ifdef USE_UART_DEBUGGER
-static void log_tx_debug_(uint8_t *data, size_t len) {
-  constexpr size_t batch = 16;
-  char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
-  for (size_t off = 0; off < len; off += batch) {
-    size_t n = std::min(len - off, batch);
-    format_hex_pretty_to(buf, data + off, n, ',');
-    ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
-  }
-}
-#endif
-
 std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
