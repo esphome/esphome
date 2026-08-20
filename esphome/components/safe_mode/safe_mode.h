@@ -17,7 +17,7 @@ constexpr uint32_t RTC_KEY = 233825507UL;
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
 class SafeModeComponent final : public Component {
  public:
-  bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after);
+  bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after, bool in_flash);
 
   /// Set to true if the next startup will enter safe mode
   void set_safe_mode_pending(const bool &pending);
@@ -42,6 +42,9 @@ class SafeModeComponent final : public Component {
  protected:
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
+#ifdef USE_OTA_ROLLBACK
+  void confirm_app_image_();
+#endif
 
   // Group all 4-byte aligned members together to avoid padding
   uint32_t safe_mode_boot_is_good_after_{60000};  ///< The amount of time after which the boot is considered successful

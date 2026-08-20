@@ -9,7 +9,7 @@
 
 namespace esphome::uart {
 
-class UARTSwitch : public switch_::Switch, public UARTDevice, public Component {
+class UARTSwitch final : public switch_::Switch, public UARTDevice, public Component {
  public:
   void loop() override;
 

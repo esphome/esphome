@@ -6,7 +6,11 @@ from pathlib import Path
 from esphome.components.esp32 import get_esp32_variant, idf_version
 import esphome.config_validation as cv
 from esphome.core import CORE
-from esphome.framework_helpers import get_project_compile_flags, get_project_link_flags
+from esphome.framework_helpers import (
+    get_project_compile_flags,
+    get_project_cxx_compile_flags,
+    get_project_link_flags,
+)
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
@@ -91,6 +95,14 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
+    # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
+    # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
+    # -Wno-volatile is passed on a C compile.
+    cxx_compile_options = "\n".join(
+        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
+        for flag in get_project_cxx_compile_flags()
+    )
+
     cpp_standard_options = (
         CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
         if CORE.cpp_standard
@@ -155,6 +167,8 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
 
+{cxx_compile_options}
+
 {extra_compile_options}
 
 {managed_components_property}
@@ -196,15 +210,27 @@ def get_component_cmakelists() -> str:
 if(CMAKE_SCRIPT_MODE_FILE)
     file(GLOB_RECURSE app_sources
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 else()
     file(GLOB_RECURSE app_sources CONFIGURE_DEPENDS
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 endif()
