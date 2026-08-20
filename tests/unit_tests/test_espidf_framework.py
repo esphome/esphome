@@ -1400,8 +1400,9 @@ def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
         ),
+        # ccache_defaults_env (framework_helpers) reads CORE at call time
         patch(
-            "esphome.espidf.framework.CORE",
+            "esphome.core.CORE",
             SimpleNamespace(build_path=build_path),
         ),
     )

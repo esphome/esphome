@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.arduino8266.framework import InstalledPaths
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
@@ -181,15 +182,11 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "include").mkdir()
-    return {
-        "framework_path": framework,
-        "toolchain_path": toolchain,
-        "ninja_path": Path("ninja"),
-    }
+    return InstalledPaths(framework=framework, toolchain=toolchain, ninja=Path("ninja"))
 
 
 def _write_ninja(
-    paths: dict[str, Path],
+    paths: InstalledPaths,
     libraries: list | None = None,
     ccache: str | None = None,
 ) -> str:
@@ -390,7 +387,7 @@ SECTIONS
 """
 
 
-def _run_generate_ld_scripts(paths: dict[str, Path]) -> Path:
+def _run_generate_ld_scripts(paths: InstalledPaths) -> Path:
 
     config = _resolve_build_config(_flag_defines())
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
@@ -442,7 +439,7 @@ def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
 def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
-    (paths["framework_path"] / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
+    (paths.framework / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
         "MEMORY\n{\n"
         "  dram0_0_seg :    org = 0x3FFE8000, len = 0x14000\n"
         "  iram1_0_seg :    org = 0x40100000, len = 0x8000\n"
@@ -463,7 +460,7 @@ def test_write_project_libraries_and_variant(
     from esphome.arduino.library import ArduinoLibrary
 
     paths = _make_framework(tmp_path)
-    variant_src = paths["framework_path"] / "variants" / "nodemcu" / "variant.cpp"
+    variant_src = paths.framework / "variants" / "nodemcu" / "variant.cpp"
     variant_src.write_text("")
 
     lib_dir = tmp_path / "libsrc"
@@ -529,11 +526,8 @@ def test_get_flash_ld_path(tmp_path: Path) -> None:
 
 
 def test_flash_size_str() -> None:
-
-    assert _flash_size_str("eagle.flash.4m.ld") == "4M"
-    assert _flash_size_str("eagle.flash.512k.ld") == "512K"
-    with pytest.raises(EsphomeError, match="Cannot parse flash size"):
-        _flash_size_str("bogus.ld")
+    assert _flash_size_str(4 * 1024 * 1024) == "4M"
+    assert _flash_size_str(512 * 1024) == "512K"
 
 
 def test_write_project_testing_mode(tmp_path: Path) -> None:
@@ -550,7 +544,7 @@ def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
     import shutil
 
     paths = _make_framework(tmp_path)
-    shutil.rmtree(paths["framework_path"] / "tools" / "sdk" / "lwip2")
+    shutil.rmtree(paths.framework / "tools" / "sdk" / "lwip2")
     _set_flags()
     with pytest.raises(EsphomeError, match="incomplete.*lwip2"):
         _write_ninja(paths)
@@ -663,7 +657,7 @@ def test_shell_token_escaping() -> None:
 def test_write_project_empty_core_raises(tmp_path: Path) -> None:
     """A framework tree with no core sources fails at generation, not link."""
     paths = _make_framework(tmp_path)
-    core = paths["framework_path"] / "cores" / "esp8266"
+    core = paths.framework / "cores" / "esp8266"
     for f in core.iterdir():
         f.unlink()
     _set_flags()

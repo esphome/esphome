@@ -22,8 +22,9 @@ import functools
 import logging
 import os
 from pathlib import Path
-import shutil
+from typing import NamedTuple
 
+from esphome.build_helpers.ninja import find_ninja
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import (
     ccache_defaults_env,
@@ -78,31 +79,15 @@ def get_toolchain_path() -> Path:
     return get_arduino8266_tools_path() / "toolchains" / TOOLCHAIN_VERSION
 
 
-def _find_ninja() -> Path:
-    """Locate the ninja binary: PATH first, else the ninja PyPI wheel.
+class InstalledPaths(NamedTuple):
+    """Locations of the installed framework, toolchain, and ninja binary."""
 
-    The wheel is a requirements.txt dependency, so pip has already
-    integrity-checked it; no download logic is needed here.
-    """
-    if binary := shutil.which("ninja"):
-        return Path(binary)
-    try:
-        import ninja
-    except ImportError:
-        wheel_binary = None
-    else:
-        wheel_binary = Path(ninja.BIN_DIR) / (
-            "ninja.exe" if os.name == "nt" else "ninja"
-        )
-    if wheel_binary is None or not wheel_binary.is_file():
-        raise EsphomeError(
-            "ninja not found on PATH or in the ninja package; reinstall the "
-            "esphome Python environment"
-        )
-    return wheel_binary
+    framework: Path
+    toolchain: Path
+    ninja: Path
 
 
-def check_and_install(framework_version: Version) -> dict[str, Path]:
+def check_and_install(framework_version: Version) -> InstalledPaths:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
     if framework_version < MIN_FRAMEWORK_VERSION:
         # Config validation enforces this too; keep the module honest when
@@ -112,7 +97,7 @@ def check_and_install(framework_version: Version) -> dict[str, Path]:
             f">= {MIN_FRAMEWORK_VERSION}, got {framework_version}"
         )
     # Probe the cheap local dependency before ~110 MB of downloads
-    ninja_path = _find_ninja()
+    ninja_path = find_ninja()
     package_version = framework_package_version(framework_version)
     framework_path = get_framework_path(package_version)
     downloads_dir = get_arduino8266_tools_path() / "downloads"
@@ -133,11 +118,9 @@ def check_and_install(framework_version: Version) -> dict[str, Path]:
         downloads_dir,
         expect=("bin",),
     )
-    return {
-        "framework_path": framework_path,
-        "toolchain_path": toolchain_path,
-        "ninja_path": ninja_path,
-    }
+    return InstalledPaths(
+        framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
+    )
 
 
 def get_build_env(toolchain_path: Path) -> dict[str, str]:

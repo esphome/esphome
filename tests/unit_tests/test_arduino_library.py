@@ -214,9 +214,11 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
             cache_key="arduino8266",
         )
 
-    mock_extra.assert_called_once_with(
-        converted, board_mcu="esp8266", pio_platform="espressif8266"
-    )
+    mock_extra.assert_called_once()
+    assert mock_extra.call_args.args == (converted,)
+    assert mock_extra.call_args.kwargs["pio_platform"] == "espressif8266"
+    # board_mcu is passed lazily, as the shared helper requires
+    assert mock_extra.call_args.kwargs["board_mcu"]() == "esp8266"
     assert [lib.name for lib in libs] == [
         "Wire",
         "esp32async__ESPAsyncWebServer",
