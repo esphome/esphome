@@ -68,6 +68,22 @@ jobs:
           uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
 
+  seed-apt-cache:
+    name: Seed apt package cache
+    runs-on: ubuntu-24.04
+    # PR-branch cache saves are invisible to other PRs, so dev/beta/release
+    # pushes seed the one shared entry PR jobs restore. The key is derived
+    # only from the package list and version; keep both identical in every
+    # step that restores it. In ci-status needs so a broken seed fails dev.
+    if: github.event_name == 'push'
+    timeout-minutes: 10
+    steps:
+      - name: Install apt packages (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
+
   determine-jobs:
     name: Determine which jobs to run
     runs-on: ubuntu-24.04
@@ -323,7 +339,8 @@ jobs:
 
   integration-tests:
     name: Run integration tests (${{ matrix.bucket.name }})
-    runs-on: ubuntu-latest
+    # Must match seed-apt-cache's image: the apt cache key has no OS in it.
+    runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
@@ -335,12 +352,16 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ccache
-        # Speeds up the host compiles: tests in a bucket compile overlapping
-        # component sets, so later tests reuse earlier tests' objects.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache
+      - name: Install apt packages (cached)
+        # ccache speeds up the host compiles. A cache hit never touches apt
+        # (mirror outages cannot hang the job); the timeout bounds the cold
+        # path. Packages and version must match seed-apt-cache exactly;
+        # libsdl2-dev is unused here and carried only for cache-key parity.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -421,6 +442,7 @@ jobs:
   benchmarks:
     name: Run CodSpeed benchmarks
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs:
       - common
       - determine-jobs
@@ -460,6 +482,41 @@ jobs:
             exit 1
           fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
+
+      - name: Bound apt fetches and pre-install libc6-dbg
+        # The CodSpeed runner installs valgrind + libc6-dbg via its own
+        # unbounded apt-get update; per-invocation apt options cannot reach
+        # it. The apt.conf.d timeouts below bound every later apt call in
+        # this job, the runner's included. Pre-installing libc6-dbg lets the
+        # runner skip apt once its valgrind cache is restored (it checks
+        # ``dpkg -s libc6-dbg``, so the cache action's unregistered restores
+        # would not count). Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes
+        # slow. Best effort; the job timeout is the last backstop.
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
+          if dpkg -s libc6-dbg >/dev/null 2>&1; then
+            echo "libc6-dbg already installed"
+            exit 0
+          fi
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y libc6-dbg; then
+            exit 0
+          fi
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
@@ -545,24 +602,29 @@ jobs:
           fetch-depth: 2
 
       - name: Restore Python
+        id: restore-python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      # Key on the exact Python version as well: LibreTiny creates a venv under
+      # ~/.platformio/penv whose interpreter is a symlink into the runner's
+      # hosted toolcache, so a cache saved on an older runner image breaks once
+      # a new image ships a newer patch release and drops the old interpreter.
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
         if: matrix.cache_idf
@@ -879,12 +941,17 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
-      - name: Install apt packages
-        # Not cached: this job is pull-request-only, so a cache save could
-        # never be shared and would only consume quota.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
+      - name: Install apt packages (cached)
+        # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
+        # so mirror outages cannot hang this PR-only job; the timeout bounds
+        # the cold path. Packages and version must match seed-apt-cache
+        # exactly. The action has no --no-install-recommends; same package
+        # set this job used before #17463.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1419,6 +1486,7 @@ jobs:
     # this check.
     needs:
       - common
+      - seed-apt-cache
       - determine-jobs
       - ci-custom
       - pylint
