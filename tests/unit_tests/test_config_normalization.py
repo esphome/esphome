@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome import config, yaml_util
+from esphome import config, config_validation as cv, yaml_util
 from esphome.core import CORE, AutoLoad
 from esphome.types import ConfigType
 
@@ -127,12 +127,14 @@ def _run_load_step(
     domain: str,
     conf: object,
     migrate: Callable[[ConfigType], list | None] | None,
+    expand: Callable[[list], list] | None = None,
 ) -> config.Config:
-    """Run a LoadValidationStep for a platform component with a given migrate hook."""
+    """Run a LoadValidationStep for a platform component with given hooks."""
     component = Mock()
     component.is_platform_component = True
     component.multi_conf_no_default = False
     component.legacy_config_migrate = migrate
+    component.expand_platform_config = expand
 
     result = config.Config()
     with (
@@ -195,6 +197,124 @@ def test_legacy_migrate_skipped_for_autoload() -> None:
     migrate.assert_not_called()
     # AutoLoad is dict-like, so normalization wraps it into a single-entry list.
     assert result["image"] == [auto]
+
+
+# ---------------------------------------------------------------------------
+# EXPAND_PLATFORM_CONFIG hook on LoadValidationStep -- permanent counterpart
+# to legacy_config_migrate; runs after legacy migration/list normalization.
+# ---------------------------------------------------------------------------
+
+
+def test_expand_hook_rewrites_conf() -> None:
+    """A config the expand hook rewrites is replaced with the expanded list."""
+    expanded = [{"platform": "file", "id": "a"}, {"platform": "file", "id": "b"}]
+    expand = Mock(return_value=expanded)
+
+    result = _run_load_step("image", [{"platform": "file", "id": "a"}], None, expand)
+
+    expand.assert_called_once_with([{"platform": "file", "id": "a"}])
+    assert result["image"] == expanded
+
+
+def test_expand_hook_absent_is_noop() -> None:
+    """A platform component without the hook is left as normalized by the
+    existing list-wrapping logic."""
+    result = _run_load_step("image", [{"platform": "file", "id": "a"}], None, None)
+
+    assert result["image"] == [{"platform": "file", "id": "a"}]
+
+
+def test_expand_hook_runs_after_legacy_migrate() -> None:
+    """The expand hook sees the already-migrated list, not the raw legacy conf."""
+    migrated = [{"platform": "file", "id": "a"}]
+    migrate = Mock(return_value=migrated)
+    expand = Mock(side_effect=lambda conf: conf)
+
+    _run_load_step("image", [{"id": "a", "file": "x.png"}], migrate, expand)
+
+    expand.assert_called_once_with(migrated)
+
+
+def test_expand_hook_skipped_for_non_dict_entry() -> None:
+    """Malformed entries are left alone; the hook only sees `platform:`-tagged dicts."""
+    expand = Mock(side_effect=lambda conf: conf)
+
+    result = _run_load_step("image", ["not-a-dict"], None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == ["not-a-dict"]
+
+
+def test_expand_hook_skipped_for_entry_missing_platform_key() -> None:
+    """A dict entry missing the `platform:` key is left alone -- the normal
+    per-entry error reporting further down catches this case instead."""
+    expand = Mock(side_effect=lambda conf: conf)
+
+    result = _run_load_step("image", [{"id": "a"}], None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == [{"id": "a"}]
+
+
+def test_expand_hook_skipped_for_autoload() -> None:
+    """A non-empty AutoLoad reaching the hook stage is left alone."""
+    expand = Mock(side_effect=lambda conf: conf)
+    auto = AutoLoad()
+    auto["id"] = "a"
+
+    result = _run_load_step("image", auto, None, expand)
+
+    expand.assert_not_called()
+    assert result["image"] == [auto]
+
+
+def test_expand_hook_runs_when_all_entries_are_platform_tagged_dicts() -> None:
+    """The guard does not block the normal, well-formed case."""
+    expand = Mock(side_effect=lambda conf: conf)
+    conf = [{"platform": "file", "id": "a"}, {"platform": "animation", "id": "b"}]
+
+    result = _run_load_step("image", conf, None, expand)
+
+    expand.assert_called_once_with(conf)
+    assert result["image"] == conf
+
+
+def test_expand_hook_invalid_reports_single_error_at_domain_path() -> None:
+    """A `cv.Invalid` from the hook is reported once with the domain path prepended; no further validation runs."""
+    expand = Mock(side_effect=cv.Invalid("bad shape"))
+    pre_expand_conf = [{"platform": "file", "id": "a"}]
+
+    result = _run_load_step("image", pre_expand_conf, None, expand)
+
+    assert len(result.errors) == 1
+    assert result.errors[0].path == ["image"]
+    assert "bad shape" in str(result.errors[0])
+    assert result["image"] == pre_expand_conf
+
+
+def test_expand_hook_final_external_invalid_reports_without_path_prepend() -> None:
+    """`cv.FinalExternalInvalid` keeps its already-resolved path (no domain path prepended)."""
+    already_resolved_error = cv.FinalExternalInvalid(
+        "bad shape", path=["image", 3, "files"]
+    )
+    expand = Mock(side_effect=already_resolved_error)
+    pre_expand_conf = [{"platform": "file", "id": "a"}]
+
+    result = _run_load_step("image", pre_expand_conf, None, expand)
+
+    assert len(result.errors) == 1
+    assert result.errors[0] is already_resolved_error
+    assert result.errors[0].path == ["image", 3, "files"]
+    assert result["image"] == pre_expand_conf
+
+
+def test_expand_hook_non_list_return_raises_type_error() -> None:
+    """A non-list return is a component bug: it escapes as an uncaught TypeError
+    (explicit raise survives -O/-OO)."""
+    expand = Mock(return_value={"not": "a list"})
+
+    with pytest.raises(TypeError, match="must return a list"):
+        _run_load_step("image", [{"platform": "file", "id": "a"}], None, expand)
 
 
 def _write_merge_conflict_config(tmp_path: Path, *, suppress: bool) -> Path:
