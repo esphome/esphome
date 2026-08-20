@@ -23,6 +23,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
@@ -88,6 +89,13 @@ static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for nam
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
 static const char *const TAG = "api.connection";
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+void log_dropped_message(const char *tag, int line, const LogString *what) {
+  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, line, ESPHOME_LOG_FORMAT("%s dropped, TCP buffer full"),
+                  LOG_STR_ARG(what));
+}
+#endif
 #ifdef USE_CAMERA
 static const int CAMERA_STOP_STREAM = 5000;
 #endif
@@ -151,11 +159,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
       std::unique_ptr<APINoiseFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
-#endif
-#ifdef USE_CAMERA
-  if (camera::Camera::instance() != nullptr) {
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
 #endif
 }
 
@@ -440,7 +443,7 @@ void APIConnection::on_disconnect_response() {
 uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
                                                      CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                      APIConnection *conn, uint32_t remaining_size) {
-  msg.key = entity->get_entity_key();
+  msg.key = entity->get_object_id_hash();
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
@@ -451,7 +454,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
-  msg.key = entity->get_entity_key();
+  msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1132,6 +1135,7 @@ void APIConnection::try_send_camera_image_() {
   if (!this->image_reader_)
     return;
 
+  const auto *cam = camera::Camera::instance();
   // Send as many chunks as possible without blocking
   while (this->image_reader_->available()) {
     if (!this->helper_->can_write_without_blocking())
@@ -1141,11 +1145,11 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_entity_key();
+    msg.key = cam->get_object_id_hash();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
+    msg.device_id = cam->get_device_id();
 #endif
 
     if (!this->send_message(msg)) {
@@ -1161,15 +1165,19 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_)
+  if (this->image_reader_ && this->image_reader_->available())
     return;
-  if (this->image_reader_->available())
+  if (!image->was_requested_by(esphome::camera::API_REQUESTER) && !image->was_requested_by(esphome::camera::IDLE))
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
-    this->image_reader_->set_image(std::move(image));
-    // Try to send immediately to reduce latency
-    this->try_send_camera_image_();
+  if (!this->image_reader_) {
+    // Created on the first image this connection will send, so connections
+    // that never receive one never pay for a reader. Only a registered
+    // camera's listener can reach this, so instance() is non-null here.
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
   }
+  this->image_reader_->set_image(std::move(image));
+  // Try to send immediately to reduce latency
+  this->try_send_camera_image_();
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *camera = static_cast<camera::Camera *>(entity);
@@ -1235,6 +1243,7 @@ void APIConnection::on_subscribe_bluetooth_le_advertisements_request(
 void APIConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void APIConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -1268,12 +1277,14 @@ void APIConnection::on_subscribe_bluetooth_connections_free_request() {
   }
 }
 
+void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
+}
+#endif
+
 void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
-}
-void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
-  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
 }
 #endif
 
@@ -1532,7 +1543,13 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #endif
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
+void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
+  if (!this->send_message(msg)) {
+    // V: fires per decoded frame with no subscription gate, so a warning
+    // would flood the congested link it reports on.
+    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_SERIAL_PROXY
@@ -1574,7 +1591,9 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
   resp.line_states = proxies[msg.instance]->get_modem_pins();
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
 }
 
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
@@ -1606,7 +1625,9 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
           resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
           break;
       }
-      this->send_message(resp);
+      if (!this->send_message(resp)) {
+        API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+      }
       break;
     }
     default:
@@ -1615,7 +1636,11 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   }
 }
 
-void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
+  if (!this->send_message(msg)) {
+    ESP_LOGV(TAG, "Serial proxy data dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_INFRARED
@@ -1735,7 +1760,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 14;
+  resp.api_version_minor = 15;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -1746,7 +1771,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
     // Acknowledge the hello so the client can read the server name, then request
     // disconnect with the reason. Authentication is intentionally not completed.
     this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
-    this->send_message(resp);
+    if (!this->send_message(resp)) {
+      API_LOG_MSG_DROPPED(TAG, "Hello response");
+    }
     DisconnectRequest req;
     req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
     return this->send_message(req);
@@ -1771,9 +1798,8 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_AREAS
   resp.suggested_area = StringRef(App.get_area());
 #endif
-  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char mac_address[18];
-  uint8_t mac[6];
+  char mac_address[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
@@ -1849,8 +1875,7 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char bluetooth_mac[18];
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.bluetooth_mac_address = StringRef(bluetooth_mac);
 #endif
@@ -1904,6 +1929,35 @@ bool APIConnection::send_device_info_response_() {
 
   return this->send_message(resp);
 }
+bool APIConnection::send_device_capabilities_response_() {
+  // These are the same values DeviceInfoResponse still reports for older clients. Keep the blocks
+  // below in sync with send_device_info_response_() until those copies are removed.
+  DeviceCapabilitiesResponse resp;
+#ifdef USE_BLUETOOTH_PROXY
+  resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
+  resp.bluetooth_proxy.mac_address = StringRef(bluetooth_mac);
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant.feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy.feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_proxy.home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+  }
+#endif
+  return this->send_message(resp);
+}
 void APIConnection::on_hello_request(const HelloRequest &msg) {
   if (!this->send_hello_response_(msg)) {
     this->on_fatal_error();
@@ -1922,6 +1976,11 @@ void APIConnection::on_ping_request() {
 }
 void APIConnection::on_device_info_request() {
   if (!this->send_device_info_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_device_capabilities_request() {
+  if (!this->send_device_capabilities_response_()) {
     this->on_fatal_error();
   }
 }
@@ -2003,7 +2062,9 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.call_id = call_id;
   resp.success = success;
   resp.error_message = error_message;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
@@ -2014,11 +2075,33 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.error_message = error_message;
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &call) {
+  if (!this->flags_.service_call_subscription)
+    return false;
+  if (!this->send_message(call)) {
+    API_LOG_MSG_DROPPED(TAG, "Action request");
+  }
+  return true;
+}
+#endif  // USE_API_HOMEASSISTANT_SERVICES
+
+#ifdef USE_HOMEASSISTANT_TIME
+void APIConnection::send_time_request() {
+  GetTimeRequest req;
+  if (!this->send_message(req)) {
+    API_LOG_MSG_DROPPED(TAG, "Time request");
+  }
+}
+#endif  // USE_HOMEASSISTANT_TIME
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
@@ -2094,7 +2177,10 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   if (this->helper_->can_write_without_blocking())
     return true;
   if (log_out_of_space) {
-    ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+    // VV: refusals are either reported by the sending call site (naming what
+    // was lost) or retried without loss (the deferred batch), so this generic
+    // line only duplicates them.
+    ESP_LOGVV(TAG, "Cannot send message because of TCP buffer space");
   }
   return false;
 }
