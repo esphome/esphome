@@ -149,7 +149,7 @@ def test_print_size_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
         ),
         patch.object(toolchain, "_parse_app_size", return_value=1044464),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     out = capsys.readouterr().out
     # Exact PlatformIO shape so script/ci_memory_impact_extract.py can parse it
     assert "RAM:   [====      ]  37.9% (used 31016 bytes from 81920 bytes)" in out
@@ -167,7 +167,7 @@ def test_print_size_summary_no_app_size(
         ),
         patch.object(toolchain, "_parse_app_size", return_value=None),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "Flash:" not in out
@@ -183,7 +183,7 @@ def test_print_size_summary_size_tool_failure(
         "run",
         return_value=MagicMock(returncode=1, stdout="", stderr="bad elf"),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     assert capsys.readouterr().out == ""
     assert "Could not summarize firmware size" in caplog.text
 
@@ -239,7 +239,7 @@ def test_print_size_summary_unparsable_section(
         "run",
         return_value=MagicMock(returncode=0, stdout=bad),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     assert capsys.readouterr().out == ""
     assert "Unparsable size output" in caplog.text
 
@@ -253,7 +253,7 @@ def test_print_size_summary_unparsable_section(
         ),
         patch.object(toolchain, "_parse_app_size", return_value=1044464),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     assert "RAM:" in capsys.readouterr().out
     assert "Unparsable size output" in caplog.text
 
@@ -272,6 +272,6 @@ def test_print_size_summary_missing_section_skips_summary(
         "run",
         return_value=MagicMock(returncode=0, stdout=without_bss),
     ):
-        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+        toolchain._print_size_summary(tmp_path)
     assert capsys.readouterr().out == ""
     assert "missing section(s) .bss" in caplog.text

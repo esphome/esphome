@@ -80,7 +80,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     # regeneration (a ninja spawn plus MBs of text) on unchanged builds.
     if ninja_changed or not (build_dir / "compile_commands.json").is_file():
         _write_compile_commands(paths["ninja_path"], build_dir, env)
-    _print_size_summary(build_dir, paths["toolchain_path"])
+    _print_size_summary(build_dir)
     get_idedata()
     return 0
 
@@ -125,7 +125,7 @@ def _parse_app_size(build_dir: Path) -> int | None:
     return app_size
 
 
-def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
+def _print_size_summary(build_dir: Path) -> None:
     """Print the PlatformIO-shaped RAM/Flash lines.
 
     The exact shape (including the bar) is parsed by

@@ -410,7 +410,9 @@ def _ninja_compile_edges(
         lines.append(f"build {_e(obj)}: {_RULE_FOR_SUFFIX[src.suffix]} {_e(src)}")
         if flags:
             lines.append(f"  flags = {flags}")
-        objects.append(obj)
+        # Escaped once here: the returned paths only ever appear in build
+        # statements (archive/link inputs), which use ninja escaping.
+        objects.append(_e(obj))
     return objects
 
 
