@@ -95,3 +95,22 @@ def test_custom_source_rejected() -> None:
 def test_unsupported_board_rejected() -> None:
     with pytest.raises(cv.Invalid, match="not supported by"):
         _validate_native_toolchain(_config(board="not_a_board"))
+
+
+def test_yaml_toolchain_key_resolves() -> None:
+    """The documented `toolchain: arduino` YAML key selects the native path."""
+    from esphome.components.esp8266 import _resolve_toolchain
+    from esphome.const import CONF_TOOLCHAIN
+
+    CORE.toolchain = None
+    _resolve_toolchain({CONF_TOOLCHAIN: Toolchain.ARDUINO})
+    assert CORE.toolchain == Toolchain.ARDUINO
+    assert CORE.using_toolchain_arduino
+
+
+def test_yaml_toolchain_key_defaults_to_platformio() -> None:
+    CORE.toolchain = None
+    from esphome.components.esp8266 import _resolve_toolchain
+
+    _resolve_toolchain({})
+    assert CORE.toolchain == Toolchain.PLATFORMIO
