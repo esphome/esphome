@@ -25,10 +25,10 @@ from esphome.platformio.library import (
     GitSource,
     URLSource,
     _node_key,
-    _parse_library_json,
     _resolve_registry_version,
     collect_filtered_files,
     normalize_dependencies,
+    parse_library_json,
     parse_library_properties,
     split_list_by_condition,
 )
@@ -368,11 +368,11 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
         generate_idf_component_yml(tmp_component)
 
 
-def test_parse_library_json(tmp_path):
+def testparse_library_json(tmp_path):
     f = tmp_path / "library.json"
     f.write_text(json.dumps({"name": "test"}))
 
-    result = _parse_library_json(f)
+    result = parse_library_json(f)
     assert result["name"] == "test"
 
 
