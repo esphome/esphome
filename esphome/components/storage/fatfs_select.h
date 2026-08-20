@@ -28,6 +28,7 @@ static constexpr uint8_t FS_SELECT_EXFAT = 2;
 // signatures name no FatFs type, so storage.cpp needs no FatFs include.
 void fatfs_log_probe_read_failed(const char *tag);
 void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat);
+void fatfs_log_unreadable(const char *tag);
 void fatfs_log_no_reformat(const char *tag);
 void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat);
 void fatfs_log_format_failed(const char *tag, bool want_exfat, int result);
@@ -113,7 +114,7 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
   const bool want_exfat = requested == FS_SELECT_EXFAT;
   FatfsDetected found = fatfs_probe(tag, pdrv);
   // only reformat if explicitly desired by user
-  if (found == FatfsDetected::UNREADABLE && !format_on_mismatch) {
+  if (found == FatfsDetected::UNREADABLE) {
     fatfs_log_no_reformat(tag);
     return false;
   }
