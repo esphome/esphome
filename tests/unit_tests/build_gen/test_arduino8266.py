@@ -676,3 +676,50 @@ def test_ninja_path_escaping() -> None:
     """Build-statement paths and command-line paths escape differently."""
     assert arduino8266._e("a b:$c") == "a$ b$:$$c"
     assert arduino8266._q("/a b/$x") == '"/a b/$$x"'
+
+
+def test_write_project_asm_excludes_non_define_user_flags(tmp_path: Path) -> None:
+    """The ASPPCOM command under PlatformIO never sees CCFLAGS, so only -D/-I user flags
+    reach assembly compiles."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DUSER_KNOB=1", "-Wno-volatile")
+    content = _write_ninja(paths)
+    asflags = next(line for line in content.splitlines() if line.startswith("asflags"))
+    assert "-DUSER_KNOB=1" in asflags
+    assert "-Wno-volatile" not in asflags
+    cxxflags = next(
+        line for line in content.splitlines() if line.startswith("cxxflags")
+    )
+    assert "-Wno-volatile" in cxxflags
+
+
+def test_write_project_returns_changed(tmp_path: Path) -> None:
+    """The documented contract: True when build.ninja changed, False on an
+    identical regeneration (pins byte-stable output too)."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
+    ):
+        assert arduino8266.write_project(paths) is True
+        assert arduino8266.write_project(paths) is False
+
+
+def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
+    """A missing generated source tree is its own error, not an install one."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        patch.object(
+            arduino8266.CORE, "relative_src_path", return_value=tmp_path / "nope"
+        ),
+        pytest.raises(EsphomeError, match="source directory"),
+    ):
+        arduino8266.write_project(paths)
