@@ -134,7 +134,8 @@ void ESPNowComponent::dump_config() {
   // Wi-Fi driver is not initialized yet and esp_now_get_version() would crash,
   // and after a failed enable_() the values would be meaningless.
   if (this->state_ != ESPNOW_STATE_ENABLED) {
-    ESP_LOGCONFIG(TAG, "  Disabled");
+    // OFF here means enable_() failed; the core logs the FAILED marker separately
+    ESP_LOGCONFIG(TAG, "  %s", this->is_disabled() ? LOG_STR_LITERAL("Disabled") : LOG_STR_LITERAL("Not enabled"));
     return;
   }
   uint32_t version = 0;
