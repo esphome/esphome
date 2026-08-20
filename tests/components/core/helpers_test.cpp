@@ -55,4 +55,32 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
+  StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
+  StaticVector<uint8_t, 253> big = small;
+  ASSERT_EQ(big.size(), small.size());
+  for (size_t i = 0; i < small.size(); i++) {
+    EXPECT_EQ(big[i], small[i]) << "mismatch at index " << i;
+  }
+}
+
+TEST(StaticVectorTest, ConvertingConstructorPartiallyFilledAndEmpty) {
+  StaticVector<uint8_t, 5> partial{0xAA, 0xBB};
+  StaticVector<uint8_t, 8> from_partial = partial;
+  ASSERT_EQ(from_partial.size(), 2u);
+  EXPECT_EQ(from_partial[0], 0xAA);
+  EXPECT_EQ(from_partial[1], 0xBB);
+
+  StaticVector<uint8_t, 5> empty;
+  StaticVector<uint8_t, 8> from_empty = empty;
+  EXPECT_TRUE(from_empty.empty());
+}
+
+TEST(StaticVectorTest, ConvertingConstructorSameSize) {
+  StaticVector<int, 3> src{1, 2, 3};
+  StaticVector<int, 3> dst = src;
+  ASSERT_EQ(dst.size(), 3u);
+  EXPECT_EQ(dst[2], 3);
+}
+
 }  // namespace esphome

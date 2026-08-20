@@ -1,7 +1,7 @@
 sensor:
   - platform: sgp4x
     i2c_id: i2c_bus
-    voc:
+    voc_index:
       name: VOC Index
       id: sgp40_voc_index
       algorithm_tuning:
@@ -11,8 +11,8 @@ sensor:
         gating_max_duration_minutes: 180
         std_initial: 50
         gain_factor: 230
-    nox:
-      name: NOx
+    nox_index:
+      name: NOx Index
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12

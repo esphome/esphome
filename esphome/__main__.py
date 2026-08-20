@@ -2,39 +2,33 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime
 import functools
-import getpass
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import time
-from typing import Protocol
-
-import argcomplete
+from typing import TYPE_CHECKING, Protocol
 
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const
-import esphome.codegen as cg
-from esphome.config import iter_component_configs, read_config, strip_default_ids
+from esphome import const, platform_hooks
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
+    BUNDLE_EXTENSION,
     CONF_API,
-    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
+    CONF_LOG,
     CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
@@ -48,10 +42,12 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
-    CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_ESP32,
+    KEY_VARIANT,
     SECRETS_FILES,
     Toolchain,
 )
@@ -59,6 +55,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
@@ -73,6 +70,9 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+if TYPE_CHECKING:
+    import threading
 
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
@@ -276,8 +276,8 @@ def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
         if purpose == Purpose.LOGGING and not has_api():
             return (
                 "Cannot view logs over the network: no 'api:' component is "
-                "configured. Network log streaming requires the native API; add "
-                "an 'api:' component, enable MQTT logging, or view logs over USB."
+                "configured. Add an 'api:' component, enable MQTT logging, add a "
+                "'web_server:' component, or view logs over USB."
             )
         if purpose == Purpose.UPLOADING and not has_ota():
             return (
@@ -317,9 +317,12 @@ def choose_upload_log_host(
                 ]
                 resolved.append(choose_prompt(options, purpose=purpose))
             elif device == "OTA":
+                # Logs can stream over a network transport via the native API
+                # or the web_server HTTP SSE feed.
+                network_logging = has_api() or has_web_server_logging()
                 # ensure IP adresses are used first
                 if is_ip_address(CORE.address) and (
-                    (purpose == Purpose.LOGGING and has_api())
+                    (purpose == Purpose.LOGGING and network_logging)
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
                     resolved.extend(_resolve_with_cache(CORE.address, purpose))
@@ -331,7 +334,11 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address() and has_resolvable_address():
+                    if (
+                        network_logging
+                        and has_non_ip_address()
+                        and has_resolvable_address()
+                    ):
                         resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
@@ -393,7 +400,7 @@ def choose_upload_log_host(
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
-        if has_api():
+        if has_api() or has_web_server_logging():
             add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
@@ -486,10 +493,23 @@ def has_web_server_ota() -> bool:
     )
 
 
+def has_web_server_logging() -> bool:
+    """Check if logs can be streamed over the web_server HTTP SSE endpoint.
+
+    The ``web_server`` component exposes a ``/events`` Server-Sent Events
+    stream that carries ``event: log`` frames. This requires version 2+ (the
+    v1 UI has no ``/events`` endpoint) and the ``log`` option enabled (default).
+    """
+    web_conf = CORE.config.get(CONF_WEB_SERVER)
+    if web_conf is None:
+        return False
+    if web_conf.get(CONF_VERSION, 2) == 1:
+        return False
+    return web_conf.get(CONF_LOG, True)
+
+
 def has_mqtt_ip_lookup() -> bool:
     """Check if MQTT is available and IP lookup is supported."""
-    from esphome.components.mqtt import CONF_DISCOVER_IP
-
     if CONF_MQTT not in CORE.config:
         return False
     # Default Enabled
@@ -550,11 +570,48 @@ def has_name_add_mac_suffix() -> bool:
 
 
 def mqtt_get_ip(
-    config: ConfigType, username: str, password: str, client_id: str
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     from esphome import mqtt
 
-    return mqtt.get_esphome_device_ip(config, username, password, client_id)
+    return mqtt.get_esphome_device_ip(
+        config, username, password, client_id, stop_event=stop_event
+    )
+
+
+def _add_network_device(device: str, network_devices: list[str]) -> None:
+    """Append a device to the list, expanding it through ``CORE.address_cache``.
+
+    If the hostname is already in the address cache (e.g. populated by mDNS
+    discovery), substitute the cached IPs so aioesphomeapi doesn't open its
+    own Zeroconf to re-resolve it. Duplicates are dropped.
+    """
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+        network_devices.extend(addr for addr in cached if addr not in network_devices)
+    elif device not in network_devices:
+        network_devices.append(device)
+
+
+def _split_network_devices(devices: list[str]) -> tuple[list[str], bool]:
+    """Split the device list into direct addresses and an MQTT-lookup flag.
+
+    Direct addresses are expanded through ``CORE.address_cache`` and deduped
+    the same way ``_resolve_network_devices`` does; MQTT/MQTTIP magic strings
+    are not resolved, only reported via the returned bool so the caller can
+    defer the broker lookup.
+    """
+    network_devices: list[str] = []
+    has_mqtt_lookup = False
+    for device in devices:
+        if get_port_type(device) in _MQTT_PORT_TYPES:
+            has_mqtt_lookup = True
+        else:
+            _add_network_device(device, network_devices)
+    return network_devices, has_mqtt_lookup
 
 
 def _resolve_network_devices(
@@ -587,41 +644,47 @@ def _resolve_network_devices(
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
-                try:
-                    mqtt_ips = mqtt_get_ip(
-                        config, args.username, args.password, args.client_id
-                    )
-                    # pylint can't infer mqtt_get_ip's return through its
-                    # lazy ``from esphome import mqtt`` import, so it flags
-                    # the genexpr below.
-                    network_devices.extend(
-                        addr
-                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
-                        if addr not in network_devices
-                    )
-                except EsphomeError as err:
-                    _LOGGER.warning(
-                        "MQTT IP discovery failed (%s), will try other devices if available",
-                        err,
-                    )
+                mqtt_ips = _mqtt_get_ip_or_warn(
+                    config, args.username, args.password, args.client_id
+                )
+                network_devices.extend(
+                    addr for addr in mqtt_ips if addr not in network_devices
+                )
                 mqtt_resolved = True
             continue
 
-        # If the hostname is already in the address cache (e.g. populated by
-        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
-        # open its own Zeroconf to re-resolve it.
-        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
-            network_devices.extend(
-                addr for addr in cached if addr not in network_devices
-            )
-        elif device not in network_devices:
-            # Regular network address or IP - add if not already present
-            network_devices.append(device)
+        _add_network_device(device, network_devices)
 
     return network_devices
 
 
+def _mqtt_get_ip_or_warn(
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
+) -> list[str]:
+    """Look up the device IP via MQTT, returning [] with a warning on failure.
+
+    This owns the failure policy for MQTT IP discovery on paths that have
+    other addresses to fall back on: a broker problem must not abort the
+    operation. Also used as the deferred resolver handed to ``run_logs``,
+    where it runs in a worker thread.
+    """
+    try:
+        return mqtt_get_ip(config, username, password, client_id, stop_event=stop_event)
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "MQTT IP discovery failed (%s), will try other devices if available",
+            err,
+        )
+        return []
+
+
 def run_miniterm(config: ConfigType, port: str, args) -> int:
+    from datetime import datetime
+
     from aioesphomeapi import LogParser
     import serial
 
@@ -634,18 +697,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
-    process_stacktrace = None
-
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = module.process_stacktrace
-    except (AttributeError, ImportError):
-        _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
-            CORE.target_platform,
-        )
-
-    backtrace_state = False
+    # Decoder resolution, crash isolation, and disable-after-failure
+    # all live in LogLineProcessor, shared with the API log path.
+    processor = LogLineProcessor(config, CORE.target_platform)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -685,11 +739,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                                 "utf8", "backslashreplace"
                             )
                             safe_print(parser.parse_line(line, time_str))
-
-                            if process_stacktrace is not None:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
+                            processor.process_line(line)
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -704,6 +754,8 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
 
 def _wrap_to_code(name, comp, yaml_util):
+    import esphome.codegen as cg
+
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -739,6 +791,7 @@ def write_cpp(config: ConfigType) -> int:
 
 def generate_cpp_contents(config: ConfigType) -> None:
     from esphome import yaml_util
+    from esphome.config import iter_component_configs
 
     _LOGGER.info("Generating C++ source...")
 
@@ -775,6 +828,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         from esphome.components.wifi import check_placeholder_credentials
 
         check_placeholder_credentials(config)
+
+    # Keep this here, NOT in codegen: config-hash and --only-generate must keep
+    # working on machines that cannot run the toolchain.
+    if CORE.is_esp8266:
+        from esphome.components.esp8266 import check_rosetta
+
+        check_rosetta()
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
@@ -924,9 +984,10 @@ def upload_using_esptool(
 
     mcu = "esp8266"
     if CORE.is_esp32:
-        from esphome.components.esp32 import get_esp32_variant
-
-        mcu = get_esp32_variant().lower()
+        # Same lookup as esp32.get_esp32_variant(), read directly so the
+        # serial upload path does not import the esp32 package; both the
+        # validator and the warm-cache apply_to_core populate this key.
+        mcu = CORE.data[KEY_ESP32][KEY_VARIANT].lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
     if (
@@ -980,6 +1041,8 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
+    import shutil
+
     from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
@@ -1017,6 +1080,8 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
+    import subprocess
+
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -1123,6 +1188,8 @@ def check_permissions(port: str):
                 "the USB cable can be used for data and is not a power-only cable."
             )
         if not (os.access(port, os.R_OK | os.W_OK)):
+            import getpass
+
             raise EsphomeError(
                 "You do not have read or write permission on the selected serial port. "
                 "To resolve this issue, you can add your user to the dialout group "
@@ -1135,12 +1202,11 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.upload_program(config, args, host):
-            return 0, host
-    except AttributeError:
-        pass
+    platform_upload = platform_hooks.get_platform_hook(
+        CORE.target_platform, "upload_program"
+    )
+    if platform_upload is not None and platform_upload(config, args, host):
+        return 0, host
 
     port_type = get_port_type(host)
 
@@ -1291,23 +1357,21 @@ def _upload_via_native_api(
 def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
-    web_conf = config.get(CONF_WEB_SERVER)
-    if not web_conf:
-        raise EsphomeError(
-            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
-            f"is not configured."
-        )
-
-    remote_port = int(web_conf[CONF_PORT])
-    auth = web_conf.get(CONF_AUTH) or {}
-    username = auth.get(CONF_USERNAME)
-    password = auth.get(CONF_PASSWORD)
-
     from esphome import web_server_ota
+    from esphome.web_server_helpers import get_web_server_connection
 
+    remote_port, username, password = get_web_server_connection(config)
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary
     )
+
+
+def _show_logs_via_web_server(config: ConfigType, network_devices: list[str]) -> int:
+    from esphome import web_server_logs
+    from esphome.web_server_helpers import get_web_server_connection
+
+    port, username, password = get_web_server_connection(config)
+    return web_server_logs.run_logs(network_devices, port, username, password)
 
 
 # Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
@@ -1400,12 +1464,11 @@ def _should_subscribe_states(args: ArgsProtocol) -> bool:
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if module.show_logs(config, args, devices):
-            return 0
-    except AttributeError:
-        pass
+    platform_show_logs = platform_hooks.get_platform_hook(
+        CORE.target_platform, "show_logs"
+    )
+    if platform_show_logs is not None and platform_show_logs(config, args, devices):
+        return 0
 
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
@@ -1419,17 +1482,37 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_miniterm(config, port, args)
 
     # Check if we should use API for logging
-    # Resolve MQTT magic strings to actual IP addresses
-    if has_api() and (
-        network_devices := _resolve_network_devices(devices, config, args)
-    ):
-        from esphome.components.api.client import run_logs
+    if has_api():
+        network_devices, has_mqtt_lookup = _split_network_devices(devices)
+        mqtt_resolver = None
+        if has_mqtt_lookup:
+            if network_devices:
+                # Addresses are already known, so don't block startup on the
+                # MQTT broker lookup; hand it to run_logs as a deferred
+                # resolver that runs in the background and feeds discovered
+                # addresses into the running log client, keeping MQTT as a
+                # fallback for when the known addresses are stale (e.g. DHCP
+                # reassigned the IP).
+                mqtt_resolver = functools.partial(
+                    _mqtt_get_ip_or_warn,
+                    config,
+                    args.username,
+                    args.password,
+                    args.client_id,
+                )
+            else:
+                # The MQTT lookup is the only way to find the device; resolve
+                # it up front since the client needs an address to start with.
+                network_devices = _resolve_network_devices(devices, config, args)
+        if network_devices:
+            from esphome.api_client import run_logs
 
-        return run_logs(
-            config,
-            network_devices,
-            subscribe_states=_should_subscribe_states(args),
-        )
+            return run_logs(
+                config,
+                network_devices,
+                subscribe_states=_should_subscribe_states(args),
+                mqtt_resolver=mqtt_resolver,
+            )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -1437,6 +1520,13 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return mqtt.show_logs(
             config, args.topic, args.username, args.password, args.client_id
         )
+
+    # Fall back to the web_server HTTP SSE log stream for devices that have
+    # web_server: but no api: (the logging counterpart to web_server OTA).
+    if has_web_server_logging() and (
+        network_devices := _resolve_network_devices(devices, config, args)
+    ):
+        return _show_logs_via_web_server(config, network_devices)
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
@@ -1457,6 +1547,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.config import strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1510,10 +1601,18 @@ def _redact_with_legacy_fallback(output: str) -> str:
         m = _LEGACY_REDACTION_RE.search(line)
         if m is None:
             continue
+        key = m.group("key")
         if not in_substitutions:
-            unmarked.add(m.group("key"))
+            # Public keys (e.g. wireguard's peer_public_key) are not secret;
+            # redacting them and telling maintainers to mark them cv.sensitive
+            # would be wrong on both counts. Substitution keys are user-named
+            # with no schema behind them, so anything secret-shaped there
+            # (public or not) stays conservatively redacted.
+            if "public" in key.split("_"):
+                continue
+            unmarked.add(key)
         lines[i] = (
-            f"{line[: m.start()]}{m.group('key')}: "
+            f"{line[: m.start()]}{key}: "
             f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
         )
     output = "\n".join(lines)
@@ -1698,7 +1797,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+    from esphome.bundle import ConfigBundleCreator
 
     creator = ConfigBundleCreator(config)
 
@@ -1933,7 +2032,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
-            print(
+            safe_print(
                 color(
                     AnsiFore.BOLD_RED,
                     f"'{c}' is an invalid character for names. Valid characters are: "
@@ -1946,7 +2045,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     yaml = yaml_util.load_yaml(CORE.config_path)
     if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
             )
@@ -1993,7 +2092,9 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             > 1
         ):
-            print(color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            safe_print(
+                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
+            )
             return 1
 
         new_raw = re.sub(
@@ -2011,7 +2112,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
     # would otherwise just re-flash the same hostname).
     if new_name == old_name:
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2021,7 +2122,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
     if new_path.resolve() == CORE.config_path.resolve():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"'{new_name}' is already the device's name.",
@@ -2029,7 +2130,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
         return 1
     if new_path.exists():
-        print(
+        safe_print(
             color(
                 AnsiFore.BOLD_RED,
                 f"Cannot rename: {new_path} already exists. "
@@ -2037,7 +2138,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
         )
         return 1
-    print(
+    safe_print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
     print()
@@ -2046,7 +2147,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
-        print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
+        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
         return 1
 
@@ -2072,7 +2173,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.config_path != new_path:
         CORE.config_path.unlink()
 
-    print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
+    safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
     return 0
 
@@ -2483,7 +2584,12 @@ def parse_args(argv):
     # a deprecation warning).
     arguments = argv[1:]
 
-    argcomplete.autocomplete(parser)
+    # argcomplete only does anything when the shell-completion machinery
+    # invokes us with _ARGCOMPLETE set; skip the import otherwise.
+    if "_ARGCOMPLETE" in os.environ:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
 
     if len(arguments) > 0 and arguments[0] in SIMPLE_CONFIG_ACTIONS:
         args, unknown_args = parser.parse_known_args(arguments)
@@ -2492,6 +2598,49 @@ def parse_args(argv):
         return args
 
     return parser.parse_args(arguments)
+
+
+def _warn_if_source_tree_mismatch() -> None:
+    """Warn when the checkout the user is standing in is not the one being run.
+
+    An editable install records one absolute path, so a venv shared between git
+    worktrees (or reused after a checkout is copied or renamed) keeps importing
+    the tree it was installed from. Every command then silently runs, and
+    compiles, sources the user is not looking at. Only fires inside a checkout,
+    so ordinary installs never see it.
+    """
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return  # working directory is gone; a diagnostic must not break startup
+    for candidate in (cwd, *cwd.parents):
+        if (candidate / "esphome" / "__main__.py").is_file():
+            standing_in = candidate.resolve()
+            break
+    else:
+        return  # not inside a checkout; nothing to compare against
+
+    running = Path(__file__).resolve().parent.parent
+    # Both sides are resolved, so on a case-sensitive filesystem this matches
+    # plain equality. samefile() compares device and inode, which additionally
+    # covers a case-insensitive filesystem (macOS) reaching one directory by
+    # differently cased paths. Falls back to equality if either path is gone.
+    try:
+        same = standing_in.samefile(running)
+    except OSError:
+        same = standing_in == running
+    if same:
+        return
+
+    _LOGGER.warning(
+        "Running ESPHome from a different checkout than the one you are in:\n"
+        "  running from: %s\n"
+        "  you are in:   %s\n"
+        "The installed esphome resolves to the first, so its sources are used.\n"
+        "Run 'python -m esphome' from the second to use that one instead.",
+        running,
+        standing_in,
+    )
 
 
 def run_esphome(argv):
@@ -2512,6 +2661,7 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
@@ -2543,10 +2693,11 @@ def run_esphome(argv):
         return 0
 
     # Bundle support: if the configuration is a .esphomebundle, extract it
-    # and rewrite conf_path to the extracted YAML config.
-    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+    # and rewrite conf_path to the extracted YAML config. The suffix check
+    # stays inline so the ordinary run never imports esphome.bundle.
+    if conf_path.name.lower().endswith(BUNDLE_EXTENSION):
+        from esphome.bundle import prepare_bundle_for_compile
 
-    if is_bundle_path(conf_path):
         _LOGGER.info("Extracting config bundle %s...", conf_path)
         conf_path = prepare_bundle_for_compile(conf_path)
         # Update the argument so downstream code sees the extracted path
@@ -2581,30 +2732,34 @@ def run_esphome(argv):
                 conf_path.name,
             )
 
-    if config is None:
+    cache_missed = config is None
+    if cache_missed:
+        from esphome.config import read_config
+
         config = read_config(
             command_line_substitutions,
             skip_external_update=skip_external,
+            # Snapshot only needed by `esphome config --no-defaults`.
+            snapshot_user_config=getattr(args, "no_defaults", False),
         )
-        # Refresh the cache so the next upload/logs hits the fast path
-        # instead of re-running read_config. Skip when the storage
-        # sidecar is absent (no compile has run): the cache would
-        # never be loaded back, so writing secrets to disk is wasted.
-        if cache_eligible and config is not None:
-            from esphome.compiled_config import save_compiled_config
-            from esphome.storage_json import ext_storage_path
-
-            if ext_storage_path(conf_path.name).exists():
-                save_compiled_config(config)
-    if config is None:
-        return 2
+        if config is None:
+            return 2
     CORE.config = config
 
     # Fallback for platforms whose validators didn't set the toolchain
     # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today.
+    # other platforms only support PlatformIO today. Must run before the
+    # cache refresh below so its sidecar records the same toolchain a
+    # compile would.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
+
+    # Refresh the cache so the next upload/logs hits the fast path
+    # instead of re-running read_config.
+    if cache_eligible and cache_missed:
+        from esphome.compiled_config import save_compiled_config_and_sidecar
+
+        save_compiled_config_and_sidecar(config)
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")
