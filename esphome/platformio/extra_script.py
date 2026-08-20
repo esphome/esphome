@@ -35,7 +35,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from esphome.platformio.library import ensure_list
+from esphome.core import EsphomeError
 
 if TYPE_CHECKING:
     from esphome.platformio.library import ConvertedLibrary
@@ -89,9 +89,17 @@ def apply_extra_script(
     extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
         return
-    flags = ensure_list(component.data.setdefault("build", {}).setdefault("flags", []))
-    flags.extend(extra_flags)
-    component.data["build"]["flags"] = flags
+    flags = component.data.setdefault("build", {}).setdefault("flags", [])
+    if isinstance(flags, str):
+        flags = [flags]
+    elif not isinstance(flags, list):
+        # A null/dict value coerced through a list wrapper would inject a
+        # non-string into the compiler command line; fail naming the library
+        raise EsphomeError(
+            f"Library {component.name} has a malformed build.flags "
+            f"({type(flags).__name__}); expected a string or list"
+        )
+    component.data["build"]["flags"] = [*flags, *extra_flags]
 
 
 # Keys we know how to translate back into ESPHome's build-flag pipeline.

@@ -103,7 +103,7 @@ def test_ccache_path_explicit_skips_probe(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers._ccache_runs", side_effect=AssertionError),
+        patch("esphome.build_helpers.ccache._ccache_runs", side_effect=AssertionError),
     ):
         assert framework.ccache_path() == "/usr/bin/ccache"
 
