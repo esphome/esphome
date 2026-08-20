@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import pytest
 
+from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import (
     RATETABLE_RULE,
     apply_testing_memory_patches,
     relocate_ratetable,
+    segment_length,
 )
 
 _COMMON_LD_SNIPPET = """\
@@ -49,39 +51,29 @@ def test_relocate_ratetable_requires_anchor() -> None:
 
 
 def test_testing_memory_patches_enlarge_segments() -> None:
-    patched = apply_testing_memory_patches(_FLASH_LD_SNIPPET, require=())
-    assert (
-        "iram1_0_seg :                         org = 0x40100000, len = 0x200000"
-        in patched
+    patched = apply_testing_memory_patches(
+        _FLASH_LD_SNIPPET, ("iram1_0_seg", "dram0_0_seg", "irom0_0_seg")
     )
-    assert (
-        "dram0_0_seg :                         org = 0x3FFE8000, len = 0x200000"
-        in patched
-    )
-    assert (
-        "irom0_0_seg :                         org = 0x40201010, len = 0x2000000"
-        in patched
-    )
+    assert segment_length(patched, "iram1_0_seg") == 0x200000
+    assert segment_length(patched, "dram0_0_seg") == 0x200000
+    assert segment_length(patched, "irom0_0_seg") == 0x2000000
+    # Untouched segments keep their sizes
+    assert segment_length(patched, "dport0_0_seg") == 0x10
 
 
 def test_segment_length() -> None:
-    from esphome.components.esp8266.build_surgery import segment_length
-
     assert segment_length(_FLASH_LD_SNIPPET, "irom0_0_seg") == 0xFEFF0
     assert segment_length(_FLASH_LD_SNIPPET, "missing_seg") is None
 
 
-def test_testing_memory_patches_require() -> None:
-    """A required segment the patch could not find raises instead of
-    silently keeping the real memory limits."""
-    patched = apply_testing_memory_patches(
-        _FLASH_LD_SNIPPET, require=("dram0_0_seg", "irom0_0_seg")
-    )
-    assert "0x2000000" in patched
-    with pytest.raises(RuntimeError, match="dram0_0_seg, irom0_0_seg"):
-        apply_testing_memory_patches(
-            "MEMORY { }", require=("dram0_0_seg", "irom0_0_seg")
-        )
-    # Segments a file does not require are patched opportunistically only
-    # With nothing required, unmatched content passes through unchanged
-    assert apply_testing_memory_patches("MEMORY { }", require=()) == "MEMORY { }"
+def test_testing_memory_patches_missing_segment_raises() -> None:
+    """A named segment the patch could not find raises instead of silently
+    keeping the real memory limits."""
+    with pytest.raises(RuntimeError, match="dram0_0_seg"):
+        apply_testing_memory_patches("MEMORY { }", ("dram0_0_seg",))
+
+
+def test_board_build_covers_every_board() -> None:
+    """Every supported board has native build metadata (the table may carry
+    extras that BOARDS does not expose)."""
+    assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
