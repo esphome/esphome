@@ -3,7 +3,7 @@ import encodings
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import BTLoggers, bt_uuid
 import esphome.config_validation as cv
 from esphome.config_validation import UNDEFINED
@@ -307,7 +307,7 @@ def create_device_information_service(config):
     return config
 
 
-def final_validate_config(config):
+def final_validate_config(config) -> None:
     # Validate max_clients does not exceed esp32_ble max_connections
     max_clients = config[CONF_MAX_CLIENTS]
     if max_clients > 1:
@@ -355,7 +355,6 @@ def final_validate_config(config):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
             )
-    return config
 
 
 def validate_value_type(value_config):
@@ -632,7 +631,7 @@ async def to_code(config):
         )
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    request_bluetooth()
 
 
 @automation.register_action(
