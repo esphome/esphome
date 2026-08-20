@@ -531,3 +531,12 @@ def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
     top = convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
 
     assert top[0].dependencies == []
+
+
+def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
+    """A malformed flags entry raises EsphomeError, not a raw ValueError."""
+    from esphome.platformio.library import split_flag_entry
+
+    assert split_flag_entry('-DX="a b"', "library x") == ["-DX=a b"]
+    with pytest.raises(EsphomeError, match=r"Malformed build flag.*library x"):
+        split_flag_entry('-DX="unclosed', "library x")

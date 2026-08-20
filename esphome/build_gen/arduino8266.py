@@ -19,7 +19,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import shlex
 import subprocess
 import sys
 
@@ -40,7 +39,7 @@ from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import join_flag_args
+from esphome.platformio.library import join_flag_args, split_flag_entry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -179,7 +178,7 @@ def _flag_defines() -> dict[str, str]:
         # Shell-lex multi-token entries the way PlatformIO does, so a knob
         # in "-DKNOB -DOTHER" is still detected; single tokens pass verbatim
         # to keep any quoting in their bodies intact.
-        for tok in shlex.split(flag) if " " in flag else (flag,):
+        for tok in split_flag_entry(flag, "esphome") if " " in flag else (flag,):
             if tok.startswith("-D"):
                 body = tok[2:]
                 defines[body.split("=", 1)[0]] = body
@@ -319,7 +318,7 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
         # they do under PlatformIO. Other entries pass verbatim: lexing them
         # would strip the quotes in defines like -DBOARD="...".
         tokens = (
-            join_flag_args(shlex.split(flag), "esphome")
+            join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
             if flag.startswith(("-L", "-l"))
             else [flag]
         )

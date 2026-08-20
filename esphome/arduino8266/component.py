@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
-import shlex
 
 from esphome.core import CORE, Library
 from esphome.espidf.extra_script import apply_extra_script
@@ -36,6 +35,7 @@ from esphome.platformio.library import (
     lib_ignore_set,
     normalize_dependencies,
     parse_library_properties,
+    split_flag_entry,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         (
             token
             for entry in ensure_list(build.get("flags", []))
-            for token in shlex.split(entry)
+            for token in split_flag_entry(entry, f"library {name}")
         ),
         f"library {name}",
     )

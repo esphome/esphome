@@ -553,6 +553,16 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
+def split_flag_entry(entry: str, owner: str) -> list[str]:
+    """``shlex.split`` with a clean error naming the offending flags entry."""
+    import shlex
+
+    try:
+        return shlex.split(entry)
+    except ValueError as err:
+        raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
+
+
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     """Join a bare ``-I``/``-L``/``-l`` with its following token (PIO lexing)."""
     out: list[str] = []

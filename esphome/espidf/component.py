@@ -28,6 +28,7 @@ from esphome.platformio.library import (
     convert_libraries,
     ensure_list,
     join_flag_args,
+    split_flag_entry,
     split_list_by_condition,
 )
 
@@ -62,10 +63,6 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
-    # Late import: this module loads with the esp32 platform on every
-    # validate/compile, but shlex is only needed when generating component
-    # CMakeLists.
-    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
@@ -107,7 +104,11 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
     # prefix classifiers below still route them.
     build_flags = join_flag_args(
-        (token for entry in build_flags for token in shlex.split(entry)),
+        (
+            token
+            for entry in build_flags
+            for token in split_flag_entry(entry, f"library {component.name}")
+        ),
         f"library {component.name}",
     )
 
