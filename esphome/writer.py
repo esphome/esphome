@@ -660,11 +660,17 @@ def clean_all(configuration: list[str]):
     # that live outside it.
     import platformdirs
 
+    from esphome.arduino8266.framework import get_arduino8266_tools_path
     from esphome.components.nrf52.framework import get_sdk_nrf_tools_path
     from esphome.espidf.framework import get_idf_tools_path
 
     cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
-    for install_path in (cache_root, get_idf_tools_path(), get_sdk_nrf_tools_path()):
+    for install_path in (
+        cache_root,
+        get_idf_tools_path(),
+        get_sdk_nrf_tools_path(),
+        get_arduino8266_tools_path(),
+    ):
         if install_path.is_dir():
             _LOGGER.info("Deleting %s", install_path)
             rmtree(install_path)
