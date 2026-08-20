@@ -21,7 +21,7 @@ def _entry(directory: str, file: str, command: str) -> dict:
     return {"directory": directory, "file": file, "command": command}
 
 
-def testparse_entry_extracts_fields() -> None:
+def test_parse_entry_extracts_fields() -> None:
     """cxx_path, defines, includes and remaining flags are split apart."""
     entry = _entry(
         f"{ABS}build",
@@ -45,7 +45,7 @@ def testparse_entry_extracts_fields() -> None:
     assert "app.cpp.o" not in cxx_flags
 
 
-def testparse_entry_space_separated_args() -> None:
+def test_parse_entry_space_separated_args() -> None:
     """``-D X`` / ``-I path`` (separate arg) and ``-isystem<path>`` (joined)."""
     entry = _entry(
         f"{ABS}build",
@@ -60,7 +60,7 @@ def testparse_entry_space_separated_args() -> None:
     assert f"{ABS}sys/joined" in includes
 
 
-def testparse_entry_resolves_relative_includes() -> None:
+def test_parse_entry_resolves_relative_includes() -> None:
     """Relative includes are resolved against the entry's ``directory``."""
     directory = f"{ABS}build/proj"
     entry = _entry(
@@ -83,7 +83,7 @@ def testparse_entry_resolves_relative_includes() -> None:
     assert all(Path(inc).is_absolute() for inc in includes)
 
 
-def testparse_entry_skips_dependency_flags() -> None:
+def test_parse_entry_skips_dependency_flags() -> None:
     """Dependency-generation flags (and their args) are dropped."""
     entry = _entry(
         "/build",
@@ -198,7 +198,7 @@ def test_idedata_from_build(tmp_path: Path) -> None:
     assert data["includes"]["toolchain"] == ["/tc/inc/c++", "/tc/inc"]
 
 
-def testget_toolchain_includes_raises_on_probe_failure() -> None:
+def test_get_toolchain_includes_raises_on_probe_failure() -> None:
     """A failed compiler probe is a hard error, not a silent empty list."""
     fake_proc = MagicMock(returncode=1, stderr="xtensa-esp32-elf-g++: not found")
     with (
@@ -208,7 +208,7 @@ def testget_toolchain_includes_raises_on_probe_failure() -> None:
         idedata.get_toolchain_includes("/bad/compiler")
 
 
-def testget_toolchain_includes_raises_when_no_dirs_found() -> None:
+def test_get_toolchain_includes_raises_when_no_dirs_found() -> None:
     """Markers present but no dirs (anomalous output) also raises."""
     fake_proc = MagicMock(
         returncode=0,
@@ -248,7 +248,7 @@ def test_split_command_empty_returns_empty() -> None:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
-def testparse_entry_normalizes_windows_cxx_path() -> None:
+def test_parse_entry_normalizes_windows_cxx_path() -> None:
     """A backslash compiler path is emitted forward-slashed; define unescaped."""
     entry = _entry(
         r"C:\b",
@@ -264,7 +264,7 @@ def testparse_entry_normalizes_windows_cxx_path() -> None:
     assert "C:/inc/a" in includes
 
 
-def testparse_entry_strips_launcher_prefix() -> None:
+def test_parse_entry_strips_launcher_prefix() -> None:
     """A launcher-wrapped compile names the compiler second; the exact
     configured launcher is stripped, not anything ccache-shaped."""
     entry = _entry(
@@ -279,14 +279,17 @@ def testparse_entry_strips_launcher_prefix() -> None:
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert defines == ["USE_ESP8266"]
     # Without a configured launcher nothing is stripped, even a token that
-    # happens to be named ccache -- but the surprise is warned about
+    # happens to be named ccache -- but the surprise is warned about (once
+    # per path, however many entries the compile DB has)
+    idedata._warn_not_a_compiler.cache_clear()
     cxx_path, _, _, _ = idedata.parse_entry(entry)
     assert cxx_path == "/opt/homebrew/bin/ccache"
 
 
-def testparse_entry_warns_when_first_token_is_not_a_compiler(
+def test_parse_entry_warns_when_first_token_is_not_a_compiler(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    idedata._warn_not_a_compiler.cache_clear()
     entry = _entry(
         f"{ABS}build",
         f"{ABS}build/src/esphome/core/application.cpp",
@@ -391,3 +394,11 @@ def test_load_or_build_idedata_rebuilds_non_dict_cache(tmp_path: Path) -> None:
             )
         assert isinstance(data, dict)
         assert "cc_path" in data
+
+
+def test_parse_entry_accepts_versioned_compilers() -> None:
+    """Versioned compiler names (g++-13, gcc-8.4.0) are not warned about."""
+    for stem in ("g++-13", "gcc-8.4.0", "clang++-17"):
+        assert idedata._COMPILER_STEM.search(stem)
+    assert not idedata._COMPILER_STEM.search("ccache")
+    assert not idedata._COMPILER_STEM.search("distcc")
