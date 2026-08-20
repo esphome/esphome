@@ -143,6 +143,12 @@ class _FakeSConsEnv:
     def Append(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
         for key, value in kwargs.items():
             if key not in _CAPTURED_KEYS:
+                # Diagnosable from the build log when a script configures
+                # something this shim does not translate
+                _LOGGER.warning(
+                    "PIO extra-script env.Append(%s=...) is not captured; ignoring",
+                    key,
+                )
                 continue
             items = list(value) if isinstance(value, (list, tuple)) else [value]
             bucket = getattr(self.result, key.lower())
@@ -152,7 +158,7 @@ class _FakeSConsEnv:
 
     def __getattr__(self, name: str):
         def _noop(*args, **kwargs):
-            return None
+            _LOGGER.debug("PIO extra-script env.%s(...) is a no-op here", name)
 
         return _noop
 
@@ -173,9 +179,10 @@ def run_extra_script(
     process CWD so relative-path lookups (``join``, ``realpath``,
     ``open``) resolve against the library tree.
 
-    On any exception inside the script we warn and return whatever the
-    script captured before failing — extra-scripts are best-effort, and an
-    unsupported script shouldn't block the build.
+    On any exception inside the script we warn and return an empty result
+    (never a partial capture, which could build wrong-output firmware) —
+    extra-scripts are best-effort, and an unsupported script shouldn't
+    block the build.
     """
     env = _FakeSConsEnv(
         board_mcu=board_mcu,
@@ -200,15 +207,16 @@ def run_extra_script(
             },
         )
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Keep what the script captured before failing: dropping flags it
-        # already appended would fail later at link time, far from the cause
+        # Discard any partial capture: folding half a script's flags into the
+        # build could produce wrong-output firmware that links cleanly. The
+        # warning plus the resulting loud link error point back here.
         _LOGGER.warning(
-            "PIO extra-script %s (in %s) raised %s; keeping the partial capture",
+            "PIO extra-script %s (in %s) raised %s; ignoring its output",
             script_path,
             library_dir.name,
             e,
         )
-        return env.result
+        return ExtraScriptResult()
     finally:
         os.chdir(old_cwd)
     return env.result
