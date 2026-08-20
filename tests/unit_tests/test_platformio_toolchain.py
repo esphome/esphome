@@ -1977,3 +1977,10 @@ def test_run_platformio_cli_invokes_heal(
     with patch.object(toolchain, "heal_platformio_python_env") as mock_heal:
         toolchain.run_platformio_cli("test")
     mock_heal.assert_called_once()
+
+
+def test_ccache_probe_spawns_with_close_fds_false() -> None:
+    """The probe follows the repo-wide posix_spawn convention."""
+    with patch("subprocess.run") as mock_run:
+        assert toolchain._ccache_runs("/usr/bin/ccache") is True
+    assert mock_run.call_args.kwargs["close_fds"] is False
