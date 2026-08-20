@@ -222,6 +222,8 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         "-Wl,--wrap=millis",
         "-Wl,--wrap=printf",
         "-Wno-nonnull-compare",
+        "-L/opt/blobs",
+        "-luser_blob",
     )
     content = _write_ninja(paths)
 
@@ -247,11 +249,19 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "-T eagle.flash.4m.ld" in content
     # scanf float disabled: the forced-link flag must not appear
     assert "_scanf_float" not in content
+    # -L/-l from esphome build_flags reach the link line, not the compiles
+    assert '-L"/opt/blobs"' in content
+    assert "-luser_blob" in content
+    assert "cflags" not in [
+        line.split(" = ")[0].strip()
+        for line in content.splitlines()
+        if "user_blob" in line
+    ]
     # System libraries with the selected lwIP variant, in the builder's order
     assert (
         "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
-        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -lstdc++ -lm -lc -lgcc"
-        in content
+        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -luser_blob "
+        "-lstdc++ -lm -lc -lgcc" in content
     )
     # Core exclusions: native OTA backend and waveform stubs
     assert "Updater.cpp" not in content
@@ -511,3 +521,12 @@ def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
     _set_flags()
     with pytest.raises(EsphomeError, match="incomplete.*lwip2"):
         _write_ninja(paths)
+
+
+def test_build_config_nonosdk_precedence() -> None:
+    """With two SDK knobs set, the first table entry wins (documented order)."""
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
+        "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
+    )
+    assert _resolve_build_config(_flag_defines()).nonosdk == "NONOSDK221"

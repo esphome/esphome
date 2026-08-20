@@ -56,13 +56,6 @@ ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
 ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS", "")
 )
-# Default ninja source; downloads from it verify against _NINJA_SHA256.
-_NINJA_URL = (
-    "https://github.com/ninja-build/ninja/releases/download/v{VERSION}/{ARCHIVE}"
-)
-ESPHOME_ARDUINO8266_NINJA_MIRRORS = str_to_lst_of_str(
-    os.environ.get("ESPHOME_ARDUINO8266_NINJA_MIRRORS", "")
-)
 
 
 def get_arduino8266_tools_path() -> Path:
@@ -143,6 +136,9 @@ def _registry_download(
             continue
         for file in ver.get("files", []):
             systems = file.get("system") or "*"
+            # A bare string would make ``in`` a substring test
+            if isinstance(systems, str) and systems != "*":
+                systems = [systems]
             if systems == "*" or system in systems:
                 return (
                     file["download_url"],
@@ -240,20 +236,27 @@ def get_build_env(toolchain_path: Path) -> dict[str, str]:
 def ccache_path() -> str | None:
     """The ccache binary to prefix compiles with, or None when disabled.
 
-    Same opt-out convention as the PlatformIO path: on by default when the
-    binary is on PATH, ``ESPHOME_CCACHE_ENABLE=0`` disables it.
+    Same convention as the PlatformIO path: on by default when the binary is
+    on PATH, ``ESPHOME_CCACHE_ENABLE=0`` disables it, and an explicit ``=1``
+    warns when no binary is found and skips the runnability probe.
     """
     from esphome.platformio.toolchain import _ccache_runs, _strip_win_long_path_prefix
 
-    if "ESPHOME_CCACHE_ENABLE" in os.environ and not get_bool_env(
-        "ESPHOME_CCACHE_ENABLE"
-    ):
+    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
+    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
         return None
     ccache = shutil.which("ccache")
     if ccache is None:
+        if explicit:
+            _LOGGER.warning(
+                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
+                "compiling without ccache"
+            )
         return None
     ccache = _strip_win_long_path_prefix(ccache)
-    return ccache if _ccache_runs(ccache) else None
+    if not explicit and not _ccache_runs(ccache):
+        return None
+    return ccache
 
 
 def ccache_env() -> dict[str, str]:

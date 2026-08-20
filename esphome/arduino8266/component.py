@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 import shlex
 
-from esphome.core import CORE, Library
+from esphome.core import CORE, EsphomeError, Library
 from esphome.espidf.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
@@ -100,6 +100,12 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     for d in [include_dir, src_dir, *include_flags]:
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
+        elif d in include_flags:
+            # The includeDir/srcDir defaults are probes; an explicit -I that
+            # does not resolve is a manifest or packaging error worth naming
+            _LOGGER.warning(
+                "Library %s declares include dir %s which does not exist", name, d
+            )
 
     lib.sources = sorted(
         path.resolve()
@@ -134,12 +140,11 @@ def resolve_libraries(framework_path: Path) -> list[ArduinoLibrary]:
         elif (framework_path / "libraries" / library.name).is_dir():
             bundled.append(_bundled_library(framework_path, library.name))
         else:
-            # Likely a typo or a library the build genuinely needs; a debug
-            # log here would surface only as a wall of include errors later.
-            _LOGGER.warning(
-                "Library %s is not bundled with the Arduino framework and has "
-                "no version or repository to download it from; skipping",
-                library.name,
+            # PlatformIO fails on an unresolvable lib_deps entry too; building
+            # without it would only surface as unrelated include/link errors.
+            raise EsphomeError(
+                f"Library {library.name} is not bundled with the Arduino "
+                "framework and has no version or repository to download it from"
             )
 
     converted: list[ArduinoLibrary] = []

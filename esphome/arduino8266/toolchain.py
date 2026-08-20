@@ -144,8 +144,13 @@ def _print_size_summary(build_dir: Path, toolchain_path: Path) -> None:
             try:
                 sections[parts[0]] = int(parts[1])
             except ValueError:
-                # An omitted section would silently skew the reported totals
-                _LOGGER.warning("Unparsable size output for section %s", parts[0])
+                # A confident total built on a dropped section would feed a
+                # wrong number to CI's memory-impact metric; skip the summary.
+                _LOGGER.warning(
+                    "Unparsable size output for section %s; skipping the size summary",
+                    parts[0],
+                )
+                return
     ram = sum(sections.get(s, 0) for s in _RAM_SECTIONS)
     flash = sum(sections.get(s, 0) for s in _FLASH_SECTIONS)
     print(f"RAM:   {format_bar(ram, _MAX_RAM_SIZE)}")

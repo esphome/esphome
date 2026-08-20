@@ -93,15 +93,21 @@ def test_library_info_no_src_dir(tmp_path: Path) -> None:
     assert lib.include_dirs == [read_path.resolve()]
 
 
-def test_resolve_libraries_bundled_and_unknown(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_resolve_libraries_bundled(tmp_path: Path) -> None:
     framework = _make_framework(tmp_path)
     _add_library("ESP8266WiFi", None)
-    _add_library("Typoo", None)  # unknown bare name: skipped with a warning
     libs = component.resolve_libraries(framework)
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
-    assert "Typoo" in caplog.text
+
+
+def test_resolve_libraries_unknown_bare_name_raises(tmp_path: Path) -> None:
+    """An unresolvable library fails the build by name, as PlatformIO does."""
+    from esphome.core import EsphomeError
+
+    framework = _make_framework(tmp_path)
+    _add_library("Typoo", None)
+    with pytest.raises(EsphomeError, match="Typoo"):
+        component.resolve_libraries(framework)
 
 
 def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:
@@ -205,3 +211,13 @@ def test_library_info_trailing_bare_flag_warns(
     assert lib.flags == ["-DA=1"]
     assert lib.link_libs == []
     assert "Ignoring trailing '-l'" in caplog.text
+
+
+def test_library_info_missing_explicit_include_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    lib = component._library_info("x", read_path, {"build": {"flags": ["-Inope"]}})
+    assert lib.include_dirs == [(read_path / "src").resolve()]
+    assert "include dir nope which does not exist" in caplog.text

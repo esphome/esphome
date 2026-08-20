@@ -87,6 +87,21 @@ def test_registry_download_matches_system() -> None:
         )
 
 
+def test_registry_download_bare_string_system() -> None:
+    """A bare-string system tag is an exact match, not a substring test."""
+    resp = _registry_response(
+        [
+            {"system": "linux_x86", "download_url": "http://x/x86"},
+            {"system": "linux_x86_64", "download_url": "http://x/x86_64"},
+        ]
+    )
+    with (
+        patch("requests.get", return_value=resp),
+        patch.object(framework, "_pio_system", return_value="linux_x86_64"),
+    ):
+        assert framework._registry_download("pkg", "1.0.0")[0] == "http://x/x86_64"
+
+
 def test_registry_download_wildcard_system() -> None:
     resp = _registry_response([{"system": "*", "download_url": "http://x/any"}])
     with patch("requests.get", return_value=resp):
@@ -239,6 +254,25 @@ def test_ccache_path_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch("subprocess.run"),
+    ):
+        assert framework.ccache_path() == "/usr/bin/ccache"
+
+
+def test_ccache_path_explicit_missing_binary_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
+    with patch("shutil.which", return_value=None):
+        assert framework.ccache_path() is None
+    assert "no ccache binary is on PATH" in caplog.text
+
+
+def test_ccache_path_explicit_skips_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit opt-in trusts the binary without the runnability probe."""
+    monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
+    with (
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.platformio.toolchain._ccache_runs", side_effect=AssertionError),
     ):
         assert framework.ccache_path() == "/usr/bin/ccache"
 

@@ -183,6 +183,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     for name, define in _NONOSDK_VERSIONS:
         if f"PIO_FRAMEWORK_ARDUINO_ESPRESSIF_{name}" in defines:
             nonosdk = define
+            break
 
     tcp_mss, features, ipv6, lwip_lib = _LWIP_DEFAULT
     for knob, variant in _LWIP_VARIANTS:
@@ -291,18 +292,30 @@ def _defines_flags(
     ]
 
 
-def _project_flags() -> tuple[list[str], list[str]]:
-    """Split the ESPHome build flags into (compile, linker) lists.
+def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
+    """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
     Unlike ``framework_helpers.get_project_compile_flags`` this keeps every
     non-linker flag, matching how PlatformIO passes ``build_flags`` to the
-    compiler verbatim, and applies ``build_unflags``.
+    compiler verbatim, and applies ``build_unflags``. ``-L``/``-l`` are
+    classified out so they reach the link line as they do under PlatformIO.
     """
     unflags = set(CORE.build_unflags)
     flags = [f for f in sorted(CORE.build_flags) if f not in unflags]
-    compile_flags = [f for f in flags if not f.startswith("-Wl,")]
-    link_flags = [f for f in flags if f.startswith("-Wl,")]
-    return compile_flags, link_flags
+    compile_flags: list[str] = []
+    link_flags: list[str] = []
+    lib_dirs: list[Path] = []
+    libs: list[str] = []
+    for flag in flags:
+        if flag.startswith("-Wl,"):
+            link_flags.append(flag)
+        elif flag.startswith("-L") and len(flag) > 2:
+            lib_dirs.append(Path(flag[2:]))
+        elif flag.startswith("-l") and len(flag) > 2:
+            libs.append(flag[2:])
+        else:
+            compile_flags.append(flag)
+    return compile_flags, link_flags, lib_dirs, libs
 
 
 def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
@@ -444,7 +457,12 @@ def write_project(paths: dict[str, Path]) -> bool:
     for lib in libraries:
         include_dirs += lib.include_dirs
 
-    project_compile_flags, project_link_flags = _project_flags()
+    (
+        project_compile_flags,
+        project_link_flags,
+        project_lib_dirs,
+        project_libs,
+    ) = _project_flags()
     defines = _defines_flags(
         config, esp8266_data[KEY_FLASH_MODE], board, board_build["defines"]
     )
@@ -470,12 +488,14 @@ def write_project(paths: dict[str, Path]) -> bool:
     link_flags += ["-T", flash_ld]
 
     lib_dirs = [Path("ld"), sdk / "lib", sdk / "ld", sdk / "lib" / config.nonosdk]
+    lib_dirs += project_lib_dirs
     for lib in libraries:
         lib_dirs += lib.link_dirs
     system_libs = (
         _SYSTEM_LIBS_PRE_LWIP
         + [config.lwip_lib]
         + _SYSTEM_LIBS_POST_LWIP
+        + project_libs
         + [lib_name for lib in libraries for lib_name in lib.link_libs]
         + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
     )

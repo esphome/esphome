@@ -27,7 +27,6 @@ section       size    addr
 .text1        27489   1074790896
 .rodata       2588    1073645504
 .bss          26504   1073648096
-.comment      abc     0
 Total         401861
 """
 
@@ -222,3 +221,20 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     # Present compile DB + unchanged build.ninja: skipped
     (build_dir / "compile_commands.json").write_text("[]")
     run(regenerate_expected=False)
+
+
+def test_print_size_summary_unparsable_section_skips_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A section that fails to parse must not produce a confident wrong total."""
+    bad = _SIZE_OUTPUT + ".broken   abc   0\n"
+    with patch.object(
+        toolchain.subprocess,
+        "run",
+        return_value=MagicMock(returncode=0, stdout=bad),
+    ):
+        toolchain._print_size_summary(tmp_path, tmp_path / "toolchain")
+    assert capsys.readouterr().out == ""
+    assert "Unparsable size output" in caplog.text
