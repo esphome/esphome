@@ -224,7 +224,7 @@ def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
     c.data = {"build": {"extraScript": "extra.py"}}
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
     assert "flags" not in c.data["build"]
-    assert "keeping the partial capture" in caplog.text
+    assert "ignoring its output" in caplog.text
 
 
 def test_apply_extra_script_pio_platform(tmp_path) -> None:
@@ -252,8 +252,9 @@ def test_apply_extra_script_missing_script_logged(tmp_path, caplog) -> None:
     assert "not found" in caplog.text
 
 
-def test_run_extra_script_keeps_partial_capture(tmp_path, caplog) -> None:
-    """Flags appended before a script fails are kept, not dropped."""
+def test_run_extra_script_failure_discards_partial_capture(tmp_path, caplog) -> None:
+    """A crashed script yields an empty result: half-applied flags could
+    build wrong-output firmware that links cleanly."""
     from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
@@ -261,8 +262,8 @@ def test_run_extra_script_keeps_partial_capture(tmp_path, caplog) -> None:
     result = run_extra_script(
         script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
     )
-    assert result.libs == ["algobsec"]
-    assert "keeping the partial capture" in caplog.text
+    assert result.libs == []
+    assert "ignoring its output" in caplog.text
 
 
 def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
@@ -276,4 +277,4 @@ def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
         script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
     )
     assert result.libs == []
-    assert "keeping the partial capture" in caplog.text
+    assert "ignoring its output" in caplog.text
