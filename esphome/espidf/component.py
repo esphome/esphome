@@ -27,8 +27,7 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
-    join_flag_args,
-    split_flag_entry,
+    lex_build_flags,
     split_list_by_condition,
 )
 
@@ -107,14 +106,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # flag and its argument (e.g. "-include cp_custom_alloc.h"); bare
     # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
     # prefix classifiers below still route them.
-    build_flags = join_flag_args(
-        (
-            token
-            for entry in build_flags
-            for token in split_flag_entry(entry, f"library {component.name}")
-        ),
-        f"library {component.name}",
-    )
+    build_flags = lex_build_flags(build_flags, f"library {component.name}")
 
     # List all sources files
     build_src_files = collect_filtered_files(
