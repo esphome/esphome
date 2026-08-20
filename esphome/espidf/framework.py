@@ -11,9 +11,9 @@ import re
 import shutil
 from typing import Any, NoReturn
 
-import platformdirs
-
-from esphome.core import CORE, Version
+from esphome.build_helpers.ccache import ccache_defaults_env
+from esphome.build_helpers.tools_cache import tools_cache_path
+from esphome.core import Version
 from esphome.framework_helpers import (
     PathType,
     archive_extract_all,
@@ -27,7 +27,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.helpers import get_bool_env, get_str_env, write_file_if_changed
+from esphome.helpers import get_bool_env, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,22 +88,10 @@ def get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
-    # resolves to the CWD, which would install into (and let clean-all delete)
-    # the working directory by accident.
-    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
-        path = Path(prefix).expanduser()
-    else:
-        # Machine-global so all projects share the multi-GB install instead of
-        # a per-config-directory copy. The user cache dir (not ~/.esphome)
-        # avoids colliding with data_dir when configs live in the home dir.
-        # appauthor=False drops the redundant <author>\ segment on Windows
-        # (which otherwise repeats "esphome\esphome\") to keep the path short.
-        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
-    # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
-    # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
-    # otherwise warns that the venv interpreter path doesn't match the install.
-    return path.resolve()
+    # Machine-global so all projects share the multi-GB install instead of
+    # a per-config-directory copy; see build_helpers.tools_cache.tools_cache_path
+    # for the env-override and normalization rules.
+    return tools_cache_path("ESPHOME_ESP_IDF_PREFIX", "idf")
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
@@ -1169,25 +1157,12 @@ def _ccache_env() -> dict[str, str]:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
 
-    # ccache is enabled past here. build_path is set during preload for every
-    # config-loading command, so it being unset means a caller built the IDF env
-    # too early -- fail loudly rather than silently drop CCACHE_BASEDIR (which
-    # would quietly cost cross-device cache hits).
-    if CORE.build_path is None:
-        raise ValueError(
-            "CORE.build_path must be set before constructing the ESP-IDF build "
-            "environment"
-        )
-
-    defaults = {
-        "IDF_CCACHE_ENABLE": "1",
-        "CCACHE_DIR": str(get_idf_tools_path() / "ccache"),
-        "CCACHE_NOHASHDIR": "true",
-        "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
-    }
-    # Don't override CCACHE_* values the user already set in their environment.
-    return {k: v for k, v in defaults.items() if k not in os.environ}
+    # ccache is enabled past here; the shared helper carries the CCACHE_*
+    # policy (and the fail-loud build_path guard).
+    env = ccache_defaults_env(get_idf_tools_path() / "ccache")
+    if "IDF_CCACHE_ENABLE" not in os.environ:
+        env["IDF_CCACHE_ENABLE"] = "1"
+    return env
 
 
 def get_framework_env(

@@ -431,8 +431,8 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
     ):
         env = toolchain._ccache_env()
 
@@ -469,7 +469,7 @@ def test_ccache_env_disabled_without_binary(
 
     with (
         patch.dict(os.environ, env_vars, clear=True),
-        patch.object(toolchain.shutil, "which", return_value=None),
+        patch("shutil.which", return_value=None),
         caplog.at_level("WARNING"),
     ):
         env = toolchain._ccache_env()
@@ -494,8 +494,8 @@ def test_ccache_env_disabled_when_probe_fails(
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run", side_effect=probe_error),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run", side_effect=probe_error),
     ):
         env = toolchain._ccache_env()
 
@@ -508,8 +508,8 @@ def test_ccache_env_forced_on_skips_probe(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run") as mock_probe,
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run") as mock_probe,
     ):
         env = toolchain._ccache_env()
 
@@ -538,8 +538,8 @@ def test_ccache_env_strips_win_long_path_prefix(setup_core: Path) -> None:
         # shutil.which is patched, so the win32 code path of the real
         # implementation (which crashes on a POSIX host) is never reached.
         patch("esphome.platformio.toolchain.sys.platform", "win32"),
-        patch.object(toolchain.shutil, "which", return_value=prefixed),
-        patch.object(toolchain.subprocess, "run") as mock_probe,
+        patch("shutil.which", return_value=prefixed),
+        patch("esphome.framework_helpers.subprocess.run") as mock_probe,
     ):
         env = toolchain._ccache_env()
 
@@ -555,7 +555,7 @@ def test_ccache_env_opt_out(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
     ):
         env = toolchain._ccache_env()
 
@@ -568,7 +568,7 @@ def test_ccache_env_normalizes_enable_value(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "yes"}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
     ):
         env = toolchain._ccache_env()
 
@@ -587,8 +587,8 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
 
     with (
         patch.dict(os.environ, user_env, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
     ):
         env = toolchain._ccache_env()
 
@@ -606,8 +606,8 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         mock_run_external_process.return_value = 0
@@ -628,8 +628,8 @@ def test_ccache_env_requires_build_path(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
         pytest.raises(ValueError, match="CORE.build_path must be set"),
     ):
         toolchain._ccache_env()
@@ -642,8 +642,8 @@ def test_run_platformio_cli_merges_caller_env(
     CORE.build_path = str(setup_core / "build" / "test")
 
     with (
-        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
-        patch.object(toolchain.subprocess, "run"),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
     ):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli(
@@ -800,9 +800,7 @@ def test_ccache_env_real_probe_runs_stripped_path(setup_core: Path) -> None:
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch.object(
-            toolchain.shutil, "which", return_value="\\\\?\\" + sys.executable
-        ),
+        patch("shutil.which", return_value="\\\\?\\" + sys.executable),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         env = toolchain._ccache_env()
@@ -874,7 +872,7 @@ def test_strip_win_long_path_prefix(
 ) -> None:
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
     with patch("esphome.platformio.toolchain.sys.platform", platform):
-        assert toolchain._strip_win_long_path_prefix(input_path) == expected
+        assert toolchain.strip_win_long_path_prefix(input_path) == expected
 
 
 def test_run_platformio_cli_strips_win_long_path_prefix(
