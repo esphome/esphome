@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+i2c:
+  sda: 21
+  scl: 22
+
+output:
+  - platform: ledc
+    id: ledc_out
+    pin: 25
+  - platform: ac_dimmer
+    id: dimmer_out
+    gate_pin: 26
+    zero_cross_pin: 27
+
+mqtt:
+  broker: "10.0.0.1"
+
+http_request:
+  verify_ssl: false
+
+web_server:
+  version: 3

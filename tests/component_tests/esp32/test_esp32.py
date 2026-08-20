@@ -236,6 +236,33 @@ def test_esp32_configuration_errors(
         FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
 
 
+def test_default_exclusions_reincluded_by_owning_components(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Components whose IDF driver is excluded by default must re-include it
+    during codegen; a dropped include_builtin_idf_component() call would only
+    surface as a missing-header failure in a full compile job."""
+    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
+
+    generate_main(component_config_path("exclusion_reincludes.yaml"))
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+    for name in (
+        "esp_driver_i2c",  # i2c
+        "esp_driver_ledc",  # ledc
+        "esp_driver_gptimer",  # ac_dimmer
+        "esp-tls",  # http_request, mqtt, web_server_idf
+        "esp_http_client",  # http_request
+        "mqtt",  # mqtt
+    ):
+        assert name not in excluded, f"{name} should have been re-included"
+
+    # Components no part of this config touches stay excluded.
+    assert "unity" in excluded
+    assert "fatfs" in excluded
+
+
 def test_execute_from_psram_s3_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

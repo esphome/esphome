@@ -215,14 +215,14 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
-    "esp-tls",  # TLS wrapper - only needed by http_request (re-included there)
+    "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_gptimer",  # General purpose timer - only needed by ac_dimmer, opentherm
     "esp_driver_i2c",  # I2C driver - only needed by i2c component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
-    "esp_driver_ledc",  # LEDC PWM driver - only needed by ledc component
+    "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
     "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
