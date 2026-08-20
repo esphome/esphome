@@ -234,6 +234,8 @@ bool str_contains_ignore_case_fallback(const char *haystack, const char *needle)
 }
 
 #ifdef USE_ESP8266
+// _P mirror of str_contains_ignore_case_fallback above; host tests cover only the fallback,
+// so keep the two bodies in sync.
 bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
   if (haystack == nullptr || needle == nullptr) {
     return false;
