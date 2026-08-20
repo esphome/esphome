@@ -1,5 +1,6 @@
 from esphome.const import __version__
 from esphome.core import CORE
+from esphome.framework_helpers import get_project_cmake_args
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
 from esphome.writer import find_begin_end
 
@@ -63,12 +64,14 @@ def get_ini_content():
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
 
-    # Add CMake args
-    if CORE.cmake_args:
-        cmake_extra_args = " ".join(
-            f"-D{name}={value}" for name, value in sorted(CORE.cmake_args.items())
+    # Add CMake args. Written directly instead of via add_platformio_option:
+    # a user-supplied value is deliberately overwritten (it always was, at
+    # FINAL priority), and it may be a list, which add_platformio_option
+    # would try to append to and assert on the string value.
+    if cmake_args := get_project_cmake_args():
+        CORE.platformio_options["board_build.cmake_extra_args"] = " ".join(
+            f"-D{name}={value}" for name, value in cmake_args
         )
-        CORE.add_platformio_option("board_build.cmake_extra_args", cmake_extra_args)
 
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"

@@ -700,7 +700,11 @@ def add_build_flag(build_flag: str):
 
 
 def add_cmake_arg(name: str, value: str) -> None:
-    """Add a CMake arg for CMake-based toolchains."""
+    """Add a CMake arg for CMake-based toolchains.
+
+    The value must not contain whitespace or quotes; see
+    ``EsphomeCore.add_cmake_arg`` for the exact restrictions.
+    """
     CORE.add_cmake_arg(name, value)
 
 

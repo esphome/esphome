@@ -1066,7 +1066,24 @@ class EsphomeCore:
         return build_flag
 
     def add_cmake_arg(self, name: str, value: str) -> None:
-        self.cmake_args[name] = str(value)
+        """Register a CMake variable for CMake-based toolchains.
+
+        The value must not contain whitespace or quotes: the PlatformIO
+        backend passes all args to CMake as a single space-joined string
+        of ``-DNAME=VALUE`` pairs.
+        """
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError(f"Invalid CMake arg name: {name!r}")
+        if re.search(r"[\s\"']", value):
+            raise ValueError(
+                f"CMake arg {name} value {value!r} must not contain whitespace or quotes"
+            )
+        old = self.cmake_args.get(name)
+        if old is not None and old != value:
+            _LOGGER.warning(
+                "CMake arg %s already set to %s; overwriting with %s", name, old, value
+            )
+        self.cmake_args[name] = value
         _LOGGER.debug("Adding CMake arg: %s=%s", name, value)
 
     def add_cxx_build_flag(self, build_flag: str) -> str:
