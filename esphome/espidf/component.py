@@ -43,10 +43,14 @@ def _idf_framework() -> str:
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
-    from esphome.build_helpers.extra_script import apply_extra_script
     from esphome.components.esp32 import get_esp32_variant
+    from esphome.platformio.extra_script import apply_extra_script
 
-    apply_extra_script(component, lambda: variant_to_idf_target(get_esp32_variant()))
+    apply_extra_script(
+        component,
+        board_mcu=lambda: variant_to_idf_target(get_esp32_variant()),
+        pio_platform="espressif32",
+    )
 
 
 def generate_cmakelists_txt(component: IDFComponent) -> str:
