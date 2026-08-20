@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     full_config = fv.full_config.get()
     if not any(name in full_config for name in _USB_CLASS_COMPONENTS):
         raise cv.Invalid(
@@ -75,7 +75,6 @@ def _final_validate(config):
             "USB_SERIAL_JTAG on variants that support it "
             "(ESP32-S3, ESP32-S31, ESP32-P4, ESP32-H4)"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

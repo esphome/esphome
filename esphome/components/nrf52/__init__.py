@@ -473,6 +473,9 @@ def copy_files() -> None:
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"

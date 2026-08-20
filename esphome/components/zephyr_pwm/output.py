@@ -102,9 +102,8 @@ def _allocate_blocks() -> None:
     _get_data().pwm_blocks = pwm_blocks
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     _allocate_blocks()
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

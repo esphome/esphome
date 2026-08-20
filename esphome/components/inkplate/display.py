@@ -146,13 +146,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_cpu_frequency(config):
+def _validate_cpu_frequency(config) -> None:
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
         raise cv.Invalid(
             "Inkplate requires 240MHz CPU frequency (set in esp32 component)"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _validate_cpu_frequency

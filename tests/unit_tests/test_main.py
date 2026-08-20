@@ -25,6 +25,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _split_network_devices,
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
@@ -2879,7 +2880,9 @@ def test_upload_program_ota_with_mqtt_resolution(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
@@ -2926,7 +2929,9 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     assert exit_code == 0
     assert host == "192.168.1.50"
     # Verify MQTT was attempted but failed gracefully
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
     # Verify we fell back to the IP address
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
@@ -3015,7 +3020,10 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+        CORE.config,
+        ["192.168.1.100", "192.168.1.101"],
+        subscribe_states=True,
+        mqtt_resolver=None,
     )
 
 
@@ -3042,7 +3050,7 @@ def test_show_logs_api_no_states(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=False
+        CORE.config, ["192.168.1.100"], subscribe_states=False, mqtt_resolver=None
     )
 
 
@@ -3069,7 +3077,7 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["device.example.com"], subscribe_states=True
+        CORE.config, ["device.example.com"], subscribe_states=True, mqtt_resolver=None
     )
 
 
@@ -3097,9 +3105,44 @@ def test_show_logs_api_with_mqtt_fallback(
     result = show_logs(CORE.config, args, devices)
 
     assert result == 0
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
+    )
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.200"], subscribe_states=True
+        CORE.config, ["192.168.1.200"], subscribe_states=True, mqtt_resolver=None
+    )
+
+
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_api_mqtt_only_resolve_failure_falls_back_to_mqtt_logs(
+    mock_mqtt_show_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """With no addresses at all after a failed MQTT lookup, MQTT logging is used."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_mqtt_show_logs.return_value = 0
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+
+    args = MockArgs(
+        topic="esphome/logs", username="user", password="pass", client_id="client"
+    )
+    devices = ["MQTT", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
+    )
+    mock_mqtt_show_logs.assert_called_once_with(
+        CORE.config, "esphome/logs", "user", "pass", "client"
     )
 
 
@@ -3466,7 +3509,9 @@ def test_mqtt_get_ip() -> None:
         result = mqtt_get_ip(config, "user", "pass", "client-id")
 
         assert result == ["192.168.1.100", "192.168.1.101"]
-        mock_get_ip.assert_called_once_with(config, "user", "pass", "client-id")
+        mock_get_ip.assert_called_once_with(
+            config, "user", "pass", "client-id", stop_event=None
+        )
 
 
 def test_has_resolvable_address() -> None:
@@ -3845,6 +3890,37 @@ def test_resolve_network_devices_keeps_uncached_hosts(tmp_path: Path) -> None:
     )
 
     assert result == ["unknown.local", "192.168.1.50"]
+
+
+def test_split_network_devices_direct_only(tmp_path: Path) -> None:
+    """Direct addresses pass through deduped, with no MQTT flag."""
+    setup_core(tmp_path=tmp_path)
+
+    assert _split_network_devices(["192.168.1.50", "device.local", "192.168.1.50"]) == (
+        ["192.168.1.50", "device.local"],
+        False,
+    )
+
+
+def test_split_network_devices_mqtt_only(tmp_path: Path) -> None:
+    """MQTT magic strings produce no direct addresses, only the flag."""
+    setup_core(tmp_path=tmp_path)
+
+    assert _split_network_devices(["MQTTIP", "MQTT"]) == ([], True)
+
+
+def test_split_network_devices_expands_cached_mdns_hosts(tmp_path: Path) -> None:
+    """Hostnames in ``CORE.address_cache`` are expanded like _resolve_network_devices."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache(
+        mdns_cache={
+            "device-abc123.local": ["10.0.0.1", "10.0.0.2"],
+        }
+    )
+
+    assert _split_network_devices(
+        ["device-abc123.local", "MQTTIP", "192.168.1.50", "device-abc123.local"]
+    ) == (["10.0.0.1", "10.0.0.2", "192.168.1.50"], True)
 
 
 def test_await_discovery_timeout_returns_empty(
@@ -5022,7 +5098,9 @@ def test_upload_program_ota_static_ip_with_mqttip(
     assert host == "192.168.1.100"
 
     # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with both IPs
     expected_firmware = (
@@ -5069,7 +5147,9 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
     assert host == "192.168.2.50"
 
     # Verify MQTT was only resolved once despite multiple MQTT magic strings
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with all unique IPs
     expected_firmware = (
@@ -5116,7 +5196,9 @@ def test_upload_program_ota_mqttip_deduplication(
     assert host == "192.168.1.100"
 
     # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with deduplicated IPs (only one instance of 192.168.1.100)
     # Note: Current implementation doesn't dedupe, so we'll get the IP twice
@@ -5136,7 +5218,9 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     This tests the scenario where a device has manual_ip (static IP) configured
     and MQTT is also configured. The devices list contains both the static IP
-    and "MQTTIP" magic string.
+    and "MQTTIP" magic string. The MQTT lookup must not block startup; it is
+    handed to run_logs as a deferred resolver instead (issue #18311), while
+    still being reachable as a fallback for a stale static IP.
     """
     setup_core(
         config={
@@ -5157,12 +5241,19 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     assert result == 0
 
-    # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    # The broker must not be contacted before run_logs starts
+    mock_mqtt_get_ip.assert_not_called()
 
-    # Verify run_logs was called with both IPs
-    mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
+    # run_logs gets the static IP immediately plus a deferred MQTT resolver
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
+    assert mock_run_logs.call_args.kwargs["subscribe_states"] is True
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+
+    # Invoking the resolver performs the MQTT lookup (the #11260 fallback)
+    assert resolver(None) == ["192.168.2.50"]
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -5171,7 +5262,7 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
 ) -> None:
-    """Test that MQTT resolution only happens once for show_logs with multiple MQTT magic strings."""
+    """Test that multiple MQTT magic strings collapse into one deferred resolver."""
     setup_core(
         config={
             "logger": {},
@@ -5191,16 +5282,16 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
 
     assert result == 0
 
-    # Verify MQTT was only resolved once despite multiple MQTT magic strings
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    # Note: "MQTT" is a different magic string from "MQTTIP", but both defer
+    # to the same single resolver; the broker is not contacted eagerly
+    mock_mqtt_get_ip.assert_not_called()
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
 
-    # Verify run_logs was called with all unique IPs (MQTT strings replaced with IPs)
-    # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
-    # The _resolve_network_devices helper filters out both after first resolution
-    mock_run_logs.assert_called_once_with(
-        CORE.config,
-        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
-        subscribe_states=True,
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+    assert resolver(None) == ["192.168.2.50", "192.168.2.51"]
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -5238,7 +5329,9 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     assert host == "192.168.1.100"
 
     # Verify MQTT was attempted
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with only the static IP (MQTT failed)
     expected_firmware = (
@@ -5254,7 +5347,7 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
 ) -> None:
-    """Test show_logs falls back to other devices when MQTT times out."""
+    """Test show_logs proceeds with the static IP when MQTT times out."""
     setup_core(
         config={
             "logger": {},
@@ -5273,15 +5366,17 @@ def test_show_logs_api_mqtt_timeout_fallback(
 
     result = show_logs(CORE.config, args, devices)
 
-    # Should succeed using the static IP even though MQTT failed
+    # Logs start on the static IP without waiting for the broker
     assert result == 0
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
 
-    # Verify MQTT was attempted
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-
-    # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=True
+    # The deferred resolver owns the failure policy: it logs a warning and
+    # returns no addresses so the session keeps running on the known ones
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+    assert resolver(None) == []
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -6764,7 +6859,7 @@ def test_command_run_passes_no_states_to_show_logs(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=False
+        CORE.config, ["192.168.1.100"], subscribe_states=False, mqtt_resolver=None
     )
 
 
@@ -6805,7 +6900,7 @@ def test_command_run_defaults_subscribe_states_true(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=True
+        CORE.config, ["192.168.1.100"], subscribe_states=True, mqtt_resolver=None
     )
 
 
