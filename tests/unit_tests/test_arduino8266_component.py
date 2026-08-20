@@ -190,7 +190,7 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
         libs = component.resolve_libraries(framework)
 
     mock_extra.assert_called_once_with(
-        converted, "esp8266", pio_platform="espressif8266"
+        converted, board_mcu="esp8266", pio_platform="espressif8266"
     )
     assert [lib.name for lib in libs] == [
         "Wire",
