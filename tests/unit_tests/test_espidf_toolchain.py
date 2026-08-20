@@ -100,6 +100,27 @@ def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     return compile_commands, cache
 
 
+def test_has_outdated_files_detects_exclusion_change(setup_core: Path) -> None:
+    """A newer exclude_components.esphomeinternal stamp forces a reconfigure
+    so components that leave the exclusion set get rediscovered."""
+    CORE.build_path = setup_core
+    build = setup_core / "build"
+    (build / "config").mkdir(parents=True)
+    (build / "config" / "sdkconfig.h").write_text("")
+    cmakecache = build / "CMakeCache.txt"
+    cmakecache.write_text("")
+    (build / "build.ninja").write_text("")
+
+    with patch.object(CORE, "name", "test"):
+        assert not toolchain.has_outdated_files()
+
+        stamp = setup_core / "exclude_components.esphomeinternal"
+        stamp.write_text("unity")
+        os.utime(stamp, (cmakecache.stat().st_mtime + 10,) * 2)
+
+        assert toolchain.has_outdated_files()
+
+
 def test_get_idedata_returns_none_without_compile_commands(setup_core: Path) -> None:
     """No compile DB yet -> None (rather than an error)."""
     _setup_build(setup_core)
