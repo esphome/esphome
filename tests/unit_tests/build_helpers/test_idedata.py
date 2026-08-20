@@ -278,28 +278,37 @@ def test_parse_entry_strips_launcher_prefix() -> None:
     )
     assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert defines == ["USE_ESP8266"]
-    # Without a configured launcher nothing is stripped, even a token that
-    # happens to be named ccache -- but the surprise is warned about (once
-    # per path, however many entries the compile DB has)
-    idedata._warn_not_a_compiler.cache_clear()
-    cxx_path, _, _, _ = idedata.parse_entry(entry)
-    assert cxx_path == "/opt/homebrew/bin/ccache"
 
 
-def test_parse_entry_warns_when_first_token_is_not_a_compiler(
+def test_parse_entry_recovers_from_unconfigured_launcher(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    idedata._warn_not_a_compiler.cache_clear()
+    """A stale compile DB built with a launcher this run no longer configures
+    still yields the real compiler (the next token), not the launcher."""
     entry = _entry(
         f"{ABS}build",
         f"{ABS}build/src/esphome/core/application.cpp",
         "/opt/homebrew/bin/ccache /tools/xtensa-lx106-elf-g++ -c a.cpp -o a.o",
     )
-    idedata.parse_entry(entry)
-    assert "does not start with a compiler" in caplog.text
-    caplog.clear()
-    idedata.parse_entry(entry, launcher="/opt/homebrew/bin/ccache")
+    cxx_path, _, _, _ = idedata.parse_entry(entry)
+    assert cxx_path == "/tools/xtensa-lx106-elf-g++"
     assert "does not start with a compiler" not in caplog.text
+
+
+def test_parse_entry_warns_when_first_token_is_not_a_compiler(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unrecoverable non-compiler leading token is warned about, once per
+    path however many entries the compile DB has."""
+    idedata._warned_not_a_compiler.clear()
+    entry = _entry(
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/core/application.cpp",
+        "/usr/bin/python3 wrapper.py -c a.cpp -o a.o",
+    )
+    idedata.parse_entry(entry)
+    idedata.parse_entry(entry)
+    assert caplog.text.count("does not start with a compiler") == 1
 
 
 def _write_compile_commands(tmp_path: Path) -> Path:
@@ -402,3 +411,43 @@ def test_parse_entry_accepts_versioned_compilers() -> None:
         assert idedata._COMPILER_STEM.search(stem)
     assert not idedata._COMPILER_STEM.search("ccache")
     assert not idedata._COMPILER_STEM.search("distcc")
+
+
+def test_load_or_build_idedata_corrupted_cache_is_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A truncated cache is diagnosable, not a silent slow-build cause."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "c.json"
+    cache.write_text('{"cc_path": trunc')
+    os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
+    assert data["cxx_path"] == "/tools/g++"
+    assert "Discarding unreadable idedata cache" in caplog.text
+
+
+def test_load_or_build_idedata_never_caches_bad_compiler(tmp_path: Path) -> None:
+    """Idedata whose compiler path failed the sanity check is served for this
+    run but not persisted, so the next build re-parses."""
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(
+        json.dumps(
+            [
+                _entry(
+                    f"{ABS}build",
+                    f"{ABS}build/src/esphome/core/application.cpp",
+                    "/usr/bin/python3 wrapper.py -c app.cpp -o app.cpp.o",
+                )
+            ]
+        )
+    )
+    cache = tmp_path / "c.json"
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
+    assert data["cxx_path"] == "/usr/bin/python3"
+    assert not cache.exists()
