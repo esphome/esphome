@@ -195,11 +195,16 @@ def _print_size_summary(build_dir: Path) -> None:
             ", ".join(sorted(missing)),
         )
         return
+    # Resolve the flash budget before printing anything: a RAM line without
+    # its Flash line would let CI's memory-impact extraction sum the two
+    # metrics over different build counts (_parse_app_size already warned).
+    app_size = _parse_app_size(build_dir)
+    if not app_size:
+        return
     ram = sum(sections[s] for s in _RAM_SECTIONS)
     flash = sum(sections[s] for s in _FLASH_SECTIONS)
     print(f"RAM:   {format_bar(ram, _MAX_RAM_SIZE)}")
-    if app_size := _parse_app_size(build_dir):
-        print(f"Flash: {format_bar(flash, app_size)}")
+    print(f"Flash: {format_bar(flash, app_size)}")
 
 
 def get_idedata() -> dict | None:

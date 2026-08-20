@@ -180,8 +180,9 @@ def test_print_size_summary_no_app_size(
     ):
         toolchain._print_size_summary(tmp_path)
     out = capsys.readouterr().out
-    assert "RAM:" in out
-    assert "Flash:" not in out
+    # Both lines are skipped together: a RAM line without Flash would skew
+    # CI's memory-impact sums across builds
+    assert out == ""
 
 
 def test_print_size_summary_size_tool_failure(
