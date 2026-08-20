@@ -564,7 +564,9 @@ def split_flag_entry(entry: str, owner: str) -> list[str]:
     """``shlex.split`` with a clean error naming the offending flags entry."""
     try:
         return shlex.split(entry)
-    except ValueError as err:
+    except (ValueError, AttributeError, TypeError) as err:
+        # AttributeError/TypeError: a dict or number from a third-party
+        # manifest; name the entry instead of an opaque shlex traceback
         raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
 
 
