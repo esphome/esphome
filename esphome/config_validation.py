@@ -53,6 +53,7 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TOOLCHAIN,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
@@ -2555,20 +2556,43 @@ def check_supported_toolchain(
         )
 
 
+def toolchain_enum(supported: tuple[Toolchain, ...]):
+    """Schema validator for a platform's ``toolchain`` config key."""
+
+    def validator(value) -> Toolchain:
+        return Toolchain(one_of(*supported, lower=True)(value))
+
+    return validator
+
+
+def resolve_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...], default: Toolchain
+):
+    """Resolve ``CORE.toolchain`` (CLI > YAML > default) and reject one the
+    platform cannot serve.
+
+    Add to the platform's validation chain before anything that reads
+    ``CORE.toolchain``.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if CORE.toolchain is None:
+            CORE.toolchain = config.get(CONF_TOOLCHAIN, default)
+        check_supported_toolchain(platform_name, supported)
+        return config
+
+    return validator
+
+
 def require_platformio_toolchain(platform_name: str):
     """Reject a CLI-selected toolchain other than PlatformIO.
 
     For platforms with only the PlatformIO backend; without this a
     ``--toolchain`` they cannot serve would silently build with PlatformIO.
     """
-
-    def validator(config: ConfigType) -> ConfigType:
-        if CORE.toolchain is None:
-            CORE.toolchain = Toolchain.PLATFORMIO
-        check_supported_toolchain(platform_name, (Toolchain.PLATFORMIO,))
-        return config
-
-    return validator
+    return resolve_toolchain(
+        platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
+    )
 
 
 def require_framework_version(
