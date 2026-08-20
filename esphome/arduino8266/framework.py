@@ -19,12 +19,13 @@ from __future__ import annotations
 
 from collections.abc import Collection
 import functools
+import io
+import json
 import logging
 import os
 from pathlib import Path
 import platform
 import shutil
-import time
 
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import (
@@ -93,35 +94,40 @@ def _downloads_path() -> Path:
     return path
 
 
+# (system, machine) -> registry tag, both lowercased. The windows-arm64 and
+# darwin-arm64 mappings are deliberate: the toolchain packages ship x86_64
+# binaries for those hosts (Rosetta / x86 emulation).
+_SYSTEM_TAGS: dict[tuple[str, str], str] = {
+    ("darwin", "arm64"): "darwin_arm64",
+    ("darwin", "x86_64"): "darwin_x86_64",
+    ("windows", "amd64"): "windows_amd64",
+    ("windows", "arm64"): "windows_amd64",
+    ("windows", "x86"): "windows_x86",
+    ("windows", "i686"): "windows_x86",
+    ("windows", "i386"): "windows_x86",
+    ("linux", "x86_64"): "linux_x86_64",
+    ("linux", "amd64"): "linux_x86_64",
+    ("linux", "aarch64"): "linux_aarch64",
+    ("linux", "arm64"): "linux_aarch64",
+    ("linux", "i686"): "linux_i686",
+    ("linux", "i386"): "linux_i686",
+    ("linux", "x86"): "linux_i686",
+}
+
+
 def _pio_system() -> str:
     """The PlatformIO registry system tag for the current host.
 
-    Hand-rolled instead of ``platformio.util.get_systype()`` so this backend
-    never imports the PlatformIO package. The windows-arm64 and darwin-arm64
-    mappings are deliberate: the toolchain packages ship x86_64 binaries for
-    those hosts (Rosetta / x86 emulation).
+    A local table instead of ``platformio.util.get_systype()`` so this
+    backend never imports the PlatformIO package.
     """
     sysname = platform.system().lower()
     machine = platform.machine().lower()
-    if sysname == "darwin":
-        if machine == "arm64":
-            return "darwin_arm64"
-        if machine == "x86_64":
-            return "darwin_x86_64"
-    if sysname == "windows":
-        if machine in ("amd64", "arm64"):
-            return "windows_amd64"
-        if machine in ("x86", "i686", "i386"):
-            return "windows_x86"
-    if sysname == "linux":
-        if machine in ("arm64", "aarch64"):
-            return "linux_aarch64"
-        if machine in ("i686", "i386", "x86"):
-            return "linux_i686"
-        if machine.startswith("arm"):
-            return f"linux_{machine}"
-        if machine in ("x86_64", "amd64"):
-            return "linux_x86_64"
+    if tag := _SYSTEM_TAGS.get((sysname, machine)):
+        return tag
+    if sysname == "linux" and machine.startswith("arm"):
+        # 32-bit arm tags carry the exact machine name (armv6l, armv7l, ...)
+        return f"linux_{machine}"
     # Fail here, near the cause, rather than installing a toolchain whose
     # binaries cannot execute on this host.
     raise EsphomeError(
@@ -131,26 +137,19 @@ def _pio_system() -> str:
 
 
 def _registry_download(package: str, version: str) -> tuple[str, str, int | None]:
-    """Resolve a package's download URL, sha256, and size via the PIO registry."""
-    import requests
+    """Resolve a package's download URL, sha256, and size via the PIO registry.
 
-    url = _REGISTRY_URL.format(package=package)
-    last_err: Exception | None = None
-    for attempt in range(3):
-        try:
-            resp = requests.get(url, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            break
-        except requests.RequestException as err:
-            last_err = err
-            # Back off so the retries are not one burst against a hiccup
-            time.sleep(2**attempt)
-    else:
-        # A clean, retried error like the other download paths in the tree
+    The metadata fetch goes through ``download_from_mirrors`` so it shares
+    the retry, backoff, and error reporting of every other download here.
+    """
+    buf = io.BytesIO()
+    download_from_mirrors([_REGISTRY_URL], {"package": package}, buf)
+    try:
+        data = json.loads(buf.getvalue())
+    except ValueError as err:
         raise EsphomeError(
-            f"Could not query the package registry for {package}: {last_err}"
-        ) from last_err
+            f"The package registry returned invalid JSON for {package}: {err}"
+        ) from err
     system = _pio_system()
     for ver in data.get("versions", []):
         if ver.get("name") != version:
