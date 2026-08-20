@@ -601,7 +601,7 @@ def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
 
 def test_flag_defines_lexes_multi_token_entries() -> None:
     """A knob inside a multi-token entry is detected like PlatformIO does."""
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1")
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1 -Os")
     defines = _flag_defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert defines["FOO"] == "FOO=1"
@@ -673,3 +673,9 @@ def test_flag_defines_joins_spaced_define() -> None:
     defines = _flag_defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
+
+
+def test_ninja_path_escaping() -> None:
+    """Build-statement paths and command-line paths escape differently."""
+    assert arduino8266._e("a b:$c") == "a$ b$:$$c"
+    assert arduino8266._q("/a b/$x") == '"/a b/$$x"'
