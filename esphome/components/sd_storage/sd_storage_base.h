@@ -45,7 +45,7 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   void set_mount_path(const char *path) { this->set_mount_path_(path); }
   void set_id(const char *id) { this->storage_id_ = id; }
   void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
-  void set_format_on_mismatch(bool *format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
+  void set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
   bool is_mounted() const { return this->is_mounted_; }
   // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
