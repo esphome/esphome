@@ -193,6 +193,7 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   USBFileHandle *alloc_handle_();
   void free_handle_(USBFileHandle *handle);
   void build_path_(char *out, size_t out_size, const char *path) const;
+  bool format_on_mismatch_{false};
 
   // Builds a FATFS-native path ("N:/dir/file") from a path relative to this device's mount
   // point, using fatfs_drive_ (captured from the client at connect time -- see
@@ -208,7 +209,6 @@ class USBStorageDevice : public esphome::storage::FilesystemStorage, public esph
   uint16_t pid_{0};
   const char *storage_id_{nullptr};
   bool fs_mounted_{false};
-  bool format_on_mismatch_{false};
   // Deferred-unmount state: unmount() only requests the unmount (sets this flag); loop()
   // performs the actual sync + unmount once no file handle is open and no worker job still
   // touches this device. is_mounted() stays true until then, so an interval-based remount
