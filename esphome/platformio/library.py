@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -551,6 +551,21 @@ def _resolve_registry_version(
     if not pkgfile:
         raise RuntimeError(f"No package file for {owner}/{name}@{best['name']}")
     return owner, name, best["name"], pkgfile["download_url"]
+
+
+def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
+    """Join a bare ``-I``/``-L``/``-l`` with its following token (PIO lexing)."""
+    out: list[str] = []
+    it = iter(tokens)
+    for tok in it:
+        if tok in ("-I", "-L", "-l"):
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
+                break
+            tok += arg
+        out.append(tok)
+    return out
 
 
 def normalize_dependencies(dependencies: Any) -> list[dict]:

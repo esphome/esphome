@@ -27,6 +27,7 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
+    join_flag_args,
     split_list_by_condition,
 )
 
@@ -102,22 +103,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
     # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
-    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
-    # same way; emitting such an entry as a single quoted compile option
-    # hands the compiler one argv with an embedded space.
-    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
-    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
-    # the prefix classifiers below still route them to INCLUDE_DIRS and the
-    # link handling.
-    tokens, build_flags = build_flags, []
-    i = 0
-    while i < len(tokens):
-        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
-            build_flags.append(tokens[i] + tokens[i + 1])
-            i += 2
-        else:
-            build_flags.append(tokens[i])
-            i += 1
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"); bare
+    # -I/-L/-l tokens re-glue to their argument ("-I foo" -> "-Ifoo") so the
+    # prefix classifiers below still route them.
+    build_flags = join_flag_args(
+        (token for entry in build_flags for token in shlex.split(entry)),
+        f"library {component.name}",
+    )
 
     # List all sources files
     build_src_files = collect_filtered_files(

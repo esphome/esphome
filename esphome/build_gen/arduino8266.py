@@ -22,7 +22,6 @@ import shlex
 import subprocess
 import sys
 
-from esphome.arduino8266.component import join_flag_args
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -40,6 +39,7 @@ from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.platformio.library import join_flag_args
 
 # Compile rule per source suffix; keys must cover SRC_FILE_EXTENSIONS so any
 # source a library manifest selects has a rule (pinned by a drift test).
@@ -308,23 +308,23 @@ def _project_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
     lib_dirs: list[Path] = []
     libs: list[str] = []
     for flag in flags:
-        if flag.startswith("-Wl,"):
-            link_flags.append(flag)
-        elif flag.startswith(("-L", "-l")):
-            # Shell-lex only linker entries so forms like "-L /opt/blobs"
-            # work as they do under PlatformIO. Other entries pass verbatim:
-            # lexing them would strip the quotes in defines like -DBOARD="...".
-            for tok in join_flag_args(shlex.split(flag), "esphome"):
-                if tok.startswith("-L") and len(tok) > 2:
-                    lib_dirs.append(Path(tok[2:]))
-                elif tok.startswith("-l") and len(tok) > 2:
-                    libs.append(tok[2:])
-                elif tok.startswith("-Wl,"):
-                    link_flags.append(tok)
-                else:
-                    compile_flags.append(tok)
-        else:
-            compile_flags.append(flag)
+        # Shell-lex only linker entries so forms like "-L /opt/blobs" work as
+        # they do under PlatformIO. Other entries pass verbatim: lexing them
+        # would strip the quotes in defines like -DBOARD="...".
+        tokens = (
+            join_flag_args(shlex.split(flag), "esphome")
+            if flag.startswith(("-L", "-l"))
+            else [flag]
+        )
+        for tok in tokens:
+            if tok.startswith("-Wl,"):
+                link_flags.append(tok)
+            elif tok.startswith("-L"):
+                lib_dirs.append(Path(tok[2:]))
+            elif tok.startswith("-l"):
+                libs.append(tok[2:])
+            else:
+                compile_flags.append(tok)
     return compile_flags, link_flags, lib_dirs, libs
 
 
