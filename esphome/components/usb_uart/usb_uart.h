@@ -369,12 +369,12 @@ class USBUartTypeCH934X : public USBUartComponent {
   std::atomic<bool> cmd_running_{false};
 
   // Paced parallel init state (see config_device_step()).
-  uint8_t init_lanes_{1};             // max channels configured in parallel per round
-  uint8_t channel_write_count_{0};    // register writes per channel for the detected chip
-  uint8_t init_group_start_{0};       // first channel index of the current parallel group
-  uint8_t init_write_idx_{0};         // write index within the current group's lockstep rounds
-  std::atomic<int> init_pending_{0};  // command writes still outstanding in the current round
-  std::atomic<uint8_t> init_failed_mask_{0};    // per-port failure bits (bit N = port N failed)
+  uint8_t init_lanes_{1};                        // max channels configured in parallel per round
+  uint8_t channel_write_count_{0};               // register writes per channel for the detected chip
+  uint8_t init_group_start_{0};                  // first channel index of the current parallel group
+  uint8_t init_write_idx_{0};                    // write index within the current group's lockstep rounds
+  std::atomic<int> init_pending_{0};             // command writes still outstanding in the current round
+  std::atomic<uint8_t> init_failed_mask_{0};     // per-port failure bits (bit N = port N failed)
   std::atomic<bool> init_device_failed_{false};  // a device-level init write failed
 };
 

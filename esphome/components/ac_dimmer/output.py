@@ -49,6 +49,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        # Re-enable the gptimer driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_driver_gptimer")
+
     if CORE.is_esp8266:
         # ac_dimmer uses setTimer1Callback which requires the waveform generator
         from esphome.components.esp8266.const import require_waveform
