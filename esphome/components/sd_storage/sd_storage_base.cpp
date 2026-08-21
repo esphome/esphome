@@ -365,7 +365,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   FILINFO fno;
   FRESULT res = f_stat(full, &fno);
   if (res != FR_OK)
-    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*writing=*/false);
 
   // FileStat::name is the basename only (see the contract on the struct in storage.h) --
   // consistent with what list_dir() puts there, regardless of how many path segments the
@@ -399,14 +399,14 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
   FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
-    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*writing=*/false);
 
   FILINFO fno;
   storage::StorageError result = storage::StorageError::STORAGE_ERROR_OK;
   for (;;) {
     FRESULT rd = f_readdir(&fat_dir, &fno);
     if (rd != FR_OK) {
-      result = fresult_to_storage_error(rd, /*for_rmdir=*/false, /*is_write=*/false);
+      result = fresult_to_storage_error(rd, /*for_rmdir=*/false, /*writing=*/false);
       break;
     }
     if (fno.fname[0] == '\0')
