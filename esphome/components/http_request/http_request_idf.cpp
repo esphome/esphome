@@ -196,8 +196,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
 
       container->feed_wdt();
-      // A redirected response reuses the same client/container object. Clear the stale
-      // headers from the previous hop before collecting headers for this one.
+      // Redirects reuse the container; drop the previous hop's headers
       container->response_headers_.clear();
       container->content_length = esp_http_client_fetch_headers(client);
       container->set_chunked(esp_http_client_is_chunked_response(client));

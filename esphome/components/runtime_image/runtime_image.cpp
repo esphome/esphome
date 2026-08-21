@@ -61,8 +61,7 @@ const char *get_mime_type_for_format(ImageFormat format) {
       return entry.mime_type;
     }
   }
-  // AUTO (and any format compiled out) has no single MIME type: accept any image
-  return "image/*";
+  return "image/*";  // AUTO or compiled-out format
 }
 
 std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
@@ -215,8 +214,7 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
   }
 
   if (format == AUTO && this->format_ != AUTO) {
-    // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
-    // Must happen before the reuse check below so a kept decoder is not evicted for a format "mismatch".
+    // Fall back to the configured format before the reuse check below
     format = this->format_;
   }
 

@@ -63,9 +63,7 @@ void OnlineImage::update() {
   }
 
   runtime_image::ImageFormat format = this->get_format();
-  // Add Accept header based on image format: "<mime>,*/*;q=0.8". The longest MIME
-  // type is "image/jpeg" (10 chars) and the suffix is 10 chars, so 32 is ample;
-  // snprintf truncates safely if a longer type is ever added.
+  // Accept: "<mime>,*/*;q=0.8"; 32 covers the longest MIME type plus the suffix
   char accept_header[32];
   snprintf(accept_header, sizeof(accept_header), "%s,*/*;q=0.8", runtime_image::get_mime_type_for_format(format));
   headers.push_back({"Accept", accept_header});

@@ -46,8 +46,7 @@ ONLINE_IMAGE_SCHEMA = (
             # Online Image specific options
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
-            # AUTO (detect from the Content-Type header) is online_image specific,
-            # so it is added here instead of in the shared format registry.
+            # AUTO (Content-Type detection) is online_image specific; not in the shared registry
             cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(
                 *IMAGE_FORMATS, "AUTO", upper=True
             ),
