@@ -257,7 +257,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> on_data_func;
   /// Staging buffer for the deprecated create_* factories: a full PDU, or a raw frame when payload_is_raw_frame_.
   /// Empty for reads (rebuilt from the range fields) and custom polling (borrows the sensor's custom_pdu). Small
-  /// writes stay in the 8-byte inline buffer; large frames spill once to the heap. Remove before 2027.2.0.
+  /// writes stay in the 8-byte inline buffer; large frames spill once to the heap. Remove before 2027.3.0.
   SmallInlineBuffer<8> payload;
   // Set by unqueue_command() when this one-shot has completed. The controller erases flagged items at a
   // safe point (update()/queue_command()), never from inside the command's own callback.
@@ -291,7 +291,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// handle the response. Returns the hub's verdict like the write helpers above.
   bool queue_pdu(std::span<const uint8_t> pdu);
   /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
-  /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.2.0.
+  /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.3.0.
   bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
@@ -310,7 +310,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.send action for ad-hoc reads, or subclass modbus::ModbusClientDevice, "
-                "instead. Removed in 2027.2.0",
+                "instead. Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_read_command(
       ModbusController *controller, EntityType register_type, uint16_t start_address, uint16_t register_count,
@@ -325,7 +325,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_registers() on the item instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_command(ModbusController *controller, uint16_t start_address,
                                                          uint16_t register_count, const std::vector<uint16_t> &values);
@@ -338,7 +338,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_single_register() on the item instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_single_command(ModbusController *controller, uint16_t start_address,
                                                        uint16_t value);
@@ -350,7 +350,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_single_coil() on the item instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_single_coil(ModbusController *controller, uint16_t address, bool value);
 
@@ -362,7 +362,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_coils() on the item instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                        const std::vector<bool> &values);
@@ -374,7 +374,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.send action, or subclass modbus::ModbusClientDevice, instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_custom_command(
       ModbusController *controller, const std::vector<uint8_t> &values,
@@ -389,7 +389,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.send action, or subclass modbus::ModbusClientDevice, instead. "
-                "Removed in 2027.2.0",
+                "Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_custom_command(
       ModbusController *controller, const std::vector<uint16_t> &values,
@@ -416,7 +416,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// Custom polling commands reference the PDU bytes owned by their SensorItem instead of copying them.
   const std::vector<uint8_t> *custom_pdu_{nullptr};
   /// True when `payload` holds a legacy raw frame rather than a PDU; set by custom_command_impl(). Remove before
-  /// 2027.2.0.
+  /// 2027.3.0.
   bool payload_is_raw_frame_{false};
   ModbusController *controller_{nullptr};
 };
@@ -466,7 +466,7 @@ class ModbusController final : public PollingComponent {
 
   /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
   ESPDEPRECATED("Own a ModbusCommandItem that outlives the call (e.g. a std::optional member) and call a write "
-                "helper on it instead; for ad-hoc custom PDUs use a modbus_client component. Removed in 2027.2.0",
+                "helper on it instead; for ad-hoc custom PDUs use a modbus_client component. Removed in 2027.3.0",
                 "2026.8.0")
   void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own

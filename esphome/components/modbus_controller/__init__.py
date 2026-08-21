@@ -68,11 +68,11 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
     return config
 
 
-# Remove before 2027.2.0. skip_updates (a per-sensor option) no longer does anything: every range is
+# Remove before 2027.3.0. skip_updates (a per-sensor option) no longer does anything: every range is
 # polled each update_interval. The key is still accepted so existing configs keep working, with a warning.
 def validate_skip_updates_deprecated(value):
     _LOGGER.warning(
-        "[modbus_controller] 'skip_updates' no longer has any effect and will be removed in 2027.2.0. "
+        "[modbus_controller] 'skip_updates' no longer has any effect and will be removed in 2027.3.0. "
         "To poll some registers less often, add a second modbus_controller with the same address and a "
         "slower update_interval, and attach the slow sensors to it."
     )
