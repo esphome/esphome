@@ -11,6 +11,7 @@ toolchain produces for the same configuration.
 from __future__ import annotations
 
 from collections.abc import Generator
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -400,7 +401,10 @@ def test_project_flags_requotes_lexed_defines() -> None:
     )
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
-    assert compile_flags == ['"-DGREETING=hello world"']
+    expected = (
+        '"-DGREETING=hello world"' if os.name == "nt" else "'-DGREETING=hello world'"
+    )
+    assert compile_flags == [expected]
 
 
 def test_flag_defines_joins_spaced_define() -> None:
