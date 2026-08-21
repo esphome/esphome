@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 from pathlib import Path
 import queue
@@ -278,6 +279,30 @@ def clang_options(idedata, environment):
 
 pids = set()
 
+# Checks disabled for "rp2", "bk72xx", "ln882h", "rtl87xx"
+TIDY_DISABLED_CHECKS = [
+    # MMIO peripheral access on these bare-metal platforms is all
+    # fixed-address.
+    # bugprone-pointer-arithmetic-on-polymorphic-object (and its
+    # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
+    # recursion on lvgl_esphome.h under the RP2 defines.
+    "clang-analyzer-core.FixedAddressDereference",
+    "bugprone-pointer-arithmetic-on-polymorphic-object",
+    "cert-ctr56-cpp",
+]
+
+# Checks disabled for zephyr -- see run_codechecker_zephyr() below.
+CODECHECKER_DISABLED_CHECKS = [
+    # Zephyr's generated autoconf.h and ZBOSS's own headers define
+    # unparenthesized macro values (e.g. `-1`); not source we control.
+    "bugprone-macro-parentheses",
+    # MMIO peripheral access on this platform is all fixed-address
+    "clang-analyzer-core.FixedAddressDereference",
+    # Circular includes inside Zephyr/ZBOSS's own SDK headers -- not ours to
+    # restructure.
+    "misc-header-include-cycle",
+]
+
 
 def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
     while True:
@@ -299,14 +324,8 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
             invocation.append("--use-color")
 
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
-            # MMIO peripheral access on these bare-metal platforms is all
-            # fixed-address.
-            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
-            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
-            # recursion on lvgl_esphome.h under the RP2 defines.
             invocation.append(
-                "--checks=-clang-analyzer-core.FixedAddressDereference,"
-                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
+                "--checks=" + ",".join(f"-{c}" for c in TIDY_DISABLED_CHECKS)
             )
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
@@ -333,7 +352,7 @@ def progress_bar_show(value):
     return None
 
 
-def run_codechecker_zephyr(files: list[str], args) -> int:
+def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
 
     Zephyr's own CodeChecker SCA integration (cmake/sca/codechecker/sca.cmake)
@@ -342,57 +361,66 @@ def run_codechecker_zephyr(files: list[str], args) -> int:
     """
     from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
+    try:
+        executable = get_binary("CodeChecker", 6, version_args=["version"])
+    except FileNotFoundError:
+        return 1
+
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
     platformio_ini = Path(root_path) / "platformio.ini"
 
     if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
         compile_commands_path = Path(explicit)
     else:
+        from clang_tidy_hash import is_cached, update_cache
+
         source_files = [str(Path(f).resolve()) for f in files]
-        compile_commands_path = generate_compile_commands(
-            work_dir, platformio_ini, source_files
+        extra = "\n".join(sorted(source_files))
+        compile_commands_path = work_dir / "build" / "compile_commands.json"
+        cache_key_path = work_dir / ".compile_commands.hash"
+        # Skip the west/CMake reconfigure if nothing that affects the
+        # generated compile commands has changed since the last run.
+        if not compile_commands_path.is_file() or not is_cached(cache_key_path, extra):
+            compile_commands_path = generate_compile_commands(
+                work_dir, platformio_ini, source_files
+            )
+            if compile_commands_path.is_file():
+                update_cache(cache_key_path, extra)
+    if not compile_commands_path.is_file():
+        print(
+            f"compile_commands.json not found: {compile_commands_path}",
+            file=sys.stderr,
         )
+        return 1
 
     output_dir = Path(temp_folder) / f"codechecker-{args.environment}"
     if output_dir.is_dir():
         shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
 
-    disabled_checks = [
-        # Zephyr's generated autoconf.h and ZBOSS's own headers define
-        # unparenthesized macro values (e.g. `-1`); not source we control.
-        "bugprone-macro-parentheses",
-        # MMIO peripheral access on this bare-metal platform is all
-        # fixed-address (same rationale as rp2/bk72xx/ln882h/rtl87xx above).
-        "clang-analyzer-core.FixedAddressDereference",
-        # Circular includes inside Zephyr/ZBOSS's own SDK headers -- not ours
-        # to restructure.
-        "misc-header-include-cycle",
-    ]
     # Scope findings to our own sources; take-config-from-directory makes
     # CodeChecker honor .clang-tidy instead of its own default check profile.
     tidy_args = [
         f"--header-filter={basepath}/.*",
-        "--checks=" + ",".join(f"-{check}" for check in disabled_checks),
+        "--checks=" + ",".join(f"-{c}" for c in CODECHECKER_DISABLED_CHECKS),
     ]
-    if args.fix:
-        tidy_args.append("--fix")
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".txt", delete=False, encoding="utf-8"
-    ) as tidy_args_file:
-        tidy_args_file.write("\n".join(tidy_args) + "\n")
+    # Written into output_dir (recreated above) so it doesn't leak into the
+    # system temp directory across runs.
+    tidy_args_path = output_dir / "tidy_args.txt"
+    tidy_args_path.write_text("\n".join(tidy_args) + "\n", encoding="utf-8")
 
     file_patterns = [f"*{os.path.relpath(f, root_path)}" for f in files]
 
     result = subprocess.run(
         [
-            "CodeChecker",
+            executable,
             "analyze",
             str(compile_commands_path),
             "--analyzers",
             "clang-tidy",
             "--analyzer-config",
             "clang-tidy:take-config-from-directory=true",
-            f"clang-tidy:cc-verbatim-args-file={tidy_args_file.name}",
+            f"clang-tidy:cc-verbatim-args-file={tidy_args_path}",
             "-j",
             str(args.jobs),
             "-o",
@@ -402,10 +430,36 @@ def run_codechecker_zephyr(files: list[str], args) -> int:
         ],
         check=False,
     )
-    subprocess.run(["CodeChecker", "parse", str(output_dir)], check=False)
 
-    # Cap at 255: shells truncate exit codes to one byte.
-    return min(result.returncode, 255)
+    if args.fix:
+        # Apply serially (like run_tidy() below) instead of passing --fix to
+        # CodeChecker's parallel workers, which would race on shared headers.
+        subprocess.run([executable, "fixit", "--apply", str(output_dir)], check=False)
+
+    parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
+
+    try:
+        stats = json.loads((output_dir / "metadata.json").read_text())["tools"][0][
+            "analyzers"
+        ]["clang-tidy"]["analyzer_statistics"]
+        analyzed = stats["successful"] + stats["failed"]
+    except (OSError, KeyError, IndexError, json.JSONDecodeError) as err:
+        print(
+            f"CodeChecker analyze failed (exit {result.returncode}): {err}",
+            file=sys.stderr,
+        )
+        return result.returncode or 1
+    if analyzed != len(files):
+        # A --file/compile-database mismatch analyzes 0 files and exits 0 --
+        # don't let that read as a clean run.
+        print(
+            f"ERROR: CodeChecker analyzed {analyzed} files, expected {len(files)} "
+            "-- --file patterns may not match the compile database",
+            file=sys.stderr,
+        )
+        return 1
+
+    return result.returncode or parse_result.returncode
 
 
 def split_list(a, n):

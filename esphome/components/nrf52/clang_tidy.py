@@ -213,6 +213,9 @@ def generate_compile_commands(
     # WARNING, so the first-run installation looks silent without this.
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
+    build_dir = work_dir / "build"
+    compile_commands_path = build_dir / "compile_commands.json"
+
     _setup_core(work_dir)
     check_and_install()
 
@@ -228,8 +231,8 @@ def generate_compile_commands(
     (source_dir / "prj.conf").write_text(_TIDY_PRJ_CONF, encoding="utf-8")
 
     # Always configure from scratch: west can't pristine a dir whose CMake
-    # cache is stale/missing, and a configure-only run is cheap.
-    build_dir = work_dir / "build"
+    # cache is stale/missing. Callers that want to skip a redundant configure
+    # should cache-check before calling this at all (see run_codechecker_zephyr()).
     if build_dir.is_dir():
         rmtree(build_dir)
 
@@ -263,4 +266,4 @@ def generate_compile_commands(
     ):
         raise EsphomeError("nRF52 clang-tidy configure failed")
 
-    return build_dir / "compile_commands.json"
+    return compile_commands_path
