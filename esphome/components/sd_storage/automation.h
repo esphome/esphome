@@ -61,10 +61,11 @@ template<typename... Ts> class UnmountCardAction : public Action<Ts...> {
 
   void play(Ts... x) override {
     storage::StorageError err = this->parent_->unmount();
-    if (err == storage::StorageError::STORAGE_ERROR_OK)
+    if (err == storage::StorageError::STORAGE_ERROR_OK) {
       this->parent_->log_unmount_();
-    else
+    } else {
       ESP_LOGW(TAG, "Unmount via automation failed: %s", storage::error_to_string(err));
+    }
   }
 
  protected:

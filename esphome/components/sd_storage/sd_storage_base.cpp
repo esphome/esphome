@@ -21,7 +21,7 @@ static const char *const TAG_BASE = "sd_storage";
 // f_unlink() (used for rmdir -- see rmdir() below, FATFS has no dedicated f_rmdir) returns
 // FR_DENIED both for "directory not empty" and for genuine permission/read-only failures, so the
 // caller must tell us which context applies.
-StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write) {
+StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool writing) {
   switch (res) {
     case FR_OK:
       return StorageError::STORAGE_ERROR_OK;
@@ -39,7 +39,7 @@ StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write
     case FR_WRITE_PROTECTED:
       return StorageError::STORAGE_ERROR_PERMISSION_DENIED;
     default:
-      return is_write ? StorageError::STORAGE_ERROR_WRITE_ERROR : StorageError::STORAGE_ERROR_READ_ERROR;
+      return writing ? StorageError::STORAGE_ERROR_WRITE_ERROR : StorageError::STORAGE_ERROR_READ_ERROR;
   }
 }
 
@@ -144,7 +144,7 @@ void SdStorageBase::loop_cd_() {
       this->on_inserted_.call();
   } else if (this->is_mounted_) {
     ESP_LOGI(TAG_BASE, "Card removed (CD edge)");
-    this->log_unmount_(this->unmount());
+    this->log_unmount_();
     this->on_removed_.call();
   }
 }
@@ -377,7 +377,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   FILINFO fno;
   FRESULT res = f_stat(full, &fno);
   if (res != FR_OK)
-    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*writing=*/false);
 
   // FileStat::name is the basename only (see the contract on the struct in storage.h) --
   // consistent with what list_dir() puts there, regardless of how many path segments the
@@ -411,14 +411,14 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
   FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
-    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/false);
+    return fresult_to_storage_error(res, /*for_rmdir=*/false, /*writing=*/false);
 
   FILINFO fno;
   storage::StorageError result = storage::StorageError::STORAGE_ERROR_OK;
   for (;;) {
     FRESULT rd = f_readdir(&fat_dir, &fno);
     if (rd != FR_OK) {
-      result = fresult_to_storage_error(rd, /*for_rmdir=*/false, /*is_write=*/false);
+      result = fresult_to_storage_error(rd, /*for_rmdir=*/false, /*writing=*/false);
       break;
     }
     if (fno.fname[0] == '\0')
@@ -442,7 +442,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
 
   FRESULT cl = f_closedir(&fat_dir);
   if (result == storage::StorageError::STORAGE_ERROR_OK && cl != FR_OK)
-    result = fresult_to_storage_error(cl, /*for_rmdir=*/false, /*is_write=*/false);
+    result = fresult_to_storage_error(cl, /*for_rmdir=*/false, /*writing=*/false);
   return result;
 }
 
@@ -455,7 +455,7 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
     return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
   FRESULT res = f_mkdir(full);
-  return fresult_to_storage_error(res, /*for_rmdir=*/false, /*is_write=*/true);
+  return fresult_to_storage_error(res, /*for_rmdir=*/false, /*writing=*/true);
 }
 
 storage::StorageError SdStorageBase::rmdir(const char *path) {
@@ -472,7 +472,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
   FF_DIR fat_dir;
   FRESULT res = f_opendir(&fat_dir, full);
   if (res != FR_OK)
-    return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/false);
+    return fresult_to_storage_error(res, /*for_rmdir=*/true, /*writing=*/false);
 
   bool has_entries = false;
   FILINFO fno;
@@ -486,13 +486,13 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
   }
   f_closedir(&fat_dir);
   if (rd != FR_OK)
-    return fresult_to_storage_error(rd, /*for_rmdir=*/true, /*is_write=*/false);
+    return fresult_to_storage_error(rd, /*for_rmdir=*/true, /*writing=*/false);
   if (has_entries)
     return storage::StorageError::STORAGE_ERROR_NOT_EMPTY;
 
   // FATFS removes empty directories via f_unlink() -- there is no dedicated f_rmdir().
   res = f_unlink(full);
-  return fresult_to_storage_error(res, /*for_rmdir=*/true, /*is_write=*/true);
+  return fresult_to_storage_error(res, /*for_rmdir=*/true, /*writing=*/true);
 }
 
 storage::StorageError SdStorageBase::remove(const char *path) {
@@ -505,7 +505,7 @@ storage::StorageError SdStorageBase::remove(const char *path) {
 
   errno = 0;
   if (::remove(full) != 0)
-    return storage::error_from_errno(errno, /*is_write=*/true);
+    return storage::error_from_errno(errno, /*writing=*/true);
   return storage::StorageError::STORAGE_ERROR_OK;
 }
 
