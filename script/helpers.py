@@ -814,19 +814,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # esphome/idf_component.yml), so this can't drift from that file list. A
     # content hash -- unlike an mtime comparison -- stays correct across git
     # checkouts, which don't preserve mtimes.
-    from clang_tidy_hash import calculate_clang_tidy_hash
+    from clang_tidy_hash import is_cached, update_cache
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    cache_key = calculate_clang_tidy_hash()
-    changed = (
-        not temp_idedata.is_file()
-        or not temp_hash.is_file()
-        or temp_hash.read_text().strip() != cache_key
-    )
-
-    if not changed:
+    if temp_idedata.is_file() and is_cached(temp_hash):
         data = json.loads(temp_idedata.read_text())
         elapsed = time.time() - start_time
         print(f"IDE data loaded from cache in {elapsed:.2f} seconds")
@@ -840,10 +833,6 @@ def load_idedata(environment: str) -> dict[str, Any]:
         from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
 
         data = idf_load_idedata(environment, temp_folder, platformio_ini)
-    elif "nrf" in environment:
-        from helpers_zephyr import load_idedata as zephyr_load_idedata
-
-        data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
     else:
         stdout = subprocess.check_output(
             ["pio", "run", "-t", "idedata", "-e", environment]
@@ -851,30 +840,39 @@ def load_idedata(environment: str) -> dict[str, Any]:
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
-    temp_hash.write_text(cache_key + "\n")
+    update_cache(temp_hash)
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
     return data
 
 
-def get_binary(name: str, version: str) -> str:
+def get_binary(name: str, version: str, version_args: list[str] | None = None) -> str:
+    # Defaults to LLVM tools' `-version` flag; pass e.g. ["version"] for
+    # CodeChecker's subcommand-style version check.
+    version_args = version_args or ["-version"]
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.check_output([binary_file, "-version"])
+        result = subprocess.check_output([binary_file, *version_args])
         return binary_file
     except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, "-version"], text=True, capture_output=True, check=False
+            [binary_file, *version_args], text=True, capture_output=True, check=False
         )
-        if result.returncode == 0 and (f"version {version}") in result.stdout:
+        # Anchored to "version" followed by the exact version number, not just
+        # those digits appearing anywhere (e.g. a build year) in the output.
+        version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
+        if result.returncode == 0 and re.search(
+            version_re, result.stdout, re.IGNORECASE
+        ):
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
     except FileNotFoundError:
+        version_cmd = " ".join(version_args)
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
@@ -882,7 +880,7 @@ def get_binary(name: str, version: str) -> str:
               script/setup
               source venv/bin/activate.
 
-            Please confirm you can run "{name} -version" or "{name}-{version} -version"
+            Please confirm you can run "{name} {version_cmd}" or "{name}-{version} {version_cmd}"
             in your terminal and install
             {name} (v{version}) if necessary.
 

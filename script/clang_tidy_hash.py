@@ -24,6 +24,9 @@ CLANG_TIDY_GLOBAL_FILES = (
     "esphome/idf_component.yml",
     "esphome/components/esp32/__init__.py",
     "esphome/components/nrf52/__init__.py",
+    "esphome/components/nrf52/clang_tidy.py",
+    "esphome/components/nrf52/framework.py",
+    "esphome/platformio/library.py",
 )
 
 # sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
@@ -66,3 +69,21 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
         hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()
+
+
+def _cache_key(extra: str) -> str:
+    if not extra:
+        return calculate_clang_tidy_hash()
+    return hashlib.sha256((calculate_clang_tidy_hash() + extra).encode()).hexdigest()
+
+
+def is_cached(hash_path: Path, extra: str = "") -> bool:
+    """True if hash_path still holds calculate_clang_tidy_hash() (plus extra)."""
+    if not hash_path.is_file():
+        return False
+    return hash_path.read_text(encoding="utf-8").strip() == _cache_key(extra)
+
+
+def update_cache(hash_path: Path, extra: str = "") -> None:
+    """Record the current calculate_clang_tidy_hash() (plus extra) as fresh."""
+    hash_path.write_text(_cache_key(extra) + "\n", encoding="utf-8")
