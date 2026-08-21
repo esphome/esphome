@@ -578,6 +578,20 @@ def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
         _write_ninja(paths)
 
 
+def test_generate_ld_scripts_testing_mode_missing_flash_ld_raises(
+    tmp_path: Path,
+) -> None:
+    """A missing flash ld in testing mode names the file and the fix."""
+    paths = _make_framework(tmp_path)
+    CORE.testing_mode = True
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        pytest.raises(EsphomeError, match="Could not read .*clean-all"),
+    ):
+        _run_generate_ld_scripts(paths)
+
+
 def test_build_config_nonosdk_precedence() -> None:
     """With two SDK knobs set (a pathological config), ties break
     deterministically by table order."""
