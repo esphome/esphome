@@ -566,6 +566,8 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
 
     if (this->scanner_state_ == ScannerState::RUNNING) {
       ESP_LOGD(TAG, "Stopping scan to make connection");
+      // A connect ends the scan period a window-change restart was continuing.
+      this->skip_next_scan_end_ = false;
       this->stop_scan_();
       // Don't wait for scan stop complete - promote immediately.
       // This is safe because ESP-IDF processes BLE commands sequentially through its internal mailbox queue.
