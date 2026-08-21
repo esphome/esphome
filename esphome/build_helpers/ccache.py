@@ -13,40 +13,18 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-import subprocess
 
-from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_runs
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _ccache_runs(ccache: str) -> bool:
-    """Return True when the ``ccache`` found on PATH actually runs.
-
-    ``shutil.which`` proves existence, not runnability: on Windows it also
-    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
-    target is gone. Wrapping compiles around such a find fails every compile
-    step with an opaque OS error, so probe once and fall back to compiling
-    without ccache when the probe fails.
-    """
-    try:
-        subprocess.run(
-            [ccache, "--version"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=15,
-            # Repo-wide convention (posix_spawn fast path); see the
-            # close_fds=False call sites across esphome/ and script/helpers.py
-            close_fds=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        _LOGGER.warning(
-            "Ignoring ccache at %s because it failed to run; compiling without ccache",
-            ccache,
-        )
-        return False
-    return True
+    """Return True when the ``ccache`` found on PATH actually runs."""
+    return tool_version_runs(
+        ccache,
+        "Ignoring ccache at %s because it failed to run; compiling without ccache",
+    )
 
 
 def resolve_ccache_path() -> str | None:
