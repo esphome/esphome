@@ -7356,3 +7356,33 @@ def test_compile_program_espidf_idedata_none_warns(
     ):
         assert compile_program(MagicMock(), {}) == 0
     assert "No idedata was generated" in caplog.text
+
+
+def test_native_toolchain_module_missing_hook_raises(tmp_path: Path) -> None:
+    """A resolved native toolchain whose platform lacks the hook is a bug
+    and must fail, not silently degrade to the PlatformIO path."""
+    from esphome.__main__ import _native_toolchain_module
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO  # esp32 provides no hook
+    with pytest.raises(EsphomeError, match="no native toolchain module"):
+        _native_toolchain_module()
+
+
+def test_command_analyze_memory_unsupported_toolchain(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hook-less non-PlatformIO toolchain is refused by name, never routed
+    into the PlatformIO branch."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.SDK_NRF
+    mock_write_cpp.return_value = 0
+    mock_compile_program.return_value = 0
+
+    result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
+
+    assert result == 1
+    assert "analyze-memory is not supported" in caplog.text
