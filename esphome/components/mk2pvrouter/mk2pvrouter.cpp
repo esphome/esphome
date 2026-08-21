@@ -102,6 +102,7 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
      */
     if (this->buf_index_ >= (sizeof(this->buf_) - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
+      this->buf_index_ = 0;
       this->state_ = State::WAITING_FOR_START;
       return false;
     }
