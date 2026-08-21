@@ -1250,8 +1250,8 @@ bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 3:
-      this->has_parsed_timezone = true;
       value.decode_to_message(this->parsed_timezone);
+      this->has_parsed_timezone = true;
       break;
     default:
       return false;

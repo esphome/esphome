@@ -84,7 +84,7 @@ static ParsedTimezone make_new_zealand() {
   return tz;
 }
 
-// Helper to build Australia/Sydney timezone (AEST-10AEDT,M10.1.0,M4.1.0)
+// Helper to build Australia/Sydney timezone (AEST-10AEDT,M10.1.0,M4.1.0/3)
 static ParsedTimezone make_australia_sydney() {
   ParsedTimezone tz{};
   tz.std_offset_seconds = -10 * 3600;
@@ -674,9 +674,9 @@ TEST(RecalcTimestampLocal, FallBackRepeatedHour) {
 }
 
 TEST(RecalcTimestampLocal, SouthernHemisphereDST) {
-  // Set timezone to Australia/Sydney (AEST-10AEDT,M10.1.0,M4.1.0)
+  // Set timezone to Australia/Sydney (AEST-10AEDT,M10.1.0,M4.1.0/3)
   // DST starts first Sunday of October, ends first Sunday of April
-  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0";
+  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0/3";
   setenv("TZ", tz_str, 1);
   tzset();
   auto tz = make_australia_sydney();
@@ -817,7 +817,7 @@ TEST(RecalcTimestampLocal, MinimalFieldsNoDST) {
 TEST(RecalcTimestampLocal, YearBoundaryDST) {
   // Test southern hemisphere DST across year boundary
   // Australia/Sydney: DST active from October to April (spans Jan 1)
-  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0";
+  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0/3";
   setenv("TZ", tz_str, 1);
   tzset();
   auto tz = make_australia_sydney();

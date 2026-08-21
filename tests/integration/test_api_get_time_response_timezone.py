@@ -55,6 +55,9 @@ async def test_api_get_time_response_timezone(
         client._connection.send_messages((resp,))
         await tracker.await_must_not_change(future, "tz_offset", timeout=1.0)
         assert tracker.sensor_states["tz_offset"][-1] == target
+        # Retire the expectation so it cannot swallow the first matching state
+        # meant for the next phase
+        future.cancel()
 
         # Present but all zero (genuine UTC): applied
         future = tracker.expect("tz_offset", 0)
