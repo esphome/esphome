@@ -373,10 +373,12 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
     // peripheral will not resend it. Warn on the first drop only; a congested
     // link drops a whole stream and one line per notify floods the log.
     if (!this->notify_drop_warned_) {
-      ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
+      ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response, handle 0x%04X", this->connection_index_,
+               this->address_str_, handle);
       this->notify_drop_warned_ = true;
     } else {
-      ESP_LOGV(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
+      ESP_LOGV(TAG, "[%d] [%s] Failed to send notify data response, handle 0x%04X", this->connection_index_,
+               this->address_str_, handle);
     }
   }
 }
