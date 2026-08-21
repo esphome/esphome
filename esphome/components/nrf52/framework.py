@@ -445,6 +445,8 @@ def check_and_install(zigbee: bool = False) -> None:
                     "Install it with: sudo apt install pkg-config"
                 )
             _LOGGER.info("Installing pkg-config ...")
+            if not run_command_ok(["apt", "update"]):
+                raise EsphomeError("Failed to update apt package index")
             if not run_command_ok(["apt", "install", "-y", "pkg-config"]):
                 raise EsphomeError("Failed to install pkg-config")
 
