@@ -157,7 +157,7 @@ class SensorItem {
     this->range_start_address = address;
   }
 
-  void set_custom_pdu(const std::vector<uint8_t> &pdu) { custom_pdu = pdu; }
+  void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
   size_t virtual get_register_size() const {
     if (this->addresses_bits()) {
       return 1;
@@ -186,7 +186,7 @@ class SensorItem {
   uint8_t offset_from_start_address{0};
   /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
   uint16_t range_start_address{0};
-  std::vector<uint8_t> custom_pdu{};
+  SmallInlineBuffer<8> custom_pdu{};
   bool force_new_range{false};
 };
 
@@ -414,7 +414,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   uint16_t register_count_{0};
   FunctionCode function_code_{FunctionCode::INVALID};
   /// Custom polling commands reference the PDU bytes owned by their SensorItem instead of copying them.
-  const std::vector<uint8_t> *custom_pdu_{nullptr};
+  const SmallInlineBuffer<8> *custom_pdu_{nullptr};
   /// True when `payload` holds a legacy raw frame rather than a PDU; set by custom_command_impl(). Remove before
   /// 2027.3.0.
   bool payload_is_raw_frame_{false};

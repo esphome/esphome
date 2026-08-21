@@ -30,7 +30,7 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
   // The PDU's first byte is its real function code; carry it so dump_config, the on_command_sent
   // trigger and the response callbacks report the actual code instead of INVALID.
   if (!sensor->custom_pdu.empty())
-    this->function_code_ = static_cast<FunctionCode>(sensor->custom_pdu[0]);
+    this->function_code_ = static_cast<FunctionCode>(sensor->custom_pdu.data()[0]);
   this->sensors.insert(sensor);
 }
 
