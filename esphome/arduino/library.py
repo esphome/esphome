@@ -32,6 +32,7 @@ from esphome.platformio.library import (
     DEFAULT_BUILD_SRC_FILTER,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
+    IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
     check_library_data,
@@ -73,16 +74,19 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     build = data.get("build", {})
 
     # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
-    src_dir = build.get("srcDir") or next(
-        (d for d in ("src", "Src") if (read_path / d).is_dir()), "."
-    )
-    if "srcDir" in build and not (read_path / src_dir).is_dir():
-        # Unlike the default probes, an explicitly declared srcDir that does
-        # not resolve is unambiguously a manifest/tree error; a silently
-        # empty source set would surface as link errors far from the cause
-        raise EsphomeError(
-            f"Library {name} declares srcDir {src_dir} which does not exist"
-        )
+    if "srcDir" in build:
+        # An explicitly declared srcDir (falsy included) that does not
+        # resolve is unambiguously a manifest/tree error; a silently empty
+        # source set would surface as link errors far from the cause
+        src_dir = build["srcDir"]
+        if not (
+            isinstance(src_dir, str) and src_dir and (read_path / src_dir).is_dir()
+        ):
+            raise EsphomeError(
+                f"Library {name} declares srcDir {src_dir!r} which does not exist"
+            )
+    else:
+        src_dir = next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     # PlatformIO shell-lexes each build.flags entry
@@ -92,7 +96,20 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     # deliberate extra (Arduino IDE's property, which PIO ignores) so
     # properties-only libraries can opt out of archiving too
     if "libArchive" in build:
-        lib_archive = bool(build["libArchive"])
+        raw_archive = build["libArchive"]
+        if isinstance(raw_archive, bool):
+            lib_archive = raw_archive
+        elif str(raw_archive).strip().lower() in ("true", "false"):
+            lib_archive = str(raw_archive).strip().lower() == "true"
+        else:
+            # bool("false") is True; an unparsable value must not silently
+            # archive a library whose author disabled archiving
+            _LOGGER.warning(
+                "Library %s has an unrecognized libArchive value %r; assuming true",
+                name,
+                raw_archive,
+            )
+            lib_archive = True
     elif "dot_a_linkage" in data:
         lib_archive = str(data["dot_a_linkage"]).lower() == "true"
     else:
@@ -192,9 +209,10 @@ def resolve_libraries(
             and "/" not in library.name
             and (framework_path / "libraries" / library.name).is_dir()
         ):
-            # A bundled library's own manifest dependencies are deliberately
-            # not walked (PlatformIO's lib_ldf_mode=off does not either);
-            # core add_library() calls list what they need explicitly.
+            # A bundled library's own manifest dependencies are not walked.
+            # PlatformIO would walk them even under lib_ldf_mode=off, but no
+            # library bundled with the ESP8266 core declares any, so the walk
+            # is a no-op there; core add_library() calls list what they need.
             bundled.append(_bundled_library(framework_path, library.name))
         else:
             external.append(library)
@@ -217,11 +235,13 @@ def resolve_libraries(
                 continue
             if name in bundled_names or is_lib_ignored(name, lib_ignore):
                 continue
-            if "version" in dep:
-                # The converter resolves versioned deps from the registry.
-                # Note: the dict shorthand {"Wire": "*"} normalizes to
-                # version="*" and takes this path even for a bundled name;
-                # use the list form for bundled dependencies.
+            bundled_dir = framework_path / "libraries" / name
+            if "version" in dep and (dep.get("owner") or not bundled_dir.is_dir()):
+                # The converter resolves versioned deps from the registry. An
+                # owner-less versioned name that exists in the framework tree
+                # ({"Wire": "*"} normalizes to version="*") falls through to
+                # the bundled path below, matching PlatformIO's
+                # process_dependencies preference for bundled builders.
                 continue
             if dep.get("owner"):
                 # Owner but no version: the converter skips it too, so this
@@ -233,7 +253,7 @@ def resolve_libraries(
                     component.name,
                 )
                 continue
-            if not (framework_path / "libraries" / name).is_dir():
+            if not bundled_dir.is_dir():
                 # The shared converter skips version-less deps too, so this
                 # is the only place the drop can be made visible before the
                 # missing sources surface as link errors.
@@ -251,7 +271,7 @@ def resolve_libraries(
                 # manifest is routine (every ESPAsyncWebServer build hits
                 # it), so the platform filter stays at debug; any other
                 # cause means a dropped dependency and must be visible
-                if "platform" in str(err).lower():
+                if isinstance(err, IncompatiblePlatform):
                     _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
                 else:
                     _LOGGER.warning(
@@ -287,12 +307,15 @@ def resolve_libraries(
         )
         if len(resolved) < len(external):
             # A requested library the converter dropped would otherwise
-            # surface only as link errors far from the cause
+            # surface only as link errors far from the cause; name the
+            # requests that went missing, not just the survivors
+            resolved_names = {c.name for c in resolved}
+            dropped = [str(lib) for lib in external if lib.name not in resolved_names]
             _LOGGER.warning(
-                "%d of %d requested libraries were not resolved (resolved: %s)",
+                "%d of %d requested libraries were not resolved (missing: %s)",
                 len(external) - len(resolved),
                 len(external),
-                ", ".join(sorted(c.name for c in resolved)) or "none",
+                ", ".join(sorted(dropped)) or "unknown",
             )
 
     return bundled + converted
