@@ -213,7 +213,11 @@ CONFIG_SCHEMA = (
                 cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_ENABLE_PINS_INVERTED, default=False): cv.boolean,
+            cv.Optional(
+                CONF_ENABLE_PINS_INVERTED,
+                default=False,
+                visibility=cv.Visibility.ADVANCED,
+            ): cv.boolean,
             cv.Required(CONF_FREQUENCY): cv.All(
                 cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
@@ -230,7 +234,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
             cv.Required(CONF_RF_SWITCH): cv.boolean,
-            cv.Optional(CONF_RX_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                CONF_RX_ENABLE_PIN, visibility=cv.Visibility.ADVANCED
+            ): pins.gpio_output_pin_schema,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
             cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
             cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
@@ -243,7 +249,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
                 cv.hex_int, cv.Range(min=0, max=0x1FF)
             ),
-            cv.Optional(CONF_TX_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                CONF_TX_ENABLE_PIN, visibility=cv.Visibility.ADVANCED
+            ): pins.gpio_output_pin_schema,
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
