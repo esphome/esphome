@@ -6,9 +6,28 @@ from esphome.components import sensor
 from esphome.components.emontx.sensor import CONFIG_SCHEMA, apply_tag_defaults
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
     CONF_STATE_CLASS,
+    CONF_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_APPARENT_POWER,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_HERTZ,
+    UNIT_PULSES,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 
 
@@ -78,6 +97,52 @@ def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
 
     assert result[CONF_STATE_CLASS] == sensor.validate_state_class(expected_state_class)
     assert result[CONF_ACCURACY_DECIMALS] == expected_decimals
+
+
+@pytest.mark.parametrize(
+    ("tag", "expected_unit", "expected_device_class"),
+    [
+        # Known numeric-index prefixes
+        ("E1", UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY),
+        ("E12", UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY),
+        ("P1", UNIT_WATT, DEVICE_CLASS_POWER),
+        ("V1", UNIT_VOLT, DEVICE_CLASS_VOLTAGE),
+        ("I1", UNIT_AMPERE, DEVICE_CLASS_CURRENT),
+        ("T1", UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE),
+        # Known patterns
+        ("PULSE1", UNIT_PULSES, DEVICE_CLASS_ENERGY),
+        ("PULSE12", UNIT_PULSES, DEVICE_CLASS_ENERGY),
+        ("PF1", UNIT_EMPTY, DEVICE_CLASS_POWER_FACTOR),
+        ("AP1", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
+        ("AP12", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
+        # Frequency: reported as a single, un-numbered tag
+        ("F", UNIT_HERTZ, DEVICE_CLASS_FREQUENCY),
+    ],
+)
+def test_apply_tag_defaults_unit_and_device_class(tag, expected_unit, expected_device_class):
+    """apply_tag_defaults must inject the correct, validated unit_of_measurement
+    and device_class for each tag type when no user overrides are present."""
+    config = _make_config(tag)
+    result = apply_tag_defaults(config)
+
+    assert result[CONF_UNIT_OF_MEASUREMENT] == sensor.validate_unit_of_measurement(
+        expected_unit
+    )
+    assert result[CONF_DEVICE_CLASS] == sensor.validate_device_class(
+        expected_device_class
+    )
+
+
+@pytest.mark.parametrize("tag", ["CUSTOM1", "X"])
+def test_apply_tag_defaults_unknown_tag_has_no_unit_or_device_class(tag):
+    """Unknown / free-form tags only get generic state_class and
+    accuracy_decimals defaults; unit_of_measurement and device_class are left
+    for the user to set explicitly."""
+    config = _make_config(tag)
+    result = apply_tag_defaults(config)
+
+    assert CONF_UNIT_OF_MEASUREMENT not in result
+    assert CONF_DEVICE_CLASS not in result
 
 
 @pytest.mark.parametrize(

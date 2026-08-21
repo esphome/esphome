@@ -101,8 +101,9 @@ PATTERN_CONFIGS = {
 # Passing them to sensor_schema() would register them via cv.Optional(key, default=...),
 # making them always present in the validated config dict and preventing
 # apply_tag_defaults from overriding them with the correct per-prefix values.
-# They are injected by apply_tag_defaults below, after running through
-# sensor.validate_state_class() so the value is code-generation-ready.
+# They are injected by apply_tag_defaults below, after running through the
+# same validators sensor_schema() would use (see _DEFAULT_VALIDATORS) so the
+# values are code-generation-ready.
 BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
     {
         cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
@@ -111,14 +112,22 @@ BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
 )
 
 
+_DEFAULT_VALIDATORS = {
+    CONF_STATE_CLASS: sensor.validate_state_class,
+    CONF_DEVICE_CLASS: sensor.validate_device_class,
+    CONF_UNIT_OF_MEASUREMENT: sensor.validate_unit_of_measurement,
+}
+
+
 def _apply_defaults(config: ConfigType, defaults: dict) -> None:
     """Inject defaults into config, skipping keys already set by the user.
-    state_class values are run through validate_state_class so they are
-    code-generation-ready, matching what sensor_schema() would normally do."""
+    Values are run through the same validators sensor_schema() would use, so
+    they are code-generation-ready and a typo'd constant fails validation
+    instead of shipping silently."""
     for key, value in defaults.items():
         if key not in config:
-            if key == CONF_STATE_CLASS:
-                value = sensor.validate_state_class(value)
+            if key in _DEFAULT_VALIDATORS:
+                value = _DEFAULT_VALIDATORS[key](value)
             config[key] = value
 
 
