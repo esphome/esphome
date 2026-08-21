@@ -7,38 +7,20 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
 
 from esphome.core import EsphomeError
-from esphome.framework_helpers import strip_win_long_path_prefix
+from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_runs
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _ninja_runs(binary: str) -> bool:
-    """Whether the ninja found on PATH actually runs.
-
-    Same rationale as the ccache probe: ``shutil.which`` proves existence,
-    not runnability (stale shims, broken wrappers).
-    """
-    try:
-        subprocess.run(
-            [binary, "--version"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=15,
-            # Repo-wide convention (posix_spawn fast path)
-            close_fds=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        _LOGGER.warning(
-            "Ignoring ninja at %s because it failed to run; "
-            "falling back to the bundled wheel",
-            binary,
-        )
-        return False
-    return True
+    """Whether the ninja found on PATH actually runs (see tool_version_runs)."""
+    return tool_version_runs(
+        binary,
+        "Ignoring ninja at %s because it failed to run; "
+        "falling back to the bundled wheel",
+    )
 
 
 def find_ninja() -> Path:
@@ -80,8 +62,9 @@ def quote_arg(tok: str) -> str:
 
     Same escaping rule as ``subprocess.list2cmdline``: a backslash run
     doubles only immediately before a quote (or the closing quote), and the
-    quote itself is escaped. POSIX sh parses the result identically for
-    backslashes and quotes. ``$`` must already be doubled for ninja.
+    quote itself is escaped. CreateProcess-only; POSIX sh collapses
+    backslash runs inside double quotes, so shell_token single-quotes
+    there instead. ``$`` must already be doubled for ninja.
     """
     quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
     quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
@@ -99,17 +82,22 @@ def shell_token(tok: str, force: bool = False) -> str:
 
     Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
     token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO. After ninja
-    un-doubles ``$$``, sh still applies every expansion double quotes allow
-    (``$VAR``, ``$(...)``, backticks) while CreateProcess passes them
-    literally; SCons on POSIX spawns without a shell, so this is a known,
-    deliberate divergence for tokens carrying those characters.
+    same argv element SCons would pass under PlatformIO. Ninja hands POSIX
+    commands to ``/bin/sh -c`` and Windows commands to CreateProcess, so the
+    quoting style is chosen per platform: single quotes on POSIX (sh expands
+    nothing inside them, matching SCons's no-shell spawn) and the argv rule
+    on Windows. ``$`` is doubled first in either case because ninja expands
+    ``$`` before the command reaches the shell.
     """
     tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
-    if force or not tok or _NEEDS_QUOTE.search(tok):
-        # An empty token must become "" or it vanishes from the argv
+    if not (force or not tok or _NEEDS_QUOTE.search(tok)):
+        return tok
+    # An empty token must become '' / "" or it vanishes from the argv
+    if os.name == "nt":
         return quote_arg(tok)
-    return tok
+    # shlex.quote's rule; inlined because the $-doubled token must not be
+    # re-examined for safe characters
+    return "'" + tok.replace("'", "'\"'\"'") + "'"
 
 
 def quote_path(value: Path | str) -> str:
