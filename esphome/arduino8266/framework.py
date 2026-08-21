@@ -18,7 +18,6 @@ toolchain has always used, so the bits are identical); the
 
 from __future__ import annotations
 
-import functools
 import os
 from pathlib import Path
 from typing import NamedTuple
@@ -155,9 +154,13 @@ def get_build_env(toolchain_path: Path) -> dict[str, str]:
     return env
 
 
-@functools.cache
 def ccache_path() -> str | None:
-    """The ccache binary to prefix compiles with, or None when disabled."""
+    """The ccache binary to prefix compiles with, or None when disabled.
+
+    Deliberately uncached (matching espidf): the decision reads
+    ESPHOME_CCACHE_ENABLE and PATH, which can change between builds in a
+    long-lived host process.
+    """
     return resolve_ccache_path()
 
 
