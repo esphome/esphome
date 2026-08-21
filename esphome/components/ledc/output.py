@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -62,6 +63,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Re-enable the LEDC driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_ledc")
+
     gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
