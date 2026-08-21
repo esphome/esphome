@@ -253,6 +253,25 @@ def test_suspend_loop_success(
     assert esphome_config.get(CONF_SUSPEND_LOOP)
 
 
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_to_code_adds_defines(yaml_file: Callable[[str], Path]) -> None:
+    """esphome->libraries entries are parsed and registered via cg.add_library."""
+    result = load_config_from_fixture(
+        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
+    mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
+    mock_cg.add(mock_cg.App.set_loop_interval(50))
+
+
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
     """Test that devices without area_id work correctly."""
     result = load_config_from_fixture(
