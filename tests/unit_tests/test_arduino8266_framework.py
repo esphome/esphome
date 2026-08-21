@@ -14,8 +14,7 @@ from esphome.core import CORE, EsphomeError
 
 
 @pytest.fixture(autouse=True)
-def _clear_caches(tmp_path: Path) -> None:
-    framework.ccache_path.cache_clear()
+def _build_path(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
 
 
@@ -100,18 +99,19 @@ def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
     assert env["CCACHE_DIR"] == "x"
 
 
-def test_ccache_path_delegates_and_caches(
+def test_ccache_path_delegates_uncached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The wrapper delegates to the shared policy (covered in
-    build_helpers/test_ccache.py) and caches the result."""
+    build_helpers/test_ccache.py) on every call: the env/PATH decision
+    must not freeze for the process lifetime in a long-lived host."""
     monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
     with patch.object(
         framework, "resolve_ccache_path", return_value="/usr/bin/ccache"
     ) as mock_resolve:
         assert framework.ccache_path() == "/usr/bin/ccache"
         assert framework.ccache_path() == "/usr/bin/ccache"
-    mock_resolve.assert_called_once()
+    assert mock_resolve.call_count == 2
 
 
 def test_ccache_env(tmp_path: Path) -> None:
