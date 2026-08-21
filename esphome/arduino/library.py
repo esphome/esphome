@@ -35,6 +35,7 @@ from esphome.platformio.library import (
     IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
+    _node_key,
     check_library_data,
     collect_filtered_files,
     convert_libraries,
@@ -71,7 +72,11 @@ class ArduinoLibrary:
 
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
-    build = data.get("build", {})
+    build = data.get("build", {}) if isinstance(data, dict) else None
+    if not isinstance(build, dict):
+        # A bare json.load imposes no shape; name the library instead of an
+        # AttributeError deep in a traceback
+        raise EsphomeError(f"Library {name} has a malformed manifest")
 
     # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
     if "srcDir" in build:
@@ -177,6 +182,15 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     else:
         manifest = lib_dir / "library.properties"
         data = parse_library_properties(manifest) if manifest.is_file() else {}
+    if isinstance(data, dict) and data.get("dependencies"):
+        # The dependency walk never runs for bundled libraries (a no-op for
+        # the ESP8266 core, whose bundled manifests declare none); on a core
+        # where one does, the skip must be visible before link errors
+        _LOGGER.warning(
+            "Bundled library %s declares dependencies, which are not "
+            "resolved automatically; add them with add_library() if needed",
+            name,
+        )
     return _library_info(name, lib_dir, data)
 
 
@@ -309,8 +323,15 @@ def resolve_libraries(
             # A requested library the converter dropped would otherwise
             # surface only as link errors far from the cause; name the
             # requests that went missing, not just the survivors
-            resolved_names = {c.name for c in resolved}
-            dropped = [str(lib) for lib in external if lib.name not in resolved_names]
+            # ConvertedLibrary.name is canonical (bare "pngle" resolves to
+            # "bitbank2__pngle"); diff the request-side node keys instead
+            resolved_keys = {c.node_key or c.name for c in resolved}
+            dropped = [
+                str(lib)
+                for lib in external
+                if _node_key(lib.name, lib.version, lib.repository)[0]
+                not in resolved_keys
+            ]
             _LOGGER.warning(
                 "%d of %d requested libraries were not resolved (missing: %s)",
                 len(external) - len(resolved),

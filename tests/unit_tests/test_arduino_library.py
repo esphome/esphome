@@ -552,3 +552,57 @@ def test_bundled_dependency_platform_rejection_is_debug(
             cache_key="arduino8266",
         )
     assert "Skipping bundled dependency Wire" not in caplog.text
+
+
+@pytest.mark.parametrize("data", [{"build": "src"}, [], "nope"])
+def test_library_info_malformed_manifest_is_named(tmp_path: Path, data: object) -> None:
+    """A malformed manifest names the library, never an AttributeError."""
+    read_path = tmp_path / "lib"
+    read_path.mkdir()
+    with pytest.raises(EsphomeError, match="Library x has a malformed manifest"):
+        component._library_info("x", read_path, data)
+
+
+def test_drop_warning_maps_requests_by_node_key(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bare request resolving to a canonical name is not falsely reported
+    missing; the genuinely dropped request is the one named."""
+    framework = _make_framework(tmp_path)
+    _add_library("pngle", None)
+    _add_library("gone/missing", "1.0.0")
+    lib_dir = tmp_path / "converted" / "pngle"
+    (lib_dir / "src").mkdir(parents=True)
+    resolved = _converted("bitbank2__pngle", lib_dir, {"build": {}})
+    resolved.node_key = "pngle"
+    with patch.object(component, "convert_libraries", return_value=[resolved]):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "1 of 2 requested libraries were not resolved" in caplog.text
+    assert "missing" in caplog.text
+    assert "pngle" not in caplog.text.split("missing:")[-1]
+    assert "gone/missing" in caplog.text.split("missing:")[-1]
+
+
+def test_bundled_library_with_declared_dependencies_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bundled manifest that declares dependencies is visible, not
+    silently skipped (a no-op for the ESP8266 core, not for every core)."""
+    framework = _make_framework(tmp_path)
+    wire = framework / "libraries" / "Wire"
+    (wire / "library.json").write_text(
+        '{"name": "Wire", "dependencies": [{"name": "SPI"}]}'
+    )
+    _add_library("Wire", None)
+    component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+    assert "Bundled library Wire declares dependencies" in caplog.text
