@@ -49,6 +49,14 @@ CONFIG_ADC=y
 # posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
 # Zephyr POSIX headers clash with the libc ones under analysis
 CONFIG_POSIX_API=y
+# socket/__init__.py always pairs NET_SOCKETS with POSIX_API for Zephyr's BSD
+# sockets. NET_SOCKETS is itself only visible under NETWORKING, which a real
+# build gets transitively (wifi/ethernet/openthread); the stub has none of
+# those, so it's requested directly. Without it, Zephyr 4.4's
+# NET_NAMESPACE_COMPAT_MODE (aliases sa_family_t/AF_INET6/etc for
+# ip_address.h) never gets selected.
+CONFIG_NETWORKING=y
+CONFIG_NET_SOCKETS=y
 #mcumgr begin
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y
@@ -206,6 +214,9 @@ def generate_compile_commands(
     from esphome.framework_helpers import run_command_ok
     from esphome.helpers import rmtree
 
+    from . import partitions as nrf52_partitions
+    from .boards import BOOTLOADER_CONFIG
+    from .const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
     from .framework import check_and_install, get_build_env, get_build_paths
 
     # Surface ESPHome's INFO logs (sdk-nrf download/west update) -- they go
@@ -231,6 +242,14 @@ def generate_compile_commands(
     )
     (source_dir / "main.cpp").write_text(_TIDY_MAIN_CPP, encoding="utf-8")
     (source_dir / "prj.conf").write_text(_TIDY_PRJ_CONF, encoding="utf-8")
+    # ncs-zigbee hard-requires real zboss_nvram/zboss_product_config
+    # fixed-partitions (see __init__.py's to_code()); the tidy stub has no
+    # YAML config to run that logic, so build the same UF2-scheme overlay by
+    # hand for the tidy board's default bootloader.
+    zboss_overlay = nrf52_partitions.uf2_scheme_code_partition_overlay(
+        BOOTLOADER_CONFIG[BOOTLOADER_ADAFRUIT_NRF52_SD140_V6]
+    )
+    (source_dir / "app.overlay").write_text(zboss_overlay, encoding="utf-8")
 
     # Always configure from scratch: west can't pristine a dir whose CMake
     # cache is stale/missing. Callers that want to skip a redundant configure
