@@ -53,11 +53,6 @@ def _make_config(tag: str) -> dict:
     return {"tag_name": tag}
 
 
-def _state_class_str(config: dict) -> str:
-    """Return the state_class value as a plain string for easy assertion."""
-    return sensor.validate_state_class.schema.schema[config[CONF_STATE_CLASS]]
-
-
 @pytest.mark.parametrize(
     ("tag", "expected_state_class", "expected_decimals"),
     [
