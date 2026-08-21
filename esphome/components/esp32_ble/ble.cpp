@@ -647,15 +647,20 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // never answer an update, and without this the link silently stays on the
     // old parameters (visible only as unexplained supervision timeouts).
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
-      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      format_mac_addr_upper(param->update_conn_params.bda, mac_s);
       if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
         ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
-      } else {
-        ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u latency=%u timeout=%u", mac_s,
+      }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      else {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u (x1.25ms) latency=%u timeout=%u (x10ms)", mac_s,
                  param->update_conn_params.conn_int, param->update_conn_params.latency,
                  param->update_conn_params.timeout);
       }
+#endif
       return;
     }
 
