@@ -7,8 +7,10 @@ from esphome.const import (
     CONF_ID,
     CONF_STATE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_TEMPERATURE,
@@ -18,8 +20,10 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_EMPTY,
+    UNIT_HERTZ,
     UNIT_PULSES,
     UNIT_VOLT,
+    UNIT_VOLT_AMPS,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
@@ -63,6 +67,14 @@ SENSOR_CONFIGS = {
     },
 }
 
+# Frequency is reported as a single, un-numbered tag ("F"), not "F1"/"F2".
+FREQUENCY_CONFIG = {
+    CONF_UNIT_OF_MEASUREMENT: UNIT_HERTZ,
+    CONF_DEVICE_CLASS: DEVICE_CLASS_FREQUENCY,
+    CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+    CONF_ACCURACY_DECIMALS: 2,
+}
+
 # Pattern-based configurations
 PATTERN_CONFIGS = {
     "PULSE": {
@@ -74,6 +86,12 @@ PATTERN_CONFIGS = {
     "PF": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_EMPTY,
         CONF_DEVICE_CLASS: DEVICE_CLASS_POWER_FACTOR,
+        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_ACCURACY_DECIMALS: 2,
+    },
+    "AP": {
+        CONF_UNIT_OF_MEASUREMENT: UNIT_VOLT_AMPS,
+        CONF_DEVICE_CLASS: DEVICE_CLASS_APPARENT_POWER,
         CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
         CONF_ACCURACY_DECIMALS: 2,
     },
@@ -107,10 +125,9 @@ def _apply_defaults(config: ConfigType, defaults: dict) -> None:
 def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
     tag = config[CONF_TAG_NAME]
+    tag_upper = tag.upper()
 
     if len(tag) >= 2:
-        tag_upper = tag.upper()
-
         for pattern, pattern_config in PATTERN_CONFIGS.items():
             if tag_upper.startswith(pattern):
                 _apply_defaults(config, pattern_config)
@@ -121,6 +138,9 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
         if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
             _apply_defaults(config, SENSOR_CONFIGS[prefix])
             return config
+    elif tag_upper == "F":
+        _apply_defaults(config, FREQUENCY_CONFIG)
+        return config
 
     # Fall back to generic defaults for tags with no known prefix
     _apply_defaults(

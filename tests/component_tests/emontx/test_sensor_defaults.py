@@ -61,6 +61,10 @@ def _make_config(tag: str) -> dict:
         ("PULSE1", STATE_CLASS_TOTAL_INCREASING, 0),
         ("PULSE12", STATE_CLASS_TOTAL_INCREASING, 0),
         ("PF1", STATE_CLASS_MEASUREMENT, 2),
+        ("AP1", STATE_CLASS_MEASUREMENT, 2),
+        ("AP12", STATE_CLASS_MEASUREMENT, 2),
+        # Frequency: reported as a single, un-numbered tag
+        ("F", STATE_CLASS_MEASUREMENT, 2),
         # Unknown / free-form tags fall back to generic defaults
         ("CUSTOM1", STATE_CLASS_MEASUREMENT, 0),
         ("X", STATE_CLASS_MEASUREMENT, 0),
