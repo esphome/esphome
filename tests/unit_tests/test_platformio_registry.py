@@ -442,3 +442,13 @@ def test_registry_download_non_dict_payload_is_named() -> None:
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_non_list_system_is_named() -> None:
+    """A system field that is neither missing, str, nor list is an
+    unexpected payload, not a TypeError from the ``in`` test."""
+    with (
+        _registry_response([{"system": 5, "checksum": {"sha256": "abc"}, "size": 1}]),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
