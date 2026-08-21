@@ -192,13 +192,17 @@ def run_extra_script(
         pio_env=f"esphome_{board_mcu}",
         pio_platform=pio_platform,
     )
+    try:
+        source = script_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        # An unreadable declared script is a broken package, exactly like a
+        # missing one; must not be quieter than that case
+        raise EsphomeError(f"extraScript {script_path} is unreadable: {err}") from err
     old_cwd = Path.cwd()
     try:
-        # Inside the try: a SyntaxError or bad encoding in a vendored script
-        # is just as best-effort as a runtime failure
-        code = compile(
-            script_path.read_text(encoding="utf-8"), str(script_path), "exec"
-        )
+        # Inside the try: a SyntaxError in a vendored script is just as
+        # best-effort as a runtime failure
+        code = compile(source, str(script_path), "exec")
         os.chdir(library_dir)
         exec(  # noqa: S102 pylint: disable=exec-used
             code,
@@ -209,7 +213,19 @@ def run_extra_script(
                 "__name__": "__pio_extra_script__",
             },
         )
-    except (SystemExit, Exception) as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except SystemExit as e:
+        if not e.code:
+            # sys.exit() / sys.exit(0) is a normal PlatformIO script ending;
+            # the capture is complete
+            return env.result
+        _LOGGER.warning(
+            "PIO extra-script %s (in %s) exited with status %r; ignoring its output",
+            script_path,
+            library_dir.name,
+            e.code,
+        )
+        return ExtraScriptResult()
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Discard any partial capture: folding half a script's flags into the
         # build could produce wrong-output firmware that links cleanly. The
         # warning plus the resulting loud link error point back here.
