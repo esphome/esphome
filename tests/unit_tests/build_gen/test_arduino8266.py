@@ -1208,3 +1208,12 @@ def test_generate_ld_scripts_unreadable_header_forces_regeneration(
         ) as mock_run:
             _run_generate_ld_scripts(paths)
         mock_run.assert_called_once()
+
+
+def test_board_tables_are_equal() -> None:
+    """write_project rejects a board missing from either table, so the two
+    must stay exactly in sync (the build-surgery test only checks the
+    subset direction, which is how d1_wroom_02 went missing)."""
+    from esphome.components.esp8266.boards import BOARDS
+
+    assert set(BOARDS) == set(ESP8266_BOARD_BUILD)

@@ -771,6 +771,10 @@ def write_project(paths: InstalledPaths) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
+        # --flash_freq 40: upstream derives this from the board JSON's
+        # f_flash, but all 45 supported boards ship 40 MHz (audited against
+        # platform-espressif8266); re-check if a future platform bump adds
+        # a board with a different f_flash
         f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
