@@ -79,6 +79,10 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
             f"Unexpected package registry response for {package}: {str(data)[:200]}"
         )
     for ver in versions:
+        if not isinstance(ver, dict):
+            raise EsphomeError(
+                f"Unexpected package registry response for {package}: {str(data)[:200]}"
+            )
         if ver.get("name") != version:
             continue
         files = ver.get("files")
@@ -87,6 +91,11 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                 f"Unexpected package registry response for {package}: {str(ver)[:200]}"
             )
         for file in files:
+            if not isinstance(file, dict):
+                raise EsphomeError(
+                    f"Unexpected package registry response for {package}: "
+                    f"{str(ver)[:200]}"
+                )
             # Only a MISSING key means "any system"; an explicitly empty
             # list must not match (a wrong-architecture download would be
             # cached as a good install). A bare string would make ``in`` a
@@ -133,6 +142,10 @@ def install_package(
     substitution) is trusted as configured. ``downloads_dir`` holds the
     archive between runs so an interrupted download resumes.
     """
+    if not expect:
+        # Layout validation before marker.touch() is the only guard against
+        # caching a truncated mirror archive as a good install
+        raise ValueError("install_package requires a non-empty expect")
     marker = dest / ".esphome_extracted"
     if marker.is_file():
         return

@@ -204,7 +204,9 @@ def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
     dest.mkdir()
     (dest / ".esphome_extracted").touch()
     with patch.object(registry, "download_from_mirrors") as mock_download:
-        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl", expect=())
+        registry.install_package(
+            "pkg", "1.0.0", dest, [], tmp_path / "dl", expect=("payload",)
+        )
     mock_download.assert_not_called()
 
 
@@ -217,9 +219,11 @@ def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
         patch.object(registry, "get_systype", return_value="linux_x86_64"),
     ):
         # Extraction is expected to create the directory
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
         registry.install_package(
-            "pkg", "1.0.0", dest, mirrors, tmp_path / "dl", expect=()
+            "pkg", "1.0.0", dest, mirrors, tmp_path / "dl", expect=("payload",)
         )
     assert mock_download.call_args[0][0] is mirrors
     assert mock_download.call_args[0][1] == {
@@ -241,8 +245,12 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
             return_value=("http://x/pkg.tar.gz", "abc123", 42),
         ),
     ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl", expect=())
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg", "1.0.0", dest, [], tmp_path / "dl", expect=("payload",)
+        )
     assert mock_download.call_args[0][0] == "http://x/pkg.tar.gz"
     assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
@@ -270,7 +278,9 @@ def test_install_package_unexpected_layout_raises(tmp_path: Path) -> None:
         patch.object(registry, "get_systype", return_value="linux_x86_64"),
         pytest.raises(EsphomeError, match="without the expected bin"),
     ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
         registry.install_package(
             "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=("bin",)
         )
@@ -294,7 +304,7 @@ def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
         patch.object(registry, "rmdir") as mock_rmdir,
     ):
         registry.install_package(
-            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=()
+            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=("payload",)
         )
     mock_download.assert_not_called()
     mock_rmdir.assert_not_called()
@@ -309,9 +319,11 @@ def test_install_package_uses_hard_lock(tmp_path: Path) -> None:
         patch.object(registry, "archive_extract_all") as mock_extract,
         patch.object(registry, "get_systype", return_value="linux_x86_64"),
     ):
-        mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir(exist_ok=True)
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True, exist_ok=True
+        )
         registry.install_package(
-            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=()
+            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=("payload",)
         )
     assert mock_lock.call_args.kwargs["fallback_to_soft"] is False
 
@@ -362,5 +374,45 @@ def test_registry_download_missing_download_url_is_named() -> None:
     with (
         _registry_response([{"system": "*", "checksum": {"sha256": "abc"}, "size": 1}]),
         pytest.raises(EsphomeError, match="no download URL"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_install_package_empty_expect_rejected(tmp_path: Path) -> None:
+    """Layout validation is the only guard before marker.touch(), so an
+    empty expect is a caller bug, not a lenient install."""
+    with pytest.raises(ValueError, match="non-empty expect"):
+        registry.install_package(
+            "pkg", "1.0.0", tmp_path / "pkg", [], tmp_path / "dl", expect=()
+        )
+
+
+def test_registry_download_non_dict_version_entry_is_named() -> None:
+    """A versions list of bare strings is an unexpected payload, not an
+    AttributeError traceback."""
+
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(json.dumps({"versions": ["1.0.0", "2.0.0"]}).encode())
+        return "http://x"
+
+    with (
+        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_non_dict_file_entry_is_named() -> None:
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(
+            json.dumps(
+                {"versions": [{"name": "1.0.0", "files": ["a.tar.gz"]}]}
+            ).encode()
+        )
+        return "http://x"
+
+    with (
+        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
