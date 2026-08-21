@@ -10,8 +10,9 @@ namespace esphome::runtime_image {
 
 /// Return the canonical MIME type for a format, or "image/*" for AUTO/unknown.
 const char *get_mime_type_for_format(ImageFormat format);
-/// Map a Content-Type header value to a compiled-in format (case-insensitive,
-/// parameters after the media type are ignored); nullopt if not recognized.
+/// Map a Content-Type header value to a compiled-in format via a case-insensitive
+/// substring search, so parameters around the media type do not prevent a match;
+/// nullopt if no known media type appears in the value.
 std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type);
 
 /**
@@ -110,6 +111,8 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Get the image format.
    */
+  /// The configured format. Stays AUTO when the format is resolved per decode
+  /// via begin_decode(); the active decoder's get_format() has the resolved one.
   ImageFormat get_format() const { return this->format_; }
 
   /**

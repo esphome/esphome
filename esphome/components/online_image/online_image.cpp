@@ -111,7 +111,11 @@ void OnlineImage::update() {
     if (mime_format.has_value()) {
       format = *mime_format;
     } else {
-      ESP_LOGE(TAG, "Image format '%s' not supported", content_type.c_str());
+      if (content_type.empty()) {
+        ESP_LOGE(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else {
+        ESP_LOGE(TAG, "Image format '%s' not supported. Set `format:` explicitly", content_type.c_str());
+      }
       this->end_connection_();
       this->download_error_callback_.call();
       return;
