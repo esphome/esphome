@@ -54,16 +54,28 @@ def resolve_ccache_path() -> str | None:
 
     Shared policy for every backend: on by default when a runnable ccache is
     on PATH, ``ESPHOME_CCACHE_ENABLE=0`` opts out, and an explicit ``=1``
-    warns when no binary is found and skips the runnability probe. The
+    warns when no binary is found and skips the runnability probe;
+    any other value warns and is treated as unset. The
     Windows extended-length prefix is stripped before probing so the probe
     validates the exact string the build will execute (#18399).
     """
     import shutil
 
-    from esphome.helpers import get_bool_env
-
-    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
-    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
+    # Strict parse: bool(str) truthiness would flip "no"/"off" to enabled
+    # and silently skip the probe
+    raw = os.environ.get("ESPHOME_CCACHE_ENABLE")
+    explicit: bool | None = None
+    if raw is not None:
+        lowered = raw.strip().lower()
+        if lowered in ("1", "true", "yes", "on"):
+            explicit = True
+        elif lowered in ("0", "false", "no", "off"):
+            explicit = False
+        else:
+            _LOGGER.warning(
+                "Ignoring unrecognized ESPHOME_CCACHE_ENABLE=%r; use 1 or 0", raw
+            )
+    if explicit is False:
         return None
     ccache = shutil.which("ccache")
     if ccache is None:
