@@ -176,7 +176,7 @@ StorageError SdSpi::mount() {
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv == FF_DRV_NOT_USED)
+  if (pdrv == 0xFF)
     ESP_LOGE(TAG_SPI, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
   this->set_fatfs_drive_(pdrv);
   this->update_card_info();
