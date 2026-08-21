@@ -10,7 +10,7 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
-float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
+float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI + 1; }
 
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 

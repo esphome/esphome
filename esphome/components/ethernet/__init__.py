@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     CONF_VALUE,
+    CONF_WIFI,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     Platform,
@@ -55,6 +56,7 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+CONFLICTS_WITH = ["captive_portal"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
 
@@ -517,6 +519,38 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate_wifi(config: ConfigType) -> None:
+    """Validate how ethernet coexists with the wifi component.
+
+    A wifi access point does not compete for the primary network interface, so it
+    can always be used next to ethernet. A wifi station does compete, so both
+    interfaces must then be listed under 'network: priority:'.
+    """
+    full_config = fv.full_config.get()
+    if (wifi_config := full_config.get(CONF_WIFI)) is None:
+        return
+
+    from esphome.components.wifi import wifi_has_sta
+
+    if not wifi_has_sta(wifi_config):
+        # AP-only wifi: no primary interface to arbitrate.
+        return
+
+    priority_ifaces = get_priority_interfaces_from_full_config(full_config)
+    missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
+    if missing and priority_ifaces:
+        # A priority list exists but is incomplete: point at what to add.
+        raise cv.Invalid(
+            "When ethernet and wifi are used together, 'network: priority:' must "
+            f"list both interfaces; missing: {', '.join(missing)}"
+        )
+    if missing:
+        raise cv.Invalid(
+            "Component ethernet cannot be used together with a wifi station "
+            "unless both interfaces are listed under 'network: priority:'"
+        )
+
+
 def _final_validate_spi(config):
     if not CORE.is_esp32:
         return  # SPI interface validation is ESP32-only
@@ -769,22 +803,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
-    # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
-    if "wifi" in fv.full_config.get():
-        priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
-        missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
-        if missing and priority_ifaces:
-            # A priority list exists but is incomplete: point at what to add.
-            raise cv.Invalid(
-                "When ethernet and wifi are used together, 'network: priority:' must "
-                f"list both interfaces; missing: {', '.join(missing)}"
-            )
-        if missing:
-            raise cv.Invalid(
-                "Component ethernet cannot be used together with component wifi "
-                "unless both are listed under 'network: priority:'"
-            )
-
+    _final_validate_wifi(config)
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
 
