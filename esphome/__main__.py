@@ -857,8 +857,11 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_elf_copy()
         try:
             toolchain.get_idedata()
-        except EsphomeError as err:
-            # The firmware already built; idedata is a bonus artifact here
+        except (EsphomeError, OSError, RuntimeError, ValueError) as err:
+            # The firmware already built; idedata is a bonus artifact here.
+            # Broad on purpose: a vanished compiler (OSError), a failed
+            # include probe (RuntimeError), or a truncated compile DB
+            # (ValueError) must not fail a successful build either.
             _LOGGER.warning("Could not generate idedata: %s", err)
     else:
         from esphome.platformio import toolchain
