@@ -495,8 +495,11 @@ def write_project(paths: InstalledPaths) -> bool:
     flag_defines = _flag_defines()
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
-    # Board support was validated at config time (_validate_native_toolchain).
     board = esp8266_data[KEY_BOARD]
+    # Config-time validation rejects unsupported boards before this runs;
+    # guard anyway so a bypassing caller fails by name, not KeyError
+    if board not in BOARDS or board not in ESP8266_BOARD_BUILD:
+        raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
     flash_ld_name = _flash_ld_name(board)
 
@@ -557,12 +560,13 @@ def write_project(paths: InstalledPaths) -> bool:
         + get_project_cxx_compile_flags()
     )
     # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
-    # so only -D/-I user flags reach assembly there; match it.
+    # so only -D/-I user flags reach assembly there; match it. The tokens
+    # are already shell-quoted, so test past a leading quote too.
     asflags = (
         _ASFLAGS
         + defines
         + includes
-        + [f for f in project_compile_flags if f.startswith(("-D", "-I"))]
+        + [f for f in project_compile_flags if f.lstrip('"').startswith(("-D", "-I"))]
     )
 
     # build_unflags applies to the framework flag sets too (compile and link),
@@ -654,6 +658,7 @@ def write_project(paths: InstalledPaths) -> bool:
         core_exclude |= _CORE_EXCLUDE_WAVEFORM
 
     archives = []
+    direct_objs: list[str] = []
     # variant_dir existence was already enforced with the include dirs
     variant_sources = _collect_sources(variant_dir)
     if variant_sources:
@@ -690,6 +695,12 @@ def write_project(paths: InstalledPaths) -> bool:
             f"lib/{lib.name}",
             flags=" ".join(_shell_token(f) for f in lib.flags),
         )
+        if not lib.lib_archive:
+            # libArchive: false / dot_a_linkage=false: hand the objects to
+            # the linker directly so unreferenced-but-required symbols
+            # (exception handlers, weak overrides) survive
+            direct_objs.extend(objs)
+            continue
         archive = f"lib{lib.name}.a"
         lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")
         archives.append(archive)
@@ -706,10 +717,10 @@ def write_project(paths: InstalledPaths) -> bool:
     if CORE.testing_mode:
         ld_deps.append(f"ld/{flash_ld}")
     lines.append(
-        f"build firmware.elf: link {' '.join(src_objs)} | "
+        f"build firmware.elf: link {' '.join(src_objs + direct_objs)} | "
         f"{' '.join(_e(a) for a in archives)} {' '.join(_e(d) for d in ld_deps)}"
     )
-    lines.append(f"  archives = {' '.join(archives)}")
+    lines.append(f"  archives = {' '.join(_shell_token(a) for a in archives)}")
     lines.append("build firmware.bin: elf2bin firmware.elf")
     lines.append("build firmware.factory.bin: copy firmware.bin")
     lines.append("build firmware.ota.bin: copy firmware.bin")

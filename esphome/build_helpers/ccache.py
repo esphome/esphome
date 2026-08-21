@@ -1,7 +1,9 @@
 """Shared ccache policy for build backends.
 
-One place for the probe, the enable/override rules, and the ``CCACHE_*``
-defaults, so the backends cannot drift apart.
+One place for the ``CCACHE_*`` defaults (every backend) and for the probe
+and enable rules (backends that call ``resolve_ccache_path``: PlatformIO
+and the native Arduino build). The ESP-IDF backend keeps its own
+``IDF_CCACHE_ENABLE`` gate and does not probe.
 """
 
 from __future__ import annotations

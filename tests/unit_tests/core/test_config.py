@@ -1285,6 +1285,7 @@ async def test_add_platformio_options_native_idf(
     await config._add_platformio_options(
         {
             "build_flags": "-DSINGLE_FLAG",  # string and list forms both valid
+            "build_unflags": ["-Os"],
             "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
@@ -1294,6 +1295,7 @@ async def test_add_platformio_options_native_idf(
 
     assert "-DSINGLE_FLAG" in CORE.build_flags
     assert "ArduinoJson" in CORE.platformio_libraries
+    assert "-Os" in CORE.build_unflags
     # lib_ignore is stored (listified) for generate_idf_components to read;
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}

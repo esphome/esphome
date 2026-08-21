@@ -2777,11 +2777,11 @@ def run_esphome(argv):
             return 2
     CORE.config = config
 
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today. Must run before the
-    # cache refresh below so its sidecar records the same toolchain a
-    # compile would.
+    # Every platform resolves the toolchain during validation now, but the
+    # compiled-config cache fast path skips validation entirely and a
+    # sidecar written before the toolchain field existed restores nothing;
+    # this fallback covers that path. Must run before the cache refresh
+    # below so its sidecar records the same toolchain a compile would.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
 
