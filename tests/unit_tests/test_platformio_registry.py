@@ -346,3 +346,21 @@ def test_registry_download_missing_system_key_matches_any() -> None:
         [{"download_url": "http://x/any", "checksum": {"sha256": "abc"}, "size": 1}]
     ):
         assert registry.registry_download("pkg", "1.0.0") == ("http://x/any", "abc", 1)
+
+
+def test_registry_download_missing_files_list_is_named() -> None:
+    """A version entry without a files list is an unexpected payload, not a
+    missing platform build."""
+    with (
+        _registry_response(None),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_missing_download_url_is_named() -> None:
+    with (
+        _registry_response([{"system": "*", "checksum": {"sha256": "abc"}, "size": 1}]),
+        pytest.raises(EsphomeError, match="no download URL"),
+    ):
+        registry.registry_download("pkg", "1.0.0")

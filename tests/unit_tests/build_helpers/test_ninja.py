@@ -14,7 +14,10 @@ from esphome.core import EsphomeError
 
 
 def test_find_ninja_prefers_path(tmp_path: Path) -> None:
-    with patch("shutil.which", return_value=str(tmp_path / "ninja")):
+    with (
+        patch("shutil.which", return_value=str(tmp_path / "ninja")),
+        patch.object(ninja_helper, "_ninja_runs", return_value=True),
+    ):
         assert ninja_helper.find_ninja() == tmp_path / "ninja"
 
 
@@ -81,3 +84,31 @@ def test_quote_path_force_quotes() -> None:
 def test_shell_token_empty_token_is_quoted() -> None:
     """An empty argv element must survive as an explicit pair of quotes."""
     assert ninja_helper.shell_token("") == '""'
+
+
+def test_find_ninja_probes_path_hit(tmp_path: Path) -> None:
+    """A broken PATH shim falls back to the wheel instead of failing every
+    build later."""
+    binary_name = "ninja.exe" if os.name == "nt" else "ninja"
+    (tmp_path / binary_name).touch()
+    wheel = MagicMock(BIN_DIR=str(tmp_path))
+    with (
+        patch("shutil.which", return_value="/broken/ninja"),
+        patch.object(ninja_helper, "_ninja_runs", return_value=False),
+        patch.dict(sys.modules, {"ninja": wheel}),
+    ):
+        assert ninja_helper.find_ninja() == tmp_path / binary_name
+
+
+def test_ninja_probe_failure_warns(caplog: pytest.LogCaptureFixture) -> None:
+    with patch(
+        "esphome.build_helpers.ninja.subprocess.run", side_effect=OSError("boom")
+    ):
+        assert ninja_helper._ninja_runs("/broken/ninja") is False
+    assert "failed to run" in caplog.text
+
+
+def test_ninja_probe_success() -> None:
+    with patch("esphome.build_helpers.ninja.subprocess.run") as mock_run:
+        assert ninja_helper._ninja_runs("/usr/bin/ninja") is True
+    assert mock_run.call_args.kwargs["close_fds"] is False
