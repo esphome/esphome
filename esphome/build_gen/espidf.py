@@ -208,6 +208,8 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 # paths converge on the same value.
 set(EXECUTABLE_COMPONENT_NAME src)
 
+{cmake_args}
+
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
