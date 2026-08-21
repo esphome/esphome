@@ -7171,3 +7171,32 @@ def test_compile_program_espidf_idedata_failure_does_not_fail_build(
     ):
         assert compile_program(MagicMock(), {}) == 0
     assert "Could not generate idedata" in caplog.text
+
+
+def test_compile_program_espidf_idedata_none_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A silent None from the post-compile idedata refresh is made visible."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        Toolchain,
+    )
+    from esphome.core import CORE
+
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", return_value=None),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "No idedata was generated" in caplog.text

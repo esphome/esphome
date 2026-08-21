@@ -214,7 +214,7 @@ def run_extra_script(
         # build could produce wrong-output firmware that links cleanly. The
         # warning plus the resulting loud link error point back here.
         _LOGGER.warning(
-            "PIO extra-script %s (in %s) raised %s; ignoring its output",
+            "PIO extra-script %s (in %s) raised %r; ignoring its output",
             script_path,
             library_dir.name,
             e,
