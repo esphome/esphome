@@ -204,8 +204,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send())
+        if (!cmd.send()) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        }
       }
     } else {
       ESP_LOGV(TAG, "Module offline - skipping update");
