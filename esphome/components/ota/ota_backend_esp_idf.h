@@ -75,7 +75,7 @@ class IDFOTABackend final {
   // Keep md5_ first since its digest_ is alignas(32) on DMA-SHA variants; md5_set_ stays last so buf_ packs tightly.
   md5::MD5Digest md5_{};
   esp_ota_handle_t update_handle_{0};
-  const esp_partition_t *partition_;
+  const esp_partition_t *partition_{nullptr};
   size_t written_{0};  // Bytes handed to esp_ota_write()
 #ifdef OTA_BLOCK_ERASE_AHEAD
   size_t erased_end_{0};  // Erased up to this partition offset; must stay >= written_

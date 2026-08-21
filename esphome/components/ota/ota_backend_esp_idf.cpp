@@ -2,10 +2,12 @@
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
+#include <sdkconfig.h>
 #include <spi_flash_mmap.h>
 
 #include <algorithm>
@@ -70,12 +72,23 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   esp_err_t err;
 #ifdef OTA_BLOCK_ERASE_AHEAD
   this->erased_end_ = 0;
+#ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+  // esp_ota_begin() refuses to start while the running app is unconfirmed;
+  // esp_ota_resume() does not, so keep that behavior here.
+  esp_ota_img_states_t running_state;
+  if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &running_state) == ESP_OK &&
+      running_state == ESP_OTA_IMG_PENDING_VERIFY) {
+    ESP_LOGE(TAG, "Running app has not confirmed state (ESP_OTA_IMG_PENDING_VERIFY)");
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
+#endif
   // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
   err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
-#ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+#if defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  // esp_ota_begin() does this on IDF 5.5+; esp_ota_resume() does not. Prevents
+  // booting a half-written slot after a crash mid-OTA. Not available on the
+  // 5.3.3/5.4.2 backports, whose esp_ota_begin() did not invalidate either.
   if (err == ESP_OK) {
-    // esp_ota_begin() does this; esp_ota_resume() does not. Prevents booting a
-    // half-written slot after a crash mid-OTA.
     esp_ota_invalidate_inactive_ota_data_slot();
   }
 #endif
@@ -84,7 +97,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
 #endif
 
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
+    ESP_LOGE(TAG, "OTA begin failed (err=0x%X)", err);
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
@@ -145,6 +158,9 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
+    } else if (err == ESP_ERR_INVALID_SIZE) {
+      // Sequential-writes fallback: IDF's lazy erase reports overflow here
+      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     }
@@ -165,10 +181,13 @@ OTAResponseTypes IDFOTABackend::erase_ahead_(size_t len) {
   // range into 64 KiB block erases where aligned, sector erases elsewhere.
   const size_t erase_to =
       std::min<size_t>(this->partition_->size, (end + BLOCK_ERASE_SIZE - 1) & ~(BLOCK_ERASE_SIZE - 1));
+  // A block erase is one uninterruptible flash op (typically ~150 ms, seconds
+  // on aged flash) and the transfer loop may not have fed the WDT for ~1s.
+  watchdog::WatchdogManager watchdog(15000);
   esp_err_t err = esp_partition_erase_range(this->partition_, this->erased_end_, erase_to - this->erased_end_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    return err == ESP_ERR_INVALID_SIZE ? OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE : OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
   this->erased_end_ = erase_to;
   return OTA_RESPONSE_OK;
@@ -266,6 +285,10 @@ void IDFOTABackend::abort() {
   // or not an update is in flight.
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
+  this->written_ = 0;
+#ifdef OTA_BLOCK_ERASE_AHEAD
+  this->erased_end_ = 0;
+#endif
 }
 
 }  // namespace esphome::ota
