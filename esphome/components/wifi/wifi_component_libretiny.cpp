@@ -81,7 +81,7 @@ struct LTWiFiEvent {
       uint8_t scan_id;
     } scan_done;
     struct {
-      uint8_t mac[6];
+      uint8_t mac[MAC_ADDRESS_SIZE];
       int rssi;
     } ap_probe_req;
   } data;
@@ -391,7 +391,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
       auto &it = info.wifi_ap_probereqrecved;
-      memcpy(to_send->data.ap_probe_req.mac, it.mac, 6);
+      memcpy(to_send->data.ap_probe_req.mac, it.mac, MAC_ADDRESS_SIZE);
       to_send->data.ap_probe_req.rssi = it.rssi;
       break;
     }

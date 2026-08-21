@@ -37,12 +37,35 @@ _LOGGER = logging.getLogger(__name__)
 # (upload method, log transport) warns. A new hook is loud by default.
 COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
 
+# Per-platform trigger languages for lazy stacktrace decoding: a
+# matching line is what imports the platform package, so false triggers
+# (8-digit uptime counters, ESP-IDF decimal timestamps) must stay out.
+# Declaring a gate registers the process_stacktrace hook, and each gate
+# must stay a superset of its decoder patterns' trigger language; both
+# are enforced by tests/unit_tests/test_stacktrace.py. Stored as
+# strings so a log session compiles only its own platform's gate.
+STACKTRACE_GATES: Final[dict[str, str]] = {
+    PLATFORM_ESP32: (
+        r"0x[0-9a-fA-F]{3,}\b"
+        r"|(?:PC|RA|MEPC|MTVAL|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+        r"|CRASH DETECTED ON PREVIOUS BOOT"
+    ),
+    PLATFORM_ESP8266: (
+        r"0x[0-9a-fA-F]{3,}\b"
+        r"|\b(?![0-9]{8}\b)[0-9a-fA-F]{8}\b"
+        r"|(?:PC|EXCVADDR|call)\s*[:=]\s*(?:0x)?4[0-9a-fA-F]{7}"
+        r"|[eE]xception \(\d+\):"
+        r"|>>>stack>>>"
+        r"|CRASH DETECTED ON PREVIOUS BOOT"
+    ),
+    PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
+    PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
+}
+
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52}),
-    "process_stacktrace": frozenset(
-        {PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2}
-    ),
+    "process_stacktrace": frozenset(STACKTRACE_GATES),
 }
 
 
@@ -55,6 +78,18 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
 _IN_TREE_PLATFORMS: Final = frozenset(Platform)
 
 
+def has_registered_hook(platform: str, hook: str) -> bool:
+    """True when *platform* declares *hook* in ``PLATFORM_HOOKS``.
+
+    Callers that defer imports key off this: a registered hook is known
+    to exist, so ``get_platform_hook`` can wait until it is needed;
+    anything else must be probed up front so availability is reported
+    at session start. Keeping the predicate here keeps the resolution
+    rule in one module.
+    """
+    return platform in PLATFORM_HOOKS[hook]
+
+
 def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     """Return ``esphome.components.<platform>.<hook>`` or None.
 
@@ -63,7 +98,7 @@ def get_platform_hook(platform: str, hook: str) -> Callable[..., Any] | None:
     hook also returns None, so a stale registry degrades to the generic
     path instead of raising.
     """
-    registered = platform in PLATFORM_HOOKS[hook]
+    registered = has_registered_hook(platform, hook)
     if not registered and platform in _IN_TREE_PLATFORMS:
         return None
     # For external platforms this probes the imported package like the

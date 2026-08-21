@@ -8,12 +8,9 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import stat
 import sys
-import tempfile
 from typing import TYPE_CHECKING, TextIO
-from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -94,13 +91,8 @@ def fnv1a_32bit_hash(string: str) -> int:
 def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h
-    with per_code_point set. This is the OLD entity hash; it computes preference
-    keys that existing devices already have stored (see
-    https://github.com/esphome/backlog/issues/85) and is also still used for live
-    keys derived from config IDs (see the motion component's calibration key).
-    Note: lower() here is Unicode aware while the C++ reconstruction is not; see
-    the known limitation note on the C++ function.
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
 
@@ -108,9 +100,9 @@ def fnv1_hash_object_id(name: str) -> int:
 def fnv1_hash_name(name: str) -> int:
     """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_bytes() in helpers.h,
-    which hashes the name bytes as stored on the device.
-    Used for pre-computing entity keys at code generation time.
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
     """
     return _fnv1_hash(name.encode("utf-8"))
 
@@ -281,6 +273,9 @@ def resolve_ip_address(
         hosts = host
     else:
         if not is_ip_address(host):
+            # Deferred: upload/logs with an IP target never parse a URL.
+            from urllib.parse import urlparse
+
             url = urlparse(host)
             if url.scheme != "":
                 host = url.hostname
@@ -355,6 +350,24 @@ def resolve_ip_address(
     # Sort by preference
     res.sort(key=addr_preference_)
     return res
+
+
+def format_ip_url(family: int, sockaddr: tuple, port: int, path: str) -> str:
+    """Build an ``http://host:port/path`` URL for a resolved address.
+
+    ``family``/``sockaddr`` come from a :func:`resolve_ip_address` entry. IPv6
+    literals must be wrapped in brackets in URLs; link-local addresses need a
+    percent-encoded zone index per RFC 6874.
+    """
+    import socket
+
+    ip = sockaddr[0]
+    if family == socket.AF_INET6:
+        scope = sockaddr[3] if len(sockaddr) >= 4 else 0
+        host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{path}"
 
 
 def sort_ip_addresses(address_list: list[str]) -> list[str]:
@@ -432,6 +445,8 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
+    import shutil
+
     def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
             raise exc
@@ -469,6 +484,11 @@ def _write_file(
 
     Automatically creates all parent directories.
     """
+    # Deferred: a cache-hit upload/logs run never writes a file; keep the
+    # tempfile/shutil chain (bz2, lzma, random) off that path.
+    import shutil
+    import tempfile
+
     data = text
     if isinstance(text, str):
         data = text.encode()
@@ -544,6 +564,8 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
 
     Returns True if file was copied, False if files already matched.
     """
+    import shutil
+
     if file_compare(src, dst):
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)

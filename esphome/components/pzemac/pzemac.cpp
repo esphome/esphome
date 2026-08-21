@@ -77,7 +77,7 @@ void PZEMAC::dump_config() {
 
 void PZEMAC::reset_energy_() {
   const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY};
-  this->send_pdu(pdu);
+  this->queue_pdu(pdu);
 }
 
 }  // namespace esphome::pzemac

@@ -2475,6 +2475,35 @@ def test_should_run_benchmarks_core_header_change() -> None:
         assert determine_jobs.should_run_benchmarks() is True
 
 
+def test_should_run_benchmarks_top_level_python_change() -> None:
+    """Test benchmarks trigger on top-level esphome Python module changes.
+
+    The Python benchmarks exercise config loading, so changes to modules
+    like config.py and yaml_util.py must run them; a regression in #16718
+    went unnoticed because these files matched no trigger.
+    """
+    for py_file in [
+        "esphome/config.py",
+        "esphome/yaml_util.py",
+        "esphome/__main__.py",
+        "esphome/helpers.py",
+    ]:
+        with patch.object(determine_jobs, "changed_files", return_value=[py_file]):
+            assert determine_jobs.should_run_benchmarks() is True, (
+                f"Expected benchmarks to run for {py_file}"
+            )
+
+
+def test_should_run_benchmarks_nested_python_change() -> None:
+    """Test benchmarks do NOT trigger for nested non-core Python changes."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/dashboard/web_server.py"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
 def test_should_run_benchmarks_host_platform_change() -> None:
     """Test benchmarks trigger on host platform changes.
 

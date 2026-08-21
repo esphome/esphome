@@ -29,6 +29,8 @@ DEPENDENCIES = ["ln882x"]
 AUTO_LOAD = ["ble_device_base", "ln882h_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
 
+ble_device_base.register_hub_provider("ln882h_ble_tracker")
+
 ln882h_ble_tracker_ns = cg.esphome_ns.namespace("ln882h_ble_tracker")
 LN882HBLETracker = ln882h_ble_tracker_ns.class_(
     "LN882HBLETracker", ble_device_base.BLEHub, cg.Component
@@ -45,7 +47,7 @@ BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 # LN882H SDK reference scan rate: 100 ms interval / 50 ms window (50 % duty).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", window_default="50ms", supports_active=True
+    "100ms", window_default="50ms"
 )
 
 
@@ -125,6 +127,12 @@ async def stop_scan_action_to_code(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_LN882H_BLE_TRACKER")
+    # Compiles the shared adv + scan-response merge (the LN controller
+    # delivers the pair as separate reports).
+    cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

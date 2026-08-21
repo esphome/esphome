@@ -231,6 +231,7 @@ def validate_adc_pin(value):
             return pins.internal_gpio_input_pin_schema(29)
         return cv.only_on([PLATFORM_ESP8266])("VCC")
 
+    # Deprecated in favour of the `internal_temperature` platform, remove before 2027.2.0
     if str(value).upper() == "TEMPERATURE":
         return cv.only_on_rp2("TEMPERATURE")
 

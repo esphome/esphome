@@ -3,7 +3,6 @@ from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INCLUDE_INTERNAL, CONF_NAME, CONF_RELABEL
-from esphome.core.entity_helpers import validate_no_object_id_conflicts
 from esphome.cpp_types import EntityBase
 
 AUTO_LOAD = ["web_server_base"]
@@ -35,11 +34,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     },
 ).extend(cv.COMPONENT_SCHEMA)
-
-FINAL_VALIDATE_SCHEMA = validate_no_object_id_conflicts(
-    "prometheus builds metric labels from the entity object_id, "
-    "which is the name converted to ASCII"
-)
 
 
 async def to_code(config):

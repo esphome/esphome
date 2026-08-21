@@ -63,6 +63,7 @@ from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    base_python_changed,
     changed_files,
     core_changed,
     filter_component_and_test_cpp_files,
@@ -657,16 +658,20 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
-    """Determine if C++ benchmarks should run based on changed files.
+    """Determine if benchmarks (C++ and Python) should run based on changed files.
 
     Benchmarks run when any of the following conditions are met:
 
-    1. Core C++ files changed (esphome/core/*)
-    2. The host platform changed (esphome/components/host/*) — benchmarks
+    1. Core files changed (esphome/core/*, C++ or Python)
+    2. Top-level Python files changed (esphome/*.py and esphome/*.pyi) —
+       the Python benchmarks exercise config loading (config.py,
+       yaml_util.py, ...), so a slowdown there is invisible unless the
+       benchmarks job runs
+    3. The host platform changed (esphome/components/host/*) — benchmarks
        are built and run on the host platform, so its implementations of
        ``millis()``/``micros()``/etc. affect every benchmark
-    3. A directly changed component has benchmark files (no dependency expansion)
-    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    4. A directly changed component has benchmark files (no dependency expansion)
+    5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -681,6 +686,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Top-level esphome/*.py modules are what the Python benchmarks in
+    # tests/benchmarks/python/ exercise
+    if base_python_changed(files):
         return True
 
     # Host platform supplies the runtime that benchmarks execute on

@@ -256,6 +256,11 @@ template<typename T, size_t N> class StaticVector {
     }
   }
 
+  // Converting constructor from a smaller StaticVector of the same element type
+  template<size_t M> StaticVector(const StaticVector<T, M> &other) : StaticVector(other.begin(), other.end()) {
+    static_assert(M <= N, "Source StaticVector cannot be larger than the destination");
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
@@ -804,19 +809,6 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
-/// Calculate a FNV-1 hash over raw bytes with an explicit length. Unlike fnv1_hash(const char *),
-/// each byte is hashed as an unsigned value, so results are platform-independent for bytes >= 0x80.
-/// IMPORTANT: Must match Python fnv1_hash_name() in esphome/helpers.py, which hashes the UTF-8
-/// encoded bytes of the name. Used to compute entity keys from raw names.
-inline uint32_t fnv1_hash_bytes(const char *str, size_t len) {
-  uint32_t hash = FNV1_OFFSET_BASIS;
-  for (size_t i = 0; i < len; i++) {
-    hash *= FNV1_PRIME;
-    hash ^= static_cast<uint8_t>(str[i]);
-  }
-  return hash;
-}
-
 /// Extend a FNV-1 hash with an integer (hashes each byte).
 template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
   using UnsignedT = std::make_unsigned_t<T>;
@@ -989,6 +981,25 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+/// Fallback implementation for case insensitive substring comparison.
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
+
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
+  if (!needle || !haystack) {
+    return false;
+  }
+
+// strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
+// ESP32/ESP8266/host builds get it from their framework or from g++ on Linux;
+// LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
+#if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return str_contains_ignore_case_fallback(haystack, needle);
+#else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return strcasestr(haystack, needle) != nullptr;
+#endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+}
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
@@ -1021,20 +1032,12 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 // str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
-/// This is the LEGACY entity hash, kept only to reconstruct preference keys that existing
-/// devices already have stored; see https://github.com/esphome/backlog/issues/85.
-/// With per_code_point set, UTF-8 continuation bytes are skipped so each multi-byte character
-/// contributes one underscore — this matches Python fnv1_hash_object_id() in esphome/helpers.py,
-/// which produced the hash for named entities. The per-byte form (default) matches the old
-/// runtime hash for entities without their own name. Do not change either behavior.
-/// Known limitation: Python's lower() is Unicode aware, so the rare code points it maps to a
-/// different number of characters or to ASCII (e.g. 'İ', the Kelvin sign) reconstruct wrong;
-/// such names skip migration once and fall back to their defaults.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len, bool per_code_point = false) {
+/// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
+/// If you modify this function, update the Python version and tests in both places.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
-    if (per_code_point && (static_cast<uint8_t>(str[i]) & 0xC0) == 0x80)
-      continue;  // UTF-8 continuation byte, already counted via its lead byte
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
     hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));

@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
 from hypothesis import given
@@ -212,6 +214,31 @@ class TestLambda:
         target = core.Lambda(value)
 
         assert str(target) is value.value
+
+    def test_init__expression_initializer(self):
+        from esphome.cpp_generator import RawExpression
+
+        target = core.Lambda(RawExpression("foo()"))
+
+        assert target.value == "foo();"
+
+    def test_init__other_initializer(self):
+        target = core.Lambda(123)
+
+        assert target.value == 123
+
+    def test_init_from_str_does_not_import_codegen(self):
+        """The validated-config cache revives Lambdas on the upload fast path."""
+        # sys.exit rather than assert so ambient PYTHONOPTIMIZE can't strip it.
+        check = (
+            "import sys; from esphome.core import Lambda; "
+            "Lambda('return 1;'); "
+            "sys.exit('codegen leaked' if 'esphome.cpp_generator' in sys.modules else 0)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", check], capture_output=True, text=True, check=False
+        )
+        assert result.returncode == 0, result.stderr
 
     def test_parts(self):
         target = core.Lambda(SAMPLE_LAMBDA.strip())
@@ -963,3 +990,35 @@ class TestEsphomeCore:
         )
         # The unflag is still recorded either way.
         assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}
+
+    def test_add_cmake_arg(self, target) -> None:
+        target.add_cmake_arg("EXCLUDE_COMPONENTS", "unity;esp_lcd")
+        assert target.cmake_args == {"EXCLUDE_COMPONENTS": "unity;esp_lcd"}
+
+    @pytest.mark.parametrize("name", ["", "BAD NAME", 'A"B', "A(B)", "1ABC"])
+    def test_add_cmake_arg__rejects_invalid_name(self, target, name: str) -> None:
+        with pytest.raises(ValueError, match="Invalid CMake arg name"):
+            target.add_cmake_arg(name, "value")
+
+    @pytest.mark.parametrize("value", ["a b", "a\tb", 'a"b', "a'b", "a${FOO}b"])
+    def test_add_cmake_arg__rejects_invalid_value(self, target, value: str) -> None:
+        """Whitespace and quotes are rejected (the PlatformIO backend passes
+        args as one space-joined string, which would split such a value), and
+        so is '$' (expanded differently by CMake and PlatformIO)."""
+        with pytest.raises(ValueError, match="must not contain"):
+            target.add_cmake_arg("MY_ARG", value)
+
+    def test_add_cmake_arg__warns_on_overwrite(
+        self, target, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Re-registering with a different value is last-writer-wins; warn so
+        the silently dropped value is diagnosable."""
+        target.add_cmake_arg("MY_ARG", "one")
+        target.add_cmake_arg("MY_ARG", "one")
+        assert "overwriting" not in caplog.text
+
+        target.add_cmake_arg("MY_ARG", "two")
+        assert (
+            "CMake arg MY_ARG already set to one; overwriting with two" in caplog.text
+        )
+        assert target.cmake_args == {"MY_ARG": "two"}

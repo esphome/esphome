@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -8,6 +10,7 @@ from esphome.components import ble_device_base, esp32_ble, ota
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
+    idf_version,
     request_bluetooth,
     request_software_coexistence,
 )
@@ -35,13 +38,17 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
+
+DOMAIN = "esp32_ble_tracker"
 
 AUTO_LOAD = ["ble_device_base", "esp32_ble"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
+
+ble_device_base.register_hub_provider("esp32_ble_tracker")
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SOFTWARE_COEXISTENCE = "software_coexistence"
@@ -64,12 +71,9 @@ def _get_required_features() -> set[BLEFeatures]:
 
 
 # Slot counters sizing the tracker's StaticVector storage; one request per
-# registered listener, client, or scanner state listener.
+# registered listener or client.
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
 _request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
-_request_scanner_state_listener_slot = cg.slot_counter(
-    "ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT"
-)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -126,11 +130,70 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
+# ESP-IDF 5.5.5 fixed a coexistence bug on the ESP32 where BLE scans ran far
+# longer than the configured window (espressif/esp-idf#18931). Before the fix,
+# the default 30 ms window in a 320 ms interval effectively scanned at a much
+# higher duty cycle than requested; with the fix, that same default only
+# listens 9.4 % of the time and misses most advertisements when wifi shares
+# the radio. Espressif recommends setting the window equal to the interval in
+# that case: the coexistence arbiter still shares the radio with wifi, and
+# BLE uses the airtime wifi does not claim.
+IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
+
+
+@dataclass
+class TrackerData:
+    """Per-run validation state, namespaced under DOMAIN in CORE.data."""
+
+    scan_window_defaulted: bool = False
+
+
+def _get_data() -> TrackerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TrackerData()
+    return CORE.data[DOMAIN]
+
+
+def _scan_window_default() -> TimePeriod:
+    """Schema default for the scan window.
+
+    Records that the user did not set a window, so _raise_defaulted_scan_window
+    can tell a defaulted 30 ms from an explicit one; the raise itself must wait
+    for the outer schema because it depends on software_coexistence, a sibling
+    key not yet resolved here.
+    """
+    _get_data().scan_window_defaulted = True
+    return cv.positive_time_period(ble_device_base.DEFAULT_SCAN_WINDOW)
+
+
+def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
+    """Raise a defaulted scan window to the interval where that is safe.
+
+    Only when the coexistence arbiter is compiled in (software_coexistence,
+    present iff wifi is configured and not disabled by the user) and the IDF
+    honors the window strictly (>= 5.5.5); without the arbiter a full-duty
+    scan would starve wifi outright, and a user-set window is never touched.
+    Raising to the interval cannot invalidate the already-validated
+    parameters, so no re-validation is needed.
+    """
+    if (
+        _get_data().scan_window_defaulted
+        and config.get(CONF_SOFTWARE_COEXISTENCE)
+        and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
+    ):
+        params = config[CONF_SCAN_PARAMETERS]
+        # Copy so the config dump shows a plain value instead of a YAML
+        # anchor/alias pair pointing at the interval.
+        params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
+    return config
+
+
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
+# The window default is conditional (see _scan_window_default above).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", supports_active=True
+    "320ms", window_default=_scan_window_default
 )
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
@@ -186,6 +249,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_max_connections_deprecated,
+    _raise_defaulted_scan_window,
 )
 
 
@@ -205,6 +269,9 @@ async def to_code(config):
     # Behavior parity with the pre-split tracker: IRK resolution is always
     # available on esp32 (sensors with irk: worked without opting in).
     ble_device_base.request_irk_support()
+
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_ESP32_BLE_TRACKER")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -372,20 +439,6 @@ async def register_client(var: cg.SafeExpType, config: ConfigType) -> cg.SafeExp
     return var
 
 
-async def register_raw_ble_device(
-    var: cg.SafeExpType, config: ConfigType
-) -> cg.SafeExpType:
-    """Register a BLE device listener that only needs raw advertisement data.
-
-    This does NOT register the ESP_BT_DEVICE feature, meaning ESPBTDevice
-    will not be compiled in if this is the only registration method used.
-    """
-    _request_listener_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.register_listener(var))
-    return var
-
-
 async def register_raw_client(
     var: cg.SafeExpType, config: ConfigType
 ) -> cg.SafeExpType:
@@ -397,18 +450,4 @@ async def register_raw_client(
     _request_client_slot()
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_client(var))
-    return var
-
-
-async def register_scanner_state_listener(
-    var: cg.SafeExpType, config: ConfigType
-) -> cg.SafeExpType:
-    """Register a listener for scanner state changes.
-
-    The slot request here is what sizes the tracker's listener storage; a
-    build with no registrations compiles the storage out entirely.
-    """
-    _request_scanner_state_listener_slot()
-    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
-    cg.add(paren.add_scanner_state_listener(var))
     return var

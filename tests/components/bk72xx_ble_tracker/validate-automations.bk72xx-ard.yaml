@@ -15,13 +15,15 @@ bk72xx_ble_tracker:
     - mac_address: AC:37:43:77:5F:4C
       then:
         - lambda: |-
-            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+            char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            ESP_LOGD("main", "The device address is %s", x.address_str_to(addr));
     - mac_address:
         - AC:37:43:77:5F:4C
         - AC:37:43:77:5F:4D
       then:
         - lambda: |-
-            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+            char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            ESP_LOGD("main", "The device address is %s", x.address_str_to(addr));
   on_ble_service_data_advertise:
     - service_uuid: ABCD
       # mac_address exercises the UUID triggers' set_address() codegen branch.

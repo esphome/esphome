@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 
 from .const import (
     CONF_ALLOW_PARTIAL_READ,
+    CONF_BITS,
     CONF_COURTESY_RESPONSE,
     CONF_READ_LAMBDA,
     CONF_REGISTER_LAST_ADDRESS,
@@ -34,6 +35,7 @@ ModbusServer = modbus_server_ns.class_(
 
 ServerCourtesyResponse = modbus_server_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_server_ns.struct("ServerRegister")
+ServerBit = modbus_server_ns.class_("ServerBit")
 
 SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
     {
@@ -62,6 +64,32 @@ ModbusServerRegisterSchema = cv.Schema(
         cv.Optional(CONF_ALLOW_PARTIAL_READ, default=False): cv.boolean,
     }
 )
+
+
+ModbusServerBitSchema = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ServerBit),
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+    }
+)
+
+
+def _validate_unique_bit_addresses(config: ConfigType) -> ConfigType:
+    # Coils and discrete inputs share one bit address space (like holding/input registers share the
+    # register table), so each bit address may appear only once.
+    seen: set[int] = set()
+    for bit in config.get(CONF_BITS, []):
+        address = bit[CONF_ADDRESS]
+        if address in seen:
+            raise cv.Invalid(
+                f"Bit address 0x{address:04X} is configured more than once; coils and discrete "
+                "inputs share one bit address space, so each address must be unique",
+                path=[CONF_BITS],
+            )
+        seen.add(address)
+    return config
 
 
 def _validate_register_ranges(config: ConfigType) -> ConfigType:
@@ -107,15 +135,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
+            cv.Optional(CONF_BITS): cv.ensure_list(ModbusServerBitSchema),
         }
     ).extend(modbus.modbus_device_schema(0x01, role="server")),
     _validate_register_ranges,
     _validate_no_overlapping_registers,
+    _validate_unique_bit_addresses,
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("modbus_server", role="server")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("modbus_server", role="server")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -152,7 +182,7 @@ async def to_code(config):
                     await cg.process_lambda(
                         server_register[CONF_READ_LAMBDA],
                         [(cg.uint16, "address")],
-                        return_type=cpp_type,
+                        return_type=cg.optional.template(cpp_type),
                     ),
                 )
             )
@@ -170,5 +200,27 @@ async def to_code(config):
             if server_register[CONF_ALLOW_PARTIAL_READ]:
                 cg.add(server_register_var.set_allow_partial_read(True))
             cg.add(var.add_server_register(server_register_var))
+    for server_bit in config.get(CONF_BITS, []):
+        server_bit_var = cg.new_Pvariable(server_bit[CONF_ID], server_bit[CONF_ADDRESS])
+        cg.add(
+            server_bit_var.set_read_lambda(
+                await cg.process_lambda(
+                    server_bit[CONF_READ_LAMBDA],
+                    [(cg.uint16, "address")],
+                    return_type=cg.optional.template(cg.bool_),
+                )
+            )
+        )
+        if (write_lambda := server_bit.get(CONF_WRITE_LAMBDA)) is not None:
+            cg.add(
+                server_bit_var.set_write_lambda(
+                    await cg.process_lambda(
+                        write_lambda,
+                        parameters=[(cg.uint16, "address"), (cg.bool_, "x")],
+                        return_type=cg.bool_,
+                    )
+                )
+            )
+        cg.add(var.add_server_bit(server_bit_var))
     await cg.register_component(var, config)
     return await modbus.register_modbus_server_device(var, config)
