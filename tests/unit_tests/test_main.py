@@ -7230,3 +7230,20 @@ def test_compile_program_espidf_idedata_none_warns(
     ):
         assert compile_program(MagicMock(), {}) == 0
     assert "No idedata was generated" in caplog.text
+
+
+def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
+    """An explicit --toolchain must run the per-platform validators, so the
+    upload/logs fast path becomes a cache miss."""
+    from esphome.__main__ import run_esphome
+
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "arduino", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_cache,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
+    ):
+        assert run_esphome(argv) == 2
+    mock_cache.assert_not_called()
+    mock_read.assert_called_once()
