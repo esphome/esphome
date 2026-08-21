@@ -184,8 +184,6 @@ static int32_t get_firmware_int(const char *version_string) {
   return result;
 }
 
-float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
-
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2420:\n"

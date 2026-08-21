@@ -219,14 +219,25 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
-uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
-  // Custom functions could be any length - we have to rely on the CRC to determine completeness.
+uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
+  // Unknown-length functions (user-defined codes, unimplemented management codes, unassigned values)
+  // could be any length - we have to rely on the CRC to determine completeness.
   // If a CRC match is never found, the buffer will eventually overflow and be cleared.
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
-  for (uint16_t len = min_length; len <= std::min(size, size_t(MAX_FRAME_SIZE)); len++) {
-    if (crc16(raw, len) == 0)
-      return len;
+  const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
+  if (min_length > max_len)
+    return 0;
+  // The Modbus CRC (poly 0xa001, refin/refout false) keeps its running state in the returned value,
+  // so we seed once over the first min_length bytes and extend one byte at a time instead of
+  // recomputing the whole prefix for every candidate length.
+  uint16_t crc = crc16(raw, min_length);
+  if (crc == 0)
+    return min_length;
+  for (uint16_t len = min_length; len < max_len; len++) {
+    crc = crc16(&raw[len], 1, crc);
+    if (crc == 0)
+      return len + 1;
   }
   return 0;
 }
@@ -241,11 +252,11 @@ bool Modbus::parse_modbus_server_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (helpers::is_function_code_custom(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+  if (helpers::is_function_code_unknown_length(function_code)) {
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
-    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
   } else {
     if (crc16(&this->rx_buffer_[0], frame_length) != 0)
       return false;
@@ -272,11 +283,11 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (helpers::is_function_code_custom(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+  if (helpers::is_function_code_unknown_length(function_code)) {
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
-    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
   } else {
     if (crc16(&this->rx_buffer_[0], frame_length) != 0)
       return false;
