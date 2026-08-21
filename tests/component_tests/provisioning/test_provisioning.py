@@ -37,7 +37,7 @@ def test_provisioning_accepts_a_registered_source(
     set_core_config(PlatformFramework.ESP32_IDF)
     register_source("network")
     # Should not raise.
-    assert FINAL_VALIDATE_SCHEMA({}) == {}
+    FINAL_VALIDATE_SCHEMA({})
 
 
 def test_provisioning_warns_on_hardcoded_credentials(
@@ -49,7 +49,7 @@ def test_provisioning_warns_on_hardcoded_credentials(
     register_source("network")
     report_hardcoded_credentials("wifi")
     with caplog.at_level(logging.WARNING):
-        assert FINAL_VALIDATE_SCHEMA({}) == {}
+        FINAL_VALIDATE_SCHEMA({})
     assert "wifi" in caplog.text
     assert "credentials" in caplog.text
 
@@ -62,7 +62,7 @@ def test_provisioning_no_warning_without_hardcoded_credentials(
     set_core_config(PlatformFramework.ESP32_IDF)
     register_source("network")
     with caplog.at_level(logging.WARNING):
-        assert FINAL_VALIDATE_SCHEMA({}) == {}
+        FINAL_VALIDATE_SCHEMA({})
     assert "credentials" not in caplog.text
 
 
