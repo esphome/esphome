@@ -67,15 +67,19 @@ SENSOR_CONFIGS = {
     },
 }
 
-# Frequency is reported as a single, un-numbered tag ("F"), not "F1"/"F2".
-FREQUENCY_CONFIG = {
-    CONF_UNIT_OF_MEASUREMENT: UNIT_HERTZ,
-    CONF_DEVICE_CLASS: DEVICE_CLASS_FREQUENCY,
-    CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS: 2,
+# Tags reported once, without a numeric index (e.g. "F"), matched exactly
+# rather than by prefix.
+EXACT_TAG_CONFIGS = {
+    "F": {
+        CONF_UNIT_OF_MEASUREMENT: UNIT_HERTZ,
+        CONF_DEVICE_CLASS: DEVICE_CLASS_FREQUENCY,
+        CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        CONF_ACCURACY_DECIMALS: 2,
+    },
 }
 
-# Pattern-based configurations
+# Pattern-based configurations. The remainder after the prefix must be empty
+# or numeric, so e.g. "APPLE" doesn't collide with the "AP" prefix.
 PATTERN_CONFIGS = {
     "PULSE": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
@@ -136,20 +140,22 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
     tag = config[CONF_TAG_NAME]
     tag_upper = tag.upper()
 
-    if len(tag) >= 2:
-        for pattern, pattern_config in PATTERN_CONFIGS.items():
-            if tag_upper.startswith(pattern):
-                _apply_defaults(config, pattern_config)
-                return config
+    if (exact_config := EXACT_TAG_CONFIGS.get(tag_upper)) is not None:
+        _apply_defaults(config, exact_config)
+        return config
 
-        # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
+    for pattern, pattern_config in PATTERN_CONFIGS.items():
+        suffix = tag_upper[len(pattern) :]
+        if tag_upper.startswith(pattern) and (not suffix or suffix.isdigit()):
+            _apply_defaults(config, pattern_config)
+            return config
+
+    # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
+    if len(tag) >= 2:
         prefix = tag_upper[0]
         if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
             _apply_defaults(config, SENSOR_CONFIGS[prefix])
             return config
-    elif tag_upper == "F":
-        _apply_defaults(config, FREQUENCY_CONFIG)
-        return config
 
     # Fall back to generic defaults for tags with no known prefix
     _apply_defaults(
