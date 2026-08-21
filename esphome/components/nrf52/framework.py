@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -345,6 +346,39 @@ def _generate_zigbee_manifest(framework_path: Path, version: str) -> Path:
     return manifest_dir
 
 
+# hidapi builds two Linux C extensions: "hid" (libusb backend) and "hidraw"
+# (udev backend) -- each needs its own -dev package.
+_HIDAPI_APT_PACKAGES = ("pkg-config", "libusb-1.0-0-dev", "libudev-dev")
+_HIDAPI_PKG_CONFIG_MODULES = ("libusb-1.0", "libudev")
+
+
+def _ensure_hidapi_build_deps() -> None:
+    """Install pkg-config/libusb-1.0-0-dev/libudev-dev if hidapi's wheel build needs them.
+
+    Remove when these are added to ghcr.io/esphome/docker-base:debian-* --
+    hidapi's wheel build (pulled in for west/pyOCD tooling) needs all three,
+    and none is a pip package.
+    """
+    have_pkg_config = shutil.which("pkg-config") is not None
+    have_deps = have_pkg_config and all(
+        subprocess.run(["pkg-config", "--exists", module], check=False).returncode == 0
+        for module in _HIDAPI_PKG_CONFIG_MODULES
+    )
+    if have_deps or shutil.which("apt") is None:
+        return
+    if os.geteuid() != 0:
+        raise EsphomeError(
+            "pkg-config, libusb-1.0-0-dev, and libudev-dev are required to "
+            "build Zephyr requirements. Install them with: sudo apt install "
+            + " ".join(_HIDAPI_APT_PACKAGES)
+        )
+    _LOGGER.info("Installing %s ...", ", ".join(_HIDAPI_APT_PACKAGES))
+    if not run_command_ok(["apt", "update"]):
+        raise EsphomeError("Failed to update apt package index")
+    if not run_command_ok(["apt", "install", "-y", *_HIDAPI_APT_PACKAGES]):
+        raise EsphomeError(f"Failed to install {'/'.join(_HIDAPI_APT_PACKAGES)}")
+
+
 def check_and_install(zigbee: bool = False) -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
@@ -435,27 +469,7 @@ def check_and_install(zigbee: bool = False) -> None:
         or not zephyr_sentinel.exists()
         or zephyr_reqs.stat().st_mtime > zephyr_sentinel.stat().st_mtime
     ):
-        # remove when pkg-config/libusb-1.0-0-dev are added to
-        # ghcr.io/esphome/docker-base:debian-* -- hidapi's wheel build (pulled
-        # in for west/pyOCD tooling) needs both, and neither is a pip package.
-        have_pkg_config = shutil.which("pkg-config") is not None
-        have_libusb = have_pkg_config and run_command_ok(
-            ["pkg-config", "--exists", "libusb-1.0"]
-        )
-        if not have_libusb and shutil.which("apt") is not None:
-            if os.geteuid() != 0:
-                raise EsphomeError(
-                    "pkg-config and libusb-1.0-0-dev are required to build Zephyr "
-                    "requirements. Install them with: sudo apt install pkg-config "
-                    "libusb-1.0-0-dev"
-                )
-            _LOGGER.info("Installing pkg-config and libusb-1.0-0-dev ...")
-            if not run_command_ok(["apt", "update"]):
-                raise EsphomeError("Failed to update apt package index")
-            if not run_command_ok(
-                ["apt", "install", "-y", "pkg-config", "libusb-1.0-0-dev"]
-            ):
-                raise EsphomeError("Failed to install pkg-config/libusb-1.0-0-dev")
+        _ensure_hidapi_build_deps()
 
         _LOGGER.info("Installing Zephyr requirements ...")
         cmd = [

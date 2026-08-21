@@ -632,6 +632,16 @@ jobs:
         with:
           framework: arduino
 
+      - name: Install nrf52 apt packages (cached)
+        # Only the ZEPHYR/nrf52 matrix entry needs these; this runner is
+        # non-root so framework.py's own self-install can't run.
+        if: matrix.cache_sdk_nrf
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Cache nRF Connect SDK install
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
@@ -953,6 +963,16 @@ jobs:
           packages: libsdl2-dev ccache
           version: 1.1
 
+      - name: Install nrf52 apt packages (cached)
+        # Only batches whose test platforms include nrf52 need these;
+        # mirrors the needs_nrf gate already used for cache-sdk-nrf below.
+        if: matrix.batch.needs_nrf
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
@@ -1195,6 +1215,16 @@ jobs:
       cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
       skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out target branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1377,6 +1407,16 @@ jobs:
       ram_usage: ${{ steps.extract.outputs.ram_usage }}
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
     steps:
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
