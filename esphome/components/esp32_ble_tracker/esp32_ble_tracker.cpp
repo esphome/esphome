@@ -258,7 +258,9 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
   uint32_t window = this->scan_window_;
-  this->scan_window_reduced_ = this->connection_scan_window_ != 0 && this->client_state_counts_.active > 0;
+  // Count fresh rather than reading the loop() cache: an automation can start
+  // a scan before loop() has refreshed the counts for a new connection.
+  this->scan_window_reduced_ = this->connection_scan_window_ != 0 && this->count_client_states_().active > 0;
   if (this->scan_window_reduced_) {
     // While a GATT connection is active, fall back to the connection scan
     // window so the connection events get guaranteed airtime instead of
