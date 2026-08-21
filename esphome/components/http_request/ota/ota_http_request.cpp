@@ -79,6 +79,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
   char md5_receive_str[33];
+  // May be stale from a previous failed attempt
+  this->update_started_ = false;
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
@@ -109,6 +111,9 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     this->cleanup_(std::move(backend), container);
     return error_code;
   }
+  // begin() opened an OTA handle; ensure cleanup_() aborts it even if the
+  // connection drops before the first write
+  this->update_started_ = true;
 
   // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
   // Use http_read_loop_result() helper instead of checking return values directly
@@ -150,7 +155,6 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       md5_receive.add(buf, bufsize_or_error);
 
       // write bytes to OTA backend
-      this->update_started_ = true;
       error_code = backend->write(buf, bufsize_or_error);
       if (error_code != ota::OTA_RESPONSE_OK) {
         // error code explanation available at
