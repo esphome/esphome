@@ -38,7 +38,8 @@ def test_format_framework_arduino_version_pins_all_series() -> None:
     assert fmt(cv.Version(2, 6, 2)) == "~2.20602.0"
     assert fmt(cv.Version(2, 7, 4)) == "~3.20704.0"
     assert fmt(cv.Version(3, 1, 2)) == "~3.30102.0"
-    with pytest.raises(EsphomeError, match="not supported yet"):
+    # Anchored to the framework version line, not a bare EsphomeError
+    with pytest.raises(cv.Invalid, match="not supported yet"):
         fmt(cv.Version(4, 0, 0))
 
 
@@ -110,7 +111,7 @@ def test_ccache_env(tmp_path: Path) -> None:
         assert framework.ccache_env() == {}
     with (
         patch.object(framework, "ccache_path", return_value="/usr/bin/ccache"),
-        patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}),
+        patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}, clear=True),
     ):
         env = framework.ccache_env()
     # User-set values are respected; the rest get defaults
