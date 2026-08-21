@@ -61,16 +61,16 @@ MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
 def framework_package_version(ver: Version) -> str:
     """Map an Arduino core version (e.g. 3.1.2) to its package version.
 
-    Same encoding as the PlatformIO package registry uses for core 3.x
-    releases (3.1.2 -> 3.30102.0). The native toolchain only supports core
-    3.x: 1.x/2.x fall below MIN_FRAMEWORK_VERSION, and a future major bump
-    needs its own encoding and toolchain pin rather than a registry lookup
-    for a package that cannot exist.
+    Same encoding as the PlatformIO package registry uses for every core
+    above 2.6.2 (3.1.2 -> 3.30102.0, and 2.7.4 -> 3.20704.0: the leading 3
+    is the package major, not the core major). A future core 4.x needs its
+    own encoding and toolchain pin rather than a registry lookup for a
+    package that cannot exist.
     """
-    if ver.major != 3:
+    if ver.major > 3:
         raise EsphomeError(
-            f"The native toolchain does not support Arduino core {ver} "
-            "(only 3.x); use 'toolchain: platformio'"
+            f"Arduino core {ver} has no known package encoding; "
+            "use 'toolchain: platformio'"
         )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
