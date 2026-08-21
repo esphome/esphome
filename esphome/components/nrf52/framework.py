@@ -435,20 +435,27 @@ def check_and_install(zigbee: bool = False) -> None:
         or not zephyr_sentinel.exists()
         or zephyr_reqs.stat().st_mtime > zephyr_sentinel.stat().st_mtime
     ):
-        # remove when pkg-config is added to ghcr.io/esphome/docker-base:debian-*
-        # hidapi's wheel build (pulled in for west/pyOCD tooling) shells out to
-        # pkg-config, which isn't a pip package.
-        if shutil.which("pkg-config") is None and shutil.which("apt") is not None:
+        # remove when pkg-config/libusb-1.0-0-dev are added to
+        # ghcr.io/esphome/docker-base:debian-* -- hidapi's wheel build (pulled
+        # in for west/pyOCD tooling) needs both, and neither is a pip package.
+        have_pkg_config = shutil.which("pkg-config") is not None
+        have_libusb = have_pkg_config and run_command_ok(
+            ["pkg-config", "--exists", "libusb-1.0"]
+        )
+        if not have_libusb and shutil.which("apt") is not None:
             if os.geteuid() != 0:
                 raise EsphomeError(
-                    "pkg-config is required to build Zephyr requirements. "
-                    "Install it with: sudo apt install pkg-config"
+                    "pkg-config and libusb-1.0-0-dev are required to build Zephyr "
+                    "requirements. Install them with: sudo apt install pkg-config "
+                    "libusb-1.0-0-dev"
                 )
-            _LOGGER.info("Installing pkg-config ...")
+            _LOGGER.info("Installing pkg-config and libusb-1.0-0-dev ...")
             if not run_command_ok(["apt", "update"]):
                 raise EsphomeError("Failed to update apt package index")
-            if not run_command_ok(["apt", "install", "-y", "pkg-config"]):
-                raise EsphomeError("Failed to install pkg-config")
+            if not run_command_ok(
+                ["apt", "install", "-y", "pkg-config", "libusb-1.0-0-dev"]
+            ):
+                raise EsphomeError("Failed to install pkg-config/libusb-1.0-0-dev")
 
         _LOGGER.info("Installing Zephyr requirements ...")
         cmd = [
