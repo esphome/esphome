@@ -23,8 +23,8 @@ class RefusingIterator : public ComponentIterator {
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
 
-  bool on_begin() override { return this->step_(this->begin_calls, this->begin_refusals); }
-  bool on_end() override { return this->step_(this->end_calls, this->end_refusals); }
+  bool on_begin() override { return step(this->begin_calls, this->begin_refusals); }
+  bool on_end() override { return step(this->end_calls, this->end_refusals); }
 
   int begin_calls{0};
   int end_calls{0};
@@ -32,7 +32,7 @@ class RefusingIterator : public ComponentIterator {
   int end_refusals{0};
 
  protected:
-  static bool step_(int &calls, int &refusals) {
+  static bool step(int &calls, int &refusals) {
     calls++;
     if (refusals > 0) {
       refusals--;
@@ -128,7 +128,7 @@ class ItemRefusingIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {
     this->last_sensor = obj;
-    if (!step_(this->sensor_calls, this->sensor_refusals))
+    if (!step(this->sensor_calls, this->sensor_refusals))
       return false;
     if (this->yield_on_sensor)
       this->yield_after_step_();
