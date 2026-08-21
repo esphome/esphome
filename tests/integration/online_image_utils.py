@@ -26,8 +26,10 @@ async def wait_for_download(
         {downloaded_bytes_future, server_error_future},
         return_when=asyncio.FIRST_COMPLETED,
     )
-    if server_error_future.done():
-        raise server_error_future.exception()
+    if server_error_future.done() and (exc := server_error_future.exception()):
+        raise exc
+    # Retrieve a late teardown error so asyncio does not log it at GC
+    server_error_future.add_done_callback(lambda f: f.exception())
     return downloaded_bytes_future.result()
 
 
