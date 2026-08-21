@@ -150,7 +150,10 @@ storage::StorageError SdMmc::mount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  this->set_fatfs_drive_(ff_diskio_get_pdrv_card(this->card_));
+  BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
+  if (pdrv == FF_DRV_NOT_USED)
+    ESP_LOGE(TAG, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
+  this->set_fatfs_drive_(pdrv);
   this->update_card_info();
 
   ESP_LOGI(TAG, "SD/MMC card mounted at %s", this->mount_path_);
