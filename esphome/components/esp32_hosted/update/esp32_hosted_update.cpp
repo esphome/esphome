@@ -135,8 +135,9 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
-  if (this->state_ == update::UPDATE_STATE_AVAILABLE) {
-    this->get_update_available_trigger()->trigger(this->update_info_);
+  // Defer so the automation runs on the main loop after setup, not during App.setup()
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && this->update_available_trigger_) {
+    this->defer([this]() { this->update_available_trigger_->trigger(this->update_info_); });
   }
 #else
   // HTTP mode: check every 10s until network is ready (max 6 attempts)
@@ -202,8 +203,8 @@ void Esp32HostedUpdate::check() {
   this->update_info_.progress = 0.0f;
   this->status_clear_error();
   this->publish_state();
-  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available) {
-    this->get_update_available_trigger()->trigger(this->update_info_);
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available && this->update_available_trigger_) {
+    this->update_available_trigger_->trigger(this->update_info_);
   }
 #endif
 }
