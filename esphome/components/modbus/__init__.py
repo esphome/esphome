@@ -17,7 +17,7 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +45,6 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
-CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
@@ -75,7 +74,7 @@ def _command_options(direction: str) -> list[tuple[str, str, Any, Any, Any]]:
 
 def command_options_schema(
     *, direction: Literal["read", "write"], templatable: bool = False
-) -> dict:
+) -> dict[cv.Optional, Any]:
     """Schema fragment for the per-command options a component forwards to the hub
     (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
     direction-specific so a schema never offers an option the hub would strip (e.g.
@@ -93,7 +92,7 @@ def command_options_schema(
 
 
 async def register_templatable_command_options(
-    var, config: ConfigType, args: list
+    var: MockObj, config: ConfigType, args: TemplateArgsType
 ) -> None:
     """Generate the set_<option>() calls for every command option present in config. Presence is
     driven by the schema (which adds keys per direction), so this is safe to call for any action -
@@ -102,14 +101,14 @@ async def register_templatable_command_options(
     """
     seen: set[str] = set()
     for options in _COMMAND_OPTIONS.values():
-        for conf_key, field, _validator, cpp_type, default in options:
+        for conf_key, field, _validator, cpp_type, _default in options:
             if conf_key in seen or conf_key not in config:
                 continue
             seen.add(conf_key)
             value = config[conf_key]
-            # The literal default matches the C++ default (TemplatableFn::value() returns T{}),
-            # so emit nothing for it - it saves a thunk and a setup() call per action.
-            if cg.is_template(value) or value != default:
+            # Skip codegen when the value is its C++ zero (TemplatableFn::value() returns T{} when
+            # unset): behaviourally identical, and saves a thunk plus a setup() call per action.
+            if cg.is_template(value) or value != type(value)():
                 cg.add(
                     getattr(var, f"set_{field}")(
                         await cg.templatable(value, args, cpp_type)

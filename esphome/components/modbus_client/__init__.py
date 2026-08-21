@@ -171,7 +171,8 @@ def _no_continuous_on_write(config: ConfigType) -> ConfigType:
     if (
         isinstance(pdu, list)
         and config.get(CONF_CONTINUOUS) is True
-        and pdu[0] in _WRITE_FUNCTION_CODES
+        # Mask the exception bit first, as is_function_code_write() does, so 0x90 == write 0x10.
+        and pdu[0] & 0x7F in _WRITE_FUNCTION_CODES
     ):
         raise cv.Invalid(
             f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
