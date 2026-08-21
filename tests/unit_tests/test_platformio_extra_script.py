@@ -285,3 +285,15 @@ def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
     )
     assert result.libs == []
     assert "ignoring its output" in caplog.text
+
+
+def test_unsupported_env_method_warns_once(caplog) -> None:
+    """Repeated calls to the same unsupported method warn only once."""
+    from esphome.platformio.extra_script import _FakeSConsEnv
+
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    env.Replace(CC="clang")
+    env.Replace(CC="gcc")
+    assert caplog.text.count("env.Replace(...) is not supported") == 1
