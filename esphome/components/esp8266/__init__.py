@@ -143,7 +143,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     except EsphomeError as err:
         # Anchor the 4.x rejection to the framework version line instead of
         # aborting with a bare traceback-level error
-        raise cv.Invalid(str(err)) from err
+        raise cv.Invalid(str(err), path=[CONF_VERSION]) from err
 
 
 # NOTE: Keep this in mind when updating the recommended version:

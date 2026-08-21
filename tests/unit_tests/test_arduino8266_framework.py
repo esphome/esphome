@@ -27,6 +27,10 @@ def test_framework_package_version() -> None:
     # A future major bump needs its own encoding, not a doomed registry lookup
     with pytest.raises(EsphomeError, match="not supported yet"):
         framework.framework_package_version(cv.Version(4, 0, 0))
+    # The pre-2.6.3 eras use other encodings; the helper is total, not wrong
+    with pytest.raises(EsphomeError, match="predates the package encoding"):
+        framework.framework_package_version(cv.Version(2, 6, 2))
+    assert framework.framework_package_version(cv.Version(2, 6, 3)) == "3.20603.0"
 
 
 def test_format_framework_arduino_version_pins_all_series() -> None:
@@ -39,8 +43,9 @@ def test_format_framework_arduino_version_pins_all_series() -> None:
     assert fmt(cv.Version(2, 7, 4)) == "~3.20704.0"
     assert fmt(cv.Version(3, 1, 2)) == "~3.30102.0"
     # Anchored to the framework version line, not a bare EsphomeError
-    with pytest.raises(cv.Invalid, match="not supported yet"):
+    with pytest.raises(cv.Invalid, match="not supported yet") as excinfo:
         fmt(cv.Version(4, 0, 0))
+    assert excinfo.value.path == ["version"]
 
 
 def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
@@ -125,3 +130,22 @@ def test_check_and_install_rejects_old_core(tmp_path: Path) -> None:
     """Calling the installer below the floor fails before any download."""
     with pytest.raises(EsphomeError, match=">= 3.1.1"):
         framework.check_and_install(cv.Version(3, 0, 2))
+
+
+def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
+    """An absent PATH must not leave a trailing separator (an empty entry
+    means the current directory to the shell)."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.object(framework, "ccache_env", return_value={}),
+    ):
+        env = framework.get_build_env(tmp_path)
+    assert env["PATH"] == str(tmp_path / "bin")
+    with (
+        patch.dict(
+            os.environ, {"PATH": f"/usr/bin{os.pathsep}{os.pathsep}/bin"}, clear=True
+        ),
+        patch.object(framework, "ccache_env", return_value={}),
+    ):
+        env = framework.get_build_env(tmp_path)
+    assert env["PATH"].split(os.pathsep) == [str(tmp_path / "bin"), "/usr/bin", "/bin"]
