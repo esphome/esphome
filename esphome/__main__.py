@@ -849,6 +849,13 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     platform_run_compile = getattr(module, "run_compile", None)
     if platform_run_compile is not None and platform_run_compile(args, config):
         pass
+    elif CORE.using_native_toolchain and not CORE.using_toolchain_esp_idf:
+        # A resolved native toolchain must be claimed by its platform hook;
+        # falling through would build a mis-configured PlatformIO project
+        raise EsphomeError(
+            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
+            "backend claimed the build"
+        )
     elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
@@ -984,9 +991,13 @@ def upload_using_esptool(
         flash_images = [
             FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
         ]
-    elif CORE.using_toolchain_arduino:
+    elif CORE.using_native_toolchain:
         # The native backend writes PlatformIO-compatible output paths, so the
         # shared property already points at the right file.
+        if not CORE.firmware_bin.is_file():
+            raise EsphomeError(
+                f"{CORE.firmware_bin} does not exist; compile the configuration first"
+            )
         flash_images = [FlashImage(path=CORE.firmware_bin, offset="0x0")]
     else:
         from esphome.platformio import toolchain

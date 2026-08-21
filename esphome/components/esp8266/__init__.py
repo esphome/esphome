@@ -650,11 +650,12 @@ def _decode_pc(config, addr):
     command = [addr2line, "-pfiaC", "-e", elf, addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         # A present-but-failing addr2line (stale ELF, bad install) must be
-        # visible on either toolchain, matching the missing-tool warning above
+        # visible on either toolchain, matching the missing-tool warning
+        # above, and the cause must not need debug logging to see
         _warn_decode_problem(
-            "addr2line-failed", "Could not decode crash address %s", addr
+            "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
         )
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return

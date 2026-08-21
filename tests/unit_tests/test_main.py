@@ -7139,6 +7139,8 @@ def test_upload_using_esptool_arduino_toolchain(
     """The native ESP8266 Arduino toolchain flashes CORE.firmware_bin at 0x0."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
     CORE.toolchain = Toolchain.ARDUINO
+    CORE.firmware_bin.parent.mkdir(parents=True, exist_ok=True)
+    CORE.firmware_bin.touch()
 
     config = {CONF_ESPHOME: {"platformio_options": {}}}
     result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
@@ -7404,3 +7406,26 @@ def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
         assert run_esphome(argv) == 2
     mock_cache.assert_not_called()
     mock_read.assert_called_once()
+
+
+def test_upload_using_esptool_native_missing_firmware_raises(
+    tmp_path: Path,
+) -> None:
+    """A stale or absent firmware.bin fails by name instead of flashing air."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(EsphomeError, match="compile the configuration first"):
+        upload_using_esptool(
+            {CONF_ESPHOME: {"platformio_options": {}}}, "/dev/ttyUSB0", None, None
+        )
+
+
+def test_compile_program_unclaimed_native_toolchain_raises(
+    tmp_path: Path,
+) -> None:
+    """A resolved native toolchain no platform backend claims must fail,
+    never fall through to the PlatformIO project path."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO  # esp32 has no arduino-native backend
+    with pytest.raises(EsphomeError, match="no platform backend claimed"):
+        compile_program(MockArgs(), {})

@@ -79,6 +79,17 @@ def mock_esp32_platformio_components_to_test() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_esp8266_native_components_to_test() -> Generator[Mock, None, None]:
+    """Mock esp8266_native_components_to_test from determine_jobs.
+
+    main() drives both the ``esp8266_native`` boolean output and the
+    ``esp8266_native_components`` CSV from this one function.
+    """
+    with patch.object(determine_jobs, "esp8266_native_components_to_test") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
     """Mock determine_cpp_unit_tests from helpers."""
     with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
@@ -116,6 +127,7 @@ def test_main_all_tests_should_run(
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -132,6 +144,7 @@ def test_main_all_tests_should_run(
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
     mock_esp32_platformio_components_to_test.return_value = ["api", "esp32"]
+    mock_esp8266_native_components_to_test.return_value = ["api", "logger"]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -215,6 +228,8 @@ def test_main_all_tests_should_run(
     assert output["device_builder"] is True
     assert output["esp32_platformio"] is True
     assert output["esp32_platformio_components"] == "api,esp32"
+    assert output["esp8266_native"] is True
+    assert output["esp8266_native_components"] == "api,logger"
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -251,6 +266,7 @@ def test_main_no_tests_should_run(
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
+    mock_esp8266_native_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -267,6 +283,7 @@ def test_main_no_tests_should_run(
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
     mock_esp32_platformio_components_to_test.return_value = []
+    mock_esp8266_native_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -309,6 +326,8 @@ def test_main_no_tests_should_run(
     assert output["device_builder"] is False
     assert output["esp32_platformio"] is False
     assert output["esp32_platformio_components"] == ""
+    assert output["esp8266_native"] is False
+    assert output["esp8266_native_components"] == ""
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
