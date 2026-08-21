@@ -392,7 +392,13 @@ def test_perform_ota_no_auth(
 
     mock_socket.recv.side_effect = recv_responses
 
-    with caplog.at_level(logging.INFO):
+    # Distinct window lengths pin each duration to its label; exactly the 7
+    # expected perf_counter calls, so an unaccounted timing window raises
+    timings = [0.0, 2.0, 10.0, 15.0, 20.0, 27.0, 30.0]
+    with (
+        patch("time.perf_counter", side_effect=timings),
+        caplog.at_level(logging.INFO),
+    ):
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
     # Should not send any auth-related data
@@ -403,10 +409,13 @@ def test_perform_ota_no_auth(
     ]
     assert len(auth_calls) == 0
 
-    # The timing summary is the observable output of the upload
-    assert "Preparing for upload took" in caplog.text
-    assert "Update took" in caplog.text
-    assert "commit" in caplog.text
+    # The timing summary is the observable output of the upload; exact strings
+    # pin each duration to its label
+    assert "Preparing for upload took 2.00 seconds" in caplog.text
+    assert (
+        "Update took 30.00 seconds (prepare 2.00, upload 5.00, commit 7.00)"
+        in caplog.text
+    )
 
 
 @pytest.mark.usefixtures("mock_time")
