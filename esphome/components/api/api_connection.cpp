@@ -1208,13 +1208,7 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
     // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
     // absent field. Older clients send only the deprecated timezone string, which is no
     // longer decoded; for them the device keeps its codegen-configured timezone.
-    if (!value.has_parsed_timezone) {
-      static bool warned = false;
-      if (!warned) {
-        warned = true;
-        ESP_LOGW(TAG, "Time source sent no parsed timezone; keeping configured timezone. Update Home Assistant");
-      }
-    } else {
+    if (value.has_parsed_timezone) {
       const auto &pt = value.parsed_timezone;
       time::ParsedTimezone tz{};
       tz.std_offset_seconds = pt.std_offset_seconds;
