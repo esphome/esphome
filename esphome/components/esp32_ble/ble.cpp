@@ -643,8 +643,23 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
       App.wake_loop_threadsafe();
       return;
 
+    // Log the result of connection parameter updates: a peer can reject or
+    // never answer an update, and without this the link silently stays on the
+    // old parameters (visible only as unexplained supervision timeouts).
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+      if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
+        ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+      } else {
+        ESP_LOGD(TAG, "[%s] Conn params updated: interval=%u latency=%u timeout=%u", mac_s,
+                 param->update_conn_params.conn_int, param->update_conn_params.latency,
+                 param->update_conn_params.timeout);
+      }
+      return;
+    }
+
     // Ignore these GAP events as they are not relevant for our use case
-    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
