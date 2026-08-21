@@ -435,6 +435,19 @@ def check_and_install(zigbee: bool = False) -> None:
         or not zephyr_sentinel.exists()
         or zephyr_reqs.stat().st_mtime > zephyr_sentinel.stat().st_mtime
     ):
+        # remove when pkg-config is added to ghcr.io/esphome/docker-base:debian-*
+        # hidapi's wheel build (pulled in for west/pyOCD tooling) shells out to
+        # pkg-config, which isn't a pip package.
+        if shutil.which("pkg-config") is None and shutil.which("apt") is not None:
+            if os.geteuid() != 0:
+                raise EsphomeError(
+                    "pkg-config is required to build Zephyr requirements. "
+                    "Install it with: sudo apt install pkg-config"
+                )
+            _LOGGER.info("Installing pkg-config ...")
+            if not run_command_ok(["apt", "install", "-y", "pkg-config"]):
+                raise EsphomeError("Failed to install pkg-config")
+
         _LOGGER.info("Installing Zephyr requirements ...")
         cmd = [
             str(env_python_path),
