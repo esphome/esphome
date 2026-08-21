@@ -120,7 +120,7 @@ void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
   uint8_t wire_address = this->address_;
   if (this->function_code_ == FunctionCode::CUSTOM) {
     std::span<const uint8_t> frame =
-        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
+        this->custom_pdu_ != nullptr ? std::span<const uint8_t>(*this->custom_pdu_) : this->payload;
     if (!frame.empty())
       wire_address = frame[0];
   }
