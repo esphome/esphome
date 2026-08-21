@@ -772,3 +772,47 @@ def test_generate_ld_scripts_missing_compiler_is_clean(tmp_path: Path) -> None:
     _set_flags()
     with pytest.raises(EsphomeError, match="Could not run"):
         _run_generate_ld_scripts(paths)
+
+
+def test_write_project_asm_keeps_quoted_defines(tmp_path: Path) -> None:
+    """A spaced -D/-I user flag arrives shell-quoted; assembly must still
+    receive it."""
+    paths = _make_framework(tmp_path)
+    _set_flags('-DGREETING="hello world"', "-Wno-volatile")
+    content = _write_ninja(paths)
+    asflags = next(line for line in content.splitlines() if line.startswith("asflags"))
+    assert '"-DGREETING=hello world"' in asflags
+    assert "-Wno-volatile" not in asflags
+
+
+def test_write_project_unarchived_library_links_objects(tmp_path: Path) -> None:
+    """A libArchive:false library's objects reach the link directly."""
+    from esphome.arduino.library import ArduinoLibrary
+
+    paths = _make_framework(tmp_path)
+    lib_src = tmp_path / "gdb" / "src"
+    lib_src.mkdir(parents=True)
+    (lib_src / "GDBStub.cpp").write_text("")
+    _set_flags()
+    lib = ArduinoLibrary(
+        name="GDBStub",
+        sources=[lib_src / "GDBStub.cpp"],
+        include_dirs=[lib_src],
+        lib_archive=False,
+    )
+    content = _write_ninja(paths, libraries=[lib])
+    assert "libGDBStub.a" not in content
+    link_line = next(
+        line for line in content.splitlines() if line.startswith("build firmware.elf")
+    )
+    assert "GDBStub.cpp.o" in link_line
+
+
+def test_write_project_unknown_board_fails_by_name(tmp_path: Path) -> None:
+    """A caller bypassing config validation gets the board named, not a
+    KeyError."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "not_a_board"
+    with pytest.raises(EsphomeError, match="'not_a_board' is not supported"):
+        _write_ninja(paths)
