@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <climits>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -82,8 +83,8 @@ class CachedGpioExpander {
   /// When disabled, cache stays valid until reset_pin_cache_() is explicitly called.
   void set_invalidate_on_read_(bool invalidate) { this->invalidate_on_read_ = invalidate; }
 
-  static constexpr uint16_t BITS_PER_BYTE = 8;
-  static constexpr uint16_t BANK_SIZE = sizeof(T) * BITS_PER_BYTE;
+  // Not named BITS_PER_BYTE: that collides with Zephyr's own macro of the same name.
+  static constexpr uint16_t BANK_SIZE = sizeof(T) * CHAR_BIT;
   static constexpr size_t BANKS = N / BANK_SIZE;
   static constexpr size_t CACHE_SIZE_BYTES = BANKS * sizeof(T);
 
