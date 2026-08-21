@@ -743,6 +743,22 @@ def validate_hub(config):
                     f"'{alt[CONF_FIELD]}' — valid response_fields names are "
                     f"{sorted(field_names) or '(none declared)'}"
                 )
+            # changed/changed_gated on a field longer than 4 bytes (e.g. a display-text
+            # field) compares the field's full byte range in C++ (response_monitor.cpp's
+            # eval_alt_), bypassing decode_int_/mask entirely — an explicit mask:/bit: would
+            # silently do nothing there, so reject it instead of accepting dead config.
+            if (
+                alt[CONF_TYPE] in (SIGNATURE_TYPE_CHANGED, SIGNATURE_TYPE_CHANGED_GATED)
+                and field_names[alt[CONF_FIELD]][CONF_LENGTH] > 4
+                and alt[CONF_MASK] != 0xFFFFFFFF
+            ):
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': mask:/bit: has no effect "
+                    f"on field '{alt[CONF_FIELD]}' (length "
+                    f"{field_names[alt[CONF_FIELD]][CONF_LENGTH]} > 4 bytes) — 'changed' "
+                    "already compares the field's full byte range for fields this long; "
+                    "remove mask:/bit: from this signature entry"
+                )
             if alt[CONF_TYPE] == SIGNATURE_TYPE_CHANGED_GATED:
                 gate_field = alt[CONF_GATE][CONF_FIELD]
                 if gate_field not in field_names:

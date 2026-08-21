@@ -134,3 +134,22 @@ def test_signature_mask_and_bit_together_raises_clean_invalid(
     assert result.errors, "expected a validation error for mask: + bit:"
     assert all(isinstance(err, vol.Invalid) for err in result.errors)
     assert any("Cannot specify more than one of" in str(err) for err in result.errors)
+
+
+def test_changed_mask_on_field_over_four_bytes_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """'changed' on a field longer than 4 bytes (e.g. a display-text field) compares the
+    field's full byte range in C++, bypassing mask: entirely -- an explicit mask: there
+    would silently do nothing, so it must be rejected at config-validate time instead of
+    accepted as dead config."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_mask_on_long_field.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, "expected a validation error for mask: on a >4-byte field"
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any("has no effect" in str(err) for err in result.errors)

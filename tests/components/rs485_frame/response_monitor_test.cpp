@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -42,6 +43,31 @@ class ResponseMonitorProbe : public ResponseMonitor {
   void feed_led_mask(uint32_t value, uint32_t now) {
     std::vector<uint8_t> payload = {
         0x01, 0x02, uint8_t(value), uint8_t(value >> 8), uint8_t(value >> 16), uint8_t(value >> 24)};
+    this->on_frame_received(payload, now);
+  }
+
+  // field 0: [0x01, 0x03] carrier, 6-byte field at payload[2..7] -- deliberately longer than
+  // decode_int_'s 4-byte window, representative of an AquaLogic display-text response_fields:
+  // entry (kept short here for a readable test payload; the real field is up to 36 bytes).
+  void setup_text_field() {
+    this->add_field(/*frame_type=*/{0x01, 0x03}, /*frame_type_mask=*/{0xFF, 0xFF}, /*offset=*/2, /*length=*/6,
+                    /*big_endian=*/true);
+  }
+
+  // entry 0: trigger byte [0xAA], 200ms window, single `changed` alt on field 0. mask is the
+  // config-layer default (all bits) -- meaningless for a >4-byte field, ignored by eval_alt_'s
+  // full-length byte-compare path.
+  uint8_t setup_text_changed_entry(uint32_t window_ms = 200) {
+    uint8_t entry = this->add_entry(/*trigger=*/{0xAA}, window_ms);
+    this->add_changed_alt(entry, /*field_index=*/0, /*mask=*/0xFFFFFFFF);
+    return entry;
+  }
+
+  // Feeds one RX frame for field 0 with the given 6-byte value, establishing or updating its
+  // ambient snapshot without any entry pending.
+  void feed_text(const std::array<uint8_t, 6> &text, uint32_t now) {
+    std::vector<uint8_t> payload = {0x01, 0x03};
+    payload.insert(payload.end(), text.begin(), text.end());
     this->on_frame_received(payload, now);
   }
 };
@@ -271,6 +297,38 @@ TEST(ResponseMonitorTest, AmbientBaselineIsRefreshedByAnUntriggeredRxNotStaleFro
   rm.process_timeouts(/*now=*/9999);
   EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_FAIL), 1u)
       << "ambient baseline must be refreshed by the t=50 orphan RX, not stale from t=0";
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_SUCCESS), 0u);
+}
+
+// `changed` on a field longer than 4 bytes must compare the field's full
+// byte range, not just the first 4 bytes decode_int_ can address -- a menu/display-text button
+// (e.g. AquaLogic's Menu/Left/Right) whose only observable effect lands past byte 4 would
+// otherwise never be detected as "changed".
+TEST(ResponseMonitorTest, ChangedOnFieldOverFourBytesComparesFullByteRangeNotJustFirstFour) {
+  ResponseMonitorProbe rm;
+  rm.setup_text_field();
+  uint8_t entry = rm.setup_text_changed_entry();
+
+  rm.feed_text({'A', 'B', 'C', 'D', 'E', 'F'}, /*now=*/0);  // baseline
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  // Only byte index 5 -- past decode_int_'s 4-byte window -- differs from the baseline.
+  rm.feed_text({'A', 'B', 'C', 'D', 'E', 'G'}, /*now=*/60);
+
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_SUCCESS), 1u)
+      << "a change past the first 4 bytes of a >4-byte field must still register as 'changed'";
+}
+
+TEST(ResponseMonitorTest, ChangedOnFieldOverFourBytesFailsWhenBytesAreIdentical) {
+  ResponseMonitorProbe rm;
+  rm.setup_text_field();
+  uint8_t entry = rm.setup_text_changed_entry();
+
+  rm.feed_text({'A', 'B', 'C', 'D', 'E', 'F'}, /*now=*/0);  // baseline
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  rm.feed_text({'A', 'B', 'C', 'D', 'E', 'F'}, /*now=*/60);  // identical -- no real change
+
+  rm.process_timeouts(/*now=*/9999);
+  EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_FAIL), 1u);
   EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_SUCCESS), 0u);
 }
 

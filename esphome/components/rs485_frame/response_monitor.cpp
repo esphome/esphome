@@ -157,6 +157,12 @@ bool ResponseMonitor::eval_alt_(const SignatureAlt &alt, const uint8_t *old_byte
     }
     case SIGNATURE_TYPE_CHANGED:
     case SIGNATURE_TYPE_CHANGED_GATED: {
+      // Fields over 4 bytes (e.g. a 01 03/04 0A display-text field) can't be answered by
+      // decode_int_'s 4-byte-truncated int compare -- fall back to a full-length byte
+      // compare instead. mask: is only meaningful for a <=4-byte command-sized value (and is
+      // rejected at config-validate time for longer fields), so it plays no role here.
+      if (len > 4)
+        return std::memcmp(old_bytes, new_bytes, len) != 0;
       const uint32_t old_v = decode_int_(old_bytes, len, big_endian) & alt.mask;
       const uint32_t new_v = decode_int_(new_bytes, len, big_endian) & alt.mask;
       return old_v != new_v;
