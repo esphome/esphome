@@ -75,11 +75,14 @@ void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::s
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (this->on_data_func) {
     this->on_data_func(this->register_type_, this->start_address_, data);
-  } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
-    // write acknowledgement - nothing to publish
-  } else {
+  } else if (!this->sensors.empty()) {
+    // A polling command always has sensors; a factory/write command never does. Test this before the
+    // write-code branch so a custom_pdu whose function code is a write (e.g. 0x17, whose response
+    // carries read data) still reaches its sensor instead of being treated as a bare write ack.
     for (auto *sensor : this->sensors)
       sensor->parse_and_publish(data);
+  } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
+    // write acknowledgement - nothing to publish
   }
   if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);
@@ -380,7 +383,7 @@ bool ModbusCommandItem::write_multiple_coils(uint16_t start_address, std::span<c
   return modbus::ModbusClientDevice::write_multiple_coils(start_address, values);
 }
 
-bool ModbusCommandItem::queue_pdu(std::span<const uint8_t> pdu) {
+bool ModbusCommandItem::queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options) {
   // Best-effort decode of the PDU header so handlers and logs get the same metadata as a standard command.
   if (pdu.size() >= 3) {
     auto function_code = static_cast<FunctionCode>(pdu[0]);
@@ -390,7 +393,7 @@ bool ModbusCommandItem::queue_pdu(std::span<const uint8_t> pdu) {
     this->function_code_ = static_cast<FunctionCode>(pdu[0]);
     this->register_type_ = modbus::helpers::entity_type_from_function_code(pdu[0]);
   }
-  return modbus::ModbusClientDevice::queue_pdu(pdu);
+  return modbus::ModbusClientDevice::queue_pdu(pdu, options);
 }
 
 bool ModbusCommandItem::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
@@ -443,25 +446,10 @@ ModbusCommandItem ModbusCommandItem::create_write_single_coil(ModbusController *
 ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                                  const std::vector<bool> &values) {
   ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
-  // Bound before packing: the clamp this replaces packed only the first 1968 coils while the quantity
-  // field still claimed all of them - a malformed frame small enough to pass the hub's size check.
-  // Rejected here, the payload stays empty and send() refuses the command instead of transmitting.
-  if (values.size() > modbus::MAX_NUM_OF_COILS_TO_WRITE) {
-    ESP_LOGE(TAG, "%zu coils exceeds the maximum of %u per write, dropping request", values.size(),
-             modbus::MAX_NUM_OF_COILS_TO_WRITE);
-    return cmd;
-  }
   cmd.set_command_(FunctionCode::WRITE_MULTIPLE_COILS, EntityType::COIL, start_address, values.size());
-  // std::vector<bool> is bit-packed and cannot bind to std::span<const bool>; pack it and use the packed builder.
-  StaticVector<uint8_t, (modbus::MAX_NUM_OF_COILS_TO_WRITE + 7) / 8> packed;
-  for (size_t i = 0; i != values.size(); i++) {
-    if (i % 8 == 0)
-      packed.push_back(0);
-    if (values[i])
-      packed[i / 8] |= (1 << (i % 8));
-  }
-  auto pdu = modbus::helpers::create_write_coils_pdu(
-      start_address, modbus::PackedBits(std::span<const uint8_t>(packed.data(), packed.size()), values.size()));
+  // The std::vector<bool> overload packs the bit-packed vector and bounds it against
+  // MAX_NUM_OF_COILS_TO_WRITE, returning an empty PDU when over the limit so send() then refuses it.
+  auto pdu = modbus::helpers::create_write_coils_pdu(start_address, values);
   memcpy(cmd.payload.init(pdu.size()), pdu.data(), pdu.size());
   return cmd;
 }
@@ -480,6 +468,13 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
 ModbusCommandItem ModbusCommandItem::custom_command_impl(ModbusController *controller,
                                                          std::span<const uint8_t> values) {
   ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
+  if (!values.empty() && values[0] == modbus::BROADCAST_ADDRESS) {
+    // A broadcast (address 0) is never answered, so the hub delivers no terminal callback and the
+    // one-shot would leak. custom_command is deprecated; refuse a broadcast rather than support it.
+    // The empty payload makes send() refuse the command, and queue_command() then reclaims it.
+    ESP_LOGE(TAG, "custom_command to the broadcast address (0) is not supported, dropping");
+    return cmd;
+  }
   memcpy(cmd.payload.init(values.size()), values.data(), values.size());
   cmd.payload_is_raw_frame_ = true;
   cmd.set_metadata_from_frame_(values);

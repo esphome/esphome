@@ -123,7 +123,9 @@ ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
-        cv.Optional(CONF_CUSTOM_PDU): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_CUSTOM_PDU): cv.All(
+            cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)
+        ),
         cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
             "'custom_command' has been renamed to 'custom_pdu' and no longer takes a leading device "
             "address byte. Provide the PDU only (function code + data); the configured device address "

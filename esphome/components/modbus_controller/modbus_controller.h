@@ -289,7 +289,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   bool write_multiple_coils(uint16_t start_address, std::span<const bool> values);
   /// Queue a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
   /// handle the response. Returns the hub's verdict like the write helpers above.
-  bool queue_pdu(std::span<const uint8_t> pdu);
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {});
   /// Send a legacy raw frame (address + function code + data; the hub adds the CRC) to the frame's own
   /// address byte. Serves only the deprecated write_lambda buffer path. Remove before 2027.3.0.
   bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
