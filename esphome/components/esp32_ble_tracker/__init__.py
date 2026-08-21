@@ -38,7 +38,8 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, TimePeriod, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.enum import StrEnum
 from esphome.types import ConfigType
 
@@ -262,7 +263,7 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.BLE_SCAN)
 
@@ -360,7 +361,7 @@ async def to_code(config):
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_ble_features():
+async def _add_ble_features() -> None:
     # Add feature-specific defines based on what's needed
     required_features = _get_required_features()
     # Sensors registered through the neutral ble_device_base path (BLEHub) need
@@ -389,8 +390,11 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
     synchronous=True,
 )
 async def esp32_ble_tracker_start_scan_action_to_code(
-    config, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
@@ -414,8 +418,11 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
     synchronous=True,
 )
 async def esp32_ble_tracker_stop_scan_action_to_code(
-    config, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
