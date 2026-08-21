@@ -72,14 +72,11 @@ def apply_extra_script(
         )
         return
     if not script_path.is_file():
-        # The script's captured -L/-l/-D flags are lost; surface that here
-        # instead of as undefined references at link time
-        _LOGGER.warning(
-            "extraScript %s of library %s not found; skipping",
-            extra_script,
-            component.name,
+        # A declared-but-absent script is a broken or half-downloaded
+        # package, not an unsupported script; PlatformIO fails on it too
+        raise EsphomeError(
+            f"extraScript {extra_script} of library {component.name} not found"
         )
-        return
     result = run_extra_script(
         script_path,
         library_dir=source_path,
@@ -134,6 +131,7 @@ class _FakeSConsEnv:
             "PIOENV": pio_env,
         }
         self.result = ExtraScriptResult()
+        self._warned_methods: set[str] = set()
 
     # ----- SCons env API the common scripts use -----
 
@@ -158,7 +156,13 @@ class _FakeSConsEnv:
 
     def __getattr__(self, name: str):
         def _noop(*args, **kwargs):
-            _LOGGER.debug("PIO extra-script env.%s(...) is a no-op here", name)
+            # Once per method: a script whose whole effect is env.Replace()
+            # must be diagnosable from a normal build log
+            if name not in self._warned_methods:
+                self._warned_methods.add(name)
+                _LOGGER.warning(
+                    "PIO extra-script env.%s(...) is not supported; ignoring", name
+                )
 
         return _noop
 
