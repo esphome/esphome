@@ -291,7 +291,7 @@ def test_library_info_missing_declared_src_dir_raises(tmp_path: Path) -> None:
     """An explicitly declared srcDir that does not exist is a manifest error."""
     read_path = tmp_path / "lib"
     read_path.mkdir()
-    with pytest.raises(EsphomeError, match="srcDir nosrc which does not exist"):
+    with pytest.raises(EsphomeError, match="srcDir 'nosrc' which does not exist"):
         component._library_info("x", read_path, {"build": {"srcDir": "nosrc"}})
 
 
@@ -425,6 +425,8 @@ def test_resolve_libraries_warns_when_converter_drops_a_request(
             cache_key="arduino8266",
         )
     assert "1 of 1 requested libraries were not resolved" in caplog.text
+    # The actionable fact is which request went missing, not the survivors
+    assert "missing: pngle" in caplog.text
 
 
 def test_bundled_dependency_nonplatform_rejection_warns(
@@ -458,3 +460,95 @@ def test_bundled_dependency_nonplatform_rejection_warns(
         )
     assert "Skipping bundled dependency Wire" in caplog.text
     assert "manifest is corrupt" in caplog.text
+
+
+@pytest.mark.parametrize("declared", ["", None])
+def test_library_info_falsy_declared_src_dir_raises(
+    tmp_path: Path, declared: str | None
+) -> None:
+    """A declared-but-falsy srcDir must not silently fall back to the probe."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    with pytest.raises(EsphomeError, match="does not exist"):
+        component._library_info("x", read_path, {"build": {"srcDir": declared}})
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "warns"),
+    [
+        (False, False, False),
+        ("false", False, False),
+        ("False", False, False),
+        ("true", True, False),
+        ("archive-me", True, True),
+    ],
+)
+def test_library_info_lib_archive_parse(
+    tmp_path: Path,
+    value: object,
+    expected: bool,
+    warns: bool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """bool("false") is True; the string forms must parse, not coerce."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    lib = component._library_info("x", read_path, {"build": {"libArchive": value}})
+    assert lib.lib_archive is expected
+    assert ("unrecognized libArchive" in caplog.text) is warns
+
+
+def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> None:
+    """The {"Wire": "*"} dict shorthand (version="*", no owner) must resolve
+    to the bundled library, matching PIO's process_dependencies, instead of
+    being routed to the registry."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "dependencies": {"Wire": "*"}},
+    )
+    with _emitting_converter(converted):
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Wire" in [lib.name for lib in libs]
+
+
+def test_bundled_dependency_platform_rejection_is_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The typed IncompatiblePlatform (the routine cross-platform skip)
+    stays at debug regardless of message wording."""
+    from esphome.platformio.library import IncompatiblePlatform
+
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "dependencies": [{"name": "Wire"}]},
+    )
+    with (
+        _emitting_converter(converted),
+        patch.object(
+            component,
+            "check_library_data",
+            side_effect=IncompatiblePlatform("nothing about the p-word here"),
+        ),
+    ):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Skipping bundled dependency Wire" not in caplog.text
