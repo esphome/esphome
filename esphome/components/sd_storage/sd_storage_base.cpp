@@ -491,8 +491,10 @@ storage::StorageError SdStorageBase::remove(const char *path) {
   if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
 
-  return ::remove(full) == 0 ? storage::StorageError::STORAGE_ERROR_OK
-                             : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  errno = 0;
+  if (::remove(full) != 0)
+    return storage::error_from_errno(errno, /*is_write=*/true);
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 storage::StorageError SdStorageBase::rename(const char *old_path, const char *new_path) {

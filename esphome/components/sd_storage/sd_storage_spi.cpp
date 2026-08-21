@@ -294,7 +294,10 @@ StorageError SdSpi::mount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  this->set_fatfs_drive_(ff_diskio_get_pdrv_card(this->card_));
+  BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
+  if (pdrv == FF_DRV_NOT_USED)
+    ESP_LOGE(TAG_SPI, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
+  this->set_fatfs_drive_(pdrv);
   this->update_card_info();
 
   ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %" PRIu32 " kHz, real %" PRIu32 " kHz)", this->mount_path_,
@@ -351,8 +354,11 @@ StorageError SdSpi::unmount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  if (sdspi_host_deinit() != ESP_OK)
+  if (sdspi_host_deinit() != ESP_OK) {
     ESP_LOGW(TAG_SPI, "sdspi_host_deinit() failed");
+    if (unmount_err == StorageError::STORAGE_ERROR_OK)
+      unmount_err = StorageError::STORAGE_ERROR_NOT_READY;
+  }
 
   // Report the flush and teardown results so a failed unmount does not look clean.
   if (flush_err != StorageError::STORAGE_ERROR_OK)
