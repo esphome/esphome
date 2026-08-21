@@ -119,7 +119,9 @@ def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
         ("F", UNIT_HERTZ, DEVICE_CLASS_FREQUENCY),
     ],
 )
-def test_apply_tag_defaults_unit_and_device_class(tag, expected_unit, expected_device_class):
+def test_apply_tag_defaults_unit_and_device_class(
+    tag, expected_unit, expected_device_class
+):
     """apply_tag_defaults must inject the correct, validated unit_of_measurement
     and device_class for each tag type when no user overrides are present."""
     config = _make_config(tag)
