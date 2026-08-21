@@ -100,6 +100,22 @@ def _refresh_sidecar() -> bool:
             )
             return False
         if old is not None and old.can_apply_to_core():
+            if (
+                old.toolchain is not None
+                and CORE.toolchain is not None
+                and old.toolchain != CORE.toolchain.value
+            ):
+                # The config was validated under a different toolchain than
+                # the compile's, and platforms normalize toolchain-sensitive
+                # keys (e.g. the esp32 board name) differently; caching it
+                # would disagree with the sidecar until the next compile
+                _LOGGER.debug(
+                    "Not caching: config validated with toolchain %r but the "
+                    "last compile used %r",
+                    CORE.toolchain.value,
+                    old.toolchain,
+                )
+                return False
             # Compile-written; nothing to refresh.
             return True
         if CORE.build_path is not None and CORE.build_path.exists():
