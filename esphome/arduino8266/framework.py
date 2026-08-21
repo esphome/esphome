@@ -107,8 +107,8 @@ class InstalledPaths(NamedTuple):
 def check_and_install(framework_version: Version) -> InstalledPaths:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
     if framework_version < MIN_FRAMEWORK_VERSION:
-        # Config validation enforces this too; keep the module honest when
-        # called directly.
+        # Config validation will enforce this once the native backend is
+        # wired in; keep the module honest when called directly.
         raise EsphomeError(
             f"The native toolchain requires the Arduino core "
             f">= {MIN_FRAMEWORK_VERSION}, got {framework_version}"
