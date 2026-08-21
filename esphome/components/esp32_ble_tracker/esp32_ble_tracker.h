@@ -338,7 +338,7 @@ class ESP32BLETracker final : public Component,
   /// state_version_ to detect if any state changed since last iteration.
   uint8_t last_processed_version_{0};
   ScannerState scanner_state_{ScannerState::IDLE};
-  // Single-bit flags packed into one byte so new flags stop growing the class.
+  // Packed 1-bit flags.
   bool scan_continuous_ : 1;
   bool scan_active_ : 1;
 #ifdef USE_OTA_STATE_LISTENER
@@ -350,8 +350,7 @@ class ESP32BLETracker final : public Component,
   /// The running scan was started with connection_scan_window_; lets loop()
   /// restart the scan at the configured window when the last connection drops.
   bool using_connection_window_ : 1 {false};
-  /// The next start_scan_ continues the same logical scan period (set by the
-  /// window-change restart), so the on_scan_end sweep is skipped once.
+  /// Skip one on_scan_end sweep: the window-change restart continues the period.
   bool skip_next_scan_end_ : 1 {false};
 #endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE

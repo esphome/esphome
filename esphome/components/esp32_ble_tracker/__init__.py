@@ -178,9 +178,8 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     honors the window strictly (>= 5.5.5); without the arbiter a full-duty
     scan would starve wifi outright, and a user-set window is never touched.
     Raising to the interval cannot invalidate the already-validated
-    parameters, so no re-validation is needed. Also checks the connection
-    window against the window here, after the raise, so a fallback below a
-    raised window validates while one that would widen the scan is rejected.
+    parameters, so no re-validation is needed. The connection window is
+    checked against the window here, after the raise.
     """
     params = config[CONF_SCAN_PARAMETERS]
     if (
@@ -191,11 +190,8 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
         # Copy so the config dump shows a plain value instead of a YAML
         # anchor/alias pair pointing at the interval.
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
-        # A full-duty scan must not compete with an active GATT connection
-        # for airtime, so arm the connection-time fallback window as well
-        # unless the user picked one themselves. Injected after validation;
-        # safe only because it equals the window default, which already
-        # passed the <= interval and controller range checks.
+        # Arm the connection-time fallback unless the user set one. Injected
+        # after validation; safe because it equals the validated window default.
         if CONF_CONNECTION_SCAN_WINDOW not in params:
             params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
                 ble_device_base.DEFAULT_SCAN_WINDOW
@@ -204,8 +200,7 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     if (
         connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)
     ) is not None and connection_window > params[CONF_WINDOW]:
-        # A larger value would widen the scan during connections, the exact
-        # airtime contention the option exists to remove.
+        # A larger value would widen the scan during connections.
         raise cv.Invalid(
             f"{CONF_CONNECTION_SCAN_WINDOW} ({connection_window}) needs to be "
             f"smaller than the scan window ({params[CONF_WINDOW]})"
@@ -313,11 +308,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
     if (connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
-        # Set by the user, or defaulted by _raise_defaulted_scan_window when
-        # the window was raised to full duty; while a GATT connection is
-        # active the scanner falls back to it (see start_scan_). Emitted at
-        # FINAL priority so a scan-only build (no GATT clients registered,
-        # so the guarded C++ path compiles out) skips the call entirely.
+        # Emitted at FINAL so a scan-only build, where the guarded C++ path
+        # compiles out, skips the call entirely.
         window_units = ble_device_base.to_ble_units(connection_window)
 
         @coroutine_with_priority(CoroPriority.FINAL)
@@ -325,8 +317,7 @@ async def to_code(config: ConfigType) -> None:
             if cg.get_slot_count(CLIENT_COUNT_DEFINE):
                 cg.add(var.set_connection_scan_window(window_units))
             elif not _get_data().connection_window_injected:
-                # A user-set value that cannot take effect deserves a heads-up;
-                # the auto-injected default is dropped silently.
+                # Warn only for a user-set value; the injected default drops silently.
                 _LOGGER.warning(
                     "'%s' has no effect because this build has no BLE client "
                     "components (for example bluetooth_proxy with active "

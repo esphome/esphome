@@ -149,18 +149,12 @@ void ESP32BLETracker::loop() {
   }
 
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  // The window is chosen at scan start, so when the last connection drops
-  // mid-scan the connection-time window would persist for the rest of the
-  // scan period (up to scan_duration_); stop the scan so the restart below
-  // returns to the configured window. Only for continuous scanning: a
-  // user-started scan would not be restarted. Waiting for disconnecting to
-  // reach zero keeps the stop off the controller while a GATT disconnect is
-  // in flight, matching the restart gate below.
+  // Last connection dropped: restart so the configured window returns now
+  // instead of at the end of the scan period. Continuous only (a user-started
+  // scan would not restart); !disconnecting matches the restart gate below.
   if (this->using_connection_window_ && !counts.active && !counts.disconnecting && this->scan_continuous_ &&
       this->scanner_state_ == ScannerState::RUNNING) {
-    // The restart continues the same logical scan period, so the listeners
-    // must not get an extra on_scan_end (ble_rssi would publish NAN for
-    // beacons not yet seen in the period).
+    // Same logical scan period continues: no extra on_scan_end for listeners.
     this->skip_next_scan_end_ = true;
     this->stop_scan_();
   }
@@ -254,7 +248,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   bool notify_scan_end = !first;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   if (this->skip_next_scan_end_) {
-    // Window-change restart: the same logical scan period continues.
+    // Window-change restart continues the same scan period.
     this->skip_next_scan_end_ = false;
     notify_scan_end = false;
   }
@@ -278,17 +272,13 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.scan_interval = this->scan_interval_;
   uint32_t window = this->scan_window_;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  // Count fresh rather than reading the loop() cache: an automation can start
-  // a scan before loop() has refreshed the counts for a new connection. An
-  // equal connection window changes nothing, so it must not arm the
-  // last-disconnect restart in loop().
+  // Count fresh: an automation can start a scan before loop() refreshes the
+  // counts. An equal window changes nothing and must not arm the restart.
   this->using_connection_window_ = this->connection_scan_window_ != 0 &&
                                    this->connection_scan_window_ != this->scan_window_ &&
                                    this->count_client_states_().active > 0;
   if (this->using_connection_window_) {
-    // While a GATT connection is active, fall back to the connection scan
-    // window so the connection events get guaranteed airtime instead of
-    // competing with a wall-to-wall scan on the shared radio.
+    // Guarantee the connection airtime instead of scanning wall to wall.
     ESP_LOGV(TAG, "Connection active, using %" PRIu32 " unit scan window", this->connection_scan_window_);
     window = this->connection_scan_window_;
   }
