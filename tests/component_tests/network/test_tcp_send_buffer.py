@@ -14,16 +14,23 @@ import pytest
 from voluptuous import Invalid
 
 from esphome import config_validation as cv
-from esphome.components.esp32.const import KEY_VARIANT, VARIANT_ESP32
-from esphome.components.network import CONFIG_SCHEMA
-from esphome.const import KEY_FRAMEWORK_VERSION, PlatformFramework
+from esphome.components.esp32.const import (
+    KEY_SDKCONFIG_OPTIONS,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+)
+from esphome.components.network import (
+    CONF_TCP_SEND_BUFFER,
+    CONFIG_SCHEMA,
+    TCP_SEND_BUFFER_MAX,
+    TCP_SEND_BUFFER_MIN,
+)
+from esphome.const import KEY_ESP32, KEY_FRAMEWORK_VERSION, PlatformFramework
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 
 def _sdkconfig_option(name: str) -> int | None:
-    from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
-
     return CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
 
 
@@ -42,6 +49,18 @@ def test_tcp_send_buffer_overrides_high_performance(
     """An explicit size wins over the high performance bundle's 65534."""
     generate_main(component_config_path("tcp_send_buffer_high_perf.yaml"))
     assert _sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT") == 16384
+
+
+@pytest.mark.parametrize("value", [TCP_SEND_BUFFER_MIN, TCP_SEND_BUFFER_MAX])
+def test_boundary_values_accepted(
+    set_core_config: SetCoreConfigCallable, value: int
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+    )
+    assert CONFIG_SCHEMA({"tcp_send_buffer": value})[CONF_TCP_SEND_BUFFER] == value
 
 
 @pytest.mark.parametrize("value", ["1kB", "128kB"])

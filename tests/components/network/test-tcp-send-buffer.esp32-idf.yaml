@@ -1,6 +1,0 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
-network:
-  tcp_send_buffer: 32kB
