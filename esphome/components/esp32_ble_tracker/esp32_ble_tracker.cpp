@@ -263,14 +263,15 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
-  uint32_t window = this->scan_window_;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   // Count fresh: an automation can start a scan before loop() refreshes the counts.
-  window = this->desired_scan_window_(this->count_client_states_().active);
+  const uint32_t window = this->desired_scan_window_(this->count_client_states_().active);
   if (window != this->scan_window_) {
     // Guarantee the connection airtime instead of scanning wall to wall.
     ESP_LOGV(TAG, "Connection active, using %" PRIu32 " unit scan window", window);
   }
+#else
+  const uint32_t window = this->scan_window_;
 #endif
   this->scan_params_.scan_window = window;
 
