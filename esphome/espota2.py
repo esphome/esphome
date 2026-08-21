@@ -542,11 +542,11 @@ def perform_ota(
         raise _committed_error(err) from err
     commit_duration = time.perf_counter() - commit_start
 
-    # Spans the binary size send through the commit ack; connect, handshake,
-    # and auth are not included
+    # Sum of the named windows so the breakdown is self consistent; connect,
+    # handshake, auth, and the one MD5 round trip are not included
     _LOGGER.info(
         "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
-        time.perf_counter() - prepare_start,
+        prepare_duration + duration + commit_duration,
         prepare_duration,
         duration,
         commit_duration,
