@@ -946,9 +946,10 @@ class MessageType(TypeInfo):
 
     @property
     def _track_presence(self) -> bool:
-        # Use getattr to handle older versions of api_options_pb2
-        opt = getattr(pb, "track_presence", None)
-        return opt is not None and get_field_opt(self._field, opt, False)
+        # Presence is only observable on the decode side
+        return self._needs_decode and get_field_opt(
+            self._field, pb.track_presence, False
+        )
 
     @property
     def decode_length_content(self) -> str:
