@@ -1,4 +1,5 @@
 # Useful stuff when working in a development environment
 clang-format==13.0.1  # also change in .pre-commit-config.yaml and Dockerfile when updating
 clang-tidy==22.1.8
+codechecker==6.28.2  # adapts GCC (Zephyr/nrf52) compile commands for clang-tidy
 yamllint==1.38.0  # also change in .pre-commit-config.yaml when updating

@@ -12,6 +12,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@anatoly-savchenkov"]
 
@@ -23,7 +24,7 @@ CONF_RESETS_REQUIRED = "resets_required"
 CONF_ON_INCREMENT = "on_increment"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_RESETS_REQUIRED in config:
         return cv.only_on(
             [
@@ -60,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     if CORE.is_esp8266 and CONF_RESETS_REQUIRED in config:
         fconfig = full_config.get()
         if not fconfig.get_config_for_path([KEY_ESP8266, CONF_RESTORE_FROM_FLASH]):
@@ -81,7 +82,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if reset_count := config.get(CONF_RESETS_REQUIRED):
         var = cg.new_Pvariable(
             config[CONF_ID],
