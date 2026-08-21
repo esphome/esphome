@@ -360,17 +360,6 @@ static bool has_fault_addr() {
   return s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause;
 }
 
-// Append both cores' backtrace addresses to buf; returns the new position.
-static int append_all_backtraces(char *buf, int size, int pos) {
-  pos = append_addrs_to_hint(buf, size, pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
-                             s_raw_crash_data.reg_frame_count);
-#if SOC_CPU_CORES_NUM > 1
-  pos = append_addrs_to_hint(buf, size, pos, s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
-                             s_raw_crash_data.other_reg_frame_count);
-#endif
-  return pos;
-}
-
 // The record was captured by a different firmware build (it survives soft
 // resets, including the OTA reboot), so symbolizing its addresses against the
 // current ELF would produce misleading symbols. Print them with lowercase
@@ -443,11 +432,23 @@ void crash_handler_log() {
   }
 #endif
 
-  // Build addr2line hint with all captured addresses for easy copy-paste
+  // Build addr2line hints for easy copy-paste. One line per core: the two
+  // backtraces are separate stacks, and a combined list decodes as one
+  // impossible call chain (and can overflow the buffer, dropping addresses).
+  static const char *const ADDR2LINE_CMD = "addr2line -pfiaC -e firmware.elf";
   char hint[256];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
-  append_all_backtraces(hint, sizeof(hint), pos);
+  int pos = snprintf(hint, sizeof(hint), "Use: %s 0x%08" PRIX32, ADDR2LINE_CMD, s_raw_crash_data.pc);
+  append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                       s_raw_crash_data.reg_frame_count);
   ESP_LOGE(TAG, "%s", hint);
+#if SOC_CPU_CORES_NUM > 1
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    pos = snprintf(hint, sizeof(hint), "Other core: %s", ADDR2LINE_CMD);
+    append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
+                         s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
+    ESP_LOGE(TAG, "%s", hint);
+  }
+#endif
 }
 
 }  // namespace esphome::esp32

@@ -63,9 +63,6 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Buffer for noise handshake prologue (released after handshake)
   APIBuffer prologue_;
 
-  // NoiseProtocolId (size depends on implementation)
-  NoiseProtocolId nid_;
-
   // Group small types together
   // Fixed-size header buffer for noise protocol:
   // 1 byte for indicator + 2 bytes for message size (16-bit value, not varint)
