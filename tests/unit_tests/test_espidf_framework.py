@@ -1395,7 +1395,9 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
-        patch("esphome.espidf.framework.shutil.which", return_value=which),
+        # The gate defers to the shared resolver (which carries the PATH
+        # lookup, ESPHOME_CCACHE_ENABLE parse, and runnability probe)
+        patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),
         patch(
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
@@ -1443,6 +1445,26 @@ def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
     assert "IDF_CCACHE_ENABLE" not in env
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
+    """ESPHOME_CCACHE_ENABLE=0 disables ccache here too; the shared policy
+    must not apply to every backend except this one."""
+    _p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"ESPHOME_CCACHE_ENABLE": "0", "PATH": "/usr/bin"}
+    with patch.dict("os.environ", env_vars, clear=True), p2, p3:
+        # The real resolver runs so the opt-out parse is exercised
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_idf_knob_wins_over_shared_opt_out(tmp_path: Path) -> None:
+    """IDF_CCACHE_ENABLE=1 takes precedence over ESPHOME_CCACHE_ENABLE=0."""
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_ENABLE": "0"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert "IDF_CCACHE_ENABLE" not in env
 
 
 def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:

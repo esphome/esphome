@@ -70,6 +70,10 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
         raise EsphomeError(
             f"The package registry returned invalid JSON for {package}: {err}"
         ) from err
+    if not isinstance(data, dict):
+        raise EsphomeError(
+            f"Unexpected package registry response for {package}: {str(data)[:200]}"
+        )
     systype = get_systype()
     versions = data.get("versions")
     if not isinstance(versions, list):
@@ -127,6 +131,21 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
     raise EsphomeError(f"{package} {version} not found in the package registry")
 
 
+def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
+    """Raise when an install tree is missing an expected directory.
+
+    Runs on fresh extracts and on marker hits: a marked tree that later
+    lost files (manual deletion, antivirus quarantine) must fail by name
+    instead of surfacing as an opaque toolchain error.
+    """
+    for rel in expect:
+        if not (dest / rel).is_dir():
+            raise EsphomeError(
+                f"{name} at {dest} is missing the expected {rel} "
+                "directory; run 'esphome clean-all' and retry"
+            )
+
+
 def install_package(
     name: str,
     version: str,
@@ -148,6 +167,7 @@ def install_package(
         raise ValueError("install_package requires a non-empty expect")
     marker = dest / ".esphome_extracted"
     if marker.is_file():
+        _check_layout(name, dest, expect)
         return
     from filelock import FileLock
 
@@ -185,11 +205,6 @@ def install_package(
         archive_extract_all(archive, dest, progress_header="Extracting")
         # Validate the layout before recording success, so an unexpected
         # package is never cached as a working install.
-        for rel in expect:
-            if not (dest / rel).is_dir():
-                raise EsphomeError(
-                    f"{name} {version} extracted without the expected {rel} "
-                    "directory; run 'esphome clean-all' and retry"
-                )
+        _check_layout(name, dest, expect)
         marker.touch()
         archive.unlink(missing_ok=True)
