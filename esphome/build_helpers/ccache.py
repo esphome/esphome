@@ -3,9 +3,10 @@
 ``ccache_defaults_env`` serves the backends that export ``CCACHE_*`` into a
 build subprocess (native ESP-IDF and Arduino); ``resolve_ccache_path``
 carries the probe and enable rules (PlatformIO and the native Arduino
-build). The ESP-IDF backend keeps its own ``IDF_CCACHE_ENABLE`` gate and
-does not probe; PlatformIO feeds its SCons wrapper script through env
-channels instead of ``CCACHE_*`` defaults.
+build). The ESP-IDF backend keeps ``IDF_CCACHE_ENABLE`` as a
+higher-precedence override and falls back to the shared resolver (probe
+included) when it is unset; PlatformIO feeds its SCons wrapper script
+through env channels instead of ``CCACHE_*`` defaults.
 """
 
 from __future__ import annotations
@@ -27,6 +28,25 @@ def _ccache_runs(ccache: str) -> bool:
     )
 
 
+def parse_enable_env(name: str) -> bool | None:
+    """Strictly parse an on/off environment knob; None when unset or invalid.
+
+    ``bool(str)`` truthiness would flip ``no``/``off`` to enabled, so only
+    1/true/yes/on and 0/false/no/off count; anything else warns and reads
+    as unset so the caller's default policy applies.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    lowered = raw.strip().lower()
+    if lowered in ("1", "true", "yes", "on"):
+        return True
+    if lowered in ("0", "false", "no", "off"):
+        return False
+    _LOGGER.warning("Ignoring unrecognized %s=%r; use 1 or 0", name, raw)
+    return None
+
+
 def resolve_ccache_path() -> str | None:
     """The ccache binary to wrap compiles with, or None when disabled.
 
@@ -39,20 +59,7 @@ def resolve_ccache_path() -> str | None:
     """
     import shutil
 
-    # Strict parse: bool(str) truthiness would flip "no"/"off" to enabled
-    # and silently skip the probe
-    raw = os.environ.get("ESPHOME_CCACHE_ENABLE")
-    explicit: bool | None = None
-    if raw is not None:
-        lowered = raw.strip().lower()
-        if lowered in ("1", "true", "yes", "on"):
-            explicit = True
-        elif lowered in ("0", "false", "no", "off"):
-            explicit = False
-        else:
-            _LOGGER.warning(
-                "Ignoring unrecognized ESPHOME_CCACHE_ENABLE=%r; use 1 or 0", raw
-            )
+    explicit = parse_enable_env("ESPHOME_CCACHE_ENABLE")
     if explicit is False:
         return None
     ccache = shutil.which("ccache")
