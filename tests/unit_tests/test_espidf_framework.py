@@ -1457,6 +1457,28 @@ def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
         assert _ccache_env() == {}
 
 
+@pytest.mark.parametrize("value", ["off", "no"])
+def test_ccache_env_idf_knob_parses_strictly(tmp_path: Path, value: str) -> None:
+    """IDF_CCACHE_ENABLE uses the same strict table as the shared knob, so
+    "off" disables instead of reading as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": value}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparsable IDF_CCACHE_ENABLE warns, defers to the shared resolver,
+    and is not forwarded to idf.py as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "enabled"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "unrecognized IDF_CCACHE_ENABLE" in caplog.text
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+
+
 def test_ccache_env_idf_knob_wins_over_shared_opt_out(tmp_path: Path) -> None:
     """IDF_CCACHE_ENABLE=1 takes precedence over ESPHOME_CCACHE_ENABLE=0."""
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
