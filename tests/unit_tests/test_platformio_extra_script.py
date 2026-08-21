@@ -117,8 +117,10 @@ def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
     c.path = library_dir
     c.data = {"build": {"extraScript": "../evil.py"}}
 
-    apply_extra_script(c, board_mcu=lambda: "esp32", pio_platform="espressif32")
+    from esphome.core import EsphomeError
 
+    with pytest.raises(EsphomeError, match="escapes the library directory"):
+        apply_extra_script(c, board_mcu=lambda: "esp32", pio_platform="espressif32")
     # Nothing was folded into flags: the traversal was rejected before
     # the script could run.
     assert "flags" not in c.data["build"]
@@ -297,3 +299,16 @@ def test_unsupported_env_method_warns_once(caplog) -> None:
     env.Replace(CC="clang")
     env.Replace(CC="gcc")
     assert caplog.text.count("env.Replace(...) is not supported") == 1
+
+
+def test_run_extra_script_sys_exit_is_best_effort(tmp_path, caplog) -> None:
+    """sys.exit() in a vendored script must not kill the esphome run."""
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("import sys\nsys.exit(3)\n")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
+    assert result.libs == []
+    assert "ignoring its output" in caplog.text
