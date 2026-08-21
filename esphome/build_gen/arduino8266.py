@@ -167,7 +167,7 @@ class _BuildConfig:
     mmu_defines: list[str] = field(default_factory=list)
 
 
-def _flag_defines() -> dict[str, str]:
+def _flag_defines(unflags: set[str]) -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
     # Sorted so duplicate defines resolve the same way every run: the
@@ -179,6 +179,10 @@ def _flag_defines() -> dict[str, str]:
         # read identically to _project_flags (and the compile line).
         tokens = join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
         for tok in tokens:
+            # An unflagged knob must not drive lwIP/SDK/MMU selection while
+            # being absent from the compile line
+            if tok in unflags:
+                continue
             if tok.startswith("-D") and len(tok) > 2:
                 body = tok[2:]
                 defines[body.split("=", 1)[0]] = body
@@ -209,10 +213,13 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
 
     # Sorted so the pick is deterministic: the dict is built from a set of
     # build flags, whose iteration order varies between processes.
-    vtables = next(
-        (name for name in sorted(defines) if name.startswith("VTABLES_IN_")),
-        "VTABLES_IN_FLASH",
-    )
+    vtables_knobs = sorted(name for name in defines if name.startswith("VTABLES_IN_"))
+    known_vtables = {"VTABLES_IN_FLASH", "VTABLES_IN_DRAM", "VTABLES_IN_IRAM"}
+    if unknown := [k for k in vtables_knobs if k not in known_vtables]:
+        _LOGGER.warning("Unknown VTABLES_IN_* define(s): %s", ", ".join(unknown))
+    if len(vtables_knobs) > 1:
+        _LOGGER.warning("Multiple VTABLES_IN_* defines; using %s", vtables_knobs[0])
+    vtables = vtables_knobs[0] if vtables_knobs else "VTABLES_IN_FLASH"
 
     mmu = next((variant for knob, variant in _MMU_VARIANTS if knob in defines), None)
     if mmu is None:
@@ -278,10 +285,16 @@ def _defines_flags(
 
 def _unflag_tokens() -> set[str]:
     """``build_unflags`` entries shell-lexed to tokens, as PlatformIO matches."""
+    # Joined like _project_flags reads build_flags, so "-D FOO" removes
+    # -DFOO in both spellings (PlatformIO's ProcessUnFlags parses the same
+    # way) and no bare half can collaterally drop an unrelated token
     return {
         tok
         for entry in CORE.build_unflags
-        for tok in split_flag_entry(entry, "esphome build_unflags")
+        for tok in join_flag_args(
+            split_flag_entry(entry, "esphome build_unflags"),
+            "esphome build_unflags",
+        )
     }
 
 
@@ -306,8 +319,15 @@ def _project_flags(
             if tok.startswith("-Wl,"):
                 link_flags.append(_shell_token(tok))
             elif tok.startswith("-L"):
+                if len(tok) == 2:
+                    # Path("") is the CWD; never add it silently
+                    _LOGGER.warning("Ignoring empty -L in build_flags")
+                    continue
                 lib_dirs.append(Path(tok[2:]))
             elif tok.startswith("-l"):
+                if len(tok) == 2:
+                    _LOGGER.warning("Ignoring empty -l in build_flags")
+                    continue
                 libs.append(tok[2:])
             else:
                 compile_flags.append(_shell_token(tok))
@@ -368,6 +388,15 @@ def generate_ld_scripts(
             ) from err
         if result.returncode != 0:
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
+        if result.stderr.strip():
+            # Preprocessor warnings on the success path must reach the user
+            _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
+        if "SECTIONS" not in result.stdout:
+            # A degenerate zero-exit run must not be stamped as a good cache
+            raise EsphomeError(
+                "Generated linker script is missing its SECTIONS block; "
+                "run 'esphome clean-all' and retry"
+            )
         content = build_surgery.relocate_ratetable(result.stdout)
         if CORE.testing_mode:
             content = build_surgery.apply_testing_memory_patches(
