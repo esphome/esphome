@@ -11,7 +11,11 @@ import re
 import shutil
 from typing import Any, NoReturn
 
-from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
+from esphome.build_helpers.ccache import (
+    ccache_defaults_env,
+    parse_enable_env,
+    resolve_ccache_path,
+)
 from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
@@ -27,7 +31,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.helpers import get_bool_env, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1133,8 +1137,10 @@ def check_esp_idf_install(
 def _ccache_env() -> dict[str, str]:
     """Return ccache settings for ESP-IDF compiles.
 
-    Enabled by default whenever the ``ccache`` binary is on PATH; set
-    ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
+    Enabled by default whenever a runnable ``ccache`` binary is on PATH.
+    ``IDF_CCACHE_ENABLE=0`` opts out and ``=1`` forces it on; when that knob
+    is unset the shared ``ESPHOME_CCACHE_ENABLE`` applies (same 0/1 forms,
+    unrecognized values warn and count as unset). The cache lives under
     the IDF tools path (the machine-global cache dir, or
     ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
     by ``esphome clean-all`` along with the framework.
@@ -1154,17 +1160,18 @@ def _ccache_env() -> dict[str, str]:
     # ESPHOME_CCACHE_ENABLE, which resolve_ccache_path parses; without it a
     # user disabling ccache to debug a miscompile would silently keep it
     # enabled here.
-    if "IDF_CCACHE_ENABLE" in os.environ:
-        if not get_bool_env("IDF_CCACHE_ENABLE"):
-            return {}
-    elif resolve_ccache_path() is None:
+    idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
+    if idf_knob is False:
+        return {}
+    if idf_knob is None and resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
 
     # ccache is enabled past here; the shared helper carries the CCACHE_*
     # policy (and the fail-loud build_path guard).
     env = ccache_defaults_env(get_idf_tools_path() / "ccache")
-    if "IDF_CCACHE_ENABLE" not in os.environ:
+    if idf_knob is None:
+        # An unparsable IDF_CCACHE_ENABLE must not leak to idf.py as truthy
         env["IDF_CCACHE_ENABLE"] = "1"
     return env
 
