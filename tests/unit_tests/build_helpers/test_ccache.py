@@ -77,3 +77,25 @@ def test_defaults_env_requires_build_path() -> None:
         pytest.raises(ValueError, match="build_path"),
     ):
         ccache.ccache_defaults_env(Path("/x"))
+
+
+@pytest.mark.parametrize("value", ["no", "off", "false", "0"])
+def test_resolve_opt_out_synonyms(value: str) -> None:
+    """Every recognized falsy spelling disables ccache."""
+    with patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": value}):
+        assert ccache.resolve_ccache_path() is None
+
+
+def test_resolve_unrecognized_value_warns_and_probes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unparsable ESPHOME_CCACHE_ENABLE is treated as unset: it must not
+    silently enable ccache or skip the runnability probe."""
+    with (
+        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "enabled"}),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(ccache, "_ccache_runs", return_value=False) as mock_probe,
+    ):
+        assert ccache.resolve_ccache_path() is None
+    mock_probe.assert_called_once()
+    assert "unrecognized ESPHOME_CCACHE_ENABLE" in caplog.text
