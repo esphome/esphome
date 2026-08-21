@@ -652,7 +652,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
       if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
         ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
       } else {
-        ESP_LOGD(TAG, "[%s] Conn params updated: interval=%u latency=%u timeout=%u", mac_s,
+        ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u latency=%u timeout=%u", mac_s,
                  param->update_conn_params.conn_int, param->update_conn_params.latency,
                  param->update_conn_params.timeout);
       }
