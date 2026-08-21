@@ -112,19 +112,12 @@ def clang_options(idedata, environment):
         "-mthumb-interwork",
     )
 
-    if "zephyr" in triplet:
-        omit_flags += (
-            "-fno-reorder-functions",
-            "-mfp16-format=ieee",
-            "--param=min-pagesize=0",
-        )
-    else:
-        cmd.extend(
-            [
-                # disable built-in include directories from the host
-                "-nostdinc++",
-            ]
-        )
+    cmd.extend(
+        [
+            # disable built-in include directories from the host
+            "-nostdinc++",
+        ]
+    )
 
     # set flags
     cmd.extend(
@@ -262,14 +255,7 @@ def clang_options(idedata, environment):
         ):
             build_includes.extend(["-isystem", directory])
 
-    if "zephyr" in triplet:
-        # Zephyr's POSIX layer shadows libc headers (sys/select.h, ...) with
-        # coherently-guarded versions; the real build searches the Zephyr
-        # include dirs before the toolchain's, and the shadowed headers clash
-        # (e.g. newlib's sigset_t vs Zephyr's) in the opposite order.
-        cmd.extend(build_includes + toolchain_includes)
-    else:
-        cmd.extend(toolchain_includes + build_includes)
+    cmd.extend(toolchain_includes + build_includes)
 
     # add the esphome include directory using -I
     cmd.extend(["-I", root_path])
@@ -369,6 +355,9 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
     platformio_ini = Path(root_path) / "platformio.ini"
 
+    cache_key_path = None
+    extra = None
+    regenerated = False
     if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
         compile_commands_path = Path(explicit)
     else:
@@ -384,8 +373,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             compile_commands_path = generate_compile_commands(
                 work_dir, platformio_ini, source_files
             )
-            if compile_commands_path.is_file():
-                update_cache(cache_key_path, extra)
+            regenerated = True
     if not compile_commands_path.is_file():
         print(
             f"compile_commands.json not found: {compile_commands_path}",
@@ -431,10 +419,24 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         check=False,
     )
 
+    fixit_returncode = 0
     if args.fix:
         # Apply serially (like run_tidy() below) instead of passing --fix to
         # CodeChecker's parallel workers, which would race on shared headers.
-        subprocess.run([executable, "fixit", "--apply", str(output_dir)], check=False)
+        # stdin=DEVNULL: fixit reads a `CodeChecker cmd diff` JSON from stdin
+        # when present; we never want that here and don't want to inherit a
+        # pipe that could block waiting for a writer that never closes.
+        fixit_result = subprocess.run(
+            [executable, "fixit", "--apply", str(output_dir)],
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+        fixit_returncode = fixit_result.returncode
+        if fixit_returncode != 0:
+            print(
+                f"CodeChecker fixit --apply failed (exit {fixit_returncode})",
+                file=sys.stderr,
+            )
 
     parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
 
@@ -442,24 +444,39 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         stats = json.loads((output_dir / "metadata.json").read_text())["tools"][0][
             "analyzers"
         ]["clang-tidy"]["analyzer_statistics"]
-        analyzed = stats["successful"] + stats["failed"]
+        successful = stats["successful"]
+        failed = stats["failed"]
     except (OSError, KeyError, IndexError, json.JSONDecodeError) as err:
         print(
             f"CodeChecker analyze failed (exit {result.returncode}): {err}",
             file=sys.stderr,
         )
         return result.returncode or 1
-    if analyzed != len(files):
+    if failed:
+        # Analyzer crashes/errors must not read as a clean run just because
+        # they're counted alongside successes.
+        print(
+            f"ERROR: CodeChecker failed to analyze {failed} file(s)",
+            file=sys.stderr,
+        )
+        return 1
+    if successful != len(files):
         # A --file/compile-database mismatch analyzes 0 files and exits 0 --
         # don't let that read as a clean run.
         print(
-            f"ERROR: CodeChecker analyzed {analyzed} files, expected {len(files)} "
+            f"ERROR: CodeChecker analyzed {successful} files, expected {len(files)} "
             "-- --file patterns may not match the compile database",
             file=sys.stderr,
         )
         return 1
 
-    return result.returncode or parse_result.returncode
+    # Only cache the compile database once we've confirmed it actually
+    # produced analysis results for every requested file -- a database that
+    # silently omits sources must not be treated as fresh next run.
+    if regenerated:
+        update_cache(cache_key_path, extra)
+
+    return fixit_returncode or result.returncode or parse_result.returncode
 
 
 def split_list(a, n):

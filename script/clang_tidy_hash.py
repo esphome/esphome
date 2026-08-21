@@ -21,6 +21,7 @@ CLANG_TIDY_GLOBAL_FILES = (
     "script/clang-tidy",
     "platformio.ini",
     "requirements_dev.txt",
+    "requirements_codechecker.txt",
     "esphome/idf_component.yml",
     "esphome/components/esp32/__init__.py",
     "esphome/components/nrf52/__init__.py",
