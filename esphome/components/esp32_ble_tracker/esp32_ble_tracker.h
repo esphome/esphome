@@ -350,7 +350,7 @@ class ESP32BLETracker final : public Component,
   /// The running scan was started with connection_scan_window_; lets loop()
   /// restart the scan at the configured window when the last connection drops.
   bool using_connection_window_ : 1 {false};
-  /// Skip one on_scan_end sweep: the window-change restart continues the period.
+  /// Suppress the window-change restart's on_scan_end sweeps (stop and start).
   bool skip_next_scan_end_ : 1 {false};
 #endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE

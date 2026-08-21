@@ -154,7 +154,8 @@ void ESP32BLETracker::loop() {
   // scan would not restart); !disconnecting matches the restart gate below.
   if (this->using_connection_window_ && !counts.active && !counts.disconnecting && this->scan_continuous_ &&
       this->scanner_state_ == ScannerState::RUNNING) {
-    // Same logical scan period continues: no extra on_scan_end for listeners.
+    // Same logical scan period continues: cleanup_scan_state_ and start_scan_
+    // both skip their on_scan_end sweep.
     this->skip_next_scan_end_ = true;
     this->stop_scan_();
   }
@@ -528,14 +529,22 @@ void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   // Reset timeout state machine instead of cancelling scheduler timeout
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
 
+  bool notify_scan_end = true;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // Window-change restart continues the scan period: no on_scan_end here.
+  // The flag stays set so start_scan_ skips its sweep too.
+  notify_scan_end = !this->skip_next_scan_end_;
+#endif
+  if (notify_scan_end) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-  for (auto *listener : this->listeners_)
-    listener->on_scan_end();
+    for (auto *listener : this->listeners_)
+      listener->on_scan_end();
 #endif
 #ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-  for (auto *listener : this->neutral_listeners_)
-    listener->on_scan_end();
+    for (auto *listener : this->neutral_listeners_)
+      listener->on_scan_end();
 #endif
+  }
 
   this->set_scanner_state_(ScannerState::IDLE);
 }

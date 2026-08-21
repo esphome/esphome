@@ -222,3 +222,17 @@ def test_codegen_no_connection_window_without_gatt_clients(
     main_cpp = generate_main(component_config_path("scan_window_scan_only.yaml"))
     assert "set_scan_window(512)" in main_cpp
     assert "set_connection_scan_window" not in main_cpp
+
+
+def test_user_set_connection_window_warns_without_gatt_clients(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A user-set value that cannot take effect warns; the injected default
+    (previous test) is dropped silently."""
+    main_cpp = generate_main(
+        component_config_path("scan_window_user_set_scan_only.yaml")
+    )
+    assert "set_connection_scan_window" not in main_cpp
+    assert "'connection_scan_window' has no effect" in caplog.text

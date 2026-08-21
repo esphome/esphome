@@ -203,7 +203,8 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
         # A larger value would widen the scan during connections.
         raise cv.Invalid(
             f"{CONF_CONNECTION_SCAN_WINDOW} ({connection_window}) needs to be "
-            f"smaller than the scan window ({params[CONF_WINDOW]})"
+            f"smaller than the scan window ({params[CONF_WINDOW]})",
+            path=[CONF_SCAN_PARAMETERS, CONF_CONNECTION_SCAN_WINDOW],
         )
     return config
 
