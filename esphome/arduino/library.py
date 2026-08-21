@@ -12,7 +12,8 @@ Known deviations: flat-layout (``library.properties``, no ``src/``)
 libraries get the recursive default source filter rather than PlatformIO's
 root-only Arduino-1.0 filter (no bundled library is affected), and the
 Arduino ``dot_a_linkage`` property is honored even though PlatformIO
-ignores it.
+ignores it. Bundled libraries never run a manifest ``extraScript`` (a
+warning names the library if one declares it).
 
 Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
 its own static archive and every library's include dir joins one global
@@ -188,15 +189,27 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     else:
         manifest = lib_dir / "library.properties"
         data = parse_library_properties(manifest) if manifest.is_file() else {}
-    if isinstance(data, dict) and data.get("dependencies"):
+    if isinstance(data, dict):
         # The dependency walk never runs for bundled libraries (a no-op for
         # the ESP8266 core, whose bundled manifests declare none); on a core
-        # where one does, the skip must be visible before link errors
-        _LOGGER.warning(
-            "Bundled library %s declares dependencies, which are not "
-            "resolved automatically; add them with add_library() if needed",
-            name,
-        )
+        # where one does, the skip must be visible before link errors.
+        # "depends" is the library.properties spelling, which the shared
+        # parser returns raw.
+        if data.get("dependencies") or data.get("depends"):
+            _LOGGER.warning(
+                "Bundled library %s declares dependencies, which are not "
+                "resolved automatically; add them with add_library() if needed",
+                name,
+            )
+        build = data.get("build")
+        if isinstance(build, dict) and build.get("extraScript"):
+            # apply_extra_script only runs on the converted path; a bundled
+            # manifest relying on one would build with missing flags
+            _LOGGER.warning(
+                "Bundled library %s declares an extraScript, which is not "
+                "run for bundled libraries",
+                name,
+            )
     return _library_info(name, lib_dir, data)
 
 
@@ -239,6 +252,10 @@ def resolve_libraries(
 
     converted: list[ArduinoLibrary] = []
     bundled_names = {lib.name for lib in bundled}
+    # Short names of the separately-requested externals: a manifest
+    # dependency matching one is already in the build, not a drop (a false
+    # "skipping" warning teaches users to ignore the real one)
+    external_short_names = {lib.name.split("/")[-1] for lib in external if lib.name}
 
     def _add_bundled_dependencies(component: ConvertedLibrary) -> None:
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
@@ -253,7 +270,11 @@ def resolve_libraries(
                     component.name,
                 )
                 continue
-            if name in bundled_names or is_lib_ignored(name, lib_ignore):
+            if (
+                name in bundled_names
+                or name in external_short_names
+                or is_lib_ignored(name, lib_ignore)
+            ):
                 continue
             bundled_dir = framework_path / "libraries" / name
             if "version" in dep and (dep.get("owner") or not bundled_dir.is_dir()):
