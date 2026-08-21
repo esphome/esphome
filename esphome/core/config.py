@@ -560,10 +560,11 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
     if CORE.using_native_toolchain:
         # The native builds don't read platformio.ini; honor the options
         # with a native equivalent and warn about the rest, which would
-        # otherwise be silently ignored. __main__'s write_cpp_file and
-        # compile_program dispatch must agree with this gate: a toolchain
-        # treated as native here must not fall through to the PlatformIO
-        # project writer there.
+        # otherwise be silently ignored. Every dispatch site that tests a
+        # specific using_toolchain_* as a stand-in for "native" (project
+        # writing, compile, upload, firmware paths) must agree with this
+        # gate: a toolchain treated as native here must never fall through
+        # to a PlatformIO code path there.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -576,6 +577,11 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 )
                 for flag in vals:
                     cg.add_build_flag(flag)
+            elif key == "build_unflags":
+                # Native equivalent: add_build_unflag (honored token-level by
+                # the arduino generator; the IDF generator warns there)
+                for flag in vals:
+                    CORE.add_build_unflag(flag)
             elif key == "lib_deps":
                 # Routed through the regular library mechanism so the
                 # libraries reach the native backend's converter (IDF

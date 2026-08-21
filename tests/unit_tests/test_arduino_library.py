@@ -356,3 +356,56 @@ def test_bundled_library_prefers_library_json(tmp_path: Path) -> None:
     )
     lib = component._bundled_library(framework, "GDBStub")
     assert [s.name for s in lib.sources] == ["gdb.cpp"]
+
+
+def test_library_info_lib_archive_flag(tmp_path: Path) -> None:
+    """Both libArchive (library.json) and dot_a_linkage (properties) reach
+    the generator's contract; default is archive."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    assert component._library_info("x", read_path, {}).lib_archive is True
+    assert (
+        component._library_info(
+            "x", read_path, {"build": {"libArchive": False}}
+        ).lib_archive
+        is False
+    )
+    assert (
+        component._library_info("x", read_path, {"dot_a_linkage": "false"}).lib_archive
+        is False
+    )
+    assert (
+        component._library_info("x", read_path, {"dot_a_linkage": "true"}).lib_archive
+        is True
+    )
+
+
+def test_resolve_libraries_dep_warnings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Nameless and owner-without-version dependencies are dropped loudly."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {
+            "build": {},
+            "dependencies": [
+                {"owner": "someone"},
+                {"name": "Orphan", "owner": "someone"},
+            ],
+        },
+    )
+    with _emitting_converter(converted):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "malformed dependency entry" in caplog.text
+    assert "Orphan" in caplog.text
+    assert "owner but no version" in caplog.text

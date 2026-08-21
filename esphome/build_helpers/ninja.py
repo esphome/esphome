@@ -64,12 +64,14 @@ def shell_token(tok: str, force: bool = False) -> str:
     Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
     token ``-DX=a b``); re-quote on the way out so the compiler receives the
     same argv element SCons would pass under PlatformIO. After ninja
-    un-doubles ``$$``, sh still expands ``$VAR`` while CreateProcess passes
-    it literally -- the same divergence SCons-under-sh has, so this stays
-    PlatformIO parity.
+    un-doubles ``$$``, sh still applies every expansion double quotes allow
+    (``$VAR``, ``$(...)``, backticks) while CreateProcess passes them
+    literally; SCons on POSIX spawns without a shell, so this is a known,
+    deliberate divergence for tokens carrying those characters.
     """
     tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
-    if force or _NEEDS_QUOTE.search(tok):
+    if force or not tok or _NEEDS_QUOTE.search(tok):
+        # An empty token must become "" or it vanishes from the argv
         return quote_arg(tok)
     return tok
 

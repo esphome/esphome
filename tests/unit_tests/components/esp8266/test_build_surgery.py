@@ -108,8 +108,8 @@ def test_board_build_covers_every_board() -> None:
 
 
 def test_surgery_fingerprint_covers_module_source() -> None:
-    """The fingerprint hashes the module source, so any surgery edit
-    invalidates linker-script caches stamped with it."""
+    """Pins the mechanism: the fingerprint is the sha256 of the module
+    source (behavioral coverage follows from that, not from this test)."""
     import hashlib
     import inspect
 

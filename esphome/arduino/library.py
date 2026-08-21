@@ -8,6 +8,11 @@ resolution/download pipeline in ``esphome.platformio.library``. Nothing here
 is core-specific: the caller names the PlatformIO platform, MCU, and cache
 key of the Arduino core it builds.
 
+Known deviation: flat-layout (``library.properties``, no ``src/``) libraries
+get the recursive default source filter rather than PlatformIO's root-only
+Arduino-1.0 filter; no bundled library is affected, only user-supplied ones
+carrying sources in unusual subdirectories.
+
 Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
 its own static archive and every library's include dir joins one global
 include path.
@@ -52,6 +57,9 @@ class ArduinoLibrary:
     include_dirs: list[Path] = field(default_factory=list)
     # Extra compile flags private to this library's own sources
     flags: list[str] = field(default_factory=list)
+    # PlatformIO's build.libArchive / Arduino's dot_a_linkage: when False the
+    # objects go to the linker directly (symbols nothing references survive)
+    lib_archive: bool = True
     # Link inputs the library contributes (-L dirs / -l libs, e.g. from
     # precompiled vendor blobs) and -Wl, options for the firmware link
     link_dirs: list[Path] = field(default_factory=list)
@@ -79,7 +87,15 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     # PlatformIO shell-lexes each build.flags entry
     flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
-    lib = ArduinoLibrary(name=name)
+    # PIO precedence: build.libArchive, else the Arduino-format
+    # dot_a_linkage property, else archive (PlatformIO's default)
+    if "libArchive" in build:
+        lib_archive = bool(build["libArchive"])
+    elif "dot_a_linkage" in data:
+        lib_archive = str(data["dot_a_linkage"]).lower() == "true"
+    else:
+        lib_archive = True
+    lib = ArduinoLibrary(name=name, lib_archive=lib_archive)
     include_flags: list[str] = []
     for tok in flag_tokens:
         if tok.startswith("-I"):
@@ -190,13 +206,30 @@ def resolve_libraries(
         # it cannot be resolved from the registry.
         for dep in normalize_dependencies(component.data.get("dependencies")):
             name = dep.get("name")
-            if (
-                not name
-                or dep.get("owner")
-                or "version" in dep
-                or name in bundled_names
-                or is_lib_ignored(name, lib_ignore)
-            ):
+            if not name:
+                _LOGGER.warning(
+                    "Ignoring malformed dependency entry %r of library %s",
+                    dep,
+                    component.name,
+                )
+                continue
+            if name in bundled_names or is_lib_ignored(name, lib_ignore):
+                continue
+            if "version" in dep:
+                # The converter resolves versioned deps from the registry.
+                # Note: the dict shorthand {"Wire": "*"} normalizes to
+                # version="*" and takes this path even for a bundled name;
+                # use the list form for bundled dependencies.
+                continue
+            if dep.get("owner"):
+                # Owner but no version: the converter skips it too, so this
+                # is the only place the drop can be made visible
+                _LOGGER.warning(
+                    "Dependency %s of library %s has an owner but no version "
+                    "to resolve; skipping",
+                    name,
+                    component.name,
+                )
                 continue
             if not (framework_path / "libraries" / name).is_dir():
                 # The shared converter skips version-less deps too, so this

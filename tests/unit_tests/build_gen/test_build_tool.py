@@ -87,3 +87,40 @@ def test_ar_expands_rspfile_without_escaping(tmp_path) -> None:
         "obj/a.o",
         "sub\\b.o",
     ]
+
+
+def test_ar_unquotes_ninja_escaped_paths(tmp_path: Path) -> None:
+    """The shim strips a simple surrounding quote, since ninja shell-
+    quotes special rsp paths, so ar sees the real filename."""
+    rsp = tmp_path / "t.rsp"
+    rsp.write_text("'obj/a b.o'\nobj/c.o\n")
+    with (
+        patch.object(
+            build_tool.sys, "argv", ["bt", "ar", "/usr/bin/ar", "lib.a", str(rsp)]
+        ),
+        patch.object(build_tool.subprocess, "run") as mock_run,
+    ):
+        mock_run.return_value.returncode = 0
+        rc = build_tool.main()
+    assert rc == 0
+    assert mock_run.call_args.args[0] == [
+        "/usr/bin/ar",
+        "rc",
+        "lib.a",
+        "obj/a b.o",
+        "obj/c.o",
+    ]
+
+
+def test_ar_empty_object_list_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A lost object list is an error here, not undefined symbols at link."""
+    rsp = tmp_path / "t.rsp"
+    rsp.write_text("\n\n")
+    with patch.object(
+        build_tool.sys, "argv", ["bt", "ar", "/usr/bin/ar", "lib.a", str(rsp)]
+    ):
+        rc = build_tool.main()
+    assert rc == 1
+    assert "no objects listed" in capsys.readouterr().err
