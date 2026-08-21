@@ -94,29 +94,33 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         src_dir = next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
 
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
+    if not all(isinstance(entry, str) for entry in src_filter):
+        raise EsphomeError(f"Library {name} has a malformed srcFilter")
     # PlatformIO shell-lexes each build.flags entry
     flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
     # build.libArchive is PIO behavior; dot_a_linkage is honored as a
     # deliberate extra (Arduino IDE's property, which PIO ignores) so
-    # properties-only libraries can opt out of archiving too
+    # properties-only libraries can opt out of archiving too. Both parse
+    # through the same strict table: bool("false") is True, and a typo'd
+    # value must not silently change link semantics.
+    def _parse_archive(key: str, raw: object) -> bool:
+        if isinstance(raw, bool):
+            return raw
+        if str(raw).strip().lower() in ("true", "false"):
+            return str(raw).strip().lower() == "true"
+        _LOGGER.warning(
+            "Library %s has an unrecognized %s value %r; assuming true",
+            name,
+            key,
+            raw,
+        )
+        return True
+
     if "libArchive" in build:
-        raw_archive = build["libArchive"]
-        if isinstance(raw_archive, bool):
-            lib_archive = raw_archive
-        elif str(raw_archive).strip().lower() in ("true", "false"):
-            lib_archive = str(raw_archive).strip().lower() == "true"
-        else:
-            # bool("false") is True; an unparsable value must not silently
-            # archive a library whose author disabled archiving
-            _LOGGER.warning(
-                "Library %s has an unrecognized libArchive value %r; assuming true",
-                name,
-                raw_archive,
-            )
-            lib_archive = True
+        lib_archive = _parse_archive("libArchive", build["libArchive"])
     elif "dot_a_linkage" in data:
-        lib_archive = str(data["dot_a_linkage"]).lower() == "true"
+        lib_archive = _parse_archive("dot_a_linkage", data["dot_a_linkage"])
     else:
         lib_archive = True
     lib = ArduinoLibrary(name=name, lib_archive=lib_archive)
@@ -143,6 +147,8 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
             lib.flags.append(tok)
 
     include_dir = build.get("includeDir", DEFAULT_BUILD_INCLUDE_DIR)
+    if not isinstance(include_dir, str):
+        raise EsphomeError(f"Library {name} has a malformed includeDir")
     for d in [include_dir, src_dir, *include_flags]:
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
@@ -320,20 +326,26 @@ def resolve_libraries(
             ),
         )
         if len(resolved) < len(external):
-            # A requested library the converter dropped would otherwise
-            # surface only as link errors far from the cause; name the
-            # requests that went missing, not just the survivors
-            # ConvertedLibrary.name is canonical (bare "pngle" resolves to
-            # "bitbank2__pngle"); diff the request-side node keys instead
-            resolved_keys = {c.node_key or c.name for c in resolved}
-            dropped = [
+            # A requested library the converter dropped always makes the
+            # firmware wrong (link errors far from the cause), so fail here
+            # naming the requests. ConvertedLibrary.name is canonical (bare
+            # "pngle" resolves to "bitbank2__pngle"); diff the request-side
+            # node keys instead. A None node_key is a converter construction
+            # path that forgot to set it: a programming error, never
+            # silently substituted with the mismatched canonical name.
+            if unkeyed := sorted(c.name for c in resolved if c.node_key is None):
+                raise EsphomeError(
+                    "ConvertedLibrary without a node_key (a converter bug): "
+                    + ", ".join(unkeyed)
+                )
+            resolved_keys = {c.node_key for c in resolved}
+            dropped = sorted(
                 str(lib) for lib in external if request_key(lib) not in resolved_keys
-            ]
-            _LOGGER.warning(
-                "%d of %d requested libraries were not resolved (missing: %s)",
-                len(external) - len(resolved),
-                len(external),
-                ", ".join(sorted(dropped)) or "unknown",
+            )
+            raise EsphomeError(
+                f"{len(external) - len(resolved)} of {len(external)} requested "
+                f"libraries were not resolved (missing: "
+                f"{', '.join(dropped) or 'unknown'})"
             )
 
     return bundled + converted
