@@ -75,6 +75,12 @@ OTAResponseTypes IDFOTABackend::setup_bootloader_staging_() {
     ESP_LOGW(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
     // No critical error, don't return
   }
+#ifdef OTA_BLOCK_ERASE_AHEAD
+  if (err == ESP_OK) {
+    // Skip re-erasing the pre-erased staging region in erase_ahead_()
+    this->erased_end_ = this->bootloader_part_->size;
+  }
+#endif
   err = esp_ota_set_final_partition(this->update_handle_, this->bootloader_part_, false);
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);

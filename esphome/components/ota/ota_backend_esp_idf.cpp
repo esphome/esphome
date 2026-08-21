@@ -66,9 +66,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   if (image_size != 0 && image_size > this->partition_->size) {
     return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
   }
+  this->written_ = 0;
   esp_err_t err;
 #ifdef OTA_BLOCK_ERASE_AHEAD
-  this->written_ = 0;
   this->erased_end_ = 0;
   // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
   err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
@@ -87,9 +87,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
-    if (err == ESP_ERR_INVALID_SIZE) {
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-    } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+    if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     } else if (err == ESP_ERR_OTA_PARTITION_CONFLICT) {
       // This error appears with 1 factory and 1 ota partition
@@ -130,6 +128,11 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
+  // Overflow can only happen on unknown-size uploads (web_server); known
+  // sizes were rejected in begin().
+  if (this->written_ + len > this->partition_->size) {
+    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+  }
 #ifdef OTA_BLOCK_ERASE_AHEAD
   OTAResponseTypes erase_result = this->erase_ahead_(len);
   if (erase_result != OTA_RESPONSE_OK) {
@@ -142,38 +145,32 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
-    } else if (err == ESP_ERR_INVALID_SIZE) {
-      // Unknown-size upload overflowing the partition (lazy erase reports it here)
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
-#ifdef OTA_BLOCK_ERASE_AHEAD
   this->written_ += len;
-#endif
   return OTA_RESPONSE_OK;
 }
 
 #ifdef OTA_BLOCK_ERASE_AHEAD
 OTAResponseTypes IDFOTABackend::erase_ahead_(size_t len) {
+  static constexpr size_t BLOCK_ERASE_SIZE = 64 * 1024;
   const size_t end = this->written_ + len;
-  if (end > this->partition_->size) {
-    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+  if (this->erased_end_ >= end) {
+    return OTA_RESPONSE_OK;
   }
-  while (this->erased_end_ < end) {
-    // 64 KiB chunks; OTA app partitions are block-aligned so IDF issues a
-    // single block erase. The tail is clamped and degrades to sector erases.
-    static constexpr size_t BLOCK_ERASE_SIZE = 64 * 1024;
-    const size_t chunk = std::min<size_t>(BLOCK_ERASE_SIZE, this->partition_->size - this->erased_end_);
-    esp_err_t err = esp_partition_erase_range(this->partition_, this->erased_end_, chunk);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
-      return OTA_RESPONSE_ERROR_WRITING_FLASH;
-    }
-    this->erased_end_ += chunk;
+  // Round up to a block boundary, clamped to the partition end; IDF splits the
+  // range into 64 KiB block erases where aligned, sector erases elsewhere.
+  const size_t erase_to =
+      std::min<size_t>(this->partition_->size, (end + BLOCK_ERASE_SIZE - 1) & ~(BLOCK_ERASE_SIZE - 1));
+  esp_err_t err = esp_partition_erase_range(this->partition_, this->erased_end_, erase_to - this->erased_end_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
+  this->erased_end_ = erase_to;
   return OTA_RESPONSE_OK;
 }
 #endif
