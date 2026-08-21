@@ -536,7 +536,8 @@ async def finalize_serial_config() -> None:
 # Called by __main__.compile_program; returning False falls through to the
 # PlatformIO toolchain.
 def run_compile(args, config: ConfigType) -> bool:
-    if CORE.using_toolchain_platformio:
+    # Positive check: the native backend only runs when explicitly resolved
+    if not CORE.using_toolchain_arduino:
         return False
     from esphome.arduino8266 import toolchain
 
@@ -547,9 +548,10 @@ def run_compile(args, config: ConfigType) -> bool:
 
 # Called by writer.py
 def copy_files() -> None:
-    if not CORE.using_toolchain_platformio:
-        # The extra scripts are PlatformIO/SCons-only; the native toolchain
-        # applies their logic in the build generator instead.
+    # Positive check, matching run_compile: only the arduino native backend
+    # skips the PlatformIO/SCons extra scripts (their logic lives in the
+    # build generator there)
+    if CORE.using_toolchain_arduino:
         return
     dir = Path(__file__).parent
     for script in (

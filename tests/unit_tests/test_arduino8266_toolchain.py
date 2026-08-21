@@ -336,7 +336,9 @@ def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> No
     assert "platformio_options->board_build.ldscript is ignored" in caplog.text
     assert "native 'arduino' toolchain" in caplog.text
     assert "lib_ignore" not in caplog.text
-    assert "upload_speed" not in caplog.text
+    # Component-added upload_speed never gets read under the native
+    # toolchain, so it must warn
+    assert "upload_speed" in caplog.text
 
 
 def test_run_compile_idedata_error_does_not_fail_build(

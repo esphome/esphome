@@ -813,9 +813,10 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif CORE.using_toolchain_arduino:
-        # The ninja project is generated at compile time by
-        # esphome.arduino8266.toolchain (it needs the downloaded framework).
+    elif CORE.using_native_toolchain:
+        # Native builds generate their project at compile time (the ESP8266
+        # ninja build needs the downloaded framework); nothing to write here,
+        # and never a platformio.ini (must agree with _add_platformio_options)
         pass
     else:
         from esphome.build_gen import platformio
@@ -1937,7 +1938,15 @@ def _native_toolchain_module():
         return toolchain
     module = importlib.import_module("esphome.components." + CORE.target_platform)
     get_native = getattr(module, "native_toolchain_module", None)
-    return get_native() if get_native is not None else None
+    native = get_native() if get_native is not None else None
+    if native is None and CORE.using_native_toolchain:
+        # A missing/renamed hook must fail, not silently degrade the native
+        # build's tooling to the PlatformIO path
+        raise EsphomeError(
+            f"Platform {CORE.target_platform} resolved toolchain "
+            f"'{CORE.toolchain.value}' but provides no native toolchain module"
+        )
+    return native
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -2000,6 +2009,12 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     idedata = None
     native_toolchain = _native_toolchain_module()
 
+    if native_toolchain is None and not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "analyze-memory is not supported with the '%s' toolchain",
+            CORE.toolchain.value if CORE.toolchain else "unresolved",
+        )
+        return 1
     if native_toolchain is not None:
         objdump_path = str(native_toolchain.get_objdump_path())
         readelf_path = str(native_toolchain.get_readelf_path())

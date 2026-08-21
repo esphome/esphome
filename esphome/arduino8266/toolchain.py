@@ -23,9 +23,11 @@ _LOGGER = logging.getLogger(__name__)
 # ESP8266 user RAM (matches upload.maximum_ram_size in every board manifest)
 _MAX_RAM_SIZE = 81920
 
-# platformio_options keys the native build consumes (lib_ignore) or that are
-# read from the raw config elsewhere (upload_speed, at upload time)
-_CONSUMED_PIO_OPTIONS = frozenset({"lib_ignore", "upload_speed"})
+# platformio_options keys the native build consumes. YAML-set upload_speed
+# never reaches CORE.platformio_options under the native toolchain (it is
+# read from the raw config at upload time), so anything here came from a
+# component and genuinely is dropped; warn for it.
+_CONSUMED_PIO_OPTIONS = frozenset({"lib_ignore"})
 
 
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
