@@ -331,8 +331,7 @@ void USBUartTypeCH934X::finalize_init_() {
     ch934x_channel->tx_shared_channel_ = shared;
     ch934x_channel->tx_port_byte_ = static_cast<uint8_t>(this->port_offset_ + channel->index_);
 
-    bool failed = device_failed || channel->index_ >= this->num_ports_ ||
-                  (failed_mask & (1u << channel->index_)) != 0;
+    bool failed = device_failed || channel->index_ >= this->num_ports_ || (failed_mask & (1u << channel->index_)) != 0;
     if (failed) {
       channel->initialised_.store(false);
       any_failed = true;
