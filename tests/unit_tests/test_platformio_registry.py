@@ -204,7 +204,7 @@ def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
     dest.mkdir()
     (dest / ".esphome_extracted").touch()
     with patch.object(registry, "download_from_mirrors") as mock_download:
-        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl")
+        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl", expect=())
     mock_download.assert_not_called()
 
 
@@ -218,7 +218,9 @@ def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
     ):
         # Extraction is expected to create the directory
         mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        registry.install_package("pkg", "1.0.0", dest, mirrors, tmp_path / "dl")
+        registry.install_package(
+            "pkg", "1.0.0", dest, mirrors, tmp_path / "dl", expect=()
+        )
     assert mock_download.call_args[0][0] is mirrors
     assert mock_download.call_args[0][1] == {
         "VERSION": "1.0.0",
@@ -240,7 +242,7 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
         ),
     ):
         mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir()
-        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl")
+        registry.install_package("pkg", "1.0.0", dest, [], tmp_path / "dl", expect=())
     assert mock_download.call_args[0][0] == "http://x/pkg.tar.gz"
     assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
 
@@ -291,7 +293,9 @@ def test_install_package_marker_rechecked_under_lock(tmp_path: Path) -> None:
         patch.object(registry, "download_from_mirrors") as mock_download,
         patch.object(registry, "rmdir") as mock_rmdir,
     ):
-        registry.install_package("pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl")
+        registry.install_package(
+            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=()
+        )
     mock_download.assert_not_called()
     mock_rmdir.assert_not_called()
 
@@ -306,5 +310,39 @@ def test_install_package_uses_hard_lock(tmp_path: Path) -> None:
         patch.object(registry, "get_systype", return_value="linux_x86_64"),
     ):
         mock_extract.side_effect = lambda *_a, **_kw: dest.mkdir(exist_ok=True)
-        registry.install_package("pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl")
+        registry.install_package(
+            "pkg", "1.0.0", dest, ["http://m"], tmp_path / "dl", expect=()
+        )
     assert mock_lock.call_args.kwargs["fallback_to_soft"] is False
+
+
+def test_registry_download_empty_system_list_does_not_match() -> None:
+    """An explicitly empty system list must not act as a wildcard."""
+    with (
+        _registry_response([{"system": [], "download_url": "http://x/any"}]),
+        patch.object(registry, "get_systype", return_value="linux_x86_64"),
+        pytest.raises(EsphomeError, match="No pkg 1.0.0 build"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_unexpected_payload_is_named() -> None:
+    """An error envelope without a versions list is not 'version not found'."""
+
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(json.dumps({"message": "rate limited"}).encode())
+        return "http://x"
+
+    with (
+        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_missing_system_key_matches_any() -> None:
+    """A file with no system key at all serves every host."""
+    with _registry_response(
+        [{"download_url": "http://x/any", "checksum": {"sha256": "abc"}, "size": 1}]
+    ):
+        assert registry.registry_download("pkg", "1.0.0") == ("http://x/any", "abc", 1)

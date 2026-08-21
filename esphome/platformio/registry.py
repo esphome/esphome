@@ -71,13 +71,25 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
             f"The package registry returned invalid JSON for {package}: {err}"
         ) from err
     systype = get_systype()
-    for ver in data.get("versions", []):
+    versions = data.get("versions")
+    if not isinstance(versions, list):
+        # A schema change or an error/captive-portal payload must not be
+        # reported as "version not found"
+        raise EsphomeError(
+            f"Unexpected package registry response for {package}: {str(data)[:200]}"
+        )
+    for ver in versions:
         if ver.get("name") != version:
             continue
         for file in ver.get("files", []):
-            # A bare string would make ``in`` a substring test
-            systems = file.get("system") or "*"
-            if isinstance(systems, str):
+            # Only a MISSING key means "any system"; an explicitly empty
+            # list must not match (a wrong-architecture download would be
+            # cached as a good install). A bare string would make ``in`` a
+            # substring test.
+            systems = file.get("system")
+            if systems is None:
+                systems = ["*"]
+            elif isinstance(systems, str):
                 systems = [systems]
             if "*" in systems or systype in systems:
                 sha256 = (file.get("checksum") or {}).get("sha256")
@@ -101,7 +113,7 @@ def install_package(
     dest: Path,
     mirrors: list[str],
     downloads_dir: Path,
-    expect: Collection[str] = (),
+    expect: Collection[str],
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
