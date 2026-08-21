@@ -115,15 +115,12 @@ void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
   this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
   // A broadcast (address 0) is never answered (Modbus 4.1), so the hub delivers no terminal callback.
   // on_sent is this command's only callback, so drop the one-shot from the queue here, or it would leak.
-  // Test the address the frame went to, not address_: a custom command's frame carries its own address
-  // (frame[0]), which may differ from this controller's. (unqueue_command() is a no-op for a poll.)
+  // A deprecated raw frame carries its own address byte (frame[0]), which may differ from address_; read
+  // that. (A custom PDU and normal reads/writes go to address_; unqueue_command() is a no-op for a poll,
+  // and function_code_ now holds the decoded real code, so it can no longer flag a custom command.)
   uint8_t wire_address = this->address_;
-  if (this->function_code_ == FunctionCode::CUSTOM) {
-    std::span<const uint8_t> frame =
-        this->custom_pdu_ != nullptr ? std::span<const uint8_t>(*this->custom_pdu_) : this->payload;
-    if (!frame.empty())
-      wire_address = frame[0];
-  }
+  if (this->payload_is_raw_frame_ && !this->payload.empty())
+    wire_address = this->payload.data()[0];
   if (wire_address == modbus::BROADCAST_ADDRESS)
     this->controller_->unqueue_command(this);
 }
