@@ -48,6 +48,10 @@ UART_STOP_BITS_OPTIONS = {
 
 DEFAULT_BAUD_RATE = 9600
 
+# Mirrors CH934XChannel::TX_HEADER_SIZE in usb_uart.h: each multiplexed TX chunk spends
+# these bytes on the [port, len_lo, len_hi] routing header, reducing the usable payload.
+CH934X_TX_HEADER_SIZE = 3
+
 
 class Type:
     def __init__(
@@ -195,23 +199,38 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config: list[ConfigType]) -> None:
-    # The output chunk pool/queue are compile-time-sized templates shared by all
-    # USBUartChannel instances, so use the largest buffer_size across every channel
-    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
-    # buffer that wastes one entry.
-    max_buffer_size = max(
-        channel[CONF_BUFFER_SIZE]
-        for device in config
-        for channel in device[CONF_CHANNELS]
-    )
-    if isinstance(device[CONF_TYPE], MpxType):
-        output_chunk_count = (
-            ceil(max_buffer_size / (get_max_packet_size() - 3))
-            * len(device[CONF_CHANNELS])
-            + 1
-        )
-    else:
-        output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    type_by_name = {t.name: t for t in uart_types}
+    mps = get_max_packet_size()
+
+    # The output chunk pool/queue are compile-time-sized templates shared by all channel
+    # instances (USB_UART_OUTPUT_CHUNK_COUNT), so size it for the most demanding device.
+    # CDC-style devices use one chunk queue per channel with full-MPS payloads. Multiplexed
+    # (CH934x) devices instead share one TX pool (on channel 0) across all their channels,
+    # and every chunk loses TX_HEADER_SIZE bytes to the routing header, so the shared pool
+    # must be able to hold every channel's full buffer_size at once or writes drop bytes.
+    # LockFreeQueue<T,N> is a ring buffer that reserves one slot, hence the +1.
+    payload = mps - CH934X_TX_HEADER_SIZE
+    output_chunk_count = 3
+    for device in config:
+        device_type = type_by_name.get(device[CONF_TYPE])
+        if isinstance(device_type, MpxType) and payload > 0:
+            # ceil(buffer / payload) chunks per channel, summed so all channels can write a
+            # full buffer_size concurrently (the shared queue only drains between loops).
+            need = (
+                sum(
+                    -(-channel[CONF_BUFFER_SIZE] // payload)
+                    for channel in device[CONF_CHANNELS]
+                )
+                + 1
+            )
+        else:
+            device_max = max(
+                channel[CONF_BUFFER_SIZE] for channel in device[CONF_CHANNELS]
+            )
+            need = max(device_max // mps, 2) + 1
+        output_chunk_count = max(output_chunk_count, need)
+    # LockFreeQueue/EventPool index slots with a uint8_t, so the count cannot exceed 255.
+    output_chunk_count = min(output_chunk_count, 255)
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     # Multiplexed (CH934x) drivers initialise their channels in parallel over a single
@@ -221,7 +240,6 @@ async def to_code(config: list[ConfigType]) -> None:
     # readers only start once every channel is initialised, so nothing else competes for
     # the pool during init.
     max_init_lanes = get_max_transfer_requests()
-    type_by_name = {t.name: t for t in uart_types}
 
     for device in config:
         var = await register_usb_client(device)
