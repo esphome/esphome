@@ -28,16 +28,17 @@
 //    * use other types of ethernet board then you can override this function
 //    * in your application. */
 //
-// On every ESP32 variant, PATCH1 in components/matter/_apply_patches.py
-// overwrites the upstream NetworkCommissioningDriver_Ethernet.cpp with an
-// empty stub before ninja compiles. That leaves ESPEthernetDriver::Init
-// undefined in the esp-matter library — and this TU is its sole provider,
-// compiled whenever ESPHome's ethernet: component is present (USE_ETHERNET).
-// The earlier setup (patch only on non-EMAC variants; rely on link-order
-// on classic ESP32) worked because the upstream TU only exports one
-// symbol, but a future release adding a second external symbol could pull
-// the archive object and blow up multiple-definition on classic ESP32.
-// Uniform patch removes that hazard.
+// On every ESP32 variant, external_platform/external_platform.cmake
+// excludes the upstream NetworkCommissioningDriver_Ethernet.cpp from the
+// esp_matter component build (via CONFIG_CHIP_ENABLE_EXTERNAL_PLATFORM).
+// That leaves ESPEthernetDriver::Init undefined in the esp-matter library
+// — and this TU is its sole provider, compiled whenever ESPHome's
+// ethernet: component is present (USE_ETHERNET). The earlier setup
+// (exclusion only on non-EMAC variants; rely on link-order on classic
+// ESP32) worked because the upstream TU only exports one symbol, but a
+// future release adding a second external symbol could pull the archive
+// object and blow up multiple-definition on classic ESP32. Uniform
+// exclusion removes that hazard.
 
 #include <platform/NetworkCommissioning.h>
 #include <platform/ESP32/NetworkCommissioningDriver.h>

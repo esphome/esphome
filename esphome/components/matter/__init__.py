@@ -529,11 +529,8 @@ async def to_code(config: ConfigType) -> None:
         # On a pure Ethernet-only build (no BLE), keeping this off means
         # CHIP_DEVICE_CONFIG_ENABLE_WIFI=0 and ConnectivityManagerImpl::_Init
         # skips InitWiFi() entirely (connectedhomeip src/platform/ESP32/
-        # ConnectivityManagerImpl.cpp:59-71 in the 1.6 baseline). Without
-        # this guard we get `esp_wifi_get_mode() failed: ESP_ERR_WIFI_NOT_INIT`
-        # during CHIP init because our _apply_patches.py PATCH2 skips
-        # ESP32Utils::InitWiFiStack() but the connectivity manager still
-        # tries to poll the (never-initialised) driver.
+        # ConnectivityManagerImpl.cpp:59-71 in the 1.6 baseline), so CHIP
+        # never touches the never-initialised Wi-Fi driver.
         #
         # The historic 1.5.1 reason to keep this on even in Ethernet builds
         # was a esp-matter CMakeLists.txt bug that excluded ESP32DnssdImpl.cpp
@@ -885,19 +882,13 @@ async def to_code(config: ConfigType) -> None:
         #
         # Applied unconditionally when PSRAM is present, not just BLE. On
         # many-endpoint Matter builds (74 entities + Aggregator + Bridged
-        # basic info per endpoint) the CHIP data-model provider's std::map
-        # allocations exhaust internal DRAM at boot, starving the W5500 SPI
-        # DMA priv-RX-buffer allocation and either aborting on `operator new`
+        # basic info per endpoint) the CHIP data-model provider allocations
+        # exhaust internal DRAM at boot, starving the W5500 SPI DMA
+        # priv-RX-buffer allocation and either aborting on ``operator new``
         # (bad_alloc → __cxa_allocate_exception on ESP-IDF without C++
         # exceptions) or crashing the periodic W5500 RX polling. USE_MALLOC
         # lets those allocations spill to PSRAM freely; DMA-capable allocs
         # (spi_master, wifi RX) still go to internal via MALLOC_CAP_DMA.
-        #
-        # A previous attempt failed reproducibly with Crypto::GetRandU32
-        # aborting mid-enable_all; that turned out to be the unordered_map
-        # rehash bug in every cluster integration file (see _apply_patches.py
-        # patch 3, which swaps them all to std::map). With that bug fixed
-        # the DRBG path is stable under USE_MALLOC.
         if ble_commissioning:
             CORE.data.setdefault("matter", {})["ble"] = True
         CORE.data.setdefault("matter", {})["psram"] = True
@@ -906,7 +897,7 @@ async def to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
 async def _write_cmake_project_include() -> None:
-    """Append CMAKE_PROJECT_INCLUDE + EXECUTABLE_COMPONENT_NAME to cmake_extra_args.
+    """Append EXECUTABLE_COMPONENT_NAME to cmake_extra_args.
 
     esp_matter's own CMakeLists.txt (managed_components/…/CMakeLists.txt:
     ~688) calls ``idf_component_get_property(main_lib ${EXECUTABLE_COMPONENT_NAME}
@@ -929,8 +920,6 @@ async def _write_cmake_project_include() -> None:
     OVERWRITES, so we read-modify-write.
     """
     existing = CORE.platformio_options.get("board_build.cmake_extra_args", "")
-    patch_hook = (Path(__file__).parent / "_patch_hook.cmake").resolve()
-    patch_hook_arg = f"-DCMAKE_PROJECT_INCLUDE={patch_hook}"
     executable_name_arg = "-DEXECUTABLE_COMPONENT_NAME=src"
     if not isinstance(existing, str):
         raise EsphomeError(
@@ -938,13 +927,10 @@ async def _write_cmake_project_include() -> None:
             f"({type(existing).__name__}); cannot append the Matter CMake "
             f"flags safely — file an issue with this configuration."
         )
-    additions = [
-        arg for arg in (patch_hook_arg, executable_name_arg) if arg not in existing
-    ]
-    if additions:
+    if executable_name_arg not in existing:
         cg.add_platformio_option(
             "board_build.cmake_extra_args",
-            " ".join([existing, *additions]).strip(),
+            f"{existing} {executable_name_arg}".strip(),
         )
 
 

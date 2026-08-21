@@ -1251,9 +1251,8 @@ void MatterComponent::setup() {
   // esp_matter::start below on Wi-Fi builds) — the ESP-IDF's
   // esp_wifi_get_mode / esp_netif_get_handle_from_ifkey guards inside
   // that helper make it safe even when ESPHome's `wifi:` already
-  // initialised the driver, so we no longer need to reproduce that
-  // registration here. See the PATCH2-removed comment in
-  // _apply_patches.py for the timeline.
+  // initialised the driver, so we do not reproduce that registration
+  // here.
   esp_err_t err = ::esp_matter::start(matter_event_cb);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_matter::start failed: %s", esp_err_to_name(err));
