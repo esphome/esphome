@@ -565,6 +565,30 @@ climate:
       min_temperature: 16.0
       max_temperature: 30.0
       temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "set_mode_action %d"
+          args: ["(int) x"]
+    set_target_temperature_action:
+      - logger.log:
+          format: "set_target_temperature_action %.1f"
+          args: ["x"]
+    set_target_humidity_action:
+      - logger.log:
+          format: "set_target_humidity_action %.1f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "set_fan_mode_action %d"
+          args: ["(int) x"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "set_swing_mode_action %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "set_preset_action %d"
+          args: ["(int) x"]
     on_control:
       - logger.log: "on_control fired"
     on_state:
@@ -575,6 +599,9 @@ climate:
     name: "Template Climate Custom Modes"
     optimistic: true
     sensor: template_template_sens
+    supported_modes:
+      - "OFF"
+      - HEAT
     custom_fan_modes:
       - turbo
       - silent
@@ -583,6 +610,14 @@ climate:
       - eco_plus
       - power_save
       - max
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action %s"
+          args: ["x.c_str()"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action %s"
+          args: ["x.c_str()"]
     initial_state:
       custom_fan_mode: eco
       custom_preset: max
