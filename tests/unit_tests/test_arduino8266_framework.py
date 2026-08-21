@@ -25,8 +25,21 @@ def test_framework_package_version() -> None:
     # 2.6.3+ cores use the same package-major-3 encoding (PlatformIO path)
     assert framework.framework_package_version(cv.Version(2, 7, 4)) == "3.20704.0"
     # A future major bump needs its own encoding, not a doomed registry lookup
-    with pytest.raises(EsphomeError, match="no known package encoding"):
+    with pytest.raises(EsphomeError, match="not supported yet"):
         framework.framework_package_version(cv.Version(4, 0, 0))
+
+
+def test_format_framework_arduino_version_pins_all_series() -> None:
+    """The esp8266 component's PIO source formatter across every encoding
+    era, including the 4.x rejection it now shares with the installer."""
+    from esphome.components.esp8266 import _format_framework_arduino_version as fmt
+
+    assert fmt(cv.Version(2, 4, 1)) == "~1.20401.0"
+    assert fmt(cv.Version(2, 6, 2)) == "~2.20602.0"
+    assert fmt(cv.Version(2, 7, 4)) == "~3.20704.0"
+    assert fmt(cv.Version(3, 1, 2)) == "~3.30102.0"
+    with pytest.raises(EsphomeError, match="not supported yet"):
+        fmt(cv.Version(4, 0, 0))
 
 
 def test_tools_path_default_and_prefix(tmp_path: Path) -> None:

@@ -68,9 +68,12 @@ def framework_package_version(ver: Version) -> str:
     package that cannot exist.
     """
     if ver.major > 3:
+        # Backend-neutral: this also fires on the PlatformIO validation path
+        # (via _format_framework_arduino_version), where switching toolchains
+        # would not help
         raise EsphomeError(
-            f"Arduino core {ver} has no known package encoding; "
-            "use 'toolchain: platformio'"
+            f"Arduino core {ver} is not supported yet; "
+            "the newest known core series is 3.x"
         )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
