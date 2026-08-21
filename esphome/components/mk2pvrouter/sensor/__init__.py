@@ -33,11 +33,8 @@ Mk2PVRouterSensor = mk2pvrouter_ns.class_(
     "Mk2PVRouterSensor", sensor.Sensor, cg.Component
 )
 
-# Build validators from sensor module's public data structures (STATE_CLASSES,
-# FILTER_REGISTRY) via cv public API, rather than importing the sensor module's
-# private _validate_state_class/_validate_filters helper functions directly.
-_validate_state_class = cv.enum(sensor.STATE_CLASSES, lower=True, space="_")
-_validate_filters = cv.validate_registry("filter", sensor.FILTER_REGISTRY)
+_validate_state_class = sensor.validate_state_class
+_validate_filters = sensor.validate_filters
 
 # Define common sensor configurations to avoid repetition
 POWER_CONFIG = {
