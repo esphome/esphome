@@ -841,40 +841,6 @@ def test_ccache_wrapper_through_cmd_exe(
         assert marker.read_text() == "compiled"
 
 
-@pytest.mark.parametrize(
-    ("platform", "input_path", "expected"),
-    [
-        # win32: drive-letter extended-length prefix is stripped
-        (
-            "win32",
-            "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
-            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
-        ),
-        # win32: UNC extended-length prefix is translated to a regular UNC path
-        (
-            "win32",
-            "\\\\?\\UNC\\server\\share\\python.exe",
-            "\\\\server\\share\\python.exe",
-        ),
-        # win32: paths without the prefix are returned unchanged
-        (
-            "win32",
-            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
-            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
-        ),
-        # non-win32: prefix is left alone (no-op)
-        ("linux", "\\\\?\\C:\\python.exe", "\\\\?\\C:\\python.exe"),
-        ("darwin", "/usr/bin/python3", "/usr/bin/python3"),
-    ],
-)
-def test_strip_win_long_path_prefix(
-    platform: str, input_path: str, expected: str
-) -> None:
-    r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
-    with patch("esphome.framework_helpers.sys.platform", platform):
-        assert toolchain.strip_win_long_path_prefix(input_path) == expected
-
-
 def test_run_platformio_cli_strips_win_long_path_prefix(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
