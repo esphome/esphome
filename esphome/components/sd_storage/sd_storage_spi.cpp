@@ -143,8 +143,8 @@ esp_err_t SdSpi::mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_c
     return err;
   }
 
-  BYTE pdrv = FF_DRV_NOT_USED;
-  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == FF_DRV_NOT_USED) {
+  BYTE pdrv = 0xFF;
+  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == 0xFF) {
     sdspi_host_remove_device(this->sdspi_handle_);
     this->sdspi_handle_ = -1;
     delete card;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -197,7 +197,7 @@ esp_err_t SdSpi::mount_manual_(sdmmc_host_t &host, sdspi_device_config_t &slot_c
 storage::StorageError SdSpi::unmount_manual_() {
   StorageError err = StorageError::STORAGE_ERROR_OK;
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv != FF_DRV_NOT_USED) {
+  if (pdrv != 0xFF) {
     char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
     FRESULT res = f_mount(nullptr, drv, 0);
     if (res != FR_OK) {
@@ -295,7 +295,7 @@ StorageError SdSpi::mount() {
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv == FF_DRV_NOT_USED)
+  if (pdrv == 0xFF)
     ESP_LOGE(TAG_SPI, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
   this->set_fatfs_drive_(pdrv);
   this->update_card_info();
