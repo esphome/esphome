@@ -2537,7 +2537,7 @@ def platformio_version_constraint(value):
     return constraints
 
 
-def check_supported_toolchain(
+def _check_supported_toolchain(
     platform_name: str, supported: tuple[Toolchain, ...]
 ) -> None:
     """Raise when the resolved ``CORE.toolchain`` is not in ``supported``.
@@ -2582,7 +2582,7 @@ def resolve_toolchain(
     def validator(config: ConfigType) -> ConfigType:
         if CORE.toolchain is None:
             CORE.toolchain = config.get(CONF_TOOLCHAIN, default)
-        check_supported_toolchain(platform_name, supported)
+        _check_supported_toolchain(platform_name, supported)
         return config
 
     return validator
@@ -2593,8 +2593,11 @@ def require_platformio_toolchain(
 ) -> Callable[[ConfigType], ConfigType]:
     """Reject a CLI-selected toolchain other than PlatformIO.
 
-    For platforms with only the PlatformIO backend; without this a
-    ``--toolchain`` they cannot serve would silently build with PlatformIO.
+    For platforms with only the PlatformIO backend. Without this a
+    ``--toolchain`` they cannot serve would either build with PlatformIO
+    while claiming another backend, or (for a toolchain another platform
+    owns, like ``esp-idf``) dispatch to a native backend that cannot
+    build this platform at all.
     """
     return resolve_toolchain(
         platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
