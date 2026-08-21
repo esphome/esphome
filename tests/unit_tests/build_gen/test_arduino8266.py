@@ -981,3 +981,96 @@ def test_generate_ld_scripts_surfaces_preprocessor_warnings(
         pytest.raises(EsphomeError, match="SECTIONS"),
     ):
         _run_generate_ld_scripts(paths)
+
+
+def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
+    """A variant knob plus a raw MMU_* define would split the compile line
+    from the linker script; refuse like the no-knob case."""
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48", "-DMMU_IRAM_SIZE=0x4000")
+    with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE conflict with .*CACHE16"):
+        _resolve_build_config(_flag_defines(set()))
+
+
+def test_build_config_raw_lwip_define_raises() -> None:
+    """TCP_MSS/LWIP_* belong to the lwIP knobs: a raw value would win the
+    compile line while the prebuilt library stays the knob's."""
+    _set_flags("-DTCP_MSS=1024")
+    with pytest.raises(EsphomeError, match="TCP_MSS are set by the .*LWIP2"):
+        _resolve_build_config(_flag_defines(set()))
+
+
+def test_build_config_mmu_defines_do_not_alias_the_table() -> None:
+    """The resolved list must be a copy; mutating it must not corrupt the
+    module table for later builds in the same process."""
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48")
+    config = _resolve_build_config(_flag_defines(set()))
+    config.mmu_defines.append("MMU_BOGUS")
+    again = _resolve_build_config(_flag_defines(set()))
+    assert "MMU_BOGUS" not in again.mmu_defines
+    assert all(isinstance(v, tuple) for _k, v in arduino8266._MMU_VARIANTS)
+
+
+def test_lexed_build_flags_shared_between_consumers(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Lexing once and passing the tokens to both consumers yields the same
+    result as each lexing itself, with a malformed entry warned once."""
+    _set_flags("-DFOO=1 -l", "-Wl,--wrap=x")
+    tokens = arduino8266._lexed_build_flags()
+    assert caplog.text.count("Ignoring trailing '-l'") == 1
+    assert _flag_defines(set(), tokens) == _flag_defines(set())
+    assert arduino8266._project_flags(set(), tokens) == arduino8266._project_flags(
+        set()
+    )
+
+
+def test_project_flags_warns_on_plain_linker_forms(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A plain-form linker flag lands on the compile line where it is inert;
+    the user must be told to use the -Wl, form."""
+    _set_flags("-Tcustom.ld", "-Xlinker", "-u", "-Os")
+    compile_flags, _l, _d, _libs = arduino8266._project_flags(set())
+    assert "-Os" in compile_flags
+    for tok in ("-Tcustom.ld", "-Xlinker", "-u"):
+        assert f"Linker flag {tok} in build_flags is not routed" in caplog.text
+
+
+def test_generate_ld_scripts_header_change_invalidates_stamp(
+    tmp_path: Path,
+) -> None:
+    """An in-place framework edit at the same path regenerates the script."""
+    paths = _make_framework(tmp_path)
+    header = paths.framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
+    header.write_text("v1")
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    header.write_text("v2 (longer)")
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_called_once()
+
+
+def test_generate_ld_scripts_unreadable_stamp_regenerates(tmp_path: Path) -> None:
+    """A non-UTF-8 stamp is a damaged cache: regenerate, never abort."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    (ld_dir / ".local.eagle.app.v6.common.ld.stamp").write_bytes(b"\xff\xfe")
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_called_once()
+
+
+def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
+    """A moved rate-table anchor surfaces as a build error, not a traceback
+    or a silently unrelocated table."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout="SECTIONS { no anchor here }", stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        pytest.raises(EsphomeError, match="anchor not found"),
+    ):
+        _run_generate_ld_scripts(paths)

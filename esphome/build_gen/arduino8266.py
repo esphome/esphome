@@ -105,28 +105,28 @@ _LWIP_DEFAULT = (536, 1, 0, "lwip2-536-feat")
 _MMU_VARIANTS = (
     (
         "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
-        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"],
+        ("MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"),
     ),
     (
         "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED",
-        ["MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"],
+        ("MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"),
     ),
     (
         "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED",
-        [
+        (
             "MMU_IRAM_SIZE=0x8000",
             "MMU_ICACHE_SIZE=0x4000",
             "MMU_SEC_HEAP_SIZE=0x4000",
             "MMU_SEC_HEAP=0x40108000",
-        ],
+        ),
     ),
     (
         "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K",
-        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"],
+        ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"),
     ),
     (
         "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
-        ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"],
+        ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"),
     ),
 )
 _MMU_DEFAULT = ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000")
@@ -208,25 +208,34 @@ class _BuildConfig:
     mmu_defines: list[str] = field(default_factory=list)
 
 
-def _flag_defines(unflags: set[str]) -> dict[str, str]:
+def _lexed_build_flags() -> list[str]:
+    """Shell-lex every ``CORE.build_flags`` entry the way PlatformIO's
+    ``ParseFlags`` does, so a knob in ``"-DKNOB -DOTHER"``, a spaced
+    ``"-D KNOB"``, and quoted bodies all read identically everywhere.
+
+    Sorted so duplicate defines resolve the same way every run (the winner
+    feeds the linker-script preprocessor line, which is also the cache
+    stamp). Lex once per build and pass the result to ``_flag_defines`` and
+    ``_project_flags`` so a malformed entry warns once, not per consumer.
+    """
+    return [
+        tok
+        for flag in sorted(CORE.build_flags)
+        for tok in join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
+    ]
+
+
+def _flag_defines(unflags: set[str], tokens: list[str] | None = None) -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
     defines: dict[str, str] = {}
-    # Sorted so duplicate defines resolve the same way every run: the
-    # winner feeds the linker-script preprocessor line, which is also the
-    # cache stamp
-    for flag in sorted(CORE.build_flags):
-        # Shell-lex every entry the way PlatformIO's ParseFlags does, so a
-        # knob in "-DKNOB -DOTHER", a spaced "-D KNOB", and quoted bodies all
-        # read identically to _project_flags (and the compile line).
-        tokens = join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
-        for tok in tokens:
-            # An unflagged knob must not drive lwIP/SDK/MMU selection while
-            # being absent from the compile line
-            if tok in unflags:
-                continue
-            if tok.startswith("-D") and len(tok) > 2:
-                body = tok[2:]
-                defines[body.split("=", 1)[0]] = body
+    for tok in _lexed_build_flags() if tokens is None else tokens:
+        # An unflagged knob must not drive lwIP/SDK/MMU selection while
+        # being absent from the compile line
+        if tok in unflags:
+            continue
+        if tok.startswith("-D") and len(tok) > 2:
+            body = tok[2:]
+            defines[body.split("=", 1)[0]] = body
     return defines
 
 
@@ -243,6 +252,16 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
             tcp_mss, features, ipv6, lwip_lib = variant
             break
 
+    # The lwIP triple selects a prebuilt library; a raw override would win
+    # the compile line (user tokens come last here) while the link still
+    # pulls the library built for the knob's values
+    if owned := sorted(
+        n for n in ("TCP_MSS", "LWIP_FEATURES", "LWIP_IPV6") if n in defines
+    ):
+        raise EsphomeError(
+            f"{', '.join(owned)} are set by the PIO_FRAMEWORK_ARDUINO_LWIP2_* "
+            "knobs; drop the raw build flags"
+        )
     knob_defines = [
         f"{nonosdk}=1",
         f"TCP_MSS={tcp_mss}",
@@ -267,32 +286,37 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         )
     vtables = vtables_knobs[0] if vtables_knobs else "VTABLES_IN_FLASH"
 
-    mmu = next((variant for knob, variant in _MMU_VARIANTS if knob in defines), None)
-    if mmu is None:
-        if "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
-            if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
-                raise EsphomeError(
-                    "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
-                    "MMU_ICACHE_SIZE build flags"
-                )
-            # Sorted so build.ninja and the linker-script stamp stay
-            # byte-stable across runs (the flag set has no deterministic
-            # iteration order).
-            mmu = sorted(
-                body for name, body in defines.items() if name.startswith("MMU_")
+    mmu_knob = next((knob for knob, _variant in _MMU_VARIANTS if knob in defines), None)
+    if mmu_knob is not None:
+        if raw := sorted(n for n in defines if n.startswith("MMU_")):
+            # Same compile-line/linker-script split as the no-knob case below
+            raise EsphomeError(
+                f"{', '.join(raw)} conflict with {mmu_knob}; drop the raw MMU_* "
+                "build flags or use PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
             )
-        else:
-            if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
-                # PlatformIO only warns here and appends its defaults last so
-                # they win the compile line; in this generator the user's
-                # tokens would come last instead, compiling against a memory
-                # layout the linker script does not implement. Refuse rather
-                # than reproduce the upstream footgun with worse odds.
-                raise EsphomeError(
-                    "Custom MMU_IRAM_SIZE/MMU_ICACHE_SIZE build flags require "
-                    "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
-                )
-            mmu = list(_MMU_DEFAULT)
+        mmu = list(dict(_MMU_VARIANTS)[mmu_knob])
+    elif "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
+        if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
+            raise EsphomeError(
+                "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
+                "MMU_ICACHE_SIZE build flags"
+            )
+        # Sorted so build.ninja and the linker-script stamp stay
+        # byte-stable across runs (the flag set has no deterministic
+        # iteration order).
+        mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
+    else:
+        if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
+            # PlatformIO only warns here and appends its defaults last so
+            # they win the compile line; in this generator the user's
+            # tokens would come last instead, compiling against a memory
+            # layout the linker script does not implement. Refuse rather
+            # than reproduce the upstream footgun with worse odds.
+            raise EsphomeError(
+                "Custom MMU_IRAM_SIZE/MMU_ICACHE_SIZE build flags require "
+                "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
+            )
+        mmu = list(_MMU_DEFAULT)
 
     return _BuildConfig(
         nonosdk=nonosdk,
@@ -360,7 +384,7 @@ def _unflag_tokens() -> set[str]:
 
 
 def _project_flags(
-    unflags: set[str],
+    unflags: set[str], tokens: list[str] | None = None
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
@@ -376,25 +400,31 @@ def _project_flags(
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
     libs: list[str] = []
-    for flag in sorted(CORE.build_flags):
-        for tok in join_flag_args(split_flag_entry(flag, "esphome"), "esphome"):
-            if tok in unflags:
+    for tok in _lexed_build_flags() if tokens is None else tokens:
+        if tok in unflags:
+            continue
+        if tok.startswith("-Wl,"):
+            link_flags.append(_shell_token(tok))
+        elif tok.startswith("-L"):
+            if len(tok) == 2:
+                # Path("") is the CWD; never add it silently
+                _LOGGER.warning("Ignoring empty -L in build_flags")
                 continue
-            if tok.startswith("-Wl,"):
-                link_flags.append(_shell_token(tok))
-            elif tok.startswith("-L"):
-                if len(tok) == 2:
-                    # Path("") is the CWD; never add it silently
-                    _LOGGER.warning("Ignoring empty -L in build_flags")
-                    continue
-                lib_dirs.append(Path(tok[2:]))
-            elif tok.startswith("-l"):
-                if len(tok) == 2:
-                    _LOGGER.warning("Ignoring empty -l in build_flags")
-                    continue
-                libs.append(tok[2:])
-            else:
-                compile_flags.append(_shell_token(tok))
+            lib_dirs.append(Path(tok[2:]))
+        elif tok.startswith("-l"):
+            if len(tok) == 2:
+                _LOGGER.warning("Ignoring empty -l in build_flags")
+                continue
+            libs.append(tok[2:])
+        else:
+            if tok == "-u" or tok.startswith(("-T", "-Xlinker")):
+                # Inert on the compile line; the user expects it to link
+                _LOGGER.warning(
+                    "Linker flag %s in build_flags is not routed to the link "
+                    "line; use the -Wl, form",
+                    tok,
+                )
+            compile_flags.append(_shell_token(tok))
     return compile_flags, link_flags, lib_dirs, libs
 
 
@@ -424,11 +454,8 @@ def generate_ld_scripts(
     cmd += [f"-D{d}" for d in config.mmu_defines]
     if config.fp_in_irom:
         cmd.append("-DFP_IN_IROM")
-    cmd += [
-        str(framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"),
-        "-o",
-        "-",
-    ]
+    header = framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
+    cmd += [str(header), "-o", "-"]
 
     # The inputs are the command line (defines + framework version, which is
     # baked into the paths) plus testing mode; skip the preprocessor spawn on
@@ -437,25 +464,37 @@ def generate_ld_scripts(
     stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
     # The surgery constants are inputs too: an edit to build_surgery.py must
     # invalidate existing build dirs, not wait for an esphome clean.
+    # The header's size and mtime cover an in-place framework edit or
+    # re-extraction at the same versioned path, which the command line
+    # alone would not notice
+    try:
+        header_stat = header.stat()
+        header_sig = f"{header_stat.st_size}:{header_stat.st_mtime_ns}"
+    except OSError:
+        header_sig = "missing"  # the preprocessor spawn below names it
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
+        + f" header={header_sig}"
         # One fingerprint instead of enumerating surgery internals here, so
         # any behavioral edit in build_surgery self-invalidates the cache
         + f" {build_surgery.surgery_fingerprint()}"
     )
 
     def _cached_ld_is_valid() -> bool:
-        if not (
-            output.is_file()
-            and stamp.is_file()
-            and stamp.read_text(encoding="utf-8") == stamp_content
-        ):
+        # A damaged cache (unreadable, non-UTF-8, truncated, externally
+        # edited) must regenerate, not abort the build or be reused on
+        # existence alone (the SECTIONS check below only guards generation)
+        try:
+            if not (
+                output.is_file()
+                and stamp.is_file()
+                and stamp.read_text(encoding="utf-8") == stamp_content
+            ):
+                return False
+            return "SECTIONS" in output.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             return False
-        # A truncated or externally edited script must force regeneration,
-        # not be reused on existence alone (the SECTIONS check below only
-        # guards the generation path)
-        return "SECTIONS" in output.read_text(encoding="utf-8")
 
     if not _cached_ld_is_valid():
         try:
@@ -478,7 +517,12 @@ def generate_ld_scripts(
                 "Generated linker script is missing its SECTIONS block; "
                 "run 'esphome clean-all' and retry"
             )
-        content = build_surgery.relocate_ratetable(result.stdout)
+        try:
+            content = build_surgery.relocate_ratetable(result.stdout)
+        except RuntimeError as err:
+            # The anchor moved in a new core release: a named error, not a
+            # traceback, and never a silently unrelocated rate table
+            raise EsphomeError(str(err)) from err
         if CORE.testing_mode:
             content = build_surgery.apply_testing_memory_patches(
                 content, ("iram1_0_seg",)
