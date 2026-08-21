@@ -352,6 +352,27 @@ def progress_bar_show(value):
     return None
 
 
+def _mark_vendor_includes_as_isystem(compile_commands_path: Path) -> Path:
+    """Rewrite every -I except our own root_path to -isystem.
+
+    CMake always emits -I; Clang only suppresses diagnostics from vendor
+    headers reached via -isystem, same as clang_options() does for every
+    other environment.
+    """
+    data = json.loads(compile_commands_path.read_text(encoding="utf-8"))
+
+    def rewrite(match: re.Match) -> str:
+        path = match.group(1)
+        return match.group(0) if path == root_path else f"-isystem {path}"
+
+    for entry in data:
+        entry["command"] = re.sub(r"-I(\S+)", rewrite, entry["command"])
+
+    isystem_path = compile_commands_path.with_name("compile_commands.isystem.json")
+    isystem_path.write_text(json.dumps(data), encoding="utf-8")
+    return isystem_path
+
+
 def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
 
@@ -392,6 +413,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+    compile_commands_path = _mark_vendor_includes_as_isystem(compile_commands_path)
 
     output_dir = Path(temp_folder) / f"codechecker-{args.environment}"
     if output_dir.is_dir():
