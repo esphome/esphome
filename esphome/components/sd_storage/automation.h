@@ -46,10 +46,7 @@ template<typename... Ts> class MountCardAction : public Action<Ts...> {
  public:
   explicit MountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
-  void play(Ts... x) override {
-    bool ok = this->parent_->mount() == storage::StorageError::STORAGE_ERROR_OK;
-    this->parent_->log_mount_result_(ok);
-  }
+  void play(Ts... x) override { this->parent_->log_mount_result_(this->parent_->mount()); }
 
  protected:
   SdStorageBase *parent_;
@@ -59,14 +56,7 @@ template<typename... Ts> class UnmountCardAction : public Action<Ts...> {
  public:
   explicit UnmountCardAction(SdStorageBase *parent) : parent_(parent) {}
 
-  void play(Ts... x) override {
-    storage::StorageError err = this->parent_->unmount();
-    if (err == storage::StorageError::STORAGE_ERROR_OK) {
-      this->parent_->log_unmount_();
-    } else {
-      ESP_LOGW(TAG, "Unmount via automation failed: %s", storage::error_to_string(err));
-    }
-  }
+  void play(Ts... x) override { this->parent_->log_unmount_(this->parent_->unmount()); }
 
  protected:
   SdStorageBase *parent_;
@@ -84,9 +74,7 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
       path = "/";  // FAT root; get_mount_path() is the absolute VFS path, wrong for list_dir()
 
     this->parent_->log_list_dir_start_(path);
-    storage::StorageError err = this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
-    if (err != storage::StorageError::STORAGE_ERROR_OK)
-      ESP_LOGW(TAG, "list_files failed: %s", storage::error_to_string(err));
+    this->parent_->log_list_dir_result_(this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr));
   }
 
  protected:

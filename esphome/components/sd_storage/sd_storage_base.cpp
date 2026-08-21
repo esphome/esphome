@@ -528,17 +528,29 @@ storage::StorageError SdStorageBase::rename(const char *old_path, const char *ne
   return storage::StorageError::STORAGE_ERROR_OK;
 }
 
-void SdStorageBase::log_mount_result_(bool success) const {
-  if (success) {
+void SdStorageBase::log_mount_result_(storage::StorageError err) const {
+  if (err == storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGI(TAG_BASE, "Card mounted via automation");
   } else {
-    ESP_LOGE(TAG_BASE, "Failed to mount card via automation");
+    ESP_LOGE(TAG_BASE, "%s", storage::error_to_string(err));
   }
 }
 
-void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted via automation"); }
+void SdStorageBase::log_unmount_(storage::StorageError err) const {
+  if (err == storage::StorageError::STORAGE_ERROR_OK) {
+    ESP_LOGI(TAG_BASE, "Card unmounted via automation");
+  } else {
+    ESP_LOGE(TAG_BASE, "%s", storage::error_to_string(err));
+  }
+}
 
 void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGD(TAG_BASE, "Listing files in: %s", path); }
+
+void SdStorageBase::log_list_dir_result_(storage::StorageError err) const {
+  if (err != storage::StorageError::STORAGE_ERROR_OK) {
+    ESP_LOGW(TAG_BASE, "%s", storage::error_to_string(err));
+  }
+}
 
 bool SdStorageBase::log_list_dir_entry(const storage::FileStat *entry, void *ctx) {
   if (entry->is_dir) {
