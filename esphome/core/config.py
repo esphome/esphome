@@ -351,9 +351,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
-            ): cv.All(
+            cv.Optional(CONF_SUSPEND_LOOP, visibility=cv.Visibility.YAML_ONLY): cv.All(
                 cv.boolean,
                 validate_suspend_loop_,
             ),
@@ -778,7 +776,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
-    if config[CONF_SUSPEND_LOOP]:
+    if config.get(CONF_SUSPEND_LOOP):
         cg.add_define("ESPHOME_SUSPEND_LOOP")
     if config[CONF_LOOP_INTERVAL]:
         cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
