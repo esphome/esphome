@@ -745,3 +745,15 @@ def test_dependency_requested_top_level_is_not_a_drop(
             cache_key="arduino8266",
         )
     assert "is not bundled with the framework" not in caplog.text
+
+
+def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
+    tmp_path: Path,
+) -> None:
+    """A bundled library.json that is a JSON array skips the dependency and
+    extraScript probes and fails in _library_info naming the library."""
+    framework = _make_framework(tmp_path)
+    wire = framework / "libraries" / "Wire"
+    (wire / "library.json").write_text('["not", "a", "manifest"]')
+    with pytest.raises(EsphomeError, match="Library Wire has a malformed manifest"):
+        component._bundled_library(framework, "Wire")
