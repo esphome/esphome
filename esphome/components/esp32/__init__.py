@@ -2343,6 +2343,14 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif enable_exfat:
+        # FATFS is not in the build, so tear down any stale patched copy before failing --
+        # otherwise the error state also leaves the override behind until enable_exfat is
+        # removed too, the exact state the unconditional reconcile below is meant to prevent.
+        _sync_exfat_fatfs_override(
+            False,
+            str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+            get_esp32_variant(),
+        )
         raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
@@ -3026,6 +3034,12 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
         if marker.is_file():
             shutil.rmtree(dest)
         return
+    if not CORE.using_toolchain_esp_idf:
+        raise EsphomeError(
+            f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
+            "copied from the esp-idf install, which is the only framework tree that actually "
+            "builds the project. Use 'framework: type: esp-idf', or unset enable_exfat."
+        )
     if marker.is_file() and marker.read_text() == stamp:
         return  # current copy is up to date
     src = _get_framework_path(idf_ver) / "components" / "fatfs"
@@ -3039,6 +3053,11 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             f"(looked in {src})"
         )
     if dest.exists():
+        if not marker.is_file():
+            raise EsphomeError(
+                f"enable_exfat: refusing to overwrite {dest}, which exists but was not "
+                "created by ESPHome (no exFAT marker). Remove it manually if unneeded."
+            )
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
     # Claim the copy immediately: if the patching below raises, the cleanup path (which only
