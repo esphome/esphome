@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -258,9 +259,6 @@ async def text_sensor_state_to_code(config, condition_id, template_arg, args):
     return var
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """filter.cpp is fully #ifdef'd on USE_TEXT_SENSOR_FILTER; skip copying it
-    when no text sensor uses filters so it is not opened and parsed."""
-    if not any(define.name == "USE_TEXT_SENSOR_FILTER" for define in CORE.defines):
-        return ["filter.cpp"]
-    return []
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_TEXT_SENSOR_FILTER"}
+)

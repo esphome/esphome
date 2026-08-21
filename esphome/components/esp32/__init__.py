@@ -12,6 +12,7 @@ from typing import Any
 from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -3452,10 +3453,8 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """gpio.cpp only implements ESP32InternalGPIOPin (and its ISR helpers),
-    which is instantiated solely by the pin schema codegen; skip copying it
-    when the config uses no internal GPIO pins."""
-    if not any(define.name == "USE_ESP32_INTERNAL_GPIO" for define in CORE.defines):
-        return ["gpio.cpp"]
-    return []
+# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
+# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
+)

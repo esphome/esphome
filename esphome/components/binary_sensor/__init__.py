@@ -5,6 +5,7 @@ from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -560,9 +561,9 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_binary_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if CONF_ON_CLICK in config or CONF_ON_DOUBLE_CLICK in config:
+    if config.get(CONF_ON_CLICK) or config.get(CONF_ON_DOUBLE_CLICK):
         cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
-    if CONF_ON_MULTI_CLICK in config:
+    if config.get(CONF_ON_MULTI_CLICK):
         cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
 
     for conf in config.get(CONF_ON_CLICK, []):
@@ -680,17 +681,13 @@ async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """automation.cpp only implements the click/double_click/multi_click
-    triggers and filter.cpp is fully #ifdef'd on USE_BINARY_SENSOR_FILTER;
-    skip copying them when unused so they are not opened and parsed."""
-    defines = {define.name for define in CORE.defines}
-    files: list[str] = []
-    if not defines & {
-        "USE_BINARY_SENSOR_CLICK_TRIGGER",
-        "USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER",
-    }:
-        files.append("automation.cpp")
-    if "USE_BINARY_SENSOR_FILTER" not in defines:
-        files.append("filter.cpp")
-    return files
+# automation.cpp only implements the click/double_click/multi_click triggers
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "automation.cpp": (
+            "USE_BINARY_SENSOR_CLICK_TRIGGER",
+            "USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER",
+        ),
+        "filter.cpp": "USE_BINARY_SENSOR_FILTER",
+    }
+)
