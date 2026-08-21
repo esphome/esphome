@@ -2784,14 +2784,15 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    cache_eligible = (
-        args.command in ("upload", "logs")
-        and not command_line_substitutions
-        # An explicit CLI toolchain must run the per-platform validators;
-        # the cache was validated under whatever the last compile used
-        and args.toolchain is None
+    cache_write_eligible = (
+        args.command in ("upload", "logs") and not command_line_substitutions
     )
-    if cache_eligible:
+    # An explicit CLI toolchain must run the per-platform validators; the
+    # cache was validated under whatever the last compile used. Only the
+    # read is gated: the refresh below may still save the freshly
+    # validated config, and its sidecar records the resolved toolchain.
+    cache_read_eligible = cache_write_eligible and args.toolchain is None
+    if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2825,7 +2826,7 @@ def run_esphome(argv):
 
     # Refresh the cache so the next upload/logs hits the fast path
     # instead of re-running read_config.
-    if cache_eligible and cache_missed:
+    if cache_write_eligible and cache_missed:
         from esphome.compiled_config import save_compiled_config_and_sidecar
 
         save_compiled_config_and_sidecar(config)
