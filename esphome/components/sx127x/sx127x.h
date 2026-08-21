@@ -96,6 +96,7 @@ class SX127x final : public Component,
   void set_mode_(uint8_t modulation, uint8_t mode);
   void write_fifo_(const std::vector<uint8_t> &packet);
   void read_fifo_(std::vector<uint8_t> &packet);
+  void read_fifo_(uint8_t *data, size_t length);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);

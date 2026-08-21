@@ -37,14 +37,16 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
   this->disable();
 }
 
-void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
+void SX127x::read_fifo_(uint8_t *data, size_t length) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  for (auto &byte : packet) {
-    byte = this->transfer_byte(0x00);
+  for (size_t i = 0; i < length; i++) {
+    data[i] = this->transfer_byte(0x00);
   }
   this->disable();
 }
+
+void SX127x::read_fifo_(std::vector<uint8_t> &packet) { this->read_fifo_(packet.data(), packet.size()); }
 
 void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->enable();
@@ -355,7 +357,9 @@ uint32_t SX127x::packet_idle_timeout_ms_() const {
 
 void SX127x::reset_long_packet_rx_() {
   this->packet_.clear();
-  this->packet_expected_length_ = 0;
+  // When the length is known upfront (not resolved via payload_length_func_), set it immediately so
+  // the reserve() below in handle_long_packet_() can take effect from the very first drain.
+  this->packet_expected_length_ = this->payload_length_func_ ? 0 : this->payload_length_;
   this->packet_last_byte_ms_ = 0;
   this->long_packet_rssi_captured_ = false;
 }
@@ -397,13 +401,13 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
     // least 1 byte (the tail end) is available.
     const size_t to_read = (irq2 & FIFO_LEVEL) ? FIFO_THRESHOLD_HALF + 1 : 1;
 
-    std::vector<uint8_t> chunk(to_read);
-    this->read_fifo_(chunk);
-    this->packet_last_byte_ms_ = millis();
     if (this->packet_expected_length_ > 0 && this->packet_.capacity() < this->packet_expected_length_) {
       this->packet_.reserve(this->packet_expected_length_);
     }
-    this->packet_.insert(this->packet_.end(), chunk.begin(), chunk.end());
+    const size_t old_size = this->packet_.size();
+    this->packet_.resize(old_size + to_read);
+    this->read_fifo_(this->packet_.data() + old_size, to_read);
+    this->packet_last_byte_ms_ = millis();
     ESP_LOGVV(TAG, "Drained RX FIFO: read=%u received=%u expected=%u", (unsigned) to_read,
               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
 
@@ -414,33 +418,29 @@ void SX127x::handle_long_packet_(uint8_t irq2) {
       return;
     }
 
-    if (this->packet_expected_length_ == 0) {
-      if (this->payload_length_func_) {
-        int32_t expected = this->payload_length_func_(this->packet_);
-        if (expected < 0) {
-          ESP_LOGVV(TAG, "Long packet length lambda discarded packet: received=%u", (unsigned) this->packet_.size());
-          this->restart_long_packet_rx_();
-          return;
-        }
-        if (expected > MAX_PACKET_LENGTH) {
-          ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%" PRId32 " max=%u", expected,
-                   MAX_PACKET_LENGTH);
-          this->restart_long_packet_rx_();
-          return;
-        }
-        if (expected > 0 && (size_t) expected < this->packet_.size()) {
-          ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", expected,
-                   (unsigned) this->packet_.size());
-          this->restart_long_packet_rx_();
-          return;
-        }
-        if (expected > 0) {
-          this->packet_expected_length_ = (size_t) expected;
-          ESP_LOGVV(TAG, "Resolved packet length: received=%u expected=%u", (unsigned) this->packet_.size(),
-                    (unsigned) this->packet_expected_length_);
-        }
-      } else {
-        this->packet_expected_length_ = this->payload_length_;
+    if (this->packet_expected_length_ == 0 && this->payload_length_func_) {
+      int32_t expected = this->payload_length_func_(this->packet_);
+      if (expected < 0) {
+        ESP_LOGVV(TAG, "Long packet length lambda discarded packet: received=%u", (unsigned) this->packet_.size());
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > MAX_PACKET_LENGTH) {
+        ESP_LOGW(TAG, "Packet length exceeds maximum, discarding packet: length=%" PRId32 " max=%u", expected,
+                 MAX_PACKET_LENGTH);
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > 0 && (size_t) expected + FIFO_THRESHOLD_HALF + 1 < this->packet_.size()) {
+        ESP_LOGW(TAG, "Invalid computed packet length, discarding packet: length=%" PRId32 " received=%u", expected,
+                 (unsigned) this->packet_.size());
+        this->restart_long_packet_rx_();
+        return;
+      }
+      if (expected > 0) {
+        this->packet_expected_length_ = (size_t) expected;
+        ESP_LOGVV(TAG, "Resolved packet length: received=%u expected=%u", (unsigned) this->packet_.size(),
+                  (unsigned) this->packet_expected_length_);
       }
     }
 
@@ -464,12 +464,6 @@ void SX127x::loop() {
       return;
     }
     uint8_t irq2 = this->read_register_(REG_IRQ_FLAGS2);
-    if (irq2 & FIFO_OVERRUN) {
-      ESP_LOGW(TAG, "FIFO overrun during long packet RX, restarting: received=%u expected=%u",
-               (unsigned) this->packet_.size(), (unsigned) this->packet_expected_length_);
-      this->restart_long_packet_rx_();
-      return;
-    }
     if (irq2 & FIFO_EMPTY) {
       if (this->packet_.empty()) {
         this->disable_loop();

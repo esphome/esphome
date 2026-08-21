@@ -170,6 +170,12 @@ def validate_config(config):
             raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
         if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
             raise cv.Invalid("Payload length must be set when spreading factor is 6")
+        if config[CONF_PAYLOAD_LENGTH] > 255:
+            raise cv.Invalid("Payload length must be <= 255 with LORA")
+        if CONF_PAYLOAD_LENGTH_LAMBDA in config:
+            raise cv.Invalid("payload_length_lambda is not available with LORA")
+        if CONF_DIO1_PIN in config:
+            raise cv.Invalid("dio1_pin is not available with LORA")
     else:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
@@ -179,6 +185,10 @@ def validate_config(config):
             raise cv.Invalid("Config 'packet_mode' required with FSK/OOK")
         if config[CONF_PACKET_MODE] and CONF_DIO0_PIN not in config:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
+        if config[CONF_PAYLOAD_LENGTH] > 64 and not config[CONF_PACKET_MODE]:
+            raise cv.Invalid(
+                "payload_length must be <= 64 when packet_mode is disabled"
+            )
         if CONF_PAYLOAD_LENGTH_LAMBDA in config:
             if not config[CONF_PACKET_MODE]:
                 raise cv.Invalid(
@@ -195,6 +205,11 @@ def validate_config(config):
             raise cv.Invalid(
                 "dio1_pin is required when payload_length > 64 or "
                 "payload_length_lambda is set"
+            )
+        if is_long_packet and config[CONF_CRC_ENABLE]:
+            raise cv.Invalid(
+                "crc_enable is not available with payload_length > 64 or "
+                "payload_length_lambda"
             )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
