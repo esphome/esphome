@@ -27,6 +27,7 @@ from helpers import (
     print_error_for_file,
     print_file_list,
     root_path,
+    temp_folder,
     temp_header_file,
 )
 
@@ -337,6 +338,81 @@ def progress_bar_show(value):
     return None
 
 
+def run_codechecker_zephyr(files: list[str], args) -> int:
+    """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
+
+    Zephyr's own CodeChecker SCA integration (cmake/sca/codechecker/sca.cmake)
+    already adapts its GCC toolchain's flags/headers for Clang-based analysis
+    -- reuse that instead of reimplementing it in clang_options() below.
+    """
+    from esphome.components.nrf52.clang_tidy import generate_compile_commands
+
+    work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
+    platformio_ini = Path(root_path) / "platformio.ini"
+
+    if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
+        compile_commands_path = Path(explicit)
+    else:
+        source_files = [str(Path(f).resolve()) for f in files]
+        compile_commands_path = generate_compile_commands(
+            work_dir, platformio_ini, source_files
+        )
+
+    output_dir = Path(temp_folder) / f"codechecker-{args.environment}"
+    if output_dir.is_dir():
+        shutil.rmtree(output_dir)
+
+    disabled_checks = [
+        # Zephyr's generated autoconf.h and ZBOSS's own headers define
+        # unparenthesized macro values (e.g. `-1`); not source we control.
+        "bugprone-macro-parentheses",
+        # MMIO peripheral access on this bare-metal platform is all
+        # fixed-address (same rationale as rp2/bk72xx/ln882h/rtl87xx above).
+        "clang-analyzer-core.FixedAddressDereference",
+        # Circular includes inside Zephyr/ZBOSS's own SDK headers -- not ours
+        # to restructure.
+        "misc-header-include-cycle",
+    ]
+    # Scope findings to our own sources; take-config-from-directory makes
+    # CodeChecker honor .clang-tidy instead of its own default check profile.
+    tidy_args = [
+        f"--header-filter={basepath}/.*",
+        "--checks=" + ",".join(f"-{check}" for check in disabled_checks),
+    ]
+    if args.fix:
+        tidy_args.append("--fix")
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".txt", delete=False, encoding="utf-8"
+    ) as tidy_args_file:
+        tidy_args_file.write("\n".join(tidy_args) + "\n")
+
+    file_patterns = [f"*{os.path.relpath(f, root_path)}" for f in files]
+
+    result = subprocess.run(
+        [
+            "CodeChecker",
+            "analyze",
+            str(compile_commands_path),
+            "--analyzers",
+            "clang-tidy",
+            "--analyzer-config",
+            "clang-tidy:take-config-from-directory=true",
+            f"clang-tidy:cc-verbatim-args-file={tidy_args_file.name}",
+            "-j",
+            str(args.jobs),
+            "-o",
+            str(output_dir),
+            "--file",
+            *file_patterns,
+        ],
+        check=False,
+    )
+    subprocess.run(["CodeChecker", "parse", str(output_dir)], check=False)
+
+    # Cap at 255: shells truncate exit codes to one byte.
+    return min(result.returncode, 255)
+
+
 def split_list(a, n):
     k, m = divmod(len(a), n)
     return [a[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
@@ -453,6 +529,11 @@ def main():
 
     # Print final file list before loading idedata
     print_file_list(files, "Final files to process:")
+
+    # Zephyr/nrf52 goes through CodeChecker instead of this script's manual
+    # GCC->Clang flag translation -- see run_codechecker_zephyr().
+    if args.environment.startswith("nrf52"):
+        return run_codechecker_zephyr(files, args)
 
     # Load idedata and options only if we have files to check
     idedata = load_idedata(args.environment)
