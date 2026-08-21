@@ -2,13 +2,13 @@
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
-#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
-#include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
+
+#include <algorithm>
 #ifdef USE_OTA_DOWNGRADE_PROTECTION
 #include <esp_app_desc.h>
 #endif
@@ -60,19 +60,28 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
-  // esp_ota_begin() erases the destination region, which blocks loopTask and
-  // scales with the erase size -- a fixed watchdog overruns on large OTA slots.
-  // An unknown size (0, e.g. web_server uploads) erases the whole partition, so
-  // budget against the bytes actually erased. ~10ms/KiB (conservative
-  // ~100 KiB/s erase) over a 15s floor; panic stays on so a stuck erase still
-  // resets rather than hanging forever.
-  size_t erase_size = image_size;
-  if (erase_size == 0 || erase_size > this->partition_->size) {
-    erase_size = this->partition_->size;
+  // Both lazy-erase paths below replace esp_ota_begin()'s blocking full erase.
+  // Size check replaces the one that erase performed (0 = unknown size,
+  // e.g. web_server uploads).
+  if (image_size != 0 && image_size > this->partition_->size) {
+    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
   }
-  const uint32_t erase_budget_ms = 15000 + (erase_size >> 10) * 10;
-  watchdog::WatchdogManager watchdog(erase_budget_ms);
-  esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
+  esp_err_t err;
+#ifdef OTA_BLOCK_ERASE_AHEAD
+  this->written_ = 0;
+  this->erased_end_ = 0;
+  // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
+  err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
+#ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+  if (err == ESP_OK) {
+    // esp_ota_begin() does this; esp_ota_resume() does not. Prevents booting a
+    // half-written slot after a crash mid-OTA.
+    esp_ota_invalidate_inactive_ota_data_slot();
+  }
+#endif
+#else
+  err = esp_ota_begin(this->partition_, OTA_WITH_SEQUENTIAL_WRITES, &this->update_handle_);
+#endif
 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
@@ -121,19 +130,53 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
+#ifdef OTA_BLOCK_ERASE_AHEAD
+  OTAResponseTypes erase_result = this->erase_ahead_(len);
+  if (erase_result != OTA_RESPONSE_OK) {
+    return erase_result;
+  }
+#endif
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
   this->md5_.add(data, len);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
+    } else if (err == ESP_ERR_INVALID_SIZE) {
+      // Unknown-size upload overflowing the partition (lazy erase reports it here)
+      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+#ifdef OTA_BLOCK_ERASE_AHEAD
+  this->written_ += len;
+#endif
   return OTA_RESPONSE_OK;
 }
+
+#ifdef OTA_BLOCK_ERASE_AHEAD
+OTAResponseTypes IDFOTABackend::erase_ahead_(size_t len) {
+  const size_t end = this->written_ + len;
+  if (end > this->partition_->size) {
+    return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+  }
+  while (this->erased_end_ < end) {
+    // 64 KiB chunks; OTA app partitions are block-aligned so IDF issues a
+    // single block erase. The tail is clamped and degrades to sector erases.
+    static constexpr size_t BLOCK_ERASE_SIZE = 64 * 1024;
+    const size_t chunk = std::min<size_t>(BLOCK_ERASE_SIZE, this->partition_->size - this->erased_end_);
+    esp_err_t err = esp_partition_erase_range(this->partition_, this->erased_end_, chunk);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
+      return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    }
+    this->erased_end_ += chunk;
+  }
+  return OTA_RESPONSE_OK;
+}
+#endif
 
 OTAResponseTypes IDFOTABackend::end() {
   if (this->md5_set_) {
