@@ -7,6 +7,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_CONTINUOUS,
     CONF_COUNT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -156,17 +157,43 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     }
 )
 
-MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
-    {
-        cv.Required(CONF_PDU): cv.templatable(
-            cv.All(
-                cv.ensure_list(cv.hex_uint8_t),
-                cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
-            )
-        ),
-        **modbus.command_options_schema(direction="read", templatable=True),
-        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-    }
+# Mutating function codes: continuous polling is meaningless for these and the hub strips it. 0x17
+# (read/write multiple) is not listed - it carries a read, so continuous is valid.
+_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16})
+
+
+def _no_continuous_on_write(config: ConfigType) -> ConfigType:
+    """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
+    Only the fully-static case is decidable here; the hub strips the flag from mutating PDUs at
+    runtime, so a templated pdu or continuous falls through to that backstop."""
+    pdu = config[CONF_PDU]
+    if (
+        isinstance(pdu, list)
+        and config.get(CONF_CONTINUOUS) is True
+        and pdu[0] in _WRITE_FUNCTION_CODES
+    ):
+        raise cv.Invalid(
+            f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
+            f"0x{pdu[0]:02X}); continuous polling only applies to reads",
+            path=[CONF_CONTINUOUS],
+        )
+    return config
+
+
+MODBUS_CLIENT_SEND_SCHEMA = cv.All(
+    _ACTION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_PDU): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint8_t),
+                    cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
+                )
+            ),
+            **modbus.command_options_schema(direction="read", templatable=True),
+            cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
+        }
+    ),
+    _no_continuous_on_write,
 )
 
 
@@ -236,6 +263,9 @@ async def register_client_action(
         await automation.build_automation(
             var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
         )
+    # Wire any command options the action's schema opted into (e.g. continuous on reads). A schema
+    # that did not add them leaves them absent, so this is a no-op for write actions.
+    await modbus.register_templatable_command_options(var, config, args)
     return var
 
 
@@ -249,9 +279,6 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
-    await modbus.register_templatable_command_options(
-        var, config, args, direction="read"
-    )
     return await register_client_action(
         var,
         config,
@@ -358,9 +385,6 @@ _WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
 async def _read_registers_to_code(config, action_id, template_arg, args, holding):
     var = cg.new_Pvariable(action_id, template_arg, holding)
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
-    await modbus.register_templatable_command_options(
-        var, config, args, direction="read"
-    )
     return await register_client_action(var, config, args, [(_REGISTER_SPAN, "values")])
 
 
@@ -417,9 +441,6 @@ _READ_DISCRETE_INPUTS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_DISCRETE_INPUTS_TO
 async def _read_bits_to_code(config, action_id, template_arg, args, coils):
     var = cg.new_Pvariable(action_id, template_arg, coils)
     cg.add(var.set_count(await cg.templatable(config[CONF_COUNT], args, cg.uint16)))
-    await modbus.register_templatable_command_options(
-        var, config, args, direction="read"
-    )
     return await register_client_action(var, config, args, [(PackedBits, "bits")])
 
 

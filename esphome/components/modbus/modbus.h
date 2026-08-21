@@ -124,7 +124,8 @@ enum class FrameState : uint8_t {
 //      stripped for mutating codes),
 //   2. a merge rule for when a duplicate send absorbs into a live entry (continuous
 //      upgrades/downgrades via make_continuous(); a new field needs its own answer),
-//   3. teardown behavior in retire()/silent_retire().
+//   3. teardown: retire() resets the whole struct; silent_retire() leaves it, relying on the sweep
+//      to erase the entry.
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
@@ -142,8 +143,9 @@ struct ModbusDeviceCommand {
   // A continuous poll is a subscription: pending fixed at 1, removed only by cancellation or failure.
   uint8_t pending{1};
   // The entry's LIVE effective options, not a record of the caller's request: queue_pdu() normalizes
-  // before storing, duplicate absorption mutates continuous via make_continuous(), and retire()
-  // clears it. See the CommandOptions comment for the rules a new field must define.
+  // before storing, duplicate absorption mutates continuous via make_continuous(), and retire() resets
+  // the struct (silent_retire() leaves it, relying on the sweep to erase the entry). See the
+  // CommandOptions comment for the rules a new field must define.
   CommandOptions options;
 
   // Build a command from a PDU span (caller bounds it to MAX_PDU_SIZE) and pre-normalized options;
@@ -227,7 +229,7 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->options.continuous = false;
+    this->options = {};  // reset every option so a future field is torn down without editing here
   }
 
   // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.

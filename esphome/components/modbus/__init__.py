@@ -55,49 +55,65 @@ CONF_TURNAROUND_TIME = "turnaround_time"
 MODBUS_ROLES = ["client", "server"]
 
 
+# Per-direction command options forwarded to the hub (modbus::CommandOptions). Each entry is
+# (config key, C++ field/setter name, static validator, C++ type, default). Single-sourcing the
+# schema and the setter generation here keeps them from drifting; the C++ side must add the
+# matching field per the rules documented on CommandOptions (modbus.h).
+_COMMAND_OPTIONS: dict[str, list[tuple[str, str, Any, Any, Any]]] = {
+    "read": [(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False)],
+    "write": [],
+}
+
+
+def _command_options(direction: str) -> list[tuple[str, str, Any, Any, Any]]:
+    try:
+        return _COMMAND_OPTIONS[direction]
+    except KeyError:
+        raise ValueError(f"unknown command-options direction {direction!r}") from None
+
+
 def command_options_schema(
     *, direction: Literal["read", "write"], templatable: bool = False
 ) -> dict:
     """Schema fragment for the per-command options a component forwards to the hub
     (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
     direction-specific so a schema never offers an option the hub would strip (e.g.
-    continuous on a write); the write side has no options yet.
-
-    With templatable=False the values are static: build the C++ initializer with
-    command_options_expression() using the same direction. With templatable=True the keys
-    also accept lambdas (for actions, where trigger arguments are in scope): the consumer's
-    C++ class declares a TEMPLATABLE_VALUE per option and assembles CommandOptions at play
-    time; register the values with register_templatable_command_options().
+    continuous on a write); the write side has no options yet. For actions (templatable=True the
+    keys also accept lambdas), register the values with register_templatable_command_options().
     """
-    options = {}
-    if direction == "read":
-        validator = cv.templatable(cv.boolean) if templatable else cv.boolean
-        options[cv.Optional(CONF_CONTINUOUS, default=False)] = validator
-    return options
-
-
-def command_options_expression(
-    config: ConfigType, *, direction: Literal["read", "write"]
-) -> cg.StructInitializer:
-    """Build the modbus::CommandOptions initializer for a config validated with a static
-    (templatable=False) command_options_schema() of the same direction."""
-    fields = []
-    if direction == "read":
-        fields.append(("continuous", config[CONF_CONTINUOUS]))
-    return cg.StructInitializer(CommandOptions, *fields)
+    return {
+        cv.Optional(conf_key, default=default): (
+            cv.templatable(validator) if templatable else validator
+        )
+        for conf_key, _field, validator, _cpp_type, default in _command_options(
+            direction
+        )
+    }
 
 
 async def register_templatable_command_options(
-    var, config: ConfigType, args: list, *, direction: Literal["read", "write"]
+    var, config: ConfigType, args: list
 ) -> None:
-    """Generate the set_<option>() calls for a config validated with a templatable
-    command_options_schema() of the same direction. The consumer's C++ class declares a
-    matching TEMPLATABLE_VALUE per option (e.g. TEMPLATABLE_VALUE(bool, continuous)) and
-    builds the CommandOptions it sends by evaluating them with the trigger arguments.
+    """Generate the set_<option>() calls for every command option present in config. Presence is
+    driven by the schema (which adds keys per direction), so this is safe to call for any action -
+    options the schema did not add are simply absent. The consumer's C++ class declares a matching
+    TEMPLATABLE_VALUE per option (e.g. TEMPLATABLE_VALUE(bool, continuous)).
     """
-    if direction == "read":
-        template_ = await cg.templatable(config[CONF_CONTINUOUS], args, bool)
-        cg.add(var.set_continuous(template_))
+    seen: set[str] = set()
+    for options in _COMMAND_OPTIONS.values():
+        for conf_key, field, _validator, cpp_type, default in options:
+            if conf_key in seen or conf_key not in config:
+                continue
+            seen.add(conf_key)
+            value = config[conf_key]
+            # The literal default matches the C++ default (TemplatableFn::value() returns T{}),
+            # so emit nothing for it - it saves a thunk and a setup() call per action.
+            if cg.is_template(value) or value != default:
+                cg.add(
+                    getattr(var, f"set_{field}")(
+                        await cg.templatable(value, args, cpp_type)
+                    )
+                )
 
 
 CONFIG_SCHEMA = cv.typed_schema(

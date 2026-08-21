@@ -1074,7 +1074,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
   // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
   if (options.continuous && priority == CommandPriority::WRITE) {
-    ESP_LOGV(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
+    ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
   }
 
