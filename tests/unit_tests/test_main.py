@@ -7132,7 +7132,17 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
     assert not caplog.text
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        FileNotFoundError("no such compiler"),
+        RuntimeError("Could not query builtin include dirs"),
+        ValueError("no C++ translation unit found"),
+        None,  # replaced with EsphomeError inside (import is function-local)
+    ],
+)
 def test_compile_program_espidf_idedata_failure_does_not_fail_build(
+    error: Exception,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A post-compile idedata error is a warning: the firmware already built."""
@@ -7144,6 +7154,8 @@ def test_compile_program_espidf_idedata_failure_does_not_fail_build(
     )
     from esphome.core import CORE, EsphomeError
 
+    if error is None:
+        error = EsphomeError("compile database is unusable")
     CORE.toolchain = Toolchain.ESP_IDF
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp32",
@@ -7154,10 +7166,7 @@ def test_compile_program_espidf_idedata_failure_does_not_fail_build(
         patch("esphome.espidf.toolchain.create_factory_bin"),
         patch("esphome.espidf.toolchain.create_ota_bin"),
         patch("esphome.espidf.toolchain.create_elf_copy"),
-        patch(
-            "esphome.espidf.toolchain.get_idedata",
-            side_effect=EsphomeError("compile database is unusable"),
-        ),
+        patch("esphome.espidf.toolchain.get_idedata", side_effect=error),
         patch("esphome.__main__._check_and_emit_build_info"),
     ):
         assert compile_program(MagicMock(), {}) == 0
