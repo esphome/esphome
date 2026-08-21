@@ -19,7 +19,6 @@ toolchain has always used, so the bits are identical); the
 from __future__ import annotations
 
 import functools
-import logging
 import os
 from pathlib import Path
 from typing import NamedTuple
@@ -30,8 +29,6 @@ from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import install_package
-
-_LOGGER = logging.getLogger(__name__)
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa"
@@ -75,13 +72,14 @@ def framework_package_version(ver: Version) -> str:
             f"Arduino core {ver} is not supported yet; "
             "the newest known core series is 3.x"
         )
-    if ver < Version(2, 6, 3):
-        # Older cores use the 1.x/2.x package-major encodings, which the
-        # PlatformIO path handles before delegating here; never encode them
-        # wrongly for a caller that skipped that guard
+    if ver <= Version(2, 6, 2):
+        # Same boundary as _format_framework_arduino_version's era guard (a
+        # 2.6.2 pre-release sorts above 2.6.2 and belongs to this encoding).
+        # Older cores use the 1.x/2.x package-major encodings; never encode
+        # them wrongly for a caller that skipped that guard
         raise EsphomeError(
-            f"Arduino core {ver} predates the package encoding this helper "
-            "implements (2.6.3 and newer)"
+            f"Arduino core {ver} uses an older package encoding than this "
+            "helper implements (newer than 2.6.2)"
         )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 

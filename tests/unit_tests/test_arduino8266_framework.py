@@ -27,9 +27,12 @@ def test_framework_package_version() -> None:
     # A future major bump needs its own encoding, not a doomed registry lookup
     with pytest.raises(EsphomeError, match="not supported yet"):
         framework.framework_package_version(cv.Version(4, 0, 0))
-    # The pre-2.6.3 eras use other encodings; the helper is total, not wrong
-    with pytest.raises(EsphomeError, match="predates the package encoding"):
+    # Cores up to 2.6.2 use other encodings; the helper is total, not wrong,
+    # and its boundary matches the PlatformIO era guard: a 2.6.2 pre-release
+    # sorts above 2.6.2 and keeps the package-major-3 encoding
+    with pytest.raises(EsphomeError, match="older package encoding"):
         framework.framework_package_version(cv.Version(2, 6, 2))
+    assert framework.framework_package_version(cv.Version(2, 6, 2, "b1")) == "3.20602.0"
     assert framework.framework_package_version(cv.Version(2, 6, 3)) == "3.20603.0"
 
 
