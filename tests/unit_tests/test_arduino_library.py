@@ -675,3 +675,73 @@ def test_library_info_dot_a_linkage_parses_strictly(
     lib = component._library_info("x", read_path, {"dot_a_linkage": value, "build": {}})
     assert lib.lib_archive is expected
     assert ("unrecognized dot_a_linkage" in caplog.text) is warns
+
+
+def test_bundled_library_properties_depends_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The library.properties depends= spelling reaches the visibility
+    warning too; the shared parser returns it raw."""
+    framework = _make_framework(tmp_path)
+    wire = framework / "libraries" / "Wire"
+    (wire / "library.properties").write_text("name=Wire\nversion=1.0\ndepends=SPI\n")
+    _add_library("Wire", None)
+    component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+    assert "Bundled library Wire declares dependencies" in caplog.text
+
+
+def test_bundled_library_extra_script_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bundled manifest relying on an extraScript is a named deviation,
+    not a silently miscompiled library."""
+    framework = _make_framework(tmp_path)
+    wire = framework / "libraries" / "Wire"
+    (wire / "library.json").write_text(
+        '{"name": "Wire", "build": {"extraScript": "extra.py"}}'
+    )
+    _add_library("Wire", None)
+    component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+    assert "declares an extraScript" in caplog.text
+
+
+def test_dependency_requested_top_level_is_not_a_drop(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less manifest dependency the config separately requests is
+    already in the build; the skipping warning must not fire for it."""
+    from esphome.platformio.library import request_key
+
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    _add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
+    ws_dir = tmp_path / "converted" / "webserver"
+    (ws_dir / "src").mkdir(parents=True)
+    tcp_dir = tmp_path / "converted" / "tcp"
+    (tcp_dir / "src").mkdir(parents=True)
+    ws = _converted(
+        "esp32async__ESPAsyncWebServer",
+        ws_dir,
+        {"build": {}, "dependencies": [{"name": "ESPAsyncTCP"}]},
+    )
+    tcp = _converted("esp32async__ESPAsyncTCP", tcp_dir, {"build": {}})
+    for conv, lib in zip((ws, tcp), CORE.platformio_libraries.values(), strict=True):
+        conv.node_key = request_key(lib)
+    with _emitting_converter(ws, tcp):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "is not bundled with the framework" not in caplog.text
