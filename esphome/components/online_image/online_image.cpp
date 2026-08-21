@@ -125,12 +125,16 @@ void OnlineImage::update() {
     auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     const char *content_type = content_type_header.c_str();
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
-    if (str_contains_ignore_case(content_type, "image/bmp")) {
+    // Includes aliases seen from real servers (older IIS, CDNs, S3)
+    if (str_contains_ignore_case(content_type, "image/bmp") ||
+        str_contains_ignore_case(content_type, "image/x-ms-bmp") ||
+        str_contains_ignore_case(content_type, "image/x-bmp")) {
       format = runtime_image::BMP;
     } else if (str_contains_ignore_case(content_type, "image/jpeg") ||
                str_contains_ignore_case(content_type, "image/jpg")) {
       format = runtime_image::JPEG;
-    } else if (str_contains_ignore_case(content_type, "image/png")) {
+    } else if (str_contains_ignore_case(content_type, "image/png") ||
+               str_contains_ignore_case(content_type, "image/x-png")) {
       format = runtime_image::PNG;
     } else if (str_contains_ignore_case(content_type, "image/")) {
       ESP_LOGW(TAG, "Unsupported image type: '%s'", content_type);

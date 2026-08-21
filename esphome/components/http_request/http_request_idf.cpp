@@ -196,7 +196,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
 
       container->feed_wdt();
-      // Redirects reuse the container; drop the previous hop's headers
+      // IDF is the only backend reusing the container across redirect hops;
+      // drop the previous hop's headers (Arduino/host collect only the final response)
       container->response_headers_.clear();
       container->content_length = esp_http_client_fetch_headers(client);
       container->set_chunked(esp_http_client_is_chunked_response(client));
