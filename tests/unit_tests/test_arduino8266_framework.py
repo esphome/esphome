@@ -22,8 +22,10 @@ def _clear_caches(tmp_path: Path) -> None:
 def test_framework_package_version() -> None:
     assert framework.framework_package_version(cv.Version(3, 1, 2)) == "3.30102.0"
     assert framework.framework_package_version(cv.Version(3, 2, 0)) == "3.30200.0"
+    # 2.6.3+ cores use the same package-major-3 encoding (PlatformIO path)
+    assert framework.framework_package_version(cv.Version(2, 7, 4)) == "3.20704.0"
     # A future major bump needs its own encoding, not a doomed registry lookup
-    with pytest.raises(EsphomeError, match="only 3.x"):
+    with pytest.raises(EsphomeError, match="no known package encoding"):
         framework.framework_package_version(cv.Version(4, 0, 0))
 
 
