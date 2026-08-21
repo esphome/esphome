@@ -17,6 +17,20 @@ BMP_IMAGE = b"BM\xf6\x00\x00\x00\x00\x00\x00\x006\x00\x00\x00(\x00\x00\x00\x08\x
 LEN_BMP_IMAGE = len(BMP_IMAGE)
 
 
+async def wait_for_download(
+    downloaded_bytes_future: asyncio.Future,
+    server_error_future: asyncio.Future,
+) -> int:
+    """Await the downloaded byte count, raising a server handler error first."""
+    await asyncio.wait(
+        {downloaded_bytes_future, server_error_future},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    if server_error_future.done():
+        raise server_error_future.exception()
+    return downloaded_bytes_future.result()
+
+
 def make_download_watcher(
     downloaded_bytes_future: asyncio.Future,
     download_finished_future: asyncio.Future,
@@ -40,6 +54,7 @@ def handle_http(
     *,
     request_path: str = "/foo.bmp",
     request_line_consumed: bool = False,
+    server_error_future: asyncio.Future | None = None,
 ):
     async def handler(reader, writer):
         try:
@@ -72,6 +87,8 @@ def handle_http(
 
             await writer.drain()
         except Exception as exc:
+            if server_error_future is not None and not server_error_future.done():
+                server_error_future.set_exception(exc)
             if not http_request_future.done():
                 http_request_future.set_exception(exc)
             raise
@@ -122,6 +139,7 @@ def handle_http_redirect(
                 "image/bmp",
                 request_path="/final.bmp",
                 request_line_consumed=True,
+                server_error_future=server_error_future,
             )(reader, writer)
         except Exception as exc:
             # Route handler failures to the dedicated error future so they're not silently lost

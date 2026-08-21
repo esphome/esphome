@@ -8,7 +8,10 @@ namespace esphome::runtime_image::testing {
 
 TEST(RuntimeImageMime, FormatForKnownMimeTypes) {
   EXPECT_EQ(get_format_for_mime_type("image/bmp"), BMP);
+  EXPECT_EQ(get_format_for_mime_type("image/x-ms-bmp"), BMP);
+  EXPECT_EQ(get_format_for_mime_type("image/x-bmp"), BMP);
   EXPECT_EQ(get_format_for_mime_type("image/png"), PNG);
+  EXPECT_EQ(get_format_for_mime_type("image/x-png"), PNG);
 #ifdef USE_RUNTIME_IMAGE_JPEG
   EXPECT_EQ(get_format_for_mime_type("image/jpeg"), JPEG);
   EXPECT_EQ(get_format_for_mime_type("image/jpg"), JPEG);

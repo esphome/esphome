@@ -6,7 +6,12 @@ import asyncio
 
 import pytest
 
-from .online_image_utils import LEN_BMP_IMAGE, handle_http, make_download_watcher
+from .online_image_utils import (
+    LEN_BMP_IMAGE,
+    handle_http,
+    make_download_watcher,
+    wait_for_download,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,6 +24,7 @@ async def test_online_image_auto_detects_image_bmp_mime(
     """AUTO format detection should honor the final response MIME type without explicit format."""
     loop = asyncio.get_running_loop()
     http_request_future = loop.create_future()
+    server_error_future = loop.create_future()
     download_finished_future = loop.create_future()
     downloaded_bytes_future = loop.create_future()
 
@@ -27,7 +33,13 @@ async def test_online_image_auto_detects_image_bmp_mime(
     )
 
     server = await asyncio.start_server(
-        handle_http(http_request_future, "image/bmp"), "127.0.0.1", 0
+        handle_http(
+            http_request_future,
+            "image/bmp",
+            server_error_future=server_error_future,
+        ),
+        "127.0.0.1",
+        0,
     )
     http_server_port = server.sockets[0].getsockname()[1]
 
@@ -52,6 +64,8 @@ async def test_online_image_auto_detects_image_bmp_mime(
             await http_request_future
 
         async with asyncio.timeout(0.5):
-            numbytes = await downloaded_bytes_future
+            numbytes = await wait_for_download(
+                downloaded_bytes_future, server_error_future
+            )
             assert numbytes == LEN_BMP_IMAGE
             await download_finished_future

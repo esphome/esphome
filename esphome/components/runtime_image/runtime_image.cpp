@@ -42,16 +42,17 @@ struct MimeLookup {
   ImageFormat format;
 };
 
+// The first entry per format is its canonical MIME type; the rest are aliases
+// seen from real servers (older IIS, CDNs, S3)
 static constexpr MimeLookup MIME_LOOKUP_TABLE[] = {
 #ifdef USE_RUNTIME_IMAGE_BMP
-    {"image/bmp", ImageFormat::BMP},
+    {"image/bmp", ImageFormat::BMP},   {"image/x-ms-bmp", ImageFormat::BMP}, {"image/x-bmp", ImageFormat::BMP},
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
-    {"image/jpeg", ImageFormat::JPEG},
-    {"image/jpg", ImageFormat::JPEG},
+    {"image/jpeg", ImageFormat::JPEG}, {"image/jpg", ImageFormat::JPEG},
 #endif
 #ifdef USE_RUNTIME_IMAGE_PNG
-    {"image/png", ImageFormat::PNG},
+    {"image/png", ImageFormat::PNG},   {"image/x-png", ImageFormat::PNG},
 #endif
 };
 

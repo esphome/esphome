@@ -10,6 +10,7 @@ from .online_image_utils import (
     LEN_BMP_IMAGE,
     handle_http_redirect,
     make_download_watcher,
+    wait_for_download,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -63,10 +64,8 @@ async def test_online_image_auto_detects_redirected_image_bmp_mime(
             await http_request_future
         async with asyncio.timeout(0.5):
             await final_request_future
-            numbytes = await downloaded_bytes_future
+            numbytes = await wait_for_download(
+                downloaded_bytes_future, server_error_future
+            )
             assert numbytes == LEN_BMP_IMAGE
             await download_finished_future
-
-        assert not server_error_future.done(), (
-            f"Server handler failed: {server_error_future.exception()}"
-        )
