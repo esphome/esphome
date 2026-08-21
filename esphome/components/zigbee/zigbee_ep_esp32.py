@@ -18,6 +18,7 @@ from .const_esp32 import (
     DEVICE_TYPE,
     KEY_ZIGBEE_EP,
     KEY_ZIGBEE_EP_NO_NUM,
+    KEY_ZIGBEE_FIRST_EP_CL,
     ROLE,
 )
 
@@ -200,11 +201,30 @@ def create_ep(router: bool) -> None:
 
         # clear list so that it is not processed again
         del zb_data[KEY_ZIGBEE_EP_NO_NUM]
+    # Add clusters to first ep
+    cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
+    if cl_list:
+        first_ep = ep_dict[get_first_ep_num()]
+        if cl := _compare_clusters(first_ep, {CONF_CLUSTERS: cl_list}):
+            raise cv.Invalid(
+                f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
+            )
+        first_ep[CONF_CLUSTERS] += cl_list
+        del zb_data[KEY_ZIGBEE_FIRST_EP_CL]
 
     # Add default device type to endpoints that have none
     for ep in ep_dict.values():
         if not ep.get(DEVICE_TYPE):
             ep[DEVICE_TYPE] = "CUSTOM_ATTR"
+
+
+def get_first_ep_num() -> int | None:
+    """Return the number of the first endpoint."""
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
+    if ep_dict:
+        return min(ep_dict.keys())
+    return None
 
 
 def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> None:
@@ -245,3 +265,14 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
             if use_type or ep.get(DEVICE_TYPE):
                 ep[CONF_USE_DEVICE_TYPE] = {ep.get(DEVICE_TYPE): use_type}
             ep_dict[ep_num] = ep
+
+
+def add_clusters_to_first_ep(cl: list[dict[str, Any]]) -> None:
+    """Add a list of Zigbee clusters to CORE.data.
+
+    Args:
+        clusters: list of cluster dictonaries.
+    """
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
+    cl_list += cl

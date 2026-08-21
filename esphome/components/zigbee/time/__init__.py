@@ -7,7 +7,9 @@ from esphome.types import ConfigType
 
 from .. import consume_endpoint
 from ..const import zigbee_ns
+from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
+from ..zigbee_ep_esp32 import add_clusters_to_first_ep, get_first_ep_num
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
     ZigbeeComponent,
@@ -22,26 +24,49 @@ DEPENDENCIES = ["zigbee"]
 
 ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
+
+def _validate_zigbee_time(config: ConfigType) -> ConfigType:
+    if CORE.is_nrf52:
+        return consume_endpoint
+    if CORE.is_esp32:
+        cl = [
+            {
+                CONF_ID: "TIME",
+                ROLE: "CLIENT",
+            },
+            {
+                CONF_ID: "TIME",
+                ROLE: "SERVER",
+            },
+        ]
+        add_clusters_to_first_ep(cl)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     time_.TIME_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ZigbeeTime),
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                ZigbeeComponent
-            ),
+            cv.GenerateID(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("1s")),
-    consume_endpoint,
+    .extend(cv.polling_component_schema("1s") if CORE.is_nrf52 else {}),
+    _validate_zigbee_time,
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    CORE.add_job(_add_time, config)
+    if CORE.using_zephyr:
+        CORE.add_job(_add_time_zephyr, config)
+    if CORE.is_esp32:
+        zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+        var = cg.new_Pvariable(config[CONF_ID], zb, get_first_ep_num())
+        await cg.register_component(var, config)
+        await time_.register_time(var, config)
 
 
-async def _add_time(config: ConfigType) -> None:
+async def _add_time_zephyr(config: ConfigType) -> None:
     slot_index = get_slot_index()
 
     # Create unique names for this sensor's variables based on slot index
