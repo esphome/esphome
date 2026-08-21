@@ -7265,6 +7265,7 @@ def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
         FileNotFoundError("no such compiler"),
         RuntimeError("Could not query builtin include dirs"),
         ValueError("no C++ translation unit found"),
+        KeyError("command"),
         None,  # replaced with EsphomeError inside (import is function-local)
     ],
 )
