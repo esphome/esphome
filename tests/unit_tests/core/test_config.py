@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_SUSPEND_LOOP,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -225,6 +226,31 @@ def test_area_id_collision(
     captured = capsys.readouterr()
     # Exact duplicates are now caught by IDPassValidationStep
     assert "ID duplicate_id redefined! Check esphome->area->id." in captured.out
+
+
+def test_suspend_loop_fail(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that suspend_loop fails on host."""
+    result = load_config_from_fixture(yaml_file, "suspend_loop_host.yaml", FIXTURES_DIR)
+    assert result is None
+
+    # Check for the specific error message in stdout
+    captured = capsys.readouterr()
+    assert "Suspend loop is not available on host or RP2 platforms" in captured.out
+
+
+def test_suspend_loop_success(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that suspend_loop is valid on esp32."""
+    result = load_config_from_fixture(
+        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    esphome_config = result["esphome"]
+    assert esphome_config.get(CONF_SUSPEND_LOOP)
 
 
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
