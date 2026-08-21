@@ -302,13 +302,40 @@ def test_unsupported_env_method_warns_once(caplog) -> None:
 
 
 def test_run_extra_script_sys_exit_is_best_effort(tmp_path, caplog) -> None:
-    """sys.exit() in a vendored script must not kill the esphome run."""
+    """A nonzero sys.exit() in a vendored script must not kill the esphome
+    run, and its output is discarded."""
     from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
-    script.write_text("import sys\nsys.exit(3)\n")
+    script.write_text("import sys\nenv.Append(LIBS=['x'])\nsys.exit(3)\n")
     result = run_extra_script(
         script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
     )
     assert result.libs == []
-    assert "ignoring its output" in caplog.text
+    assert "exited with status 3" in caplog.text
+
+
+def test_run_extra_script_sys_exit_zero_is_success(tmp_path, caplog) -> None:
+    """sys.exit(0) is a normal PlatformIO script ending: the capture is kept."""
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_text("import sys\nenv.Append(LIBS=['algobsec'])\nsys.exit(0)\n")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
+    assert result.libs == ["algobsec"]
+    assert "ignoring its output" not in caplog.text
+
+
+def test_run_extra_script_unreadable_raises(tmp_path) -> None:
+    """An unreadable declared script is a broken package, like a missing one."""
+    from esphome.core import EsphomeError
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(EsphomeError, match="is unreadable"):
+        run_extra_script(
+            script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+        )
