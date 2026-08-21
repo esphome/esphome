@@ -199,7 +199,11 @@ jobs:
         id: esp8266-native-cache-key
         run: |
           . venv/bin/activate
-          echo "key=esp8266-native-$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')" >> $GITHUB_OUTPUT
+          # Assignment form so errexit catches a resolver failure; a nested
+          # $(...) inside echo would silently yield a degenerate key
+          key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
+          [ -n "$key" ] || exit 1
+          echo "key=esp8266-native-$key" >> $GITHUB_OUTPUT
       - name: Cache the native toolchain
         id: esp8266-native-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1187,7 +1191,8 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      # ~110 MB of framework + toolchain plus the ccache store. The versions
+      # ~110 MB of framework + toolchain (no ccache: the seed job saves
+      # before any compile runs, so the store would always be empty). The versions
       # are pinned in code, not in a hashable file, so resolve them for the
       # key (actions/cache never overwrites a key, so a bump must change it).
       # PRs are restore-only; the shared entry is seeded on pushes to dev by
@@ -1196,9 +1201,13 @@ jobs:
         id: esp8266-native-cache-key
         run: |
           . venv/bin/activate
-          echo "key=esp8266-native-$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')" >> $GITHUB_OUTPUT
+          # Assignment form so errexit catches a resolver failure; a nested
+          # $(...) inside echo would silently yield a degenerate key
+          key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
+          [ -n "$key" ] || exit 1
+          echo "key=esp8266-native-$key" >> $GITHUB_OUTPUT
 
-      - name: Restore the native toolchain and ccache
+      - name: Restore the native toolchain
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/esphome/arduino8266

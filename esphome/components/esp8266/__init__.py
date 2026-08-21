@@ -649,7 +649,12 @@ def _decode_pc(config, addr):
 
         idedata = toolchain.get_idedata(config)
         if not idedata.addr2line_path or not idedata.firmware_elf_path:
-            _LOGGER.debug("decode_pc no addr2line")
+            # Same visibility as the native branch: raw undecoded addresses
+            # with no stated reason are undiagnosable at default log level
+            _warn_decode_problem(
+                "no-addr2line",
+                "Cannot decode crash addresses: no addr2line or ELF in idedata",
+            )
             return
         addr2line, elf = idedata.addr2line_path, idedata.firmware_elf_path
     command = [addr2line, "-pfiaC", "-e", elf, addr]

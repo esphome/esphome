@@ -139,6 +139,26 @@ def test_decode_pc_native_missing_tools_warns_once(
     esp8266._DECODE_WARNED_AT.clear()
 
 
+def test_decode_pc_platformio_missing_tools_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The PlatformIO branch reports a missing addr2line/ELF at the same
+    warning level as the native one; raw undecoded addresses with no
+    stated reason are undiagnosable at default log level."""
+    from types import SimpleNamespace
+
+    from esphome.components import esp8266
+
+    esp8266._DECODE_WARNED_AT.clear()
+    CORE.toolchain = Toolchain.PLATFORMIO
+    idedata = SimpleNamespace(addr2line_path=None, firmware_elf_path=None)
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=idedata):
+        esp8266._decode_pc({}, "40201234")
+        esp8266._decode_pc({}, "40201238")
+    assert caplog.text.count("Cannot decode crash addresses") == 1
+    esp8266._DECODE_WARNED_AT.clear()
+
+
 def test_resolve_toolchain_rejects_unsupported() -> None:
     """ESP8266 rejects a CLI toolchain it cannot serve, like every platform."""
     from esphome.components.esp8266 import _resolve_toolchain
