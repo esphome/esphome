@@ -2735,7 +2735,11 @@ def run_esphome(argv):
     # against the previous substitution set.
     config: ConfigType | None = None
     cache_eligible = (
-        args.command in ("upload", "logs") and not command_line_substitutions
+        args.command in ("upload", "logs")
+        and not command_line_substitutions
+        # An explicit CLI toolchain must run the per-platform validators;
+        # the cache was validated under whatever the last compile used
+        and args.toolchain is None
     )
     if cache_eligible:
         from esphome.compiled_config import load_compiled_config
