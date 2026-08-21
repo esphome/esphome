@@ -7247,3 +7247,27 @@ def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
         assert run_esphome(argv) == 2
     mock_cache.assert_not_called()
     mock_read.assert_called_once()
+
+
+def test_cli_toolchain_still_refreshes_the_validated_config_cache(
+    tmp_path: Path,
+) -> None:
+    """An explicit --toolchain gates only the cache read; the freshly
+    validated config is still saved, and its sidecar records the resolved
+    toolchain for a later plain run."""
+    from esphome.__main__ import run_esphome
+
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "platformio", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_load,
+        patch("esphome.config.read_config", return_value={CONF_ESPHOME: {}}),
+        patch("esphome.compiled_config.save_compiled_config_and_sidecar") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS", {"logs": Mock(return_value=0)}
+        ),
+    ):
+        assert run_esphome(argv) == 0
+    mock_load.assert_not_called()
+    mock_save.assert_called_once()
