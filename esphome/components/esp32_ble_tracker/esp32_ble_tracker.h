@@ -229,7 +229,8 @@ class ESP32BLETracker final : public Component,
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
  protected:
-  void stop_scan_();
+  /// Returns true when a stop was issued to the controller.
+  bool stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.

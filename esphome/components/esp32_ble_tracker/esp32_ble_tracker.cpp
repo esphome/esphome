@@ -155,9 +155,8 @@ void ESP32BLETracker::loop() {
   if (this->using_connection_window_ && !counts.active && !counts.disconnecting && this->scan_continuous_ &&
       this->scanner_state_ == ScannerState::RUNNING) {
     // Same logical scan period continues: cleanup_scan_state_ and start_scan_
-    // both skip their on_scan_end sweep.
-    this->skip_next_scan_end_ = true;
-    this->stop_scan_();
+    // both skip their on_scan_end sweep. Only armed when the stop was issued.
+    this->skip_next_scan_end_ = this->stop_scan_();
   }
 #endif
   /*
@@ -211,19 +210,23 @@ void ESP32BLETracker::stop_scan() {
   // reason at D themselves, and the user-facing stop action is deliberate.
   ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // The window-change restart is abandoned with continuous scanning.
+  this->skip_next_scan_end_ = false;
+#endif
   this->stop_scan_();
 }
 
 void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); }
 
-void ESP32BLETracker::stop_scan_() {
+bool ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
     // IDLE means there is nothing to stop; STOPPING means a stop is already in
     // flight and will finish on its own. Neither is an error.
     if (this->scanner_state_ != ScannerState::IDLE && this->scanner_state_ != ScannerState::STOPPING) {
       ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
     }
-    return;
+    return false;
   }
   // Reset timeout state machine when stopping scan
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
@@ -231,8 +234,9 @@ void ESP32BLETracker::stop_scan_() {
   esp_err_t err = esp_ble_gap_stop_scanning();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_scanning failed: %d", err);
-    return;
+    return false;
   }
+  return true;
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
