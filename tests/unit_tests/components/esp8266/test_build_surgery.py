@@ -107,16 +107,35 @@ def test_board_build_covers_every_board() -> None:
     assert set(BOARDS) <= set(ESP8266_BOARD_BUILD)
 
 
-def test_surgery_fingerprint_covers_module_source() -> None:
-    """Pins the mechanism: the fingerprint is the sha256 of the module
-    source (behavioral coverage follows from that, not from this test)."""
-    import hashlib
-    import inspect
+def test_surgery_fingerprint_is_stable_and_sensitive(tmp_path) -> None:
+    """The properties the linker-script cache depends on: the fingerprint is
+    stable across calls and changes when the module's source changes."""
+    import importlib.util
+    from pathlib import Path as _Path
+    import sys
 
     from esphome.components.esp8266 import build_surgery
 
-    expected = hashlib.sha256(inspect.getsource(build_surgery).encode()).hexdigest()
-    assert build_surgery.surgery_fingerprint() == expected
+    first = build_surgery.surgery_fingerprint()
+    assert first == build_surgery.surgery_fingerprint()
+    assert len(first) == 64
+    int(first, 16)  # sha256 hex digest
+
+    # A modified copy of the module must fingerprint differently
+    copy = tmp_path / "build_surgery_variant.py"
+    copy.write_text(
+        _Path(build_surgery.__file__).read_text(encoding="utf-8")
+        + "\nEXTRA_BEHAVIORAL_INPUT = 1\n",
+        encoding="utf-8",
+    )
+    spec = importlib.util.spec_from_file_location("build_surgery_variant", copy)
+    variant = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = variant
+    try:
+        spec.loader.exec_module(variant)
+        assert variant.surgery_fingerprint() != first
+    finally:
+        del sys.modules[spec.name]
 
 
 def test_testing_memory_patches_present_but_unselected_raises() -> None:
