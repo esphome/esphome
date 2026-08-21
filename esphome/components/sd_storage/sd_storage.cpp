@@ -12,8 +12,6 @@
 #include "ff.h"
 #include "diskio_sdmmc.h"
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-// FF_DRV_NOT_USED, ff_diskio_get_drive(), ff_diskio_register() -- the generic diskio layer
-// the manual mount mirror drives; diskio_sdmmc.h above only covers the sdmmc binding.
 #include "diskio_impl.h"
 #endif
 #include "sdmmc_cmd.h"
@@ -121,8 +119,8 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
     return err;
   }
 
-  BYTE pdrv = FF_DRV_NOT_USED;
-  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == FF_DRV_NOT_USED) {
+  BYTE pdrv = 0xFF;
+  if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == 0xFF) {
     delete card;  // NOLINT(cppcoreguidelines-owning-memory)
     return ESP_ERR_NO_MEM;
   }
@@ -167,7 +165,7 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
 storage::StorageError SdMmc::unmount_manual_() {
   storage::StorageError err = storage::StorageError::STORAGE_ERROR_OK;
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv != FF_DRV_NOT_USED) {
+  if (pdrv != 0xFF) {
     char drv[3] = {static_cast<char>('0' + pdrv), ':', '\0'};
     FRESULT res = f_mount(nullptr, drv, 0);
     if (res != FR_OK) {
@@ -260,7 +258,7 @@ storage::StorageError SdMmc::mount() {
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv == FF_DRV_NOT_USED)
+  if (pdrv == 0xFF)
     ESP_LOGE(TAG, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
   this->set_fatfs_drive_(pdrv);
   this->update_card_info();
