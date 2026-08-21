@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 #include "ota_backend_esp_idf.h"
 
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
 
 #ifdef USE_OTA_PARTITIONS
@@ -69,7 +70,9 @@ OTAResponseTypes IDFOTABackend::setup_bootloader_staging_() {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
   // Erase full size of the bootloader partition in the staging partition
-  // to avoid copying old data to the bootloader partition later
+  // to avoid copying old data to the bootloader partition later. Up to
+  // ESP_BOOTLOADER_SIZE of blocking erase; widen the WDT for its duration.
+  watchdog::WatchdogManager watchdog(15000);
   esp_err_t err = esp_partition_erase_range(this->partition_, 0, this->bootloader_part_->size);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
