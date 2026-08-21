@@ -314,8 +314,8 @@ class ESP32BLETracker final : public Component,
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
-  /// Window used while a GATT connection is active; only set when the
-  /// defaulted window was raised to full duty (0 = no fallback).
+  /// Window used while a GATT connection is active; set by the user, or
+  /// defaulted when the window was raised to full duty (0 = no fallback).
   uint32_t connection_scan_window_{0};
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
@@ -341,6 +341,9 @@ class ESP32BLETracker final : public Component,
 #endif
   bool ble_was_disabled_{true};
   bool parse_advertisements_{false};
+  /// The running scan was started with connection_scan_window_; lets loop()
+  /// restart the scan at the configured window when the last connection drops.
+  bool scan_window_reduced_{false};
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif

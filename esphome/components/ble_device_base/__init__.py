@@ -234,13 +234,13 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     # unit collapses to the same value — silently programming a 100 % duty cycle
     # (radio permanently on) from a config that asked for less.
     interval_units = to_ble_units(interval)
-    window_units = to_ble_units(window)
-    if window_units == interval_units and window < interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) and interval ({interval}) both truncate to "
-            f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
-            f"cycle. Separate them by at least 0.625 ms."
-        )
+    for name, value in windows:
+        if to_ble_units(value) == interval_units and value < interval:
+            raise cv.Invalid(
+                f"Scan {name} ({value}) and interval ({interval}) both truncate to "
+                f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
+                f"cycle. Separate them by at least 0.625 ms."
+            )
 
     if interval.total_microseconds * 3 > duration.total_microseconds:
         raise cv.Invalid(

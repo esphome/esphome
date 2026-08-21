@@ -189,7 +189,9 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
         # A full-duty scan must not compete with an active GATT connection
         # for airtime, so arm the connection-time fallback window as well
-        # unless the user picked one themselves.
+        # unless the user picked one themselves. Injected after validation;
+        # safe only because it equals the window default, which already
+        # passed the <= interval and controller range checks.
         if CONF_CONNECTION_SCAN_WINDOW not in params:
             params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
                 ble_device_base.DEFAULT_SCAN_WINDOW

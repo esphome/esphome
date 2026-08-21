@@ -163,6 +163,23 @@ def test_connection_scan_window_above_interval_rejected(
         _scan_params({"scan_parameters": {"connection_scan_window": "400ms"}})
 
 
+def test_connection_scan_window_truncation_collapse_rejected(
+    stage_esp32: Callable[..., None],
+) -> None:
+    """A connection window that truncates into the interval's 0.625 ms unit
+    would silently program a full-duty scan during connections."""
+    stage_esp32("5.5.5", wifi=True)
+    with pytest.raises(cv.Invalid, match="connection window .* both truncate"):
+        _scan_params(
+            {
+                "scan_parameters": {
+                    "interval": "320.5ms",
+                    "connection_scan_window": "320.2ms",
+                }
+            }
+        )
+
+
 def test_codegen_connection_window_when_raised(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
