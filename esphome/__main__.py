@@ -856,7 +856,8 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
         try:
-            toolchain.get_idedata()
+            if toolchain.get_idedata() is None:
+                _LOGGER.warning("No idedata was generated for this build")
         except (EsphomeError, OSError, RuntimeError, ValueError) as err:
             # The firmware already built; idedata is a bonus artifact here.
             # Broad on purpose: a vanished compiler (OSError), a failed
