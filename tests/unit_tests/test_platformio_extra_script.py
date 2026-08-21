@@ -330,12 +330,42 @@ def test_run_extra_script_sys_exit_zero_is_success(tmp_path, caplog) -> None:
 
 def test_run_extra_script_unreadable_raises(tmp_path) -> None:
     """An unreadable declared script is a broken package, like a missing one."""
+    from unittest.mock import patch
+
     from esphome.core import EsphomeError
     from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
-    script.write_bytes(b"\xff\xfe\x00bad")
-    with pytest.raises(EsphomeError, match="is unreadable"):
+    script.write_text("")
+    with (
+        patch("pathlib.Path.read_text", side_effect=OSError("denied")),
+        pytest.raises(EsphomeError, match="is unreadable"),
+    ):
         run_extra_script(
             script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
         )
+
+
+def test_run_extra_script_bad_encoding_is_best_effort(tmp_path, caplog) -> None:
+    """Undecodable content warns and skips, like a SyntaxError."""
+    from esphome.platformio.extra_script import run_extra_script
+
+    script = tmp_path / "extra.py"
+    script.write_bytes(b"\xff\xfe\x00bad")
+    result = run_extra_script(
+        script, library_dir=tmp_path, board_mcu="esp32", pio_platform="espressif32"
+    )
+    assert result.libs == []
+    assert "is not UTF-8" in caplog.text
+
+
+def test_uncaptured_append_key_warns_once(caplog) -> None:
+    """A loop of Appends to the same uncaptured key warns once."""
+    from esphome.platformio.extra_script import _FakeSConsEnv
+
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    env.Append(CPPPATH=["a"])
+    env.Append(CPPPATH=["b"])
+    assert caplog.text.count("env.Append(CPPPATH=...) is not captured") == 1

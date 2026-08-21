@@ -7138,6 +7138,7 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
         FileNotFoundError("no such compiler"),
         RuntimeError("Could not query builtin include dirs"),
         ValueError("no C++ translation unit found"),
+        KeyError("command"),
         None,  # replaced with EsphomeError inside (import is function-local)
     ],
 )
