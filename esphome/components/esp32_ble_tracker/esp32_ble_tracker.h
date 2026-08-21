@@ -231,6 +231,8 @@ class ESP32BLETracker final : public Component,
  protected:
   /// Returns true when a stop was issued to the controller.
   bool stop_scan_();
+  /// Fire on_scan_end on every listener unless a window-change restart suppressed it.
+  void notify_scan_end_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.
@@ -321,6 +323,10 @@ class ESP32BLETracker final : public Component,
   /// Window used while a GATT connection is active; set by the user, or
   /// defaulted when the window was raised to full duty (0 = no fallback).
   uint32_t connection_scan_window_{0};
+  /// The window to scan at for the given number of active GATT connections.
+  uint32_t desired_scan_window_(uint8_t active) const {
+    return (this->connection_scan_window_ != 0 && active > 0) ? this->connection_scan_window_ : this->scan_window_;
+  }
 #endif
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
@@ -348,9 +354,6 @@ class ESP32BLETracker final : public Component,
   bool ble_was_disabled_ : 1 {true};
   bool parse_advertisements_ : 1 {false};
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  /// The running scan was started with connection_scan_window_; lets loop()
-  /// restart the scan at the configured window when the last connection drops.
-  bool using_connection_window_ : 1 {false};
   /// Suppress the window-change restart's on_scan_end sweeps (stop and start).
   bool skip_next_scan_end_ : 1 {false};
 #endif
@@ -363,10 +366,10 @@ class ESP32BLETracker final : public Component,
     MONITORING,     // Actively monitoring for timeout
     EXCEEDED_WAIT,  // Timeout exceeded, waiting one loop before reboot
   };
+  ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
   uint32_t scan_start_time_{0};
   /// Precomputed timeout value: scan_duration_ * 2000
   uint32_t scan_timeout_ms_{0};
-  ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
 };
 
 // NOLINTNEXTLINE

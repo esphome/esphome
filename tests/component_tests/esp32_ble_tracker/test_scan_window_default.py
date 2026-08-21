@@ -195,44 +195,29 @@ def test_connection_scan_window_truncation_collapse_rejected(
         )
 
 
-def test_codegen_connection_window_when_raised(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    main_cpp = generate_main(component_config_path("scan_window_raised.yaml"))
-    assert "set_scan_window(512)" in main_cpp
-    assert "set_connection_scan_window(48)" in main_cpp
-
-
-def test_codegen_no_connection_window_for_explicit_window(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    main_cpp = generate_main(component_config_path("scan_window_explicit.yaml"))
-    assert "set_scan_window(48)" in main_cpp
-    assert "set_connection_scan_window" not in main_cpp
-
-
-def test_codegen_no_connection_window_without_gatt_clients(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """Scan-only builds compile the connection-window path out, so the raised
-    default must not emit a call to the guarded setter."""
-    main_cpp = generate_main(component_config_path("scan_window_scan_only.yaml"))
-    assert "set_scan_window(512)" in main_cpp
-    assert "set_connection_scan_window" not in main_cpp
-
-
-def test_user_set_connection_window_warns_without_gatt_clients(
+@pytest.mark.parametrize(
+    ("config_file", "window_call", "connection_call", "warns"),
+    [
+        # Raised window with GATT clients: the injected fallback is emitted.
+        ("scan_window_raised.yaml", "set_scan_window(512)", True, False),
+        # Explicit window: nothing injected.
+        ("scan_window_explicit.yaml", "set_scan_window(48)", False, False),
+        # Scan-only build compiles the path out: the injected default is
+        # dropped silently, a user-set value warns.
+        ("scan_window_scan_only.yaml", "set_scan_window(512)", False, False),
+        ("scan_window_user_set_scan_only.yaml", "set_scan_window(512)", False, True),
+    ],
+)
+def test_connection_scan_window_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     caplog: pytest.LogCaptureFixture,
+    config_file: str,
+    window_call: str,
+    connection_call: bool,
+    warns: bool,
 ) -> None:
-    """A user-set value that cannot take effect warns; the injected default
-    (previous test) is dropped silently."""
-    main_cpp = generate_main(
-        component_config_path("scan_window_user_set_scan_only.yaml")
-    )
-    assert "set_connection_scan_window" not in main_cpp
-    assert "'connection_scan_window' has no effect" in caplog.text
+    main_cpp = generate_main(component_config_path(config_file))
+    assert window_call in main_cpp
+    assert ("set_connection_scan_window(48)" in main_cpp) == connection_call
+    assert ("'connection_scan_window' has no effect" in caplog.text) == warns
