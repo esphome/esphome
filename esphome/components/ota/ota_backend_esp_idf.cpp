@@ -9,8 +9,6 @@
 #include <esp_ota_ops.h>
 #include <sdkconfig.h>
 #include <spi_flash_mmap.h>
-
-#include <algorithm>
 #ifdef USE_OTA_DOWNGRADE_PROTECTION
 #include <esp_app_desc.h>
 #endif
@@ -70,7 +68,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   }
   this->written_ = 0;
   esp_err_t err;
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
   this->erased_end_ = 0;
 #ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
   // esp_ota_begin() refuses to start while the running app is unconfirmed;
@@ -146,7 +144,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   if (this->written_ + len > this->partition_->size) {
     return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
   }
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
   OTAResponseTypes erase_result = this->erase_ahead_(len);
   if (erase_result != OTA_RESPONSE_OK) {
     return erase_result;
@@ -170,17 +168,15 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   return OTA_RESPONSE_OK;
 }
 
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
 OTAResponseTypes IDFOTABackend::erase_ahead_(size_t len) {
-  static constexpr size_t BLOCK_ERASE_SIZE = 64 * 1024;
   const size_t end = this->written_ + len;
   if (this->erased_end_ >= end) {
     return OTA_RESPONSE_OK;
   }
   // Round up to a block boundary, clamped to the partition end; IDF splits the
   // range into 64 KiB block erases where aligned, sector erases elsewhere.
-  const size_t erase_to =
-      std::min<size_t>(this->partition_->size, (end + BLOCK_ERASE_SIZE - 1) & ~(BLOCK_ERASE_SIZE - 1));
+  const size_t erase_to = next_erase_end(end, this->partition_->size);
   // A block erase is one uninterruptible flash op (typically ~150 ms, seconds
   // on aged flash) and the transfer loop may not have fed the WDT for ~1s.
   watchdog::WatchdogManager watchdog(15000);
@@ -286,7 +282,7 @@ void IDFOTABackend::abort() {
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
   this->written_ = 0;
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
   this->erased_end_ = 0;
 #endif
 }

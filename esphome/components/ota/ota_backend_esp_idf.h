@@ -14,7 +14,7 @@
 // used as fallback on older IDF).
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2) || \
     (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 3) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 0))
-#define OTA_BLOCK_ERASE_AHEAD
+#define USE_OTA_BLOCK_ERASE_AHEAD
 #endif
 
 namespace esphome::ota {
@@ -64,7 +64,7 @@ class IDFOTABackend final {
 #endif
 
  private:
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
   OTAResponseTypes erase_ahead_(size_t len);
 #endif
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
@@ -77,7 +77,7 @@ class IDFOTABackend final {
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_{nullptr};
   size_t written_{0};  // Bytes handed to esp_ota_write()
-#ifdef OTA_BLOCK_ERASE_AHEAD
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
   size_t erased_end_{0};  // Erased up to this partition offset; must stay >= written_
 #endif
   char expected_bin_md5_[32];
