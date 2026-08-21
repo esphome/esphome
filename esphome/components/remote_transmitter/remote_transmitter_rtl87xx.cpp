@@ -50,8 +50,7 @@ void RemoteTransmitterComponent::setup() {
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Remote Transmitter:\n"
-                "  Carrier Duty: %u%%\n"
-                "  Carrier: hardware PWM (pin must be PWM-capable)",
+                "  Carrier Duty: %u%%",
                 this->carrier_duty_percent_);
   LOG_PIN("  Pin: ", this->pin_);
 }
