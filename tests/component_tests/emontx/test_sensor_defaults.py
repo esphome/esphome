@@ -3,8 +3,7 @@
 import pytest
 
 from esphome.components import sensor
-from esphome.components.emontx.sensor import BASE_SCHEMA, apply_tag_defaults
-import esphome.config_validation as cv
+from esphome.components.emontx.sensor import CONFIG_SCHEMA, apply_tag_defaults
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_STATE_CLASS,
@@ -13,39 +12,34 @@ from esphome.const import (
 )
 
 
-def _schema_default(schema, key_name):
-    """Return the default registered for *key_name* in *schema*.
+def _resolve_via_config_schema(tag: str) -> dict:
+    """Run a minimal config through the real CONFIG_SCHEMA pipeline, the
+    same path a user's YAML goes through."""
+    return CONFIG_SCHEMA(
+        {"tag_name": tag, "emontx_id": "my_emontx", "name": f"{tag} sensor"}
+    )
 
-    Returns ``cv.UNDEFINED`` when the key is absent or has no default.
-    Voluptuous stores defaults on the ``Optional`` marker object; the marker's
-    ``.schema`` attribute holds the plain string key.
+
+def test_config_schema_applies_tag_default_state_class():
+    """If sensor_schema(state_class=...) is reintroduced, the schema-level
+    default wins over apply_tag_defaults' per-prefix value, and E1 would
+    resolve to measurement instead of total_increasing. Driving the real
+    CONFIG_SCHEMA (not just apply_tag_defaults) catches that, since
+    sensor_schema() runs before apply_tag_defaults in the cv.All() chain.
     """
-    for k in schema.schema:
-        if hasattr(k, "schema") and k.schema == key_name:
-            return getattr(k, "default", cv.UNDEFINED)
-    return cv.UNDEFINED
+    result = _resolve_via_config_schema("E1")
+    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
+        STATE_CLASS_TOTAL_INCREASING
+    )
 
 
-def test_base_schema_has_no_state_class_default():
-    """BASE_SCHEMA must not pre-populate state_class.
-
-    sensor_schema(state_class=...) registers the key via
-    cv.Optional(key, default=...), making it always present in the validated
-    config dict.  apply_tag_defaults then skips it (``key not in config``),
-    so every sensor ends up with the schema-level fallback instead of its
-    prefix-specific value.  This test catches that regression directly.
+def test_config_schema_applies_tag_default_accuracy_decimals():
+    """Same root cause as the state_class regression: reintroducing
+    sensor_schema(accuracy_decimals=...) would make V1 resolve to the
+    schema-level default instead of the prefix-specific value of 2.
     """
-    assert _schema_default(BASE_SCHEMA, CONF_STATE_CLASS) is cv.UNDEFINED
-
-
-def test_base_schema_has_no_accuracy_decimals_default():
-    """BASE_SCHEMA must not pre-populate accuracy_decimals.
-
-    Same root cause as the state_class regression: a default registered in
-    sensor_schema() prevents apply_tag_defaults from injecting the correct
-    per-prefix value (e.g. 2 for voltage/current/temperature sensors).
-    """
-    assert _schema_default(BASE_SCHEMA, CONF_ACCURACY_DECIMALS) is cv.UNDEFINED
+    result = _resolve_via_config_schema("V1")
+    assert result[CONF_ACCURACY_DECIMALS] == 2
 
 
 def _make_config(tag: str) -> dict:
