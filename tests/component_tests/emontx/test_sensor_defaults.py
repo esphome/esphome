@@ -135,7 +135,18 @@ def test_apply_tag_defaults_unit_and_device_class(
     )
 
 
-@pytest.mark.parametrize("tag", ["CUSTOM1", "X"])
+@pytest.mark.parametrize(
+    "tag",
+    [
+        "CUSTOM1",
+        "X",
+        # Non-numeric suffixes must not collide with a PATTERN_CONFIGS prefix
+        # (e.g. "APPLE" starting with "AP", "PFX" starting with "PF").
+        "APPLE",
+        "PFX",
+        "PULSE_A",
+    ],
+)
 def test_apply_tag_defaults_unknown_tag_has_no_unit_or_device_class(tag):
     """Unknown / free-form tags only get generic state_class and
     accuracy_decimals defaults; unit_of_measurement and device_class are left
@@ -145,6 +156,10 @@ def test_apply_tag_defaults_unknown_tag_has_no_unit_or_device_class(tag):
 
     assert CONF_UNIT_OF_MEASUREMENT not in result
     assert CONF_DEVICE_CLASS not in result
+    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
+        STATE_CLASS_MEASUREMENT
+    )
+    assert result[CONF_ACCURACY_DECIMALS] == 0
 
 
 @pytest.mark.parametrize(
