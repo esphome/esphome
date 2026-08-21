@@ -49,6 +49,7 @@ UART_STOP_BITS_OPTIONS = {
 DEFAULT_BAUD_RATE = 9600
 CH934X_TX_HEADER_SIZE = 3
 
+
 class Type:
     def __init__(
         self,
