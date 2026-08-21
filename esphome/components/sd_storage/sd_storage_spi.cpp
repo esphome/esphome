@@ -217,7 +217,9 @@ StorageError SdSpi::unmount() {
   else
     ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
 
-  esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
+  esp_err_t unmount_err = esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
+  if (unmount_err != ESP_OK)
+    ESP_LOGW(TAG_SPI, "esp_vfs_fat_sdcard_unmount failed: %s", esp_err_to_name(unmount_err));
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
@@ -227,12 +229,15 @@ StorageError SdSpi::unmount() {
     storage::global_storage_registry->note_dir_changed("");
 #endif
 
-  if (sdspi_host_deinit() != ESP_OK)
+  bool deinit_ok = sdspi_host_deinit() == ESP_OK;
+  if (!deinit_ok)
     ESP_LOGW(TAG_SPI, "sdspi_host_deinit() failed");
 
-  // Report the flush result so an unmount that lost data does not look clean.
+  // Report the flush and teardown results so an unmount that failed does not look clean.
   if (flush_err != StorageError::STORAGE_ERROR_OK)
     return flush_err;
+  if (unmount_err != ESP_OK || !deinit_ok)
+    return StorageError::STORAGE_ERROR_NOT_READY;
 
   ESP_LOGI(TAG_SPI, "SD card unmounted safely");
   return StorageError::STORAGE_ERROR_OK;
