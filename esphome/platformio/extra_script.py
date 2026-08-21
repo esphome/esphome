@@ -18,8 +18,8 @@ Caveats
 -------
 * Only the ``env.Append`` API is captured. ``env.Replace``,
   ``env.Prepend``, ``env.AddPreAction``, SCons file generators, and any
-  arbitrary I/O are silently no-ops. Scripts that depend on those will
-  produce incomplete output.
+  arbitrary I/O are no-ops, logged once per method. Scripts that depend
+  on those will produce incomplete output.
 * Running arbitrary Python from third-party libraries is a non-trivial
   trust decision. The shim does no sandboxing — anything in the
   script's process can run. Use only with libraries whose source you
@@ -65,12 +65,11 @@ def apply_extra_script(
     library_root = source_path.resolve()
     script_path = (source_path / extra_script).resolve()
     if not script_path.is_relative_to(library_root):
-        _LOGGER.warning(
-            "Ignoring extraScript %s of library %s: it escapes the library directory",
-            extra_script,
-            component.name,
+        # More hostile than a missing script; must not be quieter than it
+        raise EsphomeError(
+            f"extraScript {extra_script} of library {component.name} escapes "
+            "the library directory"
         )
-        return
     if not script_path.is_file():
         # A declared-but-absent script is a broken or half-downloaded
         # package, not an unsupported script; PlatformIO fails on it too
@@ -210,7 +209,7 @@ def run_extra_script(
                 "__name__": "__pio_extra_script__",
             },
         )
-    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except (SystemExit, Exception) as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Discard any partial capture: folding half a script's flags into the
         # build could produce wrong-output firmware that links cleanly. The
         # warning plus the resulting loud link error point back here.
