@@ -247,7 +247,16 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
-  this->scan_params_.scan_window = this->scan_window_;
+  uint32_t window = this->scan_window_;
+  if (this->connection_scan_window_ != 0 && this->client_state_counts_.active > 0) {
+    // The defaulted window was raised to full duty for advertisement
+    // throughput; while a GATT connection is active, fall back so the
+    // connection events get guaranteed airtime instead of competing with
+    // a wall-to-wall scan on the shared radio.
+    ESP_LOGV(TAG, "Connection active, using %" PRIu32 " unit scan window", this->connection_scan_window_);
+    window = this->connection_scan_window_;
+  }
+  this->scan_params_.scan_window = window;
 
   // Start timeout monitoring in loop() instead of using scheduler
   // This prevents false reboots when the loop is blocked

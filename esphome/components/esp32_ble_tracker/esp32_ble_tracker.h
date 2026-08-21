@@ -169,6 +169,7 @@ class ESP32BLETracker final : public Component,
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
+  void set_connection_scan_window(uint32_t scan_window) { connection_scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
   bool get_scan_active() const { return scan_active_; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
@@ -313,6 +314,9 @@ class ESP32BLETracker final : public Component,
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  /// Window used while a GATT connection is active; only set when the
+  /// defaulted window was raised to full duty (0 = no fallback).
+  uint32_t connection_scan_window_{0};
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 

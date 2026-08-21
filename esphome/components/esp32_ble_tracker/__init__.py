@@ -7,6 +7,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
+from esphome.components.ble_device_base import CONF_CONNECTION_SCAN_WINDOW
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -186,6 +187,13 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
         # Copy so the config dump shows a plain value instead of a YAML
         # anchor/alias pair pointing at the interval.
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
+        # A full-duty scan must not compete with an active GATT connection
+        # for airtime, so arm the connection-time fallback window as well
+        # unless the user picked one themselves.
+        if CONF_CONNECTION_SCAN_WINDOW not in params:
+            params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
+                ble_device_base.DEFAULT_SCAN_WINDOW
+            )
     return config
 
 
@@ -194,7 +202,7 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
 # window/interval pairs that collapse to the same 0.625 ms unit count.
 # The window default is conditional (see _scan_window_default above).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", window_default=_scan_window_default
+    "320ms", window_default=_scan_window_default, connection_window=True
 )
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
@@ -288,6 +296,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
+    if (connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
+        # Set by the user, or defaulted by _raise_defaulted_scan_window when
+        # the window was raised to full duty; while a GATT connection is
+        # active the scanner falls back to it (see start_scan_).
+        cg.add(
+            var.set_connection_scan_window(
+                ble_device_base.to_ble_units(connection_window)
+            )
+        )
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 

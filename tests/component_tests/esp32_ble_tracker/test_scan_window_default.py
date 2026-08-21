@@ -12,11 +12,12 @@ arbiter a full-duty scan would starve wifi, so the 30 ms default is kept.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.ble_device_base import to_ble_units
+from esphome.components.ble_device_base import CONF_CONNECTION_SCAN_WINDOW, to_ble_units
 from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import KEY_IDF_VERSION
 from esphome.components.esp32_ble_tracker import (
@@ -120,3 +121,61 @@ def test_short_interval_without_window_still_rejected(
     stage_esp32("5.5.5", wifi=True)
     with pytest.raises(cv.Invalid, match="needs to be smaller than scan interval"):
         _scan_params({"scan_parameters": {"interval": "20ms"}})
+
+
+# The connection-time fallback window: while a GATT connection is active the
+# scanner drops from a raised full-duty window back to this value so the
+# connection gets guaranteed airtime.
+
+
+def test_raise_arms_connection_scan_window_default(
+    stage_esp32: Callable[..., None],
+) -> None:
+    stage_esp32("5.5.5", wifi=True)
+    params = _scan_params({})
+    assert params[CONF_WINDOW] == params[CONF_INTERVAL]
+    assert to_ble_units(params[CONF_CONNECTION_SCAN_WINDOW]) == 48
+
+
+def test_user_connection_scan_window_survives_raise(
+    stage_esp32: Callable[..., None],
+) -> None:
+    stage_esp32("5.5.5", wifi=True)
+    params = _scan_params({"scan_parameters": {"connection_scan_window": "60ms"}})
+    assert params[CONF_WINDOW] == params[CONF_INTERVAL]
+    assert to_ble_units(params[CONF_CONNECTION_SCAN_WINDOW]) == 96
+
+
+def test_unraised_window_gets_no_connection_scan_window_default(
+    stage_esp32: Callable[..., None],
+) -> None:
+    stage_esp32("5.5.4", wifi=True)
+    assert CONF_CONNECTION_SCAN_WINDOW not in _scan_params({})
+
+
+def test_connection_scan_window_above_interval_rejected(
+    stage_esp32: Callable[..., None],
+) -> None:
+    stage_esp32("5.5.5", wifi=True)
+    with pytest.raises(
+        cv.Invalid, match="Connection scan window .* needs to be smaller"
+    ):
+        _scan_params({"scan_parameters": {"connection_scan_window": "400ms"}})
+
+
+def test_codegen_connection_window_when_raised(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("scan_window_raised.yaml"))
+    assert "set_scan_window(512)" in main_cpp
+    assert "set_connection_scan_window(48)" in main_cpp
+
+
+def test_codegen_no_connection_window_for_explicit_window(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("scan_window_explicit.yaml"))
+    assert "set_scan_window(48)" in main_cpp
+    assert "set_connection_scan_window" not in main_cpp

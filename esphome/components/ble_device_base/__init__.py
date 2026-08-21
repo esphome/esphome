@@ -211,10 +211,19 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
             f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
         )
 
+    windows = [("window", window)]
+    if (connection_window := config.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
+        if connection_window > interval:
+            raise cv.Invalid(
+                f"Connection scan window ({connection_window}) needs to be smaller "
+                f"than scan interval ({interval})"
+            )
+        windows.append(("connection window", connection_window))
+
     # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
     # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
     # values here instead of letting the unit conversion silently overflow.
-    for name, value in (("interval", interval), ("window", window)):
+    for name, value in (("interval", interval), *windows):
         if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
             raise cv.Invalid(
                 f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
@@ -247,11 +256,14 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
 # their own; also the fallback for esp32's conditional default.
 DEFAULT_SCAN_WINDOW = "30ms"
 
+CONF_CONNECTION_SCAN_WINDOW = "connection_scan_window"
+
 
 def scan_parameters_schema(
     interval_default: str,
     *,
     window_default: str | Callable[[], TimePeriod] = DEFAULT_SCAN_WINDOW,
+    connection_window: bool = False,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
@@ -263,7 +275,9 @@ def scan_parameters_schema(
     can adjust it once sibling keys are resolved). The `active` option
     (default on) is unconditional: active scanning is part of the tracker
     contract — every current proxy client assumes it, so a passive-only
-    tracker must not share this schema.
+    tracker must not share this schema. connection_window opts in to the
+    `connection_scan_window` option for trackers that can fall back to a
+    smaller window while a GATT connection is active.
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
@@ -272,6 +286,8 @@ def scan_parameters_schema(
         cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }
+    if connection_window:
+        schema[cv.Optional(CONF_CONNECTION_SCAN_WINDOW)] = cv.positive_time_period
     return cv.All(cv.Schema(schema), validate_scan_parameters)
 
 
