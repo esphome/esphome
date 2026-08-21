@@ -551,8 +551,8 @@ def write_project(paths: InstalledPaths) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # Config-time validation rejects unsupported boards before this runs;
-    # guard anyway so a bypassing caller fails by name, not KeyError
+    # Config validation accepts the board as a bare string, so this is the
+    # first place an unknown board can fail by name instead of a KeyError
     if board not in BOARDS or board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
@@ -590,6 +590,16 @@ def write_project(paths: InstalledPaths) -> bool:
             raise EsphomeError(
                 f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
             )
+    # The elf2bin edge runs after the full compile and link; a
+    # half-extracted package must fail here, not an hour of wall-clock later
+    for required_file in (
+        framework / "tools" / "elf2bin.py",
+        framework / "bootloaders" / "eboot" / "eboot.elf",
+    ):
+        if not required_file.is_file():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
+            )
     for lib in libraries:
         include_dirs += lib.include_dirs
 
@@ -611,7 +621,7 @@ def write_project(paths: InstalledPaths) -> bool:
         ["-fno-rtti", f"-std={cpp_standard}"]
         + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
         + common
-        + get_project_cxx_compile_flags()
+        + [_shell_token(f) for f in get_project_cxx_compile_flags()]
     )
     # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
     # so only -D/-I user flags reach assembly there; match it. The tokens

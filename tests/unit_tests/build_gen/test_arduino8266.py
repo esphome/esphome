@@ -185,6 +185,10 @@ def _make_framework(tmp_path: Path) -> InstalledPaths:
     for sub in ("include", "ld", "lwip2/include", "lib"):
         (framework / "tools" / "sdk" / sub).mkdir(parents=True)
     (framework / "libraries").mkdir()
+    (framework / "tools" / "elf2bin.py").write_text("")
+    eboot = framework / "bootloaders" / "eboot"
+    eboot.mkdir(parents=True)
+    (eboot / "eboot.elf").write_text("")
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "include").mkdir()
@@ -720,6 +724,23 @@ def test_write_project_returns_changed(tmp_path: Path) -> None:
     ):
         assert arduino8266.write_project(paths) is True
         assert arduino8266.write_project(paths) is False
+
+
+def test_write_project_missing_elf2bin_raises(tmp_path: Path) -> None:
+    """A half-extracted package must fail by name at generation, not after
+    the full compile at the elf2bin edge."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "tools" / "elf2bin.py").unlink()
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "main.cpp").parent.mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        pytest.raises(EsphomeError, match="elf2bin"),
+    ):
+        arduino8266.write_project(paths)
 
 
 def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
