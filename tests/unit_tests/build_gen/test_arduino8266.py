@@ -168,7 +168,7 @@ def test_defines_match_platformio_builder() -> None:
     ]
 
 
-def _make_framework(tmp_path: Path) -> dict[str, Path]:
+def _make_framework(tmp_path: Path) -> InstalledPaths:
     framework = tmp_path / "framework"
     core = framework / "cores" / "esp8266"
     core.mkdir(parents=True)
@@ -185,6 +185,10 @@ def _make_framework(tmp_path: Path) -> dict[str, Path]:
     for sub in ("include", "ld", "lwip2/include", "lib"):
         (framework / "tools" / "sdk" / sub).mkdir(parents=True)
     (framework / "libraries").mkdir()
+    (framework / "tools" / "elf2bin.py").write_text("")
+    eboot = framework / "bootloaders" / "eboot"
+    eboot.mkdir(parents=True)
+    (eboot / "eboot.elf").write_text("")
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "include").mkdir()
@@ -404,9 +408,14 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
     _set_flags("-DFP_IN_IROM")
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT)
-    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run,
+        patch.object(arduino8266._LOGGER, "warning") as mock_warn,
+    ):
         ld_dir = _run_generate_ld_scripts(paths)
+    # A clean preprocessor run must be quiet
+    mock_warn.assert_not_called()
     content = (ld_dir / "local.eagle.app.v6.common.ld").read_text()
     assert RATETABLE_RULE in content
     cmd = mock_run.call_args[0][0]
@@ -431,6 +440,20 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
     mock_run.assert_called_once()
 
 
+def test_generate_ld_scripts_corrupt_cache_regenerates(tmp_path: Path) -> None:
+    """A truncated cached linker script regenerates even with a fresh stamp."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    output = ld_dir / "local.eagle.app.v6.common.ld"
+    output.write_text("truncated garbage")
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_called_once()
+    assert RATETABLE_RULE in output.read_text()
+
+
 def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
@@ -452,7 +475,7 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
         "}\n"
     )
     CORE.testing_mode = True
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     patched = (ld_dir / "testing_eagle.flash.4m.ld").read_text()
@@ -703,6 +726,23 @@ def test_write_project_returns_changed(tmp_path: Path) -> None:
         assert arduino8266.write_project(paths) is False
 
 
+def test_write_project_missing_elf2bin_raises(tmp_path: Path) -> None:
+    """A half-extracted package must fail by name at generation, not after
+    the full compile at the elf2bin edge."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "tools" / "elf2bin.py").unlink()
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "main.cpp").parent.mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        pytest.raises(EsphomeError, match="elf2bin"),
+    ):
+        arduino8266.write_project(paths)
+
+
 def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
     """A missing generated source tree is its own error, not an install one."""
     paths = _make_framework(tmp_path)
@@ -718,15 +758,14 @@ def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
         arduino8266.write_project(paths)
 
 
-def test_build_config_custom_mmu_without_knob_warns(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Custom MMU sizes without the CUSTOM knob keep the default layout and
-    warn, as the PlatformIO builder does."""
+def test_build_config_custom_mmu_without_knob_raises() -> None:
+    """Custom MMU sizes without the CUSTOM knob would compile against a
+    layout the linker script does not implement; refuse instead of warning
+    (PlatformIO warns, but its defaults win the compile line; ours would
+    not)."""
     _set_flags("-DMMU_IRAM_SIZE=0xC000")
-    config = _resolve_build_config(_flag_defines(set()))
-    assert config.mmu_defines == ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
-    assert "Detected custom MMU flags" in caplog.text
+    with pytest.raises(EsphomeError, match="PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"):
+        _resolve_build_config(_flag_defines(set()))
 
 
 def test_flag_defines_lexes_quoted_single_tokens() -> None:
@@ -881,15 +920,18 @@ def test_flag_defines_respects_unflags() -> None:
     assert config.vtables == "VTABLES_IN_FLASH"
 
 
-def test_vtables_unknown_and_conflicting_warn(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    _set_flags("-DVTABLES_IN_BANANA", "-DVTABLES_IN_DRAM")
-    config = _resolve_build_config(_flag_defines(set()))
-    assert "Unknown VTABLES_IN_*" in caplog.text
-    assert "Multiple VTABLES_IN_*" in caplog.text
-    # Deterministic pick, as before
-    assert config.vtables == "VTABLES_IN_BANANA"
+def test_vtables_unknown_raises() -> None:
+    """A typo'd knob would win the sorted pick and die in the SDK header's
+    #error; fail by name at generation instead."""
+    _set_flags("-DVTABLES_IN_BANANA")
+    with pytest.raises(EsphomeError, match="Unknown VTABLES_IN_.*BANANA"):
+        _resolve_build_config(_flag_defines(set()))
+
+
+def test_vtables_conflicting_raises() -> None:
+    _set_flags("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
+    with pytest.raises(EsphomeError, match="Conflicting VTABLES_IN_"):
+        _resolve_build_config(_flag_defines(set()))
 
 
 def test_project_flags_empty_lib_flags_warn(

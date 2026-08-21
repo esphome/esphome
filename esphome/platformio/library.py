@@ -209,6 +209,14 @@ class InvalidLibrary(Exception):
     pass
 
 
+class IncompatiblePlatform(InvalidLibrary):
+    """The manifest's platform filter rejected the target platform.
+
+    A distinct type so callers can treat the routine cross-platform skip
+    differently from other manifest problems without matching message text.
+    """
+
+
 class ConvertedLibrary:
     """A resolved PlatformIO library plus its parsed manifest and on-disk path.
 
@@ -438,7 +446,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
-        raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
+        raise IncompatiblePlatform(f"Unsupported library platforms: {platforms}")
 
     frameworks = data.get("frameworks", "*")
     if isinstance(frameworks, str):

@@ -199,6 +199,10 @@ BOARDS = {
         "name": "WeMos D1 mini Pro",
         "flash_size": FLASH_SIZE_16_MB,
     },
+    "d1_wroom_02": {
+        "name": "WeMos D1 ESP-WROOM-02",
+        "flash_size": FLASH_SIZE_2_MB,
+    },
     "d1": {
         "name": "WEMOS D1 R1",
         "flash_size": FLASH_SIZE_4_MB,

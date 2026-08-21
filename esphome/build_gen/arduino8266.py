@@ -256,10 +256,15 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     # build flags, whose iteration order varies between processes.
     vtables_knobs = sorted(name for name in defines if name.startswith("VTABLES_IN_"))
     known_vtables = {"VTABLES_IN_FLASH", "VTABLES_IN_DRAM", "VTABLES_IN_IRAM"}
+    # A typo would otherwise win the sorted pick and end in the SDK header's
+    # #error, and a conflicting pair would resolve arbitrarily; both are
+    # config errors, not build-time surprises
     if unknown := [k for k in vtables_knobs if k not in known_vtables]:
-        _LOGGER.warning("Unknown VTABLES_IN_* define(s): %s", ", ".join(unknown))
+        raise EsphomeError(f"Unknown VTABLES_IN_* define(s): {', '.join(unknown)}")
     if len(vtables_knobs) > 1:
-        _LOGGER.warning("Multiple VTABLES_IN_* defines; using %s", vtables_knobs[0])
+        raise EsphomeError(
+            f"Conflicting VTABLES_IN_* defines: {', '.join(vtables_knobs)}"
+        )
     vtables = vtables_knobs[0] if vtables_knobs else "VTABLES_IN_FLASH"
 
     mmu = next((variant for knob, variant in _MMU_VARIANTS if knob in defines), None)
@@ -278,13 +283,14 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
             )
         else:
             if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
-                # Same diagnostic the PlatformIO builder prints: without the
-                # knob the linker script keeps the default layout while the
-                # compile line carries the custom sizes
-                _LOGGER.warning(
-                    "Detected custom MMU flags; use "
-                    "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM to disable the "
-                    "default configuration"
+                # PlatformIO only warns here and appends its defaults last so
+                # they win the compile line; in this generator the user's
+                # tokens would come last instead, compiling against a memory
+                # layout the linker script does not implement. Refuse rather
+                # than reproduce the upstream footgun with worse odds.
+                raise EsphomeError(
+                    "Custom MMU_IRAM_SIZE/MMU_ICACHE_SIZE build flags require "
+                    "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
                 )
             mmu = list(_MMU_DEFAULT)
 
@@ -361,7 +367,10 @@ def _project_flags(
     Every entry is shell-lexed the way PlatformIO's ``ParseFlags`` does, so a
     linker flag anywhere in an entry reaches the link line and
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
-    Lexed tokens are re-quoted at emission via ``_shell_token``.
+    Only the flag forms ESPHome emits are classified (``-Wl,``/``-L``/``-l``
+    and compile flags); rarities like plain-form ``-T``/``-u``/``-Xlinker``
+    route to the compile line, unlike full ParseFlags. Lexed tokens are
+    re-quoted at emission via ``_shell_token``.
     """
     compile_flags: list[str] = []
     link_flags: list[str] = []
@@ -435,11 +444,20 @@ def generate_ld_scripts(
         # any behavioral edit in build_surgery self-invalidates the cache
         + f" {build_surgery.surgery_fingerprint()}"
     )
-    if not (
-        output.is_file()
-        and stamp.is_file()
-        and stamp.read_text(encoding="utf-8") == stamp_content
-    ):
+
+    def _cached_ld_is_valid() -> bool:
+        if not (
+            output.is_file()
+            and stamp.is_file()
+            and stamp.read_text(encoding="utf-8") == stamp_content
+        ):
+            return False
+        # A truncated or externally edited script must force regeneration,
+        # not be reused on existence alone (the SECTIONS check below only
+        # guards the generation path)
+        return "SECTIONS" in output.read_text(encoding="utf-8")
+
+    if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
                 cmd, capture_output=True, text=True, check=False, close_fds=False
@@ -472,10 +490,17 @@ def generate_ld_scripts(
         # A patched copy of the flash ld in the build dir; resolved through
         # the same -L path as the SDK original it shadows.
         flash_ld = framework / "tools" / "sdk" / "ld" / flash_ld_name
+        try:
+            flash_ld_text = flash_ld.read_text(encoding="utf-8")
+        except OSError as err:
+            # Same half-extracted-cache hazard as the gcc spawn above
+            raise EsphomeError(
+                f"Could not read {flash_ld}: {err}; run 'esphome clean-all' and retry"
+            ) from err
         write_file_if_changed(
             ld_dir / f"testing_{flash_ld_name}",
             build_surgery.apply_testing_memory_patches(
-                flash_ld.read_text(encoding="utf-8"),
+                flash_ld_text,
                 ("dram0_0_seg", "irom0_0_seg"),
             ),
         )
@@ -526,8 +551,8 @@ def write_project(paths: InstalledPaths) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # Config-time validation rejects unsupported boards before this runs;
-    # guard anyway so a bypassing caller fails by name, not KeyError
+    # Config validation accepts the board as a bare string, so this is the
+    # first place an unknown board can fail by name instead of a KeyError
     if board not in BOARDS or board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
@@ -565,6 +590,16 @@ def write_project(paths: InstalledPaths) -> bool:
             raise EsphomeError(
                 f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
             )
+    # The elf2bin edge runs after the full compile and link; a
+    # half-extracted package must fail here, not an hour of wall-clock later
+    for required_file in (
+        framework / "tools" / "elf2bin.py",
+        framework / "bootloaders" / "eboot" / "eboot.elf",
+    ):
+        if not required_file.is_file():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
+            )
     for lib in libraries:
         include_dirs += lib.include_dirs
 
@@ -586,7 +621,7 @@ def write_project(paths: InstalledPaths) -> bool:
         ["-fno-rtti", f"-std={cpp_standard}"]
         + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
         + common
-        + get_project_cxx_compile_flags()
+        + [_shell_token(f) for f in get_project_cxx_compile_flags()]
     )
     # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
     # so only -D/-I user flags reach assembly there; match it. The tokens
