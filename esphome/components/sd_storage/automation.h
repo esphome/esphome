@@ -83,8 +83,7 @@ template<typename... Ts> class ListFilesAction : public Action<Ts...> {
       path = "/";  // FAT root; get_mount_path() is the absolute VFS path, wrong for list_dir()
 
     this->parent_->log_list_dir_start_(path);
-    storage::StorageError err =
-        this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
+    storage::StorageError err = this->parent_->list_dir(path, &SdStorageBase::log_list_dir_entry, nullptr);
     if (err != storage::StorageError::STORAGE_ERROR_OK)
       ESP_LOGW(TAG, "list_files failed: %s", storage::error_to_string(err));
   }

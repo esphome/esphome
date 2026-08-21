@@ -18,7 +18,6 @@ namespace esphome::sd_storage {
 // vs READ_ERROR for the generic default.
 storage::StorageError fresult_to_storage_error(FRESULT res, bool for_rmdir, bool is_write);
 
-
 // Note: SDHC and SDXC cards cannot be distinguished by the OCR capacity bit alone (that only
 // separates SDSC from "high/extended capacity"); doing so would require checking the card's
 // actual reported capacity. No driver currently assigns SDXC, so it's omitted here rather than
