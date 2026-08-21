@@ -6,6 +6,7 @@ from collections.abc import Generator
 import gzip
 import hashlib
 import io
+import itertools
 from pathlib import Path
 import socket
 import struct
@@ -53,8 +54,9 @@ def mock_sleep() -> Generator[Mock]:
 @pytest.fixture
 def mock_time(mock_sleep: Mock) -> Generator[None]:
     """Mock time-related functions for consistent testing."""
-    # Provide enough values for multiple calls (tests may call perform_ota multiple times)
-    with patch("time.perf_counter", side_effect=[0, 1, 0, 1, 0, 1]):
+    # Monotonically increasing, never exhausted regardless of how many timing
+    # windows perform_ota measures or how many times a test calls it
+    with patch("time.perf_counter", side_effect=itertools.count()):
         yield
 
 
