@@ -7435,8 +7435,8 @@ def test_cli_toolchain_still_refreshes_the_validated_config_cache(
     tmp_path: Path,
 ) -> None:
     """An explicit --toolchain gates only the cache read; the freshly
-    validated config is still saved, and its sidecar records the resolved
-    toolchain for a later plain run."""
+    validated config is still saved so a later plain run keeps the fast
+    path (an existing compile-written sidecar keeps its toolchain)."""
     from esphome.__main__ import run_esphome
 
     conf = tmp_path / "device.yaml"

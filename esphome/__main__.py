@@ -2789,8 +2789,10 @@ def run_esphome(argv):
     )
     # An explicit CLI toolchain must run the per-platform validators; the
     # cache was validated under whatever the last compile used. Only the
-    # read is gated: the refresh below may still save the freshly
-    # validated config, and its sidecar records the resolved toolchain.
+    # read is gated: the refresh below still saves the freshly validated
+    # config. The sidecar is only written when none exists; a
+    # compile-written one keeps the compile's toolchain (the firmware on
+    # disk was built by it), which upload/logs then restore.
     cache_read_eligible = cache_write_eligible and args.toolchain is None
     if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
