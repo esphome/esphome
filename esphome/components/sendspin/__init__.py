@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import TemplateArgsType
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -219,7 +219,7 @@ async def sendspin_switch_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -234,7 +234,7 @@ async def to_code(config: ConfigType) -> None:
         psram.request_external_task_stack()
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.1")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
@@ -297,7 +297,7 @@ async def to_code(config: ConfigType) -> None:
             codecs.append(CODEC_FORMAT_OPUS)
         codecs.append(CODEC_FORMAT_PCM)
 
-        def _audio_format(codec, channels):
+        def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
                 ("codec", codec),

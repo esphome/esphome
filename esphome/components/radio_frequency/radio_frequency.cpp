@@ -99,8 +99,12 @@ bool RadioFrequency::on_receive(remote_base::RemoteReceiveData data) {
   // Forward received RF data to API server
 #if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
   if (api::global_api_server != nullptr) {
-    api::global_api_server->send_infrared_rf_receive_event(this->get_device_id_or_zero(), this->get_entity_key(),
-                                                           &data.get_raw_data());
+#ifdef USE_DEVICES
+    uint32_t device_id = this->get_device_id();
+#else
+    uint32_t device_id = 0;
+#endif
+    api::global_api_server->send_infrared_rf_receive_event(device_id, this->get_object_id_hash(), &data.get_raw_data());
   }
 #endif
   return false;  // Don't consume the event, allow other listeners to process it

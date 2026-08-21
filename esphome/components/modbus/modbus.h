@@ -82,7 +82,7 @@ class Modbus : public uart::UARTDevice, public Component {
   bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
   // Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
-  uint16_t find_custom_frame_end_(uint16_t min_length) const;
+  uint16_t find_frame_end_by_crc_(uint16_t min_length) const;
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_receive_check_{0};

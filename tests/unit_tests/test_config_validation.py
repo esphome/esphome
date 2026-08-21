@@ -2967,6 +2967,23 @@ def test_require_esphome_version_older_prerelease_fails() -> None:
         cv.require_esphome_version(2026, 8, 0)("test")
 
 
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
+
+
 # ---------------------------------------------------------------------------
 # suppress_invalid / validate_source_shorthand / rename_key
 # ---------------------------------------------------------------------------

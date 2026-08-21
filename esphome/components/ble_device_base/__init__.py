@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_INTERVAL,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE, ID, KEY_CORE
+from esphome.core import CORE, ID, KEY_CORE, TimePeriod
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
@@ -243,19 +243,27 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     return config
 
 
+# The historical scan window default shared by the trackers that do not pin
+# their own; also the fallback for esp32's conditional default.
+DEFAULT_SCAN_WINDOW = "30ms"
+
+
 def scan_parameters_schema(
     interval_default: str,
     *,
-    window_default: str = "30ms",
+    window_default: str | Callable[[], TimePeriod] = DEFAULT_SCAN_WINDOW,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
     interval_default and window_default are per chip (e.g. esp32 320/30 ms,
     bk72xx/rp2 100/30 ms — the reference scan rates of the respective stacks;
-    LN882H's SDK recommends 100/50 ms). The `active` option (default on) is
-    unconditional: active scanning is part of the tracker contract — every
-    current proxy client assumes it, so a passive-only tracker must not share
-    this schema.
+    LN882H's SDK recommends 100/50 ms). window_default may also be a zero-arg
+    callable evaluated per validation when the user omits the key (esp32 uses
+    this to record that the window was defaulted, so a later validation step
+    can adjust it once sibling keys are resolved). The `active` option
+    (default on) is unconditional: active scanning is part of the tracker
+    contract — every current proxy client assumes it, so a passive-only
+    tracker must not share this schema.
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,

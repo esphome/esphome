@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from ipaddress import IPv4Address, IPv4Network
 import json
 import os
@@ -19,6 +20,7 @@ from esphome.compiled_config import (
     compiled_config_path,
     load_compiled_config,
     save_compiled_config,
+    save_compiled_config_and_sidecar,
 )
 from esphome.const import (
     CONF_API,
@@ -31,7 +33,16 @@ from esphome.const import (
     KEY_VARIANT,
     Toolchain,
 )
-from esphome.core import CORE, ID, HexInt, Lambda, MACAddress, TimePeriodMilliseconds
+from esphome.core import (
+    CORE,
+    ID,
+    EsphomeError,
+    HexInt,
+    Lambda,
+    MACAddress,
+    TimePeriodMilliseconds,
+)
+from esphome.storage_json import StorageJSON
 from esphome.util import OrderedDict
 
 _VALIDATED_CONFIG = {
@@ -54,8 +65,9 @@ def _cache_body(config: dict | None = None) -> str:
 def _write_storage(
     storage_path: Path,
     *,
-    esp_platform: str = "ESP32",
+    esp_platform: str | None = "ESP32",
     core_platform: str | None = "esp32",
+    build_path: str | None = "/build/lite_test",
 ) -> None:
     """Write a vanilla StorageJSON sidecar for the cache tests."""
     storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +81,7 @@ def _write_storage(
         "address": "192.168.1.42",
         "web_port": None,
         "esp_platform": esp_platform,
-        "build_path": "/build/lite_test",
+        "build_path": build_path,
         "firmware_bin_path": "/build/lite_test/firmware.bin",
         "loaded_integrations": ["api", "logger", "ota", "wifi"],
         "loaded_platforms": [],
@@ -359,31 +371,262 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     mock_read.assert_called_once()
 
 
-def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
-    tmp_path: Path,
-) -> None:
-    """Without a StorageJSON sidecar (no compile has run), the fallback
-    skips the cache write -- load_compiled_config requires the sidecar,
-    so writing the rendered (secret-resolved) config would be inert and
-    leak secrets to disk for nothing."""
+def _storage_fixture(tmp_path: Path) -> StorageJSON:
+    """A loaded StorageJSON instance matching _write_storage's contents."""
+    fixture = tmp_path / "fixture_storage.json"
+    _write_storage(fixture)
+    return StorageJSON.load(fixture)
+
+
+def _bare_yaml(tmp_path: Path) -> Path:
+    """A minimal YAML with CORE.config_path pointed at it."""
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
+    return yaml_path
 
+
+@contextmanager
+def _fallback_run(command: str = "upload", **from_core_kwargs) -> Any:
+    """Patch the fallback path's collaborators for a run_esphome call.
+
+    Without kwargs, from_esphome_core stays real (yielded mock is None).
+    """
     with (
         patch(
             "esphome.config.read_config",
             return_value={"esphome": {"name": "lite_test"}},
-        ),
-        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        ) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
-            {"upload": lambda args, config: 0},
+            {command: lambda args, config: 0},
         ),
     ):
-        run_esphome(["esphome", "upload", str(yaml_path)])
+        if not from_core_kwargs:
+            yield mock_read, None
+            return
+        with patch.object(
+            StorageJSON, "from_esphome_core", **from_core_kwargs
+        ) as mock_from_core:
+            yield mock_read, mock_from_core
+
+
+@pytest.mark.parametrize("command", ["upload", "logs"])
+def test_run_esphome_fallback_writes_sidecar_and_cache_without_sidecar(
+    tmp_path: Path, command: str
+) -> None:
+    """A never-compiled config caches on its first upload/logs run: the
+    fallback writes the StorageJSON sidecar itself (load_compiled_config
+    needs it), so the second run hits the fast path."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+
+    with _fallback_run(command, return_value=_storage_fixture(tmp_path)) as (
+        mock_read,
+        mock_from_core,
+    ):
+        assert run_esphome(["esphome", command, str(yaml_path)]) == 0
+        mock_from_core.assert_called_once()
+        assert (storage_dir / "lite_test.yaml.validated.json").exists()
+        storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
+        assert storage is not None
+        # No compile happened, so the sidecar must not claim one.
+        assert mock_from_core.call_args.kwargs == {"claim_build": False}
+
+        # The second run loads the cache instead of re-validating.
+        assert run_esphome(["esphome", command, str(yaml_path)]) == 0
+        mock_read.assert_called_once()
+
+
+# as_dict serialized unset paths as str(None) until 2026.9; files
+# written by those wizards are still on disk.
+_WIZARD_SIDECAR_CASES = pytest.mark.parametrize(
+    "wizard_kwargs",
+    [
+        {"esp_platform": None, "core_platform": None, "build_path": None},
+        {"build_path": None},
+        {"build_path": "None"},
+    ],
+    ids=["legacy_wizard", "modern_wizard", "none_string_wizard"],
+)
+
+
+def _prime_core(tmp_path: Path) -> None:
+    """Set the post-validation CORE state from_esphome_core reads."""
+    CORE.name = "lite_test"
+    CORE.build_path = tmp_path / "build" / "lite_test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+
+@_WIZARD_SIDECAR_CASES
+def test_run_esphome_fallback_completes_wizard_sidecar(
+    tmp_path: Path, wizard_kwargs: dict[str, Any]
+) -> None:
+    """A wizard-written sidecar can't drive the fast path (no build_path;
+    older wizards also no platform fields); the fallback rewrites it from
+    CORE so the cache loads on the next run."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(storage_dir / "lite_test.yaml.json", **wizard_kwargs)
+
+    with _fallback_run(return_value=_storage_fixture(tmp_path)) as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_called_once()
+    storage = StorageJSON.load(storage_dir / "lite_test.yaml.json")
+    assert storage is not None and storage.core_platform == "esp32"
+    # What the wizard recorded about a build (nothing, or a real one)
+    # carries through instead of being stamped with this run's values.
+    assert storage.esphome_version == "2026.1.0"
+    assert load_compiled_config(yaml_path) is not None
+
+
+def test_run_esphome_fallback_skips_cache_when_sidecar_write_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed sidecar write is non-fatal and skips the cache save too:
+    without the sidecar the cache could never be loaded back, so writing
+    it would only leave resolved secrets on disk."""
+    yaml_path = _bare_yaml(tmp_path)
+
+    with (
+        _fallback_run(side_effect=RuntimeError("boom")),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+    ):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
 
     mock_save.assert_not_called()
+    assert not (tmp_path / ".esphome" / "storage" / "lite_test.yaml.json").exists()
+
+
+def test_run_esphome_fallback_write_failure_takes_io_branch(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """StorageJSON.save raises EsphomeError (write_file wraps OSError into
+    it), which must land in the plain I/O warning, not the traceback
+    branch for structural bugs."""
+    yaml_path = _bare_yaml(tmp_path)
+
+    with (
+        _fallback_run(return_value=_storage_fixture(tmp_path)),
+        patch.object(StorageJSON, "save", side_effect=EsphomeError("boom")),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        caplog.at_level("WARNING", logger="esphome.compiled_config"),
+    ):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_save.assert_not_called()
+    assert "Could not refresh the storage sidecar" in caplog.text
+    assert "Unexpected error" not in caplog.text
+
+
+def test_run_esphome_fallback_leaves_unreadable_sidecar_alone(tmp_path: Path) -> None:
+    """A present-but-corrupt sidecar is not overwritten: it may hold a real
+    build's metadata, and replacing it would suppress the next compile's
+    clean of a possibly incoherent build tree. The cache save is skipped."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+    sidecar = storage_dir / "lite_test.yaml.json"
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text("{truncated", encoding="utf-8")
+
+    with _fallback_run(return_value=None) as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_not_called()
+    assert sidecar.read_text(encoding="utf-8") == "{truncated"
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+
+
+def test_run_esphome_fallback_skips_cache_when_rebuilt_sidecar_incomplete(
+    tmp_path: Path,
+) -> None:
+    """If the rebuilt sidecar would still be incomplete, nothing is written:
+    the cache could never be loaded back, so saving it would only rewrite
+    resolved secrets on every run."""
+    yaml_path = _bare_yaml(tmp_path)
+    storage_dir = tmp_path / ".esphome" / "storage"
+
+    incomplete = tmp_path / "incomplete_storage.json"
+    _write_storage(incomplete, build_path=None)
+
+    with _fallback_run(return_value=StorageJSON.load(incomplete)):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    assert not (storage_dir / "lite_test.yaml.json").exists()
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+
+
+def test_run_esphome_fallback_sidecar_records_platformio_toolchain(
+    tmp_path: Path,
+) -> None:
+    """The toolchain fallback runs before the sidecar write, so platforms
+    whose validators leave CORE.toolchain unset record the same
+    "platformio" a compile writes, not null."""
+    yaml_path = _bare_yaml(tmp_path)
+    _prime_core(tmp_path)
+    assert CORE.toolchain is None
+
+    with _fallback_run():
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    storage = StorageJSON.load(
+        tmp_path / ".esphome" / "storage" / "lite_test.yaml.json"
+    )
+    assert storage is not None
+    assert storage.toolchain == "platformio"
+
+
+@pytest.mark.parametrize("existing_sidecar", [None, "wizard"])
+def test_run_esphome_fallback_skips_sidecar_when_build_tree_exists(
+    tmp_path: Path, existing_sidecar: str | None
+) -> None:
+    """An existing build tree with a missing or wizard-only sidecar keeps
+    it that way: the mismatch is what makes the next compile wipe the
+    unknown tree, so the fallback writes nothing and skips the cache."""
+    yaml_path = _bare_yaml(tmp_path)
+    _prime_core(tmp_path)
+    CORE.build_path.mkdir(parents=True)
+    storage_dir = tmp_path / ".esphome" / "storage"
+    if existing_sidecar == "wizard":
+        _write_storage(storage_dir / "lite_test.yaml.json", build_path=None)
+        wizard_body = (storage_dir / "lite_test.yaml.json").read_text(encoding="utf-8")
+
+    with _fallback_run(return_value=_storage_fixture(tmp_path)) as (_, mock_from_core):
+        assert run_esphome(["esphome", "upload", str(yaml_path)]) == 0
+
+    mock_from_core.assert_not_called()
+    assert not (storage_dir / "lite_test.yaml.validated.json").exists()
+    if existing_sidecar == "wizard":
+        sidecar_body = (storage_dir / "lite_test.yaml.json").read_text(encoding="utf-8")
+        assert sidecar_body == wizard_body
+    else:
+        assert not (storage_dir / "lite_test.yaml.json").exists()
+
+
+def test_save_compiled_config_and_sidecar_builds_real_sidecar(tmp_path: Path) -> None:
+    """Drive the real from_esphome_core on the fallback path: the
+    post-validation CORE state yields a complete, loadable sidecar."""
+    yaml_path = _bare_yaml(tmp_path)
+    _prime_core(tmp_path)
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "lite_test"}}
+    CORE.toolchain = Toolchain.PLATFORMIO
+
+    save_compiled_config_and_sidecar(CORE.config)
+
+    storage = StorageJSON.load(
+        tmp_path / ".esphome" / "storage" / "lite_test.yaml.json"
+    )
+    assert storage is not None
+    assert storage.core_platform == "esp8266"
+    assert storage.build_path is not None
+    # No compile happened, so the sidecar must not claim one.
+    assert storage.esphome_version is None
+    assert storage.firmware_bin_path is None
+    assert load_compiled_config(yaml_path) is not None
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
@@ -409,6 +652,7 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
         patch(
             "esphome.compiled_config.save_compiled_config", wraps=save_compiled_config
         ) as mock_save,
+        patch.object(StorageJSON, "from_esphome_core") as mock_from_core,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
             {command: lambda args, config: 0},
@@ -417,6 +661,8 @@ def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
         assert run_esphome(["esphome", command, str(yaml_path)]) == 0
 
     mock_save.assert_called_once_with(fresh_config)
+    # The compile-written sidecar is complete; the fallback leaves it alone.
+    mock_from_core.assert_not_called()
     # mtime is now newer than the source YAML, so a follow-up call hits
     # the fast path instead of repeating read_config.
     assert cache.stat().st_mtime >= yaml_path.stat().st_mtime
@@ -647,24 +893,15 @@ def test_int_keys_coerce_to_strings(primed_storage: Path) -> None:
     assert config["table"] == {"1": "a", "2": "b"}
 
 
-def test_load_compiled_config_rejects_wizard_only_sidecar(tmp_path: Path) -> None:
-    """A wizard-only sidecar (no compile -- no core_platform / target_platform)
-    can't drive upload/logs, so the fast path falls back."""
-    yaml_path = tmp_path / "lite_test.yaml"
-    yaml_path.write_text("esphome:\n  name: lite_test\n")
-    CORE.config_path = yaml_path
-
+@_WIZARD_SIDECAR_CASES
+def test_load_compiled_config_rejects_wizard_only_sidecar(
+    tmp_path: Path, wizard_kwargs: dict[str, Any]
+) -> None:
+    """A wizard-written sidecar (no build_path; older wizards also no
+    platform fields) can't drive upload/logs, so the fast path falls back."""
+    yaml_path = _bare_yaml(tmp_path)
     storage_dir = tmp_path / ".esphome" / "storage"
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    # StorageJSON with both core_platform and target_platform unset.
-    (storage_dir / "lite_test.yaml.json").write_text(
-        '{"storage_version": 1, "name": "lite_test", "friendly_name": null, '
-        '"comment": null, "esphome_version": null, "src_version": 1, '
-        '"address": null, "web_port": null, "esp_platform": null, '
-        '"build_path": null, "firmware_bin_path": null, '
-        '"loaded_integrations": [], "loaded_platforms": [], "no_mdns": false, '
-        '"framework": null, "core_platform": null}'
-    )
+    _write_storage(storage_dir / "lite_test.yaml.json", **wizard_kwargs)
     cache_path = _write_cache(storage_dir / "lite_test.yaml.validated.json")
     _set_cache_mtime(cache_path, yaml_path, offset=5)
 
