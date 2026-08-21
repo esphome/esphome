@@ -36,7 +36,9 @@ void RemoteTransmitterComponent::setup() {
 #if LT_RTL8720C
   // only the AmebaZ2 SDK's pwmout_s reports init success
   if (!pwm->is_init) {
-    ESP_LOGE(TAG, "PWM init failed on pin %u", this->pin_->get_pin());
+    ESP_LOGE(TAG, "PWM init failed on pin %u (pin must be PWM-capable)", this->pin_->get_pin());
+    delete pwm;
+    this->pwm_ = nullptr;
     this->mark_failed();
     return;
   }
@@ -48,7 +50,8 @@ void RemoteTransmitterComponent::setup() {
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Remote Transmitter:\n"
-                "  Carrier Duty: %u%%",
+                "  Carrier Duty: %u%%\n"
+                "  Carrier: hardware PWM (pin must be PWM-capable)",
                 this->carrier_duty_percent_);
   LOG_PIN("  Pin: ", this->pin_);
 }
@@ -64,13 +67,19 @@ void RemoteTransmitterComponent::await_target_time_() {
 }
 
 void RemoteTransmitterComponent::digital_write(bool value) {
+  if (this->pwm_ == nullptr)
+    return;
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), (value != this->pin_->is_inverted()) ? 1.0f : 0.0f);
 }
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
+  auto *pwm = static_cast<pwmout_t *>(this->pwm_);
+  if (pwm == nullptr) {
+    ESP_LOGW(TAG, "Cannot send: PWM not initialized");
+    return;
+  }
   ESP_LOGD(TAG, "Sending remote code");
   const uint32_t carrier_frequency = this->temp_.get_carrier_frequency();
-  auto *pwm = static_cast<pwmout_t *>(this->pwm_);
   // unmodulated protocols (no carrier or 100% duty) drive the pin constantly during marks
   float mark_duty =
       (carrier_frequency > 0 && this->carrier_duty_percent_ < 100) ? this->carrier_duty_percent_ / 100.0f : 1.0f;
@@ -85,12 +94,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
   this->target_time_ = 0;
   this->transmit_trigger_.trigger();
-  // Boost task priority so WiFi/lwIP tasks can't preempt mid-frame and merge adjacent marks.
-  // Interrupts stay enabled: micros() needs the FreeRTOS tick, and ISR latency is within
-  // receiver tolerance.
   const UBaseType_t saved_priority = uxTaskPriorityGet(nullptr);
-  vTaskPrioritySet(nullptr, configMAX_PRIORITIES - 1);
   for (uint32_t i = 0; i < send_times; i++) {
+    // Boost task priority for the frame only, so WiFi/lwIP tasks can't preempt mid-frame and
+    // merge adjacent marks. Interrupts stay enabled: micros() needs the FreeRTOS tick, and
+    // ISR latency is within receiver tolerance.
+    vTaskPrioritySet(nullptr, configMAX_PRIORITIES - 1);
     for (int32_t item : this->temp_.get_data()) {
       const bool is_mark = item > 0;
       this->await_target_time_();
@@ -100,10 +109,16 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     }
     this->await_target_time_();  // wait for duration of last pulse
     pwmout_write(pwm, space_duty);
-    if (i + 1 < send_times)
+    vTaskPrioritySet(nullptr, saved_priority);
+    if (i + 1 < send_times) {
+      // The repeat gap is user-configurable and unbounded, so wait it out at normal
+      // priority, feeding the watchdog; the cumulative target absorbs any preemption
       this->target_time_ += send_wait;
+      while ((int32_t) (this->target_time_ - micros()) > 0) {
+        App.feed_wdt();
+      }
+    }
   }
-  vTaskPrioritySet(nullptr, saved_priority);
   this->complete_trigger_.trigger();
 }
 
