@@ -200,8 +200,9 @@ void ModbusController::update_range_(ModbusCommandItem &cmd) {
     return;
   }
   // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-  if (!cmd.send())
+  if (!cmd.send()) {
     ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+  }
 }
 
 void ModbusController::update() {
@@ -214,8 +215,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send())
+        if (!cmd.send()) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        }
       }
     } else {
       ESP_LOGV(TAG, "Module offline - skipping update");
