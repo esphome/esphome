@@ -79,9 +79,7 @@ class SX126x final : public Component,
     this->rx_enable_pin_ = rx_enable_pin;
     this->tx_enable_pin_ = tx_enable_pin;
   }
-  void set_enable_pins_inverted(bool enable_pins_inverted) {
-    this->enable_pins_inverted_ = enable_pins_inverted;
-  }
+  void set_enable_pins_inverted(bool enable_pins_inverted) { this->enable_pins_inverted_ = enable_pins_inverted; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_hw_version(const std::string &hw_version) { this->hw_version_ = hw_version; }
   void set_mode_rx();
