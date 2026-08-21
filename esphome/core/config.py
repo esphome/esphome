@@ -778,7 +778,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
     if config.get(CONF_SUSPEND_LOOP):
         cg.add_define("ESPHOME_SUSPEND_LOOP")
-    if config[CONF_LOOP_INTERVAL]:
+    if CONF_LOOP_INTERVAL in config:
         cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
 
     if CORE.using_arduino:
