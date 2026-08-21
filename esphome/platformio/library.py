@@ -229,6 +229,10 @@ class ConvertedLibrary:
         self.name = name
         self.version = version
         self.source = source
+        # The request-side _node_key this component resolved from; the
+        # canonical name can differ (bare "pngle" -> "bitbank2__pngle"), so
+        # callers diff requests against this, not against name
+        self.node_key: str | None = None
         self.data = {}
         self.dependencies: list[ConvertedLibrary] = []
         self._path: Path | None = None
@@ -891,6 +895,7 @@ def convert_libraries(
             component = ConvertedLibrary(
                 _owner_pkgname_to_name(owner, name), version, URLSource(url)
             )
+        component.node_key = key
         component.download(salt=salt, namespace=backend.cache_key)
 
         source_dir = component.source_dir
