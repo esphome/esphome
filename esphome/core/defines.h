@@ -548,7 +548,8 @@
 #define USE_NRF52_DFU
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
-#define USE_OPENTHREAD
+// USE_OPENTHREAD omitted: pulls in net_if.h, whose BUILD_ASSERT fails Clang
+// on this SDK's bundled Zephyr 3.7 (fixed in Zephyr 4.4).
 #define USE_OTA_ROLLBACK
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOFTDEVICE_ID 7
