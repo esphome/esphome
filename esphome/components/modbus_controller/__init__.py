@@ -68,6 +68,18 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
     return config
 
 
+def _reject_broadcast_address(config: ConfigType) -> ConfigType:
+    """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
+    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    if config.get(CONF_ADDRESS) == 0:
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a modbus_controller "
+            "device address. Assign the unit address of the device you want to poll.",
+            [CONF_ADDRESS],
+        )
+    return config
+
+
 # Remove before 2027.3.0. skip_updates (a per-sensor option) no longer does anything: every range is
 # polled each update_interval. The key is still accepted so existing configs keep working, with a warning.
 def validate_skip_updates_deprecated(value):
@@ -104,6 +116,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01)),
     _warn_removed_options,
+    _reject_broadcast_address,
 )
 
 ModbusItemBaseSchema = cv.Schema(
