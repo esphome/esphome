@@ -1,11 +1,12 @@
 """Drift tests for the native ESP8266 Arduino build spec.
 
-These pin the build spec transliterated from the PlatformIO builder
+These pin the ESPHome side of the transliteration (the knob-define
+precedence, the define/flag sets, and the linker-script generation) against
+literals audited from the PlatformIO builder
 (framework-arduinoespressif8266/tools/platformio-build.py and
-platform-espressif8266/builder/main.py) so a change on either side of the
-toolchain seam is caught: the knob-define precedence, the define/flag sets,
-and the linker-script generation must keep matching what the PlatformIO
-toolchain produces for the same configuration.
+platform-espressif8266/builder/main.py). They catch an accidental edit on
+this side; an upstream change in a new framework release is caught by the
+A/B byte-identical build check on a version bump, not by these tests.
 """
 
 from __future__ import annotations
@@ -656,16 +657,20 @@ def test_lexed_build_flags_shared_between_consumers(
     )
 
 
-def test_project_flags_warns_on_plain_linker_forms(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A plain-form linker flag lands on the compile line where it is inert;
-    the user must be told to use the -Wl, form."""
-    _set_flags("-Tcustom.ld", "-Xlinker", "-u", "-Os")
+@pytest.mark.parametrize("tok", ["-Tcustom.ld", "-Xlinker", "-u"])
+def test_project_flags_rejects_plain_linker_forms(tok: str) -> None:
+    """A plain-form linker flag would land on the -c compile line where it
+    is inert; refuse naming the -Wl, form instead of shipping firmware that
+    silently lacks the requested link behavior."""
+    _set_flags(tok)
+    with pytest.raises(EsphomeError, match="use the -Wl, form"):
+        arduino8266._project_flags(set())
+
+
+def test_project_flags_plain_compile_flags_pass() -> None:
+    _set_flags("-Os")
     compile_flags, _l, _d, _libs = arduino8266._project_flags(set())
     assert "-Os" in compile_flags
-    for tok in ("-Tcustom.ld", "-Xlinker", "-u"):
-        assert f"Linker flag {tok} in build_flags is not routed" in caplog.text
 
 
 def test_generate_ld_scripts_header_change_invalidates_stamp(
@@ -706,3 +711,105 @@ def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="anchor not found"),
     ):
         _run_generate_ld_scripts(paths)
+
+
+def test_build_config_mmu_conflict_names_the_variant_knob_with_custom() -> None:
+    """With MMU_CUSTOM also set, the actionable fix is dropping the variant
+    knob, not setting the knob the user already set."""
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
+        "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+        "-DMMU_IRAM_SIZE=0xC000",
+        "-DMMU_ICACHE_SIZE=0x4000",
+    )
+    with pytest.raises(EsphomeError, match="drop PIO_FRAMEWORK_ARDUINO_MMU_CACHE16"):
+        _resolve_build_config(_flag_defines(set()))
+
+
+def test_generate_ld_scripts_testing_surgery_failure_is_named(
+    tmp_path: Path,
+) -> None:
+    """A testing-mode segment patch failing on a changed linker script is a
+    named error, like the ratetable surgery."""
+    paths = _make_framework(tmp_path)
+    CORE.testing_mode = True
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        patch.object(
+            arduino8266.build_surgery,
+            "apply_testing_memory_patches",
+            side_effect=RuntimeError("iram1_0_seg not found"),
+        ),
+        pytest.raises(EsphomeError, match="iram1_0_seg not found"),
+    ):
+        _run_generate_ld_scripts(paths)
+
+
+def test_generate_ld_scripts_testing_flash_ld_surgery_failure_is_named(
+    tmp_path: Path,
+) -> None:
+    """The flash-ld segment patch gets the same named-error wrap."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
+        "MEMORY { }"
+    )
+    CORE.testing_mode = True
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        patch.object(
+            arduino8266.build_surgery,
+            "apply_testing_memory_patches",
+            side_effect=["patched common", RuntimeError("dram0_0_seg mismatch")],
+        ),
+        pytest.raises(EsphomeError, match="dram0_0_seg mismatch"),
+    ):
+        _run_generate_ld_scripts(paths)
+
+
+def test_generate_ld_scripts_reemits_cached_preprocessor_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A preprocessor diagnostic survives cache hits instead of appearing
+    once and vanishing for the life of the build dir."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(
+        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something odd"
+    )
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    assert caplog.text.count("warning: something odd") == 1
+    with patch.object(arduino8266.subprocess, "run") as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_not_called()
+    assert caplog.text.count("warning: something odd") == 2
+
+
+def test_generate_ld_scripts_unreadable_header_forces_regeneration(
+    tmp_path: Path,
+) -> None:
+    """A stat failure other than absence must miss the cache every run, not
+    pin the stamp to a constant that can never notice a later edit."""
+    paths = _make_framework(tmp_path)
+    header_name = "eagle.app.v6.common.ld.h"
+    (paths.framework / "tools" / "sdk" / "ld" / header_name).write_text("v1")
+    real_stat = Path.stat
+
+    def fake_stat(self: Path, **kwargs: object):
+        if self.name == header_name:
+            raise PermissionError(13, "denied")
+        return real_stat(self, **kwargs)
+
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(Path, "stat", fake_stat):
+        with patch.object(
+            arduino8266.subprocess, "run", return_value=result
+        ) as mock_run:
+            _run_generate_ld_scripts(paths)
+        mock_run.assert_called_once()
+        with patch.object(
+            arduino8266.subprocess, "run", return_value=result
+        ) as mock_run:
+            _run_generate_ld_scripts(paths)
+        mock_run.assert_called_once()

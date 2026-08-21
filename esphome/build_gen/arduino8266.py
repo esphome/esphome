@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import os
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
@@ -24,7 +25,7 @@ from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import join_flag_args, split_flag_entry
+from esphome.platformio.library import lex_build_flags
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
@@ -177,11 +178,7 @@ def _lexed_build_flags() -> list[str]:
     stamp). Lex once per build and pass the result to ``_flag_defines`` and
     ``_project_flags`` so a malformed entry warns once, not per consumer.
     """
-    return [
-        tok
-        for flag in sorted(CORE.build_flags)
-        for tok in join_flag_args(split_flag_entry(flag, "esphome"), "esphome")
-    ]
+    return lex_build_flags(sorted(CORE.build_flags), "esphome")
 
 
 def _flag_defines(unflags: set[str], tokens: list[str] | None = None) -> dict[str, str]:
@@ -249,10 +246,13 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     if mmu_knob is not None:
         if raw := sorted(n for n in defines if n.startswith("MMU_")):
             # Same compile-line/linker-script split as the no-knob case below
-            raise EsphomeError(
-                f"{', '.join(raw)} conflict with {mmu_knob}; drop the raw MMU_* "
-                "build flags or use PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
+            fix = (
+                f"drop {mmu_knob} to use the custom sizes"
+                if "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines
+                else "drop the raw MMU_* build flags or use "
+                "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
             )
+            raise EsphomeError(f"{', '.join(raw)} conflict with {mmu_knob}; {fix}")
         mmu = list(dict(_MMU_VARIANTS)[mmu_knob])
     elif "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
         if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
@@ -315,17 +315,10 @@ def _defines_flags(
 
 def _unflag_tokens() -> set[str]:
     """``build_unflags`` entries shell-lexed to tokens, as PlatformIO matches."""
-    # Joined like _project_flags reads build_flags, so "-D FOO" removes
+    # Lexed like _lexed_build_flags reads build_flags, so "-D FOO" removes
     # -DFOO in both spellings (PlatformIO's ProcessUnFlags parses the same
     # way) and no bare half can collaterally drop an unrelated token
-    return {
-        tok
-        for entry in CORE.build_unflags
-        for tok in join_flag_args(
-            split_flag_entry(entry, "esphome build_unflags"),
-            "esphome build_unflags",
-        )
-    }
+    return set(lex_build_flags(list(CORE.build_unflags), "esphome build_unflags"))
 
 
 def _project_flags(
@@ -363,11 +356,11 @@ def _project_flags(
             libs.append(tok[2:])
         else:
             if tok == "-u" or tok.startswith(("-T", "-Xlinker")):
-                # Inert on the compile line; the user expects it to link
-                _LOGGER.warning(
-                    "Linker flag %s in build_flags is not routed to the link "
-                    "line; use the -Wl, form",
-                    tok,
+                # Inert on the -c compile line; the firmware would silently
+                # lack the requested link behavior
+                raise EsphomeError(
+                    f"Linker flag {tok} in build_flags is not routed to the "
+                    "link line; use the -Wl, form"
                 )
             compile_flags.append(_shell_token(tok))
     return compile_flags, link_flags, lib_dirs, libs
@@ -407,8 +400,13 @@ def generate_ld_scripts(
     try:
         header_stat = header.stat()
         header_sig = f"{header_stat.st_size}:{header_stat.st_mtime_ns}"
-    except OSError:
+    except FileNotFoundError:
         header_sig = "missing"  # the preprocessor spawn below names it
+    except OSError as err:
+        # An unreadable header must force a cache miss every run, not pin
+        # the stamp to a constant that can never notice a later edit
+        _LOGGER.debug("Could not stat %s: %s", header, err)
+        header_sig = f"unreadable:{os.urandom(8).hex()}"
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
@@ -433,6 +431,7 @@ def generate_ld_scripts(
         except (OSError, UnicodeDecodeError):
             return False
 
+    stderr_note = ld_dir / ".local.eagle.app.v6.common.ld.stderr"
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
@@ -447,7 +446,11 @@ def generate_ld_scripts(
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
         if result.stderr.strip():
             # Preprocessor warnings on the success path must reach the user
+            # on this and every later cached build (see the re-emit below)
             _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
+            stderr_note.write_text(result.stderr.strip(), encoding="utf-8")
+        else:
+            stderr_note.unlink(missing_ok=True)
         if "SECTIONS" not in result.stdout:
             # A degenerate zero-exit run must not be stamped as a good cache
             raise EsphomeError(
@@ -461,11 +464,22 @@ def generate_ld_scripts(
             # traceback, and never a silently unrelocated rate table
             raise EsphomeError(str(err)) from err
         if CORE.testing_mode:
-            content = build_surgery.apply_testing_memory_patches(
-                content, ("iram1_0_seg",)
-            )
+            try:
+                content = build_surgery.apply_testing_memory_patches(
+                    content, ("iram1_0_seg",)
+                )
+            except RuntimeError as err:
+                # Same changed-linker-script failure class as the ratetable
+                raise EsphomeError(str(err)) from err
         write_file_if_changed(output, content)
         stamp.write_text(stamp_content, encoding="utf-8")
+    elif stderr_note.is_file():
+        # The diagnostic must not vanish for the life of the build dir just
+        # because the script is cached
+        _LOGGER.warning(
+            "Linker-script preprocessor: %s",
+            stderr_note.read_text(encoding="utf-8"),
+        )
 
     if CORE.testing_mode:
         # A patched copy of the flash ld in the build dir; resolved through
@@ -478,10 +492,12 @@ def generate_ld_scripts(
             raise EsphomeError(
                 f"Could not read {flash_ld}: {err}; run 'esphome clean-all' and retry"
             ) from err
-        write_file_if_changed(
-            ld_dir / f"testing_{flash_ld_name}",
-            build_surgery.apply_testing_memory_patches(
+        try:
+            patched_flash_ld = build_surgery.apply_testing_memory_patches(
                 flash_ld_text,
                 ("dram0_0_seg", "irom0_0_seg"),
-            ),
-        )
+            )
+        except RuntimeError as err:
+            # Same changed-linker-script failure class as the ratetable
+            raise EsphomeError(str(err)) from err
+        write_file_if_changed(ld_dir / f"testing_{flash_ld_name}", patched_flash_ld)
