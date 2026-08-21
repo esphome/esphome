@@ -534,17 +534,22 @@ def perform_ota(
     # reboots on its own; the exact commit point is not observable from
     # here, so treat everything past the data phase as non-retryable. A
     # re-upload could flash a device that already updated successfully.
+    commit_start = time.perf_counter()
     try:
         receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
         receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
     except OTANetworkError as err:
         raise _committed_error(err) from err
+    commit_duration = time.perf_counter() - commit_start
 
+    # Spans the binary size send through the commit ack; connect, handshake,
+    # and auth are not included
     _LOGGER.info(
-        "OTA took %.2f seconds total (prepare %.2f, upload %.2f)",
+        "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
         time.perf_counter() - prepare_start,
         prepare_duration,
         duration,
+        commit_duration,
     )
 
     try:

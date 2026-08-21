@@ -7,6 +7,7 @@ import gzip
 import hashlib
 import io
 import itertools
+import logging
 from pathlib import Path
 import socket
 import struct
@@ -374,7 +375,9 @@ def test_perform_ota_successful_md5_auth(
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
+def test_perform_ota_no_auth(
+    mock_socket: Mock, mock_file: io.BytesIO, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test OTA without authentication."""
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
@@ -389,7 +392,8 @@ def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
 
     mock_socket.recv.side_effect = recv_responses
 
-    espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+    with caplog.at_level(logging.INFO):
+        espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
     # Should not send any auth-related data
     auth_calls = [
@@ -398,6 +402,11 @@ def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
         if "cnonce" in str(call) or "result" in str(call)
     ]
     assert len(auth_calls) == 0
+
+    # The timing summary is the observable output of the upload
+    assert "Preparing for upload took" in caplog.text
+    assert "Update took" in caplog.text
+    assert "commit" in caplog.text
 
 
 @pytest.mark.usefixtures("mock_time")
