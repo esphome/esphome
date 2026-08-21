@@ -75,6 +75,13 @@ class SX126x final : public Component,
   void set_whitening_initial(uint16_t whitening_initial) { this->whitening_initial_ = whitening_initial; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
+  void set_enable_pins(GPIOPin *rx_enable_pin, GPIOPin *tx_enable_pin) {
+    this->rx_enable_pin_ = rx_enable_pin;
+    this->tx_enable_pin_ = tx_enable_pin;
+  }
+  void set_enable_pins_inverted(bool enable_pins_inverted) {
+    this->enable_pins_inverted_ = enable_pins_inverted;
+  }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_hw_version(const std::string &hw_version) { this->hw_version_ = hw_version; }
   void set_mode_rx();
@@ -105,6 +112,7 @@ class SX126x final : public Component,
   static void IRAM_ATTR gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
+  void set_rx_tx_enable_pins_(uint8_t mode);
   void set_packet_params_(uint8_t payload_length);
   uint8_t read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
   void write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet);
@@ -120,13 +128,16 @@ class SX126x final : public Component,
   std::vector<uint8_t> sync_value_;
   GPIOPin *busy_pin_{nullptr};
   GPIOPin *dio1_pin_{nullptr};
+  GPIOPin *rx_enable_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
+  GPIOPin *tx_enable_pin_{nullptr};
   std::string hw_version_;
   char version_[16];
   SX126xBw bandwidth_{SX126X_BW_125000};
   uint32_t bitrate_{0};
   bool crc_enable_{false};
   bool crc_inverted_{false};
+  bool enable_pins_inverted_{false};
   uint8_t crc_size_{0};
   uint16_t crc_polynomial_{0};
   uint16_t crc_initial_{0};

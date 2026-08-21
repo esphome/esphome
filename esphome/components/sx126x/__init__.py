@@ -26,6 +26,7 @@ CONF_CRC_POLYNOMIAL = "crc_polynomial"
 CONF_CRC_INITIAL = "crc_initial"
 CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
+CONF_ENABLE_PINS_INVERTED = "enable_pins_inverted"
 CONF_HW_VERSION = "hw_version"
 CONF_MODULATION = "modulation"
 CONF_PA_POWER = "pa_power"
@@ -36,6 +37,7 @@ CONF_PREAMBLE_SIZE = "preamble_size"
 CONF_RST_PIN = "rst_pin"
 CONF_RX_START = "rx_start"
 CONF_RF_SWITCH = "rf_switch"
+CONF_RX_ENABLE_PIN = "rx_enable_pin"
 CONF_SHAPING = "shaping"
 CONF_SPREADING_FACTOR = "spreading_factor"
 CONF_SYNC_VALUE = "sync_value"
@@ -43,6 +45,7 @@ CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
 CONF_WHITENING_ENABLE = "whitening_enable"
 CONF_WHITENING_INITIAL = "whitening_initial"
+CONF_TX_ENABLE_PIN = "tx_enable_pin"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
 SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
@@ -210,6 +213,7 @@ CONFIG_SCHEMA = (
                 cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_ENABLE_PINS_INVERTED, default=False): cv.boolean,
             cv.Required(CONF_FREQUENCY): cv.All(
                 cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
@@ -226,6 +230,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
             cv.Required(CONF_RF_SWITCH): cv.boolean,
+            cv.Optional(CONF_RX_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
             cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
             cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
@@ -238,10 +243,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
                 cv.hex_int, cv.Range(min=0, max=0x1FF)
             ),
+            cv.Optional(CONF_TX_ENABLE_PIN): pins.gpio_output_pin_schema,
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema(True, 8e6, "mode0"))
+    .add_extra(cv.has_none_or_all_keys(CONF_RX_ENABLE_PIN, CONF_TX_ENABLE_PIN))
     .add_extra(validate_config)
 )
 
@@ -267,6 +274,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_rst_pin(rst_pin))
     busy_pin = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
     cg.add(var.set_busy_pin(busy_pin))
+    if (rx_enable_pin_config := config.get(CONF_RX_ENABLE_PIN)) is not None:
+        rx_enable_pin = await cg.gpio_pin_expression(rx_enable_pin_config)
+        tx_enable_pin = await cg.gpio_pin_expression(config[CONF_TX_ENABLE_PIN])
+        cg.add(var.set_enable_pins(rx_enable_pin, tx_enable_pin))
+        cg.add(var.set_enable_pins_inverted(config[CONF_ENABLE_PINS_INVERTED]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
     cg.add(var.set_hw_version(config[CONF_HW_VERSION]))
