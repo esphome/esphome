@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTOMATION_ID,
     CONF_BUTTON,
     CONF_DELAY,
     CONF_DISCOVERY,
@@ -13,12 +14,14 @@ from esphome.const import (
     CONF_NAME,
     CONF_OFFSET,
     CONF_PAYLOAD,
+    CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VALUE,
 )
 from esphome.core import ID as CoreID, HexInt
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@b3nj1"]
 DEPENDENCIES = ["uart"]
@@ -105,6 +108,8 @@ CONF_FIELD = "field"
 CONF_MASK = "mask"
 CONF_BIT = "bit"
 CONF_VALUES = "values"
+CONF_ON_CONFIRMED = "on_confirmed"
+CONF_ON_FAILED = "on_failed"
 
 CRC_VARIANTS = {
     "header_inclusive": CrcVariant.CRC_HEADER_INCLUSIVE,
@@ -627,6 +632,13 @@ RESPONSE_MONITOR_ENTRY_SCHEMA = cv.Schema(
             cv.ensure_list(_validate_signature_alt),
             cv.Length(min=1, max=MAX_SIGNATURE_ALTS),
         ),
+        # Fire on this entry's own SUCCESS (on_confirmed:) or FAIL/TIMEOUT (on_failed:)
+        # outcomes only -- never on NOT_APPLICABLE (an expected "gate didn't hold this time",
+        # not a failure) or ORPHAN (no trigger from this entry was even pending). No args:
+        # callers that need to know which button confirmed/failed already know, since each
+        # entry names exactly one trigger.
+        cv.Optional(CONF_ON_CONFIRMED): automation.validate_automation({}),
+        cv.Optional(CONF_ON_FAILED): automation.validate_automation({}),
     }
 )
 
@@ -924,6 +936,26 @@ def _final_validate_response_monitor(config):
 FINAL_VALIDATE_SCHEMA = _final_validate_response_monitor
 
 
+# response_monitor:'s on_confirmed:/on_failed: are per-entry (registered via
+# add_response_monitor_on_confirmed_callback(entry_index, ...)), so this can't reuse
+# automation.build_callback_automation as-is -- that helper's callback_method call takes only
+# the forwarder, with no room for the entry_index the C++ side needs to route the callback to
+# the right ResponseMonitorEntry. Same body otherwise (see automation.build_callback_automation).
+async def _build_response_monitor_callback(
+    var: cg.MockObj, callback_method: str, entry_index: int, conf: ConfigType
+) -> None:
+    templ = cg.TemplateArguments()
+    obj = cg.new_Pvariable(conf[CONF_AUTOMATION_ID], templ)
+    actions = await automation.build_action_list(conf[CONF_THEN], templ, [])
+    cg.add(obj.add_actions(actions))
+    forwarder = automation.TriggerForwarder.template(templ)
+    cg.add(
+        getattr(var, callback_method)(
+            entry_index, cg.RawExpression(f"{forwarder}{{{obj}}}")
+        )
+    )
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -1106,6 +1138,15 @@ async def to_code(config):
                             gate[CONF_VALUE],
                         )
                     )
+
+            for conf in entry.get(CONF_ON_CONFIRMED, []):
+                await _build_response_monitor_callback(
+                    var, "add_response_monitor_on_confirmed_callback", entry_index, conf
+                )
+            for conf in entry.get(CONF_ON_FAILED, []):
+                await _build_response_monitor_callback(
+                    var, "add_response_monitor_on_failed_callback", entry_index, conf
+                )
 
     for conf in config.get(CONF_ON_FRAME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

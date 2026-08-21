@@ -5,6 +5,12 @@ globals:
   - id: g_display_text
     type: std::string
     initial_value: '""'
+  - id: g_lights_confirm_count
+    type: uint32_t
+    initial_value: "0"
+  - id: g_lights_failed_count
+    type: uint32_t
+    initial_value: "0"
 
 # NOTE: every hub below shares one UART (uart_bus) so this single config exercises all hub modes
 # for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
@@ -89,6 +95,14 @@ rs485_frame:
           - field: led_mask_01_02
             type: changed
             bit: 6
+        # on_confirmed:/on_failed: automation triggers, independent of the built-in sensors
+        # above -- exercises the per-entry callback registration/codegen path.
+        on_confirmed:
+          - lambda: |-
+              id(g_lights_confirm_count) += 1;
+        on_failed:
+          - lambda: |-
+              id(g_lights_failed_count) += 1;
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.

@@ -230,6 +230,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t get_response_monitor_stat(uint8_t entry_index, ResponseMonitorStat stat) const {
     return this->response_monitor_->get_stat(entry_index, stat);
   }
+  template<typename F> void add_response_monitor_on_confirmed_callback(uint8_t entry_index, F &&callback) {
+    this->response_monitor_->add_on_confirmed_callback(entry_index, std::forward<F>(callback));
+  }
+  template<typename F> void add_response_monitor_on_failed_callback(uint8_t entry_index, F &&callback) {
+    this->response_monitor_->add_on_failed_callback(entry_index, std::forward<F>(callback));
+  }
 #endif
 
   bool queue_command_value(uint32_t command) { return this->queue_command_values(&command, 1); }

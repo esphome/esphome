@@ -25,6 +25,10 @@ uint8_t ResponseMonitor::add_entry(const std::vector<uint8_t> &trigger, uint32_t
   ResponseMonitorEntry &entry = this->entries_.emplace_next();
   entry.trigger.assign(trigger.begin(), trigger.end());
   entry.window_ms = window_ms;
+  // Keep the callback vectors index-aligned with entries_ (mirrors ambient_/ambient_valid_'s
+  // alignment with fields_ in add_field).
+  this->on_confirmed_callbacks_.emplace_next();
+  this->on_failed_callbacks_.emplace_next();
   return static_cast<uint8_t>(this->entries_.size() - 1);
 }
 
@@ -182,17 +186,21 @@ bool ResponseMonitor::gate_active_(const SignatureAlt &alt) const {
   return (v & alt.gate_mask) == (alt.gate_value & alt.gate_mask);
 }
 
-void ResponseMonitor::resolve_entry_(ResponseMonitorEntry &entry, ResponseMonitorStat stat) {
+void ResponseMonitor::resolve_entry_(uint8_t entry_index, ResponseMonitorStat stat) {
+  ResponseMonitorEntry &entry = this->entries_[entry_index];
   entry.pending = false;
   switch (stat) {
     case RESPONSE_MONITOR_STAT_SUCCESS:
       entry.success_count++;
+      this->on_confirmed_callbacks_[entry_index].call();
       break;
     case RESPONSE_MONITOR_STAT_FAIL:
       entry.fail_count++;
+      this->on_failed_callbacks_[entry_index].call();
       break;
     case RESPONSE_MONITOR_STAT_TIMEOUT:
       entry.timeout_count++;
+      this->on_failed_callbacks_[entry_index].call();
       break;
     case RESPONSE_MONITOR_STAT_NOT_APPLICABLE:
       entry.not_applicable_count++;
@@ -204,7 +212,8 @@ void ResponseMonitor::resolve_entry_(ResponseMonitorEntry &entry, ResponseMonito
 }
 
 void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint32_t now) {
-  for (auto &entry : this->entries_) {
+  for (uint8_t idx = 0; idx < this->entries_.size(); idx++) {
+    ResponseMonitorEntry &entry = this->entries_[idx];
     if (entry.trigger.empty() || payload.size() < entry.trigger.size())
       continue;
     if (!std::equal(entry.trigger.begin(), entry.trigger.end(), payload.begin()))
@@ -215,7 +224,7 @@ void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint3
     // that occurrence's pending/deadline/saw_any_match — resolve it first, on the evidence
     // gathered so far, exactly as process_timeouts would if the window had simply elapsed.
     if (entry.pending) {
-      this->resolve_entry_(entry, entry.saw_any_match ? RESPONSE_MONITOR_STAT_FAIL : RESPONSE_MONITOR_STAT_TIMEOUT);
+      this->resolve_entry_(idx, entry.saw_any_match ? RESPONSE_MONITOR_STAT_FAIL : RESPONSE_MONITOR_STAT_TIMEOUT);
     }
 
     entry.alt_active.clear();
@@ -228,7 +237,7 @@ void ResponseMonitor::on_trigger_sent(const std::vector<uint8_t> &payload, uint3
     if (!any_active) {
       // Every alt is a changed_gated whose gate does not currently hold — this occurrence is
       // "not applicable", not a failure, and the window is not armed at all.
-      this->resolve_entry_(entry, RESPONSE_MONITOR_STAT_NOT_APPLICABLE);
+      this->resolve_entry_(idx, RESPONSE_MONITOR_STAT_NOT_APPLICABLE);
       continue;
     }
     entry.pending = true;
@@ -246,7 +255,8 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
     const ResponseField &field = this->fields_[i];
     const uint8_t *old_bytes = this->ambient_valid_[i] ? this->ambient_[i].data() : new_bytes;
 
-    for (auto &entry : this->entries_) {
+    for (uint8_t entry_idx = 0; entry_idx < this->entries_.size(); entry_idx++) {
+      ResponseMonitorEntry &entry = this->entries_[entry_idx];
       for (size_t j = 0; j < entry.signature.size(); j++) {
         const SignatureAlt &alt = entry.signature[j];
         if (alt.field_index != i)
@@ -261,7 +271,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
             continue;
           entry.saw_any_match = true;
           if (this->eval_alt_(alt, old_bytes, new_bytes, len, field.big_endian)) {
-            this->resolve_entry_(entry, RESPONSE_MONITOR_STAT_SUCCESS);
+            this->resolve_entry_(entry_idx, RESPONSE_MONITOR_STAT_SUCCESS);
             break;  // entry is resolved; remaining alts for this entry need no evaluation
           }
         } else if (this->gate_active_(alt) && this->eval_alt_(alt, old_bytes, new_bytes, len, field.big_endian)) {
@@ -270,7 +280,7 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
           // (not just continue) so a second alt sharing this field_index -- which would
           // independently evaluate true against the very same RX event -- does not
           // double-count one physical occurrence as two orphans.
-          this->resolve_entry_(entry, RESPONSE_MONITOR_STAT_ORPHAN);
+          this->resolve_entry_(entry_idx, RESPONSE_MONITOR_STAT_ORPHAN);
           break;
         }
       }
@@ -285,12 +295,13 @@ void ResponseMonitor::on_frame_received(const std::vector<uint8_t> &payload, uin
 }
 
 void ResponseMonitor::process_timeouts(uint32_t now) {
-  for (auto &entry : this->entries_) {
+  for (uint8_t idx = 0; idx < this->entries_.size(); idx++) {
+    ResponseMonitorEntry &entry = this->entries_[idx];
     if (!entry.pending)
       continue;
     // Unsigned subtraction wraps correctly across the 49-day millis rollover.
     if (now - entry.deadline < 0x80000000UL) {
-      this->resolve_entry_(entry, entry.saw_any_match ? RESPONSE_MONITOR_STAT_FAIL : RESPONSE_MONITOR_STAT_TIMEOUT);
+      this->resolve_entry_(idx, entry.saw_any_match ? RESPONSE_MONITOR_STAT_FAIL : RESPONSE_MONITOR_STAT_TIMEOUT);
     }
   }
 }

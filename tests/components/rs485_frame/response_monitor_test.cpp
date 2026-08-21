@@ -332,4 +332,147 @@ TEST(ResponseMonitorTest, ChangedOnFieldOverFourBytesFailsWhenBytesAreIdentical)
   EXPECT_EQ(rm.get_stat(entry, RESPONSE_MONITOR_STAT_SUCCESS), 0u);
 }
 
+// on_confirmed:/on_failed: automation triggers. A SUCCESS resolution must fire the entry's
+// on_confirmed callback exactly once, and must not touch on_failed.
+TEST(ResponseMonitorTest, SuccessFiresOnConfirmedCallbackOnce) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();
+  uint8_t entry = rm.setup_changed_entry();
+  int confirmed = 0;
+  int failed = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { confirmed++; });
+  rm.add_on_failed_callback(entry, [&]() { failed++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  rm.feed_led_mask(0x00000040, /*now=*/60);  // real transition -- SUCCESS
+
+  EXPECT_EQ(confirmed, 1);
+  EXPECT_EQ(failed, 0);
+}
+
+// A FAIL resolution (addressed field arrived but signature never matched) must fire
+// on_failed exactly once, and must not touch on_confirmed.
+TEST(ResponseMonitorTest, FailFiresOnFailedCallbackOnce) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();
+  uint8_t entry = rm.setup_changed_entry();
+  int confirmed = 0;
+  int failed = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { confirmed++; });
+  rm.add_on_failed_callback(entry, [&]() { failed++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  rm.feed_led_mask(0x00000000, /*now=*/60);  // same value -- not a transition
+  rm.process_timeouts(/*now=*/9999);
+
+  EXPECT_EQ(failed, 1);
+  EXPECT_EQ(confirmed, 0);
+}
+
+// A TIMEOUT resolution (addressed field never arrived at all) must also fire on_failed --
+// on_failed: covers both wrong-signature and no-response outcomes alike.
+TEST(ResponseMonitorTest, TimeoutFiresOnFailedCallbackOnce) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();
+  uint8_t entry = rm.setup_changed_entry();
+  int confirmed = 0;
+  int failed = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { confirmed++; });
+  rm.add_on_failed_callback(entry, [&]() { failed++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  // No RX at all before the window elapses.
+  rm.process_timeouts(/*now=*/9999);
+
+  EXPECT_EQ(failed, 1);
+  EXPECT_EQ(confirmed, 0);
+}
+
+// NOT_APPLICABLE (a changed_gated entry whose gate does not hold at trigger time) is neither
+// a confirmation nor a failure -- it must fire neither callback.
+TEST(ResponseMonitorTest, NotApplicableFiresNeitherCallback) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();                               // field 0: the watched value
+  rm.add_field({0x01, 0x09}, {0xFF, 0xFF}, 2, 4, false);  // field 1: the gate flag
+  uint8_t entry = rm.add_entry({0xDD}, 200);
+  rm.add_changed_gated_alt(entry, /*field_index=*/0, /*mask=*/0x40, /*gate_field_index=*/1,
+                           /*gate_mask=*/0x01, /*gate_value=*/0x01);
+  int confirmed = 0;
+  int failed = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { confirmed++; });
+  rm.add_on_failed_callback(entry, [&]() { failed++; });
+
+  std::vector<uint8_t> gate_payload = {0x01, 0x09, 0x00, 0x00, 0x00, 0x00};  // gate never holds
+  rm.on_frame_received(gate_payload, /*now=*/0);
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+
+  rm.on_trigger_sent({0xDD}, /*now=*/10);  // resolves NOT_APPLICABLE immediately
+
+  EXPECT_EQ(confirmed, 0);
+  EXPECT_EQ(failed, 0);
+}
+
+// ORPHAN (a signature match with no trigger pending) must not fire on_failed -- no press was
+// ever made through this entry's own trigger, so there is nothing to report as failed.
+TEST(ResponseMonitorTest, OrphanFiresNeitherCallback) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();
+  uint8_t entry = rm.setup_changed_entry();
+  int confirmed = 0;
+  int failed = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { confirmed++; });
+  rm.add_on_failed_callback(entry, [&]() { failed++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);   // baseline, bit 0x40 clear
+  rm.feed_led_mask(0x00000040, /*now=*/50);  // bit flips with no trigger ever sent -- orphan
+
+  EXPECT_EQ(confirmed, 0);
+  EXPECT_EQ(failed, 0);
+}
+
+// Multiple on_confirmed: actions on the same entry (YAML allows a list under one trigger key)
+// must all fire, not just the first registered.
+TEST(ResponseMonitorTest, MultipleOnConfirmedCallbacksOnSameEntryAllFire) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();
+  uint8_t entry = rm.setup_changed_entry();
+  int first = 0;
+  int second = 0;
+  rm.add_on_confirmed_callback(entry, [&]() { first++; });
+  rm.add_on_confirmed_callback(entry, [&]() { second++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+  rm.on_trigger_sent({0xAA}, /*now=*/10);
+  rm.feed_led_mask(0x00000040, /*now=*/60);
+
+  EXPECT_EQ(first, 1);
+  EXPECT_EQ(second, 1);
+}
+
+// A second entry's callbacks must never fire from the first entry's resolution -- proves
+// on_confirmed_callbacks_/on_failed_callbacks_ are correctly index-aligned with entries_.
+TEST(ResponseMonitorTest, CallbacksAreIsolatedPerEntry) {
+  ResponseMonitorProbe rm;
+  rm.setup_changed_field();  // field 0, shared by both entries below
+  uint8_t entry_a = rm.add_entry({0xAA}, 200);
+  rm.add_changed_alt(entry_a, /*field_index=*/0, /*mask=*/0x40);
+  uint8_t entry_b = rm.add_entry({0xBB}, 200);
+  rm.add_changed_alt(entry_b, /*field_index=*/0, /*mask=*/0x80);
+
+  int confirmed_a = 0;
+  int confirmed_b = 0;
+  rm.add_on_confirmed_callback(entry_a, [&]() { confirmed_a++; });
+  rm.add_on_confirmed_callback(entry_b, [&]() { confirmed_b++; });
+
+  rm.feed_led_mask(0x00000000, /*now=*/0);
+  rm.on_trigger_sent({0xAA}, /*now=*/10);    // arms entry_a only
+  rm.feed_led_mask(0x000000C0, /*now=*/60);  // both masked bits (0x40 and 0x80) change
+
+  EXPECT_EQ(confirmed_a, 1);
+  EXPECT_EQ(confirmed_b, 0);
+}
+
 }  // namespace esphome::rs485_frame::testing

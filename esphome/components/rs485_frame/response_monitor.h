@@ -103,10 +103,10 @@ struct ResponseMonitorEntry {
 };
 
 /// Owns the response_fields:/response_monitor: config and the live trigger -> response
-/// matching state machine: core signature matching and the success/fail/timeout/
-/// not_applicable/orphan counters exposed to the sensor platform. on_confirmed:/on_failed:
-/// automation triggers and an optional retry consumer are later, separate additions — not
-/// implemented here.
+/// matching state machine: core signature matching, the success/fail/timeout/
+/// not_applicable/orphan counters exposed to the sensor platform, and the on_confirmed:/
+/// on_failed: automation callbacks. An optional retry consumer hooking on_failed: is a later,
+/// separate addition — not implemented here.
 class ResponseMonitor {
  public:
   // Declares one response_fields: entry. Called once per field from to_code, in YAML
@@ -146,6 +146,20 @@ class ResponseMonitor {
 
   uint32_t get_stat(uint8_t entry_index, ResponseMonitorStat stat) const;
 
+  // Registers a callback fired when entry_index resolves SUCCESS (on_confirmed:) or
+  // FAIL/TIMEOUT (on_failed:) -- never on NOT_APPLICABLE (an expected "gate didn't hold this
+  // time", not a failure) or ORPHAN (no trigger from this entry was even pending). Templated
+  // per this component's callback-registration convention (accepts std::function and
+  // pointer-sized forwarder structs alike; see build_callback_automation).
+  template<typename F> void add_on_confirmed_callback(uint8_t entry_index, F &&callback) {
+    if (entry_index < this->on_confirmed_callbacks_.size())
+      this->on_confirmed_callbacks_[entry_index].add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_failed_callback(uint8_t entry_index, F &&callback) {
+    if (entry_index < this->on_failed_callbacks_.size())
+      this->on_failed_callbacks_[entry_index].add(std::forward<F>(callback));
+  }
+
  protected:
   bool field_matches_(const ResponseField &field, const std::vector<uint8_t> &payload, uint8_t *out,
                       uint8_t &out_len) const;
@@ -158,10 +172,17 @@ class ResponseMonitor {
   // (arm time) and on_frame_received's orphan path (which has no arm time of its own, so it
   // uses "now" as a stand-in for "trigger time").
   bool gate_active_(const SignatureAlt &alt) const;
-  void resolve_entry_(ResponseMonitorEntry &entry, ResponseMonitorStat stat);
+  // entry_index (rather than a ResponseMonitorEntry& as before on_confirmed_/on_failed_
+  // callbacks existed) so this can fire the index-aligned callback for SUCCESS/FAIL/TIMEOUT.
+  void resolve_entry_(uint8_t entry_index, ResponseMonitorStat stat);
 
   StaticVector<ResponseField, MAX_RESPONSE_FIELDS> fields_;
   StaticVector<ResponseMonitorEntry, MAX_RESPONSE_MONITOR_ENTRIES> entries_;
+  // Index-aligned with entries_ (grown in lockstep by add_entry, mirroring ambient_/
+  // ambient_valid_'s alignment with fields_). LazyCallbackManager costs 4 bytes per entry
+  // slot even when on_confirmed:/on_failed: are never declared for that entry.
+  StaticVector<LazyCallbackManager<void()>, MAX_RESPONSE_MONITOR_ENTRIES> on_confirmed_callbacks_;
+  StaticVector<LazyCallbackManager<void()>, MAX_RESPONSE_MONITOR_ENTRIES> on_failed_callbacks_;
 
   // One continuously-refreshed ambient snapshot per declared field (index-aligned with
   // fields_), used by `changed`/`changed_gated`. Updated on every matching RX regardless of
