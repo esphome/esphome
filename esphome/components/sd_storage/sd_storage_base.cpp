@@ -138,13 +138,12 @@ void SdStorageBase::loop_cd_() {
 
   if (present) {
     ESP_LOGI(TAG_BASE, "Card inserted (CD edge)");
-    bool ok = this->mount() == storage::StorageError::STORAGE_ERROR_OK;
-    this->log_mount_result_(ok);
+    this->log_mount_result_(this->mount());
     if (ok)
       this->on_inserted_.call();
   } else if (this->is_mounted_) {
     ESP_LOGI(TAG_BASE, "Card removed (CD edge)");
-    this->log_unmount_();
+    this->log_unmount_(this->unmount());
     this->on_removed_.call();
   }
 }
