@@ -149,6 +149,7 @@ class TrackerData:
     """Per-run validation state, namespaced under DOMAIN in CORE.data."""
 
     scan_window_defaulted: bool = False
+    connection_window_injected: bool = False
 
 
 def _get_data() -> TrackerData:
@@ -177,14 +178,16 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     honors the window strictly (>= 5.5.5); without the arbiter a full-duty
     scan would starve wifi outright, and a user-set window is never touched.
     Raising to the interval cannot invalidate the already-validated
-    parameters, so no re-validation is needed.
+    parameters, so no re-validation is needed. Also checks the connection
+    window against the window here, after the raise, so a fallback below a
+    raised window validates while one that would widen the scan is rejected.
     """
+    params = config[CONF_SCAN_PARAMETERS]
     if (
         _get_data().scan_window_defaulted
         and config.get(CONF_SOFTWARE_COEXISTENCE)
         and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
     ):
-        params = config[CONF_SCAN_PARAMETERS]
         # Copy so the config dump shows a plain value instead of a YAML
         # anchor/alias pair pointing at the interval.
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
@@ -197,6 +200,16 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
             params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
                 ble_device_base.DEFAULT_SCAN_WINDOW
             )
+            _get_data().connection_window_injected = True
+    if (
+        connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)
+    ) is not None and connection_window > params[CONF_WINDOW]:
+        # A larger value would widen the scan during connections, the exact
+        # airtime contention the option exists to remove.
+        raise cv.Invalid(
+            f"{CONF_CONNECTION_SCAN_WINDOW} ({connection_window}) needs to be "
+            f"smaller than the scan window ({params[CONF_WINDOW]})"
+        )
     return config
 
 
@@ -311,6 +324,15 @@ async def to_code(config: ConfigType) -> None:
         async def _emit_connection_scan_window() -> None:
             if cg.get_slot_count(CLIENT_COUNT_DEFINE):
                 cg.add(var.set_connection_scan_window(window_units))
+            elif not _get_data().connection_window_injected:
+                # A user-set value that cannot take effect deserves a heads-up;
+                # the auto-injected default is dropped silently.
+                _LOGGER.warning(
+                    "'%s' has no effect because this build has no BLE client "
+                    "components (for example bluetooth_proxy with active "
+                    "connections, or ble_client)",
+                    CONF_CONNECTION_SCAN_WINDOW,
+                )
 
         CORE.add_job(_emit_connection_scan_window)
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))

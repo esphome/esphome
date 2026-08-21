@@ -158,6 +158,10 @@ void ESP32BLETracker::loop() {
   // in flight, matching the restart gate below.
   if (this->using_connection_window_ && !counts.active && !counts.disconnecting && this->scan_continuous_ &&
       this->scanner_state_ == ScannerState::RUNNING) {
+    // The restart continues the same logical scan period, so the listeners
+    // must not get an extra on_scan_end (ble_rssi would publish NAN for
+    // beacons not yet seen in the period).
+    this->skip_next_scan_end_ = true;
     this->stop_scan_();
   }
 #endif
@@ -247,7 +251,15 @@ void ESP32BLETracker::start_scan_(bool first) {
   }
   this->set_scanner_state_(ScannerState::STARTING);
   ESP_LOGV(TAG, "Starting scan, set scanner state to STARTING.");
-  if (!first) {
+  bool notify_scan_end = !first;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  if (this->skip_next_scan_end_) {
+    // Window-change restart: the same logical scan period continues.
+    this->skip_next_scan_end_ = false;
+    notify_scan_end = false;
+  }
+#endif
+  if (notify_scan_end) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
@@ -267,8 +279,12 @@ void ESP32BLETracker::start_scan_(bool first) {
   uint32_t window = this->scan_window_;
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   // Count fresh rather than reading the loop() cache: an automation can start
-  // a scan before loop() has refreshed the counts for a new connection.
-  this->using_connection_window_ = this->connection_scan_window_ != 0 && this->count_client_states_().active > 0;
+  // a scan before loop() has refreshed the counts for a new connection. An
+  // equal connection window changes nothing, so it must not arm the
+  // last-disconnect restart in loop().
+  this->using_connection_window_ = this->connection_scan_window_ != 0 &&
+                                   this->connection_scan_window_ != this->scan_window_ &&
+                                   this->count_client_states_().active > 0;
   if (this->using_connection_window_) {
     // While a GATT connection is active, fall back to the connection scan
     // window so the connection events get guaranteed airtime instead of

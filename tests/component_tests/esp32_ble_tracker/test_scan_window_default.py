@@ -163,6 +163,21 @@ def test_connection_scan_window_above_interval_rejected(
         _scan_params({"scan_parameters": {"connection_scan_window": "400ms"}})
 
 
+def test_connection_scan_window_above_window_rejected(
+    stage_esp32: Callable[..., None],
+) -> None:
+    """A connection window above the (post-raise) window would widen the scan
+    during connections; the reject runs after the raise so a fallback below a
+    raised window still validates (covered by the survives-raise test)."""
+    stage_esp32("5.5.5", wifi=True)
+    with pytest.raises(
+        cv.Invalid, match="connection_scan_window .* needs to be smaller"
+    ):
+        _scan_params(
+            {"scan_parameters": {"window": "30ms", "connection_scan_window": "300ms"}}
+        )
+
+
 def test_connection_scan_window_truncation_collapse_rejected(
     stage_esp32: Callable[..., None],
 ) -> None:

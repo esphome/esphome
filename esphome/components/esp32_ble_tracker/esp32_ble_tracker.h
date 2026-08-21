@@ -338,20 +338,24 @@ class ESP32BLETracker final : public Component,
   /// state_version_ to detect if any state changed since last iteration.
   uint8_t last_processed_version_{0};
   ScannerState scanner_state_{ScannerState::IDLE};
-  bool scan_continuous_;
-  bool scan_active_;
+  // Single-bit flags packed into one byte so new flags stop growing the class.
+  bool scan_continuous_ : 1;
+  bool scan_active_ : 1;
 #ifdef USE_OTA_STATE_LISTENER
-  bool scan_continuous_before_ota_{false};
+  bool scan_continuous_before_ota_ : 1 {false};
 #endif
-  bool ble_was_disabled_{true};
-  bool parse_advertisements_{false};
+  bool ble_was_disabled_ : 1 {true};
+  bool parse_advertisements_ : 1 {false};
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   /// The running scan was started with connection_scan_window_; lets loop()
   /// restart the scan at the configured window when the last connection drops.
-  bool using_connection_window_{false};
+  bool using_connection_window_ : 1 {false};
+  /// The next start_scan_ continues the same logical scan period (set by the
+  /// window-change restart), so the on_scan_end sweep is skipped once.
+  bool skip_next_scan_end_ : 1 {false};
 #endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-  bool coex_prefer_ble_{false};
+  bool coex_prefer_ble_ : 1 {false};
 #endif
   // Scan timeout state machine
   enum class ScanTimeoutState : uint8_t {
