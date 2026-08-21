@@ -1,9 +1,11 @@
 """Shared ccache policy for build backends.
 
-One place for the ``CCACHE_*`` defaults (every backend) and for the probe
-and enable rules (backends that call ``resolve_ccache_path``: PlatformIO
-and the native Arduino build). The ESP-IDF backend keeps its own
-``IDF_CCACHE_ENABLE`` gate and does not probe.
+``ccache_defaults_env`` serves the backends that export ``CCACHE_*`` into a
+build subprocess (native ESP-IDF and Arduino); ``resolve_ccache_path``
+carries the probe and enable rules (PlatformIO and the native Arduino
+build). The ESP-IDF backend keeps its own ``IDF_CCACHE_ENABLE`` gate and
+does not probe; PlatformIO feeds its SCons wrapper script through env
+channels instead of ``CCACHE_*`` defaults.
 """
 
 from __future__ import annotations
