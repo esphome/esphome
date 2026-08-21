@@ -72,8 +72,8 @@ rs485_frame:
               if (!payload.empty())
                 id(g_led_mask) = payload[0];
     # Live trigger -> response confirmation. Exercises button_id: trigger resolution,
-    # named field: references, the changed+mask signature mode, and the response_*
-    # sensor decodes below.
+    # named field: references, the changed+bit signature mode (bit: 6 resolves to mask:
+    # 0x40), and the response_* sensor decodes below.
     response_fields:
       led_mask_01_02:
         frame_type: [0x01, 0x02]
@@ -88,7 +88,7 @@ rs485_frame:
         signature:
           - field: led_mask_01_02
             type: changed
-            mask: 0x40
+            bit: 6
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.

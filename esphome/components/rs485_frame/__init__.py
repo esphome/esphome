@@ -98,10 +98,12 @@ CONF_RESPONSE_MONITOR = "response_monitor"
 CONF_FRAME_TYPE_MASK = "frame_type_mask"
 CONF_TRIGGER = "trigger"
 CONF_BUTTON_ID = "button_id"
+CONF_BUTTON_NAME = "button_name"
 CONF_WINDOW = "window"
 CONF_SIGNATURE = "signature"
 CONF_FIELD = "field"
 CONF_MASK = "mask"
+CONF_BIT = "bit"
 CONF_VALUES = "values"
 
 CRC_VARIANTS = {
@@ -502,29 +504,43 @@ def _validate_trigger(value):
     value = cv.Schema(
         {
             cv.Optional(CONF_BUTTON_ID): _validate_button_id,
+            cv.Optional(CONF_BUTTON_NAME): cv.string_strict,
             cv.Optional(CONF_FRAME_TYPE): validate_frame_type,
         }
     )(value)
-    if CONF_BUTTON_ID in value and CONF_FRAME_TYPE in value:
-        raise cv.Invalid(
-            "response_monitor trigger: specify either 'button_id' or 'frame_type', not both"
-        )
-    if CONF_BUTTON_ID not in value and CONF_FRAME_TYPE not in value:
-        raise cv.Invalid(
-            "response_monitor trigger requires either 'button_id' or 'frame_type'"
-        )
+    cv.has_exactly_one_key(CONF_BUTTON_ID, CONF_BUTTON_NAME, CONF_FRAME_TYPE)(value)
     return value
 
 
-MASKED_INT_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_FIELD): cv.string,
-        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_MASKED_INT),
-        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
-        cv.Required(CONF_VALUE): cv.All(
-            cv.ensure_list(validate_u32), cv.Length(min=1, max=MAX_MASKED_INT_VALUES)
-        ),
-    }
+# `mask:` and `bit:` are two representations of the same signature-matching value: `bit: N` is
+# shorthand for `mask: 0x<1<<N>`, for the common case of watching a single bit (e.g. one LED in a
+# bitmask field also exposed per-bit by led.yaml) without the config author computing the hex mask
+# by hand and keeping it in sync with the bit position used elsewhere. Mutually exclusive; resolved
+# to CONF_MASK here so every downstream consumer (codegen) only ever sees CONF_MASK.
+def _resolve_bit_to_mask(value):
+    if CONF_BIT in value:
+        value = {**value, CONF_MASK: HexInt(1 << value[CONF_BIT])}
+        del value[CONF_BIT]
+    elif CONF_MASK not in value:
+        value = {**value, CONF_MASK: HexInt(0xFFFFFFFF)}
+    return value
+
+
+MASKED_INT_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FIELD): cv.string,
+            cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_MASKED_INT),
+            cv.Optional(CONF_MASK): validate_u32,
+            cv.Optional(CONF_BIT): cv.int_range(min=0, max=31),
+            cv.Required(CONF_VALUE): cv.All(
+                cv.ensure_list(validate_u32),
+                cv.Length(min=1, max=MAX_MASKED_INT_VALUES),
+            ),
+        }
+    ),
+    cv.has_at_most_one_key(CONF_MASK, CONF_BIT),
+    _resolve_bit_to_mask,
 )
 
 TEXT_ENUM_SCHEMA = cv.Schema(
@@ -538,31 +554,46 @@ TEXT_ENUM_SCHEMA = cv.Schema(
     }
 )
 
-CHANGED_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_FIELD): cv.string,
-        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED),
-        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
-    }
+CHANGED_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FIELD): cv.string,
+            cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED),
+            cv.Optional(CONF_MASK): validate_u32,
+            cv.Optional(CONF_BIT): cv.int_range(min=0, max=31),
+        }
+    ),
+    cv.has_at_most_one_key(CONF_MASK, CONF_BIT),
+    _resolve_bit_to_mask,
 )
 
 # changed_gated's gate: a second, independent field read at trigger time. Reuses CONF_GATE
 # (already "gate") from tx.gate.
-GATE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_FIELD): cv.string,
-        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
-        cv.Required(CONF_VALUE): validate_u32,
-    }
+GATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FIELD): cv.string,
+            cv.Optional(CONF_MASK): validate_u32,
+            cv.Optional(CONF_BIT): cv.int_range(min=0, max=31),
+            cv.Required(CONF_VALUE): validate_u32,
+        }
+    ),
+    cv.has_at_most_one_key(CONF_MASK, CONF_BIT),
+    _resolve_bit_to_mask,
 )
 
-CHANGED_GATED_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_FIELD): cv.string,
-        cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED_GATED),
-        cv.Optional(CONF_MASK, default=0xFFFFFFFF): validate_u32,
-        cv.Required(CONF_GATE): GATE_SCHEMA,
-    }
+CHANGED_GATED_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_FIELD): cv.string,
+            cv.Required(CONF_TYPE): cv.one_of(SIGNATURE_TYPE_CHANGED_GATED),
+            cv.Optional(CONF_MASK): validate_u32,
+            cv.Optional(CONF_BIT): cv.int_range(min=0, max=31),
+            cv.Required(CONF_GATE): GATE_SCHEMA,
+        }
+    ),
+    cv.has_at_most_one_key(CONF_MASK, CONF_BIT),
+    _resolve_bit_to_mask,
 )
 
 _SIGNATURE_ALT_SCHEMAS = {
@@ -793,6 +824,20 @@ def _resolve_button_trigger(button_config: dict) -> list[int]:
     return list(button_config[CONF_FRAME_TYPE]) + list(button_config[CONF_PAYLOAD])
 
 
+def _resolve_button_by_name(full_config, hub_id, button_name):
+    # button_name: exists so a response_monitor entry can pin a button without that button
+    # needing an explicit id: — every button already carries a name: (button.yaml-style
+    # packages set it unconditionally), and it must already be unique per HA domain, so it
+    # is a free, always-present join key. Scoped to buttons on this hub only, matching
+    # button_id:'s own hub-ownership check above.
+    return [
+        button_config
+        for button_config in full_config.get(CONF_BUTTON, [])
+        if button_config.get(CONF_RS485_FRAME_ID) == hub_id
+        and button_config.get(CONF_NAME) == button_name
+    ]
+
+
 def _final_validate_response_monitor(config):
     if CONF_RESPONSE_MONITOR not in config:
         return config
@@ -801,24 +846,38 @@ def _final_validate_response_monitor(config):
     for entry in config[CONF_RESPONSE_MONITOR]:
         trigger = entry[CONF_TRIGGER]
         button_id = trigger.get(CONF_BUTTON_ID)
-        if button_id is None:
+        button_name = trigger.get(CONF_BUTTON_NAME)
+        if button_id is None and button_name is None:
             continue
-        button_path = full_config.get_path_for_id(button_id)[:-1]
-        # button_path[0] is the top-level YAML domain key the id was declared under (e.g.
-        # "button", "sensor", "number") — button_id: must point at an actual button: entry,
-        # not merely any entity that happens to share this hub's rs485_frame_id (a sensor,
-        # number, or text_sensor config has no CONF_FRAME_TYPE/CONF_PAYLOAD/CONF_VALUE for
-        # _resolve_button_trigger to read, which would otherwise raise an unhandled KeyError
-        # instead of this clean cv.Invalid).
-        button_config = full_config.get_config_for_path(button_path)
-        if (
-            button_path[0] != CONF_BUTTON
-            or button_config.get(CONF_RS485_FRAME_ID) != hub_id
-        ):
-            raise cv.Invalid(
-                f"response_monitor entry '{entry[CONF_NAME]}': button_id "
-                f"'{button_id}' is not a button on this hub"
-            )
+        if button_id is not None:
+            button_path = full_config.get_path_for_id(button_id)[:-1]
+            # button_path[0] is the top-level YAML domain key the id was declared under (e.g.
+            # "button", "sensor", "number") — button_id: must point at an actual button: entry,
+            # not merely any entity that happens to share this hub's rs485_frame_id (a sensor,
+            # number, or text_sensor config has no CONF_FRAME_TYPE/CONF_PAYLOAD/CONF_VALUE for
+            # _resolve_button_trigger to read, which would otherwise raise an unhandled KeyError
+            # instead of this clean cv.Invalid).
+            button_config = full_config.get_config_for_path(button_path)
+            if (
+                button_path[0] != CONF_BUTTON
+                or button_config.get(CONF_RS485_FRAME_ID) != hub_id
+            ):
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': button_id "
+                    f"'{button_id}' is not a button on this hub"
+                )
+            ref = f"button_id '{button_id}'"
+        else:
+            matches = _resolve_button_by_name(full_config, hub_id, button_name)
+            if len(matches) != 1:
+                raise cv.Invalid(
+                    f"response_monitor entry '{entry[CONF_NAME]}': button_name "
+                    f"'{button_name}' matches {len(matches)} buttons on this hub "
+                    "(must match exactly one)"
+                )
+            button_config = matches[0]
+            ref = f"button_name '{button_name}'"
+
         if CONF_VALUE in button_config and CONF_COMMAND_FORMAT not in button_config:
             if CONF_COMMAND_FORMAT not in config:
                 # Mirrors button/__init__.py's own _final_validate error for this exact
@@ -826,7 +885,7 @@ def _final_validate_response_monitor(config):
                 # before the button platform's own final_validate does when rs485_frame: is
                 # declared before button: in YAML (the typical order).
                 raise cv.Invalid(
-                    f"response_monitor entry '{entry[CONF_NAME]}': button_id '{button_id}' "
+                    f"response_monitor entry '{entry[CONF_NAME]}': {ref} "
                     "uses 'value:' but neither the button nor the referenced hub has a "
                     "'command_format:' block, so the value has no defined on-wire encoding"
                 )
@@ -839,7 +898,7 @@ def _final_validate_response_monitor(config):
         entry["_resolved_trigger"] = _resolve_button_trigger(button_config)
         if len(entry["_resolved_trigger"]) > MAX_RESPONSE_TRIGGER_LEN:
             raise cv.Invalid(
-                f"response_monitor entry '{entry[CONF_NAME]}': button_id '{button_id}' "
+                f"response_monitor entry '{entry[CONF_NAME]}': {ref} "
                 f"resolves to a {len(entry['_resolved_trigger'])}-byte trigger, exceeding the "
                 f"{MAX_RESPONSE_TRIGGER_LEN}-byte cap"
             )
