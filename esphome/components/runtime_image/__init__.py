@@ -65,8 +65,7 @@ class AUTOFormat(Format):
         super().__init__("AUTO", None)
 
     def actions(self) -> None:
-        # Dedupe alias entries (JPG/JPEG share one instance) so each format's
-        # actions run once.
+        # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
         for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
             image_format.actions()
 
@@ -115,10 +114,8 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
-# Registry of decodable formats. AUTO is deliberately not part of it: platforms
-# that can detect the real format at runtime (e.g. online_image via the
-# Content-Type header) opt in by accepting "AUTO" in their own schema, and
-# get_format() resolves it below.
+# Decodable formats only; platforms that support runtime detection accept
+# "AUTO" in their own schema and get_format() resolves it
 _JPEG_FORMAT = JPEGFormat()
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),

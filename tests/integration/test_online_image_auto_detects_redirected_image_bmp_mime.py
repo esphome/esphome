@@ -67,7 +67,6 @@ async def test_online_image_auto_detects_redirected_image_bmp_mime(
             assert numbytes == LEN_BMP_IMAGE
             await download_finished_future
 
-        # Verify no server-side errors occurred during the response phase
-        assert server_error_future.done() is False, (
-            "Server handler encountered an error"
+        assert not server_error_future.done(), (
+            f"Server handler failed: {server_error_future.exception()}"
         )

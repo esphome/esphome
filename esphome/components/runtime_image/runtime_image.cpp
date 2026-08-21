@@ -178,8 +178,7 @@ bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
   }
 
   if (format == AUTO && this->format_ != AUTO) {
-    // For backwards compatibility, if the format is not set, use the constructor-based one if specified.
-    // Must happen before the reuse check below so a kept decoder is not evicted for a format "mismatch".
+    // Fall back to the configured format before the reuse check below
     format = this->format_;
   }
 

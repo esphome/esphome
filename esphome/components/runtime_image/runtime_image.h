@@ -104,6 +104,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Get the image format.
    */
+  /// Configured format; a format resolved per decode lives on the active decoder
   ImageFormat get_format() const { return this->format_; }
 
   /**
