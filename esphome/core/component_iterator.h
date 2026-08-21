@@ -32,9 +32,8 @@ class ComponentIterator {
   void begin(bool include_internal = false);
   /// Run up to max_steps iteration steps; stops early when iteration
   /// completes or a callback refuses (that step is retried on the next
-  /// call). Returns the number of steps that made progress.
-  /// Inline so an idle (completed) iterator costs one compare, no call.
-  ESPHOME_ALWAYS_INLINE size_t try_advance(size_t max_steps) {
+  /// call). Inline so an idle (completed) iterator costs one compare, no call.
+  ESPHOME_ALWAYS_INLINE void try_advance(size_t max_steps) {
     size_t steps = 0;
     while (steps < max_steps && !this->completed()) {
       this->yield_requested_ = false;
@@ -44,7 +43,6 @@ class ComponentIterator {
       if (this->yield_requested_)
         break;
     }
-    return steps;
   }
   // Remove before 2027.3.0
   ESPDEPRECATED("Use try_advance() instead. Removed in 2027.3.0", "2026.8.1")

@@ -47,14 +47,16 @@ static constexpr size_t BIG_BUDGET = 1000;
 
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
+  EXPECT_EQ(it.begin_calls, 0);
+  EXPECT_EQ(it.end_calls, 0);
 }
 
 TEST(ComponentIterator, CompletesInOneCallWithoutRefusals) {
   RefusingIterator it;
   it.begin();
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
   EXPECT_EQ(it.begin_calls, 1);
   EXPECT_EQ(it.end_calls, 1);
@@ -63,7 +65,9 @@ TEST(ComponentIterator, CompletesInOneCallWithoutRefusals) {
 TEST(ComponentIterator, StepBudgetIsHonored) {
   RefusingIterator it;
   it.begin();
-  EXPECT_EQ(it.try_advance(1), 1u);
+  it.try_advance(1);
+  EXPECT_EQ(it.begin_calls, 1);
+  EXPECT_EQ(it.end_calls, 0);
   EXPECT_FALSE(it.completed());
 }
 
@@ -71,15 +75,17 @@ TEST(ComponentIterator, RefusedStepStopsBatchAndRetriesSameStep) {
   RefusingIterator it;
   it.end_refusals = 3;
   it.begin();
-  // First call runs until the refused end step
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  // First call runs until the refused end step, which stops the pass
+  it.try_advance(BIG_BUDGET);
+  EXPECT_EQ(it.end_calls, 1);
   EXPECT_FALSE(it.completed());
-  // The refused step is retried, not skipped
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
+  // The refused step is retried once per call, not skipped
+  it.try_advance(BIG_BUDGET);
+  it.try_advance(BIG_BUDGET);
+  EXPECT_EQ(it.end_calls, 3);
   EXPECT_FALSE(it.completed());
   // Once accepted, the iteration completes
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
   EXPECT_EQ(it.end_calls, 4);
 }
@@ -88,9 +94,11 @@ TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
   RefusingIterator it;
   it.begin_refusals = 2;
   it.begin();
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
+  it.try_advance(BIG_BUDGET);
+  EXPECT_EQ(it.begin_calls, 2);
+  EXPECT_FALSE(it.completed());
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
   EXPECT_EQ(it.begin_calls, 3);
 }
@@ -153,14 +161,15 @@ TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
   it.sensor_refusals = 2;
   it.begin();
   // Runs until the first sensor refuses
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.sensor_calls, 1);
   EXPECT_FALSE(it.completed());
   // The refused item is re-offered, not skipped
-  EXPECT_EQ(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
+  EXPECT_EQ(it.sensor_calls, 2);
   sensor::Sensor *refused = it.last_sensor;
   // Once accepted, iteration continues through the second sensor to the end
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
   EXPECT_NE(it.last_sensor, refused);
   EXPECT_EQ(it.sensor_calls, 4);
@@ -171,14 +180,14 @@ TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
   it.yield_on_sensor = true;
   it.begin();
   // The pass ends right after the first sensor despite a big budget
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.sensor_calls, 1);
   EXPECT_FALSE(it.completed());
   // The next pass ends after the second sensor
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.sensor_calls, 2);
   // Remaining states then run to completion in one pass
-  EXPECT_GT(it.try_advance(BIG_BUDGET), 0u);
+  it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
 }
 #endif  // USE_SENSOR
