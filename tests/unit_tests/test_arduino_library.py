@@ -409,3 +409,52 @@ def test_resolve_libraries_dep_warnings(
     assert "malformed dependency entry" in caplog.text
     assert "Orphan" in caplog.text
     assert "owner but no version" in caplog.text
+
+
+def test_resolve_libraries_warns_when_converter_drops_a_request(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A requested external library the converter drops is named, not lost."""
+    framework = _make_framework(tmp_path)
+    _add_library("pngle", "1.0.0")
+    with patch.object(component, "convert_libraries", return_value=[]):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "1 of 1 requested libraries were not resolved" in caplog.text
+
+
+def test_bundled_dependency_nonplatform_rejection_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An InvalidLibrary whose cause is not the platform filter is visible."""
+    from esphome.platformio.library import InvalidLibrary
+
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "dependencies": [{"name": "Wire"}]},
+    )
+    with (
+        _emitting_converter(converted),
+        patch.object(
+            component,
+            "check_library_data",
+            side_effect=InvalidLibrary("manifest is corrupt"),
+        ),
+    ):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Skipping bundled dependency Wire" in caplog.text
+    assert "manifest is corrupt" in caplog.text

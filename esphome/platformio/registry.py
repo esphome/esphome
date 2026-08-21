@@ -81,7 +81,12 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
     for ver in versions:
         if ver.get("name") != version:
             continue
-        for file in ver.get("files", []):
+        files = ver.get("files")
+        if not isinstance(files, list):
+            raise EsphomeError(
+                f"Unexpected package registry response for {package}: {str(ver)[:200]}"
+            )
+        for file in files:
             # Only a MISSING key means "any system"; an explicitly empty
             # list must not match (a wrong-architecture download would be
             # cached as a good install). A bare string would make ``in`` a
@@ -100,7 +105,13 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                         f"The package registry returned no sha256 for "
                         f"{package} {version}; refusing the unverified download"
                     )
-                return (file["download_url"], sha256, file.get("size"))
+                url = file.get("download_url")
+                if not url:
+                    raise EsphomeError(
+                        f"The package registry returned no download URL for "
+                        f"{package} {version}"
+                    )
+                return (url, sha256, file.get("size"))
         raise EsphomeError(
             f"No {package} {version} build for this platform ({systype})"
         )

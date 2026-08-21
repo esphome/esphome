@@ -8,10 +8,11 @@ resolution/download pipeline in ``esphome.platformio.library``. Nothing here
 is core-specific: the caller names the PlatformIO platform, MCU, and cache
 key of the Arduino core it builds.
 
-Known deviation: flat-layout (``library.properties``, no ``src/``) libraries
-get the recursive default source filter rather than PlatformIO's root-only
-Arduino-1.0 filter; no bundled library is affected, only user-supplied ones
-carrying sources in unusual subdirectories.
+Known deviations: flat-layout (``library.properties``, no ``src/``)
+libraries get the recursive default source filter rather than PlatformIO's
+root-only Arduino-1.0 filter (no bundled library is affected), and the
+Arduino ``dot_a_linkage`` property is honored even though PlatformIO
+ignores it.
 
 Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
 its own static archive and every library's include dir joins one global
@@ -87,8 +88,9 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     # PlatformIO shell-lexes each build.flags entry
     flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
-    # PIO precedence: build.libArchive, else the Arduino-format
-    # dot_a_linkage property, else archive (PlatformIO's default)
+    # build.libArchive is PIO behavior; dot_a_linkage is honored as a
+    # deliberate extra (Arduino IDE's property, which PIO ignores) so
+    # properties-only libraries can opt out of archiving too
     if "libArchive" in build:
         lib_archive = bool(build["libArchive"])
     elif "dot_a_linkage" in data:
@@ -245,11 +247,19 @@ def resolve_libraries(
             try:
                 check_library_data(dep, pio_platform, "arduino")
             except InvalidLibrary as err:
-                # check_library_data's only raise is the platform filter, and
-                # rejecting another platform's dependency of a cross-platform
-                # manifest is routine (every ESPAsyncWebServer build hits it);
-                # a warning here would be noise, and the reason is in the log.
-                _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
+                # Rejecting another platform's dependency of a cross-platform
+                # manifest is routine (every ESPAsyncWebServer build hits
+                # it), so the platform filter stays at debug; any other
+                # cause means a dropped dependency and must be visible
+                if "platform" in str(err).lower():
+                    _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
+                else:
+                    _LOGGER.warning(
+                        "Skipping bundled dependency %s of %s: %s",
+                        name,
+                        component.name,
+                        err,
+                    )
                 continue
             bundled_names.add(name)
             bundled.append(_bundled_library(framework_path, name))
@@ -266,7 +276,7 @@ def resolve_libraries(
         _add_bundled_dependencies(component)
 
     if external:
-        convert_libraries(
+        resolved = convert_libraries(
             external,
             LibraryBackend(
                 platform=pio_platform,
@@ -275,5 +285,14 @@ def resolve_libraries(
                 cache_key=cache_key,
             ),
         )
+        if len(resolved) < len(external):
+            # A requested library the converter dropped would otherwise
+            # surface only as link errors far from the cause
+            _LOGGER.warning(
+                "%d of %d requested libraries were not resolved (resolved: %s)",
+                len(external) - len(resolved),
+                len(external),
+                ", ".join(sorted(c.name for c in resolved)) or "none",
+            )
 
     return bundled + converted
