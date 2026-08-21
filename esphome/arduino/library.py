@@ -35,7 +35,6 @@ from esphome.platformio.library import (
     IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
-    _node_key,
     check_library_data,
     collect_filtered_files,
     convert_libraries,
@@ -46,6 +45,7 @@ from esphome.platformio.library import (
     normalize_dependencies,
     parse_library_json,
     parse_library_properties,
+    request_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -327,10 +327,7 @@ def resolve_libraries(
             # "bitbank2__pngle"); diff the request-side node keys instead
             resolved_keys = {c.node_key or c.name for c in resolved}
             dropped = [
-                str(lib)
-                for lib in external
-                if _node_key(lib.name, lib.version, lib.repository)[0]
-                not in resolved_keys
+                str(lib) for lib in external if request_key(lib) not in resolved_keys
             ]
             _LOGGER.warning(
                 "%d of %d requested libraries were not resolved (missing: %s)",
