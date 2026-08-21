@@ -12,3 +12,8 @@ wifi:
 esp32_ble_tracker:
   scan_parameters:
     window: 30ms
+
+bluetooth_proxy:
+  active: true
+
+api:

@@ -211,23 +211,22 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
             f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
         )
 
-    windows = [("window", window)]
+    # Labels name the YAML key the user typed so the errors are greppable.
+    windows = [("Scan window", window)]
     if (connection_window := config.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
         if connection_window > interval:
             raise cv.Invalid(
-                f"Connection scan window ({connection_window}) needs to be smaller "
-                f"than scan interval ({interval})"
+                f"{CONF_CONNECTION_SCAN_WINDOW} ({connection_window}) needs to be "
+                f"smaller than scan interval ({interval})"
             )
-        windows.append(("connection window", connection_window))
+        windows.append((CONF_CONNECTION_SCAN_WINDOW, connection_window))
 
     # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
     # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
     # values here instead of letting the unit conversion silently overflow.
-    for name, value in (("interval", interval), *windows):
+    for name, value in (("Scan interval", interval), *windows):
         if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
-            raise cv.Invalid(
-                f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
-            )
+            raise cv.Invalid(f"{name} ({value}) must be between 2.5 ms and 10240 ms")
 
     # Validate what actually reaches the controller: both values are truncated to
     # whole 0.625 ms units, so a window/interval pair that differs by less than one
@@ -237,7 +236,7 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     for name, value in windows:
         if to_ble_units(value) == interval_units and value < interval:
             raise cv.Invalid(
-                f"Scan {name} ({value}) and interval ({interval}) both truncate to "
+                f"{name} ({value}) and interval ({interval}) both truncate to "
                 f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
                 f"cycle. Separate them by at least 0.625 ms."
             )

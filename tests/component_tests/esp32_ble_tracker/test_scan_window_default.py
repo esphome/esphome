@@ -158,7 +158,7 @@ def test_connection_scan_window_above_interval_rejected(
 ) -> None:
     stage_esp32("5.5.5", wifi=True)
     with pytest.raises(
-        cv.Invalid, match="Connection scan window .* needs to be smaller"
+        cv.Invalid, match="connection_scan_window .* needs to be smaller"
     ):
         _scan_params({"scan_parameters": {"connection_scan_window": "400ms"}})
 
@@ -169,7 +169,7 @@ def test_connection_scan_window_truncation_collapse_rejected(
     """A connection window that truncates into the interval's 0.625 ms unit
     would silently program a full-duty scan during connections."""
     stage_esp32("5.5.5", wifi=True)
-    with pytest.raises(cv.Invalid, match="connection window .* both truncate"):
+    with pytest.raises(cv.Invalid, match="connection_scan_window .* both truncate"):
         _scan_params(
             {
                 "scan_parameters": {
@@ -195,4 +195,15 @@ def test_codegen_no_connection_window_for_explicit_window(
 ) -> None:
     main_cpp = generate_main(component_config_path("scan_window_explicit.yaml"))
     assert "set_scan_window(48)" in main_cpp
+    assert "set_connection_scan_window" not in main_cpp
+
+
+def test_codegen_no_connection_window_without_gatt_clients(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Scan-only builds compile the connection-window path out, so the raised
+    default must not emit a call to the guarded setter."""
+    main_cpp = generate_main(component_config_path("scan_window_scan_only.yaml"))
+    assert "set_scan_window(512)" in main_cpp
     assert "set_connection_scan_window" not in main_cpp

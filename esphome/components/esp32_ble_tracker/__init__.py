@@ -74,8 +74,9 @@ def _get_required_features() -> set[BLEFeatures]:
 
 # Slot counters sizing the tracker's StaticVector storage; one request per
 # registered listener or client.
+CLIENT_COUNT_DEFINE = "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
-_request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
+_request_client_slot = cg.slot_counter(CLIENT_COUNT_DEFINE)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -301,12 +302,17 @@ async def to_code(config: ConfigType) -> None:
     if (connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
         # Set by the user, or defaulted by _raise_defaulted_scan_window when
         # the window was raised to full duty; while a GATT connection is
-        # active the scanner falls back to it (see start_scan_).
-        cg.add(
-            var.set_connection_scan_window(
-                ble_device_base.to_ble_units(connection_window)
-            )
-        )
+        # active the scanner falls back to it (see start_scan_). Emitted at
+        # FINAL priority so a scan-only build (no GATT clients registered,
+        # so the guarded C++ path compiles out) skips the call entirely.
+        window_units = ble_device_base.to_ble_units(connection_window)
+
+        @coroutine_with_priority(CoroPriority.FINAL)
+        async def _emit_connection_scan_window() -> None:
+            if cg.get_slot_count(CLIENT_COUNT_DEFINE):
+                cg.add(var.set_connection_scan_window(window_units))
+
+        CORE.add_job(_emit_connection_scan_window)
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 

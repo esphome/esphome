@@ -169,7 +169,9 @@ class ESP32BLETracker final : public Component,
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   void set_connection_scan_window(uint32_t scan_window) { connection_scan_window_ = scan_window; }
+#endif
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
   bool get_scan_active() const { return scan_active_; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
@@ -314,9 +316,11 @@ class ESP32BLETracker final : public Component,
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   /// Window used while a GATT connection is active; set by the user, or
   /// defaulted when the window was raised to full duty (0 = no fallback).
   uint32_t connection_scan_window_{0};
+#endif
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 
@@ -341,9 +345,11 @@ class ESP32BLETracker final : public Component,
 #endif
   bool ble_was_disabled_{true};
   bool parse_advertisements_{false};
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   /// The running scan was started with connection_scan_window_; lets loop()
   /// restart the scan at the configured window when the last connection drops.
-  bool scan_window_reduced_{false};
+  bool using_connection_window_{false};
+#endif
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif
