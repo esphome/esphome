@@ -109,6 +109,12 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                 systems = ["*"]
             elif isinstance(systems, str):
                 systems = [systems]
+            elif not isinstance(systems, list):
+                # An int would make ``in`` a TypeError and a dict a key test
+                raise EsphomeError(
+                    f"Unexpected package registry response for {package}: "
+                    f"{str(file)[:200]}"
+                )
             if "*" in systems or systype in systems:
                 sha256 = (file.get("checksum") or {}).get("sha256")
                 if not sha256:
