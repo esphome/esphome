@@ -81,10 +81,13 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   ESP_LOGD(TAG, "Sending remote code");
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
-  this->target_time_ = 0;
   this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     InterruptLock lock;
+    // Re-anchor every iteration: timing must never span a lock boundary, as micros() can
+    // jump when interrupts are re-enabled between repeats (e.g. LibreTiny's Beken micros()
+    // discards its interrupt-lock correction, stretching the repeat gap by the lock duration)
+    this->target_time_ = 0;
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {
         const auto length = uint32_t(item);
@@ -98,8 +101,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->await_target_time_();  // wait for duration of last pulse
     this->pin_->digital_write(false);
 
-    if (i + 1 < send_times)
+    if (i + 1 < send_times) {
+      // Wait out the repeat gap inside the lock for the same reason; this does not extend
+      // the interrupt-disabled time, as the wait previously ran inside the next iteration's lock
       this->target_time_ += send_wait;
+      this->await_target_time_();
+    }
   }
   this->complete_trigger_.trigger();
 }
