@@ -432,7 +432,7 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run"),
+        patch("esphome.build_helpers.ccache.subprocess.run"),
     ):
         env = toolchain._ccache_env()
 
@@ -495,7 +495,7 @@ def test_ccache_env_disabled_when_probe_fails(
     with (
         patch.dict(os.environ, {}, clear=True),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run", side_effect=probe_error),
+        patch("esphome.build_helpers.ccache.subprocess.run", side_effect=probe_error),
     ):
         env = toolchain._ccache_env()
 
@@ -509,7 +509,7 @@ def test_ccache_env_forced_on_skips_probe(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run") as mock_probe,
+        patch("esphome.build_helpers.ccache.subprocess.run") as mock_probe,
     ):
         env = toolchain._ccache_env()
 
@@ -537,9 +537,9 @@ def test_ccache_env_strips_win_long_path_prefix(setup_core: Path) -> None:
         patch.dict(os.environ, {}, clear=True),
         # shutil.which is patched, so the win32 code path of the real
         # implementation (which crashes on a POSIX host) is never reached.
-        patch("esphome.platformio.toolchain.sys.platform", "win32"),
+        patch("esphome.framework_helpers.sys.platform", "win32"),
         patch("shutil.which", return_value=prefixed),
-        patch("esphome.framework_helpers.subprocess.run") as mock_probe,
+        patch("esphome.build_helpers.ccache.subprocess.run") as mock_probe,
     ):
         env = toolchain._ccache_env()
 
@@ -588,7 +588,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     with (
         patch.dict(os.environ, user_env, clear=True),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run"),
+        patch("esphome.build_helpers.ccache.subprocess.run"),
     ):
         env = toolchain._ccache_env()
 
@@ -607,7 +607,7 @@ def test_run_platformio_cli_passes_ccache_env_to_subprocess_only(
     with (
         patch.dict(os.environ, {}, clear=False),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run"),
+        patch("esphome.build_helpers.ccache.subprocess.run"),
     ):
         os.environ.pop("ESPHOME_CCACHE_ENABLE", None)
         mock_run_external_process.return_value = 0
@@ -629,7 +629,7 @@ def test_ccache_env_requires_build_path(setup_core: Path) -> None:
     with (
         patch.dict(os.environ, {}, clear=True),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run"),
+        patch("esphome.build_helpers.ccache.subprocess.run"),
         pytest.raises(ValueError, match="CORE.build_path must be set"),
     ):
         toolchain._ccache_env()
@@ -643,7 +643,7 @@ def test_run_platformio_cli_merges_caller_env(
 
     with (
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.framework_helpers.subprocess.run"),
+        patch("esphome.build_helpers.ccache.subprocess.run"),
     ):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli(
@@ -871,7 +871,7 @@ def test_strip_win_long_path_prefix(
     platform: str, input_path: str, expected: str
 ) -> None:
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
-    with patch("esphome.platformio.toolchain.sys.platform", platform):
+    with patch("esphome.framework_helpers.sys.platform", platform):
         assert toolchain.strip_win_long_path_prefix(input_path) == expected
 
 
@@ -898,7 +898,7 @@ def test_run_platformio_cli_strips_win_long_path_prefix(
         # so the stdlib sees it too) would send shutil.which down the Windows
         # code path, which crashes on a POSIX host.
         patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}, clear=False),
-        patch("esphome.platformio.toolchain.sys.platform", "win32"),
+        patch("esphome.framework_helpers.sys.platform", "win32"),
         patch("esphome.platformio.toolchain.sys.executable", prefixed_exe),
     ):
         # Pop any pre-existing PYTHONEXEPATH so the assertion below reflects
@@ -930,7 +930,7 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch("esphome.platformio.toolchain.sys.platform", "linux"),
+        patch("esphome.framework_helpers.sys.platform", "linux"),
         patch("esphome.platformio.toolchain.sys.executable", plain_exe),
     ):
         os.environ.pop("PYTHONEXEPATH", None)

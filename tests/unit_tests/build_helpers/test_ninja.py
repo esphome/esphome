@@ -76,3 +76,8 @@ def test_shell_token_quotes_shell_metacharacters() -> None:
 def test_quote_path_force_quotes() -> None:
     assert ninja_helper.quote_path(Path("a b")) == '"a b"'
     assert ninja_helper.quote_path("simple") == '"simple"'
+
+
+def test_shell_token_empty_token_is_quoted() -> None:
+    """An empty argv element must survive as an explicit pair of quotes."""
+    assert ninja_helper.shell_token("") == '""'
