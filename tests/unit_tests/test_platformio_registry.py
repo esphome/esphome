@@ -201,13 +201,25 @@ def test_registry_download_version_not_found() -> None:
 
 def test_install_package_skips_when_marker_exists(tmp_path: Path) -> None:
     dest = tmp_path / "pkg"
-    dest.mkdir()
+    (dest / "payload").mkdir(parents=True)
     (dest / ".esphome_extracted").touch()
     with patch.object(registry, "download_from_mirrors") as mock_download:
         registry.install_package(
             "pkg", "1.0.0", dest, [], tmp_path / "dl", expect=("payload",)
         )
     mock_download.assert_not_called()
+
+
+def test_install_package_marker_hit_rechecks_layout(tmp_path: Path) -> None:
+    """A marked install that later lost files fails by name instead of
+    surfacing as an opaque toolchain error."""
+    dest = tmp_path / "pkg"
+    dest.mkdir()
+    (dest / ".esphome_extracted").touch()
+    with pytest.raises(EsphomeError, match="missing the expected payload"):
+        registry.install_package(
+            "pkg", "1.0.0", dest, [], tmp_path / "dl", expect=("payload",)
+        )
 
 
 def test_install_package_downloads_via_mirrors(tmp_path: Path) -> None:
@@ -276,7 +288,7 @@ def test_install_package_unexpected_layout_raises(tmp_path: Path) -> None:
         patch.object(registry, "download_from_mirrors"),
         patch.object(registry, "archive_extract_all") as mock_extract,
         patch.object(registry, "get_systype", return_value="linux_x86_64"),
-        pytest.raises(EsphomeError, match="without the expected bin"),
+        pytest.raises(EsphomeError, match="missing the expected bin"),
     ):
         mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
             parents=True
@@ -409,6 +421,20 @@ def test_registry_download_non_dict_file_entry_is_named() -> None:
                 {"versions": [{"name": "1.0.0", "files": ["a.tar.gz"]}]}
             ).encode()
         )
+        return "http://x"
+
+    with (
+        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        pytest.raises(EsphomeError, match="Unexpected package registry response"),
+    ):
+        registry.registry_download("pkg", "1.0.0")
+
+
+def test_registry_download_non_dict_payload_is_named() -> None:
+    """A JSON array answer is an unexpected payload at the outermost level."""
+
+    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
+        target.write(json.dumps(["1.0.0"]).encode())
         return "http://x"
 
     with (

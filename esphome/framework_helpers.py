@@ -196,6 +196,30 @@ def run_command(
         return False, None, None
 
 
+def tool_version_runs(binary: str, warning: str) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+
+    ``shutil.which`` proves existence, not runnability: on Windows it also
+    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
+    target is gone. Callers probe once and fall back instead of failing
+    every build step with an opaque OS error.
+    """
+    try:
+        subprocess.run(
+            [binary, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path)
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.warning(warning, binary)
+        return False
+    return True
+
+
 def run_command_ok(*args, **kwargs) -> bool:
     """
     Execute a command and return only the success status.

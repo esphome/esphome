@@ -11,7 +11,7 @@ import re
 import shutil
 from typing import Any, NoReturn
 
-from esphome.build_helpers.ccache import ccache_defaults_env
+from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
 from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
@@ -1150,10 +1150,14 @@ def _ccache_env() -> dict[str, str]:
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
     # Honor an explicit choice already in the environment (opt-out or opt-in).
+    # IDF_CCACHE_ENABLE (this backend's native knob) wins over the shared
+    # ESPHOME_CCACHE_ENABLE, which resolve_ccache_path parses; without it a
+    # user disabling ccache to debug a miscompile would silently keep it
+    # enabled here.
     if "IDF_CCACHE_ENABLE" in os.environ:
         if not get_bool_env("IDF_CCACHE_ENABLE"):
             return {}
-    elif shutil.which("ccache") is None:
+    elif resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
 
