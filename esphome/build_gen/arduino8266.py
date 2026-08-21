@@ -590,12 +590,13 @@ def write_project(paths: InstalledPaths) -> bool:
     )
     # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
     # so only -D/-I user flags reach assembly there; match it. The tokens
-    # are already shell-quoted, so test past a leading quote too.
+    # are already shell-quoted (per-platform style), so test past a
+    # leading quote too.
     asflags = (
         _ASFLAGS
         + defines
         + includes
-        + [f for f in project_compile_flags if f.lstrip('"').startswith(("-D", "-I"))]
+        + [f for f in project_compile_flags if f.lstrip("\"'").startswith(("-D", "-I"))]
     )
 
     # build_unflags applies to the framework flag sets too (compile and link),
