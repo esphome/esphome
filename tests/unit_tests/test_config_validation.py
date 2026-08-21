@@ -3200,6 +3200,8 @@ def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
         ("host", {}),
         ("rp2", {"board": "rpipicow"}),
         ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+        ("rtl87xx", {"board": "generic-rtl8710bn-2mb-788k"}),
+        ("ln882x", {"board": "generic-ln882h"}),
         # The legacy stub platform must reject too, not just the chip families
         ("libretiny", {}),
     ],
