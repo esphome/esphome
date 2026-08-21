@@ -163,7 +163,10 @@ def test_resolve_libraries_bare_registry_name_is_external(tmp_path: Path) -> Non
     latest version, matching PlatformIO and the documented libraries: key."""
     framework = _make_framework(tmp_path)
     _add_library("pngle", None)
-    with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
+    with (
+        patch.object(component, "convert_libraries", return_value=[]) as mock_convert,
+        pytest.raises(EsphomeError, match="not resolved"),
+    ):
         component.resolve_libraries(
             framework,
             pio_platform="espressif8266",
@@ -254,7 +257,10 @@ def test_resolve_libraries_versioned_bare_name_is_external(tmp_path: Path) -> No
     framework = _make_framework(tmp_path)
     _add_library("pngle", "1.1.0")
 
-    with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
+    with (
+        patch.object(component, "convert_libraries", return_value=[]) as mock_convert,
+        pytest.raises(EsphomeError, match="not resolved"),
+    ):
         component.resolve_libraries(
             framework,
             pio_platform="espressif8266",
@@ -411,22 +417,23 @@ def test_resolve_libraries_dep_warnings(
     assert "owner but no version" in caplog.text
 
 
-def test_resolve_libraries_warns_when_converter_drops_a_request(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+def test_resolve_libraries_raises_when_converter_drops_a_request(
+    tmp_path: Path,
 ) -> None:
-    """A requested external library the converter drops is named, not lost."""
+    """A dropped top-level request always makes the firmware wrong; fail by
+    name instead of warning toward link errors far from the cause."""
     framework = _make_framework(tmp_path)
     _add_library("pngle", "1.0.0")
-    with patch.object(component, "convert_libraries", return_value=[]):
+    with (
+        patch.object(component, "convert_libraries", return_value=[]),
+        pytest.raises(EsphomeError, match="1 of 1 requested .*missing: pngle"),
+    ):
         component.resolve_libraries(
             framework,
             pio_platform="espressif8266",
             board_mcu="esp8266",
             cache_key="arduino8266",
         )
-    assert "1 of 1 requested libraries were not resolved" in caplog.text
-    # The actionable fact is which request went missing, not the survivors
-    assert "missing: pngle" in caplog.text
 
 
 def test_bundled_dependency_nonplatform_rejection_warns(
@@ -563,9 +570,7 @@ def test_library_info_malformed_manifest_is_named(tmp_path: Path, data: object) 
         component._library_info("x", read_path, data)
 
 
-def test_drop_warning_maps_requests_by_node_key(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_drop_error_maps_requests_by_node_key(tmp_path: Path) -> None:
     """A bare request resolving to a canonical name is not falsely reported
     missing; the genuinely dropped request is the one named."""
     framework = _make_framework(tmp_path)
@@ -575,17 +580,40 @@ def test_drop_warning_maps_requests_by_node_key(
     (lib_dir / "src").mkdir(parents=True)
     resolved = _converted("bitbank2__pngle", lib_dir, {"build": {}})
     resolved.node_key = "pngle"
-    with patch.object(component, "convert_libraries", return_value=[resolved]):
+    with (
+        patch.object(component, "convert_libraries", return_value=[resolved]),
+        pytest.raises(EsphomeError) as excinfo,
+    ):
         component.resolve_libraries(
             framework,
             pio_platform="espressif8266",
             board_mcu="esp8266",
             cache_key="arduino8266",
         )
-    assert "1 of 2 requested libraries were not resolved" in caplog.text
-    assert "missing" in caplog.text
-    assert "pngle" not in caplog.text.split("missing:")[-1]
-    assert "gone/missing" in caplog.text.split("missing:")[-1]
+    missing = str(excinfo.value).split("missing:")[-1]
+    assert "gone/missing" in missing
+    assert "pngle@" not in missing
+
+
+def test_drop_error_without_node_key_is_a_converter_bug(tmp_path: Path) -> None:
+    """A resolved component missing its node_key must fail as a programming
+    error, never silently substitute the mismatched canonical name."""
+    framework = _make_framework(tmp_path)
+    _add_library("pngle", None)
+    _add_library("gone/missing", "1.0.0")
+    lib_dir = tmp_path / "converted" / "pngle"
+    (lib_dir / "src").mkdir(parents=True)
+    resolved = _converted("bitbank2__pngle", lib_dir, {"build": {}})
+    with (
+        patch.object(component, "convert_libraries", return_value=[resolved]),
+        pytest.raises(EsphomeError, match="node_key .*bitbank2__pngle"),
+    ):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
 
 def test_bundled_library_with_declared_dependencies_warns(
@@ -606,3 +634,44 @@ def test_bundled_library_with_declared_dependencies_warns(
         cache_key="arduino8266",
     )
     assert "Bundled library Wire declares dependencies" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("build", "match"),
+    [
+        ({"includeDir": ["a", "b"]}, "malformed includeDir"),
+        ({"srcFilter": [123]}, "malformed srcFilter"),
+    ],
+)
+def test_library_info_malformed_build_fields_are_named(
+    tmp_path: Path, build: dict, match: str
+) -> None:
+    """Malformed includeDir/srcFilter fail naming the library like srcDir."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    with pytest.raises(EsphomeError, match=match):
+        component._library_info("x", read_path, {"build": build})
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "warns"),
+    [
+        ("true", True, False),
+        ("False", False, False),
+        ("yes", True, True),
+    ],
+)
+def test_library_info_dot_a_linkage_parses_strictly(
+    tmp_path: Path,
+    value: str,
+    expected: bool,
+    warns: bool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The dot_a_linkage property uses the same strict table as libArchive; a typo warns
+    and keeps the archive default instead of silently flipping linkage."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    lib = component._library_info("x", read_path, {"dot_a_linkage": value, "build": {}})
+    assert lib.lib_archive is expected
+    assert ("unrecognized dot_a_linkage" in caplog.text) is warns
