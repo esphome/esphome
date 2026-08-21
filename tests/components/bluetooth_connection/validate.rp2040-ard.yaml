@@ -1,0 +1,12 @@
+# Distinct shape from bluetooth_proxy's own rp2 fixtures: explicit slot count
+# on the platform whose backend lives in this component (validate-only, so it
+# never collides with grouped builds).
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+# Two slots: the one shape where the wrap pools are smaller than the cap.
+bluetooth_proxy:
+  active: true
+  connection_slots: 2

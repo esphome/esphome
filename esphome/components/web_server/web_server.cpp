@@ -510,7 +510,7 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
@@ -558,26 +558,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   size_t device_len = device_name ? strlen(device_name) : 0;
 #endif
 
-  // Single stack buffer for both id formats - ArduinoJson copies the string before we overwrite
+  // Stack buffer for the id - ArduinoJson copies the string before it goes out of scope
   // Buffer sizes use constants from entity_base.h validated in core/config.py
   // Note: Device name uses ESPHOME_FRIENDLY_NAME_MAX_LEN (sub-device max 120), not ESPHOME_DEVICE_NAME_MAX_LEN
   // (hostname)
-  // Without USE_DEVICES: legacy id ({prefix}-{object_id}) is the largest format
-  // With USE_DEVICES: name_id ({prefix}/{device}/{name}) is the largest format
-  static constexpr size_t LEGACY_ID_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN;
 #ifdef USE_DEVICES
   static constexpr size_t ID_BUF_SIZE =
-      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1,
-               LEGACY_ID_SIZE);
+      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #else
-  static constexpr size_t ID_BUF_SIZE =
-      std::max(ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1, LEGACY_ID_SIZE);
+  static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
   char id_buf[ID_BUF_SIZE];
   memcpy(id_buf, prefix, prefix_len);  // NOLINT(bugprone-not-null-terminated-result)
 
-  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
-  // Remove in 2026.8.0 when id switches to new format permanently
   char *p = id_buf + prefix_len;
   *p++ = '/';
 #ifdef USE_DEVICES
@@ -589,12 +582,6 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 #endif
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
-  root[ESPHOME_F("name_id")] = id_buf;
-
-  // id: old format {prefix}-{object_id} for backward compatibility
-  // Will switch to new format in 2026.8.0 - reuses prefix already in id_buf
-  id_buf[prefix_len] = '-';
-  obj->write_object_id_to(id_buf + prefix_len + 1, ID_BUF_SIZE - prefix_len - 1);
   root[ESPHOME_F("id")] = id_buf;
 
   if (start_config == DETAIL_ALL) {
@@ -1128,6 +1115,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
   if (obj->get_traits().get_supports_tilt())
     root[ESPHOME_F("tilt")] = obj->tilt;
   if (start_config == DETAIL_ALL) {
+    root[ESPHOME_F("assumed_state")] = obj->get_traits().get_is_assumed_state();
     this->add_sorting_info_(root, obj);
   }
 
@@ -1907,7 +1895,7 @@ json::SerializationBuffer<> WebServer::alarm_control_panel_json_(alarm_control_p
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "alarm-control-panel",
+  set_json_icon_state_value(root, obj, "alarm_control_panel",
                             json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);

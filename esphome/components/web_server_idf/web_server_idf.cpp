@@ -381,16 +381,6 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
 #ifdef USE_WEBSERVER_AUTH_DIGEST
 namespace {
 
-// Hex-encode `len` bytes into `out`, which must hold at least 2 * len + 1 bytes. Null-terminated.
-void bytes_to_hex(const uint8_t *data, size_t len, char *out) {
-  static const char HEX[] = "0123456789abcdef";
-  for (size_t i = 0; i < len; i++) {
-    out[i * 2] = HEX[data[i] >> 4];
-    out[i * 2 + 1] = HEX[data[i] & 0x0f];
-  }
-  out[len * 2] = '\0';
-}
-
 // Extract the value of a Digest auth parameter (e.g. "nonce") from the comma-separated
 // parameter list. Values may be quoted or bare. Returns an empty ref when the key is absent.
 // Only whole parameter names match, so "nc" does not match inside "cnonce".
@@ -468,7 +458,7 @@ bool check_digest_auth(const char *username, const char *password, const std::st
   esp_rom_md5_update(&ctx, ":", 1);
   esp_rom_md5_update(&ctx, password, strlen(password));
   esp_rom_md5_final(digest, &ctx);
-  bytes_to_hex(digest, sizeof(digest), ha1);
+  format_hex_to(ha1, digest, sizeof(digest));
 
   // HA2 = MD5(method:uri) -- uses the uri the client echoed back.
   char ha2[33];
@@ -477,7 +467,7 @@ bool check_digest_auth(const char *username, const char *password, const std::st
   esp_rom_md5_update(&ctx, ":", 1);
   esp_rom_md5_update(&ctx, uri.c_str(), uri.size());
   esp_rom_md5_final(digest, &ctx);
-  bytes_to_hex(digest, sizeof(digest), ha2);
+  format_hex_to(ha2, digest, sizeof(digest));
 
   // expected = MD5(HA1:nonce:nc:cnonce:qop:HA2)
   char expected[33];
@@ -494,7 +484,7 @@ bool check_digest_auth(const char *username, const char *password, const std::st
   esp_rom_md5_update(&ctx, ":", 1);
   esp_rom_md5_update(&ctx, ha2, 32);
   esp_rom_md5_final(digest, &ctx);
-  bytes_to_hex(digest, sizeof(digest), expected);
+  format_hex_to(expected, digest, sizeof(digest));
 
   // Constant-time comparison of the two 32-char hex digests.
   uint8_t result = 0;
@@ -592,9 +582,9 @@ void AsyncWebServerRequest::requestAuthentication() const {
   char opaque[33];
   char header[160];
   esp_fill_random(random_bytes, sizeof(random_bytes));
-  bytes_to_hex(random_bytes, sizeof(random_bytes), nonce);
+  format_hex_to(nonce, random_bytes, sizeof(random_bytes));
   esp_fill_random(random_bytes, sizeof(random_bytes));
-  bytes_to_hex(random_bytes, sizeof(random_bytes), opaque);
+  format_hex_to(opaque, random_bytes, sizeof(random_bytes));
   snprintf(header, sizeof(header), R"(Digest realm="Login Required", qop="auth", nonce="%s", opaque="%s")", nonce,
            opaque);
   httpd_resp_set_hdr(*this, "WWW-Authenticate", header);

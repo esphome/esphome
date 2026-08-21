@@ -89,8 +89,14 @@ void SerialProxy::dump_config() {
                 this->dtr_pin_ != nullptr ? "configured" : "not configured");
 }
 
-void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits,
-                            uint8_t data_size) {
+void SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
+                            uint8_t stop_bits, uint8_t data_size) {
+#ifdef USE_API
+  if (this->port_claimed_by_other_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring configure request from client without port access [%" PRIu32 "]", this->instance_index_);
+    return;
+  }
+#endif
   ESP_LOGD(TAG,
            "Configuring serial proxy [%" PRIu32 "]: baud=%" PRIu32 ", flow_ctrl=%s, parity=%" PRIu8 ", stop=%" PRIu8
            ", data=%" PRIu8,
@@ -143,13 +149,27 @@ void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity
   }
 }
 
-void SerialProxy::write_from_client(const uint8_t *data, size_t len) {
+void SerialProxy::write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {
+#ifdef USE_API
+  // Bytes from a client other than the live subscriber would interleave with the
+  // subscriber's traffic on the wire
+  if (this->port_claimed_by_other_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring write from client without port access [%" PRIu32 "]", this->instance_index_);
+    return;
+  }
+#endif
   if (data == nullptr || len == 0)
     return;
   this->write_array(data, len);
 }
 
-void SerialProxy::set_modem_pins(uint32_t line_states) {
+void SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
+#ifdef USE_API
+  if (this->port_claimed_by_other_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring modem pin request from client without port access [%" PRIu32 "]", this->instance_index_);
+    return;
+  }
+#endif
   const bool rts = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_RTS) != 0;
   const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
   ESP_LOGV(TAG, "Setting modem pins [%" PRIu32 "]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
@@ -175,12 +195,27 @@ uart::UARTFlushResult SerialProxy::flush_port() {
 }
 
 #ifdef USE_API
+bool SerialProxy::port_claimed_by_other_(api::APIConnection *api_connection) const {
+  return this->api_connection_ != nullptr && this->api_connection_ != api_connection &&
+         this->api_connection_->is_connection_setup();
+}
+
 void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type) {
   switch (type) {
     case api::enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
-      if (this->api_connection_ != nullptr) {
-        ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+      if (this->api_connection_ == api_connection) {
+        ESP_LOGV(TAG, "API connection is already subscribed to serial proxy [%" PRIu32 "]", this->instance_index_);
         return;
+      }
+      if (this->api_connection_ != nullptr) {
+        // A living subscriber keeps exclusive access. Its connection may be dead without
+        // loop() having noticed yet (e.g. the client crashed and reconnected quickly);
+        // in that case let the new client take over instead of locking it out.
+        if (this->api_connection_->is_connection_setup()) {
+          ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
+          return;
+        }
+        ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
       this->enable_loop();

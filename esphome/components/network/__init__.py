@@ -1,13 +1,20 @@
 import ipaddress
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import (
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_MIN_IPV6_ADDR_COUNT,
+    CONF_PRIORITY,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -19,6 +26,54 @@ _LOGGER = logging.getLogger(__name__)
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+
+# Network priority tracking infrastructure
+# Components can query this to determine their relative setup priority.
+# CORE.data[KEY_NETWORK_PRIORITY] is a list of dicts of the form
+# {"interface": "ethernet"}, in user-declared order.
+KEY_NETWORK_PRIORITY = "network_priority"
+
+# Only interfaces whose component already calls get_network_priority() are
+# accepted in the priority list. openthread and modem will be added here when
+# they wire up their setup-priority consumer in their own to_code — see
+# NETWORK_PLAN.md for the full multi-interface roadmap.
+VALID_NETWORK_TYPES = ["ethernet", "wifi"]
+
+# Interfaces NetworkComponent::loop() knows how to arbitrate the default route
+# for. Deliberately NOT derived from VALID_NETWORK_TYPES: extending that list
+# without extending the C++ arbitration (and then this set) is caught in
+# _final_validate() as a config error instead of a silently mis-routed interface.
+ARBITRATED_NETWORK_TYPES = frozenset({"ethernet", "wifi"})
+
+# Setup priority base values — first in list gets the highest priority.
+#
+# The base equals the historical setup_priority::WIFI / ::ETHERNET default
+# (250.0), so a single-entry priority list yields exactly the same setup order
+# as a config with no priority block. Subsequent entries step down by a small
+# amount to break ties without crossing other priority bands.
+#
+# Important: must stay strictly less than setup_priority::AFTER_BLUETOOTH
+# (300.0), which NetworkComponent itself uses — otherwise the highest-priority
+# interface could tie with NetworkComponent and run before esp_netif_init().
+NETWORK_PRIORITY_BASE = 250.0
+NETWORK_PRIORITY_STEP = 5.0
+
+# Lower-bound guard. The lowest-priority entry gets
+# NETWORK_PRIORITY_BASE - (len - 1) * NETWORK_PRIORITY_STEP, which must stay
+# strictly above setup_priority::AFTER_WIFI (200.0, see esphome/core/component.h)
+# so a long priority list never drops an interface into the band used by
+# components that expect to run after the network is up. There is ample headroom
+# for the two types today; this check raises if a future expansion of
+# VALID_NETWORK_TYPES would silently cross that band. Uses an explicit raise
+# rather than a bare assert so the guard isn't stripped under python -O/-OO.
+_SETUP_PRIORITY_AFTER_WIFI = 200.0
+if (
+    NETWORK_PRIORITY_BASE - (len(VALID_NETWORK_TYPES) - 1) * NETWORK_PRIORITY_STEP
+    <= _SETUP_PRIORITY_AFTER_WIFI
+):
+    raise ValueError(
+        "network: priority: list is long enough to cross setup_priority::AFTER_WIFI"
+    )
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
@@ -142,6 +197,83 @@ def validate_ipv6(value: bool) -> bool:
     return value
 
 
+def get_network_priority(iface: str) -> float | None:
+    """Get the setup priority for the given network interface type.
+
+    Returns the float setup priority for ``iface`` based on the order declared
+    under ``network: priority:``.  Interfaces listed first receive a higher
+    setup priority so they are initialised before lower-priority ones.
+
+    If no ``network: priority:`` has been configured this returns ``None`` and
+    the calling component should fall back to its own default setup priority.
+
+    Args:
+        iface: Interface type string (case-insensitive). Currently ``"ethernet"``
+               or ``"wifi"`` — the only types the priority-list validator
+               accepts; ``"openthread"`` / ``"modem"`` are planned but not yet
+               supported. An interface not present in the configured list
+               returns ``None``.
+
+    Returns:
+        float setup priority, or None if no priority list was configured.
+
+    Example usage inside a component's ``to_code``. Emit the override before
+    ``register_component`` so an explicit ``setup_priority:`` on the component
+    still wins::
+
+        from esphome.components import network
+
+        async def to_code(config):
+            var = cg.new_Pvariable(config[CONF_ID])
+
+            prio = network.get_network_priority("ethernet")
+            if prio is not None:
+                cg.set_setup_priority(var, prio)
+
+            await cg.register_component(var, config)
+            ...
+    """
+    priority_list = CORE.data.get(KEY_NETWORK_PRIORITY)
+    if priority_list is None:
+        return None
+    iface_lower = iface.lower()
+    for idx, entry in enumerate(priority_list):
+        if entry["interface"] == iface_lower:
+            return NETWORK_PRIORITY_BASE - (idx * NETWORK_PRIORITY_STEP)
+    return None
+
+
+def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str]:
+    """Return the set of interface names declared in ``network: priority:``.
+
+    Reads from the full validated config (``fv.full_config.get()``) and is
+    intended for use inside ``FINAL_VALIDATE_SCHEMA`` hooks, before
+    ``to_code`` has run and ``CORE.data`` has been populated.  Returns an
+    empty set if no priority list was configured.
+    """
+    return {
+        entry["interface"]
+        for entry in full_config.get("network", {}).get(CONF_PRIORITY, [])
+    }
+
+
+def _validate_priority_list(value: Any) -> list[dict[str, str]]:
+    """Validate and normalize the priority list, rejecting duplicates.
+
+    Each entry is the name of one network interface (one of
+    ``VALID_NETWORK_TYPES``). Mixed-case input is accepted and normalized
+    to lowercase.  The normalized list is a list of dicts of the form
+    ``{"interface": "ethernet"}`` so that future per-entry options can be
+    added without breaking call sites.
+    """
+    raw = cv.ensure_list(cv.one_of(*VALID_NETWORK_TYPES, lower=True))(value)
+    entries = [{"interface": iface} for iface in raw]
+    interfaces = [e["interface"] for e in entries]
+    if len(interfaces) != len(set(interfaces)):
+        raise cv.Invalid("Duplicate entries are not allowed in 'priority'")
+    return entries
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -174,16 +306,82 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
     _register_provisioning_source,
 )
 
 
+def _final_validate(config: ConfigType) -> None:
+    """Check that every interface named in 'priority' has a corresponding component block."""
+    full = fv.full_config.get()
+    priority_list = config.get(CONF_PRIORITY, [])
+    for entry in priority_list:
+        iface = entry["interface"]
+        if iface not in full:
+            raise cv.Invalid(
+                f"'{iface}' is listed in 'network: priority:' but no '{iface}:' "
+                f"component is configured",
+                [CONF_PRIORITY],
+            )
+
+    # Tripwire for future interface types (openthread, modem): the C++ default-route
+    # arbitration pivots on USE_NETWORK_PRIMARY_INTERFACE_WIFI and only knows
+    # ethernet and wifi. Extend NetworkComponent::loop() before allowing another
+    # type here. Unreachable until VALID_NETWORK_TYPES grows.
+    if (
+        len(priority_list) > 1
+        and (
+            unsupported := {e["interface"] for e in priority_list}
+            - ARBITRATED_NETWORK_TYPES
+        )
+        and CORE.is_esp32
+    ):
+        raise cv.Invalid(
+            "Default-route arbitration does not support: "
+            f"{', '.join(sorted(unsupported))}",
+            [CONF_PRIORITY],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+
+    # Store the user-declared network priority list in CORE.data so that ethernet,
+    # wifi and other network components can query it via get_network_priority()
+    # during their own to_code phase.
+    if CONF_PRIORITY in config:
+        priority_list = config[CONF_PRIORITY]
+        CORE.data[KEY_NETWORK_PRIORITY] = priority_list
+        # network/util.cpp resolves the reported address (get_use_address_to,
+        # get_ip_addresses) in a fixed ethernet-first order; a wifi-first priority
+        # list is the only case that deviates from it, so it is the only case that
+        # needs a define.
+        if priority_list[0]["interface"] == "wifi":
+            cg.add_define("USE_NETWORK_PRIMARY_INTERFACE_WIFI")
+
+        # With more than one interface, NetworkComponent::loop() arbitrates the
+        # default route (ESP-IDF's fixed route_prio values would always favor
+        # WiFi). ESP32 only: the arbitration needs esp_netif, which both
+        # frameworks build from source.
+        # The ethernet/wifi-only assumption behind the arbitration is enforced in
+        # _final_validate() so a future unsupported type fails as a config error.
+        if len(priority_list) > 1 and CORE.is_esp32:
+            cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
+            # Have lwIP switch to the DNS servers of the netif that owns the
+            # default route whenever the arbitration changes it.
+            add_idf_sdkconfig_option("CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF", True)
+
+        _LOGGER.info(
+            "Network interface priority: %s",
+            " > ".join(entry["interface"] for entry in priority_list),
+        )
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior

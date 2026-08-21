@@ -136,10 +136,21 @@ bool WiFiComponent::wifi_apply_power_save_() {
   https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
  */
 #undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
+#undef netif_set_down  // need to call lwIP-v1.4 netif_set_down()
 extern "C" {
 struct netif *eagle_lwip_getif(int netif_index);
 void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
+void netif_set_down(struct netif *netif);
 };
+
+// The SDK can free its WiFi connection node before taking the STA netif down, letting lwIP
+// timers (e.g. IGMP reports armed by mDNS) transmit into the dead driver and crash in
+// cnx_node_search; taking the netif down first makes the glue drop such frames (#18308).
+static void sta_netif_down() {
+  struct netif *iface = eagle_lwip_getif(STATION_IF);
+  if (iface != nullptr)
+    netif_set_down(iface);
+}
 #endif
 
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
@@ -516,13 +527,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                  (const char *) it.ssid);
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_NOT_FOUND);
       } else {
-        char bssid_s[18];
+        char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
       }
       global_wifi_component->error_from_callback_ = true;
+#if LWIP_VERSION_MAJOR != 1
+      sta_netif_down();
+#endif
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       global_wifi_component->pending_.disconnect = true;
 #endif
@@ -536,6 +550,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
+#if LWIP_VERSION_MAJOR != 1
+        sta_netif_down();
+#endif
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
@@ -719,8 +736,12 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_disconnect_() {
   bool ret = true;
   // Only call disconnect if interface is up
-  if (wifi_get_opmode() & WIFI_STA)
+  if (wifi_get_opmode() & WIFI_STA) {
+#if LWIP_VERSION_MAJOR != 1
+    sta_netif_down();
+#endif
     ret = wifi_station_disconnect();
+  }
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
@@ -733,6 +754,8 @@ void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
 }
 
 void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   this->scan_result_.clear();
 
   if (status != OK) {

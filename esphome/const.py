@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.8.0-dev"
+__version__ = "2026.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -121,6 +121,7 @@ PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 SECRETS_FILES = ("secrets.yaml", "secrets.yml")
@@ -347,6 +348,7 @@ CONF_DISABLE_CRC = "disable_crc"
 CONF_DISABLED = "disabled"
 CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCONNECT_DELAY = "disconnect_delay"
+CONF_DISCOVER_IP = "discover_ip"
 CONF_DISCOVERY = "discovery"
 CONF_DISCOVERY_OBJECT_ID_GENERATOR = "discovery_object_id_generator"
 CONF_DISCOVERY_PREFIX = "discovery_prefix"
@@ -384,6 +386,7 @@ CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
+CONF_ENCRYPTION = "encryption"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
@@ -1248,6 +1251,7 @@ UNIT_KELVIN = "K"
 UNIT_KILOGRAM = "kg"
 UNIT_KILOMETER = "km"
 UNIT_KILOMETER_PER_HOUR = "km/h"
+UNIT_KILOPASCAL = "kPa"
 UNIT_KILOVOLT_AMPS = "kVA"
 UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
 UNIT_KILOVOLT_AMPS_REACTIVE = "kvar"
@@ -1420,6 +1424,14 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
+# esp32 storage keys; defined here so the upload/logs fast path
+# (storage_json.apply_to_core, espidf.toolchain) can use them without
+# importing the esp32 component package.
+KEY_ESP32 = "esp32"
+# Also used by esp8266 to index its BOARDS metadata dicts, whose
+# entries in boards.py spell the literal; do not change the value.
+KEY_FLASH_SIZE = "flash_size"
+KEY_IDF_VERSION = "idf_version"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""

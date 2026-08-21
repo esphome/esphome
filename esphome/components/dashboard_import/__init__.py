@@ -12,6 +12,7 @@ from esphome.components.packages import validate_source_shorthand
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
 import esphome.final_validate as fv
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.yaml_util import dump
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -109,6 +110,7 @@ def import_config(
     if git_file.query and "full_config" in git_file.query:
         url = git_file.raw_url
         try:
+            ensure_happy_eyeballs()
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:

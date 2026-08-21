@@ -670,18 +670,9 @@ def clean_all(configuration: list[str]):
             rmtree(install_path)
 
     # Clean PlatformIO project files
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
-            path = Path(config.get("platformio", pio_dir))
-            if path.is_dir():
-                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                rmtree(path)
+    from esphome.platformio.toolchain import clean_platformio_cache
+
+    clean_platformio_cache()
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

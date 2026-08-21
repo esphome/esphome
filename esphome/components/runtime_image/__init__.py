@@ -5,6 +5,7 @@ from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
@@ -76,13 +77,18 @@ class JPEGFormat(Format):
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        if CORE.is_host:
+            # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
+            # predefines the lowercase __linux__; without this a Linux host
+            # build tries to include Arduino.h.
+            cg.add_build_flag("-D__LINUX__")
         if CORE.is_esp32:
             from esphome.components.esp32 import add_idf_component
 
             # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
             # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
             # On Arduino this overwrites the stub; on IDF it adds the component.
-            add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
+            add_idf_component(name="espressif/esp-dsp", ref="1.8.2")
 
 
 class PNGFormat(Format):
@@ -128,9 +134,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
-                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
-            ),
+            cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
             cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         }

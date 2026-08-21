@@ -19,6 +19,7 @@ service APIConnection {
   rpc device_info (DeviceInfoRequest) returns (DeviceInfoResponse) {
     option (needs_authentication) = false;
   }
+  rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -243,6 +244,12 @@ message SerialProxyInfo {
 //   model = 127 (core/config.BOARD_MAX_LENGTH, validated in platform schemas)
 //   project_name/project_version = 127 (core/config.PROJECT_MAX_LENGTH)
 //   suggested_area = 120 (core/config.FRIENDLY_NAME_MAX_LEN via AREA_SCHEMA)
+//
+// Some fields below are marked "Superseded by DeviceCapabilitiesResponse". They
+// have moved to that message as of API 1.15, but are still sent here so that
+// older clients keep working. Do NOT mark them (deprecated) until the removal
+// release: in this repo (deprecated) makes the generator drop the field
+// entirely, so the device would stop sending it.
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -280,6 +287,8 @@ message DeviceInfoResponse {
 
   // Deprecated in API version 1.9
   uint32 legacy_bluetooth_proxy_version = 11 [deprecated=true, (field_ifdef) = "USE_BLUETOOTH_PROXY"];
+
+  // Superseded by DeviceCapabilitiesResponse.bluetooth_proxy as of API 1.15.
   uint32 bluetooth_proxy_feature_flags = 15 [(field_ifdef) = "USE_BLUETOOTH_PROXY"];
 
   string manufacturer = 12 [(max_data_length) = 20, (force) = true];
@@ -288,11 +297,14 @@ message DeviceInfoResponse {
 
   // Deprecated in API version 1.10
   uint32 legacy_voice_assistant_version = 14 [deprecated=true, (field_ifdef) = "USE_VOICE_ASSISTANT"];
+
+  // Superseded by DeviceCapabilitiesResponse.voice_assistant as of API 1.15.
   uint32 voice_assistant_feature_flags = 17 [(field_ifdef) = "USE_VOICE_ASSISTANT"];
 
   string suggested_area = 16 [(max_data_length) = 120, (force) = true, (field_ifdef) = "USE_AREAS"];
 
   // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
+  // Superseded by DeviceCapabilitiesResponse.bluetooth_proxy.mac_address as of API 1.15.
   string bluetooth_mac_address = 18 [(max_data_length) = 17, (force) = true, (field_ifdef) = "USE_BLUETOOTH_PROXY"];
 
   // Supports receiving and saving api encryption key
@@ -305,16 +317,76 @@ message DeviceInfoResponse {
   AreaInfo area = 22 [(field_ifdef) = "USE_AREAS"];
 
   // Indicates if Z-Wave proxy support is available and features supported
+  // Superseded by DeviceCapabilitiesResponse.zwave_proxy as of API 1.15.
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+  // Superseded by DeviceCapabilitiesResponse.zwave_proxy as of API 1.15.
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 
   // Serial proxy instance metadata
+  // Superseded by DeviceCapabilitiesResponse.serial_proxies as of API 1.15.
   repeated SerialProxyInfo serial_proxies = 25 [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
 
   // Device is unprovisioned and accepts Noise handshakes with the well-known
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
+}
+
+// ==================== DEVICE CAPABILITIES ====================
+
+// Asks the device which optional features it supports.
+//
+// This message exists so that DeviceInfoResponse does not have to keep growing
+// a flat list of feature flags. DeviceInfoResponse is served before
+// authentication, so it is limited to identity information. Capabilities are
+// only served on an authenticated connection (encrypted as well, when
+// encryption is configured).
+//
+// Clients that see api_version >= 1.15 should read these values from
+// DeviceCapabilitiesResponse and ignore the matching DeviceInfoResponse fields.
+// Older clients keep reading DeviceInfoResponse, which still carries the same
+// values, so this is not a breaking change.
+message DeviceCapabilitiesRequest {
+  option (id) = 149;
+  option (source) = SOURCE_CLIENT;
+  // Empty
+}
+
+// Each feature gets its own sub-message so that it can gain fields over time
+// without crowding the top-level field numbering.
+//
+// Note: a sub-message whose fields are all at their default value is not sent
+// at all, so the presence of a sub-message is not a reliable test for "this
+// feature is compiled in". Clients should test a value inside it, for example
+// a non-zero feature_flags, exactly as they do today with DeviceInfoResponse.
+
+message BluetoothProxyCapabilities {
+  // Bitmask of the features this proxy supports
+  uint32 feature_flags = 1;
+  // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
+  string mac_address = 2 [(max_data_length) = 17, (force) = true];
+}
+
+message VoiceAssistantCapabilities {
+  // Bitmask of the features this voice assistant supports
+  uint32 feature_flags = 1;
+}
+
+message ZWaveProxyCapabilities {
+  // Bitmask of the features this proxy supports
+  uint32 feature_flags = 1;
+  uint32 home_id = 2;
+}
+
+message DeviceCapabilitiesResponse {
+  option (id) = 150;
+  option (source) = SOURCE_SERVER;
+
+  BluetoothProxyCapabilities bluetooth_proxy = 1 [(field_ifdef) = "USE_BLUETOOTH_PROXY"];
+  VoiceAssistantCapabilities voice_assistant = 2 [(field_ifdef) = "USE_VOICE_ASSISTANT"];
+  ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+  repeated SerialProxyInfo serial_proxies = 4
+      [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
 }
 
 message ListEntitiesRequest {
@@ -1688,7 +1760,7 @@ enum BluetoothDeviceRequestType {
 message BluetoothDeviceRequest {
   option (id) = 68;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
@@ -1699,7 +1771,7 @@ message BluetoothDeviceRequest {
 message BluetoothDeviceConnectionResponse {
   option (id) = 69;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   bool connected = 2;
@@ -1710,7 +1782,7 @@ message BluetoothDeviceConnectionResponse {
 message BluetoothGATTGetServicesRequest {
   option (id) = 70;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
 }
@@ -1754,7 +1826,7 @@ message BluetoothGATTService {
 message BluetoothGATTGetServicesResponse {
   option (id) = 71;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   repeated BluetoothGATTService services = 2;
@@ -1763,7 +1835,7 @@ message BluetoothGATTGetServicesResponse {
 message BluetoothGATTGetServicesDoneResponse {
   option (id) = 72;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
 }
@@ -1771,7 +1843,7 @@ message BluetoothGATTGetServicesDoneResponse {
 message BluetoothGATTReadRequest {
   option (id) = 73;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1780,7 +1852,7 @@ message BluetoothGATTReadRequest {
 message BluetoothGATTReadResponse {
   option (id) = 74;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1792,7 +1864,7 @@ message BluetoothGATTReadResponse {
 message BluetoothGATTWriteRequest {
   option (id) = 75;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1804,7 +1876,7 @@ message BluetoothGATTWriteRequest {
 message BluetoothGATTReadDescriptorRequest {
   option (id) = 76;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1813,7 +1885,7 @@ message BluetoothGATTReadDescriptorRequest {
 message BluetoothGATTWriteDescriptorRequest {
   option (id) = 77;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1824,7 +1896,7 @@ message BluetoothGATTWriteDescriptorRequest {
 message BluetoothGATTNotifyRequest {
   option (id) = 78;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1834,7 +1906,7 @@ message BluetoothGATTNotifyRequest {
 message BluetoothGATTNotifyDataResponse {
   option (id) = 79;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1845,13 +1917,13 @@ message BluetoothGATTNotifyDataResponse {
 message SubscribeBluetoothConnectionsFreeRequest {
   option (id) = 80;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 }
 
 message BluetoothConnectionsFreeResponse {
   option (id) = 81;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint32 free = 1;
   uint32 limit = 2;
@@ -1864,7 +1936,7 @@ message BluetoothConnectionsFreeResponse {
 message BluetoothGATTErrorResponse {
   option (id) = 82;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1874,7 +1946,7 @@ message BluetoothGATTErrorResponse {
 message BluetoothGATTWriteResponse {
   option (id) = 83;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1883,7 +1955,7 @@ message BluetoothGATTWriteResponse {
 message BluetoothGATTNotifyResponse {
   option (id) = 84;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 handle = 2;
@@ -1892,7 +1964,7 @@ message BluetoothGATTNotifyResponse {
 message BluetoothDevicePairingResponse {
   option (id) = 85;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   bool paired = 2;
@@ -1902,7 +1974,7 @@ message BluetoothDevicePairingResponse {
 message BluetoothDeviceUnpairingResponse {
   option (id) = 86;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   bool success = 2;
@@ -1918,7 +1990,7 @@ message UnsubscribeBluetoothLEAdvertisementsRequest {
 message BluetoothDeviceClearCacheResponse {
   option (id) = 88;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   bool success = 2;
@@ -2735,7 +2807,7 @@ message SerialProxyRequestResponse {
 message BluetoothSetConnectionParamsRequest {
   option (id) = 145;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   uint32 min_interval = 2;  // units of 1.25ms
@@ -2747,7 +2819,7 @@ message BluetoothSetConnectionParamsRequest {
 message BluetoothSetConnectionParamsResponse {
   option (id) = 146;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (ifdef) = "USE_BLUETOOTH_PROXY_CONNECTIONS";
 
   uint64 address = 1;
   int32 error = 2;

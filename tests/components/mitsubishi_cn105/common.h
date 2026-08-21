@@ -8,6 +8,8 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
+#include "esphome/components/mitsubishi_cn105/automation.h"
+#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 
 namespace esphome::mitsubishi_cn105::testing {
@@ -46,12 +48,11 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
  public:
   using MitsubishiCN105::MitsubishiCN105;
   using MitsubishiCN105::State;
-  using MitsubishiCN105::UpdateFlag;
+  using MitsubishiCN105::PropertyId;
   using MitsubishiCN105::state_;
   using MitsubishiCN105::status_;
   using MitsubishiCN105::operation_start_ms_;
-  using MitsubishiCN105::use_temperature_encoding_b_;
-  using MitsubishiCN105::set_wide_vane_high_bit_;
+  using MitsubishiCN105::property_context_;
   using MitsubishiCN105::status_update_wait_credit_ms_;
   using MitsubishiCN105::pending_updates_;
 
@@ -65,11 +66,23 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
 
 class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
  public:
+  TestableMitsubishiCN105Climate() { this->set_parent(&this->component_); }
+
   using MitsubishiCN105Climate::apply_values_;
   using MitsubishiCN105Climate::last_non_swing_vane_mode_;
   using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
 
-  MitsubishiCN105::Status &status() { return static_cast<TestableMitsubishiCN105 &>(this->hp_).status_; }
+  MitsubishiCN105::Status &status() { return const_cast<MitsubishiCN105::Status &>(this->component_.status()); }
+
+ protected:
+  MitsubishiCN105Component component_;
+};
+
+class TestableMitsubishiCN105Component : public MitsubishiCN105Component {
+ public:
+  MitsubishiCN105::Status &mutable_status() { return const_cast<MitsubishiCN105::Status &>(this->status()); }
+
+  void notify_status() { this->status_callback_.call(); }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

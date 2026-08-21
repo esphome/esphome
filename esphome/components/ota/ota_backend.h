@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#include <concepts>
+#include <cstddef>
 #include <cstdint>
 
 #ifdef USE_OTA_STATE_LISTENER
@@ -76,6 +78,25 @@ enum OTAType : uint8_t {
   OTA_TYPE_UPDATE_APP = 0x00,
   OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01,
   OTA_TYPE_UPDATE_BOOTLOADER = 0x02,
+};
+
+// The OTA backend method surface. Exactly one backend exists per build,
+// selected in ota_backend_factory.h where this concept is asserted on
+// make_ota_backend()'s return type. Semantics beyond the signatures:
+// - begin: prepare for an image of the given size; ota_type defaults to an
+//   app update, so both call forms must be accepted.
+// - set_update_md5: expected digest of the incoming image, hex string.
+// - write: consume the next chunk; end: finalize and mark bootable.
+// - abort: safe to call in any state, including after end().
+template<typename T>
+concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5) {
+  { backend.begin(image_size, OTA_TYPE_UPDATE_APP) } -> std::same_as<OTAResponseTypes>;
+  { backend.begin(image_size) } -> std::same_as<OTAResponseTypes>;
+  backend.set_update_md5(md5);
+  { backend.write(data, len) } -> std::same_as<OTAResponseTypes>;
+  { backend.end() } -> std::same_as<OTAResponseTypes>;
+  backend.abort();
+  { backend.supports_compression() } -> std::same_as<bool>;
 };
 
 /** Listener interface for OTA state changes.

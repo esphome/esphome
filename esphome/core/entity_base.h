@@ -240,7 +240,7 @@ class EntityBase {
 #endif
 
   /// Non-template helper for make_entity_preference() to avoid code bloat.
-  /// When preference hash algorithm changes, migration logic goes here.
+  /// When the preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
   void calc_object_id_();

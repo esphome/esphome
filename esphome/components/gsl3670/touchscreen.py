@@ -29,6 +29,8 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import ID
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["touchscreen"]
@@ -68,6 +70,21 @@ MODELS = {
             CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
         },
     },
+    "GUITION-JC8012P4A1": {
+        CONF_SWAP_XY: True,
+        CONF_MIRROR_X: True,
+        CONF_MIRROR_Y: False,
+        CONF_X_MIN: 20,
+        CONF_Y_MIN: 20,
+        CONF_X_MAX: 880,
+        CONF_Y_MAX: 1648,
+        CONF_RESET_PIN: 22,
+        CONF_INTERRUPT_PIN: 21,
+        CONF_FIRMWARE: {
+            CONF_URL: f"{FIRMWARE_BASE_URL}/seeed-d1001-fw.bin",
+            CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
+        },
+    },
     "CUSTOM": {},
 }
 
@@ -88,8 +105,7 @@ def _validate_firmware_data(data: bytes, source: str) -> None:
 
 def _cache_path(url: str) -> Path:
     """Cache path for a downloaded firmware blob, keyed by URL."""
-    key = hashlib.sha256(url.encode()).hexdigest()[:8]
-    return external_files.compute_local_file_dir(DOMAIN) / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def firmware_path(firmware: dict) -> Path:
@@ -139,6 +155,23 @@ FIRMWARE_SCHEMA = cv.All(
     ),
     _validate_firmware,
 )
+
+
+def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
+    firmware = entry.get(CONF_FIRMWARE)
+    if firmware is None:
+        model = str(entry.get(CONF_MODEL, "CUSTOM")).upper()
+        firmware = MODELS.get(model, {}).get(CONF_FIRMWARE)
+    if (
+        isinstance(firmware, dict)
+        and CONF_FILE not in firmware
+        and isinstance(url := firmware.get(CONF_URL), str)
+    ):
+        return RemoteFile(url, _cache_path(url))
+    return None
+
+
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
 def _config_schema(config):

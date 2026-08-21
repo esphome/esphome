@@ -25,6 +25,7 @@ from esphome.cpp_generator import (  # noqa: F401
     add,
     add_build_flag,
     add_build_unflag,
+    add_cmake_arg,
     add_cxx_build_flag,
     add_define,
     add_global,
@@ -49,10 +50,13 @@ from esphome.cpp_helpers import (  # noqa: F401
     build_registry_entry,
     build_registry_list,
     extract_registry_entry_config,
+    get_slot_count,
     gpio_pin_expression,
     past_safe_mode,
     register_component,
     register_parented,
+    set_setup_priority,
+    slot_counter,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,
