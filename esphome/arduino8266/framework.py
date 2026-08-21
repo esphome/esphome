@@ -75,6 +75,14 @@ def framework_package_version(ver: Version) -> str:
             f"Arduino core {ver} is not supported yet; "
             "the newest known core series is 3.x"
         )
+    if ver < Version(2, 6, 3):
+        # Older cores use the 1.x/2.x package-major encodings, which the
+        # PlatformIO path handles before delegating here; never encode them
+        # wrongly for a caller that skipped that guard
+        raise EsphomeError(
+            f"Arduino core {ver} predates the package encoding this helper "
+            "implements (2.6.3 and newer)"
+        )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
@@ -133,7 +141,13 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
 
 def get_build_env(toolchain_path: Path) -> dict[str, str]:
     env = os.environ.copy()
-    env["PATH"] = str(toolchain_path / "bin") + os.pathsep + env.get("PATH", "")
+    # Drop empty entries: a trailing separator from an absent PATH would
+    # make the shell search the current directory for tools
+    parts = [
+        str(toolchain_path / "bin"),
+        *filter(None, env.get("PATH", "").split(os.pathsep)),
+    ]
+    env["PATH"] = os.pathsep.join(parts)
     env.update(ccache_env())
     return env
 
