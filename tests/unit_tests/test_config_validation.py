@@ -3191,7 +3191,7 @@ def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
 
     CORE.toolchain = None
     with pytest.raises(Invalid, match="not resolved before RP2 validation"):
-        cv.check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
+        cv._check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
 
 
 @pytest.mark.parametrize(
