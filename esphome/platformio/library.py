@@ -776,6 +776,15 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
+def request_key(library: Library) -> str:
+    """The node key a library spec resolves under.
+
+    Pairs with ``ConvertedLibrary.node_key``: diff requests against resolved
+    components with these, not against the canonical ``name``.
+    """
+    return _node_key(library.name, library.version, library.repository)[0]
+
+
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
