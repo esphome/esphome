@@ -1074,3 +1074,28 @@ def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="anchor not found"),
     ):
         _run_generate_ld_scripts(paths)
+
+
+def test_write_project_unmatched_unflag_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unflag that removes nothing is named; a matching one is silent."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DUSE_FOO=1")
+    CORE.build_unflags = {"-DUSE_FOO", "-Os"}
+    content = _write_ninja(paths)
+    assert "matched no build flag: -DUSE_FOO" in caplog.text
+    assert "-Os" not in caplog.text.split("matched no build flag")[-1].splitlines()[0]
+    # The matching -Os unflag really removed the framework flag
+    cflags = next(line for line in content.splitlines() if line.startswith("cflags"))
+    assert " -Os " not in cflags
+
+
+def test_write_project_lexes_build_flags_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed build_flags entry warns once per generation."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DFOO=1 -l")
+    _write_ninja(paths)
+    assert caplog.text.count("Ignoring trailing '-l'") == 1

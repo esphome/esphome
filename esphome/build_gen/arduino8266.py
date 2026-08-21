@@ -591,7 +591,9 @@ def write_project(paths: InstalledPaths) -> bool:
     mkdir_p(build_dir)
 
     unflags = _unflag_tokens()
-    flag_defines = _flag_defines(unflags)
+    # Lexed once so a malformed entry warns once, not per consumer
+    build_tokens = _lexed_build_flags()
+    flag_defines = _flag_defines(unflags, build_tokens)
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
@@ -652,7 +654,7 @@ def write_project(paths: InstalledPaths) -> bool:
         project_link_flags,
         project_lib_dirs,
         project_libs,
-    ) = _project_flags(unflags)
+    ) = _project_flags(unflags, build_tokens)
     defines = _defines_flags(
         config, esp8266_data[KEY_FLASH_MODE], board, board_build["defines"]
     )
@@ -681,6 +683,17 @@ def write_project(paths: InstalledPaths) -> bool:
     # build_unflags applies to the framework flag sets too (compile and link),
     # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
     # diverge between the toolchains).
+    # Matching is whole-token, so an unflag that hits nothing in the user
+    # flags or any framework set (a typo, or -DUSE_FOO against -DUSE_FOO=1)
+    # must be visible: the user believes the flag is gone while it still
+    # drives the compile line and the knob selection
+    flag_universe = set(build_tokens)
+    for flags in (cflags, cxxflags, asflags, _LINKFLAGS):
+        flag_universe.update(flags)
+    if unmatched := sorted(unflags - flag_universe):
+        _LOGGER.warning(
+            "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
+        )
     cflags, cxxflags, asflags, link_flags = (
         [f for f in flags if f not in unflags]
         for flags in (cflags, cxxflags, asflags, _LINKFLAGS)
