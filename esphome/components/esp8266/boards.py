@@ -365,6 +365,9 @@ BOARDS = {
 # Per-board Arduino core build metadata for the native (PlatformIO-free)
 # toolchain: the variant directory (supplies pins_arduino.h) and the
 # board-identity defines the PlatformIO builder passes via build.extra_flags.
+# Valid for platform 4.x only (older tags differ, e.g. esp8285's variant);
+# the native toolchain's validator enforces that pairing by requiring core
+# >= 3.1.1 and rejecting a custom platform_version.
 # -DESP8266 and -DARDUINO_ARCH_ESP8266 are shared by every board and added by
 # the generator; only the per-board defines are listed here.
 #
