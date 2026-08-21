@@ -157,9 +157,10 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     }
 )
 
-# Mutating function codes: continuous polling is meaningless for these and the hub strips it. 0x17
-# (read/write multiple) is not listed - it carries a read, so continuous is valid.
-_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16})
+# Mutating function codes: continuous polling is meaningless for these and the hub strips it (with a
+# warning) at queue time. Mirrors modbus::helpers::is_function_code_write() - keep in sync. 0x17
+# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
+_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
 
 
 def _no_continuous_on_write(config: ConfigType) -> ConfigType:
