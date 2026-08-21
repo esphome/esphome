@@ -327,6 +327,9 @@ class USBUartTypeCH934X : public USBUartComponent {
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
   void start_input(USBUartChannelBase *channel) override;
+  // Max number of channels initialised in parallel (one in-flight command write each).
+  // Set from codegen and capped at the usb_host transfer-request pool size.
+  void set_init_lanes(uint8_t lanes) { this->init_lanes_ = lanes; }
 
  protected:
   void on_connected() override;
@@ -339,9 +342,18 @@ class USBUartTypeCH934X : public USBUartComponent {
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 
   bool parse_descriptors_(usb_device_handle_t dev_hdl);
-  bool configure_channel_(USBUartChannelBase *channel);
-  bool set_uart_mode_(USBUartChannelBase *channel);
   bool configure_uart_parameters_(USBUartChannelBase *channel);
+  // Build the idx-th init register write for a channel into a stack buffer. Stateless and
+  // deterministic, so the paced config machine can re-derive any write per round without
+  // storing them. Returns false when idx is past this chip's per-channel write count.
+  bool build_channel_write_(USBUartChannelBase *channel, uint8_t idx, uint8_t *buffer, uint8_t *len);
+  // Submit one init command write on the shared command endpoint as part of a paced round:
+  // records per-port failure, and the write that finishes the round releases the config
+  // machine (cfg_done_). Returns false if submission failed (no free transfer slot).
+  bool config_bulk_write_(USBUartChannelBase *channel, const uint8_t *data, uint16_t len);
+  // Wire the shared TX endpoint/routing, mark successfully-configured channels initialised,
+  // and start the RX/CMD readers. Runs once, after every channel's registers are written.
+  void finalize_init_();
   uint8_t get_reg_address_(uint8_t portnum);
 
   void start_rx_reader_();
@@ -355,6 +367,15 @@ class USBUartTypeCH934X : public USBUartComponent {
   uint8_t port_offset_{0};
   std::atomic<bool> rx_running_{false};
   std::atomic<bool> cmd_running_{false};
+
+  // Paced parallel init state (see config_device_step()).
+  uint8_t init_lanes_{1};             // max channels configured in parallel per round
+  uint8_t channel_write_count_{0};    // register writes per channel for the detected chip
+  uint8_t init_group_start_{0};       // first channel index of the current parallel group
+  uint8_t init_write_idx_{0};         // write index within the current group's lockstep rounds
+  std::atomic<int> init_pending_{0};  // command writes still outstanding in the current round
+  std::atomic<uint8_t> init_failed_mask_{0};    // per-port failure bits (bit N = port N failed)
+  std::atomic<bool> init_device_failed_{false};  // a device-level init write failed
 };
 
 // Concrete channel type for CH934x multiplexed devices: all channels share one

@@ -48,14 +48,18 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 
 def _set_max_packet_size(config: dict) -> dict:
-    CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
-        CONF_MAX_PACKET_SIZE
-    ]
+    domain_data = CORE.data.setdefault(DOMAIN, {})
+    domain_data[CONF_MAX_PACKET_SIZE] = config[CONF_MAX_PACKET_SIZE]
+    domain_data[CONF_MAX_TRANSFER_REQUESTS] = config[CONF_MAX_TRANSFER_REQUESTS]
     return config
 
 
 def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
+
+
+def get_max_transfer_requests() -> int:
+    return CORE.data.get(DOMAIN, {}).get(CONF_MAX_TRANSFER_REQUESTS, 16)
 
 
 CONFIG_SCHEMA = cv.All(

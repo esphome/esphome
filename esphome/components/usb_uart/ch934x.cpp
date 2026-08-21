@@ -105,6 +105,7 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
 bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
   if (this->channels_.empty())
     return false;
+
   if (step == 0) {
     ESP_LOGD(TAG, "Starting device setup");
     // Vendor IN read: device returns 4 chip-id bytes used below to distinguish variants.
@@ -112,83 +113,123 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
     return true;
   }
 
-  // step 1: identify the chip and run one-time device + per-channel register setup. The
-  // CH934x configures via fire-and-forget bulk writes, so there is nothing to wait on.
-  if (!ok) {
-    ESP_LOGE(TAG, "Fetching chip id failed");
-    return false;
-  }
+  // step 1: chip-id read has completed. Identify the variant, then issue the device-level
+  // register writes as the first paced round. Unlike a single blind burst, every following
+  // round issues at most init_lanes_ command writes (one per channel) and waits for their
+  // completions via config_bulk_write_ before advancing, so the transfer-request pool is
+  // never oversubscribed and a dropped write is surfaced instead of silently ignored.
+  if (step == 1) {
+    if (!ok) {
+      ESP_LOGE(TAG, "Fetching chip id failed");
+      return false;
+    }
+    ESP_LOGV(TAG, "Received chip id response bytes 0x%02x 0x%02x 0x%02x 0x%02x", response[0], response[1], response[2],
+             response[3]);
 
-  ESP_LOGV(TAG, "Received chip id response bytes 0x%02x 0x%02x 0x%02x 0x%02x", response[0], response[1], response[2],
-           response[3]);
+    if (this->pid_ == 0xE018) {
+      this->chiptype_ = (response[0] >= 0x40) ? CHIP_CH9344Q : CHIP_CH9344L;
+      this->num_ports_ = 4;
+      this->port_offset_ = 4;
+      this->channel_write_count_ = 8;
+    } else if (this->pid_ == 0x55D9) {
+      this->chiptype_ = (response[1] & (0x02 << 6)) ? CHIP_CH348Q : CHIP_CH348L;
+      this->num_ports_ = 8;
+      this->port_offset_ = 0;
+      this->channel_write_count_ = 4;
+    } else {
+      ESP_LOGE(TAG, "Unknown product_id: 0x%04X", this->pid_);
+      return false;
+    }
 
-  if (this->pid_ == 0xE018) {
-    this->chiptype_ = (response[0] >= 0x40) ? CHIP_CH9344Q : CHIP_CH9344L;
-    this->num_ports_ = 4;
-    this->port_offset_ = 4;
-  } else if (this->pid_ == 0x55D9) {
-    this->chiptype_ = (response[1] & (0x02 << 6)) ? CHIP_CH348Q : CHIP_CH348L;
-    this->num_ports_ = 8;
-    this->port_offset_ = 0;
-  } else {
-    ESP_LOGE(TAG, "Unknown product_id: 0x%04X", this->pid_);
-    return false;
-  }
+    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string(this->chiptype_).c_str(), this->num_ports_);
+    ESP_LOGD(TAG, "Configuring device registers for %u ports (%u init lanes)", this->num_ports_, this->init_lanes_);
 
-  ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string(this->chiptype_).c_str(), this->num_ports_);
-  ESP_LOGD(TAG, "Configuring device registers for %u ports", this->num_ports_);
+    this->init_failed_mask_.store(0);
+    this->init_device_failed_.store(false);
+    this->init_group_start_ = 0;
+    this->init_write_idx_ = 0;
 
-  usb_host::transfer_cb_t bulk_callback = [=](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGE(TAG, "Bulk transfer failed, status=%s", esp_err_to_name(status.error_code));
-  };
+    bool is_9344 = this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q;
+    uint8_t rgadd = this->get_reg_address_(this->num_ports_ - 1);
+    uint8_t buffer[3];
 
-  uint8_t portnum = this->num_ports_ - 1;
-  uint8_t rgadd = this->get_reg_address_(portnum);
-  uint8_t buffer[6];
-
-  buffer[0] = CMD_W_R;
-  buffer[1] = rgadd + R_C2;
-  buffer[2] = 0x87;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, bulk_callback, buffer, 3);
-
-  if (this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q) {
+    // Device-level writes are independent of each other, so they go out as one round.
+    this->init_pending_.store(is_9344 ? 3 : 2, std::memory_order_release);
+    buffer[0] = CMD_W_R;
+    buffer[1] = rgadd + R_C2;
+    buffer[2] = 0x87;
+    this->config_bulk_write_(nullptr, buffer, 3);
+    if (is_9344) {
+      buffer[1] = rgadd + R_C3;
+      buffer[2] = 0x03;
+      this->config_bulk_write_(nullptr, buffer, 3);
+    }
     buffer[1] = rgadd + R_C3;
-    buffer[2] = 0x03;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, bulk_callback, buffer, 3);
+    buffer[2] = 0x08;
+    this->config_bulk_write_(nullptr, buffer, 3);
+    return true;
   }
 
-  buffer[1] = rgadd + R_C3;
-  buffer[2] = 0x08;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, bulk_callback, buffer, 3);
+  // step >= 2: per-channel register writes. Channels are configured in groups of at most
+  // init_lanes_; within a group each channel emits exactly one write per round (its writes
+  // stay strictly ordered), so at most init_lanes_ writes are in flight at once.
+  uint8_t n = static_cast<uint8_t>(this->channels_.size());
+  for (;;) {
+    if (this->init_group_start_ >= n) {
+      this->finalize_init_();
+      return false;
+    }
 
-  for (auto *channel : this->channels_) {
-    if (channel->index_ >= this->num_ports_) {
-      ESP_LOGW(TAG, "Channel %d exceeds number of available ports (%d)", channel->index_, this->num_ports_);
+    uint8_t group_end = this->init_group_start_ + this->init_lanes_;
+    if (group_end > n)
+      group_end = n;
+
+    // Count the channels that will emit a write this round (skip out-of-range/failed ones).
+    uint8_t count = 0;
+    for (uint8_t c = this->init_group_start_; c < group_end; c++) {
+      USBUartChannelBase *ch = this->channels_[c];
+      if (ch->index_ >= this->num_ports_)
+        continue;
+      if (this->init_device_failed_.load() || (this->init_failed_mask_.load() & (1u << ch->index_)))
+        continue;
+      count++;
+    }
+
+    if (count == 0) {
+      // Whole round is skipped (all failed/out of range): advance and retry in this call so
+      // we do not return true without a write that would release the config machine.
+      if (++this->init_write_idx_ >= this->channel_write_count_) {
+        this->init_write_idx_ = 0;
+        this->init_group_start_ += this->init_lanes_;
+      }
       continue;
     }
-    if (this->configure_channel_(channel)) {
-      channel->initialised_.store(true);
-    } else {
-      ESP_LOGE(TAG, "Failed to initialize channel %d", channel->index_);
+
+    this->init_pending_.store(count, std::memory_order_release);
+    for (uint8_t c = this->init_group_start_; c < group_end; c++) {
+      USBUartChannelBase *ch = this->channels_[c];
+      if (ch->index_ >= this->num_ports_)
+        continue;
+      if (this->init_device_failed_.load() || (this->init_failed_mask_.load() & (1u << ch->index_)))
+        continue;
+      uint8_t buffer[12];
+      uint8_t len = 0;
+      if (!this->build_channel_write_(ch, this->init_write_idx_, buffer, &len)) {
+        // No write at this index (should not happen within channel_write_count_): still count
+        // it as done so the round can complete.
+        if (this->init_pending_.fetch_sub(1, std::memory_order_acq_rel) == 1)
+          this->cfg_done_.store(true, std::memory_order_release);
+        continue;
+      }
+      this->config_bulk_write_(ch, buffer, len);
     }
-  }
 
-  // Point every channel's shared TX queue to channel 0, and wire up the shared
-  // data endpoint on channel 0 so start_output() can use it directly.
-  // Pre-compute each channel's TX port byte (port_offset + index) to avoid
-  // casting to USBUartTypeCH934X on every write_array call.
-  auto *shared = this->channels_[0];
-  shared->cdc_dev_.out_ep = this->uart_host_dev_.out_ep;
-  for (auto *channel : this->channels_) {
-    auto *ch934x_channel = static_cast<CH934XChannel *>(channel);
-    ch934x_channel->tx_shared_channel_ = shared;
-    ch934x_channel->tx_port_byte_ = static_cast<uint8_t>(this->port_offset_ + channel->index_);
+    if (++this->init_write_idx_ >= this->channel_write_count_) {
+      this->init_write_idx_ = 0;
+      this->init_group_start_ += this->init_lanes_;
+    }
+    return true;
   }
-
-  this->start_rx_reader_();
-  this->start_command_reader_();
-  return false;
 }
 
 // Per-channel settings. On full init every channel is already configured by
@@ -238,69 +279,77 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
   return false;
 }
 
-bool USBUartTypeCH934X::configure_channel_(USBUartChannelBase *channel) {
-  if (!this->set_uart_mode_(channel)) {
-    ESP_LOGE(TAG, "Failed to set UART mode for channel %d", channel->index_);
-    return false;
-  }
-  if (!this->configure_uart_parameters_(channel)) {
-    ESP_LOGE(TAG, "Failed to configure UART parameters for channel %d", channel->index_);
-    return false;
-  }
-
-  uint8_t portnum = channel->index_;
-  uint8_t rgadd = this->get_reg_address_(portnum);
-  uint8_t buffer[3];
-
-  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGE(TAG, "Control line setup failed, status=%s", esp_err_to_name(status.error_code));
+bool USBUartTypeCH934X::config_bulk_write_(USBUartChannelBase *channel, const uint8_t *data, uint16_t len) {
+  uint8_t port = (channel != nullptr) ? channel->index_ : 0xFF;
+  usb_host::transfer_cb_t callback = [this, port](const usb_host::TransferStatus &status) {
+    if (!status.success) {
+      if (port == 0xFF) {
+        this->init_device_failed_.store(true, std::memory_order_release);
+      } else {
+        this->init_failed_mask_.fetch_or(static_cast<uint8_t>(1u << port), std::memory_order_acq_rel);
+      }
+      ESP_LOGE(TAG, "Init command write failed (port %d): %s", static_cast<int8_t>(port),
+               esp_err_to_name(status.error_code));
+    }
+    // The write that completes the round releases the config machine and wakes the loop.
+    if (this->init_pending_.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      this->cfg_done_.store(true, std::memory_order_release);
+      this->enable_loop_soon_any_context();
+      App.wake_loop_threadsafe();
+    }
   };
 
-  buffer[0] = CMD_W_R;
-  buffer[1] = rgadd + R_C1;
-  buffer[2] = 0x07;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-  buffer[0] = CMD_W_BR;
-  buffer[1] = rgadd + R_C4;
-  buffer[2] = 0x00;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-  if (this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q) {
-    buffer[0] = CMD_W_BR;
-    buffer[1] = rgadd + R_C4;
-    buffer[2] = 0x10;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+  bool submitted = this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, data, len);
+  if (!submitted) {
+    // No free transfer slot: no callback will fire, so account for this write here (loop
+    // thread) and mark it failed instead of silently dropping it.
+    if (port == 0xFF) {
+      this->init_device_failed_.store(true, std::memory_order_release);
+    } else {
+      this->init_failed_mask_.fetch_or(static_cast<uint8_t>(1u << port), std::memory_order_acq_rel);
+    }
+    ESP_LOGE(TAG, "Init command write submit failed (port %d): no free transfer slot", static_cast<int8_t>(port));
+    if (this->init_pending_.fetch_sub(1, std::memory_order_acq_rel) == 1)
+      this->cfg_done_.store(true, std::memory_order_release);
   }
-
-  return true;
+  return submitted;
 }
 
-bool USBUartTypeCH934X::set_uart_mode_(USBUartChannelBase *channel) {
-  uint8_t portnum = channel->index_;
-  uint8_t rgadd = this->get_reg_address_(portnum);
-  uint8_t buffer[3];
+void USBUartTypeCH934X::finalize_init_() {
+  // Wire the shared TX endpoint (channel 0) and per-channel TX routing. This only happens
+  // after every channel's registers have been written, so no channel can transmit before
+  // the whole device is initialised (write_array() also gates on tx_shared_channel_).
+  auto *shared = this->channels_[0];
+  shared->cdc_dev_.out_ep = this->uart_host_dev_.out_ep;
 
-  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGE(TAG, "Bulk transfer failed, status=%s", esp_err_to_name(status.error_code));
-  };
+  bool device_failed = this->init_device_failed_.load();
+  uint8_t failed_mask = this->init_failed_mask_.load();
+  bool any_failed = false;
 
-  buffer[0] = CMD_W_BR;
-  buffer[1] = rgadd + R_C4;
-  buffer[2] = 0x50;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+  for (auto *channel : this->channels_) {
+    auto *ch934x_channel = static_cast<CH934XChannel *>(channel);
+    ch934x_channel->tx_shared_channel_ = shared;
+    ch934x_channel->tx_port_byte_ = static_cast<uint8_t>(this->port_offset_ + channel->index_);
 
-  if (this->chiptype_ == CHIP_CH348L || this->chiptype_ == CHIP_CH348Q)
-    return true;
+    bool failed = device_failed || channel->index_ >= this->num_ports_ ||
+                  (failed_mask & (1u << channel->index_)) != 0;
+    if (failed) {
+      channel->initialised_.store(false);
+      any_failed = true;
+      ESP_LOGE(TAG, "Channel %d failed initialisation and will not be used", channel->index_);
+    } else {
+      channel->initialised_.store(true);
+    }
+  }
 
-  buffer[0] = CMD_W_BR;
-  buffer[1] = 0x97;
-  buffer[2] = 0x00;  // normal UART mode for all ports
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+  if (any_failed) {
+    this->status_set_error(LOG_STR("One or more CH934X channels failed to initialise"));
+  } else {
+    this->status_clear_error();
+  }
 
-  return true;
+  this->start_rx_reader_();
+  this->start_command_reader_();
 }
 
 static void cal_outdata(uint8_t *buffer, uint8_t rol, uint8_t xor_val) {
@@ -426,6 +475,175 @@ bool USBUartTypeCH934X::configure_uart_parameters_(USBUartChannelBase *channel) 
   }
 
   return true;
+}
+
+bool USBUartTypeCH934X::build_channel_write_(USBUartChannelBase *channel, uint8_t idx, uint8_t *buffer, uint8_t *len) {
+  uint8_t portnum = channel->index_;
+  uint8_t rgadd = this->get_reg_address_(portnum);
+  bool is_9344 = this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q;
+
+  if (is_9344) {
+    // CH9344 per-channel sequence: mode(2) + parameters(3) + control-line/baud commit(3) = 8.
+    switch (idx) {
+      case 0:  // UART mode
+        buffer[0] = CMD_W_BR;
+        buffer[1] = rgadd + R_C4;
+        buffer[2] = 0x50;
+        *len = 3;
+        return true;
+      case 1:  // normal UART mode for all ports
+        buffer[0] = CMD_W_BR;
+        buffer[1] = 0x97;
+        buffer[2] = 0x00;
+        *len = 3;
+        return true;
+      case 2:
+      case 3:
+      case 4: {  // baud/format parameters (deterministic, recomputed per write)
+        uint32_t baud_rate = channel->get_baud_rate();
+        uint8_t data_bits = channel->get_data_bits();
+        uint8_t stop_bits = channel->get_stop_bits();
+        UARTParityOptions parity = channel->parity_;
+        uint8_t pedt = (baud_rate > 115200) ? 0x01 : 0x00;
+        uint32_t clrt = (baud_rate > 115200) ? 44236800 : 12000000;
+        uint8_t bd1 = 0, bd2 = 0, bd3 = 0;
+        switch (baud_rate) {
+          case 250000:
+            bd3 = 1;
+            break;
+          case 500000:
+            bd3 = 2;
+            break;
+          case 1000000:
+            bd3 = 3;
+            break;
+          case 1500000:
+            bd3 = 4;
+            break;
+          case 3000000:
+            bd3 = 5;
+            break;
+          case 12000000:
+            bd3 = 6;
+            break;
+          default: {
+            uint32_t factor = clrt / baud_rate;
+            bd1 = factor & 0xFF;
+            bd2 = (factor >> 8) & 0xFF;
+            break;
+          }
+        }
+        uint8_t sbit = (stop_bits == UART_CONFIG_STOP_BITS_2) ? 0x04 : 0x00;
+        uint8_t pbit = 0;
+        switch (parity) {
+          case UART_CONFIG_PARITY_ODD:
+            pbit = 0x08;
+            break;
+          case UART_CONFIG_PARITY_EVEN:
+            pbit = (0x01 << 4) | 0x08;
+            break;
+          case UART_CONFIG_PARITY_MARK:
+            pbit = (0x02 << 4) | 0x08;
+            break;
+          case UART_CONFIG_PARITY_SPACE:
+            pbit = (0x03 << 4) | 0x08;
+            break;
+          default:
+            break;
+        }
+        uint8_t dbit = (data_bits >= 5 && data_bits <= 8) ? (data_bits - 5) : 0x03;
+        if (idx == 2) {
+          buffer[0] = CMD_W_BR;
+          buffer[1] = rgadd + R_C1;
+          buffer[2] = pedt | 0x50;
+          *len = 3;
+          return true;
+        }
+        if (idx == 3) {
+          buffer[0] = 0x20;
+          buffer[1] = rgadd + R_C3;
+          buffer[2] = bd1;
+          buffer[3] = bd2;
+          buffer[4] = bd3;
+          buffer[5] = 0x00;
+          *len = 6;
+          return true;
+        }
+        buffer[0] = CMD_W_R;  // idx == 4
+        buffer[1] = rgadd + R_C3;
+        buffer[2] = dbit | pbit | sbit;
+        *len = 3;
+        return true;
+      }
+      case 5:  // re-assert control lines
+        buffer[0] = CMD_W_R;
+        buffer[1] = rgadd + R_C1;
+        buffer[2] = 0x07;
+        *len = 3;
+        return true;
+      case 6:  // commit baud config
+        buffer[0] = CMD_W_BR;
+        buffer[1] = rgadd + R_C4;
+        buffer[2] = 0x00;
+        *len = 3;
+        return true;
+      case 7:
+        buffer[0] = CMD_W_BR;
+        buffer[1] = rgadd + R_C4;
+        buffer[2] = 0x10;
+        *len = 3;
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // CH348 per-channel sequence: mode(1) + parameters(1) + control-line/baud commit(2) = 4.
+  switch (idx) {
+    case 0:  // UART mode
+      buffer[0] = CMD_W_BR;
+      buffer[1] = rgadd + R_C4;
+      buffer[2] = 0x50;
+      *len = 3;
+      return true;
+    case 1: {  // baud/format parameters (obfuscated 12-byte command)
+      uint32_t baud_rate = channel->get_baud_rate();
+      uint8_t data_bits = channel->get_data_bits();
+      uint8_t stop_bits = channel->get_stop_bits();
+      UARTParityOptions parity = channel->parity_;
+      uint8_t rol = esp_random() & 0x0F;
+      uint8_t xor_val = esp_random() & 0xFF;
+      buffer[0] = 0x90 | (portnum & 0x0F);
+      buffer[1] = R_INIT;
+      buffer[2] = (portnum & 0x0F) | ((rol << 4) & 0xF0);
+      buffer[3] = (baud_rate >> 24) & 0xFF;
+      buffer[4] = (baud_rate >> 16) & 0xFF;
+      buffer[5] = (baud_rate >> 8) & 0xFF;
+      buffer[6] = baud_rate & 0xFF;
+      buffer[7] = (stop_bits == UART_CONFIG_STOP_BITS_2) ? 0x02 : 0x00;
+      buffer[8] = parity;
+      buffer[9] = data_bits;
+      buffer[10] = (baud_rate < 9600) ? 0x1E : 0x0A;
+      buffer[11] = xor_val;
+      cal_outdata(buffer + 3, rol, xor_val);
+      *len = 12;
+      return true;
+    }
+    case 2:  // re-assert control lines
+      buffer[0] = CMD_W_R;
+      buffer[1] = rgadd + R_C1;
+      buffer[2] = 0x07;
+      *len = 3;
+      return true;
+    case 3:  // commit baud config
+      buffer[0] = CMD_W_BR;
+      buffer[1] = rgadd + R_C4;
+      buffer[2] = 0x00;
+      *len = 3;
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool USBUartTypeCH934X::parse_descriptors_(usb_device_handle_t dev_hdl) {

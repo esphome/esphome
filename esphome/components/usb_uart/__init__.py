@@ -4,6 +4,7 @@ from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
     get_max_packet_size,
+    get_max_transfer_requests,
     register_usb_client,
     usb_device_schema,
 )
@@ -213,8 +214,21 @@ async def to_code(config: list[ConfigType]) -> None:
         output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
+    # Multiplexed (CH934x) drivers initialise their channels in parallel over a single
+    # shared command endpoint. Each in-flight init write claims one transfer-request slot,
+    # so cap the number of concurrent channel-init "lanes" at the configured pool size to
+    # avoid exhausting it. No headroom is reserved: channel data flow and the RX/CMD
+    # readers only start once every channel is initialised, so nothing else competes for
+    # the pool during init.
+    max_init_lanes = get_max_transfer_requests()
+    type_by_name = {t.name: t for t in uart_types}
+
     for device in config:
         var = await register_usb_client(device)
+        device_type = type_by_name.get(device[CONF_TYPE])
+        if isinstance(device_type, MpxType):
+            lanes = min(len(device[CONF_CHANNELS]), max_init_lanes)
+            cg.add(var.set_init_lanes(lanes))
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
