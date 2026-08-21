@@ -67,6 +67,10 @@ uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
  */
 bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
   const auto grp_len = grp_end - grp;
+  if (grp_len < static_cast<decltype(grp_len)>(CRC_SUFFIX_LEN)) {
+    ESP_LOGE(TAG, "Empty or too short group");
+    return false;
+  }
   const auto raw_crc = grp[grp_len - 1];
 
   const auto calculated_crc = calculate_crc_(grp, grp_len);
