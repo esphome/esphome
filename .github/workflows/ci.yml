@@ -1152,6 +1152,14 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      # ~110 MB of framework + toolchain plus the ccache store; keyed on the
+      # pinned versions in arduino8266/framework.py so a bump re-downloads
+      - name: Cache the native toolchain and ccache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/esphome/arduino8266
+          key: esp8266-native-${{ hashFiles('esphome/arduino8266/framework.py') }}
+
       - name: Run native toolchain compile test
         run: |
           . venv/bin/activate
