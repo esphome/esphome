@@ -2,25 +2,61 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 
 from esphome.core import EsphomeError
+from esphome.framework_helpers import strip_win_long_path_prefix
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _ninja_runs(binary: str) -> bool:
+    """Whether the ninja found on PATH actually runs.
+
+    Same rationale as the ccache probe: ``shutil.which`` proves existence,
+    not runnability (stale shims, broken wrappers).
+    """
+    try:
+        subprocess.run(
+            [binary, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path)
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.warning(
+            "Ignoring ninja at %s because it failed to run; "
+            "falling back to the bundled wheel",
+            binary,
+        )
+        return False
+    return True
 
 
 def find_ninja() -> Path:
-    """Locate the ninja binary: PATH first, else the ninja PyPI wheel.
+    """Locate the ninja binary: a runnable PATH hit first, else the ninja
+    PyPI wheel.
 
     The wheel is a requirements.txt dependency, so pip has already
     integrity-checked it; no download logic is needed here.
     """
     if binary := shutil.which("ninja"):
-        return Path(binary)
+        binary = strip_win_long_path_prefix(binary)
+        if _ninja_runs(binary):
+            return Path(binary)
+    import_error: ImportError | None = None
     try:
         import ninja
-    except ImportError:
+    except ImportError as err:
+        import_error = err
         wheel_binary = None
     else:
         wheel_binary = Path(ninja.BIN_DIR) / (
@@ -30,11 +66,11 @@ def find_ninja() -> Path:
         raise EsphomeError(
             "ninja not found on PATH or in the ninja package; reinstall the "
             "esphome Python environment"
-        )
+        ) from import_error
     return wheel_binary
 
 
-def escape(value) -> str:
+def escape(value: Path | str) -> str:
     """Escape a path or token for a ninja file."""
     return str(value).replace("$", "$$").replace(":", "$:").replace(" ", "$ ")
 
@@ -76,6 +112,6 @@ def shell_token(tok: str, force: bool = False) -> str:
     return tok
 
 
-def quote_path(value) -> str:
+def quote_path(value: Path | str) -> str:
     """Force-quote a path for the ninja command line (shell/CreateProcess)."""
     return shell_token(str(value), force=True)

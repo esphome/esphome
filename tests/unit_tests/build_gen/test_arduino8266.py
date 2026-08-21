@@ -70,7 +70,7 @@ def test_rule_map_covers_all_source_suffixes() -> None:
 def test_build_config_defaults() -> None:
 
     _set_flags()
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert config.nonosdk == "NONOSDK22x_190703"
     assert config.lwip_lib == "lwip2-536-feat"
     assert not config.exceptions
@@ -89,7 +89,7 @@ def test_build_config_esphome_lwip_knob() -> None:
     as the PlatformIO builder."""
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert config.lwip_lib == "lwip2-1460"
     assert "TCP_MSS=1460" in config.knob_defines
     assert "LWIP_FEATURES=0" in config.knob_defines
@@ -104,7 +104,7 @@ def test_build_config_knobs() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
         "-DVTABLES_IN_DRAM",
     )
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert config.nonosdk == "NONOSDK305"
     assert config.exceptions
     assert config.vtables == "VTABLES_IN_DRAM"
@@ -115,14 +115,14 @@ def test_build_config_mmu_custom_requires_sizes() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE"):
-        _resolve_build_config(_flag_defines())
+        _resolve_build_config(_flag_defines(set()))
 
     _set_flags(
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
         "-DMMU_IRAM_SIZE=0xC000",
         "-DMMU_ICACHE_SIZE=0x4000",
     )
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     # Emitted pre-sorted so build.ninja stays byte-stable across runs
     assert config.mmu_defines == [
         "MMU_ICACHE_SIZE=0x4000",
@@ -135,7 +135,7 @@ def test_defines_match_platformio_builder() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     assert _defines_flags(
-        _resolve_build_config(_flag_defines()),
+        _resolve_build_config(_flag_defines(set())),
         "dout",
         "nodemcuv2",
         ESP8266_BOARD_BUILD["nodemcuv2"]["defines"],
@@ -325,7 +325,7 @@ def test_build_config_lwip_variants(
     """Every lwIP knob maps to the same defines and library as the PIO builder."""
 
     _set_flags(f"-D{knob}")
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert config.lwip_lib == lib
     assert f"TCP_MSS={mss}" in config.knob_defines
     assert f"LWIP_FEATURES={features}" in config.knob_defines
@@ -361,13 +361,13 @@ def test_build_config_lwip_variants(
 def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
 
     _set_flags(f"-D{knob}")
-    assert _resolve_build_config(_flag_defines()).mmu_defines == expected
+    assert _resolve_build_config(_flag_defines(set())).mmu_defines == expected
 
 
 def test_build_config_waveform_locked_phase() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert "WAVEFORM_LOCKED_PHASE=1" in config.knob_defines
     assert config.fp_in_irom
 
@@ -389,7 +389,7 @@ SECTIONS
 
 def _run_generate_ld_scripts(paths: InstalledPaths) -> Path:
 
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
     return CORE.relative_pioenvs_path(CORE.name, "ld")
 
@@ -556,7 +556,7 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
-    assert _resolve_build_config(_flag_defines()).nonosdk == "NONOSDK221"
+    assert _resolve_build_config(_flag_defines(set())).nonosdk == "NONOSDK221"
 
 
 def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
@@ -601,7 +601,7 @@ def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
 def test_flag_defines_lexes_multi_token_entries() -> None:
     """A knob inside a multi-token entry is detected like PlatformIO does."""
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1 -Os")
-    defines = _flag_defines()
+    defines = _flag_defines(set())
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert defines["FOO"] == "FOO=1"
     config = _resolve_build_config(defines)
@@ -654,7 +654,7 @@ def test_write_project_empty_core_raises(tmp_path: Path) -> None:
 def test_flag_defines_joins_spaced_define() -> None:
     """A spaced "-D KNOB" entry is detected exactly as PlatformIO detects it."""
     _set_flags("-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    defines = _flag_defines()
+    defines = _flag_defines(set())
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
 
@@ -718,7 +718,7 @@ def test_build_config_custom_mmu_without_knob_warns(
     """Custom MMU sizes without the CUSTOM knob keep the default layout and
     warn, as the PlatformIO builder does."""
     _set_flags("-DMMU_IRAM_SIZE=0xC000")
-    config = _resolve_build_config(_flag_defines())
+    config = _resolve_build_config(_flag_defines(set()))
     assert config.mmu_defines == ["MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000"]
     assert "Detected custom MMU flags" in caplog.text
 
@@ -726,14 +726,14 @@ def test_build_config_custom_mmu_without_knob_warns(
 def test_flag_defines_lexes_quoted_single_tokens() -> None:
     """A quoted single-token define reads the same as on the compile line."""
     _set_flags('-DMMU_SEC_HEAP="0x40108000"')
-    assert _flag_defines()["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
+    assert _flag_defines(set())["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
 
 
 def test_flag_defines_duplicate_defines_resolve_deterministically() -> None:
     """Duplicate conflicting defines pick the same winner every run (sorted
     iteration, last writer wins), independent of the set's hash seed."""
     _set_flags("-DMMU_IRAM_SIZE=0x8000", "-DMMU_IRAM_SIZE=0xC000")
-    assert _flag_defines()["MMU_IRAM_SIZE"] == "MMU_IRAM_SIZE=0xC000"
+    assert _flag_defines(set())["MMU_IRAM_SIZE"] == "MMU_IRAM_SIZE=0xC000"
 
 
 def test_flag_tables_match_platformio_builder() -> None:
@@ -748,20 +748,56 @@ def test_flag_tables_match_platformio_builder() -> None:
         "-fno-inline-functions",
         "-nostdlib",
     ]
-    assert arduino8266._CCFLAGS[:6] == [
+    assert arduino8266._CCFLAGS == [
         "-Os",
         "-mlongcalls",
         "-mtext-section-literals",
         "-falign-functions=4",
         "-U__STRICT_ANSI__",
         "-ffunction-sections",
+        "-fdata-sections",
+        "-Wall",
+        "-Werror=return-type",
+        "-free",
+        "-fipa-pta",
     ]
-    assert arduino8266._LINKFLAGS[:5] == [
+    # The -u block is where the deliberate -u _scanf_float omission lives;
+    # pinned in full so "restoring" it fails here first
+    assert arduino8266._LINKFLAGS == [
         "-Os",
         "-nostdlib",
         "-Wl,--no-check-sections",
         "-Wl,-static",
         "-Wl,--gc-sections",
+        "-Wl,-wrap,system_restart_local",
+        "-Wl,-wrap,spi_flash_read",
+        "-u",
+        "app_entry",
+        "-u",
+        "_printf_float",
+        "-u",
+        "_DebugExceptionVector",
+        "-u",
+        "_DoubleExceptionVector",
+        "-u",
+        "_KernelExceptionVector",
+        "-u",
+        "_NMIExceptionVector",
+        "-u",
+        "_UserExceptionVector",
+    ]
+    # Order is load-bearing: upstream's LIBS order resolves symbols correctly
+    assert arduino8266._SYSTEM_LIBS_PRE_LWIP == ["hal", "phy", "pp", "net80211"]
+    assert arduino8266._SYSTEM_LIBS_POST_LWIP == [
+        "wpa",
+        "crypto",
+        "main",
+        "wps",
+        "bearssl",
+        "espnow",
+        "smartconfig",
+        "airkiss",
+        "wpa2",
     ]
 
 
@@ -816,3 +852,70 @@ def test_write_project_unknown_board_fails_by_name(tmp_path: Path) -> None:
     CORE.data[KEY_ESP8266][KEY_BOARD] = "not_a_board"
     with pytest.raises(EsphomeError, match="'not_a_board' is not supported"):
         _write_ninja(paths)
+
+
+def test_unflag_tokens_join_spaced_entries() -> None:
+    """A spaced build_unflags entry ("-D FOO") removes -DFOO, and no bare half leaks into the
+    unflag set to collaterally drop unrelated tokens."""
+    CORE.build_unflags = {"-D FOO", "-l bar"}
+    tokens = arduino8266._unflag_tokens()
+    assert tokens == {"-DFOO", "-lbar"}
+    CORE.build_flags = {"-DFOO -lbar", "-DBAR"}
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags(tokens)
+    assert compile_flags == ["-DBAR"]
+    assert libs == []
+
+
+def test_flag_defines_respects_unflags() -> None:
+    """An unflagged knob must not drive the derived toolchain config."""
+    _set_flags("-DVTABLES_IN_DRAM")
+    defines = _flag_defines({"-DVTABLES_IN_DRAM"})
+    assert "VTABLES_IN_DRAM" not in defines
+    config = _resolve_build_config(defines)
+    assert config.vtables == "VTABLES_IN_FLASH"
+
+
+def test_vtables_unknown_and_conflicting_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _set_flags("-DVTABLES_IN_BANANA", "-DVTABLES_IN_DRAM")
+    config = _resolve_build_config(_flag_defines(set()))
+    assert "Unknown VTABLES_IN_*" in caplog.text
+    assert "Multiple VTABLES_IN_*" in caplog.text
+    # Deterministic pick, as before
+    assert config.vtables == "VTABLES_IN_BANANA"
+
+
+def test_project_flags_empty_lib_flags_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A bare -L must not silently add the CWD to the search path."""
+    CORE.build_flags = {'-L ""', '-l ""'}
+    _c, _l, lib_dirs, libs = arduino8266._project_flags(set())
+    assert lib_dirs == []
+    assert libs == []
+    assert "Ignoring empty -L" in caplog.text
+    assert "Ignoring empty -l" in caplog.text
+
+
+def test_generate_ld_scripts_surfaces_preprocessor_warnings(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Preprocessor stderr on a zero exit reaches the user; degenerate output is refused."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    result = MagicMock(
+        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something"
+    )
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    assert "Linker-script preprocessor: warning: something" in caplog.text
+
+    # New flags invalidate the stamp so the degenerate run regenerates
+    _set_flags("-DVTABLES_IN_DRAM")
+    result = MagicMock(returncode=0, stdout="", stderr="")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        pytest.raises(EsphomeError, match="SECTIONS"),
+    ):
+        _run_generate_ld_scripts(paths)
