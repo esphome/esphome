@@ -113,11 +113,6 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
     return true;
   }
 
-  // step 1: chip-id read has completed. Identify the variant, then issue the device-level
-  // register writes as the first paced round. Unlike a single blind burst, every following
-  // round issues at most init_lanes_ command writes (one per channel) and waits for their
-  // completions via config_bulk_write_ before advancing, so the transfer-request pool is
-  // never oversubscribed and a dropped write is surfaced instead of silently ignored.
   if (step == 1) {
     if (!ok) {
       ESP_LOGE(TAG, "Fetching chip id failed");
@@ -170,9 +165,6 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
     return true;
   }
 
-  // step >= 2: per-channel register writes. Channels are configured in groups of at most
-  // init_lanes_; within a group each channel emits exactly one write per round (its writes
-  // stay strictly ordered), so at most init_lanes_ writes are in flight at once.
   uint8_t n = static_cast<uint8_t>(this->channels_.size());
   for (;;) {
     if (this->init_group_start_ >= n) {
@@ -196,8 +188,6 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
     }
 
     if (count == 0) {
-      // Whole round is skipped (all failed/out of range): advance and retry in this call so
-      // we do not return true without a write that would release the config machine.
       if (++this->init_write_idx_ >= this->channel_write_count_) {
         this->init_write_idx_ = 0;
         this->init_group_start_ += this->init_lanes_;
@@ -215,8 +205,6 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
       uint8_t buffer[12];
       uint8_t len = 0;
       if (!this->build_channel_write_(ch, this->init_write_idx_, buffer, &len)) {
-        // No write at this index (should not happen within channel_write_count_): still count
-        // it as done so the round can complete.
         if (this->init_pending_.fetch_sub(1, std::memory_order_acq_rel) == 1)
           this->cfg_done_.store(true, std::memory_order_release);
         continue;
@@ -233,8 +221,7 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
 }
 
 // Per-channel settings. On full init every channel is already configured by
-// config_device_step(); this is used by load_settings() to re-apply UART parameters
-// (baud/parity/stop/data) to an already-open channel.
+// config_device_step(); this is used by load_settings()
 bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   if (!reload || channel->index_ >= this->num_ports_)
@@ -243,15 +230,6 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
   this->configure_uart_parameters_(channel);
 
   // configure_channel_() sends these register writes after configure_uart_parameters_()
-  // during full init; they are also required on a runtime reload for the device to apply
-  // the new settings:
-  //   - CMD_W_R → R_C1 | 0x07: re-assert UART enable / control-line bits
-  //   - CMD_W_BR → R_C4 | 0x00 then R_C4 | 0x10 (CH9344 only): commit the new baud config
-  // Without these, calling load_settings() has no visible effect on the device.
-  //
-  // Note: this is an attempt to fix the "reloading settings appears not to be working"
-  // issue observed on CH348 hardware. The post-parameter writes mirror configure_channel_()
-  // exactly. Please verify on actual hardware and adjust if needed.
   uint8_t portnum = channel->index_;
   uint8_t rgadd = this->get_reg_address_(portnum);
   uint8_t buffer[3];
@@ -316,9 +294,7 @@ bool USBUartTypeCH934X::config_bulk_write_(USBUartChannelBase *channel, const ui
 }
 
 void USBUartTypeCH934X::finalize_init_() {
-  // Wire the shared TX endpoint (channel 0) and per-channel TX routing. This only happens
-  // after every channel's registers have been written, so no channel can transmit before
-  // the whole device is initialised (write_array() also gates on tx_shared_channel_).
+  // Wire the shared TX endpoint (channel 0) and per-channel TX routing
   auto *shared = this->channels_[0];
   shared->cdc_dev_.out_ep = this->uart_host_dev_.out_ep;
 
@@ -498,7 +474,7 @@ bool USBUartTypeCH934X::build_channel_write_(USBUartChannelBase *channel, uint8_
         return true;
       case 2:
       case 3:
-      case 4: {  // baud/format parameters (deterministic, recomputed per write)
+      case 4: {
         uint32_t baud_rate = channel->get_baud_rate();
         uint8_t data_bits = channel->get_data_bits();
         uint8_t stop_bits = channel->get_stop_bits();
@@ -605,7 +581,7 @@ bool USBUartTypeCH934X::build_channel_write_(USBUartChannelBase *channel, uint8_
       buffer[2] = 0x50;
       *len = 3;
       return true;
-    case 1: {  // baud/format parameters (obfuscated 12-byte command)
+    case 1: {
       uint32_t baud_rate = channel->get_baud_rate();
       uint8_t data_bits = channel->get_data_bits();
       uint8_t stop_bits = channel->get_stop_bits();
@@ -704,9 +680,6 @@ void USBUartTypeCH934X::start_rx_reader_() {
 }
 
 void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
-  // THREAD CONTEXT: USB task — must not write to input_buffer_ directly.
-  // Demux each fixed-size RX block and push into the shared chunk pool/queue
-  // for main-loop consumption via USBUartComponent::loop().
   for (size_t i = 0; i + RX_BLOCK_SIZE <= len; i += RX_BLOCK_SIZE) {
     uint8_t port_num = data[i];
     uint8_t data_len = data[i + 1];
@@ -812,7 +785,6 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
 }
 
 uart::UARTFlushResult CH934XChannel::flush() {
-  // Poll the shared channel-0 queue and its output_started flag, not our own.
   auto *shared = this->tx_shared_channel_;
   if (shared == nullptr)
     return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
@@ -827,10 +799,6 @@ uart::UARTFlushResult CH934XChannel::flush() {
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
-/**
- * Hacky fix for some devices that report incorrect MPS values
- * @param ep The endpoint descriptor
- */
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
