@@ -560,6 +560,11 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_binary_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
+    if CONF_ON_CLICK in config or CONF_ON_DOUBLE_CLICK in config:
+        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
+    if CONF_ON_MULTI_CLICK in config:
+        cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
+
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
@@ -673,3 +678,19 @@ async def to_code(config):
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """automation.cpp only implements the click/double_click/multi_click
+    triggers and filter.cpp is fully #ifdef'd on USE_BINARY_SENSOR_FILTER;
+    skip copying them when unused so they are not opened and parsed."""
+    defines = {define.name for define in CORE.defines}
+    files: list[str] = []
+    if not defines & {
+        "USE_BINARY_SENSOR_CLICK_TRIGGER",
+        "USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER",
+    }:
+        files.append("automation.cpp")
+    if "USE_BINARY_SENSOR_FILTER" not in defines:
+        files.append("filter.cpp")
+    return files

@@ -256,3 +256,11 @@ async def text_sensor_state_to_code(config, condition_id, template_arg, args):
     templ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
     cg.add(var.set_state(templ))
     return var
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """filter.cpp is fully #ifdef'd on USE_TEXT_SENSOR_FILTER; skip copying it
+    when no text sensor uses filters so it is not opened and parsed."""
+    if not any(define.name == "USE_TEXT_SENSOR_FILTER" for define in CORE.defines):
+        return ["filter.cpp"]
+    return []

@@ -3450,3 +3450,12 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """gpio.cpp only implements ESP32InternalGPIOPin (and its ISR helpers),
+    which is instantiated solely by the pin schema codegen; skip copying it
+    when the config uses no internal GPIO pins."""
+    if not any(define.name == "USE_ESP32_INTERNAL_GPIO" for define in CORE.defines):
+        return ["gpio.cpp"]
+    return []

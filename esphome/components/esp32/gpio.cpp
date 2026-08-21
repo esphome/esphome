@@ -1,4 +1,5 @@
-#ifdef USE_ESP32
+#include "esphome/core/defines.h"
+#if defined(USE_ESP32) && defined(USE_ESP32_INTERNAL_GPIO)
 
 #include "gpio.h"
 #include "esphome/core/log.h"
@@ -204,4 +205,4 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && USE_ESP32_INTERNAL_GPIO

@@ -1303,3 +1303,11 @@ def _lstsq(a, b):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(sensor_ns.using)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """filter.cpp is fully #ifdef'd on USE_SENSOR_FILTER; skip copying it
+    when no sensor uses filters so it is not opened and parsed."""
+    if not any(define.name == "USE_SENSOR_FILTER" for define in CORE.defines):
+        return ["filter.cpp"]
+    return []
