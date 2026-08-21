@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 import logging
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -58,6 +59,11 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
 
 def _set_flags(*flags: str) -> None:
     CORE.build_flags = set(flags)
+
+
+def _shq(tok: str) -> str:
+    """The platform's shell_token quote wrapper (argv rule on Windows)."""
+    return f'"{tok}"' if os.name == "nt" else f"'{tok}'"
 
 
 def test_rule_map_covers_all_source_suffixes() -> None:
@@ -255,9 +261,9 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     # str(Path(...)) so the separator matches the host platform.
     opt_blobs = str(Path("/opt/blobs"))
     spc_blobs = str(Path("/spc/blobs"))
-    assert f'-L"{opt_blobs}"' in content
+    assert f"-L{_shq(opt_blobs)}" in content
     assert "-luser_blob" in content
-    assert f'-L"{spc_blobs}"' in content
+    assert f"-L{_shq(spc_blobs)}" in content
     assert "-lspaced_blob" in content
     for line in content.splitlines():
         if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
@@ -494,11 +500,11 @@ def test_write_project_libraries_and_variant(
     # Library link flags reach the firmware link line; .cc compiles as C++
     assert "-Wl,--wrap=malloc" in content
     assert "impl.cc.o: cxx" in content
-    assert f'-L"{lib_dir / "blobs"}"' in content
+    assert f"-L{_shq(str(lib_dir / 'blobs'))}" in content
     # Exceptions knob: -fexceptions and the exception-enabled stdc++
     assert "-fexceptions" in content
     assert "-lstdc++-exc" in content
-    assert 'ccache = "/cc/ccache"' in content
+    assert f"ccache = {_shq('/cc/ccache')}" in content
 
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
@@ -637,7 +643,7 @@ def test_project_flags_requotes_lexed_defines() -> None:
     )
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
-    assert compile_flags == ['"-DGREETING=hello world"']
+    assert compile_flags == [_shq("-DGREETING=hello world")]
 
 
 def test_write_project_empty_core_raises(tmp_path: Path) -> None:
@@ -662,7 +668,7 @@ def test_flag_defines_joins_spaced_define() -> None:
 def test_ninja_path_escaping() -> None:
     """Build-statement paths and command-line paths escape differently."""
     assert arduino8266._e("a b:$c") == "a$ b$:$$c"
-    assert arduino8266._q("/a b/$x") == '"/a b/$$x"'
+    assert arduino8266._q("/a b/$x") == _shq("/a b/$$x")
 
 
 def test_write_project_asm_excludes_non_define_user_flags(tmp_path: Path) -> None:
@@ -817,7 +823,7 @@ def test_write_project_asm_keeps_quoted_defines(tmp_path: Path) -> None:
     _set_flags('-DGREETING="hello world"', "-Wno-volatile")
     content = _write_ninja(paths)
     asflags = next(line for line in content.splitlines() if line.startswith("asflags"))
-    assert '"-DGREETING=hello world"' in asflags
+    assert _shq("-DGREETING=hello world") in asflags
     assert "-Wno-volatile" not in asflags
 
 
