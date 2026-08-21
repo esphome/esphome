@@ -63,8 +63,15 @@ def framework_package_version(ver: Version) -> str:
 
     Same encoding as the PlatformIO package registry uses for core 3.x
     releases (3.1.2 -> 3.30102.0). The native toolchain only supports core
-    >= MIN_FRAMEWORK_VERSION, so the 1.x/2.x encodings never apply here.
+    3.x: 1.x/2.x fall below MIN_FRAMEWORK_VERSION, and a future major bump
+    needs its own encoding and toolchain pin rather than a registry lookup
+    for a package that cannot exist.
     """
+    if ver.major != 3:
+        raise EsphomeError(
+            f"The native toolchain does not support Arduino core {ver} "
+            "(only 3.x); use 'toolchain: platformio'"
+        )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
@@ -113,7 +120,8 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
         toolchain_path,
         ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
         downloads_dir,
-        expect=("bin",),
+        # xtensa-lx106-elf pins the target: every gcc package has a bin/
+        expect=("bin", "xtensa-lx106-elf"),
     )
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path

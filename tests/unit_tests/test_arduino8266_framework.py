@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +22,9 @@ def _clear_caches(tmp_path: Path) -> None:
 def test_framework_package_version() -> None:
     assert framework.framework_package_version(cv.Version(3, 1, 2)) == "3.30102.0"
     assert framework.framework_package_version(cv.Version(3, 2, 0)) == "3.30200.0"
+    # A future major bump needs its own encoding, not a doomed registry lookup
+    with pytest.raises(EsphomeError, match="only 3.x"):
+        framework.framework_package_version(cv.Version(4, 0, 0))
 
 
 def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
@@ -46,11 +48,25 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     assert paths.toolchain == tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
     assert paths.ninja == tmp_path / "ninja"
     assert mock_install.call_count == 2
-    # The layout checks cover the directories write_project needs, including
-    # the bundled libraries/ tree
-    fw_expect = mock_install.call_args_list[0].kwargs["expect"]
-    assert fw_expect == ("cores/esp8266", "tools/sdk", "libraries")
-    assert mock_install.call_args_list[1].kwargs["expect"] == ("bin",)
+    # Full argument pinning: a copy-paste swap between the two near-identical
+    # calls (mirrors, destination) must not stay green
+    fw_call, tc_call = mock_install.call_args_list
+    assert fw_call.args == (
+        framework.FRAMEWORK_PACKAGE,
+        "3.30102.0",
+        tmp_path / "frameworks" / "3.30102.0",
+        framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+        tmp_path / "downloads",
+    )
+    assert fw_call.kwargs["expect"] == ("cores/esp8266", "tools/sdk", "libraries")
+    assert tc_call.args == (
+        framework.TOOLCHAIN_PACKAGE,
+        framework.TOOLCHAIN_VERSION,
+        tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
+        framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+        tmp_path / "downloads",
+    )
+    assert tc_call.kwargs["expect"] == ("bin", "xtensa-lx106-elf")
 
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
@@ -60,52 +76,18 @@ def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
     assert env["CCACHE_DIR"] == "x"
 
 
-def test_ccache_path_disabled_by_env() -> None:
-    with patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}):
-        assert framework.ccache_path() is None
-
-
-def test_ccache_path_no_binary(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
-    with patch("shutil.which", return_value=None):
-        assert framework.ccache_path() is None
-
-
-def test_ccache_path_probe_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
-    with (
-        patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("subprocess.run", side_effect=subprocess.SubprocessError),
-    ):
-        assert framework.ccache_path() is None
-
-
-def test_ccache_path_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
-    with (
-        patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("subprocess.run"),
-    ):
-        assert framework.ccache_path() == "/usr/bin/ccache"
-
-
-def test_ccache_path_explicit_missing_binary_warns(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_ccache_path_delegates_and_caches(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
-    with patch("shutil.which", return_value=None):
-        assert framework.ccache_path() is None
-    assert "no ccache binary is on PATH" in caplog.text
-
-
-def test_ccache_path_explicit_skips_probe(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An explicit opt-in trusts the binary without the runnability probe."""
-    monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", "1")
-    with (
-        patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.build_helpers.ccache._ccache_runs", side_effect=AssertionError),
-    ):
+    """The wrapper delegates to the shared policy (covered in
+    build_helpers/test_ccache.py) and caches the result."""
+    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
+    with patch.object(
+        framework, "resolve_ccache_path", return_value="/usr/bin/ccache"
+    ) as mock_resolve:
         assert framework.ccache_path() == "/usr/bin/ccache"
+        assert framework.ccache_path() == "/usr/bin/ccache"
+    mock_resolve.assert_called_once()
 
 
 def test_ccache_env(tmp_path: Path) -> None:
@@ -121,16 +103,6 @@ def test_ccache_env(tmp_path: Path) -> None:
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str(Path(CORE.build_path).resolve())
     assert env["CCACHE_DIR"].endswith("ccache")
-
-
-def test_ccache_env_requires_build_path() -> None:
-    """Building the env before preload set build_path fails loudly."""
-    CORE.build_path = None
-    with (
-        patch.object(framework, "ccache_path", return_value="/cc/ccache"),
-        pytest.raises(ValueError, match="build_path"),
-    ):
-        framework.ccache_env()
 
 
 def test_check_and_install_rejects_old_core(tmp_path: Path) -> None:
