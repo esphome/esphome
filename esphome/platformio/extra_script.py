@@ -131,6 +131,7 @@ class _FakeSConsEnv:
         }
         self.result = ExtraScriptResult()
         self._warned_methods: set[str] = set()
+        self._warned_keys: set[str] = set()
 
     # ----- SCons env API the common scripts use -----
 
@@ -141,11 +142,14 @@ class _FakeSConsEnv:
         for key, value in kwargs.items():
             if key not in _CAPTURED_KEYS:
                 # Diagnosable from the build log when a script configures
-                # something this shim does not translate
-                _LOGGER.warning(
-                    "PIO extra-script env.Append(%s=...) is not captured; ignoring",
-                    key,
-                )
+                # something this shim does not translate; once per key so a
+                # loop of Appends cannot spam
+                if key not in self._warned_keys:
+                    self._warned_keys.add(key)
+                    _LOGGER.warning(
+                        "PIO extra-script env.Append(%s=...) is not captured; ignoring",
+                        key,
+                    )
                 continue
             items = list(value) if isinstance(value, (list, tuple)) else [value]
             bucket = getattr(self.result, key.lower())
@@ -194,10 +198,19 @@ def run_extra_script(
     )
     try:
         source = script_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as err:
+    except OSError as err:
         # An unreadable declared script is a broken package, exactly like a
         # missing one; must not be quieter than that case
         raise EsphomeError(f"extraScript {script_path} is unreadable: {err}") from err
+    except UnicodeDecodeError as e:
+        # A content problem, best-effort like a SyntaxError below
+        _LOGGER.warning(
+            "PIO extra-script %s (in %s) is not UTF-8 (%r); ignoring its output",
+            script_path,
+            library_dir.name,
+            e,
+        )
+        return ExtraScriptResult()
     old_cwd = Path.cwd()
     try:
         # Inside the try: a SyntaxError in a vendored script is just as
