@@ -8,7 +8,8 @@ namespace esphome::mk2pvrouter {
 /*
  * Buffer sizes based on mk2pvrouter telemetry protocol (from teleinfo.h):
  * - Tags: max 4 chars (S_MC is longest), most are 1-2 chars (P, V1, R2, etc.)
- * - Values: max 6 digits signed (-10000), typical 1-5 digits
+ * - Values: max 6 digits signed (-10000), typical 1-5 digits. Energy (E) is a daily
+ *   counter reset at midnight, so it stays well within 6 digits.
  * - Frame: STX + multiple lines (LF+tag+TAB+value+TAB+crc+CR) + ETX
  * - Line format: \n<tag>\t<value>\t<crc>\r (8-15 bytes per line)
  * - Multi-phase with all features: ~150-200 bytes
