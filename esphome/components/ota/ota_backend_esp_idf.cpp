@@ -70,16 +70,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   esp_err_t err;
 #ifdef USE_OTA_BLOCK_ERASE_AHEAD
   this->erased_end_ = 0;
-#ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
-  // esp_ota_begin() refuses to start while the running app is unconfirmed;
-  // esp_ota_resume() does not, so keep that behavior here.
-  esp_ota_img_states_t running_state;
-  if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &running_state) == ESP_OK &&
-      running_state == ESP_OTA_IMG_PENDING_VERIFY) {
-    ESP_LOGE(TAG, "Running app has not confirmed state (ESP_OTA_IMG_PENDING_VERIFY)");
-    return OTA_RESPONSE_ERROR_UNKNOWN;
-  }
-#endif
+  // Unlike esp_ota_begin(), esp_ota_resume() does not reject a running app in
+  // ESP_OTA_IMG_PENDING_VERIFY; that state is unreachable here because the app
+  // was marked valid at boot (esp32/hal.cpp) or just above under USE_OTA_ROLLBACK.
   // erase_size 0 (!= OTA_WITH_SEQUENTIAL_WRITES) means no erase; erase_ahead_() handles it
   err = esp_ota_resume(this->partition_, 0, 0, &this->update_handle_);
 #if defined(CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
