@@ -135,6 +135,9 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
 #else
   // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
@@ -185,6 +188,8 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+  const bool was_available = this->state_ == update::UPDATE_STATE_AVAILABLE;
+
   // Compare versions
   if (this->update_info_.latest_version.empty() ||
       this->update_info_.latest_version == this->update_info_.current_version) {
@@ -197,6 +202,9 @@ void Esp32HostedUpdate::check() {
   this->update_info_.progress = 0.0f;
   this->status_clear_error();
   this->publish_state();
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
 #endif
 }
 
