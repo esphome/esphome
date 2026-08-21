@@ -1,6 +1,44 @@
+from collections.abc import Generator
+import errno
+import io
+import logging
+import os
+from pathlib import Path
+import select
+import subprocess
+import sys
+import time
+
 import pytest
 
-from esphome.log import AnsiFore, AnsiStyle, color
+from esphome.core import CORE
+from esphome.log import AnsiFore, AnsiStyle, color, setup_log
+
+
+class _FakeTty(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+@pytest.fixture
+def restore_logging_state() -> Generator[None, None, None]:
+    """Undo the global logging changes setup_log() makes."""
+    root = logging.getLogger()
+    handlers = root.handlers[:]
+    formatters = [handler.formatter for handler in handlers]
+    level = root.level
+    urllib3_level = logging.getLogger("urllib3").level
+    yield
+    root.handlers[:] = handlers
+    for handler, formatter in zip(handlers, formatters, strict=True):
+        handler.setFormatter(formatter)
+    root.setLevel(level)
+    logging.getLogger("urllib3").setLevel(urllib3_level)
+
+
+def _probe_command(fixture_path: Path, *args: str) -> list[str]:
+    """Build the command line for the setup_log probe fixture script."""
+    return [sys.executable, str(fixture_path / "log" / "setup_log_probe.py"), *args]
 
 
 def test_color_keep_returns_unchanged_message() -> None:
@@ -78,3 +116,230 @@ def test_ansi_fore_keep_is_enum_member() -> None:
     assert bool(AnsiFore.KEEP) is True
     # But the value itself is still an empty string
     assert AnsiFore.KEEP.value == ""
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_redirected_output_strips_ansi(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """A redirected run must keep colorama so ANSI codes are stripped."""
+    result = subprocess.run(
+        _probe_command(fixture_path),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env=probe_env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "colorama_loaded=True" in result.stdout
+    assert "red end" in result.stdout
+    assert "\033" not in result.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_dashboard_skips_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """Dashboard runs escape their color codes, so colorama must not load."""
+    result = subprocess.run(
+        _probe_command(fixture_path, "--dashboard"),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env=probe_env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "colorama_loaded=False" in result.stdout
+    # Codes pass through untouched for the dashboard to handle.
+    assert "\033[31mred\033[0m end" in result.stdout
+
+
+def _run_probe_on_pty(
+    fixture_path: Path, probe_env: dict[str, str], *, stderr_to_pty: bool
+) -> str:
+    """Run the probe with stdout on a pty and return the decoded pty output.
+
+    With ``stderr_to_pty=False`` stderr goes to a pipe instead, giving the
+    mixed tty/redirect stream combination while keeping any traceback
+    available for the exit assertion.
+    """
+    # Unix-only; a module-level import would break test collection on
+    # Windows, where all the callers are skipped anyway.
+    import pty
+
+    controller, follower = pty.openpty()
+    proc = None
+    output = b""
+    deadline = time.monotonic() + 60
+    try:
+        try:
+            proc = subprocess.Popen(
+                _probe_command(fixture_path),
+                stdout=follower,
+                stderr=follower if stderr_to_pty else subprocess.PIPE,
+                stdin=follower,
+                env=probe_env,
+            )
+        finally:
+            os.close(follower)
+        while True:
+            timeout = deadline - time.monotonic()
+            if timeout <= 0 or not select.select([controller], [], [], timeout)[0]:
+                pytest.fail(f"pty probe produced no EOF in time; got {output!r}")
+            try:
+                chunk = os.read(controller, 1024)
+            except OSError as err:
+                # macOS raises EIO once the child closes its end of the pty;
+                # anything else is a real failure, not end-of-stream.
+                if err.errno != errno.EIO:
+                    raise
+                break
+            if not chunk:
+                break
+            output += chunk
+        stderr_text = ""
+        if proc.stderr is not None:
+            stderr_text = proc.stderr.read().decode(errors="replace")
+            proc.stderr.close()
+        assert proc.wait(60) == 0, stderr_text
+    finally:
+        os.close(controller)
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
+    return output.decode()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
+)
+def test_setup_log_tty_skips_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """A terminal run must skip colorama and keep ANSI codes intact."""
+    text = _run_probe_on_pty(fixture_path, probe_env, stderr_to_pty=True)
+    assert "colorama_loaded=False" in text
+    assert "\033[31mred\033[0m end" in text
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="pty is POSIX-only; colorama loads on Windows"
+)
+def test_setup_log_mixed_streams_init_colorama(
+    fixture_path: Path, probe_env: dict[str, str]
+) -> None:
+    """A tty stdout with a redirected stderr must still initialize colorama.
+
+    The guard requires both streams to be a tty; collapsing it to a
+    single-stream check would stop stripping ANSI from a redirected
+    stderr while stdout is a terminal.
+    """
+    text = _run_probe_on_pty(fixture_path, probe_env, stderr_to_pty=False)
+    assert "colorama_loaded=True" in text
+    # stdout is a tty, so colorama leaves its codes alone.
+    assert "\033[31mred\033[0m end" in text
+
+
+@pytest.fixture
+def colorama_probe(
+    monkeypatch: pytest.MonkeyPatch, restore_logging_state: None
+) -> Generator[None, None, None]:
+    """Shared preamble for the in-process guard-branch tests.
+
+    Clears colorama from sys.modules so the assertions prove what
+    setup_log() itself did, and snapshots CORE.verbose/quiet, which is
+    not a no-op: CORE.reset() does not restore them, so without the
+    snapshot setup_log()'s log-level side effects would leak into later
+    tests.
+    """
+    monkeypatch.delitem(sys.modules, "colorama", raising=False)
+    monkeypatch.setattr(CORE, "verbose", CORE.verbose)
+    monkeypatch.setattr(CORE, "quiet", CORE.quiet)
+    yield
+    # init() rebinds sys.stdout/stderr; restore them before monkeypatch
+    # puts the originals back.
+    if (colorama := sys.modules.get("colorama")) is not None:
+        colorama.deinit()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_dashboard_branch_skips_colorama_import(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """The dashboard side of the guard must not import colorama."""
+    monkeypatch.setattr(CORE, "dashboard", True)
+    setup_log()
+    assert "colorama" not in sys.modules
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_tty_branch_skips_colorama_import(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """The tty side of the guard must not import colorama."""
+    monkeypatch.setattr(sys, "stdout", _FakeTty())
+    monkeypatch.setattr(sys, "stderr", _FakeTty())
+    setup_log()
+    assert "colorama" not in sys.modules
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="colorama always initializes on Windows"
+)
+def test_setup_log_redirected_branch_imports_colorama(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """Redirected streams must keep importing and initializing colorama."""
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    setup_log()
+    assert "colorama" in sys.modules
+
+
+@pytest.mark.parametrize("broken", ["missing", "closed"])
+def test_setup_log_broken_streams_import_colorama(
+    broken: str, monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """A missing or closed stream counts as a redirect and must not crash.
+
+    colorama tolerates both, so setup_log() has to reach its init rather
+    than raise inside the tty probe.
+    """
+    if broken == "missing":
+        stream = None
+    else:
+        stream = io.StringIO()
+        stream.close()
+    monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stderr", stream)
+    setup_log()
+    assert "colorama" in sys.modules
+
+
+def test_setup_log_win32_always_imports_colorama(
+    monkeypatch: pytest.MonkeyPatch, colorama_probe: None
+) -> None:
+    """The Windows clause must init colorama even when both streams are ttys.
+
+    Old Windows consoles need colorama to translate ANSI escapes, so the
+    platform check has to win over the tty check. colorama itself keys
+    off os.name, so on a POSIX host its init/deinit pair is a
+    passthrough.
+    """
+    monkeypatch.setattr(sys, "platform", "win32")
+    # Both streams are ttys: without the platform clause this combination
+    # would skip colorama.
+    monkeypatch.setattr(sys, "stdout", _FakeTty())
+    monkeypatch.setattr(sys, "stderr", _FakeTty())
+    setup_log()
+    assert "colorama" in sys.modules

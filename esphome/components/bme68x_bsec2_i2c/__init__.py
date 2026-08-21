@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import bme68x_bsec2, i2c
 from esphome.components.bme68x_bsec2 import (
     CONFIG_SCHEMA_BASE,
     BME68xBSEC2Component,
@@ -12,6 +12,11 @@ CODEOWNERS = ["@neffs", "@kbx81"]
 AUTO_LOAD = ["bme68x_bsec2"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
+
+# The user-facing domain is this module (the base component only appears
+# via AUTO_LOAD), so the batch-download hook must be re-exported here to
+# take effect.
+PREFETCH_FILES = bme68x_bsec2.PREFETCH_FILES
 
 bme68x_bsec2_i2c_ns = cg.esphome_ns.namespace("bme68x_bsec2_i2c")
 BME68xBSEC2I2CComponent = bme68x_bsec2_i2c_ns.class_(

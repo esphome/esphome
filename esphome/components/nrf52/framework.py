@@ -62,6 +62,22 @@ def get_sdk_nrf_tools_path() -> Path:
     return path.resolve()
 
 
+def _needs_venv_rebuild(
+    env_python_path: Path, sentinel: Path, requirements_hash: str
+) -> bool:
+    """True when a penv must be (re)built.
+
+    Rebuild when the interpreter is not a regular file, which covers a
+    dangling symlink (a cached venv outliving a host interpreter upgrade)
+    and a corrupt restore, or when the sentinel is missing or stale.
+    """
+    return (
+        not env_python_path.is_file()
+        or not sentinel.exists()
+        or sentinel.read_text(encoding="utf-8") != requirements_hash
+    )
+
+
 def _get_python_env_path(version: str) -> Path:
     return get_sdk_nrf_tools_path() / "penvs" / version
 
@@ -198,10 +214,7 @@ def setup_platformio_python_env() -> None:
         + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
         + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
     ).hexdigest()
-    if (
-        not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    ):
+    if _needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
         rmdir(penv_path, msg="Clean up PlatformIO toolchain Python environment")
 
         create_venv(penv_path, msg="PlatformIO toolchain")
@@ -250,10 +263,7 @@ def check_and_install() -> None:
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
     requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = (
-        not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    )
+    install_venv = _needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 

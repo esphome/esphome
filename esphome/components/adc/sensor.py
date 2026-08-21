@@ -67,6 +67,13 @@ def validate_config(config):
         # Alter value here so `config` command prints the recommended change
         config[CONF_ATTENUATION] = _attenuation("12db")
 
+    # Remove before 2027.2.0
+    if config[CONF_PIN] == "TEMPERATURE":
+        _LOGGER.warning(
+            "[adc] `pin: TEMPERATURE` is deprecated, use the `internal_temperature` "
+            "sensor platform instead. Will be removed in 2027.2.0"
+        )
+
     return config
 
 
@@ -133,6 +140,7 @@ async def to_code(config):
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
     elif config[CONF_PIN] == "TEMPERATURE":
+        # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])

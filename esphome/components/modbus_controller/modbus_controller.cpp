@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
@@ -107,8 +109,22 @@ void ModbusCommandItem::on_not_sent(std::span<const uint8_t> request_pdu) {
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent
 // trigger reflects when the frame actually went out, not when it was queued.
 void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
-    this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  if (this->controller_ == nullptr)
+    return;
+  this->controller_->command_sent(static_cast<int>(this->function_code_), this->start_address_);
+  // A broadcast (address 0) is never answered (Modbus 4.1), so the hub delivers no terminal callback.
+  // on_sent is this command's only callback, so drop the one-shot from the queue here, or it would leak.
+  // Test the address the frame went to, not address_: a custom command's frame carries its own address
+  // (frame[0]), which may differ from this controller's. (unqueue_command() is a no-op for a poll.)
+  uint8_t wire_address = this->address_;
+  if (this->function_code_ == FunctionCode::CUSTOM) {
+    std::span<const uint8_t> frame =
+        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
+    if (!frame.empty())
+      wire_address = frame[0];
+  }
+  if (wire_address == modbus::BROADCAST_ADDRESS)
+    this->controller_->unqueue_command(this);
 }
 
 bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {
@@ -160,10 +176,11 @@ void ModbusController::queue_command(ModbusCommandItem command) {
 }
 
 void ModbusController::unqueue_command(const ModbusCommandItem *command) {
-  // Called as the last action of the command's own callback, and from send() after send_pdu (which may
-  // synchronously call on_not_sent). Destroying `command` here would leave send() and the hub touching a
-  // freed object, so we only FLAG it; sweep_completed_one_shots_() erases it later at a safe point. No-op
-  // for polling commands (they persist and are not in the one-shot list).
+  // Called as the last action of the command's own callback (on_response/on_error/on_not_sent/
+  // on_no_response), which the hub runs from inside its sweep while this entry is still live.
+  // Destroying `command` here would leave the hub touching a freed object, so we only FLAG it;
+  // sweep_completed_one_shots_() erases it later at a safe point. No-op for polling commands
+  // (they persist and are not in the one-shot list).
   for (auto &item : this->one_shot_command_items_) {
     if (item.get() == command) {
       item->pending_removal = true;
@@ -183,8 +200,9 @@ void ModbusController::update_range_(ModbusCommandItem &cmd) {
     return;
   }
   // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-  if (!cmd.send())
+  if (!cmd.send()) {
     ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+  }
 }
 
 void ModbusController::update() {
@@ -197,8 +215,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send())
+        if (!cmd.send()) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        }
       }
     } else {
       ESP_LOGV(TAG, "Module offline - skipping update");
@@ -426,14 +445,15 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  uint8_t *p = cmd.payload.init((values.size() + 7) / 8);
-  memset(p, 0, (values.size() + 7) / 8);
-  size_t bit = 0;
-  for (auto coil : values) {
-    if (coil) {
-      p[bit / 8] |= (1 << (bit % 8));
-    }
-    bit++;
+  // Pack through the shared bit view (MutablePackedBits) so the coil wire layout lives in one place
+  // instead of an open-coded loop.
+  const size_t byte_count = modbus::packed_bit_bytes(values.size());
+  uint8_t *p = cmd.payload.init(byte_count);
+  memset(p, 0, byte_count);
+  modbus::MutablePackedBits bits(std::span<uint8_t>(p, byte_count), static_cast<uint16_t>(values.size()));
+  for (size_t i = 0; i != values.size(); i++) {
+    if (values[i])
+      bits.set(i, true);
   }
   return cmd;
 }
@@ -494,13 +514,13 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 bool ModbusCommandItem::send() {
   bool accepted;
   if (this->function_code_ != FunctionCode::CUSTOM) {
-    accepted = this->send_pdu(modbus::helpers::create_client_pdu(
+    accepted = this->queue_pdu(modbus::helpers::create_client_pdu(
         this->function_code_, this->start_address_, this->register_count_,
         this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
   } else {
     // Custom command: the bytes are a complete raw frame (address + PDU). Send the PDU to the frame's own
     // address (which may differ from this controller's); the hub appends the CRC and routes the response
-    // back to this item by pointer. (send_raw() is deprecated, so send_pdu() is called with the extracted
+    // back to this item by pointer. (send_raw() is deprecated, so queue_pdu() is called with the extracted
     // address. Raw-frame semantics are kept here; the custom_pdu migration is a later step.)
     std::span<const uint8_t> frame =
         this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
@@ -508,7 +528,7 @@ bool ModbusCommandItem::send() {
       ESP_LOGW(TAG, "Empty custom command frame, not sent");
       accepted = false;
     } else {
-      accepted = this->parent_->send_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
     }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
