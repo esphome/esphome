@@ -51,18 +51,23 @@ def get_arduino8266_tools_path() -> Path:
     return tools_cache_path("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
 
 
-# 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0
+# 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0, and the
+# encoder below cannot name 3.0.0/3.0.1 either (see its docstring)
 MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
 
 
 def framework_package_version(ver: Version) -> str:
     """Map an Arduino core version (e.g. 3.1.2) to its package version.
 
-    Same encoding as the PlatformIO package registry uses for every core
-    above 2.6.2 (3.1.2 -> 3.30102.0, and 2.7.4 -> 3.20704.0: the leading 3
-    is the package major, not the core major). A future core 4.x needs its
-    own encoding and toolchain pin rather than a registry lookup for a
-    package that cannot exist.
+    The PlatformIO registry's encoding for cores newer than 2.6.2 (3.1.2 ->
+    3.30102.0, and 2.7.4 -> 3.20704.0: the leading 3 is the package major,
+    not the core major). Exact registry names only from 3.0.2 up: 2.6.3,
+    3.0.0 and 3.0.1 ship as 3.20603.200130 / 3.30000.210519 /
+    3.30001.210627, which this formula cannot produce. Safe for the
+    PlatformIO caller (a ~ range) and for check_and_install (floored at
+    MIN_FRAMEWORK_VERSION); an exact lookup below that floor must not use
+    this helper. A future core 4.x needs its own encoding and toolchain pin
+    rather than a registry lookup for a package that cannot exist.
     """
     if ver.major > 3:
         # Backend-neutral: this also fires on the PlatformIO validation path
