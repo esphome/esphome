@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_LIBRARIES,
+    CONF_LOOP_INTERVAL,
     CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_NAME,
@@ -38,9 +39,12 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_SUSPEND_LOOP,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
+    PLATFORM_HOST,
+    PLATFORM_RP2,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -272,6 +276,13 @@ def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
 
 
+def validate_suspend_loop_(config: dict | str) -> dict[str, str | core.ID]:
+    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsave
+    if CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
+        raise cv.Invalid("Suspend loop is not available on host or RP2 platforms")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -337,6 +348,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.boolean,
+            cv.Optional(
+                CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
+                cv.boolean,
+                validate_suspend_loop_,
+            ),
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -758,6 +778,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
+    if config[CONF_SUSPEND_LOOP]:
+        cg.add_define("ESPHOME_SUSPEND_LOOP")
+    if config[CONF_LOOP_INTERVAL]:
+        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)

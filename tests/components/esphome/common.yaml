@@ -1,5 +1,6 @@
 esphome:
   debug_scheduler: true
+  loop_interval: 50ms
   platformio_options:
     board_build.flash_mode: dio
   build_flags:

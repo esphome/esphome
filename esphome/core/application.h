@@ -208,9 +208,6 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Note: This method is not called by ESPHome core code. It is only used by lambda functions
-   * in YAML configurations or by external components.
-   *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) {
@@ -795,32 +792,37 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint32_t delay_time = 0;
   if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
+#ifdef ESPHOME_SUSPEND_LOOP
     const bool has_loop_work =
         this->looping_components_active_end_ > 0 || this->dump_config_at_ < this->components_.size();
     uint32_t until_phase = std::numeric_limits<uint32_t>::max();
     if (has_loop_work) {
       until_phase = (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
     }
+#else
+    uint32_t until_phase =
+        (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+#endif
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  // Wakes at least every WDT_FEED_INTERVAL_MS or STATUS_LED_DISPATCH_INTERVAL_MS
-  // so the feed rate-limit is exercised even if the
-  // scheduler and component phases are gated out for a long sleep.
+  // Wakes at least every 2*WDT_FEED_INTERVAL_MS (always < WDT_TIMEOUT/2) or STATUS_LED_DISPATCH_INTERVAL_MS
+  // so the feed rate-limit is exercised even if loop_interval is increased or the scheduler and component phases are
+  // gated out for a long sleep. 2*WDT_FEED_INTERVAL_MS ensures that wdt is fed at least every 3*WDT_FEED_INTERVAL_MS
+  // which is save on all platforms.
 
-  // Host and ESP8266 do not need to feed WDT in the delay path
-#if (defined(USE_HOST) || defined(USE_ESP8266)) && not defined(USE_STATUS_LED)
-  esphome::internal::wakeable_delay(delay_time);
-#else
-  uint32_t max_sleep = WDT_FEED_INTERVAL_MS;
+  uint32_t max_sleep = WDT_FEED_INTERVAL_MS * 2;
+  // Host and ESP8266 do not need to feed WDT in the delay path but need a finite delay. Set to 1s to be save.
+#if (defined(USE_HOST) || defined(USE_ESP8266))
+  max_sleep = 1000;
+#endif
 #ifdef USE_STATUS_LED
   max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
 #endif
   esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
-#endif
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
