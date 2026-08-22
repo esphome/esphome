@@ -645,6 +645,7 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
             raise RuntimeError("boom")
 
     monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1] * len(urls))
     wave = [
         ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
         ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
@@ -677,10 +678,12 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         lib.requests if hasattr(lib, "requests") else requests, "head", fake_head
     )
+    # None marks an unknown size (probe failure or non-2xx), distinct
+    # from a genuine zero
     assert lib._content_lengths(["https://x/a", "https://x/bad", "https://x/gone"]) == [
         123,
-        0,
-        0,
+        None,
+        None,
     ]
 
 
@@ -699,6 +702,7 @@ def test_prefetch_wave_cache_probe_failure_still_prefetches(
         "is_cached",
         lambda self, *a, **kw: (_ for _ in ()).throw(RuntimeError("no core")),
     )
+    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1] * len(urls))
     wave = [
         ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
         ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
