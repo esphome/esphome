@@ -620,7 +620,10 @@ def test_versionless_dependency_without_provider_warns(
         {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
     )
     convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "'Hash' of esphome/A has no version to resolve" in caplog.text
+    assert (
+        "Hash of esphome/A has no version to resolve and nothing provides it"
+        in caplog.text
+    )
 
 
 def test_walk_warns_for_nonplatform_invalid_library(
@@ -678,4 +681,31 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
         {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
     )
     convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "'file://' of esphome/A has no version to resolve" in caplog.text
+    assert (
+        "file:// of esphome/A has no version to resolve and nothing provides it"
+        in caplog.text
+    )
+
+
+def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bare dependency name satisfied by a component requested under an
+    owner-qualified spec (manifest names match) is not a drop; a nameless
+    entry is skipped without a reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "B"}, {"version": "1.0"}],
+            },
+            "esphome/B": {"name": "B"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text

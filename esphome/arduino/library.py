@@ -80,6 +80,7 @@ def _is_safe_library_name(name: object) -> bool:
         and bool(name)
         and "/" not in name
         and "\\" not in name
+        and ":" not in name  # a Windows drive-relative name escapes the tree
         and name not in (".", "..")
     )
 
@@ -294,8 +295,6 @@ def resolve_libraries(
     # "skipping" warning teaches users to ignore the real one)
     external_short_names = {lib.name.split("/")[-1] for lib in external if lib.name}
 
-    pending_drops: list[tuple[str, str]] = []
-
     def _add_bundled_dependencies(component: ConvertedLibrary) -> None:
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
         # is a core-bundled library; the shared converter skips it because
@@ -347,10 +346,8 @@ def resolve_libraries(
                 )
                 continue
             if not bundled_dir.is_dir():
-                # Deferred: the walk may still resolve this name as another
-                # library's transitive registry dependency, and a false
-                # "skipping" warning teaches users to ignore the real one
-                pending_drops.append((name, component.name))
+                # The shared walk's post-emit reconciliation reports drops
+                # (it alone knows the final resolution set); nothing to add
                 continue
             try:
                 check_library_data(dep, pio_platform, "arduino")
@@ -394,8 +391,13 @@ def resolve_libraries(
                 cache_key=cache_key,
                 # The graph walk must not resolve a bundled name from the
                 # registry ({"Wire": "*"} in a manifest); the bundled copy
-                # is added by _add_bundled_dependencies after emit
-                provides=lambda name: (framework_path / "libraries" / name).is_dir(),
+                # is added by _add_bundled_dependencies after emit. Unsafe
+                # names are simply not provided (the malformed-entry warning
+                # names them).
+                provides=lambda name: (
+                    _is_safe_library_name(name)
+                    and (framework_path / "libraries" / name).is_dir()
+                ),
             ),
         )
         if len(resolved) < len(external):
@@ -420,21 +422,5 @@ def resolve_libraries(
                 f"libraries were not resolved (missing: "
                 f"{', '.join(dropped) or 'unknown'})"
             )
-
-    # The shared converter skips version-less deps too, so this is the only
-    # place a genuine drop can be made visible before the missing sources
-    # surface as link errors; names the walk resolved anyway stay quiet.
-    # Split once from the left: strip the sanitized owner prefix only, so a
-    # library whose own name carries "__" still matches
-    resolved_short_names = {c.name.split("__", 1)[-1] for c in converted}
-    for name, requester in pending_drops:
-        if name in bundled_names or name in resolved_short_names:
-            continue
-        _LOGGER.warning(
-            "Dependency %s of library %s is not bundled with the framework "
-            "and has no version to resolve; skipping",
-            name,
-            requester,
-        )
 
     return bundled + converted

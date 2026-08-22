@@ -907,6 +907,8 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
+    # (name, requester) pairs reconciled against the final resolution set
+    skipped_versionless: list[tuple[Any, str]] = []
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         key = worklist.popleft()
@@ -991,40 +993,16 @@ def convert_libraries(
             component.data.get("dependencies"), component.name
         ):
             if "name" not in dependency or "version" not in dependency:
-                dep_name = dependency.get("name")
-                if (
-                    isinstance(dep_name, str)
-                    # _node_key raises for a malformed URL-ish name; that
-                    # entry belongs to the warning below, not a traceback
-                    and "://" not in dep_name
-                    and _node_key(dep_name, None, None)[0] in top_level_keys
-                ):
-                    # Already requested top-level: present in the build, not
-                    # a drop (a false warning teaches users to ignore the
-                    # real one)
-                    _LOGGER.debug(
-                        "Version-less dependency %r of %s is requested top-level",
-                        dep_name,
-                        component.name,
-                    )
-                elif backend.provides is None:
-                    # No backend tree can supply it and the registry cannot
-                    # resolve it: a real drop, not a routine skip
-                    _LOGGER.warning(
-                        "Dependency %r of %s has no version to resolve; skipping",
-                        dep_name,
-                        component.name,
-                    )
-                else:
-                    # A provides backend owns the post-emit reporting (the
-                    # arduino backend defers drops and suppresses names the
-                    # walk resolved, which this layer cannot know yet), so
-                    # warning here would duplicate or false-positive
-                    _LOGGER.debug(
-                        "Skip version-less dependency %r of %s",
-                        dep_name,
-                        component.name,
-                    )
+                # Version-less deps cannot resolve from the registry.
+                # Deferred: only the final resolution set can tell a real
+                # drop from a name another manifest resolves later, so the
+                # reconciliation after emit owns the warning
+                _LOGGER.debug(
+                    "Skip version-less dependency %r of %s",
+                    dependency.get("name"),
+                    component.name,
+                )
+                skipped_versionless.append((dependency.get("name"), component.name))
                 continue
             try:
                 check_library_data(dependency, backend.platform, backend.framework)
@@ -1128,5 +1106,29 @@ def convert_libraries(
         ]
     for component in components.values():
         backend.emit(component)
+
+    # A version-less dependency is satisfied when its request key resolved,
+    # a resolved component's manifest name matches, or the backend provides
+    # it from its own tree (e.g. the arduino bundled libraries, added by the
+    # backend after emit). Anything else is a real drop that would otherwise
+    # surface as link errors far from the cause.
+    resolved_manifest_names = {c.data.get("name") for c in components.values()}
+    warned: set[str] = set()
+    for dep_name, requester in skipped_versionless:
+        if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
+            continue
+        if "://" not in dep_name and _node_key(dep_name, None, None)[0] in components:
+            continue
+        if dep_name in resolved_manifest_names:
+            continue
+        if backend.provides is not None and backend.provides(dep_name):
+            continue
+        warned.add(dep_name)
+        _LOGGER.warning(
+            "Dependency %s of %s has no version to resolve and nothing "
+            "provides it; skipping",
+            dep_name,
+            requester,
+        )
 
     return [components[key] for key in top_level if key in components]
