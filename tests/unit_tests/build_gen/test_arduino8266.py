@@ -1071,6 +1071,73 @@ def test_generate_ld_scripts_unreadable_stamp_regenerates(tmp_path: Path) -> Non
     mock_run.assert_called_once()
 
 
+def test_generate_ld_scripts_edited_output_regenerates(tmp_path: Path) -> None:
+    """The stamp records the content hash, so an externally edited cached
+    script regenerates instead of linking untrusted content."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    output = ld_dir / "local.eagle.app.v6.common.ld"
+    output.write_text(output.read_text() + "\n/* tampered */\n")
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_called_once()
+    assert "tampered" not in output.read_text()
+
+
+def test_generate_ld_scripts_corrupt_output_is_overwritten(tmp_path: Path) -> None:
+    """A non-UTF-8 cached script must be overwritten by the regeneration,
+    not abort it (write_file_if_changed reads the old content)."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    output = ld_dir / "local.eagle.app.v6.common.ld"
+    output.write_bytes(b"\xff\xfe")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    assert "SECTIONS" in output.read_text(encoding="utf-8")
+
+
+def test_generate_ld_scripts_unreadable_note_still_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A cached diagnostic that cannot be read must not vanish silently."""
+    paths = _make_framework(tmp_path)
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warn!")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        ld_dir = _run_generate_ld_scripts(paths)
+    (ld_dir / ".local.eagle.app.v6.common.ld.stderr").write_bytes(b"\xff\xfe")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    assert "could not be read" in caplog.text
+
+
+def test_pio_option_blank_value_raises() -> None:
+    """An empty or blank platformio_options value is a config error, not a
+    silent fallback to the default."""
+    CORE.platformio_options = {"board_build.f_cpu": "  "}
+    with pytest.raises(EsphomeError, match="board_build.f_cpu is empty"):
+        arduino8266._pio_option("board_build.f_cpu", "80000000L")
+    CORE.platformio_options = {"board_build.f_cpu": []}
+    with pytest.raises(EsphomeError, match="board_build.f_cpu is empty"):
+        arduino8266._pio_option("board_build.f_cpu", "80000000L")
+
+
+def test_defines_flags_invalid_f_cpu_raises() -> None:
+    """A non-numeric board_build.f_cpu is rejected by name; it would land
+    unquoted on the compile line."""
+    CORE.platformio_options = {"board_build.f_cpu": "160 MHz"}
+    with pytest.raises(EsphomeError, match="Invalid board_build.f_cpu"):
+        _defines_flags(
+            _resolve(),
+            "dout",
+            "nodemcuv2",
+            ESP8266_BOARD_BUILD["nodemcuv2"]["defines"],
+        )
+
+
 def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
     """A moved rate-table anchor surfaces as a build error, not a traceback
     or a silently unrelocated table."""
@@ -1275,3 +1342,14 @@ def test_flash_ld_name_honors_ldscript_override(tmp_path: Path) -> None:
     CORE.platformio_options = {"board_build.ldscript": "../evil.ld"}
     with pytest.raises(EsphomeError, match="bare script name"):
         arduino8266._flash_ld_name("nodemcuv2")
+
+
+def test_write_project_quotes_spaced_ldscript_override(tmp_path: Path) -> None:
+    """An overridden script name re-quotes on the link line like every other
+    user token (a space would otherwise split into two argv elements)."""
+    CORE.platformio_options = {"board_build.ldscript": "my script.ld"}
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "'my script.ld'" in content or '"my script.ld"' in content
+    assert "-T my script.ld" not in content
