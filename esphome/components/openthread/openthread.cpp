@@ -273,7 +273,7 @@ bool OpenThreadComponent::teardown() {
       }
     } break;
     case TeardownStage::STOP_IN_PROCESS:
-      // waiting on openthread stop
+      // Unreachable today; kept as a hook for a future use.
       break;
     case TeardownStage::COMPLETED:
       ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");

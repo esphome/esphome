@@ -45,9 +45,6 @@ void OpenThreadComponent::setup() {
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_init();
 #endif
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-  ot_register_external_commands();
-#endif
 
   esp_openthread_config_t config = {.netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
                                     .platform_config = {
