@@ -7208,9 +7208,13 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     comp = SimpleNamespace(to_code=to_code, config_schema=object())
     wrapped = _wrap_to_code("demo", comp, yaml_util)
     with patch("esphome.codegen.add", side_effect=lambda st: comments.append(str(st))):
-        await wrapped({"beta": 1, "alpha": 2})
-        first = list(comments)
+        # Nested on purpose: the real churn lives in nested action configs,
+        # so sorting must apply at every mapping level
+        await wrapped({"beta": 1, "alpha": {"z": 1, "a": 2}})
+        first = "\n".join(comments)
         comments.clear()
-        await wrapped({"alpha": 2, "beta": 1})
-    assert first == comments
-    assert "alpha: 2" in comments[1]
+        await wrapped({"alpha": {"a": 2, "z": 1}, "beta": 1})
+    second = "\n".join(comments)
+    assert first == second
+    assert second.index("alpha") < second.index("beta")
+    assert second.index("a: 2") < second.index("z: 1")
