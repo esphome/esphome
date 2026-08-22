@@ -7424,3 +7424,29 @@ def test_cli_toolchain_still_refreshes_the_validated_config_cache(
         assert run_esphome(argv) == 0
     mock_load.assert_not_called()
     mock_save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
+    """The config comment dumps with sorted keys: voluptuous fills schema
+    defaults in set-iteration order, so an unsorted dump would churn
+    main.cpp and relink the firmware on every run."""
+    from types import SimpleNamespace
+
+    from esphome import yaml_util
+    from esphome.__main__ import _wrap_to_code
+
+    comments: list[str] = []
+
+    async def to_code(conf):
+        pass
+
+    comp = SimpleNamespace(to_code=to_code, config_schema=object())
+    wrapped = _wrap_to_code("demo", comp, yaml_util)
+    with patch("esphome.codegen.add", side_effect=lambda st: comments.append(str(st))):
+        await wrapped({"beta": 1, "alpha": 2})
+        first = list(comments)
+        comments.clear()
+        await wrapped({"alpha": 2, "beta": 1})
+    assert first == comments
+    assert "alpha: 2" in comments[1]
