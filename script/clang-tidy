@@ -338,6 +338,19 @@ def progress_bar_show(value):
     return None
 
 
+def _codechecker_pinned_version() -> str:
+    """Read the major.minor CodeChecker version pinned in requirements_codechecker.txt."""
+    requirements_path = Path(root_path) / "requirements_codechecker.txt"
+    match = re.search(
+        r"^codechecker==(\d+\.\d+)", requirements_path.read_text(), re.MULTILINE
+    )
+    if match is None:
+        raise RuntimeError(
+            f"Could not find a 'codechecker==<version>' pin in {requirements_path}"
+        )
+    return match.group(1)
+
+
 def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
 
@@ -348,7 +361,9 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
     try:
-        executable = get_binary("CodeChecker", 6, version_args=["version"])
+        executable = get_binary(
+            "CodeChecker", _codechecker_pinned_version(), version_args=["version"]
+        )
     except FileNotFoundError:
         return 1
 
@@ -452,6 +467,13 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return result.returncode or 1
+
+    # Cache validity is about database completeness, not pass/fail, so a
+    # crashed file (handled below) must not discard a complete database.
+    covered = successful + failed == len(files)
+    if covered and regenerated:
+        update_cache(cache_key_path, extra)
+
     if failed:
         # Analyzer crashes/errors must not read as a clean run just because
         # they're counted alongside successes.
@@ -460,7 +482,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    if successful != len(files):
+    if not covered:
         # A --file/compile-database mismatch analyzes 0 files and exits 0 --
         # don't let that read as a clean run.
         print(
@@ -468,13 +490,11 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             "-- --file patterns may not match the compile database",
             file=sys.stderr,
         )
+        if cache_key_path is not None and not regenerated:
+            # Drop the stale cache entry so it self-heals instead of
+            # reusing the same bad database and failing identically forever.
+            cache_key_path.unlink(missing_ok=True)
         return 1
-
-    # Only cache the compile database once we've confirmed it actually
-    # produced analysis results for every requested file -- a database that
-    # silently omits sources must not be treated as fresh next run.
-    if regenerated:
-        update_cache(cache_key_path, extra)
 
     return fixit_returncode or result.returncode or parse_result.returncode
 
@@ -598,7 +618,7 @@ def main():
 
     # Zephyr/nrf52 goes through CodeChecker instead of this script's manual
     # GCC->Clang flag translation -- see run_codechecker_zephyr().
-    if args.environment.startswith("nrf52"):
+    if "nrf" in args.environment:
         return run_codechecker_zephyr(files, args)
 
     # Load idedata and options only if we have files to check

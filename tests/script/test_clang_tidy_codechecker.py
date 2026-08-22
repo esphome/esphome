@@ -62,6 +62,9 @@ def explicit_compile_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 @pytest.fixture(autouse=True)
 def _common_mocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Tests without explicit_compile_commands need this unset to hit the
+    # generate-and-cache branch, regardless of the ambient shell.
+    monkeypatch.delenv("ESPHOME_ZEPHYR_COMPILE_COMMANDS", raising=False)
     monkeypatch.setattr(clang_tidy_script, "temp_folder", str(tmp_path))
     monkeypatch.setattr(clang_tidy_script, "get_binary", lambda *a, **k: "CodeChecker")
 

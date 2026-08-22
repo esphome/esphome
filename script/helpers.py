@@ -838,6 +838,10 @@ def load_idedata(environment: str) -> dict[str, Any]:
             ["pio", "run", "-t", "idedata", "-e", environment]
         )
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        if match is None:
+            raise RuntimeError(
+                f"Could not find idedata JSON in 'pio run -t idedata -e {environment}' output"
+            )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     update_cache(temp_hash)
@@ -858,21 +862,12 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
     except FileNotFoundError:
         pass
     binary_file = name
+    version_cmd = " ".join(version_args)
     try:
         result = subprocess.run(
             [binary_file, *version_args], text=True, capture_output=True, check=False
         )
-        # Anchored to "version" followed by the exact version number, not just
-        # those digits appearing anywhere (e.g. a build year) in the output.
-        version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
-        if result.returncode == 0 and re.search(
-            version_re, result.stdout, re.IGNORECASE
-        ):
-            return binary_file
-        raise FileNotFoundError(f"{name} not found")
-
     except FileNotFoundError:
-        version_cmd = " ".join(version_args)
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
@@ -889,6 +884,26 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
             """
         )
         raise
+
+    # Anchored to "version" followed by the exact version number, not just
+    # those digits appearing anywhere (e.g. a build year) in the output.
+    version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
+    if result.returncode == 0 and re.search(version_re, result.stdout, re.IGNORECASE):
+        return binary_file
+
+    # binary_file ran, so report what it actually said instead of masking a
+    # real cause (e.g. a missing dependency) as "not installed".
+    print(
+        f"""
+        Oops. "{name} {version_cmd}" ran but did not report version {version} as expected
+        (exit code {result.returncode}).
+          stdout: {result.stdout.strip()}
+          stderr: {result.stderr.strip()}
+
+        Please confirm {name} (v{version}) is installed correctly.
+        """
+    )
+    raise FileNotFoundError(f"{name} not found")
 
 
 def print_file_list(
