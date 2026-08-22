@@ -1291,3 +1291,36 @@ def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> Non
     with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
         _run_generate_ld_scripts(paths)
     mock_run.assert_called_once()
+
+
+def test_defines_flags_honors_f_cpu_override() -> None:
+    """board_build.f_cpu (a published-config overclock knob) reaches the
+    compile line; the default stays 80 MHz."""
+    _set_flags()
+    config = _resolve_build_config(_flag_defines(set(), []))
+    board_build = ESP8266_BOARD_BUILD["nodemcuv2"]
+    defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
+    assert "-DF_CPU=80000000L" in defines
+    CORE.platformio_options = {"board_build.f_cpu": "160000000L"}
+    defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
+    assert "-DF_CPU=160000000L" in defines
+    # A repeated option accumulates as a list; the last value wins
+    CORE.platformio_options = {"board_build.f_cpu": ["80000000L", "160000000L"]}
+    defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
+    assert "-DF_CPU=160000000L" in defines
+
+
+def test_flash_ld_name_honors_ldscript_override(tmp_path: Path) -> None:
+    """board_build.ldscript (filesystem reservation, corrected flash size)
+    replaces the board default; a path is rejected since the name resolves
+    via the -L search path."""
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m.ld"
+    CORE.platformio_options = {"board_build.ldscript": "eagle.flash.4m2m.ld"}
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m2m.ld"
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "-T eagle.flash.4m2m.ld" in content
+    CORE.platformio_options = {"board_build.ldscript": "../evil.ld"}
+    with pytest.raises(EsphomeError, match="bare script name"):
+        arduino8266._flash_ld_name("nodemcuv2")
