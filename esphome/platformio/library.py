@@ -1124,7 +1124,7 @@ def convert_libraries(
             for dependency in normalize_dependencies(
                 component.data.get("dependencies"), component.name
             ):
-                if "name" not in dependency or "version" not in dependency:
+                if "version" not in dependency:
                     # Version-less deps cannot resolve from the registry; the
                     # post-emit reconciliation owns the drop warning. An
                     # is_lib_ignored name is deliberately excluded, not a drop.
