@@ -235,7 +235,7 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
   const bool is_9344 = this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q;
   const uint8_t start_idx = is_9344 ? 2 : 1;  // skip the mode write(s), reconfigure params + commit
 
-  usb_host::transfer_cb_t callback = [this](const usb_host::TransferStatus &status) {
+  usb_host::transfer_cb_t callback = [](const usb_host::TransferStatus &status) {
     if (!status.success)
       ESP_LOGE(TAG, "Reload register write failed: %s", esp_err_to_name(status.error_code));
   };
