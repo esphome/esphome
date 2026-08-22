@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/automation.h"
 
 namespace esphome::ina226 {
 
@@ -26,6 +27,15 @@ enum AdcAvgSamples : uint16_t {
   ADC_AVG_SAMPLES_256 = 5,
   ADC_AVG_SAMPLES_512 = 6,
   ADC_AVG_SAMPLES_1024 = 7
+};
+
+enum AlertFunction : uint16_t {
+  ALERT_FUNCTION_NONE = 0,
+  ALERT_FUNCTION_SHUNT_OVER = 1 << 15,
+  ALERT_FUNCTION_SHUNT_UNDER = 1 << 14,
+  ALERT_FUNCTION_BUS_OVER = 1 << 13,
+  ALERT_FUNCTION_BUS_UNDER = 1 << 12,
+  ALERT_FUNCTION_POWER_OVER = 1 << 11
 };
 
 union ConfigurationRegister {
@@ -52,6 +62,14 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   void set_adc_time_current(AdcTime time) { adc_time_current_ = time; }
   void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
 
+  void set_alert_function(AlertFunction alert_function) { alert_function_ = alert_function; }
+  void set_alert_limit(float alert_limit) { alert_limit_ = alert_limit; }
+  void set_alert_conversion_ready(bool alert_conversion_ready) { alert_conversion_ready_ = alert_conversion_ready; }
+  void set_alert_polarity(bool alert_polarity) { alert_polarity_high_ = alert_polarity; }
+  void set_alert_latch(bool alert_latch) { alert_latch_ = alert_latch; }
+
+  void clear_alert_flag();
+
   void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { bus_voltage_sensor_ = bus_voltage_sensor; }
   void set_shunt_voltage_sensor(sensor::Sensor *shunt_voltage_sensor) { shunt_voltage_sensor_ = shunt_voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -69,7 +87,23 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
 
+  AlertFunction alert_function_{ALERT_FUNCTION_NONE};
+  float alert_limit_{0.0f};
+  bool alert_conversion_ready_{false};
+  bool alert_polarity_high_{false};
+  bool alert_latch_{false};
+
   int32_t twos_complement_(int32_t val, uint8_t bits);
+};
+
+template<typename... Ts> class ClearAlertAction : public Action<Ts...> {
+ public:
+  ClearAlertAction(INA226Component *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) override { this->parent_->clear_alert_flag(); }
+
+ protected:
+  INA226Component *parent_;
 };
 
 }  // namespace esphome::ina226

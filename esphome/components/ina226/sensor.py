@@ -1,3 +1,7 @@
+"""INA226 sensor component for ESPHome."""
+
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -23,11 +27,32 @@ DEPENDENCIES = ["i2c"]
 
 CONF_ADC_AVERAGING = "adc_averaging"
 CONF_ADC_TIME = "adc_time"
+CONF_ALERT = "alert"
+CONF_FUNCTION = "function"
+CONF_LIMIT = "limit"
+CONF_ACTIVE_HIGH = "active_high"
+CONF_LATCH = "latch"
+CONF_CONVERSION_READY = "conversion_ready"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
     "INA226Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+ClearAlertAction = ina226_ns.class_(
+    "ClearAlertAction",
+    automation.Action,
+)
+
+AlertFunction = ina226_ns.enum("AlertFunction")
+ALERT_FUNCTIONS = {
+    "none": AlertFunction.ALERT_FUNCTION_NONE,
+    "shunt_over": AlertFunction.ALERT_FUNCTION_SHUNT_OVER,
+    "shunt_under": AlertFunction.ALERT_FUNCTION_SHUNT_UNDER,
+    "bus_over": AlertFunction.ALERT_FUNCTION_BUS_OVER,
+    "bus_under": AlertFunction.ALERT_FUNCTION_BUS_UNDER,
+    "power_over": AlertFunction.ALERT_FUNCTION_POWER_OVER,
+}
 
 AdcTime = ina226_ns.enum("AdcTime")
 ADC_TIMES = {
@@ -52,6 +77,46 @@ ADC_AVG_SAMPLES = {
     512: AdcAvgSamples.ADC_AVG_SAMPLES_512,
     1024: AdcAvgSamples.ADC_AVG_SAMPLES_1024,
 }
+
+
+def validate_alert_config(config):
+    """Validate alert configuration to ensure proper usage."""
+    function = config.get(CONF_FUNCTION, "none")
+
+    # If function is not none, limit should be explicitly set
+    if function != "none":
+        if CONF_LIMIT not in config:
+            raise cv.Invalid(
+                f"alert.limit is required when alert.function is '{function}' (not 'none'). "
+                f"Please specify a threshold value for the alert."
+            )
+
+        limit = config[CONF_LIMIT]
+
+        # Range validation per function
+        if function in ["bus_over", "bus_under"]:
+            if limit < 0:
+                raise cv.Invalid(
+                    f"alert.limit must be non-negative for bus voltage alerts, got {limit}V"
+                )
+            if limit > 36.0:  # INA226 max bus voltage
+                raise cv.Invalid(
+                    f"alert.limit exceeds maximum bus voltage (36V), got {limit}V"
+                )
+        elif function == "power_over":
+            if limit < 0:
+                raise cv.Invalid(
+                    f"alert.limit must be non-negative for power alert, got {limit}W"
+                )
+        elif function in ["shunt_over", "shunt_under"]:
+            # INA226 shunt voltage range: ±81.92mV
+            # Negative values are valid for reverse current detection
+            if limit < -0.08192 or limit > 0.08192:
+                raise cv.Invalid(
+                    f"alert.limit must be within shunt voltage range (±81.92mV), got {limit * 1000:.3f}mV"
+                )
+
+    return config
 
 
 def validate_adc_time(value):
@@ -105,6 +170,23 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
             ),
+            cv.Optional(
+                CONF_ALERT,
+                default={},
+            ): cv.All(
+                cv.Schema(
+                    {
+                        cv.Optional(CONF_FUNCTION, default="none"): cv.enum(
+                            ALERT_FUNCTIONS
+                        ),
+                        cv.Optional(CONF_LIMIT): cv.float_,
+                        cv.Optional(CONF_CONVERSION_READY, default=False): cv.boolean,
+                        cv.Optional(CONF_ACTIVE_HIGH, default=False): cv.boolean,
+                        cv.Optional(CONF_LATCH, default=False): cv.boolean,
+                    }
+                ),
+                validate_alert_config,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -145,3 +227,34 @@ async def to_code(config):
     if CONF_POWER in config:
         sens = await sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))
+
+    alert_conf = config.get(CONF_ALERT)
+    if alert_conf:
+        cg.add(var.set_alert_function(alert_conf[CONF_FUNCTION]))
+        if CONF_LIMIT in alert_conf:
+            cg.add(var.set_alert_limit(alert_conf[CONF_LIMIT]))
+        else:
+            # Set default limit of 0.0 when function is "none"
+            cg.add(var.set_alert_limit(0.0))
+        cg.add(var.set_alert_conversion_ready(alert_conf[CONF_CONVERSION_READY]))
+        cg.add(var.set_alert_polarity(alert_conf[CONF_ACTIVE_HIGH]))
+        cg.add(var.set_alert_latch(alert_conf[CONF_LATCH]))
+
+
+CLEAR_ALERT_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(INA226Component),
+    },
+)
+
+
+@automation.register_action(
+    "ina226.clear_alert",
+    ClearAlertAction,
+    CLEAR_ALERT_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def ina226_clear_alert_to_code(config, action_id, template_arg, args) -> None:
+    """Service code generation entry point."""
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)
