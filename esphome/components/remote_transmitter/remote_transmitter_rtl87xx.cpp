@@ -80,12 +80,6 @@ void RemoteTransmitterComponent::setup() {
   auto *timer = new gtimer_t();
   this->timer_ = timer;
   gtimer_init(timer, ENVELOPE_TIMER_ID);
-#else
-  // AmebaZ (RTL8710B): no validated envelope timer; transmission stays spin-based
-  if (this->non_blocking_) {
-    ESP_LOGW(TAG, "non_blocking is not supported on RTL8710B; using blocking transmission");
-    this->non_blocking_ = false;
-  }
 #endif
   this->disable_loop();  // loop() is only needed while a non-blocking completion is pending
 }
