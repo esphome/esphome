@@ -18,11 +18,13 @@ from .. import (
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
+    migrate_custom_command,
     modbus_calc_properties,
     modbus_controller_ns,
 )
 from ..const import (
     CONF_BITMASK,
+    CONF_CUSTOM_COMMAND,
     CONF_CUSTOM_PDU,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
@@ -52,7 +54,9 @@ def validate_min_max(config):
 
 
 def validate_modbus_number(config):
-    if CONF_CUSTOM_PDU not in config and CONF_ADDRESS not in config:
+    # custom_command is the deprecated alias for custom_pdu (migrated later in final validate).
+    has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
+    if not has_custom and CONF_ADDRESS not in config:
         raise cv.Invalid(
             f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
@@ -81,6 +85,8 @@ CONFIG_SCHEMA = cv.All(
     validate_min_max,
     validate_modbus_number,
 )
+
+FINAL_VALIDATE_SCHEMA = migrate_custom_command
 
 
 async def to_code(config):

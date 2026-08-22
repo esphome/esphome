@@ -102,15 +102,34 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
+# The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+# so it cannot identify an individual device or read anything back.
+BROADCAST_ADDRESS = 0
+
+
+def reject_broadcast_address(
+    address: int, usage: str, guidance: str, path: list[str] | None = None
+) -> None:
+    """Raise cv.Invalid if `address` is the Modbus broadcast address (0).
+
+    `usage` names how the address is being used (e.g. "a server device address") and `guidance`
+    is a sentence telling the user what to do instead. Sharing the leading sentence here keeps the
+    call sites (server device, modbus_controller) from drifting apart.
+    """
+    if address == BROADCAST_ADDRESS:
+        raise cv.Invalid(
+            f"Address 0 is the Modbus broadcast address and cannot be used as {usage}. {guidance}",
+            path,
+        )
+
+
 def _validate_server_address(value: Any) -> int:
     address = cv.hex_uint8_t(value)
-    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
-    # so it cannot identify an individual server device.
-    if address == 0:
-        raise cv.Invalid(
-            "Address 0 is the Modbus broadcast address and cannot be used as a "
-            "server device address. Assign a unique unit address instead."
-        )
+    reject_broadcast_address(
+        address,
+        "a server device address",
+        "Assign a unique unit address instead.",
+    )
     return address
 
 
