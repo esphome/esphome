@@ -555,6 +555,12 @@ def _add_library_str(lib: str) -> None:
         cg.add_library(lib, None)
 
 
+# platformio_options keys the native ESP8266 Arduino generator honors; the
+# backend's ignored-option warning consumes this too so the two lists cannot
+# drift (a drift is either a spurious warning or a silently dropped option)
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
     if CORE.using_native_toolchain:
@@ -593,10 +599,7 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # platformio/library.py); filters top-level libraries and
                 # discovered dependencies
                 cg.add_platformio_option(key, vals)
-            elif (
-                key in ("board_build.f_cpu", "board_build.ldscript")
-                and CORE.using_toolchain_arduino
-            ):
+            elif key in NATIVE_ARDUINO_PIO_OPTIONS and CORE.using_toolchain_arduino:
                 # Real-world knobs many published ESP8266 configs rely on:
                 # f_cpu 160000000L for timing-sensitive integrations, and a
                 # custom ldscript to reserve a filesystem region or correct
