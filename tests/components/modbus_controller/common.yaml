@@ -116,6 +116,14 @@ sensor:
     name: Test Custom PDU Sensor
     custom_pdu: [0x03, 0x00, 0x2A, 0x00, 0x01]
     value_type: U_WORD
+  # Deprecated custom_command (leading byte 0x02 == modbus_controller1's address) drives the
+  # migrate_custom_command final-validate auto-migration path in CI.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_custom_command
+    name: Test Custom Command Sensor
+    custom_command: [0x02, 0x03, 0x00, 0x2B, 0x00, 0x01]
+    value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor1

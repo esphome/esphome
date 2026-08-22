@@ -145,14 +145,24 @@ ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
-        cv.Exclusive(CONF_CUSTOM_PDU, "custom_source"): cv.All(
+        cv.Exclusive(
+            CONF_CUSTOM_PDU,
+            "custom_source",
+            f"{CONF_CUSTOM_PDU} and {CONF_CUSTOM_COMMAND} can't be used together",
+        ): cv.All(
             cv.ensure_list(cv.hex_uint8_t),
             cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
         ),
         # Deprecated: takes a raw frame with a leading device address byte. Auto-migrated to
-        # custom_pdu in migrate_custom_command (final validate). Remove before 2027.3.0.
-        cv.Exclusive(CONF_CUSTOM_COMMAND, "custom_source"): cv.All(
-            cv.ensure_list(cv.hex_uint8_t), cv.Length(min=2)
+        # custom_pdu in migrate_custom_command (final validate). Remove before 2027.3.0. The upper
+        # bound is MAX_PDU_SIZE + 1: the extra byte is the address the migration strips.
+        cv.Exclusive(
+            CONF_CUSTOM_COMMAND,
+            "custom_source",
+            f"{CONF_CUSTOM_PDU} and {CONF_CUSTOM_COMMAND} can't be used together",
+        ): cv.All(
+            cv.ensure_list(cv.hex_uint8_t),
+            cv.Length(min=2, max=modbus.MAX_PDU_SIZE + 1),
         ),
         cv.Exclusive(
             CONF_OFFSET,
