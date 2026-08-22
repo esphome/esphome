@@ -2091,3 +2091,21 @@ class TestGetProjectCxxCompileFlags:
     def test_empty_flags(self) -> None:
         with patch("esphome.core.CORE", _make_core_cxx(set())):
             assert get_project_cxx_compile_flags() == []
+
+
+def test_suppress_download_progress_is_thread_local() -> None:
+    """The bar suppression only affects the thread that entered the context."""
+    import threading
+
+    from esphome import framework_helpers as fh
+
+    seen: list[bool] = []
+    with fh.suppress_download_progress():
+        assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is True
+        thread = threading.Thread(
+            target=lambda: seen.append(getattr(fh._PROGRESS_LOCAL, "disabled", False))
+        )
+        thread.start()
+        thread.join()
+    assert seen == [False]
+    assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is False
