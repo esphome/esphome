@@ -4,12 +4,12 @@ The platform analog of esp32_ble / rp2040_ble: owns the Beken BDK BLE stack
 bring-up and the controller BLE address. Consumers (bk72xx_ble_tracker) build
 on this component and contain no SDK calls of their own.
 
-Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7238/BK7252N/BK7253
-(BLE 5.2), and any future BLE-5.x SoC. Known non-5.x families are rejected in
-to_code. BK7238 is also rejected for now: with BLE compiled in, the Beken SDK
-erases the bootloader flash sector at boot because LibreTiny's partition table
-has no BLE bonding entry (esphome#18646, libretiny-eu/libretiny#408).
-Unknown families are capability-checked at compile time via
+Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7252N/BK7253 (BLE 5.2),
+and any future BLE-5.x SoC. BK7238 (BLE 5.2) is blocked for now: with BLE
+compiled in, the Beken SDK erases the bootloader flash sector at boot because
+LibreTiny's partition table has no BLE bonding entry (esphome#18646,
+libretiny-eu/libretiny#408). Known non-5.x families and BK7238 are rejected in
+to_code. Unknown families are capability-checked at compile time via
 `__has_include("app_ble.h")`, a header only on the BLE 5.x include path
 (ble_api.h ships for every SoC, so it cannot be the probe). A non-5.x build
 fails with a clear #error.
