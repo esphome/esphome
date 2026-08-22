@@ -139,6 +139,7 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //
 //   SYNCHRONOUS (small content already a RAM value; blocks only for that small write):
 //     - file_write / file_append       (writes a std::string from the automation)
+//     - file_read into a global        (reads a std::string into RAM; to_global / on_value)
 //     - raw_read  into on_value        (returns a std::vector -- bytes land in RAM)
 //     - raw_write from inline data     (a flash/lambda byte array)
 //     - file_delete / recursive delete (removes directory entries -- moves no bulk data)
@@ -156,8 +157,8 @@ bool apply_extract_step(const ExtractStep &step, std::string &buf);
 //   -- so "gone before the next action" holds only when on_complete reports success. Sequence a
 //   "recreate at the same path" from on_complete, not by ordering.
 //   file_exists is a condition, not an action: while the worker task streams on the same volume it
-//   returns false (a concurrent stat() would break per-instance serialization), so an existing file
-//   reads as absent for that window, logged at WARN.
+//   cannot stat() (that would break per-instance serialization), so it fails safe and reports the
+//   path as present for that window, logged at WARN -- a guard-then-write never clobbers a live file.
 //
 //   CONTROL-PLANE (moves no bulk data, but one driver call whose duration the medium bounds, not
 //   the author):
