@@ -815,3 +815,108 @@ def test_emit_validates_manifest_before_extra_script(tmp_path: Path) -> None:
             cache_key="arduino8266",
         )
     mock_extra.assert_not_called()
+
+
+def test_converted_properties_depends_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A converted library shipping only the properties depends= spelling
+    is visible, not a silent bundled-dependency drop."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "depends": "Wire,SPI"},
+    )
+    with _emitting_converter(converted):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "declares dependencies via library.properties" in caplog.text
+
+
+@pytest.mark.parametrize("bad_name", [1, "../escape", "a/b", ".."])
+def test_bundled_dependency_bad_name_is_malformed(
+    tmp_path: Path, bad_name: object, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency name becomes a path component; a traversal or a
+    non-string is a malformed entry, never joined."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "dependencies": [{"name": bad_name}]},
+    )
+    with _emitting_converter(converted):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Ignoring malformed dependency entry" in caplog.text
+
+
+def test_bundled_dependency_string_list_form(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The bare string-list dependency form (PIO-legal) resolves to the
+    bundled library instead of vanishing in normalization."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted(
+        "esp32async__ESPAsyncWebServer",
+        lib_dir,
+        {"build": {}, "dependencies": ["Wire"]},
+    )
+    with _emitting_converter(converted):
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Wire" in [lib.name for lib in libs]
+
+
+def test_pinned_bundled_dependency_substitution_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-* version pin on a backend-provided dependency is discarded
+    for the bundled copy; the substitution must be visible."""
+    import esphome.platformio.library as pio_library
+
+    framework = _make_framework(tmp_path)
+    local_lib = tmp_path / "locallib"
+    (local_lib / "src").mkdir(parents=True)
+    (local_lib / "src" / "local.cpp").write_text("")
+    (local_lib / "library.json").write_text(
+        '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "^2.0.0"}}'
+    )
+    _add_library(local_lib.as_uri(), None)
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.write_text("")
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Wire" in [lib.name for lib in libs]
+    assert "pins version ^2.0.0; using the library bundled" in caplog.text
