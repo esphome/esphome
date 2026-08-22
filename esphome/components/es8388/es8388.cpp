@@ -113,22 +113,42 @@ void ES8388::setup() {
 
 #ifdef USE_SELECT
   if (this->dac_output_select_ != nullptr) {
-    auto dac_power = this->get_dac_power();
-    if (dac_power.has_value()) {
-      if (this->dac_output_select_->has_index(dac_power.value())) {
-        this->dac_output_select_->publish_state(dac_power.value());
+    if (this->dac_output_initial_index_.has_value()) {
+      size_t idx = this->dac_output_initial_index_.value();
+      if (this->dac_output_select_->has_index(idx)) {
+        ES8388_ERROR_FAILED(this->set_dac_output(static_cast<DacOutputLine>(idx)));
+        this->dac_output_select_->publish_state(idx);
       } else {
-        ESP_LOGW(TAG, "Unknown DAC output power value: %d", dac_power.value());
+        ESP_LOGW(TAG, "Invalid dac_output initial_option index: %zu", idx);
+      }
+    } else {
+      auto dac_power = this->get_dac_power();
+      if (dac_power.has_value()) {
+        if (this->dac_output_select_->has_index(dac_power.value())) {
+          this->dac_output_select_->publish_state(dac_power.value());
+        } else {
+          ESP_LOGW(TAG, "Unknown DAC output power value: %d", dac_power.value());
+        }
       }
     }
   }
   if (this->adc_input_mic_select_ != nullptr) {
-    auto mic_input = this->get_mic_input();
-    if (mic_input.has_value()) {
-      if (this->adc_input_mic_select_->has_index(mic_input.value())) {
-        this->adc_input_mic_select_->publish_state(mic_input.value());
+    if (this->adc_input_mic_initial_index_.has_value()) {
+      size_t idx = this->adc_input_mic_initial_index_.value();
+      if (this->adc_input_mic_select_->has_index(idx)) {
+        ES8388_ERROR_FAILED(this->set_adc_input_mic(static_cast<AdcInputMicLine>(idx)));
+        this->adc_input_mic_select_->publish_state(idx);
       } else {
-        ESP_LOGW(TAG, "Unknown ADC input mic value: %d", mic_input.value());
+        ESP_LOGW(TAG, "Invalid adc_input_mic initial_option index: %zu", idx);
+      }
+    } else {
+      auto mic_input = this->get_mic_input();
+      if (mic_input.has_value()) {
+        if (this->adc_input_mic_select_->has_index(mic_input.value())) {
+          this->adc_input_mic_select_->publish_state(mic_input.value());
+        } else {
+          ESP_LOGW(TAG, "Unknown ADC input mic value: %d", mic_input.value());
+        }
       }
     }
   }

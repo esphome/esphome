@@ -68,11 +68,18 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
+  /// If set from YAML `initial_option`, setup() applies this index instead of reading the codec.
+  void set_dac_output_initial_index(size_t index) { this->dac_output_initial_index_ = index; }
+  void set_adc_input_mic_initial_index(size_t index) { this->adc_input_mic_initial_index_ = index; }
+
  protected:
   /// @brief Mutes or unmutes the DAC audio out
   /// @param mute_state True to mute, false to unmute
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
+
+  optional<size_t> dac_output_initial_index_{};
+  optional<size_t> adc_input_mic_initial_index_{};
 };
 
 }  // namespace esphome::es8388

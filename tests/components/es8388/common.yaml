@@ -17,5 +17,9 @@ select:
     es8388_id: es8388_parent
     dac_output:
       name: "DAC Output"
+      id: es8388_test_dac_output_select
+      initial_option: BOTH
     adc_input_mic:
       name: "ADC Input MIC"
+      id: es8388_test_adc_input_mic_select
+      initial_option: LINE2
