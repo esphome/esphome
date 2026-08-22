@@ -14,6 +14,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 import logging
 import os
@@ -330,9 +331,11 @@ def _project_flags(
     linker flag anywhere in an entry reaches the link line and
     ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
     Only the flag forms ESPHome emits are classified (``-Wl,``/``-L``/``-l``
-    and compile flags); rarities like plain-form ``-T``/``-u``/``-Xlinker``
-    route to the compile line, unlike full ParseFlags. Lexed tokens are
-    re-quoted at emission via ``_shell_token``.
+    and compile flags); plain-form ``-T``/``-u``/``-Xlinker`` raise (inert on
+    a ``-c`` compile line), unlike full ParseFlags which routes them to the
+    link line. The returned ``compile_flags`` and ``link_flags`` are already
+    ``_shell_token``-quoted; ``lib_dirs`` and ``libs`` are raw and the caller
+    must quote them at emission.
     """
     compile_flags: list[str] = []
     link_flags: list[str] = []
@@ -404,8 +407,14 @@ def generate_ld_scripts(
         header_sig = "missing"  # the preprocessor spawn below names it
     except OSError as err:
         # An unreadable header must force a cache miss every run, not pin
-        # the stamp to a constant that can never notice a later edit
-        _LOGGER.debug("Could not stat %s: %s", header, err)
+        # the stamp to a constant that can never notice a later edit; say
+        # why every build regenerates the script
+        _LOGGER.warning(
+            "Could not stat %s (%s); regenerating the linker script every "
+            "build. Run 'esphome clean-all' to reinstall the framework.",
+            header,
+            err,
+        )
         header_sig = f"unreadable:{os.urandom(8).hex()}"
     stamp_content = (
         " ".join(cmd)
@@ -475,11 +484,13 @@ def generate_ld_scripts(
         stamp.write_text(stamp_content, encoding="utf-8")
     elif stderr_note.is_file():
         # The diagnostic must not vanish for the life of the build dir just
-        # because the script is cached
-        _LOGGER.warning(
-            "Linker-script preprocessor: %s",
-            stderr_note.read_text(encoding="utf-8"),
-        )
+        # because the script is cached; best-effort like every other cache
+        # read here (a damaged note must not abort an incremental build)
+        with contextlib.suppress(OSError, UnicodeDecodeError):
+            _LOGGER.warning(
+                "Linker-script preprocessor: %s",
+                stderr_note.read_text(encoding="utf-8"),
+            )
 
     if CORE.testing_mode:
         # A patched copy of the flash ld in the build dir; resolved through
