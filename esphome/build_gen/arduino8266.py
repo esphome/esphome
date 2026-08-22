@@ -298,6 +298,19 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     )
 
 
+def _pio_option(key: str, default: str) -> str:
+    """A platformio_options value the native build honors (str-normalized).
+
+    Routed into ``CORE.platformio_options`` by core/config.py under the
+    arduino toolchain; a repeated option accumulates as a list, where the
+    last value wins like a later platformio.ini line.
+    """
+    value = CORE.platformio_options.get(key)
+    if isinstance(value, list):
+        value = value[-1] if value else None
+    return default if value is None else str(value)
+
+
 def _defines_flags(
     config: _BuildConfig, flash_mode: str, board: str, board_defines: tuple[str, ...]
 ) -> list[str]:
@@ -310,10 +323,11 @@ def _defines_flags(
     return [
         f"-D{d}"
         for d in (
-            # Upstream reads this from the board manifest (build.f_cpu); all
-            # 45 supported boards ship 80000000L, so the value is hardcoded
-            # here rather than drift (same rationale as _MMU_DEFAULT)
-            "F_CPU=80000000L",
+            # Upstream reads this from the board manifest (build.f_cpu),
+            # where all 45 supported boards ship 80000000L, overridable via
+            # board_build.f_cpu; published configs pin 160000000L for
+            # timing-sensitive integrations, so the override is honored
+            f"F_CPU={_pio_option('board_build.f_cpu', '80000000L')}",
             "__ets__",
             "ICACHE_FLASH",
             "_GNU_SOURCE",
