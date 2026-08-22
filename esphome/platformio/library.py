@@ -300,6 +300,11 @@ class LibraryBackend:
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
+    # When set, an owner-less manifest dependency this returns True for is
+    # skipped by the graph walk: the backend provides it outside the
+    # registry (e.g. a library bundled with the Arduino core), mirroring
+    # PlatformIO's process_dependencies preference for bundled builders.
+    provides: Callable[[str], bool] | None = None
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -972,6 +977,15 @@ def convert_libraries(
             )
             if is_lib_ignored(dep_name, lib_ignore):
                 _LOGGER.debug("Skip ignored dependency %s", dep_name)
+                continue
+            if (
+                backend.provides is not None
+                and not dependency.get("owner")
+                and backend.provides(dep_name)
+            ):
+                # The backend adds it from its own tree; resolving it here
+                # would fetch a same-named registry package instead
+                _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
                 continue
             # The version field may actually be a URL (git/archive dependency).
             dep_version = dependency["version"]
