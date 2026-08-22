@@ -197,7 +197,7 @@ class LightState : public EntityBase, public Component {
   void set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
 
   /// Return whether the light has any effects that meet the trait requirements.
-  bool supports_effects() { return !this->effects_.empty(); }
+  bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
   const FixedVector<LightEffect *> &get_effects() const { return this->effects_; }
@@ -285,7 +285,7 @@ class LightState : public EntityBase, public Component {
    *   return;
    * }
    */
-  bool is_transformer_active() { return this->is_transformer_active_; }
+  bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
   friend LightOutput;
