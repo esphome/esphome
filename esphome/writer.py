@@ -288,11 +288,13 @@ def copy_src_tree():
             # Source file removed, delete target
             p.unlink()
             if target not in generated_files:
+                _LOGGER.debug("Source removed: %s", target)
                 sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
                 if copy_file_if_changed(src_path, p) and target not in generated_files:
+                    _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
     # Now copy new files
@@ -303,21 +305,25 @@ def copy_src_tree():
                 copy_file_if_changed(src_path, dst_path)
                 and target not in generated_files
             ):
+                _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 
     # Finally copy defines
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/defines.h")
         sources_changed = True
     write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     if write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     ):
+        _LOGGER.debug("Source changed: esphome.h")
         sources_changed = True
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/version.h")
         sources_changed = True
 
     # Generate new build_info files if needed
@@ -333,6 +339,7 @@ def copy_src_tree():
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
     if not build_info_data_h_path.exists() or not build_info_data_cpp_path.exists():
+        _LOGGER.debug("Build info files missing; regenerating")
         sources_changed = True
     else:
         try:
@@ -341,8 +348,16 @@ def copy_src_tree():
                 existing.get("config_hash") != config_hash
                 or existing.get("esphome_version") != __version__
             ):
+                _LOGGER.debug(
+                    "Build info stale (config_hash %s -> %s, version %s -> %s)",
+                    existing.get("config_hash"),
+                    config_hash,
+                    existing.get("esphome_version"),
+                    __version__,
+                )
                 sources_changed = True
         except (json.JSONDecodeError, KeyError, OSError):
+            _LOGGER.debug("Build info JSON unreadable; regenerating")
             sources_changed = True
 
     # Write build_info header and JSON metadata
