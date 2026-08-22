@@ -1,5 +1,13 @@
 """Tests for the deep sleep component."""
 
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components import deep_sleep
+from esphome.const import PlatformFramework
+
+from ..types import SetCoreConfigCallable
+
 
 def test_deep_sleep_setup(generate_main):
     """
@@ -83,3 +91,19 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
         "    .gpio_cause = 30000,\n"
         "});"
     ) in main_cpp
+
+
+def test_deep_sleep_empty_wakeup_pin_list_rejected() -> None:
+    """An empty wakeup_pin list is rejected at validation instead of crashing codegen."""
+    with pytest.raises(cv.Invalid, match="at least one entry"):
+        deep_sleep.validate_wakeup_pin([])
+
+
+def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On BK72xx, a top-level wakeup_pin_mode with no wakeup_pin is rejected at validation."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+    with pytest.raises(cv.Invalid, match="requires wakeup_pin"):
+        deep_sleep.validate_config(config)

@@ -143,6 +143,8 @@ def validate_wakeup_pin(
         processed_pins: list[ConfigType] = [{CONF_PIN: value}]
     else:
         processed_pins = list(value)
+        if not processed_pins:
+            raise cv.Invalid("wakeup_pin needs at least one entry")
 
     for i, pin_config in enumerate(processed_pins):
         # now validate each item
@@ -157,7 +159,8 @@ def validate_config(config: ConfigType) -> ConfigType:
     # right now only BK72XX supports the list format for wakeup pins
     if CORE.is_bk72xx:
         if CONF_WAKEUP_PIN_MODE in config:
-            wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
+            if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is None:
+                raise cv.Invalid("wakeup_pin_mode requires wakeup_pin")
             if len(wakeup_pins) > 1:
                 raise cv.Invalid(
                     "You need to remove the global wakeup_pin_mode and define it per pin"
